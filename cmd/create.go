@@ -1,20 +1,17 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 )
 
+// createCmd represents the base 'create' command
 var createCmd = &cobra.Command{
 	Use:   "create",
-	Short: "Create a new resource",
-	Long:  `Create a new resource such as a project, workspace, or dependency.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Create command executed")
-	},
+	Short: "Create resources",
+	Long:  `Create various resources like projects, workspaces, dependencies, etc.`,
 }
 
+// Initializes the 'create' command and links subcommands
 func init() {
-	// Add any flags or configuration settings here
+	rootCmd.AddCommand(createCmd)
 }
