@@ -1,0 +1,63 @@
+# Neovim Plugin Definition for DevOpsMaestro
+# Place this file in templates/nvim/plugins/
+
+name: "my-custom-plugin"
+description: "Example plugin definition"
+
+# The plugin repository (GitHub shorthand or full URL)
+repo: "author/plugin-name"
+# Or full URL: repo: "https://github.com/author/plugin-name"
+
+# Optional: Plugin dependencies (will be installed first)
+dependencies:
+  - "nvim-lua/plenary.nvim"
+  - "nvim-tree/nvim-web-devicons"
+
+# Optional: Only load for specific file types
+filetypes:
+  - "python"
+  - "lua"
+
+# Optional: Lazy loading configuration
+lazy: true
+event: "VeryLazy"  # Or: "BufReadPre", "InsertEnter", etc.
+
+# Optional: Keys to trigger lazy loading
+keys:
+  - key: "<leader>mp"
+    mode: "n"
+    desc: "My Plugin Action"
+
+# Optional: Commands to trigger lazy loading
+cmd:
+  - "MyPluginCommand"
+
+# Plugin configuration (Lua code)
+config: |
+  require("my-plugin").setup({
+    enabled = true,
+    option1 = "value1",
+    option2 = true,
+  })
+
+# Optional: Additional Lua code to run on plugin load
+init: |
+  vim.g.my_plugin_var = 1
+
+# Optional: Build command (for plugins that need compilation)
+build: "make"
+# Or: build: ":TSUpdate"
+
+# Optional: Priority (higher = loads earlier)
+priority: 1000
+
+# Optional: Custom keymaps for this plugin
+keymaps:
+  - key: "<leader>mp"
+    mode: "n"
+    command: ":MyPluginCommand<CR>"
+    desc: "My Plugin Command"
+  - key: "<leader>mt"
+    mode: "n"
+    command: ":MyPluginToggle<CR>"
+    desc: "Toggle My Plugin"

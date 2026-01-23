@@ -1,0 +1,12 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: surround
+  description: "Surround text objects"
+  category: editing
+  tags: ["text-objects", "surround"]
+spec:
+  repo: kylechui/nvim-surround
+  event: ["BufReadPre", "BufNewFile"]
+  version: "*"
+  config: true

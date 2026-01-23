@@ -26,11 +26,11 @@ func Execute(database *db.Database, dataStore *db.DataStore, executor *Executor)
 		ctx = context.WithValue(ctx, "dataStore", dataStore)
 		ctx = context.WithValue(ctx, "executor", executor)
 		cmd.SetContext(ctx)
+	}
 
-		if err := rootCmd.Execute(); err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 }
 

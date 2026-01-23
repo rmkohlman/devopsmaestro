@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"devopsmaestro/models"
 	"testing"
 	"time"
@@ -34,7 +35,7 @@ func TestSQLCreateProjectWithMock(t *testing.T) {
 	mockDB := &MockDB{}
 	dataStore := &SQLDataStore{db: mockDB, queryBuilder: &SQLQueryBuilder{}}
 
-	project := &models.Project{Name: "Test Project", Description: "A test project"}
+	project := &models.Project{Name: "Test Project", Description: sql.NullString{String: "A test project", Valid: true}}
 
 	// Set the expectation for the Execute method with the correct query and parameters
 	mockDB.On("Execute", "INSERT INTO project (name, description) VALUES ($1, $2)", []interface{}{"Test Project", "A test project"}).Return(nil, nil)
@@ -50,7 +51,7 @@ func TestSQLCreateProject(t *testing.T) {
 
 	dataStore := &SQLDataStore{db: db, queryBuilder: &SQLQueryBuilder{}}
 
-	project := &models.Project{Name: "Test Project", Description: "A test project"}
+	project := &models.Project{Name: "Test Project", Description: sql.NullString{String: "A test project", Valid: true}}
 
 	err := dataStore.CreateProject(project)
 	assert.NoError(t, err)
@@ -91,7 +92,7 @@ func TestSQLUpdateProject(t *testing.T) {
 	project := &models.Project{
 		ID:          1,
 		Name:        "Test Project",
-		Description: "A test project",
+		Description: sql.NullString{String: "A test project", Valid: true},
 		CreatedAt:   time.Now().UTC(),
 		UpdatedAt:   time.Now().UTC(),
 	}
@@ -103,7 +104,7 @@ func TestSQLUpdateProject(t *testing.T) {
 
 	// Update the project details
 	project.Name = "Updated Project"
-	project.Description = "An updated test project"
+	project.Description = sql.NullString{String: "An updated test project", Valid: true}
 	project.UpdatedAt = time.Now().UTC()
 
 	err = dataStore.UpdateProject(project)

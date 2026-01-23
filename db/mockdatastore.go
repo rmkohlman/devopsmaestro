@@ -33,6 +33,53 @@ func (m *MockDataStore) ListProjects() ([]*models.Project, error) {
 	return args.Get(0).([]*models.Project), args.Error(1)
 }
 
+// Plugin CRUD operations (stub implementations for interface compliance)
+
+// CreatePlugin inserts a new plugin into the database.
+func (m *MockDataStore) CreatePlugin(plugin *models.NvimPluginDB) error {
+	return nil
+}
+
+// GetPluginByName retrieves a plugin by its name.
+func (m *MockDataStore) GetPluginByName(name string) (*models.NvimPluginDB, error) {
+	return nil, nil
+}
+
+// UpdatePlugin updates an existing plugin.
+func (m *MockDataStore) UpdatePlugin(plugin *models.NvimPluginDB) error {
+	return nil
+}
+
+// ListPlugins retrieves all plugins.
+func (m *MockDataStore) ListPlugins() ([]*models.NvimPluginDB, error) {
+	return []*models.NvimPluginDB{}, nil
+}
+
+// ListPluginsByCategory retrieves plugins by category.
+func (m *MockDataStore) ListPluginsByCategory(category string) ([]*models.NvimPluginDB, error) {
+	return []*models.NvimPluginDB{}, nil
+}
+
+// DeletePlugin deletes a plugin by name.
+func (m *MockDataStore) DeletePlugin(name string) error {
+	return nil
+}
+
+// AddPluginToWorkspace associates a plugin with a workspace.
+func (m *MockDataStore) AddPluginToWorkspace(workspaceID int, pluginID int) error {
+	return nil
+}
+
+// GetWorkspacePlugins retrieves all plugins for a workspace.
+func (m *MockDataStore) GetWorkspacePlugins(workspaceID int) ([]*models.NvimPluginDB, error) {
+	return []*models.NvimPluginDB{}, nil
+}
+
+// RemovePluginFromWorkspace removes a plugin from a workspace.
+func (m *MockDataStore) RemovePluginFromWorkspace(workspaceID int, pluginID int) error {
+	return nil
+}
+
 var mockDStoreInstance *MockDataStore
 
 func SetMockDSInstance(ds *MockDataStore) {

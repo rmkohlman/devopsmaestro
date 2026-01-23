@@ -26,26 +26,44 @@ func buildSqliteDSN(filePath string) string {
 
 // getDSN retrieves the configuration values and constructs the DSN string
 func sqliteDSN() string {
-	// have default if not found in the db directory of the application
-	filePath := viper.GetString("database_file_path")
+	// Get path from config
+	filePath := viper.GetString("database.path")
 
-	// if path is not set the make sure it creates the necessary directories and puts in in ~/.config/dvm/db location
+	// If path is not set, use default
 	if filePath == "" {
-		filePath = fmt.Sprintf("%s/.config/dvm/db/dvm.db", os.Getenv("HOME"))
+		homeDir, _ := os.UserHomeDir()
+		filePath = filepath.Join(homeDir, ".devopsmaestro", "devopsmaestro.db")
 	}
 
-	// create the directory if it does not exist
+	// Expand tilde in path
+	if filePath[:2] == "~/" {
+		homeDir, _ := os.UserHomeDir()
+		filePath = filepath.Join(homeDir, filePath[2:])
+	}
+
+	// Create the directory if it does not exist
 	if _, err := os.Stat(filepath.Dir(filePath)); os.IsNotExist(err) {
-		os.MkdirAll(filepath.Dir(filePath), os.ModePerm)
+		os.MkdirAll(filepath.Dir(filePath), 0755)
 	}
 	return buildSqliteDSN(filePath)
 }
 
 func (s *SQLiteDB) DSN() string {
 	if s._dsn == "" {
-		absPath, err := filepath.Abs(viper.GetString("database_file_path"))
+		filePath := viper.GetString("database.path")
+		if filePath == "" {
+			homeDir, _ := os.UserHomeDir()
+			filePath = filepath.Join(homeDir, ".devopsmaestro", "devopsmaestro.db")
+		}
+		// Expand tilde
+		if len(filePath) >= 2 && filePath[:2] == "~/" {
+			homeDir, _ := os.UserHomeDir()
+			filePath = filepath.Join(homeDir, filePath[2:])
+		}
+		absPath, err := filepath.Abs(filePath)
 		if err != nil {
 			fmt.Printf("Error getting absolute path: %v\n", err)
+			absPath = filePath
 		}
 		// Normal SQLite DSN for sql.Open()
 		s._dsn = fmt.Sprintf("file:%s?cache=shared&mode=rwc", absPath)
@@ -55,16 +73,28 @@ func (s *SQLiteDB) DSN() string {
 
 // MigrationDSN returns the correct DSN for golang-migrate
 func (s *SQLiteDB) MigrationDSN() string {
-	absPath, err := filepath.Abs(viper.GetString("database_file_path"))
+	filePath := viper.GetString("database.path")
+	if filePath == "" {
+		homeDir, _ := os.UserHomeDir()
+		filePath = filepath.Join(homeDir, ".devopsmaestro", "devopsmaestro.db")
+	}
+	// Expand tilde
+	if len(filePath) >= 2 && filePath[:2] == "~/" {
+		homeDir, _ := os.UserHomeDir()
+		filePath = filepath.Join(homeDir, filePath[2:])
+	}
+	absPath, err := filepath.Abs(filePath)
 	if err != nil {
 		fmt.Printf("Error getting absolute path for migrations: %v\n", err)
+		absPath = filePath
 	}
 	return fmt.Sprintf("sqlite:///%s", absPath) // Correct DSN for golang-migrate
 }
 
 // Register the SQLite implementation with the factory
 func init() {
-	RegisterDatabase("SQLITE", NewSQLiteDB)
+	RegisterDatabase("sqlite", NewSQLiteDB)
+	RegisterDatabase("SQLITE", NewSQLiteDB) // Keep uppercase for backward compatibility
 }
 
 // NewSQLiteDB creates a new SQLite database connection and returns it as a SQLiteDB instance

@@ -52,7 +52,7 @@ func (sq *SQLQueryBuilder) BuildInsertQuery(model interface{}) (string, []interf
 		values = append(values, value)
 	}
 
-	tableName := strings.ToLower(typ.Name()) // Use the struct name as the table name
+	tableName := strings.ToLower(typ.Name()) + "s" // Use the struct name as the table name (pluralized)
 
 	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", tableName, strings.Join(fieldNames, ", "), strings.Join(placeholders, ", "))
 	return query, values
@@ -97,7 +97,7 @@ func (sq *SQLQueryBuilder) BuildUpdateQuery(model interface{}, condition string,
 		values = append(values, arg)
 	}
 
-	tableName := strings.ToLower(typ.Name())
+	tableName := strings.ToLower(typ.Name()) + "s"
 	query := fmt.Sprintf("UPDATE %s SET %s WHERE %s", tableName, strings.Join(setClauses, ", "), condition)
 	return query, values
 }
@@ -126,7 +126,7 @@ func (sq *SQLQueryBuilder) BuildSelectQuery(model interface{}, condition string,
 		fieldNames = append(fieldNames, columnName)
 	}
 
-	tableName := strings.ToLower(typ.Name())
+	tableName := strings.ToLower(typ.Name()) + "s"
 	query := fmt.Sprintf("SELECT %s FROM %s WHERE %s", strings.Join(fieldNames, ", "), tableName, condition)
 	return query, conditionArgs
 }

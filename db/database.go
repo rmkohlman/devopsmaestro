@@ -47,7 +47,7 @@ func InitializeDatabase(dbInstance Database) error {
 	}
 
 	// Get the database type from the configuration
-	dbType := strings.ToLower(viper.GetString("database"))
+	dbType := strings.ToLower(viper.GetString("database.type"))
 	fmt.Printf("Database type: %s\n", dbType)
 
 	// Get the current working directory

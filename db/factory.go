@@ -30,7 +30,7 @@ func RegisterStore(storeType string, creator StoreCreator) {
 
 // DatabaseFactory creates the appropriate Database based on configuration settings
 func DatabaseFactory() (Database, error) {
-	dbType := viper.GetString("database")
+	dbType := viper.GetString("database.type")
 
 	creator, exists := databaseFactories[dbType]
 	if !exists {

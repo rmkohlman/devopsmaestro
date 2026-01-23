@@ -1,0 +1,111 @@
+# DevOpsMaestro Nvim Template Configuration
+# This defines which nvim plugins and configurations to include
+
+name: "full-workspace"
+description: "Complete nvim setup with LSP, Telescope, and all plugins"
+
+# Core options
+core:
+  enabled: true
+  options: true    # vim options (line numbers, tabs, etc.)
+  keymaps: true    # custom keymaps
+  autocmds: true   # autocommands
+
+# Plugin categories
+plugins:
+  # Essential utilities
+  essentials:
+    - plenary          # Lua utility functions
+    - tmux-navigator   # Seamless tmux/vim navigation
+  
+  # UI Enhancements
+  ui:
+    - colorscheme      # TokyoNight theme
+    - lualine          # Status line
+    - bufferline       # Buffer tabs
+    - alpha            # Start screen
+    - which-key        # Keybinding hints
+    - indent-blankline # Indent guides
+    - dressing         # Better UI components
+  
+  # File navigation
+  navigation:
+    - telescope        # Fuzzy finder
+    - nvim-tree        # File explorer
+    - harpoon          # Quick file switching
+    - auto-session     # Session management
+  
+  # Editor features
+  editor:
+    - treesitter       # Syntax highlighting
+    - autopairs        # Auto close brackets
+    - surround         # Surround text objects
+    - comment          # Easy commenting
+    - substitute       # Better substitute
+    - vim-maximizer    # Maximize splits
+  
+  # Code intelligence
+  lsp:
+    - mason            # LSP installer
+    - lspconfig        # LSP configuration
+    - nvim-cmp         # Completion
+  
+  # Git integration
+  git:
+    - gitsigns         # Git signs in gutter
+    - lazygit          # LazyGit integration
+  
+  # Code quality
+  quality:
+    - formatting       # Code formatting
+    - linting          # Code linting
+    - trouble          # Diagnostics list
+    - todo-comments    # TODO highlighting
+  
+  # AI/Productivity
+  ai:
+    - copilot-chat     # GitHub Copilot
+    - copilot-cmp      # Copilot completion
+  
+  # Language specific
+  language_specific:
+    - markdown         # Markdown support
+    - markdown-preview # Markdown preview
+    - dadbod           # Database UI
+    - dbee             # Database explorer
+    - obsidian         # Obsidian notes
+  
+  # Terminal
+  terminal:
+    - toggleterm       # Terminal integration
+
+# Language servers (via Mason)
+language_servers:
+  - gopls              # Go
+  - rust_analyzer      # Rust
+  - pyright            # Python
+  - lua_ls             # Lua
+  - bashls             # Bash
+  - clangd             # C/C++
+  - html               # HTML
+  - cssls              # CSS
+  - tailwindcss        # Tailwind
+  - yamlls             # YAML
+  - jsonls             # JSON
+  - dockerls           # Docker
+  - helm_ls            # Helm
+  - sqlls              # SQL
+
+# Formatters and linters
+tools:
+  formatters:
+    - prettier         # JS/TS/HTML/CSS
+    - stylua           # Lua
+    - black            # Python
+    - isort            # Python imports
+    - goimports        # Go imports
+  
+  linters:
+    - eslint_d         # JavaScript
+    - pylint           # Python
+    - shellcheck       # Shell scripts

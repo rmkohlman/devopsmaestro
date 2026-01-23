@@ -11,6 +11,10 @@ spec:
           description: "Initial schema creation for SQLite"
           up: "sqlite/0001_initial_schema.up.sql"
           down: "sqlite/0001_initial_schema.down.sql"
+        - name: "0002_mvp_schema"
+          description: "Add workspaces, context tables and project path"
+          up: "sqlite/0002_mvp_schema.up.sql"
+          down: "sqlite/0002_mvp_schema.down.sql"
 
     postgres:
       migrations:

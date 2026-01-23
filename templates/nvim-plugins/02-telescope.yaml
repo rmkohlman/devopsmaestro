@@ -1,0 +1,62 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: telescope
+  description: "Fuzzy finder for files, grep, buffers"
+  category: fuzzy-finder
+  tags: ["finder", "search"]
+spec:
+  repo: nvim-telescope/telescope.nvim
+  branch: 0.1.x
+  dependencies:
+    - nvim-lua/plenary.nvim
+    - repo: nvim-telescope/telescope-fzf-native.nvim
+      build: make
+    - nvim-tree/nvim-web-devicons
+  config: |
+    local telescope = require("telescope")
+    local actions = require("telescope.actions")
+
+    telescope.setup({
+      defaults = {
+        path_display = { "smart" },
+        mappings = {
+          i = {
+            ["<C-k>"] = actions.move_selection_previous,
+            ["<C-j>"] = actions.move_selection_next,
+            ["<C-q>"] = actions.send_selected_to_qflist + actions.open_qflist,
+          },
+        },
+      },
+    })
+
+    telescope.load_extension("fzf")
+  keymaps:
+    - key: "<leader><space>"
+      mode: n
+      action: "require('telescope.builtin').buffers"
+      desc: "[ ] Find existing buffers"
+    - key: "<leader>ff"
+      mode: n
+      action: "<cmd>Telescope find_files<cr>"
+      desc: "Fuzzy find files in cwd"
+    - key: "<leader>fr"
+      mode: n
+      action: "<cmd>Telescope oldfiles<cr>"
+      desc: "Fuzzy find recent files"
+    - key: "<leader>fs"
+      mode: n
+      action: "<cmd>Telescope live_grep<cr>"
+      desc: "Find string in cwd"
+    - key: "<leader>fc"
+      mode: n
+      action: "<cmd>Telescope grep_string<cr>"
+      desc: "Find string under cursor in cwd"
+    - key: "<leader>ft"
+      mode: n
+      action: "<cmd>TodoTelescope<cr>"
+      desc: "Find todos"
+    - key: "<leader>fk"
+      mode: n
+      action: "<cmd>Telescope keymaps<cr>"
+      desc: "Find keymaps"

@@ -1,0 +1,16 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: lazygit
+  description: "LazyGit integration"
+  category: git
+  tags: ["git", "ui"]
+spec:
+  repo: kdheepak/lazygit.nvim
+  cmd: ["LazyGit", "LazyGitConfig", "LazyGitCurrentFile", "LazyGitFilter", "LazyGitFilterCurrentFile"]
+  dependencies:
+    - nvim-lua/plenary.nvim
+  keys:
+    - key: "<leader>lg"
+      action: "<cmd>LazyGit<cr>"
+      desc: "Open lazy git"

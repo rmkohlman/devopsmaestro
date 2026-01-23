@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"database/sql"
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"fmt"
@@ -10,16 +11,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var createProjectCmd = &cobra.Command{
-	Use:   "create [project name]",
-	Short: "Create a new project",
-	Args:  cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
-		ctx := context.Background()
-		createProject(ctx, cmd, args)
-	},
-}
-
+// Legacy createProject function - kept for backwards compatibility
 func createProject(ctx context.Context, cmd *cobra.Command, args []string) {
 	dataStore := ctx.Value("dataStore").(db.DataStore) // Pull the dataStore from ctx.Value
 
@@ -30,10 +22,13 @@ func createProject(ctx context.Context, cmd *cobra.Command, args []string) {
 		return
 	}
 	project := models.Project{
-		Name:        projectName,
-		Description: description,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+		Name: projectName,
+		Description: sql.NullString{
+			String: description,
+			Valid:  description != "",
+		},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 
 	err = dataStore.CreateProject(&project)
@@ -42,9 +37,4 @@ func createProject(ctx context.Context, cmd *cobra.Command, args []string) {
 		return
 	}
 	fmt.Printf("Project '%s' created successfully.\n", project.Name)
-}
-
-func init() {
-	createCmd.AddCommand(createProjectCmd)
-	createProjectCmd.Flags().StringP("description", "d", "", "Description of the project")
 }
