@@ -6,9 +6,9 @@
 class Dvm < Formula
   desc "DevOpsMaestro - Kubernetes-style development environment orchestration"
   homepage "https://github.com/rmkohlman/devopsmaestro"
-  url "https://github.com/rmkohlman/devopsmaestro/archive/refs/tags/v0.1.0.tar.gz"
-  sha256 "" # TODO: Will be calculated when we create a release
-  license "GPL-3.0" # GNU General Public License v3.0
+  url "https://github.com/rmkohlman/devopsmaestro/archive/refs/tags/v0.1.0-dev.tar.gz"
+  sha256 "e165863da100e52e3de0f330f3d34e38f06847141ff61ae8f7006f7f68513fc1"
+  license "GPL-3.0"
   head "https://github.com/rmkohlman/devopsmaestro.git", branch: "main"
 
   # Uncomment when you want automatic version checking
@@ -35,12 +35,19 @@ class Dvm < Formula
       Utils.safe_popen_read("git", "describe", "--tags", "--dirty").chomp
     end
 
+    # Get commit hash (for stable releases, use a placeholder since tarball has no .git)
+    commit_hash = if build.stable?
+      "release-#{version}"
+    else
+      Utils.git_short_head
+    end
+
     # Build flags (same as in Makefile)
     ldflags = %W[
       -s -w
       -X main.Version=#{dvm_version}
       -X main.BuildTime=#{time.iso8601}
-      -X main.Commit=#{Utils.git_short_head}
+      -X main.Commit=#{commit_hash}
     ]
 
     # Build the binary
