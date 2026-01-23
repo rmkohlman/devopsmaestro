@@ -245,6 +245,71 @@ Implement `ColorizeYAML()` function with:
 
 ---
 
+## ADR-007: Local Neovim Management Integration
+
+**Date:** 2026-01-24  
+**Status:** 💡 Proposed  
+**Version:** v0.3.0 (planned)
+
+### Context
+
+DevOpsMaestro manages Neovim plugins for containerized workspaces, but users also need to:
+- Setup local Neovim config that matches workspace environments
+- Sync configuration between local machine and containers
+- Test configurations locally before deploying
+- Ensure consistent development experience across machines
+
+### Decision
+
+Integrate local Neovim management into DevOpsMaestro via `dvm nvim` commands rather than creating a separate standalone tool.
+
+**Commands to add:**
+```bash
+dvm nvim init                   # Initialize local Neovim config
+dvm nvim apply -f FILE          # Apply plugin YAML to local
+dvm nvim sync WORKSPACE         # Sync workspace → local
+dvm nvim push WORKSPACE         # Sync local → workspace  
+dvm nvim diff WORKSPACE         # Compare configurations
+```
+
+### Rationale
+
+1. **Unified Workflow** - Container and local management in one tool
+2. **Guaranteed Consistency** - Same plugin definitions for both
+3. **Better DX** - Users learn one tool instead of two
+4. **Natural Fit** - Complements existing workspace management
+5. **Validated Approach** - Prove concept before extracting
+
+### Consequences
+
+**Positive:**
+- Seamless container ↔ local synchronization
+- Single binary installation
+- No version compatibility issues
+- Natural user workflow
+
+**Negative:**
+- Increased tool scope
+- Slightly larger binary size
+- Local-only users still need container runtime installed
+
+### Alternatives Considered
+
+**Standalone Tool:**
+- Separate `nvim-maestro` CLI
+- Rejected for v0.3.0: Adds maintenance burden, version sync issues
+
+**Library Only:**
+- Pure Go library, no CLI
+- Rejected: Less accessible for end users
+
+### Future Evolution
+
+- **v0.5.0:** Extract core as reusable library (`github.com/rmkohlman/nvim-config-manager`)
+- **v1.0.0+:** Optional standalone CLI for non-DevOpsMaestro users
+
+---
+
 ## Template for Future ADRs
 
 When adding new ADRs, use this structure:

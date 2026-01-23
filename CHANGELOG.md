@@ -107,6 +107,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Planned Features (v0.3.0 and beyond)
 
+#### Local Neovim Management (v0.3.0)
+- [ ] `dvm nvim init` - Initialize local Neovim configuration
+- [ ] `dvm nvim apply -f file.yaml` - Apply plugins to local Neovim
+- [ ] `dvm nvim sync <workspace>` - Sync workspace config to local
+- [ ] `dvm nvim push <workspace>` - Push local config to workspace
+- [ ] `dvm nvim diff <workspace>` - Compare local vs workspace configs
+- [ ] Fresh machine setup workflow
+- [ ] Team configuration sharing
+
+#### Documentation & Guides (v0.3.0)
+- [ ] Comprehensive command documentation with status badges
+- [ ] Getting-started guides
+- [ ] Step-by-step tutorials
+- [ ] YAML configuration examples
+- [ ] Troubleshooting guides
+
 #### kubectl-style Command Completeness
 - [ ] `dvm apply -f file.yaml` - Top-level apply for all resource types
 - [ ] `dvm edit plugin <name>` - Top-level edit command
@@ -118,12 +134,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [ ] Add `--watch` flag for real-time resource updates
 - [ ] Shell completion (bash, zsh, fish)
 - [ ] Progress bars for long-running operations
+- [ ] Custom theme creation (v0.3.0)
+- [ ] Theme preview command (`dvm theme list --preview`)
 
 #### Advanced Features
 - [ ] Resource labels and selectors
 - [ ] Namespace support for isolation
 - [ ] Backup and restore functionality
 - [ ] Plugin marketplace/catalog
+- [ ] GoReleaser automation (v0.3.0)
+- [ ] Homebrew tap (v0.3.0)
 
 #### Quality & Testing
 - [ ] Integration tests for full workflows
