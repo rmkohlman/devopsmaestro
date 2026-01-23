@@ -1,9 +1,83 @@
 # DevOpsMaestro Commercial License
 
-For corporate or business use, you must obtain a commercial license. Please contact [Your Contact Information] to inquire about commercial licensing terms and pricing.
+## Corporate and Business Use
 
-[Additional terms and conditions for commercial use]
+DevOpsMaestro is dual-licensed:
+- **GPL-3.0** for personal, individual, educational, and open source use (FREE)
+- **Commercial License** for corporate, business, and proprietary use (PAID)
+
+## Who Needs a Commercial License?
+
+You need a commercial license if:
+- ✅ You are a corporation or business entity (LLC, Inc., Ltd, etc.)
+- ✅ You use DevOpsMaestro for commercial development work
+- ✅ You employ developers who use DevOpsMaestro
+- ✅ You want to use DevOpsMaestro without GPL-3.0 obligations
+- ✅ You want to modify DevOpsMaestro without open-sourcing changes
+
+## Who DOES NOT Need a Commercial License?
+
+You can use DevOpsMaestro for FREE under GPL-3.0 if:
+- ❌ You are an individual developer using it for personal projects
+- ❌ You are using it for learning, education, or research
+- ❌ You are developing open source software (GPL-compatible)
+- ❌ You are a nonprofit organization
+- ❌ You are a student or educator
+
+## Commercial License Benefits
+
+- ✅ Use in proprietary/closed-source projects
+- ✅ No GPL-3.0 copyleft obligations
+- ✅ Priority support and bug fixes
+- ✅ Custom feature development (optional)
+- ✅ Private forks and modifications
+- ✅ Legal protection and indemnification
+
+## Pricing Tiers
+
+### Small Team License
+- Up to 10 developers
+- Annual subscription
+- Email support
+- Contact for pricing
+
+### Enterprise License
+- Unlimited developers
+- Annual or perpetual options
+- Priority support (SLA)
+- Custom integrations available
+- Contact for pricing
+
+### OEM/Reseller License
+- Embed DevOpsMaestro in your product
+- White-label options
+- Royalty-based or flat fee
+- Contact for pricing
+
+## How to Obtain a Commercial License
+
+**Contact:**
+- Email: support@devopsmaestro.io
+- GitHub: https://github.com/rmkohlman/devopsmaestro
+- Website: (coming soon)
+
+**Include in your inquiry:**
+- Company name and size
+- Number of developers
+- Intended use case
+- Preferred license type (annual vs perpetual)
+
+## Terms Summary
+
+By using DevOpsMaestro in a commercial setting without a commercial license, you agree to comply with GPL-3.0 terms, which require you to:
+- Open source your entire codebase that uses DevOpsMaestro
+- License your code under GPL-3.0 or compatible license
+- Provide source code to all users
+
+**To avoid GPL-3.0 obligations, obtain a commercial license.**
 
 ---
 
-Contact: [Your Contact Information]
+Copyright (c) 2024-2025 Robert Kohlman. All rights reserved.
+
+For GPL-3.0 terms (free personal use), see LICENSE file.

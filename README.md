@@ -3,10 +3,22 @@
 **Kubernetes-style development environment orchestration with database-backed Neovim plugin management**
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Version](https://img.shields.io/badge/version-0.2.0-purple)](https://github.com/rmkohlman/devopsmaestro/releases)
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go)](https://golang.org/)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey)]()
 
 DevOpsMaestro is a professional CLI tool that brings Kubernetes-style declarative configuration to development environments. Work inside containerized environments with consistent, reproducible Neovim setups managed through a database-backed plugin system.
+
+## 🆕 What's New in v0.2.0
+
+- ✨ **kubectl-style commands** for plugins: `dvm get plugins`, `dvm get plugin <name>`
+- 🎨 **Beautiful colored output** with emoji icons and formatted tables
+- 🌈 **Professional theme system** with 8 popular themes (Catppuccin, Tokyo Night, Nord, Dracula, Gruvbox)
+- 🎯 **Auto-detection** of terminal light/dark theme for perfect contrast
+- 🔧 **Flexible theming** via environment variable or config file
+- 📊 **Multiple output formats** for all get commands: table, YAML, JSON (with syntax highlighting!)
+- 🧪 **Comprehensive test coverage** with 54+ passing tests
+- ✅ **Backward compatibility** maintained - all old commands still work
 
 ---
 
@@ -17,6 +29,14 @@ DevOpsMaestro is a professional CLI tool that brings Kubernetes-style declarativ
 - `dvm apply -f plugin.yaml` to manage Neovim plugins
 - `dvm get`, `dvm list`, `dvm delete` commands you already know
 - Multiple output formats: `table`, `yaml`, `json`
+- Beautiful colored output with emoji icons
+
+### 🎨 **Professional Theme System**
+- **8 popular themes**: Catppuccin, Tokyo Night, Nord, Dracula, Gruvbox (light & dark)
+- **Auto-detection**: Automatically adapts to your terminal's light/dark theme
+- **Zero config**: Beautiful by default, customizable when you need it
+- **Flexible**: Use environment variable (`DVM_THEME=catppuccin-mocha`) or config file
+- **YAML syntax highlighting**: Keys in cyan, values in yellow
 
 ### 🔌 **Database-Backed Plugin System**
 - Define Neovim plugins once in YAML, store in database
@@ -44,6 +64,7 @@ DevOpsMaestro is a professional CLI tool that brings Kubernetes-style declarativ
 - [Installation](#-installation)
 - [Core Concepts](#-core-concepts)
 - [Plugin System](#-plugin-system)
+- [Theme System](#-theme-system)
 - [Usage](#-usage)
 - [Commands](#-commands)
 - [Configuration](#-configuration)
@@ -215,6 +236,22 @@ spec:
 
 ### Managing Plugins
 
+#### New kubectl-style Commands (v0.2.0+)
+```bash
+# List all available plugins (beautiful table)
+dvm get plugins
+
+# List plugins in YAML format
+dvm get plugins -o yaml
+
+# Get specific plugin details
+dvm get plugin telescope
+
+# Get plugin in YAML format (ready to edit/share)
+dvm get plugin telescope -o yaml > telescope.yaml
+```
+
+#### Legacy Commands (still supported)
 ```bash
 # List all available plugins
 dvm plugin list -o table
@@ -256,6 +293,120 @@ dvm plugin delete telescope
 | **alpha** | ui | Dashboard/greeter |
 
 **All plugins are stored in `templates/nvim-plugins/` and ready to apply!**
+
+---
+
+## 🎨 Theme System
+
+### Beautiful Colors, Anywhere
+
+DevOpsMaestro features a professional theme system that makes your CLI output look stunning on any terminal. Choose from 8 popular themes or let it auto-detect your terminal's theme!
+
+### Available Themes
+
+| Theme | Style | Description |
+|-------|-------|-------------|
+| **auto** ⭐ | adaptive | Auto-detects light/dark terminal (default) |
+| **catppuccin-mocha** | dark | Soothing pastel purple-pink |
+| **catppuccin-latte** | light | Warm pastel purple-pink |
+| **tokyo-night** | dark | Vibrant blue-purple |
+| **nord** | dark | Cool bluish minimal |
+| **dracula** | dark | Classic purple-pink |
+| **gruvbox-dark** | dark | Warm retro colors |
+| **gruvbox-light** | light | Warm retro light |
+
+### Using Themes
+
+#### Option 1: Environment Variable (Quick Override)
+
+```bash
+# Try different themes
+DVM_THEME=catppuccin-mocha dvm get plugins
+DVM_THEME=tokyo-night dvm version
+DVM_THEME=nord dvm get plugin telescope -o yaml
+
+# Set for entire session
+export DVM_THEME=dracula
+dvm get plugins
+```
+
+#### Option 2: Config File (Permanent Setting)
+
+Create or edit `~/.devopsmaestro/config.yaml`:
+
+```yaml
+# DevOpsMaestro Configuration File
+
+# UI Theme
+# Options: auto, catppuccin-mocha, catppuccin-latte, tokyo-night,
+#          nord, dracula, gruvbox-dark, gruvbox-light
+# Default: auto (automatically adapts to your terminal's theme)
+theme: catppuccin-mocha
+```
+
+#### Option 3: Default (Zero Config)
+
+```bash
+# Just works! Auto-detects your terminal's light/dark theme
+dvm get plugins
+```
+
+### Theme Features
+
+**🎯 Auto-Detection (Default)**
+- Automatically detects if your terminal has a light or dark background
+- Adjusts colors for perfect contrast
+- Works with ANY terminal theme (Catppuccin, Tokyo Night, Solarized, etc.)
+
+**🌈 YAML Syntax Highlighting**
+- Keys displayed in cyan + bold
+- Values displayed in yellow
+- Comments in gray
+- Makes YAML output easy to read!
+
+```bash
+# Beautiful colored YAML output
+dvm get plugin telescope -o yaml
+```
+
+**🎨 Consistent Experience**
+- All output (tables, YAML, version info) uses your chosen theme
+- Emoji icons + colored text = professional appearance
+- Works across all commands
+
+### Theme Priority
+
+Themes are selected in this order:
+1. **Environment variable** (`DVM_THEME=nord`) - Highest priority
+2. **Config file** (`~/.devopsmaestro/config.yaml`) - Medium priority
+3. **Auto-detection** (`auto` theme) - Default
+
+### Examples
+
+```bash
+# Test all themes to find your favorite!
+for theme in auto catppuccin-mocha tokyo-night nord dracula gruvbox-dark; do
+    echo "Theme: $theme"
+    DVM_THEME=$theme dvm version
+    echo ""
+done
+
+# Use Catppuccin Mocha for everything
+echo "theme: catppuccin-mocha" >> ~/.devopsmaestro/config.yaml
+
+# Override config for one command
+DVM_THEME=tokyo-night dvm get plugins
+
+# Beautiful YAML with syntax highlighting
+DVM_THEME=nord dvm get plugin telescope -o yaml
+```
+
+### Why Themes?
+
+**For Consistency**: Match your terminal's existing color scheme  
+**For Readability**: High-contrast colors for better visibility  
+**For Customization**: Pick your favorite from popular themes  
+**For Professionalism**: Same approach as kubectl, gh, bat, delta
 
 ---
 
@@ -354,6 +505,20 @@ dvm apply -f workspace.yaml            # Apply configuration
 
 ### Plugin Management (kubectl-style)
 
+#### New kubectl-style Commands (v0.2.0+)
+```bash
+# List plugins (kubectl-style)
+dvm get plugins                        # List all plugins (table)
+dvm get plugins -o yaml                # List all plugins (YAML)
+dvm get plugins -o json                # List all plugins (JSON)
+
+# Get specific plugin (kubectl-style)
+dvm get plugin <name>                  # Get plugin details (table)
+dvm get plugin <name> -o yaml          # Get plugin (YAML)
+dvm get plugin <name> -o json          # Get plugin (JSON)
+```
+
+#### Legacy Commands (still supported)
 ```bash
 dvm plugin apply -f plugin.yaml        # Create/update plugin
 dvm plugin apply -f -                  # Apply from stdin
@@ -494,6 +659,9 @@ spec:
 ### Environment Variables
 
 ```bash
+# UI Theme (see Theme System section)
+export DVM_THEME=catppuccin-mocha  # Override theme
+
 # Database location
 export DVM_DATABASE_PATH=~/.devopsmaestro/devopsmaestro.db
 
@@ -503,6 +671,18 @@ export DVM_WORKSPACE=main
 
 # Container runtime
 export COLIMA_PROFILE=local-lite
+```
+
+### Application Configuration
+
+Create `~/.devopsmaestro/config.yaml` for persistent settings:
+
+```yaml
+# DevOpsMaestro Configuration File
+
+# UI Theme (see Theme System section for all options)
+# Default: auto (adapts to terminal light/dark theme)
+theme: auto
 ```
 
 ---
@@ -800,21 +980,35 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ## 📝 License
 
-DevOpsMaestro is licensed under the **GNU General Public License v3.0** (GPL-3.0).
+DevOpsMaestro uses a **dual-license model**:
 
-### Free for Personal Use
+### 🆓 Free for Personal Use (GPL-3.0)
 
 - ✅ Personal projects
 - ✅ Individual developers
-- ✅ Open source projects
+- ✅ Open source projects (GPL-compatible)
 - ✅ Learning and education
+- ✅ Non-profit organizations
 
-### Commercial Use Requires License
+### 💼 Commercial License Required
 
-For corporate or business use, a commercial license is required.
+For corporate or business use, a commercial license is required:
 
-See [LICENSE](LICENSE) for GPL-3.0 terms.  
-See [LICENSE-COMMERCIAL.txt](LICENSE-COMMERCIAL.txt) for commercial licensing.
+- 🏢 Corporations, LLCs, business entities
+- 💰 Commercial development work
+- 👥 Employees using DevOpsMaestro at work
+- 🔒 Proprietary/closed-source software
+
+**📖 See [LICENSING.md](LICENSING.md) for detailed license guide with FAQs and examples.**
+
+**📜 License Files:**
+- [LICENSE](LICENSE) - Full GPL-3.0 text (free tier)
+- [LICENSE-COMMERCIAL.txt](LICENSE-COMMERCIAL.txt) - Commercial terms and pricing
+- [LICENSING.md](LICENSING.md) - Human-friendly licensing guide
+
+**💬 Contact for Commercial Licensing:**
+- Email: support@devopsmaestro.io
+- GitHub: [Open an issue](https://github.com/rmkohlman/devopsmaestro/issues)
 
 ---
 
@@ -846,22 +1040,24 @@ See [LICENSE-COMMERCIAL.txt](LICENSE-COMMERCIAL.txt) for commercial licensing.
 
 ## 🎯 Roadmap
 
-### v0.1.0 - MVP (Current)
-- ✅ Core CLI structure
-- ✅ Database-backed plugin system
-- ✅ kubectl-style plugin commands
-- ✅ 16+ pre-built plugins
-- ✅ Docker/Colima integration
-- ✅ Professional installation (Makefile)
+### v0.2.0 - Enhanced UX ✅ (Current)
+- ✅ kubectl-style plugin commands (`dvm get plugins`)
+- ✅ Beautiful colored output with emoji icons
+- ✅ Professional theme system (8 themes)
+- ✅ Auto-detection of terminal theme
+- ✅ YAML syntax highlighting
+- ✅ Multiple output formats (table, yaml, json)
+- ✅ 54+ comprehensive tests
 
-### v0.2.0 - Enhanced UX
+### v0.3.0 - Developer Experience (Next)
 - ⏳ Workspace templates
 - ⏳ Shell completions (bash/zsh/fish)
-- ⏳ Auto-update feature
+- ⏳ `--theme` flag for commands
 - ⏳ Plugin search/discovery
 - ⏳ Better error messages
+- ⏳ Interactive mode
 
-### v0.3.0 - Collaboration
+### v0.4.0 - Collaboration
 - ⏳ Team workspaces
 - ⏳ Plugin marketplace
 - ⏳ Cloud sync (optional)
@@ -869,9 +1065,10 @@ See [LICENSE-COMMERCIAL.txt](LICENSE-COMMERCIAL.txt) for commercial licensing.
 
 ### v1.0.0 - Production Ready
 - ⏳ Homebrew official release
-- ⏳ Full test coverage
+- ⏳ Full test coverage (90%+)
 - ⏳ Performance optimizations
 - ⏳ Enterprise features
+- ⏳ Windows support (WSL2)
 
 ---
 

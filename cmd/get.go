@@ -3,12 +3,11 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"text/tabwriter"
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/operators"
+	"devopsmaestro/ui"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -71,12 +70,45 @@ var getWorkspaceCmd = &cobra.Command{
 	},
 }
 
+// getPluginsCmd lists all plugins (kubectl-style)
+var getPluginsCmd = &cobra.Command{
+	Use:   "plugins",
+	Short: "List all nvim plugins",
+	Long: `List all nvim plugins stored in the database (kubectl-style).
+
+Examples:
+  dvm get plugins
+  dvm get plugins -o yaml
+  dvm get plugins -o json`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return getPlugins(cmd)
+	},
+}
+
+// getPluginCmd gets a specific plugin (kubectl-style)
+var getPluginCmd = &cobra.Command{
+	Use:   "plugin [name]",
+	Short: "Get a specific nvim plugin",
+	Long: `Get a specific nvim plugin by name (kubectl-style).
+
+Examples:
+  dvm get plugin telescope
+  dvm get plugin telescope -o yaml
+  dvm get plugin lspconfig -o json`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return getPlugin(cmd, args[0])
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(getCmd)
 	getCmd.AddCommand(getProjectsCmd)
 	getCmd.AddCommand(getProjectCmd)
 	getCmd.AddCommand(getWorkspacesCmd)
 	getCmd.AddCommand(getWorkspaceCmd)
+	getCmd.AddCommand(getPluginsCmd)
+	getCmd.AddCommand(getPluginCmd)
 
 	// Add output format flag to all get commands
 	getCmd.PersistentFlags().StringVarP(&getOutputFormat, "output", "o", "table", "Output format (table, yaml, json)")
@@ -113,13 +145,20 @@ func getProjects(cmd *cobra.Command) error {
 		return nil
 	}
 
+	// Get active project
+	ctxMgr, err := operators.NewContextManager()
+	var activeProject string
+	if err == nil {
+		activeProject, _ = ctxMgr.GetActiveProject()
+	}
+
 	switch getOutputFormat {
 	case "yaml":
 		return outputProjectsYAML(projects)
 	case "json":
 		return outputProjectsJSON(projects)
 	default:
-		return outputProjectsTable(projects)
+		return outputProjectsTable(projects, activeProject)
 	}
 }
 
@@ -134,13 +173,20 @@ func getProject(cmd *cobra.Command, name string) error {
 		return fmt.Errorf("failed to get project: %w", err)
 	}
 
+	// Get active project
+	ctxMgr, err := operators.NewContextManager()
+	var activeProject string
+	if err == nil {
+		activeProject, _ = ctxMgr.GetActiveProject()
+	}
+
 	switch getOutputFormat {
 	case "yaml":
 		return outputProjectYAML(project)
 	case "json":
 		return outputProjectJSON(project)
 	default:
-		return outputProjectsTable([]*models.Project{project})
+		return outputProjectsTable([]*models.Project{project}, activeProject)
 	}
 }
 
@@ -156,12 +202,39 @@ func getWorkspaces(cmd *cobra.Command) error {
 		return fmt.Errorf("no active project set. Use 'dvm use project <name>' first")
 	}
 
-	// For now, just show the project name and a message
-	fmt.Printf("Project: %s\n", projectName)
-	fmt.Println("Listing workspaces not yet fully implemented")
-	fmt.Println("TODO: Need to add ListWorkspacesByProjectID method to SQLDataStore")
+	// Get active workspace
+	activeWorkspace, _ := ctxMgr.GetActiveWorkspace()
 
-	return nil
+	sqlDS, err := getDataStore(cmd)
+	if err != nil {
+		return err
+	}
+
+	// Get project to get its ID
+	project, err := sqlDS.GetProjectByName(projectName)
+	if err != nil {
+		return fmt.Errorf("failed to get project: %w", err)
+	}
+
+	// List workspaces for this project
+	workspaces, err := sqlDS.ListWorkspacesByProject(project.ID)
+	if err != nil {
+		return fmt.Errorf("failed to list workspaces: %w", err)
+	}
+
+	if len(workspaces) == 0 {
+		fmt.Printf("No workspaces found in project '%s'\n", projectName)
+		return nil
+	}
+
+	switch getOutputFormat {
+	case "yaml":
+		return outputWorkspacesYAML(workspaces, projectName)
+	case "json":
+		return outputWorkspacesJSON(workspaces, projectName)
+	default:
+		return outputWorkspacesTable(workspaces, projectName, activeWorkspace)
+	}
 }
 
 func getWorkspace(cmd *cobra.Command, name string) error {
@@ -175,6 +248,9 @@ func getWorkspace(cmd *cobra.Command, name string) error {
 	if err != nil {
 		return fmt.Errorf("no active project set. Use 'dvm use project <name>' first")
 	}
+
+	// Get active workspace
+	activeWorkspace, _ := ctxMgr.GetActiveWorkspace()
 
 	sqlDS, err := getDataStore(cmd)
 	if err != nil {
@@ -198,96 +274,176 @@ func getWorkspace(cmd *cobra.Command, name string) error {
 	case "json":
 		return outputWorkspaceJSON(workspace, project.Name)
 	default:
-		return outputWorkspacesTable([]*models.Workspace{workspace}, project.Name)
+		return outputWorkspacesTable([]*models.Workspace{workspace}, project.Name, activeWorkspace)
+	}
+}
+
+func getPlugins(cmd *cobra.Command) error {
+	sqlDS, err := getDataStore(cmd)
+	if err != nil {
+		return err
+	}
+
+	plugins, err := sqlDS.ListPlugins()
+	if err != nil {
+		return fmt.Errorf("failed to list plugins: %w", err)
+	}
+
+	if len(plugins) == 0 {
+		fmt.Println(ui.MutedStyle.Render("No plugins found"))
+		return nil
+	}
+
+	switch getOutputFormat {
+	case "yaml":
+		return outputPluginsYAML(plugins)
+	case "json":
+		return outputPluginsJSON(plugins)
+	default:
+		return outputPluginsTable(plugins)
+	}
+}
+
+func getPlugin(cmd *cobra.Command, name string) error {
+	sqlDS, err := getDataStore(cmd)
+	if err != nil {
+		return err
+	}
+
+	plugin, err := sqlDS.GetPluginByName(name)
+	if err != nil {
+		return fmt.Errorf("failed to get plugin '%s': %w", name, err)
+	}
+
+	switch getOutputFormat {
+	case "yaml":
+		return outputPluginYAML(plugin)
+	case "json":
+		return outputPluginJSON(plugin)
+	default:
+		return outputPluginsTable([]*models.NvimPluginDB{plugin})
 	}
 }
 
 // Output functions
 
-func outputProjectsTable(projects []*models.Project) error {
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	defer w.Flush()
+func outputProjectsTable(projects []*models.Project, activeProject string) error {
+	// Create table renderer with colored columns
+	tr := ui.ProjectsTableRenderer(activeProject)
 
-	fmt.Fprintln(w, "NAME\tPATH\tCREATED")
 	for _, p := range projects {
-		fmt.Fprintf(w, "%s\t%s\t%s\n",
-			p.Name,
-			p.Path,
-			p.CreatedAt.Format("2006-01-02 15:04"),
+		// Format name with active indicator and icon
+		name := p.Name
+		if activeProject != "" && p.Name == activeProject {
+			name = ui.FormatActiveItem(name, true)
+		}
+
+		tr.AddRow(
+			name,
+			ui.PathStyle.Render(p.Path),
+			ui.DateStyle.Render(p.CreatedAt.Format("2006-01-02 15:04")),
 		)
 	}
+
+	fmt.Println(tr.RenderSimple())
 	return nil
 }
 
 func outputProjectsYAML(projects []*models.Project) error {
-	encoder := yaml.NewEncoder(os.Stdout)
-	encoder.SetIndent(2)
-	defer encoder.Close()
+	var yamlOutput string
 
 	for i, p := range projects {
 		projectYAML := p.ToYAML()
-		if err := encoder.Encode(&projectYAML); err != nil {
+		data, err := yaml.Marshal(&projectYAML)
+		if err != nil {
 			return fmt.Errorf("failed to encode project %s: %w", p.Name, err)
 		}
+
+		yamlOutput += string(data)
+
 		// Add document separator between projects (but not after the last one)
 		if i < len(projects)-1 {
-			fmt.Println("---")
+			yamlOutput += "---\n"
 		}
 	}
+
+	// Colorize and print the entire YAML output
+	fmt.Print(ui.ColorizeYAML(yamlOutput))
 	return nil
 }
 
 func outputProjectYAML(project *models.Project) error {
-	encoder := yaml.NewEncoder(os.Stdout)
-	encoder.SetIndent(2)
-	defer encoder.Close()
-
 	projectYAML := project.ToYAML()
-	return encoder.Encode(&projectYAML)
+	data, err := yaml.Marshal(&projectYAML)
+	if err != nil {
+		return fmt.Errorf("failed to encode project: %w", err)
+	}
+
+	// Colorize and print the YAML output
+	fmt.Print(ui.ColorizeYAML(string(data)))
+	return nil
 }
 
-func outputWorkspacesTable(workspaces []*models.Workspace, projectName string) error {
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	defer w.Flush()
+func outputWorkspacesTable(workspaces []*models.Workspace, projectName string, activeWorkspace string) error {
+	// Create table renderer with colored columns
+	tr := ui.WorkspacesTableRenderer(activeWorkspace)
 
-	fmt.Fprintln(w, "NAME\tPROJECT\tIMAGE\tSTATUS\tCREATED")
 	for _, ws := range workspaces {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
-			ws.Name,
-			projectName,
-			ws.ImageName,
-			ws.Status,
-			ws.CreatedAt.Format("2006-01-02 15:04"),
+		// Format name with active indicator
+		name := ws.Name
+		if activeWorkspace != "" && ws.Name == activeWorkspace {
+			name = ui.FormatActiveItem(name, true)
+		}
+
+		// Style status
+		status := ui.RenderStatus(ws.Status)
+
+		tr.AddRow(
+			name,
+			ui.TextStyle.Render(projectName),
+			ui.InfoStyle.Render(ws.ImageName),
+			status,
+			ui.DateStyle.Render(ws.CreatedAt.Format("2006-01-02 15:04")),
 		)
 	}
+
+	fmt.Println(tr.RenderSimple())
 	return nil
 }
 
 func outputWorkspacesYAML(workspaces []*models.Workspace, projectName string) error {
-	encoder := yaml.NewEncoder(os.Stdout)
-	encoder.SetIndent(2)
-	defer encoder.Close()
+	var yamlOutput string
 
 	for i, ws := range workspaces {
 		workspaceYAML := ws.ToYAML(projectName)
-		if err := encoder.Encode(&workspaceYAML); err != nil {
+		data, err := yaml.Marshal(&workspaceYAML)
+		if err != nil {
 			return fmt.Errorf("failed to encode workspace %s: %w", ws.Name, err)
 		}
+
+		yamlOutput += string(data)
+
 		// Add document separator between workspaces (but not after the last one)
 		if i < len(workspaces)-1 {
-			fmt.Println("---")
+			yamlOutput += "---\n"
 		}
 	}
+
+	// Colorize and print the entire YAML output
+	fmt.Print(ui.ColorizeYAML(yamlOutput))
 	return nil
 }
 
 func outputWorkspaceYAML(workspace *models.Workspace, projectName string) error {
-	encoder := yaml.NewEncoder(os.Stdout)
-	encoder.SetIndent(2)
-	defer encoder.Close()
-
 	workspaceYAML := workspace.ToYAML(projectName)
-	return encoder.Encode(&workspaceYAML)
+	data, err := yaml.Marshal(&workspaceYAML)
+	if err != nil {
+		return fmt.Errorf("failed to encode workspace: %w", err)
+	}
+
+	// Colorize and print the YAML output
+	fmt.Print(ui.ColorizeYAML(string(data)))
+	return nil
 }
 
 // JSON output functions
@@ -333,6 +489,121 @@ func outputWorkspacesJSON(workspaces []*models.Workspace, projectName string) er
 func outputWorkspaceJSON(workspace *models.Workspace, projectName string) error {
 	workspaceYAML := workspace.ToYAML(projectName)
 	data, err := json.MarshalIndent(workspaceYAML, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal JSON: %w", err)
+	}
+	fmt.Println(string(data))
+	return nil
+}
+
+// Plugin output functions
+
+func outputPluginsTable(plugins []*models.NvimPluginDB) error {
+	// Create table renderer with colored columns
+	tr := ui.PluginsTableRenderer([]string{})
+
+	for _, p := range plugins {
+		category := ""
+		if p.Category.Valid {
+			category = p.Category.String
+		}
+
+		// Get version or default
+		version := "latest"
+		if p.Version.Valid && p.Version.String != "" {
+			version = p.Version.String
+		} else if p.Branch.Valid && p.Branch.String != "" {
+			version = "branch:" + p.Branch.String
+		}
+
+		// Format enabled status
+		enabledStr := ui.CheckMark
+		if !p.Enabled {
+			enabledStr = ui.CrossMark
+		}
+
+		tr.AddRow(
+			p.Name+" "+ui.MutedStyle.Render(enabledStr),
+			ui.CategoryStyle.Render(category),
+			ui.PathStyle.Render(p.Repo),
+			ui.VersionStyle.Render(version),
+		)
+	}
+
+	fmt.Println(tr.RenderSimple())
+	fmt.Println()
+	fmt.Println(ui.MutedStyle.Render(fmt.Sprintf("Total: %d plugins", len(plugins))))
+	return nil
+}
+
+func outputPluginsYAML(plugins []*models.NvimPluginDB) error {
+	var yamlOutput string
+
+	for i, p := range plugins {
+		pluginYAML, err := p.ToYAML()
+		if err != nil {
+			return fmt.Errorf("failed to convert plugin %s to YAML: %w", p.Name, err)
+		}
+
+		data, err := yaml.Marshal(&pluginYAML)
+		if err != nil {
+			return fmt.Errorf("failed to encode plugin %s: %w", p.Name, err)
+		}
+
+		yamlOutput += string(data)
+
+		// Add document separator between plugins (but not after the last one)
+		if i < len(plugins)-1 {
+			yamlOutput += "---\n"
+		}
+	}
+
+	// Colorize and print the entire YAML output
+	fmt.Print(ui.ColorizeYAML(yamlOutput))
+	return nil
+}
+
+func outputPluginYAML(plugin *models.NvimPluginDB) error {
+	pluginYAML, err := plugin.ToYAML()
+	if err != nil {
+		return fmt.Errorf("failed to convert plugin to YAML: %w", err)
+	}
+
+	data, err := yaml.Marshal(&pluginYAML)
+	if err != nil {
+		return fmt.Errorf("failed to encode plugin: %w", err)
+	}
+
+	// Colorize and print the YAML output
+	fmt.Print(ui.ColorizeYAML(string(data)))
+	return nil
+}
+
+func outputPluginsJSON(plugins []*models.NvimPluginDB) error {
+	pluginsYAML := make([]models.NvimPluginYAML, 0, len(plugins))
+	for _, p := range plugins {
+		pluginYAML, err := p.ToYAML()
+		if err != nil {
+			return fmt.Errorf("failed to convert plugin %s: %w", p.Name, err)
+		}
+		pluginsYAML = append(pluginsYAML, pluginYAML)
+	}
+
+	data, err := json.MarshalIndent(pluginsYAML, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal JSON: %w", err)
+	}
+	fmt.Println(string(data))
+	return nil
+}
+
+func outputPluginJSON(plugin *models.NvimPluginDB) error {
+	pluginYAML, err := plugin.ToYAML()
+	if err != nil {
+		return fmt.Errorf("failed to convert plugin to YAML: %w", err)
+	}
+
+	data, err := json.MarshalIndent(pluginYAML, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal JSON: %w", err)
 	}

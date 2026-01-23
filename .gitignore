@@ -23,3 +23,9 @@ go.work.sum
 
 # macOS specific files
 .DS_Store
+
+# AI Assistant Session State (local only)
+.ai-session/
+SESSION_STATE.md
+CONTEXT.md
+.agent-memory.md
