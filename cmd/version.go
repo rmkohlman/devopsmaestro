@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"devopsmaestro/ui"
 	"fmt"
 	"runtime"
 
@@ -19,11 +20,30 @@ var versionCmd = &cobra.Command{
 	Short: "Print version information",
 	Long:  `Print the version, build time, and commit hash of dvm.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("dvm version %s\n", Version)
-		fmt.Printf("  Commit:     %s\n", Commit)
-		fmt.Printf("  Build time: %s\n", BuildTime)
-		fmt.Printf("  Go version: %s\n", runtime.Version())
-		fmt.Printf("  OS/Arch:    %s/%s\n", runtime.GOOS, runtime.GOARCH)
+		// Beautiful version output using UI styles
+		fmt.Println()
+		// Add 'v' prefix only if not already present
+		versionDisplay := Version
+		if len(versionDisplay) > 0 && versionDisplay[0] != 'v' {
+			versionDisplay = "v" + versionDisplay
+		}
+		fmt.Printf("%s %s\n",
+			ui.HeaderStyle.Render("🚀 DevOpsMaestro (dvm)"),
+			ui.VersionStyle.Render(versionDisplay))
+		fmt.Println()
+		fmt.Printf("  %s  %s\n",
+			ui.MutedStyle.Render("Commit:    "),
+			ui.PathStyle.Render(Commit))
+		fmt.Printf("  %s  %s\n",
+			ui.MutedStyle.Render("Built:     "),
+			ui.DateStyle.Render(BuildTime))
+		fmt.Printf("  %s  %s\n",
+			ui.MutedStyle.Render("Go:        "),
+			ui.InfoStyle.Render(runtime.Version()))
+		fmt.Printf("  %s  %s\n",
+			ui.MutedStyle.Render("Platform:  "),
+			ui.TextStyle.Render(runtime.GOOS+"/"+runtime.GOARCH))
+		fmt.Println()
 	},
 }
 

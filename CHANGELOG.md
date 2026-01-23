@@ -7,6 +7,110 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.0] - 2026-01-24
+
+### 🚀 Added
+
+#### Neovim Configuration Management
+- **`dvm nvim init` command** - Initialize local Neovim configuration from templates
+  - Built-in templates: `minimal`, `kickstart`, `lazyvim`, `astronvim`
+  - Remote URL support: Clone from any Git repository
+  - GitHub shorthand: `github:user/repo` → `https://github.com/user/repo.git`
+  - GitLab/Bitbucket support: `gitlab:user/repo`, `bitbucket:user/repo`
+  - Subdirectory extraction: `--subdir` flag to use specific folder from repo
+  - Overwrite protection: `--overwrite` flag required to replace existing config
+- **`dvm nvim status` command** - Show local Neovim configuration status
+  - Display config path, template used, last sync time
+  - Show existence of config files
+  - Track local/remote changes (stub for workspace sync)
+- **`dvm nvim sync` command** - Pull config from workspace (stub implementation)
+- **`dvm nvim push` command** - Push local config to workspace (stub implementation)
+
+#### Remote Template System
+- **Git URL auto-detection** - Automatically detect and normalize Git URLs
+- **URL normalization** - Convert shorthand formats to full URLs
+- **Subdirectory support** - Extract specific folders from repositories
+- **`.git` removal** - Automatically remove Git metadata after cloning
+- **Minimal template** - Full-featured minimal Neovim config with lazy.nvim
+
+#### Shell Completion
+- **Dynamic autocompletion** for template names with descriptions
+- **Bash, Zsh, Fish, PowerShell** completion support via Cobra
+- **Custom completion functions** for enhanced developer experience
+- **Documentation** - Comprehensive shell completion guide
+
+#### Build & Release
+- **GoReleaser configuration** - Automated multi-platform releases
+  - macOS (amd64, arm64)
+  - Linux (amd64, arm64, 386)
+  - Windows (amd64, 386)
+- **Homebrew tap support** - Ready for distribution via Homebrew
+- **Checksums and archives** - Secure distribution with verification
+- **Version display fix** - Proper semver handling with `v` prefix
+
+### 🧪 Testing
+
+- **Added 19+ comprehensive tests** for Neovim functionality:
+  - `nvim/url_test.go` (13 tests) - URL parsing and normalization
+  - `nvim/manager_test.go` (8 tests) - Manager operations and status
+  - `nvim/templates_test.go` (19 tests) - Template cloning and initialization
+- **All tests passing** ✅ (38+ nvim tests, 66+ total)
+- **Integration testing** - Manual testing of all URL formats and templates
+- **Error handling coverage** - Invalid URLs, missing subdirectories, network failures
+
+### 📚 Documentation
+
+- **Created `docs/SHELL_COMPLETION.md`** - Shell completion installation guide
+- **Created `docs/development/ADR-008-shared-nvim-library.md`** - Architecture decision for shared library
+- **Created `docs/development/nvim-templates-repo-blueprint.md`** - Template repository design
+- **Created `templates/README.md`** - Template usage guide
+- **Created `templates/minimal/README.md`** - Minimal template documentation
+- **Enhanced command help** - Comprehensive examples and usage information
+
+### 🔧 Changed
+
+- **Fixed version command** - Handle `v` prefix in git tags correctly
+- **Improved error messages** - Clear feedback for common issues
+- **Enhanced CLI UX** - Better help text and examples
+
+### 📦 Files Created
+
+```
+nvim/
+├── manager.go (213 lines)       - Core Manager interface & implementation
+├── templates.go (159 lines)     - Template initialization logic
+├── url.go (89 lines)            - URL parsing utilities
+├── manager_test.go (230 lines)  - Comprehensive unit tests
+├── templates_test.go (400+ lines) - Template cloning tests
+└── url_test.go (145 lines)      - URL parsing tests
+
+cmd/
+├── nvim.go (295 lines)          - Cobra commands for dvm nvim
+└── completion.go (97 lines)     - Custom completion functions
+
+templates/
+├── README.md                    - Template documentation
+└── minimal/
+    ├── init.lua                 - Full-featured minimal config
+    └── README.md                - Minimal template guide
+
+docs/
+├── SHELL_COMPLETION.md          - Shell completion guide
+└── development/
+    ├── ADR-008-shared-nvim-library.md
+    └── nvim-templates-repo-blueprint.md
+```
+
+### 🎯 What's Next (v0.4.0)
+
+- Extract shared library to `nvim-maestro-lib` repository
+- Implement actual workspace sync functionality
+- Add YAML remote fetch support (`url:` field in configs)
+- Create public nvim-templates repository
+- Support project/workspace templates from URLs
+
+---
+
 ## [0.2.0] - 2026-01-24
 
 ### 🎨 Added
@@ -105,18 +209,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planned Features (v0.3.0 and beyond)
+### Planned Features (v0.4.0 and beyond)
 
-#### Local Neovim Management (v0.3.0)
-- [ ] `dvm nvim init` - Initialize local Neovim configuration
+#### Local Neovim Management (v0.4.0)
+- [x] `dvm nvim init` - Initialize local Neovim configuration ✅ v0.3.0
+- [x] `dvm nvim status` - Show local Neovim configuration status ✅ v0.3.0
+- [x] Shell completion support ✅ v0.3.0
 - [ ] `dvm nvim apply -f file.yaml` - Apply plugins to local Neovim
-- [ ] `dvm nvim sync <workspace>` - Sync workspace config to local
-- [ ] `dvm nvim push <workspace>` - Push local config to workspace
+- [ ] `dvm nvim sync <workspace>` - Sync workspace config to local (full implementation)
+- [ ] `dvm nvim push <workspace>` - Push local config to workspace (full implementation)
 - [ ] `dvm nvim diff <workspace>` - Compare local vs workspace configs
 - [ ] Fresh machine setup workflow
 - [ ] Team configuration sharing
 
-#### Documentation & Guides (v0.3.0)
+#### Shared Library Architecture (v0.4.0)
+- [x] Design ADR for shared library ✅ v0.3.0
+- [ ] Extract to `nvim-maestro-lib` repository
+- [ ] Create standalone `nvim-maestro` CLI (v0.5.0)
+- [ ] Publish shared library to Go modules
+
+#### Template System (v0.4.0)
+- [x] Remote URL template support ✅ v0.3.0
+- [x] GitHub/GitLab/Bitbucket shorthand ✅ v0.3.0
+- [x] Subdirectory extraction ✅ v0.3.0
+- [ ] Create public `nvim-templates` repository
+- [ ] Add more pre-configured templates
+- [ ] YAML remote fetch (`url:` field in workspace/project configs)
+
+#### Documentation & Guides (v0.4.0)
+- [x] Shell completion guide ✅ v0.3.0
+- [x] Neovim management documentation ✅ v0.3.0
 - [ ] Comprehensive command documentation with status badges
 - [ ] Getting-started guides
 - [ ] Step-by-step tutorials
@@ -132,9 +254,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Enhanced UX
 - [ ] Add deprecation warnings to old `dvm plugin` commands
 - [ ] Add `--watch` flag for real-time resource updates
-- [ ] Shell completion (bash, zsh, fish)
+- [x] Shell completion (bash, zsh, fish, powershell) ✅ v0.3.0
 - [ ] Progress bars for long-running operations
-- [ ] Custom theme creation (v0.3.0)
+- [ ] Custom theme creation (v0.4.0)
 - [ ] Theme preview command (`dvm theme list --preview`)
 
 #### Advanced Features
@@ -142,8 +264,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [ ] Namespace support for isolation
 - [ ] Backup and restore functionality
 - [ ] Plugin marketplace/catalog
-- [ ] GoReleaser automation (v0.3.0)
-- [ ] Homebrew tap (v0.3.0)
+- [x] GoReleaser automation ✅ v0.3.0
+- [x] Homebrew tap configuration ✅ v0.3.0
 
 #### Quality & Testing
 - [ ] Integration tests for full workflows
@@ -155,7 +277,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
-- **[0.2.0]** - 2026-01-24 - kubectl-style plugin commands + beautiful UI
+- **[0.3.0]** - 2026-01-24 - Neovim configuration management + remote URL templates
+- **[0.2.0]** - 2026-01-24 - Theme system + YAML syntax highlighting
 - **[0.1.0]** - 2026-01-23 - Initial release
 
 ---
