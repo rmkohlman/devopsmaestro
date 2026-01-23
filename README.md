@@ -2,10 +2,11 @@
 
 **Kubernetes-style development environment orchestration with database-backed Neovim plugin management**
 
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Version](https://img.shields.io/badge/version-0.2.0-purple)](https://github.com/rmkohlman/devopsmaestro/releases)
-[![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go)](https://golang.org/)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey)]()
+[![Release](https://img.shields.io/github/v/release/rmkohlman/devopsmaestro)](https://github.com/rmkohlman/devopsmaestro/releases/latest)
+[![License](https://img.shields.io/badge/license-GPL--3.0%20%2B%20Commercial-blue)](https://github.com/rmkohlman/devopsmaestro/blob/main/LICENSING.md)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/rmkohlman/devopsmaestro)](https://golang.org/)
+[![Tests](https://img.shields.io/badge/tests-66%20passing-brightgreen)](https://github.com/rmkohlman/devopsmaestro)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey)](https://github.com/rmkohlman/devopsmaestro/releases)
 
 DevOpsMaestro is a professional CLI tool that brings Kubernetes-style declarative configuration to development environments. Work inside containerized environments with consistent, reproducible Neovim setups managed through a database-backed plugin system.
 
@@ -125,38 +126,57 @@ dvm attach
 
 ## 💾 Installation
 
-### Quick Install (Recommended)
+### Download Pre-Built Binary (Recommended)
 
+**macOS (Apple Silicon - M1/M2/M3):**
 ```bash
-# Clone repository
-git clone https://github.com/yourusername/devopsmaestro.git
-cd devopsmaestro
-
-# Install to ~/.local/bin (no sudo required)
-make install-dev
-
-# Add to PATH
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
-source ~/.zshrc
-
-# Verify installation
+curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.2.0/dvm-darwin-arm64 -o dvm
+chmod +x dvm
+sudo mv dvm /usr/local/bin/
 dvm version
 ```
 
-### System-Wide Install
+**macOS (Intel):**
+```bash
+curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.2.0/dvm-darwin-amd64 -o dvm
+chmod +x dvm
+sudo mv dvm /usr/local/bin/
+dvm version
+```
+
+**Linux (x86_64):**
+```bash
+curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.2.0/dvm-linux-amd64 -o dvm
+chmod +x dvm
+sudo mv dvm /usr/local/bin/
+dvm version
+```
+
+**Linux (ARM64):**
+```bash
+curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.2.0/dvm-linux-arm64 -o dvm
+chmod +x dvm
+sudo mv dvm /usr/local/bin/
+dvm version
+```
+
+### Build from Source
 
 ```bash
-# Install to /usr/local/bin (requires sudo)
-sudo make install
+git clone https://github.com/rmkohlman/devopsmaestro.git
+cd devopsmaestro
+git checkout v0.2.0
+go build -o dvm
+sudo mv dvm /usr/local/bin/
 ```
 
 ### Homebrew (Coming Soon)
 
 ```bash
-brew install dvm
+brew install devopsmaestro/tap/dvm
 ```
 
-**See [INSTALL.md](INSTALL.md) for detailed installation options and troubleshooting.**
+**See [Releases](https://github.com/rmkohlman/devopsmaestro/releases) for all versions and checksums.**
 
 ### Prerequisites
 
