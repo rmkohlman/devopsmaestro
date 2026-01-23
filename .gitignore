@@ -29,3 +29,4 @@ go.work.sum
 SESSION_STATE.md
 CONTEXT.md
 .agent-memory.md
+.envrc
