@@ -233,6 +233,43 @@ func buildWorkspace(cmd *cobra.Command) error {
 		}
 	}
 
+	// Step 4.7: Copy shell configuration files to build context
+	if workspaceYAML.Spec.Shell.Theme != "none" {
+		fmt.Println("→ Copying shell configuration to build context...")
+
+		// Copy user's shell config files if they exist
+		shellFiles := []string{".zshrc", ".p10k.zsh"}
+		copiedCount := 0
+
+		for _, file := range shellFiles {
+			srcPath := filepath.Join(homeDir, file)
+			if _, err := os.Stat(srcPath); err == nil {
+				destPath := filepath.Join(project.Path, file)
+				input, err := os.ReadFile(srcPath)
+				if err != nil {
+					fmt.Printf("  ⚠️  Warning: Failed to read %s: %v\n", file, err)
+					continue
+				}
+
+				if err := os.WriteFile(destPath, input, 0644); err != nil {
+					fmt.Printf("  ⚠️  Warning: Failed to copy %s: %v\n", file, err)
+					continue
+				}
+
+				copiedCount++
+				fmt.Printf("  ✓ Copied %s (%d bytes)\n", file, len(input))
+			} else {
+				fmt.Printf("  ℹ️  %s not found, skipping\n", file)
+			}
+		}
+
+		if copiedCount > 0 {
+			fmt.Printf("✓ Shell configuration copied (%d files)\n", copiedCount)
+		} else {
+			fmt.Println("  ℹ️  No shell config files found, will use default oh-my-zsh setup")
+		}
+	}
+
 	// Step 5: Build image
 	imageName := fmt.Sprintf("dvm-%s-%s:latest", workspaceName, projectName)
 

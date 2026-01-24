@@ -70,6 +70,9 @@ func (g *DockerfileGenerator) Generate() (string, error) {
 	// Add Neovim configuration after user is created
 	g.generateNvimSection(&dockerfile)
 
+	// Add shell configuration after user is created
+	g.generateShellSetup(&dockerfile)
+
 	// Switch to dev user
 	dockerfile.WriteString("USER dev\n\n")
 
@@ -459,5 +462,34 @@ func (g *DockerfileGenerator) installNvimConfig(dockerfile *strings.Builder) {
 	dockerfile.WriteString("USER dev\n")
 	dockerfile.WriteString("# Bootstrap lazy.nvim and install plugins\n")
 	dockerfile.WriteString("RUN nvim --headless \"+Lazy! sync\" +qa || true\n\n")
+	dockerfile.WriteString("USER root\n\n")
+}
+
+// generateShellSetup configures shell environment (oh-my-zsh, themes, etc.)
+func (g *DockerfileGenerator) generateShellSetup(dockerfile *strings.Builder) {
+	// Skip if shell config is explicitly disabled
+	if g.workspaceYAML.Shell.Theme == "none" {
+		return
+	}
+
+	user := g.workspaceYAML.Container.User
+	if user == "" {
+		user = "dev"
+	}
+
+	// Install oh-my-zsh
+	dockerfile.WriteString("# Install oh-my-zsh\n")
+	dockerfile.WriteString(fmt.Sprintf("USER %s\n", user))
+	dockerfile.WriteString("RUN sh -c \"$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)\" \"\" --unattended\n\n")
+
+	// Copy user's shell configuration files if they exist in build context
+	dockerfile.WriteString("# Copy shell configuration (if exists)\n")
+	dockerfile.WriteString(fmt.Sprintf("COPY --chown=%s:%s .zshrc /home/%s/.zshrc\n", user, user, user))
+	dockerfile.WriteString(fmt.Sprintf("COPY --chown=%s:%s .p10k.zsh /home/%s/.p10k.zsh\n\n", user, user, user))
+
+	// Install Powerlevel10k theme
+	dockerfile.WriteString("# Install Powerlevel10k theme\n")
+	dockerfile.WriteString(fmt.Sprintf("RUN git clone --depth=1 https://github.com/romkatv/powerlevel10k.git /home/%s/.oh-my-zsh/custom/themes/powerlevel10k || true\n\n", user))
+
 	dockerfile.WriteString("USER root\n\n")
 }

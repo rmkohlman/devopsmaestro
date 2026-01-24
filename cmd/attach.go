@@ -6,8 +6,13 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/spf13/cobra"
+)
+
+var (
+	attachForceRecreate bool
 )
 
 // attachCmd attaches to the active workspace
@@ -114,8 +119,67 @@ Examples:
 			"sudo", "nerdctl", "--namespace", "devopsmaestro", "ps", "-q", "-f", fmt.Sprintf("name=%s", containerName))
 		output, _ := checkCmd.Output()
 
-		if len(output) == 0 {
-			// Container doesn't exist or isn't running - create it
+		containerExists := len(output) > 0
+
+		// If --force-recreate flag is set, always recreate
+		if containerExists && attachForceRecreate {
+			fmt.Println("🔄 Force recreating container...")
+
+			// Stop and remove old container
+			stopCmd := exec.Command("colima", "--profile", profile, "ssh", "--",
+				"sudo", "nerdctl", "--namespace", "devopsmaestro", "rm", "-f", containerName)
+			stopCmd.Run() // Ignore errors
+
+			containerExists = false
+		}
+
+		// If container exists, check if it's using the current image
+		if containerExists {
+			// Get the image ID the container is using
+			inspectCmd := exec.Command("colima", "--profile", profile, "ssh", "--",
+				"sudo", "nerdctl", "--namespace", "devopsmaestro", "inspect",
+				"--format", "{{.ImageID}}", containerName)
+			containerImageOutput, err := inspectCmd.CombinedOutput()
+			containerImageID := strings.TrimSpace(string(containerImageOutput))
+
+			fmt.Printf("🔍 Container image ID: '%s' (err: %v)\n", containerImageID, err)
+
+			// Get the current image ID
+			currentImageCmd := exec.Command("colima", "--profile", profile, "ssh", "--",
+				"sudo", "nerdctl", "--namespace", "devopsmaestro", "inspect",
+				"--format", "{{.ID}}", imageName)
+			currentImageOutput, err := currentImageCmd.CombinedOutput()
+			currentImageID := strings.TrimSpace(string(currentImageOutput))
+
+			fmt.Printf("🔍 Current image ID: '%s' (err: %v)\n", currentImageID, err)
+			fmt.Printf("🔍 Image name being checked: '%s'\n", imageName)
+
+			// If the image has changed, recreate the container
+			if containerImageID != "" && currentImageID != "" && containerImageID != currentImageID {
+				fmt.Println("⚠️  Image has been updated - recreating container...")
+				if len(containerImageID) >= 12 && len(currentImageID) >= 12 {
+					fmt.Printf("   Old image: %s...\n", containerImageID[:12])
+					fmt.Printf("   New image: %s...\n", currentImageID[:12])
+				} else {
+					fmt.Printf("   Old image: %s\n", containerImageID)
+					fmt.Printf("   New image: %s\n", currentImageID)
+				}
+
+				// Stop and remove old container
+				stopCmd := exec.Command("colima", "--profile", profile, "ssh", "--",
+					"sudo", "nerdctl", "--namespace", "devopsmaestro", "rm", "-f", containerName)
+				stopCmd.Run() // Ignore errors
+
+				containerExists = false
+			} else {
+				fmt.Printf("🔍 Image comparison - equal: %t, both non-empty: %t\n",
+					containerImageID == currentImageID,
+					containerImageID != "" && currentImageID != "")
+			}
+		}
+
+		if !containerExists {
+			// Container doesn't exist or was removed - create it
 			fmt.Println("Creating container...")
 
 			// Convert project path to VM path (assumes home directory is mounted)
@@ -164,4 +228,5 @@ Examples:
 // Initializes the attach command
 func init() {
 	rootCmd.AddCommand(attachCmd)
+	attachCmd.Flags().BoolVar(&attachForceRecreate, "force-recreate", false, "Force recreate container even if running")
 }
