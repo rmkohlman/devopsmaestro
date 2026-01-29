@@ -5,6 +5,98 @@
 
 ---
 
+## QUICK START FOR AI ASSISTANTS
+
+**Read this section first to get fully up to speed on the project.**
+
+### Step 1: Read These Files (In Order)
+
+| Priority | File | Purpose | Location |
+|----------|------|---------|----------|
+| 1 | `current-session.md` | **What's in progress RIGHT NOW** - read first! | `~/Developer/tools/devopsmaestro-private/` |
+| 2 | `CLAUDE.md` | Project architecture & patterns (this file) | `~/Developer/tools/devopsmaestro/` |
+| 3 | `decisions.md` | Technical decisions history | `~/Developer/tools/devopsmaestro-private/` |
+| 4 | `project-context.md` | High-level architecture & roadmap | `~/Developer/tools/devopsmaestro-private/` |
+
+### Step 2: Know the Key Locations
+
+```
+~/Developer/tools/devopsmaestro/           # PUBLIC - Main codebase
+~/Developer/tools/devopsmaestro-private/   # PRIVATE - Session state & decisions
+```
+
+### Step 3: Reference Documents by Task
+
+| When Doing... | Read This Document | Location |
+|---------------|-------------------|----------|
+| **Releasing a version** | `docs/development/release-process.md` | Main repo |
+| **Running tests** | `MANUAL_TEST_PLAN.md` | Main repo |
+| **Writing code** | `STANDARDS.md` | Main repo |
+| **Making architecture decisions** | `decisions.md` | Private repo |
+| **Understanding the codebase** | `project-context.md` | Private repo |
+
+### Step 4: Session Protocol
+
+**AT START of every session:**
+```bash
+# 1. Read current session state (MOST IMPORTANT)
+cat ~/Developer/tools/devopsmaestro-private/current-session.md
+
+# 2. Pull latest changes
+cd ~/Developer/tools/devopsmaestro-private && git pull
+cd ~/Developer/tools/devopsmaestro && git pull
+```
+
+**AT END of every session:**
+```bash
+# 1. Update current-session.md with what was done and next steps
+# 2. Commit and push BOTH repos
+cd ~/Developer/tools/devopsmaestro-private
+git add . && git commit -m "Update session: <brief description>" && git push
+
+cd ~/Developer/tools/devopsmaestro
+git add . && git commit -m "<commit message>" && git push
+```
+
+### Quick Command Reference
+
+```bash
+# Build & Test
+go build -o dvm              # Build binary
+go test ./...                # Run all tests
+go fmt ./...                 # Format code
+go vet ./...                 # Check for issues
+
+# Manual Tests
+./tests/manual/part1-setup-and-build.sh   # Setup & build tests
+./tests/manual/part2-post-attach.sh       # Post-attach tests
+
+# Release (follow docs/development/release-process.md)
+git tag -a vX.Y.Z -m "Release vX.Y.Z: description"
+git push origin vX.Y.Z
+```
+
+### File Index
+
+| Document | Purpose | When to Use |
+|----------|---------|-------------|
+| **Main Repo (`devopsmaestro/`)** | | |
+| `CLAUDE.md` | AI context, architecture, patterns | Always - this is your primary reference |
+| `STANDARDS.md` | Code standards, design principles | When writing/reviewing code |
+| `MANUAL_TEST_PLAN.md` | Test procedures, test scripts | When testing changes |
+| `README.md` | User documentation | Understanding features |
+| `CHANGELOG.md` | Version history | Before releases |
+| `docs/development/release-process.md` | Release checklist | When releasing versions |
+| `verify-release.sh` | Release verification | After creating releases |
+| `.goreleaser.yaml` | GoReleaser config | Automated releases |
+| **Private Repo (`devopsmaestro-private/`)** | | |
+| `current-session.md` | Active work state | **START OF EVERY SESSION** |
+| `decisions.md` | Technical decisions (ADR format) | Making architecture decisions |
+| `project-context.md` | Architecture overview | Understanding the project |
+| `archive/` | Historical sessions | Reference past work |
+
+---
+
 ## CRITICAL: Private Session Data Repository
 
 ### Location & Purpose

@@ -10,7 +10,7 @@
 
 DevOpsMaestro is a professional CLI tool that brings Kubernetes-style declarative configuration to development environments. Work inside containerized environments with consistent, reproducible Neovim setups managed through a database-backed plugin system.
 
-## 🆕 What's New in v0.3.0
+## 🆕 What's New in v0.3.1
 
 - 🖥️ **Multi-platform support**: OrbStack, Docker Desktop, Podman, Colima
 - 🔌 **Platform detection**: `dvm get platforms` shows available container runtimes
@@ -129,7 +129,7 @@ dvm attach
 
 **macOS (Apple Silicon - M1/M2/M3):**
 ```bash
-curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.3.0/dvm-darwin-arm64 -o dvm
+curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.3.1/dvm-darwin-arm64 -o dvm
 chmod +x dvm
 sudo mv dvm /usr/local/bin/
 dvm version
@@ -137,7 +137,7 @@ dvm version
 
 **macOS (Intel):**
 ```bash
-curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.3.0/dvm-darwin-amd64 -o dvm
+curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.3.1/dvm-darwin-amd64 -o dvm
 chmod +x dvm
 sudo mv dvm /usr/local/bin/
 dvm version
@@ -145,7 +145,7 @@ dvm version
 
 **Linux (x86_64):**
 ```bash
-curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.3.0/dvm-linux-amd64 -o dvm
+curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.3.1/dvm-linux-amd64 -o dvm
 chmod +x dvm
 sudo mv dvm /usr/local/bin/
 dvm version
@@ -153,7 +153,7 @@ dvm version
 
 **Linux (ARM64):**
 ```bash
-curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.3.0/dvm-linux-arm64 -o dvm
+curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.3.1/dvm-linux-arm64 -o dvm
 chmod +x dvm
 sudo mv dvm /usr/local/bin/
 dvm version
@@ -164,7 +164,7 @@ dvm version
 ```bash
 git clone https://github.com/rmkohlman/devopsmaestro.git
 cd devopsmaestro
-git checkout v0.3.0
+git checkout v0.3.1
 go build -o dvm
 sudo mv dvm /usr/local/bin/
 ```
@@ -1068,7 +1068,7 @@ For corporate or business use, a commercial license is required:
 - ✅ Multiple output formats (table, yaml, json)
 - ✅ 54+ comprehensive tests
 
-### v0.3.0 - Multi-Platform Support ✅ (Current)
+### v0.3.1 - Multi-Platform Support ✅ (Current)
 - ✅ Multi-platform container runtime (OrbStack, Docker Desktop, Podman, Colima)
 - ✅ Platform detection (`dvm get platforms`)
 - ✅ Decoupled architecture (swappable builders, runtimes, database)

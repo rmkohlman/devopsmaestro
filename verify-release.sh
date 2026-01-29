@@ -4,7 +4,7 @@
 
 set -e
 
-VERSION="0.2.0"
+VERSION="0.3.1"
 REPO="rmkohlman/devopsmaestro"
 RELEASE_URL="https://github.com/${REPO}/releases/download/v${VERSION}"
 
@@ -77,7 +77,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "✅ All verification tests passed!"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "🎉 v0.2.0 release is LIVE and working!"
+echo "🎉 v0.3.1 release is LIVE and working!"
 echo ""
 echo "📍 Release URL: https://github.com/${REPO}/releases/tag/v${VERSION}"
 echo "📍 Latest:      https://github.com/${REPO}/releases/latest"
