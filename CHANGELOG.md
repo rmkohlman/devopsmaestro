@@ -7,9 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.3.0] - 2026-01-24
+## [0.3.0] - 2026-01-29
 
 ### 🚀 Added
+
+#### Multi-Platform Container Runtime Support
+- **Platform detection** for OrbStack, Docker Desktop, Podman, and Colima
+- **`dvm get platforms`** - List all detected container platforms with status
+- **Automatic runtime selection** based on detected platform
+- **Containerd support** for Colima with containerd runtime
+- **Multiple socket path detection** for improved OrbStack reliability
+
+#### Decoupled Architecture
+- **ImageBuilder interface** with implementations:
+  - `DockerBuilder` - Standard Docker build
+  - `BuildKitBuilder` - BuildKit-based builds for containerd
+  - `NerdctlBuilder` - nerdctl for Colima/containerd
+- **Driver/DataStore/QueryBuilder interfaces** for database abstraction
+- **ContainerRuntime interface** for multi-platform support
+- **Formatter interface** with Plain and Colored implementations
+- **Mock implementations** for all major interfaces (testing)
+
+#### Structured Logging
+- **slog integration** using Go's standard library
+- **`-v/--verbose` flag** for debug output to stderr
+- **`--log-file` flag** for JSON logging to file
+- **Silent by default** following CLI best practices
+
+#### Testing Infrastructure
+- **Manual test scripts** in `tests/manual/`:
+  - `part1-setup-and-build.sh` - 18 automated setup/build tests
+  - `part2-post-attach.sh` - 16 automated post-attach tests
+- **Comprehensive mock implementations** for unit testing
+- **All 34 manual tests passing**
+
+#### Documentation
+- **CLAUDE.md** - AI assistant context and project architecture
+- **STANDARDS.md** - Development standards and patterns
+- **MANUAL_TEST_PLAN.md** - Comprehensive testing procedures
 
 #### Neovim Configuration Management
 - **`dvm nvim init` command** - Initialize local Neovim configuration from templates
@@ -72,6 +107,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Fixed version command** - Handle `v` prefix in git tags correctly
 - **Improved error messages** - Clear feedback for common issues
 - **Enhanced CLI UX** - Better help text and examples
+
+### 🐛 Fixed
+
+- **Build failing when `.config/nvim` doesn't exist** - Now shows skip message
+- **`dvm attach` warning when image not built** - Clear warning with instructions
+- **Podman buildkit compatibility** - Added `--load` flag for image loading
+- **OrbStack detection** - Check multiple socket paths for reliability
+- **Plugin delete UX** - Clearer messaging about what gets deleted
 
 ### 📦 Files Created
 
@@ -277,7 +320,7 @@ docs/
 
 ## Version History
 
-- **[0.3.0]** - 2026-01-24 - Neovim configuration management + remote URL templates
+- **[0.3.0]** - 2026-01-29 - Multi-platform support + decoupled architecture + Neovim config management
 - **[0.2.0]** - 2026-01-24 - Theme system + YAML syntax highlighting
 - **[0.1.0]** - 2026-01-23 - Initial release
 

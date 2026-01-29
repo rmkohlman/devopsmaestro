@@ -10,16 +10,15 @@
 
 DevOpsMaestro is a professional CLI tool that brings Kubernetes-style declarative configuration to development environments. Work inside containerized environments with consistent, reproducible Neovim setups managed through a database-backed plugin system.
 
-## 🆕 What's New in v0.2.0
+## 🆕 What's New in v0.3.0
 
-- ✨ **kubectl-style commands** for plugins: `dvm get plugins`, `dvm get plugin <name>`
-- 🎨 **Beautiful colored output** with emoji icons and formatted tables
-- 🌈 **Professional theme system** with 8 popular themes (Catppuccin, Tokyo Night, Nord, Dracula, Gruvbox)
-- 🎯 **Auto-detection** of terminal light/dark theme for perfect contrast
-- 🔧 **Flexible theming** via environment variable or config file
-- 📊 **Multiple output formats** for all get commands: table, YAML, JSON (with syntax highlighting!)
-- 🧪 **Comprehensive test coverage** with 54+ passing tests
-- ✅ **Backward compatibility** maintained - all old commands still work
+- 🖥️ **Multi-platform support**: OrbStack, Docker Desktop, Podman, Colima
+- 🔌 **Platform detection**: `dvm get platforms` shows available container runtimes
+- 🏗️ **Decoupled architecture**: Swappable builders, runtimes, and database drivers
+- 📝 **Structured logging**: `-v` for debug output, `--log-file` for JSON logs
+- 🧪 **Test infrastructure**: 34 automated tests in manual test scripts
+- 📚 **New documentation**: CLAUDE.md, STANDARDS.md, MANUAL_TEST_PLAN.md
+- 🐛 **Bug fixes**: Build without nvim config, improved attach warnings, Podman compatibility
 
 ---
 
@@ -130,7 +129,7 @@ dvm attach
 
 **macOS (Apple Silicon - M1/M2/M3):**
 ```bash
-curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.2.0/dvm-darwin-arm64 -o dvm
+curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.3.0/dvm-darwin-arm64 -o dvm
 chmod +x dvm
 sudo mv dvm /usr/local/bin/
 dvm version
@@ -138,7 +137,7 @@ dvm version
 
 **macOS (Intel):**
 ```bash
-curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.2.0/dvm-darwin-amd64 -o dvm
+curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.3.0/dvm-darwin-amd64 -o dvm
 chmod +x dvm
 sudo mv dvm /usr/local/bin/
 dvm version
@@ -146,7 +145,7 @@ dvm version
 
 **Linux (x86_64):**
 ```bash
-curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.2.0/dvm-linux-amd64 -o dvm
+curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.3.0/dvm-linux-amd64 -o dvm
 chmod +x dvm
 sudo mv dvm /usr/local/bin/
 dvm version
@@ -154,7 +153,7 @@ dvm version
 
 **Linux (ARM64):**
 ```bash
-curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.2.0/dvm-linux-arm64 -o dvm
+curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.3.0/dvm-linux-arm64 -o dvm
 chmod +x dvm
 sudo mv dvm /usr/local/bin/
 dvm version
@@ -165,7 +164,7 @@ dvm version
 ```bash
 git clone https://github.com/rmkohlman/devopsmaestro.git
 cd devopsmaestro
-git checkout v0.2.0
+git checkout v0.3.0
 go build -o dvm
 sudo mv dvm /usr/local/bin/
 ```
@@ -1060,7 +1059,7 @@ For corporate or business use, a commercial license is required:
 
 ## 🎯 Roadmap
 
-### v0.2.0 - Enhanced UX ✅ (Current)
+### v0.2.0 - Enhanced UX ✅
 - ✅ kubectl-style plugin commands (`dvm get plugins`)
 - ✅ Beautiful colored output with emoji icons
 - ✅ Professional theme system (8 themes)
@@ -1069,15 +1068,23 @@ For corporate or business use, a commercial license is required:
 - ✅ Multiple output formats (table, yaml, json)
 - ✅ 54+ comprehensive tests
 
-### v0.3.0 - Developer Experience (Next)
-- ⏳ Workspace templates
-- ⏳ Shell completions (bash/zsh/fish)
-- ⏳ `--theme` flag for commands
-- ⏳ Plugin search/discovery
-- ⏳ Better error messages
-- ⏳ Interactive mode
+### v0.3.0 - Multi-Platform Support ✅ (Current)
+- ✅ Multi-platform container runtime (OrbStack, Docker Desktop, Podman, Colima)
+- ✅ Platform detection (`dvm get platforms`)
+- ✅ Decoupled architecture (swappable builders, runtimes, database)
+- ✅ Structured logging with slog (`-v`, `--log-file`)
+- ✅ Neovim configuration management (`dvm nvim init/status`)
+- ✅ Shell completions (bash/zsh/fish/powershell)
+- ✅ 34 automated manual tests
 
-### v0.4.0 - Collaboration
+### v0.4.0 - Developer Experience (Next)
+- ⏳ Plugin-to-nvim integration (use stored plugins in containers)
+- ⏳ Expanded logging across all commands
+- ⏳ `dvm logs` command for viewing logs
+- ⏳ Workspace templates
+- ⏳ Better error messages
+
+### v0.5.0 - Collaboration
 - ⏳ Team workspaces
 - ⏳ Plugin marketplace
 - ⏳ Cloud sync (optional)
