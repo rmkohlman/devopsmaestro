@@ -20,9 +20,11 @@ var createCmd = &cobra.Command{
 }
 
 var (
-	fromCwd     bool
-	projectPath string
-	description string
+	fromCwd              bool
+	projectPath          string
+	description          string
+	workspaceDescription string
+	workspaceImage       string
 )
 
 // createProjectCmd creates a new project
@@ -90,19 +92,15 @@ Examples:
 			},
 		}
 
-		sqlDS, ok := (*dataStore).(*db.SQLDataStore)
-		if !ok {
-			fmt.Println("Error: Expected SQLDataStore")
-			return
-		}
+		ds := *dataStore
 
-		if err := sqlDS.CreateProject(project); err != nil {
+		if err := ds.CreateProject(project); err != nil {
 			fmt.Printf("Error: Failed to create project: %v\n", err)
 			return
 		}
 
 		// Get the created project to get its ID
-		createdProject, err := sqlDS.GetProjectByName(projectName)
+		createdProject, err := ds.GetProjectByName(projectName)
 		if err != nil {
 			fmt.Printf("Error: Failed to retrieve created project: %v\n", err)
 			return
@@ -123,7 +121,7 @@ Examples:
 			Status:    "stopped",
 		}
 
-		if err := sqlDS.CreateWorkspace(workspace); err != nil {
+		if err := ds.CreateWorkspace(workspace); err != nil {
 			fmt.Printf("Warning: Failed to create main workspace: %v\n", err)
 			fmt.Println("You can create it manually later with: dvm create workspace main")
 		} else {
@@ -150,13 +148,119 @@ Examples:
 	},
 }
 
+// createWorkspaceCmd creates a new workspace in the current project
+var createWorkspaceCmd = &cobra.Command{
+	Use:   "workspace <name>",
+	Short: "Create a new workspace",
+	Long: `Create a new workspace in the current project.
+
+A workspace is an isolated development environment within a project.
+You can have multiple workspaces per project (e.g., main, dev, feature-x).
+
+Examples:
+  # Create a workspace named 'dev'
+  dvm create workspace dev
+  
+  # Create with description
+  dvm create workspace feature-auth --description "Auth feature branch"
+  
+  # Create with custom image name
+  dvm create workspace staging --image my-project:staging`,
+	Args: cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		workspaceName := args[0]
+
+		// Get active project from context
+		contextMgr, err := operators.NewContextManager()
+		if err != nil {
+			fmt.Printf("Error: Failed to initialize context manager: %v\n", err)
+			return
+		}
+
+		projectName, err := contextMgr.GetActiveProject()
+		if err != nil {
+			fmt.Println("Error: No active project selected")
+			fmt.Println("Hint: Use 'dvm use project <name>' to select a project first")
+			return
+		}
+
+		// Get datastore from context
+		ctx := cmd.Context()
+		dataStore := ctx.Value("dataStore").(*db.DataStore)
+		if dataStore == nil {
+			fmt.Println("Error: DataStore not initialized")
+			return
+		}
+
+		ds := *dataStore
+
+		// Get project to get its ID
+		project, err := ds.GetProjectByName(projectName)
+		if err != nil {
+			fmt.Printf("Error: Project '%s' not found: %v\n", projectName, err)
+			return
+		}
+
+		// Check if workspace already exists
+		existingWorkspaces, err := ds.ListWorkspacesByProject(project.ID)
+		if err == nil {
+			for _, ws := range existingWorkspaces {
+				if ws.Name == workspaceName {
+					fmt.Printf("Error: Workspace '%s' already exists in project '%s'\n", workspaceName, projectName)
+					return
+				}
+			}
+		}
+
+		// Determine image name
+		imageName := workspaceImage
+		if imageName == "" {
+			imageName = fmt.Sprintf("dvm-%s-%s:latest", workspaceName, projectName)
+		}
+
+		fmt.Printf("Creating workspace '%s' in project '%s'...\n", workspaceName, projectName)
+
+		// Create workspace
+		workspace := &models.Workspace{
+			ProjectID: project.ID,
+			Name:      workspaceName,
+			Description: sql.NullString{
+				String: workspaceDescription,
+				Valid:  workspaceDescription != "",
+			},
+			ImageName: imageName,
+			Status:    "stopped",
+		}
+
+		if err := ds.CreateWorkspace(workspace); err != nil {
+			fmt.Printf("Error: Failed to create workspace: %v\n", err)
+			return
+		}
+
+		fmt.Printf("✓ Workspace '%s' created successfully\n", workspaceName)
+		fmt.Printf("  Project: %s\n", projectName)
+		fmt.Printf("  Image:   %s\n", imageName)
+
+		fmt.Println("\nNext steps:")
+		fmt.Println("  1. Switch to this workspace:")
+		fmt.Printf("     dvm use workspace %s\n", workspaceName)
+		fmt.Println("  2. Build and attach:")
+		fmt.Println("     dvm build && dvm attach")
+	},
+}
+
 // Initializes the 'create' command and links subcommands
 func init() {
 	rootCmd.AddCommand(createCmd)
 	createCmd.AddCommand(createProjectCmd)
+	createCmd.AddCommand(createWorkspaceCmd)
 
 	// Project creation flags
 	createProjectCmd.Flags().BoolVar(&fromCwd, "from-cwd", false, "Use current working directory as project path")
 	createProjectCmd.Flags().StringVar(&projectPath, "path", "", "Specific path for the project")
 	createProjectCmd.Flags().StringVar(&description, "description", "", "Project description")
+
+	// Workspace creation flags
+	createWorkspaceCmd.Flags().StringVar(&workspaceDescription, "description", "", "Workspace description")
+	createWorkspaceCmd.Flags().StringVar(&workspaceImage, "image", "", "Custom image name (default: dvm-<workspace>-<project>:latest)")
 }

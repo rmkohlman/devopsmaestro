@@ -4,8 +4,10 @@ import (
 	"devopsmaestro/db"
 	"devopsmaestro/operators"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -29,9 +31,12 @@ Examples:
   dvm attach
   DVM_WORKSPACE=dev dvm attach  # Override with env var`,
 	Run: func(cmd *cobra.Command, args []string) {
+		slog.Info("starting attach")
+
 		// Get context manager
 		contextMgr, err := operators.NewContextManager()
 		if err != nil {
+			slog.Error("failed to initialize context manager", "error", err)
 			fmt.Printf("Error: Failed to initialize context manager: %v\n", err)
 			return
 		}
@@ -39,6 +44,7 @@ Examples:
 		// Get active project and workspace
 		projectName, err := contextMgr.GetActiveProject()
 		if err != nil {
+			slog.Debug("no active project", "error", err)
 			fmt.Printf("Error: %v\n", err)
 			fmt.Println("\nHint: Set active project with: dvm use project <name>")
 			return
@@ -46,57 +52,67 @@ Examples:
 
 		workspaceName, err := contextMgr.GetActiveWorkspace()
 		if err != nil {
+			slog.Debug("no active workspace", "error", err)
 			fmt.Printf("Error: %v\n", err)
 			fmt.Println("\nHint: Set active workspace with: dvm use workspace <name>")
 			return
 		}
 
+		slog.Debug("attach context", "project", projectName, "workspace", workspaceName)
 		fmt.Printf("Project: %s | Workspace: %s\n", projectName, workspaceName)
 
 		// Get datastore from context
 		ctx := cmd.Context()
 		dataStore := ctx.Value("dataStore").(*db.DataStore)
 		if dataStore == nil {
+			slog.Error("datastore not initialized in context")
 			fmt.Println("Error: DataStore not initialized")
 			return
 		}
 
-		sqlDS, ok := (*dataStore).(*db.SQLDataStore)
-		if !ok {
-			fmt.Println("Error: Expected SQLDataStore")
-			return
-		}
+		ds := *dataStore
 
 		// Get project
-		project, err := sqlDS.GetProjectByName(projectName)
+		project, err := ds.GetProjectByName(projectName)
 		if err != nil {
+			slog.Error("failed to get project", "name", projectName, "error", err)
 			fmt.Printf("Error: Failed to get project: %v\n", err)
 			return
 		}
 
 		// Get workspace
-		workspace, err := sqlDS.GetWorkspaceByName(project.ID, workspaceName)
+		workspace, err := ds.GetWorkspaceByName(project.ID, workspaceName)
 		if err != nil {
+			slog.Error("failed to get workspace", "name", workspaceName, "project_id", project.ID, "error", err)
 			fmt.Printf("Error: Failed to get workspace: %v\n", err)
 			return
 		}
 
+		slog.Debug("resolved workspace", "image", workspace.ImageName, "project_path", project.Path)
+
 		// Initialize container runtime
 		runtime, err := operators.NewContainerRuntime()
 		if err != nil {
+			slog.Error("failed to initialize container runtime", "error", err)
 			fmt.Printf("Error: Failed to initialize container runtime: %v\n", err)
 			return
 		}
 
+		slog.Info("using container runtime", "type", runtime.GetRuntimeType())
 		fmt.Printf("Using %s runtime\n", runtime.GetRuntimeType())
 
 		// Use image name from workspace
+		// The build command stores the built image name (e.g., dvm-main-fastapi-test:latest)
 		imageName := workspace.ImageName
 
-		// TODO: Check if image exists, build if needed
-		// For MVP, we'll assume the image exists or will implement later
-		// This would involve checking for a Dockerfile in the project directory
-		// and building a multi-stage image with dev tools
+		// If the image name doesn't have the dvm- prefix, it might be the original default
+		// and the workspace hasn't been built yet
+		if !strings.HasPrefix(imageName, "dvm-") {
+			slog.Warn("workspace image may not be built", "image", imageName)
+			fmt.Printf("Warning: Workspace image '%s' may not be built.\n", imageName)
+			fmt.Println("Run 'dvm build' first to build the development container.")
+			fmt.Println()
+		}
 
 		fmt.Printf("Starting workspace container...\n")
 
@@ -108,6 +124,7 @@ Examples:
 		}
 
 		containerName := fmt.Sprintf("dvm-%s-%s", projectName, workspaceName)
+		slog.Debug("container details", "name", containerName, "image", imageName, "profile", profile)
 
 		// Check if container already exists and is running
 		checkCmd := exec.Command("colima", "--profile", profile, "ssh", "--",
@@ -117,6 +134,7 @@ Examples:
 		if len(output) == 0 {
 			// Container doesn't exist or isn't running - create it
 			fmt.Println("Creating container...")
+			slog.Debug("creating new container", "name", containerName, "project_path", project.Path)
 
 			// Convert project path to VM path (assumes home directory is mounted)
 			vmProjectPath := project.Path
@@ -137,15 +155,19 @@ Examples:
 			createCmd.Stderr = os.Stderr
 
 			if err := createCmd.Run(); err != nil {
+				slog.Error("failed to create container", "name", containerName, "error", err)
 				fmt.Printf("Error: Failed to create container: %v\n", err)
 				return
 			}
+			slog.Info("container created", "name", containerName)
 		} else {
+			slog.Debug("container already running", "name", containerName)
 			fmt.Println("Container already running")
 		}
 
 		// Attach to container using nerdctl exec
 		fmt.Println("Attaching to workspace...")
+		slog.Info("attaching to container", "name", containerName)
 		attachCmd := exec.Command("colima", "--profile", profile, "ssh", "--",
 			"sudo", "nerdctl", "--namespace", "devopsmaestro", "exec", "-it", containerName, "/bin/zsh", "-l")
 		attachCmd.Stdin = os.Stdin
@@ -153,10 +175,12 @@ Examples:
 		attachCmd.Stderr = os.Stderr
 
 		if err := attachCmd.Run(); err != nil {
+			slog.Error("failed to attach to container", "name", containerName, "error", err)
 			fmt.Printf("Error: Failed to attach: %v\n", err)
 			return
 		}
 
+		slog.Info("session ended", "container", containerName)
 		fmt.Println("Session ended.")
 	},
 }

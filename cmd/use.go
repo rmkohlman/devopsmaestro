@@ -36,14 +36,10 @@ Examples:
 			return
 		}
 
-		// Verify project exists
-		sqlDS, ok := (*dataStore).(*db.SQLDataStore)
-		if !ok {
-			fmt.Println("Error: Expected SQLDataStore")
-			return
-		}
+		ds := *dataStore
 
-		project, err := sqlDS.GetProjectByName(projectName)
+		// Verify project exists
+		project, err := ds.GetProjectByName(projectName)
 		if err != nil {
 			fmt.Printf("Error: Project '%s' not found: %v\n", projectName, err)
 			fmt.Println("\nHint: List available projects with: dvm list projects")
@@ -63,7 +59,7 @@ Examples:
 		}
 
 		// Also update database context
-		if err := sqlDS.SetActiveProject(&project.ID); err != nil {
+		if err := ds.SetActiveProject(&project.ID); err != nil {
 			fmt.Printf("Warning: Failed to update database context: %v\n", err)
 		}
 
@@ -111,21 +107,17 @@ Examples:
 			return
 		}
 
-		sqlDS, ok := (*dataStore).(*db.SQLDataStore)
-		if !ok {
-			fmt.Println("Error: Expected SQLDataStore")
-			return
-		}
+		ds := *dataStore
 
 		// Get project to get its ID
-		project, err := sqlDS.GetProjectByName(projectName)
+		project, err := ds.GetProjectByName(projectName)
 		if err != nil {
 			fmt.Printf("Error: Failed to get project: %v\n", err)
 			return
 		}
 
 		// Verify workspace exists
-		workspace, err := sqlDS.GetWorkspaceByName(project.ID, workspaceName)
+		workspace, err := ds.GetWorkspaceByName(project.ID, workspaceName)
 		if err != nil {
 			fmt.Printf("Error: Workspace '%s' not found in project '%s': %v\n", workspaceName, projectName, err)
 			fmt.Println("\nHint: List available workspaces with: dvm list workspaces")
@@ -139,7 +131,7 @@ Examples:
 		}
 
 		// Also update database context
-		if err := sqlDS.SetActiveWorkspace(&workspace.ID); err != nil {
+		if err := ds.SetActiveWorkspace(&workspace.ID); err != nil {
 			fmt.Printf("Warning: Failed to update database context: %v\n", err)
 		}
 

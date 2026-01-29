@@ -2,6 +2,8 @@ package builders
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"devopsmaestro/models"
@@ -340,7 +342,7 @@ func (g *DockerfileGenerator) getDefaultPackages() []string {
 func (g *DockerfileGenerator) getDefaultLanguageTools() []string {
 	switch g.language {
 	case "python":
-		return []string{"pylsp", "black", "isort", "pytest"}
+		return []string{"python-lsp-server", "black", "isort", "pytest"}
 	case "golang":
 		return []string{"gopls", "delve", "golangci-lint"}
 	case "nodejs":
@@ -413,6 +415,16 @@ func (g *DockerfileGenerator) installNvimDependencies(dockerfile *strings.Builde
 func (g *DockerfileGenerator) generateNvimSection(dockerfile *strings.Builder) {
 	// Skip if explicitly disabled
 	if g.workspaceYAML.Nvim.Structure == "none" {
+		return
+	}
+
+	// Check if nvim config directory exists in the build context
+	// If not, skip the nvim section to avoid build failures
+	nvimConfigPath := filepath.Join(g.projectPath, ".config", "nvim")
+	if _, err := os.Stat(nvimConfigPath); os.IsNotExist(err) {
+		// Nvim config doesn't exist - skip this section
+		dockerfile.WriteString("# Skipping Neovim configuration (no .config/nvim in build context)\n")
+		dockerfile.WriteString("# Run 'dvm build' after setting up nvim plugins to enable nvim config\n\n")
 		return
 	}
 

@@ -4,6 +4,7 @@ import (
 	"devopsmaestro/cmd"
 	"devopsmaestro/db"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -18,9 +19,9 @@ var (
 	Commit    = "unknown"
 )
 
-func run(dbInstance db.Database, dataStoreInstance db.DataStore, executor cmd.Executor) int {
+func run(dbInstance db.Database, dataStoreInstance db.DataStore, executor cmd.Executor, migrationsFS fs.FS) int {
 	// Execute the root command of the CLI tool
-	cmd.Execute(&dbInstance, &dataStoreInstance, &executor)
+	cmd.Execute(&dbInstance, &dataStoreInstance, &executor, migrationsFS)
 
 	return 0
 }
@@ -94,5 +95,12 @@ func main() {
 
 	executor := cmd.NewExecutor(dataStoreInstance, dbInstance)
 
-	os.Exit(run(dbInstance, dataStoreInstance, executor))
+	// Get migrations subdirectory from embedded filesystem
+	migrationsSubFS, err := fs.Sub(MigrationsFS, "migrations")
+	if err != nil {
+		fmt.Printf("Failed to access embedded migrations: %v\n", err)
+		os.Exit(1)
+	}
+
+	os.Exit(run(dbInstance, dataStoreInstance, executor, migrationsSubFS))
 }

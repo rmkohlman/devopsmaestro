@@ -194,68 +194,8 @@ Examples:
 	},
 }
 
-// Output functions for plugin list
-func outputPluginsTable(plugins []*models.NvimPluginDB) error {
-	// Print table header
-	fmt.Printf("%-20s %-40s %-15s %s\n", "NAME", "REPO", "CATEGORY", "ENABLED")
-	fmt.Println("--------------------------------------------------------------------------------")
-
-	// Print plugins
-	for _, p := range plugins {
-		category := ""
-		if p.Category.Valid {
-			category = p.Category.String
-		}
-		enabled := "✓"
-		if !p.Enabled {
-			enabled = "✗"
-		}
-		fmt.Printf("%-20s %-40s %-15s %s\n", p.Name, p.Repo, category, enabled)
-	}
-
-	fmt.Printf("\nTotal: %d plugins\n", len(plugins))
-	return nil
-}
-
-func outputPluginsYAML(plugins []*models.NvimPluginDB) error {
-	for i, p := range plugins {
-		pluginYAML, err := p.ToYAML()
-		if err != nil {
-			return fmt.Errorf("failed to convert plugin %s to YAML: %v", p.Name, err)
-		}
-
-		data, err := yaml.Marshal(pluginYAML)
-		if err != nil {
-			return fmt.Errorf("failed to marshal YAML for plugin %s: %v", p.Name, err)
-		}
-
-		fmt.Print(string(data))
-
-		// Add document separator between plugins (but not after the last one)
-		if i < len(plugins)-1 {
-			fmt.Println("---")
-		}
-	}
-	return nil
-}
-
-func outputPluginsJSON(plugins []*models.NvimPluginDB) error {
-	pluginsYAML := make([]models.NvimPluginYAML, 0, len(plugins))
-	for _, p := range plugins {
-		pluginYAML, err := p.ToYAML()
-		if err != nil {
-			return fmt.Errorf("failed to convert plugin %s to YAML: %v", p.Name, err)
-		}
-		pluginsYAML = append(pluginsYAML, pluginYAML)
-	}
-
-	data, err := json.MarshalIndent(pluginsYAML, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal JSON: %v", err)
-	}
-	fmt.Println(string(data))
-	return nil
-}
+// NOTE: outputPluginsTable, outputPluginsYAML, and outputPluginsJSON functions
+// are defined in get.go with colorized output support via the ui package.
 
 var pluginGetCmd = &cobra.Command{
 	Use:   "get [name]",
@@ -324,9 +264,17 @@ Examples:
 
 var pluginDeleteCmd = &cobra.Command{
 	Use:   "delete [name]",
-	Short: "Delete a plugin definition",
-	Long:  `Delete a plugin definition from the database`,
-	Args:  cobra.ExactArgs(1),
+	Short: "Delete a plugin definition from DVM's database",
+	Long: `Delete a plugin definition from DVM's database.
+
+This removes the plugin YAML definition that DVM stores for generating
+nvim configurations in workspace containers. It does NOT affect:
+- Your local nvim installation
+- Any existing container images
+- Plugins already installed in running containers
+
+The plugin definition can be re-added later with 'dvm plugin apply'.`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
 
@@ -345,7 +293,7 @@ var pluginDeleteCmd = &cobra.Command{
 		// Confirm deletion
 		force, _ := cmd.Flags().GetBool("force")
 		if !force {
-			fmt.Printf("Are you sure you want to delete plugin '%s'? (y/N): ", name)
+			fmt.Printf("Delete plugin definition '%s' from DVM database? (y/N): ", name)
 			var response string
 			fmt.Scanln(&response)
 			if response != "y" && response != "Y" {
@@ -359,7 +307,7 @@ var pluginDeleteCmd = &cobra.Command{
 			return fmt.Errorf("failed to delete plugin: %v", err)
 		}
 
-		fmt.Printf("✓ Plugin '%s' deleted successfully\n", name)
+		fmt.Printf("✓ Plugin definition '%s' removed from DVM database\n", name)
 		return nil
 	},
 }

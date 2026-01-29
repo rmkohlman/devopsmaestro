@@ -19,39 +19,40 @@ import (
 // ContainerdRuntimeV2 is a clean implementation using containerd v2 API
 type ContainerdRuntimeV2 struct {
 	client    *client.Client
-	profile   string
+	platform  *Platform
 	namespace string
 }
 
 // NewContainerdRuntimeV2 creates a new containerd v2 runtime instance
 func NewContainerdRuntimeV2() (*ContainerdRuntimeV2, error) {
-	// Detect active Colima profile
-	profile := os.Getenv("COLIMA_ACTIVE_PROFILE")
-	if profile == "" {
-		profile = os.Getenv("COLIMA_DOCKER_PROFILE")
+	// Detect platform
+	detector, err := NewPlatformDetector()
+	if err != nil {
+		return nil, err
 	}
-	if profile == "" {
-		profile = "default"
+
+	platform, err := detector.Detect()
+	if err != nil {
+		return nil, err
+	}
+
+	return NewContainerdRuntimeV2WithPlatform(platform)
+}
+
+// NewContainerdRuntimeV2WithPlatform creates a new containerd v2 runtime with a specific platform
+func NewContainerdRuntimeV2WithPlatform(platform *Platform) (*ContainerdRuntimeV2, error) {
+	// Verify this platform supports containerd
+	if !platform.IsContainerd() {
+		return nil, fmt.Errorf("platform %s does not support containerd API directly. Use docker runtime instead", platform.Name)
 	}
 
 	// Set namespace for DVM containers
 	namespace := "devopsmaestro"
 
-	// Build socket path
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get home directory: %w", err)
-	}
-
-	socketPath := filepath.Join(homeDir, ".colima", profile, "containerd.sock")
-	if _, err := os.Stat(socketPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("containerd socket not found at %s\nMake sure Colima profile '%s' is running: colima start %s", socketPath, profile, profile)
-	}
-
 	// Create containerd client
-	ctdClient, err := client.New(socketPath)
+	ctdClient, err := client.New(platform.SocketPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create containerd client: %w", err)
+		return nil, fmt.Errorf("failed to create containerd client: %w\n%s", err, platform.GetStartHint())
 	}
 
 	// Verify connection
@@ -59,15 +60,15 @@ func NewContainerdRuntimeV2() (*ContainerdRuntimeV2, error) {
 	version, err := ctdClient.Version(ctx)
 	if err != nil {
 		ctdClient.Close()
-		return nil, fmt.Errorf("failed to connect to containerd: %w", err)
+		return nil, fmt.Errorf("failed to connect to containerd: %w\n%s", err, platform.GetStartHint())
 	}
 
-	fmt.Printf("Connected to containerd %s (profile: %s, namespace: %s)\n",
-		version.Version, profile, namespace)
+	fmt.Printf("Connected to containerd %s (%s, namespace: %s)\n",
+		version.Version, platform.Name, namespace)
 
 	return &ContainerdRuntimeV2{
 		client:    ctdClient,
-		profile:   profile,
+		platform:  platform,
 		namespace: namespace,
 	}, nil
 }
@@ -229,26 +230,35 @@ func (r *ContainerdRuntimeV2) AttachToWorkspace(ctx context.Context, containerID
 		return fmt.Errorf("container is not running (status: %s)", status.Status)
 	}
 
-	// Use nerdctl exec via SSH for interactive attach (works with Colima)
+	// For Colima, use nerdctl exec via SSH for interactive attach
 	// This avoids FIFO issues when client is on host and containerd is in VM
-	cmd := fmt.Sprintf("sudo nerdctl --namespace %s exec -it %s /bin/zsh -l", r.namespace, containerID)
-	execCmd := []string{"colima", "--profile", r.profile, "ssh", "-t", "--", "sh", "-c", cmd}
+	if r.platform.Type == PlatformColima {
+		cmd := fmt.Sprintf("sudo nerdctl --namespace %s exec -it %s /bin/zsh -l", r.namespace, containerID)
+		profile := r.platform.Profile
+		if profile == "" {
+			profile = "default"
+		}
+		execCmd := []string{"colima", "--profile", profile, "ssh", "-t", "--", "sh", "-c", cmd}
 
-	// Create exec command
-	execProc := &exec.Cmd{
-		Path:   "/usr/bin/colima",
-		Args:   execCmd,
-		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
+		// Create exec command
+		execProc := &exec.Cmd{
+			Path:   "/usr/bin/colima",
+			Args:   execCmd,
+			Stdin:  os.Stdin,
+			Stdout: os.Stdout,
+			Stderr: os.Stderr,
+		}
+
+		// Run the command
+		if err := execProc.Run(); err != nil {
+			return fmt.Errorf("failed to attach: %w", err)
+		}
+
+		return nil
 	}
 
-	// Run the command
-	if err := execProc.Run(); err != nil {
-		return fmt.Errorf("failed to attach: %w", err)
-	}
-
-	return nil
+	// For other platforms, return not implemented
+	return fmt.Errorf("attach not implemented for platform %s with containerd runtime", r.platform.Name)
 }
 
 // StopWorkspace stops a running workspace

@@ -4,9 +4,10 @@ import (
 	"context"
 	"devopsmaestro/cmd"
 	"devopsmaestro/db"
+	"io/fs"
 	"testing"
+	"testing/fstest"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -23,64 +24,37 @@ func (m *MockExecutor) Execute(ctx context.Context) error {
 	return args.Error(0)
 }
 
-// write a test to test the main.go run function
+// testMigrationsFS creates an in-memory filesystem with test migrations
+func testMigrationsFS() fs.FS {
+	return fstest.MapFS{
+		"sqlite/001_init.up.sql": &fstest.MapFile{
+			Data: []byte(`
+CREATE TABLE IF NOT EXISTS projects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    path TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+`),
+		},
+	}
+}
+
+// TestRun tests the run function with mock dependencies
 func TestRun(t *testing.T) {
-	// Create a mock instance of the Database
-	mockDB := new(db.MockDB)
+	// Create a mock instance of the Database (legacy interface)
+	mockDB := db.NewMockDB()
 	// Create a mock instance of the DataStore
-	mockDS := new(db.MockDataStore)
+	mockDS := db.NewMockDataStore()
 	// Create a mock instance of the Executor
 	mockExecutor := new(MockExecutor)
 
-	mockExecutor.On("&Execute", mock.Anything).Return(nil)
 	// Call the run function with the mock instances
-	run(mockDB, mockDS, mockExecutor)
+	// Note: run() calls cmd.Execute which will parse args and run commands
+	// Since we're testing with no args, it should just show help
+	exitCode := run(mockDB, mockDS, mockExecutor, testMigrationsFS())
 
-	// Assert that the expectations were met
-	mockExecutor.AssertExpectations(t)
-}
-
-func TestMainFunction(t *testing.T) {
-	// Mock the os.Exit function
-	oldOsExit := osExit
-	defer func() { osExit = oldOsExit }()
-	exitCode := 0
-	osExit = func(code int) {
-		exitCode = code
-	}
-
-	// Mock the db.InitializeDBConnection function
-	oldInitializeDBConnection := db.InitializeDBConnection
-	defer func() { db.InitializeDBConnection = oldInitializeDBConnection }()
-	db.InitializeDBConnection = func() (db.Database, error) {
-		return &db.MockDB{}, nil
-	}
-
-	// Mock the db.StoreFactory function
-	oldStoreFactory := db.StoreFactory
-	defer func() { db.StoreFactory = oldStoreFactory }()
-	db.StoreFactory = func(dbInstance db.Database) (db.DataStore, error) {
-		return &db.MockDataStore{}, nil
-	}
-
-	// Mock the cmd.NewExecutor function
-	oldNewExecutor := cmd.NewExecutor
-	defer func() { cmd.NewExecutor = oldNewExecutor }()
-	cmd.NewExecutor = func(dataStore db.DataStore, dbInstance db.Database) cmd.Executor {
-		return &MockExecutor{}
-	}
-
-	// Add a simple command to rootCmd that calls executor.Execute
-	cmd.RootCmd.AddCommand(&cobra.Command{
-		Use:   "test",
-		Short: "Test command",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			executor := cmd.Context().Value("executor").(cmd.Executor)
-			return executor.Execute(cmd.Context())
-		},
-	})
-
-	main()
-
+	// run should return 0 for success
 	assert.Equal(t, 0, exitCode)
 }

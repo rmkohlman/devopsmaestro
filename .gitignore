@@ -30,3 +30,7 @@ SESSION_STATE.md
 CONTEXT.md
 .agent-memory.md
 .envrc
+
+# Test project directories (cloned repos for testing)
+dvm-test-fastapi/
+dvm-test-golang/

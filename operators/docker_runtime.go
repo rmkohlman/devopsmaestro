@@ -15,28 +15,21 @@ import (
 	"github.com/moby/term"
 )
 
-// DockerRuntime implements ContainerRuntime for Docker (Colima-compatible)
+// DockerRuntime implements ContainerRuntime for Docker-compatible platforms
+// Supports: OrbStack, Colima, Docker Desktop, Podman, native Linux Docker
 type DockerRuntime struct {
-	client  *client.Client
-	profile string // Colima profile name
+	client   *client.Client
+	platform *Platform
 }
 
-// NewDockerRuntime creates a new Docker runtime instance
-// It automatically detects and connects to the active Colima profile
-func NewDockerRuntime() (*DockerRuntime, error) {
-	// Detect active Colima profile
-	profile := os.Getenv("COLIMA_DOCKER_PROFILE")
-	if profile == "" {
-		profile = "default"
+// NewDockerRuntime creates a new Docker runtime instance for the given platform
+func NewDockerRuntime(platform *Platform) (*DockerRuntime, error) {
+	if platform == nil {
+		return nil, fmt.Errorf("platform cannot be nil")
 	}
 
-	// Set Docker host to Colima's socket
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get home directory: %w", err)
-	}
-
-	dockerHost := fmt.Sprintf("unix://%s/.colima/%s/docker.sock", homeDir, profile)
+	// Set Docker host based on platform socket
+	dockerHost := fmt.Sprintf("unix://%s", platform.SocketPath)
 	os.Setenv("DOCKER_HOST", dockerHost)
 
 	// Create Docker client
@@ -45,23 +38,24 @@ func NewDockerRuntime() (*DockerRuntime, error) {
 		client.WithAPIVersionNegotiation(),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Docker client for Colima profile '%s': %w", profile, err)
+		return nil, fmt.Errorf("failed to create Docker client: %w", err)
 	}
 
 	// Verify connection
 	if _, err := cli.Ping(context.Background()); err != nil {
-		return nil, fmt.Errorf("failed to connect to Docker (Colima profile '%s'): %w\nMake sure Colima is running: colima start --profile %s", profile, err, profile)
+		return nil, fmt.Errorf("failed to connect to %s: %w\n%s",
+			platform.Name, err, platform.GetStartHint())
 	}
 
 	return &DockerRuntime{
-		client:  cli,
-		profile: profile,
+		client:   cli,
+		platform: platform,
 	}, nil
 }
 
 // BuildImage builds a container image using Docker
 func (d *DockerRuntime) BuildImage(ctx context.Context, opts BuildOptions) error {
-	fmt.Printf("Building image '%s' using Colima profile '%s'...\n", opts.ImageName, d.profile)
+	fmt.Printf("Building image '%s' using %s...\n", opts.ImageName, d.platform.Name)
 
 	// Create build context tarball
 	buildCtx, err := archive.TarWithOptions(opts.BuildContext, &archive.TarOptions{})
@@ -103,7 +97,7 @@ func (d *DockerRuntime) BuildImage(ctx context.Context, opts BuildOptions) error
 
 // StartWorkspace starts a Docker container as a workspace
 func (d *DockerRuntime) StartWorkspace(ctx context.Context, opts StartOptions) (string, error) {
-	fmt.Printf("Starting workspace '%s' in Colima profile '%s'...\n", opts.WorkspaceName, d.profile)
+	fmt.Printf("Starting workspace '%s' using %s...\n", opts.WorkspaceName, d.platform.Name)
 
 	// Set default command if not specified
 	command := opts.Command
@@ -253,6 +247,11 @@ func (d *DockerRuntime) GetWorkspaceStatus(ctx context.Context, workspaceID stri
 // GetRuntimeType returns "docker"
 func (d *DockerRuntime) GetRuntimeType() string {
 	return "docker"
+}
+
+// GetPlatform returns the platform this runtime is using
+func (d *DockerRuntime) GetPlatform() *Platform {
+	return d.platform
 }
 
 // Helper function to convert map to env slice

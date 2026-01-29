@@ -101,6 +101,21 @@ Examples:
 	},
 }
 
+// getPlatformsCmd lists all detected container platforms
+var getPlatformsCmd = &cobra.Command{
+	Use:   "platforms",
+	Short: "List all detected container platforms",
+	Long: `List all detected container platforms (OrbStack, Colima, Docker Desktop, Podman).
+
+Examples:
+  dvm get platforms
+  dvm get platforms -o yaml
+  dvm get platforms -o json`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return getPlatforms(cmd)
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(getCmd)
 	getCmd.AddCommand(getProjectsCmd)
@@ -109,24 +124,20 @@ func init() {
 	getCmd.AddCommand(getWorkspaceCmd)
 	getCmd.AddCommand(getPluginsCmd)
 	getCmd.AddCommand(getPluginCmd)
+	getCmd.AddCommand(getPlatformsCmd)
 
 	// Add output format flag to all get commands
 	getCmd.PersistentFlags().StringVarP(&getOutputFormat, "output", "o", "table", "Output format (table, yaml, json)")
 }
 
-func getDataStore(cmd *cobra.Command) (*db.SQLDataStore, error) {
+func getDataStore(cmd *cobra.Command) (db.DataStore, error) {
 	ctx := cmd.Context()
 	dataStore := ctx.Value("dataStore").(*db.DataStore)
 	if dataStore == nil {
 		return nil, fmt.Errorf("dataStore not initialized")
 	}
 
-	sqlDS, ok := (*dataStore).(*db.SQLDataStore)
-	if !ok {
-		return nil, fmt.Errorf("expected SQLDataStore")
-	}
-
-	return sqlDS, nil
+	return *dataStore, nil
 }
 
 func getProjects(cmd *cobra.Command) error {
@@ -604,6 +615,141 @@ func outputPluginJSON(plugin *models.NvimPluginDB) error {
 	}
 
 	data, err := json.MarshalIndent(pluginYAML, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal JSON: %w", err)
+	}
+	fmt.Println(string(data))
+	return nil
+}
+
+// Platform output functions
+
+func getPlatforms(cmd *cobra.Command) error {
+	detector, err := operators.NewPlatformDetector()
+	if err != nil {
+		return fmt.Errorf("failed to create platform detector: %w", err)
+	}
+
+	platforms := detector.DetectAll()
+
+	if len(platforms) == 0 {
+		fmt.Println(ui.MutedStyle.Render("No container platforms detected"))
+		fmt.Println(ui.MutedStyle.Render("Install OrbStack, Colima, Docker Desktop, or Podman"))
+		return nil
+	}
+
+	// Get active platform
+	activePlatform, _ := detector.Detect()
+	var activeName string
+	if activePlatform != nil {
+		activeName = string(activePlatform.Type)
+	}
+
+	switch getOutputFormat {
+	case "yaml":
+		return outputPlatformsYAML(platforms, activeName)
+	case "json":
+		return outputPlatformsJSON(platforms, activeName)
+	default:
+		return outputPlatformsTable(platforms, activeName)
+	}
+}
+
+// PlatformYAML represents a platform in YAML/JSON format
+type PlatformYAML struct {
+	Type         string `yaml:"type" json:"type"`
+	Name         string `yaml:"name" json:"name"`
+	SocketPath   string `yaml:"socketPath" json:"socketPath"`
+	Profile      string `yaml:"profile,omitempty" json:"profile,omitempty"`
+	IsContainerd bool   `yaml:"isContainerd" json:"isContainerd"`
+	IsDocker     bool   `yaml:"isDockerCompatible" json:"isDockerCompatible"`
+	Active       bool   `yaml:"active" json:"active"`
+}
+
+func outputPlatformsTable(platforms []*operators.Platform, activeName string) error {
+	// Table header
+	fmt.Printf("%-12s %-30s %-50s %-12s\n",
+		"TYPE", "NAME", "SOCKET", "STATUS")
+	fmt.Printf("%-12s %-30s %-50s %-12s\n",
+		"----", "----", "------", "------")
+
+	for _, p := range platforms {
+		isActive := string(p.Type) == activeName
+		status := ""
+		if isActive {
+			status = ui.SuccessStyle.Render("* active")
+		}
+
+		socketDisplay := p.SocketPath
+		if len(socketDisplay) > 48 {
+			socketDisplay = "..." + socketDisplay[len(socketDisplay)-45:]
+		}
+
+		name := p.Name
+		if p.IsContainerd() {
+			name += " (containerd)"
+		} else if p.IsDockerCompatible() {
+			name += " (docker)"
+		}
+
+		fmt.Printf("%-12s %-30s %-50s %-12s\n",
+			string(p.Type),
+			name,
+			socketDisplay,
+			status)
+	}
+
+	fmt.Println()
+	fmt.Println(ui.MutedStyle.Render(fmt.Sprintf("Total: %d platforms detected", len(platforms))))
+	fmt.Println(ui.MutedStyle.Render("Use DVM_PLATFORM=<type> to select a specific platform"))
+	return nil
+}
+
+func outputPlatformsYAML(platforms []*operators.Platform, activeName string) error {
+	var yamlOutput string
+
+	for i, p := range platforms {
+		platformYAML := PlatformYAML{
+			Type:         string(p.Type),
+			Name:         p.Name,
+			SocketPath:   p.SocketPath,
+			Profile:      p.Profile,
+			IsContainerd: p.IsContainerd(),
+			IsDocker:     p.IsDockerCompatible(),
+			Active:       string(p.Type) == activeName,
+		}
+
+		data, err := yaml.Marshal(&platformYAML)
+		if err != nil {
+			return fmt.Errorf("failed to encode platform %s: %w", p.Name, err)
+		}
+
+		yamlOutput += string(data)
+
+		if i < len(platforms)-1 {
+			yamlOutput += "---\n"
+		}
+	}
+
+	fmt.Print(ui.ColorizeYAML(yamlOutput))
+	return nil
+}
+
+func outputPlatformsJSON(platforms []*operators.Platform, activeName string) error {
+	platformsYAML := make([]PlatformYAML, 0, len(platforms))
+	for _, p := range platforms {
+		platformsYAML = append(platformsYAML, PlatformYAML{
+			Type:         string(p.Type),
+			Name:         p.Name,
+			SocketPath:   p.SocketPath,
+			Profile:      p.Profile,
+			IsContainerd: p.IsContainerd(),
+			IsDocker:     p.IsDockerCompatible(),
+			Active:       string(p.Type) == activeName,
+		})
+	}
+
+	data, err := json.MarshalIndent(platformsYAML, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal JSON: %w", err)
 	}

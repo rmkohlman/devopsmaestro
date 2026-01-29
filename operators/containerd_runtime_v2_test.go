@@ -3,27 +3,69 @@ package operators
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
 )
 
-// TestContainerdRuntimeV2Creation tests runtime creation
-func TestContainerdRuntimeV2Creation(t *testing.T) {
-	// Skip if not in CI and Colima not running
-	if os.Getenv("CI") == "" {
-		homeDir, _ := os.UserHomeDir()
-		profile := os.Getenv("COLIMA_ACTIVE_PROFILE")
-		if profile == "" {
-			profile = "default"
-		}
-		socketPath := filepath.Join(homeDir, ".colima", profile, "containerd.sock")
-		if _, err := os.Stat(socketPath); os.IsNotExist(err) {
-			t.Skip("Colima not running, skipping integration test")
+// requireContainerdPlatform skips the test if no containerd platform is available
+func requireContainerdPlatform(t *testing.T) *Platform {
+	t.Helper()
+
+	detector, err := NewPlatformDetector()
+	if err != nil {
+		t.Skipf("Failed to create platform detector: %v", err)
+	}
+
+	// Look for a containerd-capable platform (Colima with containerd)
+	platforms := detector.DetectAll()
+	for _, p := range platforms {
+		if p.IsContainerd() {
+			return p
 		}
 	}
 
-	runtime, err := NewContainerdRuntimeV2()
+	t.Skip("No containerd platform available, skipping integration test")
+	return nil
+}
+
+// requireAlpineImage ensures alpine:latest is available in the containerd namespace.
+// If not available, attempts to pull it. Skips the test if pull fails.
+func requireAlpineImage(t *testing.T, platform *Platform) {
+	t.Helper()
+
+	// Check if image exists using nerdctl
+	checkCmd := exec.Command("nerdctl",
+		"--address", platform.SocketPath,
+		"--namespace", "devopsmaestro",
+		"image", "inspect", "alpine:latest",
+	)
+	if err := checkCmd.Run(); err == nil {
+		// Image exists
+		return
+	}
+
+	// Try to pull the image
+	t.Log("Pulling alpine:latest for test...")
+	pullCmd := exec.Command("nerdctl",
+		"--address", platform.SocketPath,
+		"--namespace", "devopsmaestro",
+		"pull", "alpine:latest",
+	)
+	pullCmd.Stdout = os.Stdout
+	pullCmd.Stderr = os.Stderr
+
+	if err := pullCmd.Run(); err != nil {
+		t.Skipf("Failed to pull alpine:latest: %v (test requires this image)", err)
+	}
+}
+
+// TestContainerdRuntimeV2Creation tests runtime creation
+func TestContainerdRuntimeV2Creation(t *testing.T) {
+	platform := requireContainerdPlatform(t)
+
+	runtime, err := NewContainerdRuntimeV2WithPlatform(platform)
 	if err != nil {
 		t.Fatalf("Failed to create runtime: %v", err)
 	}
@@ -62,20 +104,10 @@ func TestStartOptions(t *testing.T) {
 
 // TestWorkspaceLifecycle tests full container lifecycle
 func TestWorkspaceLifecycle(t *testing.T) {
-	// Skip if not in CI and Colima not running
-	if os.Getenv("CI") == "" {
-		homeDir, _ := os.UserHomeDir()
-		profile := os.Getenv("COLIMA_ACTIVE_PROFILE")
-		if profile == "" {
-			profile = "default"
-		}
-		socketPath := filepath.Join(homeDir, ".colima", profile, "containerd.sock")
-		if _, err := os.Stat(socketPath); os.IsNotExist(err) {
-			t.Skip("Colima not running, skipping integration test")
-		}
-	}
+	platform := requireContainerdPlatform(t)
+	requireAlpineImage(t, platform)
 
-	runtime, err := NewContainerdRuntimeV2()
+	runtime, err := NewContainerdRuntimeV2WithPlatform(platform)
 	if err != nil {
 		t.Fatalf("Failed to create runtime: %v", err)
 	}
@@ -181,19 +213,10 @@ func TestWorkspaceLifecycle(t *testing.T) {
 
 // TestStartWorkspaceWithMounts tests workspace with volume mounts
 func TestStartWorkspaceWithMounts(t *testing.T) {
-	if os.Getenv("CI") == "" {
-		homeDir, _ := os.UserHomeDir()
-		profile := os.Getenv("COLIMA_ACTIVE_PROFILE")
-		if profile == "" {
-			profile = "default"
-		}
-		socketPath := filepath.Join(homeDir, ".colima", profile, "containerd.sock")
-		if _, err := os.Stat(socketPath); os.IsNotExist(err) {
-			t.Skip("Colima not running, skipping integration test")
-		}
-	}
+	platform := requireContainerdPlatform(t)
+	requireAlpineImage(t, platform)
 
-	runtime, err := NewContainerdRuntimeV2()
+	runtime, err := NewContainerdRuntimeV2WithPlatform(platform)
 	if err != nil {
 		t.Fatalf("Failed to create runtime: %v", err)
 	}
@@ -241,19 +264,9 @@ func TestStartWorkspaceWithMounts(t *testing.T) {
 
 // TestGetWorkspaceStatusNotFound tests status of non-existent container
 func TestGetWorkspaceStatusNotFound(t *testing.T) {
-	if os.Getenv("CI") == "" {
-		homeDir, _ := os.UserHomeDir()
-		profile := os.Getenv("COLIMA_ACTIVE_PROFILE")
-		if profile == "" {
-			profile = "default"
-		}
-		socketPath := filepath.Join(homeDir, ".colima", profile, "containerd.sock")
-		if _, err := os.Stat(socketPath); os.IsNotExist(err) {
-			t.Skip("Colima not running, skipping integration test")
-		}
-	}
+	platform := requireContainerdPlatform(t)
 
-	runtime, err := NewContainerdRuntimeV2()
+	runtime, err := NewContainerdRuntimeV2WithPlatform(platform)
 	if err != nil {
 		t.Fatalf("Failed to create runtime: %v", err)
 	}
@@ -287,19 +300,10 @@ func TestBuildImageNotImplemented(t *testing.T) {
 
 // TestStartWorkspaceWithEnvVars tests environment variable passing
 func TestStartWorkspaceWithEnvVars(t *testing.T) {
-	if os.Getenv("CI") == "" {
-		homeDir, _ := os.UserHomeDir()
-		profile := os.Getenv("COLIMA_ACTIVE_PROFILE")
-		if profile == "" {
-			profile = "default"
-		}
-		socketPath := filepath.Join(homeDir, ".colima", profile, "containerd.sock")
-		if _, err := os.Stat(socketPath); os.IsNotExist(err) {
-			t.Skip("Colima not running, skipping integration test")
-		}
-	}
+	platform := requireContainerdPlatform(t)
+	requireAlpineImage(t, platform)
 
-	runtime, err := NewContainerdRuntimeV2()
+	runtime, err := NewContainerdRuntimeV2WithPlatform(platform)
 	if err != nil {
 		t.Fatalf("Failed to create runtime: %v", err)
 	}
