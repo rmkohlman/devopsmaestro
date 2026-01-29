@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.3] - 2026-01-29
+
+### 🚀 Added
+
+#### Pre-generated Shell Completions
+- **Shell completions included in release archives** - Bash, Zsh, and Fish completion scripts are now pre-generated during the build process and included in the release archives
+- **Automatic completion installation via Homebrew** - `brew install rmkohlman/tap/dvm` now automatically installs shell completions without requiring manual user action
+- **Bypass macOS sandbox restrictions** - Pre-built binaries no longer need to execute during Homebrew install, which was previously blocked by macOS sandbox
+
+### 🔧 Changed
+
+#### Release Archive Format
+- **Archives now include `completions/` directory** with:
+  - `dvm.bash` - Bash completion script
+  - `_dvm` - Zsh completion script  
+  - `dvm.fish` - Fish completion script
+- **GoReleaser post-build hooks** generate completions after each platform build
+
+### 📝 Notes
+
+- This release resolves the Homebrew completion generation issue where pre-built binaries couldn't be executed during `brew install` due to macOS sandbox restrictions
+- The completions are identical across all platforms (they're shell scripts, not platform-specific)
+
+---
+
 ## [0.3.1] - 2026-01-29
 
 ### 🚀 Added

@@ -3,6 +3,11 @@
 
 version: 2
 
+# Run before the build to set up completions directory
+before:
+  hooks:
+    - go mod tidy
+
 # Build configuration
 builds:
   - id: dvm
@@ -17,17 +22,17 @@ builds:
       - -X main.Commit={{.ShortCommit}}
     goos:
       - darwin
-      - linux
     goarch:
-      - amd64
       - arm64
-    # Skip combinations that require cross-compilation toolchains
-    ignore:
-      - goos: darwin
-        goarch: amd64
-      - goos: linux
-        goarch: arm64
-        # For now, only build for the native platform in CI
+    # Note: Only building darwin/arm64 for now
+    # Linux builds require cross-compilation toolchains that aren't available locally
+    # To add linux support, use GitHub Actions with appropriate runners
+    hooks:
+      post:
+        # Generate shell completions after the native build
+        # This runs after each build, but completions are identical across platforms
+        - cmd: sh -c 'mkdir -p dist/completions && {{ .Path }} completion bash > dist/completions/dvm.bash && {{ .Path }} completion zsh > dist/completions/_dvm && {{ .Path }} completion fish > dist/completions/dvm.fish'
+          output: true
 
 # Archive configuration
 archives:
@@ -42,6 +47,9 @@ archives:
       - LICENSE
       - CHANGELOG.md
       - docs/**/*
+      - src: dist/completions/*
+        dst: completions
+        strip_parent: true
 
 # Checksums
 checksum:
@@ -94,26 +102,19 @@ release:
     
     ### macOS (Homebrew)
     ```bash
-    brew tap rmkohlman/tap
-    brew install dvm
+    brew install rmkohlman/tap/dvm
     ```
+    
+    Shell completions are automatically installed for bash, zsh, and fish.
     
     ### Binary Download
     Download the appropriate binary for your platform from the assets below.
-    
-    ### Shell Completion
-    After installing, set up shell completion:
-    ```bash
-    # Zsh (macOS)
-    dvm completion zsh > $(brew --prefix)/share/zsh/site-functions/_dvm
-    
-    # Bash (macOS)
-    dvm completion bash > $(brew --prefix)/etc/bash_completion.d/dvm
-    ```
+    The archive includes shell completion files in the `completions/` directory.
     
     **Full Changelog**: https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md
 
-# Homebrew tap
+# Homebrew tap - GoReleaser will update this automatically
+# But we maintain our own formula manually for more control
 brews:
   - repository:
       owner: rmkohlman
@@ -126,11 +127,9 @@ brews:
     description: "DevOpsMaestro (dvm) - CLI tool for managing development workspaces"
     license: "GPL-3.0"
     directory: Formula
+    skip_upload: true  # We maintain the formula manually
     install: |
       bin.install "dvm"
-      
-      # Generate and install shell completions
-      generate_completions_from_executable(bin/"dvm", "completion")
     test: |
       system "#{bin}/dvm", "version"
 
@@ -138,7 +137,7 @@ brews:
 announce:
   skip: true
 
-# Sign artifacts (optional - requires GPG key)
-signs:
-  - artifacts: checksum
-    signature: "${artifact}.sig"
+# Sign artifacts (disabled - requires GPG key)
+# signs:
+#   - artifacts: checksum
+#     signature: "${artifact}.sig"
