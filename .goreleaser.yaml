@@ -30,8 +30,9 @@ builds:
     # To add linux support, use GitHub Actions with appropriate runners
     hooks:
       post:
-        # Generate shell completions after the native build
-        - cmd: sh -c 'mkdir -p dist/completions/dvm && {{ .Path }} completion bash > dist/completions/dvm/dvm.bash && {{ .Path }} completion zsh > dist/completions/dvm/_dvm && {{ .Path }} completion fish > dist/completions/dvm/dvm.fish'
+        # Skip completion generation for dvm on GitHub runner (darwin binary can't run on linux)
+        # Completions will be generated locally or during local release
+        - cmd: sh -c 'echo "Skipping dvm completions (cross-compiled binary)"'
           output: true
 
   # nvp (NvimOps) binary - standalone Neovim plugin manager
@@ -53,8 +54,9 @@ builds:
       - amd64
     hooks:
       post:
-        # Generate shell completions for nvp
-        - cmd: sh -c 'mkdir -p dist/completions/nvp && {{ .Path }} completion bash > dist/completions/nvp/nvp.bash && {{ .Path }} completion zsh > dist/completions/nvp/_nvp && {{ .Path }} completion fish > dist/completions/nvp/nvp.fish'
+        # Generate shell completions ONLY for linux_amd64 (native on GitHub runner)
+        # Other platforms can't run their binaries on the linux runner
+        - cmd: sh -c '[ "{{ .Os }}" = "linux" ] && [ "{{ .Arch }}" = "amd64" ] && mkdir -p dist/completions/nvp && {{ .Path }} completion bash > dist/completions/nvp/nvp.bash && {{ .Path }} completion zsh > dist/completions/nvp/_nvp && {{ .Path }} completion fish > dist/completions/nvp/nvp.fish || true'
           output: true
 
 # Archive configuration
@@ -73,9 +75,6 @@ archives:
       - LICENSE
       - CHANGELOG.md
       - docs/**/*
-      - src: dist/completions/dvm/*
-        dst: completions
-        strip_parent: true
 
   # nvp archive (cross-platform)
   - id: nvp-archive
