@@ -1,0 +1,41 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: mason
+  description: "LSP, DAP, linter, and formatter installer"
+  category: lsp
+  tags: ["lsp", "tooling"]
+spec:
+  repo: williamboman/mason.nvim
+  dependencies:
+    - williamboman/mason-lspconfig.nvim
+    - WhoIsSethDaniel/mason-tool-installer.nvim
+  config: |
+    local mason = require("mason")
+    local mason_lspconfig = require("mason-lspconfig")
+    local mason_tool_installer = require("mason-tool-installer")
+
+    mason.setup({
+      ui = {
+        icons = {
+          package_installed = "✓",
+          package_pending = "➜",
+          package_uninstalled = "✗",
+        },
+      },
+    })
+
+    mason_lspconfig.setup({
+      ensure_installed = {
+        "gopls", "rust_analyzer", "pyright", "lua_ls", "bashls", "clangd",
+        "html", "cssls", "tailwindcss", "svelte", "yamlls", "graphql",
+        "emmet_ls", "prismals", "dockerls", "helm_ls", "jsonls", "lemminx", "sqlls",
+      },
+    })
+
+    mason_tool_installer.setup({
+      ensure_installed = {
+        "prettier", "stylua", "isort", "black", "pylint", "eslint_d",
+        "ocamlformat", "goimports", "shellcheck",
+      },
+    })

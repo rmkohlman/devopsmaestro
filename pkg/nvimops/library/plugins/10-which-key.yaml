@@ -1,0 +1,14 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: which-key
+  description: "Show keybindings in popup"
+  category: ui
+  tags: ["keybindings", "help"]
+spec:
+  repo: folke/which-key.nvim
+  event: VeryLazy
+  init: |
+    vim.o.timeout = true
+    vim.o.timeoutlen = 300
+  opts: {}

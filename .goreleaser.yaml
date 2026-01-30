@@ -10,6 +10,7 @@ before:
 
 # Build configuration
 builds:
+  # Main dvm binary
   - id: dvm
     binary: dvm
     main: .
@@ -30,15 +31,40 @@ builds:
     hooks:
       post:
         # Generate shell completions after the native build
-        # This runs after each build, but completions are identical across platforms
-        - cmd: sh -c 'mkdir -p dist/completions && {{ .Path }} completion bash > dist/completions/dvm.bash && {{ .Path }} completion zsh > dist/completions/_dvm && {{ .Path }} completion fish > dist/completions/dvm.fish'
+        - cmd: sh -c 'mkdir -p dist/completions/dvm && {{ .Path }} completion bash > dist/completions/dvm/dvm.bash && {{ .Path }} completion zsh > dist/completions/dvm/_dvm && {{ .Path }} completion fish > dist/completions/dvm/dvm.fish'
+          output: true
+
+  # nvp (NvimOps) binary - standalone Neovim plugin manager
+  - id: nvp
+    binary: nvp
+    main: ./cmd/nvp
+    env:
+      - CGO_ENABLED=0  # nvp doesn't need CGO (no sqlite)
+    ldflags:
+      - -s -w
+      - -X main.Version={{.Version}}
+      - -X main.BuildTime={{.Date}}
+      - -X main.Commit={{.ShortCommit}}
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - arm64
+      - amd64
+    hooks:
+      post:
+        # Generate shell completions for nvp
+        - cmd: sh -c 'mkdir -p dist/completions/nvp && {{ .Path }} completion bash > dist/completions/nvp/nvp.bash && {{ .Path }} completion zsh > dist/completions/nvp/_nvp && {{ .Path }} completion fish > dist/completions/nvp/nvp.fish'
           output: true
 
 # Archive configuration
 archives:
+  # dvm archive (darwin only for now)
   - id: dvm-archive
+    ids:
+      - dvm
     name_template: >-
-      {{ .ProjectName }}_
+      dvm_
       {{- .Version }}_
       {{- .Os }}_
       {{- .Arch }}
@@ -47,7 +73,24 @@ archives:
       - LICENSE
       - CHANGELOG.md
       - docs/**/*
-      - src: dist/completions/*
+      - src: dist/completions/dvm/*
+        dst: completions
+        strip_parent: true
+
+  # nvp archive (cross-platform)
+  - id: nvp-archive
+    ids:
+      - nvp
+    name_template: >-
+      nvp_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}
+    files:
+      - README.md
+      - LICENSE
+      - NVIMOPS_TEST_PLAN.md
+      - src: dist/completions/nvp/*
         dst: completions
         strip_parent: true
 
@@ -95,43 +138,93 @@ release:
     ## DevOpsMaestro {{ .Tag }}
     
     Welcome to this new release of DevOpsMaestro!
+    
+    This release includes two binaries:
+    - **dvm** - Development workspace manager (macOS only)
+    - **nvp** - NvimOps plugin manager (cross-platform)
   footer: |
     ---
     
     ## Installation
     
-    ### macOS (Homebrew)
+    ### dvm (macOS - Homebrew)
     ```bash
     brew install rmkohlman/tap/dvm
     ```
     
-    Shell completions are automatically installed for bash, zsh, and fish.
+    ### nvp (Cross-platform)
+    Download the appropriate `nvp_*` archive for your platform from the assets below.
     
-    ### Binary Download
-    Download the appropriate binary for your platform from the assets below.
-    The archive includes shell completion files in the `completions/` directory.
+    **Quick start with nvp:**
+    ```bash
+    nvp library list              # See available plugins
+    nvp library install telescope # Install from library
+    nvp generate                  # Generate Lua files
+    ```
+    
+    Shell completions are included in the `completions/` directory of each archive.
     
     **Full Changelog**: https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md
 
-# Homebrew tap - GoReleaser will update this automatically
-# But we maintain our own formula manually for more control
-brews:
+# Homebrew Casks - GoReleaser will update the tap automatically
+# Note: Casks are the recommended way for distributing pre-built binaries
+homebrew_casks:
+  # dvm Cask (macOS only, requires CGO)
   - repository:
       owner: rmkohlman
       name: homebrew-tap
       token: "{{ .Env.GITHUB_TOKEN }}"
+    ids:
+      - dvm-archive
+    name: dvm
     commit_author:
       name: Robert Kohlman
       email: rkohlman@users.noreply.github.com
     homepage: https://github.com/rmkohlman/devopsmaestro
     description: "DevOpsMaestro (dvm) - CLI tool for managing development workspaces"
     license: "GPL-3.0"
-    directory: Formula
-    skip_upload: true  # We maintain the formula manually
-    install: |
-      bin.install "dvm"
-    test: |
-      system "#{bin}/dvm", "version"
+    url:
+      verified: github.com/rmkohlman/devopsmaestro
+    skip_upload: true  # We maintain the cask manually
+    binaries:
+      - dvm
+    hooks:
+      post:
+        # Remove quarantine attribute for unsigned binary
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/dvm"]
+          end
+
+  # nvp Cask (cross-platform, no CGO needed)
+  - repository:
+      owner: rmkohlman
+      name: homebrew-tap
+      token: "{{ .Env.GITHUB_TOKEN }}"
+    ids:
+      - nvp-archive
+    name: nvp
+    commit_author:
+      name: Robert Kohlman
+      email: rkohlman@users.noreply.github.com
+    homepage: https://github.com/rmkohlman/devopsmaestro
+    description: "nvp (NvimOps) - DevOps-style Neovim plugin manager"
+    license: "GPL-3.0"
+    url:
+      verified: github.com/rmkohlman/devopsmaestro
+    skip_upload: true  # We maintain the cask manually
+    binaries:
+      - nvp
+    zap:
+      trash:
+        - "~/.nvp"
+    hooks:
+      post:
+        # Remove quarantine attribute for unsigned binary
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/nvp"]
+          end
 
 # Announcement
 announce:

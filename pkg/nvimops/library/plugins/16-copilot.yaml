@@ -1,0 +1,16 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: copilot
+  description: "GitHub Copilot integration"
+  category: ai
+  tags: ["copilot", "ai", "completion"]
+spec:
+  repo: zbirenbaum/copilot.lua
+  cmd: Copilot
+  event: InsertEnter
+  config: |
+    require("copilot").setup({
+      suggestion = { enabled = false },
+      panel = { enabled = false },
+    })

@@ -7,6 +7,130 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.0] - 2026-01-29
+
+### 🚀 Added
+
+#### nvp (NvimOps) - Standalone Neovim Plugin Manager CLI
+- **New `nvp` binary** - Standalone CLI for managing Neovim plugins using DevOps-style YAML configuration
+- **Plugin Store** - File-based plugin storage at `~/.nvp/plugins/`
+- **Plugin Library** - 16 pre-configured plugins ready to install:
+  - telescope, treesitter, nvim-cmp, lspconfig, mason, gitsigns
+  - lualine, which-key, copilot, comment, alpha, neo-tree
+  - conform, nvim-lint, trouble, toggleterm
+- **Lua Generation** - Generate lazy.nvim compatible Lua files from YAML definitions
+
+#### nvp Commands
+- `nvp init` - Initialize nvp store at `~/.nvp/`
+- `nvp plugin add <name>` - Add plugin from YAML file or stdin
+- `nvp plugin list` - List installed plugins
+- `nvp plugin get <name>` - Show plugin details (YAML/JSON/table output)
+- `nvp plugin delete <name>` - Remove a plugin
+- `nvp library list` - List available plugins in the library
+- `nvp library get <name>` - Show library plugin details
+- `nvp library install <name>` - Install plugin from library to store
+- `nvp generate` - Generate Lua files from installed plugins
+- `nvp version` - Show nvp version
+- `nvp completion` - Generate shell completions (bash/zsh/fish/powershell)
+
+#### Decoupled Architecture (pkg/nvimops)
+- **PluginStore interface** - Swappable storage backends:
+  - `MemoryStore` - In-memory storage for testing
+  - `FileStore` - File-based storage for production
+  - `ReadOnlyStore` - Wrapper for read-only sources (library)
+  - Future: `DBPluginStore` for dvm integration
+- **LuaGenerator interface** - Swappable Lua generation:
+  - `Generator` - Default lazy.nvim compatible generator
+  - `MockGenerator` - For testing
+  - Extensible for other plugin managers (packer, vim-plug)
+- **ReadOnlySource interface** - Wrap any read-only source as a PluginStore
+- **Comprehensive mock implementations** for all interfaces
+
+#### Testing Infrastructure
+- **Automated test script** - `tests/manual/nvp/test-nvp.sh`
+  - 50+ automated tests covering all nvp functionality
+  - Parts 1-4, 6-8 of the test plan
+  - Verbose mode: `NVP_VERBOSE=1`
+  - Keep output: `NVP_KEEP_OUTPUT=1`
+- **Nvim config replica test** - `tests/manual/nvp/test-nvim-config-replica.sh`
+  - Clones real nvim-config repo
+  - Installs plugins from library
+  - Generates Lua files
+  - Verifies integration with Neovim
+- **Interface compliance tests** - Verify all implementations satisfy interfaces
+- **Swappability tests** - Same code works with different implementations
+
+### 🔧 Changed
+
+#### Package Rename
+- **`pkg/nvimmanager` → `pkg/nvimops`** - Renamed for consistency with CLI name
+- All imports updated across the codebase
+
+#### GoReleaser Configuration
+- **Fixed deprecation warnings** - Updated to latest GoReleaser syntax
+- **`archives.builds` → `archives.ids`** - New archive syntax
+- **Added `homebrew_casks`** - Recommended for pre-built binaries
+- **Quarantine removal hooks** - For unsigned macOS binaries
+- **`zap` section for nvp** - Clean up `~/.nvp` on Homebrew uninstall
+
+### 📦 Files Created
+
+```
+pkg/nvimops/                      # Standalone nvim plugin management library
+├── nvimops.go                    # Manager with swappable Store + Generator
+├── nvimops_test.go
+├── plugin/
+│   ├── types.go                  # Plugin, PluginYAML types
+│   ├── interfaces.go             # LuaGenerator interface
+│   ├── yaml.go                   # YAML unmarshaling
+│   ├── parser.go                 # YAML parsing
+│   ├── generator.go              # Default Lua generator
+│   ├── plugin_test.go
+│   └── interface_test.go         # Generator interface tests
+├── store/
+│   ├── interface.go              # PluginStore interface
+│   ├── readonly.go               # ReadOnlyStore wrapper
+│   ├── memory.go                 # MemoryStore implementation
+│   ├── file.go                   # FileStore implementation
+│   ├── store_test.go
+│   └── interface_test.go         # Store interface tests
+└── library/
+    ├── library.go                # Embedded plugin library
+    ├── library_test.go
+    └── plugins/                  # 16 embedded plugin YAMLs
+
+cmd/nvp/                          # nvp CLI
+├── root.go                       # Root command with subcommands
+└── (Cobra command tree)
+
+tests/manual/nvp/
+├── test-nvp.sh                   # Automated test suite
+└── test-nvim-config-replica.sh   # Real nvim config integration test
+
+NVIMOPS_TEST_PLAN.md              # Comprehensive test plan for nvp
+```
+
+### 🧪 Testing
+
+- **All Go tests passing** ✅
+- **GoReleaser check passing** ✅
+- **Interface compliance tests** - All implementations verified
+- **Swappability tests** - Implementations are interchangeable
+
+### 📚 Documentation
+
+- **NVIMOPS_TEST_PLAN.md** - Comprehensive 8-part test plan
+- **Architecture diagram** in test plan
+- **Extensibility examples** for custom stores and generators
+
+### 🎯 What's Next (v0.5.0)
+
+- Integrate nvp with dvm (`dvm workspace add-plugin/remove-plugin`)
+- Create `internal/db/plugin_store.go` - DBPluginStore for dvm
+- Add more plugins to the library (indent-blankline, etc.)
+
+---
+
 ## [0.3.3] - 2026-01-29
 
 ### 🚀 Added
@@ -345,6 +469,8 @@ docs/
 
 ## Version History
 
+- **[0.4.0]** - 2026-01-29 - nvp (NvimOps) standalone CLI + decoupled architecture
+- **[0.3.3]** - 2026-01-29 - Pre-generated shell completions in release archives
 - **[0.3.1]** - 2026-01-29 - Multi-platform support + decoupled architecture
 - **[0.3.0]** - 2026-01-24 - Neovim configuration management + remote URL templates
 - **[0.2.0]** - 2026-01-24 - Theme system + YAML syntax highlighting

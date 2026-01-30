@@ -34,3 +34,10 @@ CONTEXT.md
 # Test project directories (cloned repos for testing)
 dvm-test-fastapi/
 dvm-test-golang/
+
+# Generated test runner for nvim-manager tests
+tests/manual/nvim-manager/testrunner.go
+
+# Built binaries
+/dvm
+/nvp

@@ -1,0 +1,39 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: treesitter
+  description: "Syntax highlighting, indentation, and incremental selection"
+  category: syntax
+  tags: ["highlighting", "parsing"]
+spec:
+  repo: nvim-treesitter/nvim-treesitter
+  event: ["BufReadPre", "BufNewFile"]
+  build: ":TSUpdate"
+  config: |
+    local treesitter = require("nvim-treesitter.configs")
+
+    treesitter.setup({
+      highlight = {
+        enable = true,
+      },
+      indent = { enable = true },
+      ensure_installed = {
+        "json", "javascript", "typescript", "tsx", "yaml", "html", "http",
+        "css", "prisma", "python", "markdown", "markdown_inline", "svelte",
+        "graphql", "bash", "lua", "vim", "dockerfile", "helm", "c_sharp",
+        "gitignore", "csv", "query", "go", "ocaml", "php", "puppet",
+        "vimdoc", "regex", "ruby", "rust", "scss", "sql", "yang", "c",
+        "ssh_config", "requirements", "promql",
+      },
+      incremental_selection = {
+        enable = true,
+        keymaps = {
+          init_selection = "<C-space>",
+          node_incremental = "<C-space>",
+          scope_incremental = false,
+          node_decremental = "<bs>",
+        },
+      },
+    })
+
+    vim.treesitter.language.register("bash", "zsh")
