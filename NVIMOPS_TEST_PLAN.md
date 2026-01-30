@@ -209,7 +209,7 @@ ls -la ~/.nvp/
 
 ### 3.2 Apply Plugin from YAML
 
-Create test plugin file:
+**Step 1:** Create test plugin file (copy this entire block including the EOF line):
 
 ```bash
 cat > /tmp/test-plugin.yaml << 'EOF'
@@ -231,10 +231,18 @@ spec:
 EOF
 ```
 
+**Step 2:** Run apply commands (one at a time):
+
 ```bash
 ./nvp apply -f /tmp/test-plugin.yaml
-./nvp apply -f /tmp/test-plugin.yaml  # Re-apply (update)
-cat /tmp/test-plugin.yaml | ./nvp apply -f -  # From stdin
+```
+
+```bash
+./nvp apply -f /tmp/test-plugin.yaml
+```
+
+```bash
+cat /tmp/test-plugin.yaml | ./nvp apply -f -
 ```
 
 **Expected:** Plugin created/updated in store.
@@ -424,15 +432,23 @@ cat /tmp/nvp-test/lua/plugins/managed/telescope.lua
 
 If you want to test the generated config actually works with Neovim:
 
+**Step 1:** Create test directory and generate plugins:
+
 ```bash
-# Create test nvim config directory
 mkdir -p /tmp/nvp-test/{lua/plugins/managed,lua/core}
+```
 
-# Generate plugins
+```bash
 ./nvp library install --all
-./nvp generate --output /tmp/nvp-test/lua/plugins/managed
+```
 
-# Create minimal init.lua
+```bash
+./nvp generate --output /tmp/nvp-test/lua/plugins/managed
+```
+
+**Step 2:** Create minimal init.lua (copy this entire block including EOF):
+
+```bash
 cat > /tmp/nvp-test/init.lua << 'EOF'
 -- Minimal init.lua for testing nvp generated plugins
 vim.g.mapleader = " "
@@ -457,11 +473,15 @@ require("lazy").setup({
   defaults = { lazy = true },
 })
 EOF
+```
 
-# Test nvim startup (headless)
+**Step 3:** Test nvim startup:
+
+```bash
 NVIM_APPNAME=nvp-test nvim --headless "+Lazy sync" +qa 2>&1 | head -20
+```
 
-# Test nvim interactive (manual)
+```bash
 NVIM_APPNAME=nvp-test nvim
 ```
 
@@ -496,8 +516,11 @@ NVIM_APPNAME=nvp-test nvim
 
 ### 6.2 Invalid YAML
 
+Test error handling with invalid YAML inputs. Run each block separately:
+
+**Test: Wrong apiVersion** (copy entire block including EOF):
+
 ```bash
-# Wrong apiVersion
 cat << 'EOF' | ./nvp apply -f -
 apiVersion: wrong/v1
 kind: NvimPlugin
@@ -506,8 +529,11 @@ metadata:
 spec:
   repo: test/test
 EOF
+```
 
-# Wrong kind
+**Test: Wrong kind** (copy entire block including EOF):
+
+```bash
 cat << 'EOF' | ./nvp apply -f -
 apiVersion: nvp.io/v1
 kind: WrongKind
@@ -516,8 +542,11 @@ metadata:
 spec:
   repo: test/test
 EOF
+```
 
-# Missing required fields
+**Test: Missing required fields** (copy entire block including EOF):
+
+```bash
 cat << 'EOF' | ./nvp apply -f -
 apiVersion: nvp.io/v1
 kind: NvimPlugin
