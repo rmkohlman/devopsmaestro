@@ -1,7 +1,6 @@
 package plugin
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -80,7 +79,12 @@ func (g *Generator) GenerateLua(p *Plugin) (string, error) {
 
 	// Config function (runs after plugin loads)
 	if p.Config != "" {
-		g.writeFunction(&lua, indent, "config", p.Config)
+		// Handle "true" as Lua boolean (config = true means use default setup)
+		if p.Config == "true" {
+			lua.WriteString(fmt.Sprintf("%sconfig = true,\n", indent))
+		} else {
+			g.writeFunction(&lua, indent, "config", p.Config)
+		}
 	}
 
 	// Opts (passed to plugin.setup())
@@ -222,18 +226,59 @@ func (g *Generator) writeFunction(lua *strings.Builder, indent, funcName, code s
 
 // writeOpts writes the opts table.
 func (g *Generator) writeOpts(lua *strings.Builder, indent string, opts map[string]interface{}) {
-	// For complex opts, use JSON encoding as a base and convert to Lua
-	// This is a simplified approach - for production, you'd want proper Lua table generation
-	optsJSON, err := json.MarshalIndent(opts, indent, strings.Repeat(" ", g.IndentSize))
-	if err != nil {
-		// Fallback to empty opts on error
-		lua.WriteString(fmt.Sprintf("%sopts = {},\n", indent))
-		return
+	lua.WriteString(fmt.Sprintf("%sopts = {\n", indent))
+	indent2 := indent + strings.Repeat(" ", g.IndentSize)
+
+	for key, value := range opts {
+		g.writeOptsValue(lua, indent2, key, value)
 	}
 
-	// Convert JSON to Lua-style table
-	luaOpts := jsonToLua(string(optsJSON))
-	lua.WriteString(fmt.Sprintf("%sopts = %s,\n", indent, luaOpts))
+	lua.WriteString(fmt.Sprintf("%s},\n", indent))
+}
+
+// writeOptsValue writes a single opts key-value pair.
+func (g *Generator) writeOptsValue(lua *strings.Builder, indent, key string, value interface{}) {
+	switch v := value.(type) {
+	case string:
+		// Check if it looks like a Lua function
+		trimmed := strings.TrimSpace(v)
+		if strings.HasPrefix(trimmed, "function") {
+			// Write as raw Lua function
+			lua.WriteString(fmt.Sprintf("%s%s = %s,\n", indent, key, trimmed))
+		} else {
+			// Write as quoted string
+			lua.WriteString(fmt.Sprintf("%s%s = \"%s\",\n", indent, key, escapeString(v)))
+		}
+	case bool:
+		lua.WriteString(fmt.Sprintf("%s%s = %t,\n", indent, key, v))
+	case int, int64, float64:
+		lua.WriteString(fmt.Sprintf("%s%s = %v,\n", indent, key, v))
+	case []interface{}:
+		// Array
+		lua.WriteString(fmt.Sprintf("%s%s = { ", indent, key))
+		for i, item := range v {
+			if i > 0 {
+				lua.WriteString(", ")
+			}
+			if str, ok := item.(string); ok {
+				lua.WriteString(fmt.Sprintf("\"%s\"", escapeString(str)))
+			} else {
+				lua.WriteString(fmt.Sprintf("%v", item))
+			}
+		}
+		lua.WriteString(" },\n")
+	case map[string]interface{}:
+		// Nested table
+		lua.WriteString(fmt.Sprintf("%s%s = {\n", indent, key))
+		indent2 := indent + strings.Repeat(" ", g.IndentSize)
+		for k, val := range v {
+			g.writeOptsValue(lua, indent2, k, val)
+		}
+		lua.WriteString(fmt.Sprintf("%s},\n", indent))
+	default:
+		// Fallback: convert to string
+		lua.WriteString(fmt.Sprintf("%s%s = \"%v\",\n", indent, key, value))
+	}
 }
 
 // escapeString escapes special characters in a Lua string.
@@ -252,19 +297,6 @@ func isLuaExpression(s string) bool {
 	return strings.HasPrefix(s, "require(") ||
 		strings.HasPrefix(s, "require'") ||
 		strings.HasPrefix(s, "require \"") ||
-		strings.HasPrefix(s, "function") ||
-		strings.HasPrefix(s, "<cmd>") // Vim command
-}
-
-// jsonToLua converts a JSON string to a Lua table string.
-func jsonToLua(json string) string {
-	// Basic conversions
-	lua := json
-	lua = strings.ReplaceAll(lua, ":", " =") // JSON : to Lua =
-	lua = strings.ReplaceAll(lua, "[", "{")  // JSON array to Lua table
-	lua = strings.ReplaceAll(lua, "]", "}")  // JSON array to Lua table
-	lua = strings.ReplaceAll(lua, "null", "nil")
-	lua = strings.ReplaceAll(lua, "true", "true")   // same in both
-	lua = strings.ReplaceAll(lua, "false", "false") // same in both
-	return lua
+		strings.HasPrefix(s, "function")
+	// Note: <cmd>...<cr> is NOT a Lua expression, it's a string
 }
