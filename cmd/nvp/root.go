@@ -17,6 +17,8 @@ import (
 	"devopsmaestro/pkg/nvimops/library"
 	"devopsmaestro/pkg/nvimops/plugin"
 	"devopsmaestro/pkg/nvimops/store"
+	"devopsmaestro/pkg/nvimops/theme"
+	themelibrary "devopsmaestro/pkg/nvimops/theme/library"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -78,6 +80,7 @@ func init() {
 	rootCmd.AddCommand(disableCmd)
 	rootCmd.AddCommand(generateCmd)
 	rootCmd.AddCommand(generateLuaCmd)
+	rootCmd.AddCommand(themeCmd)
 	rootCmd.AddCommand(completionCmd)
 }
 
@@ -832,6 +835,538 @@ var generateLuaCmd = &cobra.Command{
 func init() {
 	generateCmd.Flags().StringP("output", "o", "", "Output directory")
 	generateCmd.Flags().Bool("dry-run", false, "Show what would be generated")
+}
+
+// =============================================================================
+// THEME COMMANDS
+// =============================================================================
+
+var themeCmd = &cobra.Command{
+	Use:   "theme",
+	Short: "Manage Neovim themes",
+	Long: `Manage Neovim colorscheme themes using YAML definitions.
+
+Themes define:
+  - The colorscheme plugin to use (tokyonight, catppuccin, etc.)
+  - Color palette that other plugins can reference
+  - Custom color overrides
+
+The active theme's palette is exported as a Lua module that other plugins
+(lualine, bufferline, telescope, etc.) can use for consistent styling.
+
+Examples:
+  nvp theme library list              # See available themes
+  nvp theme library install catppuccin-mocha
+  nvp theme use catppuccin-mocha      # Set as active theme
+  nvp theme get                       # Show active theme`,
+}
+
+var themeListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List installed themes",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		themeStore := getThemeStore()
+
+		themes, err := themeStore.List()
+		if err != nil {
+			return fmt.Errorf("failed to list themes: %w", err)
+		}
+
+		if len(themes) == 0 {
+			fmt.Println("No themes installed")
+			fmt.Println("\nUse 'nvp theme library list' to see available themes")
+			return nil
+		}
+
+		// Get active theme
+		active, _ := themeStore.GetActive()
+		activeName := ""
+		if active != nil {
+			activeName = active.Name
+		}
+
+		format, _ := cmd.Flags().GetString("output")
+		return outputThemes(themes, format, activeName)
+	},
+}
+
+var themeGetCmd = &cobra.Command{
+	Use:   "get [name]",
+	Short: "Get theme details (defaults to active theme)",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		themeStore := getThemeStore()
+
+		var t *theme.Theme
+		var err error
+
+		if len(args) > 0 {
+			t, err = themeStore.Get(args[0])
+		} else {
+			t, err = themeStore.GetActive()
+			if t == nil && err == nil {
+				return fmt.Errorf("no active theme set. Use 'nvp theme use <name>' to set one")
+			}
+		}
+
+		if err != nil {
+			return err
+		}
+
+		format, _ := cmd.Flags().GetString("output")
+		return outputTheme(t, format)
+	},
+}
+
+var themeApplyCmd = &cobra.Command{
+	Use:   "apply",
+	Short: "Apply a theme from file or URL",
+	Long: `Apply a theme definition from a YAML file or URL.
+
+URL Formats:
+  https://example.com/theme.yaml           # Direct URL
+  github:user/repo/path/theme.yaml         # GitHub shorthand
+  
+Examples:
+  nvp theme apply -f my-theme.yaml
+  nvp theme apply --url github:user/repo/themes/custom.yaml`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		files, _ := cmd.Flags().GetStringSlice("filename")
+		urls, _ := cmd.Flags().GetStringSlice("url")
+
+		if len(files) == 0 && len(urls) == 0 {
+			return fmt.Errorf("must specify at least one file with -f flag or URL with --url flag")
+		}
+
+		themeStore := getThemeStore()
+		if err := themeStore.Init(); err != nil {
+			return err
+		}
+
+		// Process files
+		for _, file := range files {
+			var data []byte
+			var err error
+			var source string
+
+			if file == "-" {
+				data, err = io.ReadAll(os.Stdin)
+				source = "stdin"
+			} else {
+				data, err = os.ReadFile(file)
+				source = file
+			}
+			if err != nil {
+				return fmt.Errorf("failed to read %s: %w", source, err)
+			}
+
+			if err := applyThemeData(themeStore, data, source); err != nil {
+				return err
+			}
+		}
+
+		// Process URLs
+		for _, url := range urls {
+			data, source, err := fetchURL(url)
+			if err != nil {
+				return fmt.Errorf("failed to fetch %s: %w", url, err)
+			}
+
+			if err := applyThemeData(themeStore, data, source); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	},
+}
+
+func applyThemeData(themeStore *theme.FileStore, data []byte, source string) error {
+	slog.Debug("parsing theme YAML", "source", source, "bytes", len(data))
+
+	t, err := theme.ParseYAML(data)
+	if err != nil {
+		slog.Error("failed to parse theme YAML", "source", source, "error", err)
+		return fmt.Errorf("failed to parse %s: %w", source, err)
+	}
+
+	// Check if exists
+	existing, _ := themeStore.Get(t.Name)
+	action := "created"
+	if existing != nil {
+		action = "updated"
+	}
+
+	if err := themeStore.Save(t); err != nil {
+		slog.Error("failed to save theme", "name", t.Name, "error", err)
+		return fmt.Errorf("failed to save theme: %w", err)
+	}
+
+	slog.Info("theme applied", "name", t.Name, "action", action, "source", source)
+	fmt.Printf("✓ Theme '%s' %s (from %s)\n", t.Name, action, source)
+	return nil
+}
+
+var themeDeleteCmd = &cobra.Command{
+	Use:   "delete <name>",
+	Short: "Delete a theme",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		name := args[0]
+		themeStore := getThemeStore()
+
+		// Check exists
+		if _, err := themeStore.Get(name); err != nil {
+			return fmt.Errorf("theme not found: %s", name)
+		}
+
+		// Confirm unless forced
+		force, _ := cmd.Flags().GetBool("force")
+		if !force {
+			fmt.Printf("Delete theme '%s'? (y/N): ", name)
+			var response string
+			fmt.Scanln(&response)
+			if response != "y" && response != "Y" {
+				fmt.Println("Aborted")
+				return nil
+			}
+		}
+
+		if err := themeStore.Delete(name); err != nil {
+			return fmt.Errorf("failed to delete theme: %w", err)
+		}
+
+		fmt.Printf("✓ Theme '%s' deleted\n", name)
+		return nil
+	},
+}
+
+var themeUseCmd = &cobra.Command{
+	Use:   "use <name>",
+	Short: "Set the active theme",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		name := args[0]
+		themeStore := getThemeStore()
+
+		if err := themeStore.SetActive(name); err != nil {
+			return err
+		}
+
+		fmt.Printf("✓ Active theme set to '%s'\n", name)
+		fmt.Println("\nRun 'nvp generate' to regenerate Lua files with the new theme")
+		return nil
+	},
+}
+
+// Theme library commands
+var themeLibraryCmd = &cobra.Command{
+	Use:   "library",
+	Short: "Browse and install themes from the library",
+}
+
+var themeLibraryListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List available themes in the library",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		themes, err := themelibrary.List()
+		if err != nil {
+			return fmt.Errorf("failed to list library themes: %w", err)
+		}
+
+		if len(themes) == 0 {
+			fmt.Println("No themes in library")
+			return nil
+		}
+
+		// Filter by category
+		category, _ := cmd.Flags().GetString("category")
+		if category != "" {
+			themes, err = themelibrary.ListByCategory(category)
+			if err != nil {
+				return err
+			}
+		}
+
+		format, _ := cmd.Flags().GetString("output")
+		return outputThemeInfos(themes, format)
+	},
+}
+
+var themeLibraryShowCmd = &cobra.Command{
+	Use:   "show <name>",
+	Short: "Show details of a library theme",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		name := args[0]
+
+		t, err := themelibrary.Get(name)
+		if err != nil {
+			return err
+		}
+
+		format, _ := cmd.Flags().GetString("output")
+		return outputTheme(t, format)
+	},
+}
+
+var themeLibraryInstallCmd = &cobra.Command{
+	Use:   "install <name>...",
+	Short: "Install themes from library",
+	Args:  cobra.MinimumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		themeStore := getThemeStore()
+		if err := themeStore.Init(); err != nil {
+			return err
+		}
+
+		setActive, _ := cmd.Flags().GetBool("use")
+		var lastInstalled string
+
+		for _, name := range args {
+			t, err := themelibrary.Get(name)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: theme not found in library: %s\n", name)
+				continue
+			}
+
+			if err := themeStore.Save(t); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to install %s: %v\n", name, err)
+				continue
+			}
+
+			fmt.Printf("✓ Installed theme '%s'\n", t.Name)
+			lastInstalled = t.Name
+		}
+
+		// Set active if requested
+		if setActive && lastInstalled != "" {
+			if err := themeStore.SetActive(lastInstalled); err != nil {
+				return err
+			}
+			fmt.Printf("✓ Active theme set to '%s'\n", lastInstalled)
+		}
+
+		return nil
+	},
+}
+
+var themeLibraryCategoriesCmd = &cobra.Command{
+	Use:   "categories",
+	Short: "List theme categories",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		categories, err := themelibrary.Categories()
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Categories (%d):\n", len(categories))
+		for _, c := range categories {
+			themes, _ := themelibrary.ListByCategory(c)
+			fmt.Printf("  %-10s (%d themes)\n", c, len(themes))
+		}
+		return nil
+	},
+}
+
+var themeGenerateCmd = &cobra.Command{
+	Use:   "generate",
+	Short: "Generate Lua files for the active theme",
+	Long: `Generate Lua files for the active theme including:
+  - theme/palette.lua   - Color palette module for other plugins
+  - theme/init.lua      - Theme setup and helpers
+  - plugins/colorscheme.lua - Lazy.nvim plugin spec
+
+Other plugins can use the palette:
+  local palette = require("theme").palette
+  local bg = palette.colors.bg`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		themeStore := getThemeStore()
+
+		t, err := themeStore.GetActive()
+		if err != nil {
+			return err
+		}
+		if t == nil {
+			return fmt.Errorf("no active theme set. Use 'nvp theme use <name>' first")
+		}
+
+		outputDir, _ := cmd.Flags().GetString("output")
+		if outputDir == "" {
+			home, _ := os.UserHomeDir()
+			outputDir = filepath.Join(home, ".config", "nvim", "lua")
+		}
+
+		// Expand ~
+		if strings.HasPrefix(outputDir, "~") {
+			home, _ := os.UserHomeDir()
+			outputDir = filepath.Join(home, outputDir[1:])
+		}
+
+		dryRun, _ := cmd.Flags().GetBool("dry-run")
+
+		gen := theme.NewGenerator()
+		generated, err := gen.Generate(t)
+		if err != nil {
+			return fmt.Errorf("failed to generate theme: %w", err)
+		}
+
+		files := map[string]string{
+			filepath.Join(outputDir, "theme", "palette.lua"):              generated.PaletteLua,
+			filepath.Join(outputDir, "theme", "init.lua"):                 generated.InitLua,
+			filepath.Join(outputDir, "plugins", "nvp", "colorscheme.lua"): generated.PluginLua,
+		}
+
+		if dryRun {
+			fmt.Printf("Would generate theme files for '%s':\n", t.Name)
+			for path := range files {
+				fmt.Printf("  %s\n", path)
+			}
+			return nil
+		}
+
+		for path, content := range files {
+			dir := filepath.Dir(path)
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				return fmt.Errorf("failed to create directory %s: %w", dir, err)
+			}
+			if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+				return fmt.Errorf("failed to write %s: %w", path, err)
+			}
+			if verbose {
+				fmt.Printf("  Generated %s\n", path)
+			}
+		}
+
+		fmt.Printf("✓ Generated theme '%s' to %s\n", t.Name, outputDir)
+		fmt.Println("\nOther plugins can now use: require(\"theme\").palette")
+		return nil
+	},
+}
+
+func init() {
+	// Theme subcommands
+	themeCmd.AddCommand(themeListCmd)
+	themeCmd.AddCommand(themeGetCmd)
+	themeCmd.AddCommand(themeApplyCmd)
+	themeCmd.AddCommand(themeDeleteCmd)
+	themeCmd.AddCommand(themeUseCmd)
+	themeCmd.AddCommand(themeLibraryCmd)
+	themeCmd.AddCommand(themeGenerateCmd)
+
+	// Theme library subcommands
+	themeLibraryCmd.AddCommand(themeLibraryListCmd)
+	themeLibraryCmd.AddCommand(themeLibraryShowCmd)
+	themeLibraryCmd.AddCommand(themeLibraryInstallCmd)
+	themeLibraryCmd.AddCommand(themeLibraryCategoriesCmd)
+
+	// Flags
+	themeListCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")
+	themeGetCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json")
+	themeApplyCmd.Flags().StringSliceP("filename", "f", nil, "Theme YAML file(s)")
+	themeApplyCmd.Flags().StringSlice("url", nil, "Theme YAML URL(s)")
+	themeDeleteCmd.Flags().BoolP("force", "f", false, "Skip confirmation")
+	themeLibraryListCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")
+	themeLibraryListCmd.Flags().StringP("category", "c", "", "Filter by category (dark, light)")
+	themeLibraryShowCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json")
+	themeLibraryInstallCmd.Flags().Bool("use", false, "Set as active theme after install")
+	themeGenerateCmd.Flags().StringP("output", "o", "", "Output directory (default: ~/.config/nvim/lua)")
+	themeGenerateCmd.Flags().Bool("dry-run", false, "Show what would be generated")
+}
+
+func getThemeStore() *theme.FileStore {
+	dir := getConfigDir()
+	return theme.NewFileStore(dir)
+}
+
+func outputThemes(themes []*theme.Theme, format string, activeName string) error {
+	switch format {
+	case "yaml":
+		for i, t := range themes {
+			if i > 0 {
+				fmt.Println("---")
+			}
+			data, err := t.ToYAML()
+			if err != nil {
+				return err
+			}
+			fmt.Print(string(data))
+		}
+	case "json":
+		data, err := json.MarshalIndent(themes, "", "  ")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(data))
+	case "table", "":
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(w, "NAME\tCATEGORY\tPLUGIN\tACTIVE\tDESCRIPTION")
+		for _, t := range themes {
+			active := ""
+			if t.Name == activeName {
+				active = "*"
+			}
+			desc := t.Description
+			if len(desc) > 35 {
+				desc = desc[:32] + "..."
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", t.Name, t.Category, t.Plugin.Repo, active, desc)
+		}
+		w.Flush()
+	default:
+		return fmt.Errorf("unknown format: %s", format)
+	}
+	return nil
+}
+
+func outputTheme(t *theme.Theme, format string) error {
+	switch format {
+	case "yaml", "":
+		data, err := t.ToYAML()
+		if err != nil {
+			return err
+		}
+		fmt.Print(string(data))
+	case "json":
+		data, err := json.MarshalIndent(t, "", "  ")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(data))
+	default:
+		return fmt.Errorf("unknown format: %s", format)
+	}
+	return nil
+}
+
+func outputThemeInfos(themes []themelibrary.ThemeInfo, format string) error {
+	switch format {
+	case "yaml":
+		data, err := yaml.Marshal(themes)
+		if err != nil {
+			return err
+		}
+		fmt.Print(string(data))
+	case "json":
+		data, err := json.MarshalIndent(themes, "", "  ")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(data))
+	case "table", "":
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(w, "NAME\tCATEGORY\tPLUGIN\tDESCRIPTION")
+		for _, t := range themes {
+			desc := t.Description
+			if len(desc) > 40 {
+				desc = desc[:37] + "..."
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", t.Name, t.Category, t.Plugin, desc)
+		}
+		w.Flush()
+	default:
+		return fmt.Errorf("unknown format: %s", format)
+	}
+	return nil
 }
 
 // =============================================================================

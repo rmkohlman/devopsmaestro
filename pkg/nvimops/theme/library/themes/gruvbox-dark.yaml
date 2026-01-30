@@ -1,0 +1,33 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimTheme
+metadata:
+  name: gruvbox-dark
+  description: Gruvbox Dark - Retro groove color scheme
+  author: morhetz
+  category: dark
+spec:
+  plugin:
+    repo: "ellisonleao/gruvbox.nvim"
+  style: hard
+  transparent: false
+  colors:
+    bg: "#282828"
+    bg_dark: "#1d2021"
+    bg_highlight: "#3c3836"
+    bg_search: "#fabd2f"
+    bg_visual: "#504945"
+    fg: "#ebdbb2"
+    fg_dark: "#d5c4a1"
+    fg_gutter: "#665c54"
+    border: "#928374"
+    blue: "#83a598"
+    cyan: "#8ec07c"
+    green: "#b8bb26"
+    magenta: "#d3869b"
+    orange: "#fe8019"
+    purple: "#d3869b"
+    red: "#fb4934"
+    teal: "#8ec07c"
+    yellow: "#fabd2f"
+    comment: "#928374"
+    aqua: "#8ec07c"

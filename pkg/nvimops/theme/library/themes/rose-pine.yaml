@@ -1,0 +1,41 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimTheme
+metadata:
+  name: rose-pine
+  description: Rose Pine - All natural pine, faux fur and a bit of soho vibes
+  author: rose-pine
+  category: dark
+spec:
+  plugin:
+    repo: "rose-pine/neovim"
+  style: main
+  transparent: false
+  colors:
+    bg: "#191724"
+    bg_dark: "#1f1d2e"
+    bg_highlight: "#26233a"
+    bg_search: "#f6c177"
+    bg_visual: "#403d52"
+    fg: "#e0def4"
+    fg_dark: "#908caa"
+    fg_gutter: "#6e6a86"
+    border: "#524f67"
+    blue: "#31748f"
+    cyan: "#9ccfd8"
+    green: "#9ccfd8"
+    magenta: "#c4a7e7"
+    orange: "#ebbcba"
+    purple: "#c4a7e7"
+    red: "#eb6f92"
+    teal: "#9ccfd8"
+    yellow: "#f6c177"
+    comment: "#6e6a86"
+    gold: "#f6c177"
+    iris: "#c4a7e7"
+    love: "#eb6f92"
+    pine: "#31748f"
+    rose: "#ebbcba"
+    foam: "#9ccfd8"
+    muted: "#6e6a86"
+    subtle: "#908caa"
+    text: "#e0def4"

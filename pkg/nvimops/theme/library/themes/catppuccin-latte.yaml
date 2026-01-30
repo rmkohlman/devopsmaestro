@@ -1,0 +1,41 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimTheme
+metadata:
+  name: catppuccin-latte
+  description: Catppuccin Latte - Soothing pastel light theme
+  author: catppuccin
+  category: light
+spec:
+  plugin:
+    repo: "catppuccin/nvim"
+  style: latte
+  transparent: false
+  colors:
+    bg: "#eff1f5"
+    bg_dark: "#e6e9ef"
+    bg_highlight: "#ccd0da"
+    bg_search: "#df8e1d"
+    bg_visual: "#bcc0cc"
+    fg: "#4c4f69"
+    fg_dark: "#5c5f77"
+    fg_gutter: "#9ca0b0"
+    border: "#1e66f5"
+    blue: "#1e66f5"
+    cyan: "#179299"
+    green: "#40a02b"
+    magenta: "#ea76cb"
+    orange: "#fe640b"
+    purple: "#8839ef"
+    red: "#d20f39"
+    teal: "#179299"
+    yellow: "#df8e1d"
+    comment: "#9ca0b0"
+    lavender: "#7287fd"
+    maroon: "#e64553"
+    peach: "#fe640b"
+    pink: "#ea76cb"
+    rosewater: "#dc8a78"
+    sapphire: "#209fb5"
+    sky: "#04a5e5"
+    flamingo: "#dd7878"
+    mauve: "#8839ef"
