@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"devopsmaestro/pkg/nvimops"
 	"devopsmaestro/pkg/nvimops/library"
@@ -302,18 +304,26 @@ func init() {
 
 var applyCmd = &cobra.Command{
 	Use:   "apply",
-	Short: "Apply a plugin definition from file",
-	Long: `Apply a plugin definition from a YAML file to the local store.
+	Short: "Apply a plugin definition from file or URL",
+	Long: `Apply a plugin definition from a YAML file or URL to the local store.
 If the plugin already exists, it will be updated.
 
+URL Formats:
+  https://example.com/plugin.yaml           # Direct URL
+  github:user/repo/path/plugin.yaml         # GitHub shorthand (uses raw.githubusercontent.com)
+  
 Examples:
   nvp apply -f telescope.yaml
   nvp apply -f plugin1.yaml -f plugin2.yaml
+  nvp apply --url https://raw.githubusercontent.com/user/repo/main/plugin.yaml
+  nvp apply --url github:rmkohlman/nvim-yaml-plugins/plugins/telescope.yaml
   cat plugin.yaml | nvp apply -f -`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		files, _ := cmd.Flags().GetStringSlice("filename")
-		if len(files) == 0 {
-			return fmt.Errorf("must specify at least one file with -f flag")
+		urls, _ := cmd.Flags().GetStringSlice("url")
+
+		if len(files) == 0 && len(urls) == 0 {
+			return fmt.Errorf("must specify at least one file with -f flag or URL with --url flag")
 		}
 
 		mgr, err := getManager()
@@ -322,6 +332,7 @@ Examples:
 		}
 		defer mgr.Close()
 
+		// Process files
 		for _, file := range files {
 			var data []byte
 			var err error
@@ -338,32 +349,91 @@ Examples:
 				return fmt.Errorf("failed to read %s: %w", source, err)
 			}
 
-			p, err := plugin.ParseYAML(data)
+			if err := applyPluginData(mgr, data, source); err != nil {
+				return err
+			}
+		}
+
+		// Process URLs
+		for _, url := range urls {
+			data, source, err := fetchURL(url)
 			if err != nil {
-				return fmt.Errorf("failed to parse %s: %w", source, err)
+				return fmt.Errorf("failed to fetch %s: %w", url, err)
 			}
 
-			// Check if exists for messaging
-			existing, _ := mgr.Get(p.Name)
-			action := "created"
-			if existing != nil {
-				action = "configured"
+			if err := applyPluginData(mgr, data, source); err != nil {
+				return err
 			}
-
-			if err := mgr.Apply(p); err != nil {
-				return fmt.Errorf("failed to apply %s: %w", p.Name, err)
-			}
-
-			fmt.Printf("✓ Plugin '%s' %s (from %s)\n", p.Name, action, source)
 		}
 
 		return nil
 	},
 }
 
+// applyPluginData parses YAML data and applies it to the manager
+func applyPluginData(mgr *nvimops.Manager, data []byte, source string) error {
+	p, err := plugin.ParseYAML(data)
+	if err != nil {
+		return fmt.Errorf("failed to parse %s: %w", source, err)
+	}
+
+	// Check if exists for messaging
+	existing, _ := mgr.Get(p.Name)
+	action := "created"
+	if existing != nil {
+		action = "configured"
+	}
+
+	if err := mgr.Apply(p); err != nil {
+		return fmt.Errorf("failed to apply %s: %w", p.Name, err)
+	}
+
+	fmt.Printf("✓ Plugin '%s' %s (from %s)\n", p.Name, action, source)
+	return nil
+}
+
+// fetchURL fetches plugin YAML from a URL, supporting GitHub shorthand
+func fetchURL(url string) ([]byte, string, error) {
+	// Handle GitHub shorthand: github:user/repo/path/file.yaml
+	if strings.HasPrefix(url, "github:") {
+		path := strings.TrimPrefix(url, "github:")
+		// Split into user/repo and the rest
+		parts := strings.SplitN(path, "/", 3)
+		if len(parts) < 3 {
+			return nil, "", fmt.Errorf("invalid github URL format, expected github:user/repo/path/file.yaml")
+		}
+		user := parts[0]
+		repo := parts[1]
+		filePath := parts[2]
+		url = fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/main/%s", user, repo, filePath)
+	}
+
+	// Fetch the URL
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", fmt.Errorf("HTTP %d: %s", resp.StatusCode, resp.Status)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return data, url, nil
+}
+
 func init() {
 	applyCmd.Flags().StringSliceP("filename", "f", nil, "Plugin YAML file(s) to apply (use '-' for stdin)")
-	applyCmd.MarkFlagRequired("filename")
+	applyCmd.Flags().StringSlice("url", nil, "Plugin YAML URL(s) to fetch and apply")
 }
 
 // =============================================================================
