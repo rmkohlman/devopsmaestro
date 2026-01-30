@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -26,6 +27,7 @@ var (
 	configDir string
 	outputFmt string
 	verbose   bool
+	logFile   string
 )
 
 // rootCmd is the base command
@@ -56,7 +58,13 @@ func Execute() error {
 func init() {
 	// Global flags
 	rootCmd.PersistentFlags().StringVar(&configDir, "config", "", "Config directory (default: ~/.nvp)")
-	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
+	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable debug logging")
+	rootCmd.PersistentFlags().StringVar(&logFile, "log-file", "", "Write logs to file (JSON format)")
+
+	// Initialize logging before any command runs
+	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+		initLogging()
+	}
 
 	// Add all commands
 	rootCmd.AddCommand(versionCmd)
@@ -71,6 +79,42 @@ func init() {
 	rootCmd.AddCommand(generateCmd)
 	rootCmd.AddCommand(generateLuaCmd)
 	rootCmd.AddCommand(completionCmd)
+}
+
+// initLogging configures the global slog logger based on flags.
+// - Default: Silent (logs discarded)
+// - With --verbose: DEBUG level to stderr
+// - With --log-file: JSON format to file
+func initLogging() {
+	level := slog.LevelInfo
+	if verbose {
+		level = slog.LevelDebug
+	}
+
+	opts := &slog.HandlerOptions{
+		Level: level,
+	}
+
+	var handler slog.Handler
+
+	if logFile != "" {
+		// JSON format for file output (machine-readable)
+		f, err := os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not open log file %s: %v\n", logFile, err)
+			handler = slog.NewTextHandler(os.Stderr, opts)
+		} else {
+			handler = slog.NewJSONHandler(f, opts)
+		}
+	} else if verbose {
+		// Text format for terminal (human-readable), only when verbose
+		handler = slog.NewTextHandler(os.Stderr, opts)
+	} else {
+		// Silent by default - discard logs unless verbose or log-file specified
+		handler = slog.NewTextHandler(io.Discard, opts)
+	}
+
+	slog.SetDefault(slog.New(handler))
 }
 
 // =============================================================================
@@ -208,6 +252,7 @@ Examples:
 			return fmt.Errorf("specify plugin names or use --all")
 		}
 
+		slog.Debug("loading library")
 		lib, err := library.NewLibrary()
 		if err != nil {
 			return fmt.Errorf("failed to load library: %w", err)
@@ -222,23 +267,28 @@ Examples:
 		var plugins []*plugin.Plugin
 		if all {
 			plugins = lib.List()
+			slog.Info("installing all plugins from library", "count", len(plugins))
 		} else {
 			for _, name := range args {
 				p, ok := lib.Get(name)
 				if !ok {
+					slog.Warn("plugin not found in library", "name", name)
 					fmt.Fprintf(os.Stderr, "Warning: plugin not found in library: %s\n", name)
 					continue
 				}
 				plugins = append(plugins, p)
 			}
+			slog.Info("installing plugins from library", "count", len(plugins), "names", args)
 		}
 
 		for _, p := range plugins {
 			p.Enabled = true
 			if err := mgr.Apply(p); err != nil {
+				slog.Error("failed to install plugin", "name", p.Name, "error", err)
 				fmt.Fprintf(os.Stderr, "Warning: failed to install %s: %v\n", p.Name, err)
 				continue
 			}
+			slog.Debug("installed plugin", "name", p.Name)
 			fmt.Printf("✓ Installed %s\n", p.Name)
 		}
 
@@ -372,8 +422,11 @@ Examples:
 
 // applyPluginData parses YAML data and applies it to the manager
 func applyPluginData(mgr *nvimops.Manager, data []byte, source string) error {
+	slog.Debug("parsing plugin YAML", "source", source, "bytes", len(data))
+
 	p, err := plugin.ParseYAML(data)
 	if err != nil {
+		slog.Error("failed to parse YAML", "source", source, "error", err)
 		return fmt.Errorf("failed to parse %s: %w", source, err)
 	}
 
@@ -382,18 +435,25 @@ func applyPluginData(mgr *nvimops.Manager, data []byte, source string) error {
 	action := "created"
 	if existing != nil {
 		action = "configured"
+		slog.Debug("updating existing plugin", "name", p.Name)
+	} else {
+		slog.Debug("creating new plugin", "name", p.Name)
 	}
 
 	if err := mgr.Apply(p); err != nil {
+		slog.Error("failed to apply plugin", "name", p.Name, "error", err)
 		return fmt.Errorf("failed to apply %s: %w", p.Name, err)
 	}
 
+	slog.Info("plugin applied", "name", p.Name, "action", action, "source", source)
 	fmt.Printf("✓ Plugin '%s' %s (from %s)\n", p.Name, action, source)
 	return nil
 }
 
 // fetchURL fetches plugin YAML from a URL, supporting GitHub shorthand
 func fetchURL(url string) ([]byte, string, error) {
+	originalURL := url
+
 	// Handle GitHub shorthand: github:user/repo/path/file.yaml
 	if strings.HasPrefix(url, "github:") {
 		path := strings.TrimPrefix(url, "github:")
@@ -406,7 +466,10 @@ func fetchURL(url string) ([]byte, string, error) {
 		repo := parts[1]
 		filePath := parts[2]
 		url = fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/main/%s", user, repo, filePath)
+		slog.Debug("converted GitHub shorthand", "original", originalURL, "url", url)
 	}
+
+	slog.Debug("fetching URL", "url", url)
 
 	// Fetch the URL
 	client := &http.Client{
@@ -415,19 +478,23 @@ func fetchURL(url string) ([]byte, string, error) {
 
 	resp, err := client.Get(url)
 	if err != nil {
+		slog.Error("HTTP request failed", "url", url, "error", err)
 		return nil, "", err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		slog.Error("HTTP request returned error", "url", url, "status", resp.StatusCode)
 		return nil, "", fmt.Errorf("HTTP %d: %s", resp.StatusCode, resp.Status)
 	}
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
+		slog.Error("failed to read response body", "url", url, "error", err)
 		return nil, "", err
 	}
 
+	slog.Info("fetched URL successfully", "url", url, "bytes", len(data))
 	return data, url, nil
 }
 
@@ -664,6 +731,7 @@ Examples:
 		}
 
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
+		slog.Debug("generate command", "outputDir", outputDir, "dryRun", dryRun)
 
 		plugins, err := mgr.List()
 		if err != nil {
@@ -677,6 +745,8 @@ Examples:
 				enabled = append(enabled, p)
 			}
 		}
+
+		slog.Info("generating Lua files", "total", len(plugins), "enabled", len(enabled))
 
 		if len(enabled) == 0 {
 			fmt.Println("No enabled plugins to generate")
