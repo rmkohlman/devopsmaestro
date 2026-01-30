@@ -446,14 +446,16 @@ mkdir -p /tmp/nvp-test/lua/plugins/managed
 ./tests/manual/nvp/create-test-init.sh
 ```
 
-**Step 3:** Test nvim startup:
+**Step 3:** First run to bootstrap lazy.nvim (interactive - run `:Lazy sync` then `:qa`):
 
 ```bash
-NVIM_APPNAME=nvp-test nvim --headless "+Lazy sync" +qa 2>&1 | head -20
+XDG_CONFIG_HOME=/tmp NVIM_APPNAME=nvp-test nvim
 ```
 
+**Step 4:** (Optional) Test headless after lazy.nvim is installed:
+
 ```bash
-NVIM_APPNAME=nvp-test nvim
+XDG_CONFIG_HOME=/tmp NVIM_APPNAME=nvp-test nvim --headless -c 'qa'
 ```
 
 | Test | Check | Expected | Status |
