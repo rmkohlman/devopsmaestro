@@ -7,6 +7,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.0] - 2026-01-30
+
+### 🚀 Added
+
+#### NvimTheme System - YAML-based Colorscheme Management
+- **New `NvimTheme` resource type** - Define colorschemes in YAML with full palette control
+- **Exported color palette** - Other plugins can `require("theme").palette` for consistent styling
+- **Theme library** - 8 pre-defined themes ready to install:
+  - `tokyonight-custom` - Custom deep blue variant (from rmkohlman/nvim-config)
+  - `tokyonight-night` - Standard Tokyo Night
+  - `catppuccin-mocha` - Catppuccin dark pastel
+  - `catppuccin-latte` - Catppuccin light pastel
+  - `gruvbox-dark` - Retro groove colors
+  - `nord` - Arctic north-bluish theme
+  - `rose-pine` - Natural pine with soho vibes
+  - `kanagawa` - Inspired by the famous painting
+
+#### Theme CLI Commands
+- `nvp theme library list` - Browse available themes
+- `nvp theme library show <name>` - View theme details
+- `nvp theme library install <name>` - Install from library
+- `nvp theme apply -f file.yaml` - Apply custom theme from file
+- `nvp theme apply --url github:user/repo/theme.yaml` - Apply from URL
+- `nvp theme list` - List installed themes
+- `nvp theme get [name]` - Show theme details (defaults to active)
+- `nvp theme use <name>` - Set active theme
+- `nvp theme delete <name>` - Remove a theme
+- `nvp theme generate` - Generate Lua files for active theme
+
+#### Generated Theme Files
+- `theme/palette.lua` - Color palette module with all theme colors
+- `theme/init.lua` - Theme setup with helper functions:
+  - `lualine_theme()` - Generate lualine theme from palette
+  - `bufferline_highlights()` - Generate bufferline highlights
+  - `telescope_border()` - Get telescope border color
+  - `highlight(group, opts)` - Apply highlights using palette
+- `plugins/nvp/colorscheme.lua` - Lazy.nvim plugin spec
+
+#### Plugin Palette Integration
+Other plugins can now use the active theme's colors:
+```lua
+local palette = require("theme").palette
+local bg = palette.colors.bg
+local fg = palette.colors.fg
+
+-- Built-in helpers
+local lualine_theme = require("theme").lualine_theme()
+```
+
+#### nvim-yaml-plugins Repository Update
+- **Added 8 theme YAMLs** to https://github.com/rmkohlman/nvim-yaml-plugins
+- Install themes via URL: `nvp theme apply --url github:rmkohlman/nvim-yaml-plugins/themes/catppuccin-mocha.yaml`
+
+### 🧪 Testing
+
+- **Theme system tests** - 14 tests across theme package:
+  - `theme_test.go` - ParseYAML, Validate, ToYAML, Store tests
+  - `generator_test.go` - Lua generation for multiple theme plugins
+  - `library/library_test.go` - Library listing, categories, retrieval
+
+### 📦 Files Created
+
+```
+pkg/nvimops/theme/
+├── types.go           # Theme, ThemeYAML, ThemePlugin types
+├── parser.go          # YAML parsing, validation, color checking
+├── generator.go       # Lua code generation for all supported themes
+├── store.go           # FileStore, MemoryStore implementations
+├── theme_test.go      # Theme tests
+├── generator_test.go  # Generator tests
+└── library/
+    ├── library.go     # Embedded theme library
+    ├── library_test.go
+    └── themes/        # 8 pre-defined theme YAMLs
+```
+
+---
+
 ## [0.4.1] - 2026-01-29
 
 ### 🚀 Added
@@ -518,6 +596,7 @@ docs/
 
 ## Version History
 
+- **[0.5.0]** - 2026-01-30 - NvimTheme system + exported palette for plugins
 - **[0.4.1]** - 2026-01-29 - URL support for nvp apply + logging + tests
 - **[0.4.0]** - 2026-01-29 - nvp (NvimOps) standalone CLI + decoupled architecture
 - **[0.3.3]** - 2026-01-29 - Pre-generated shell completions in release archives
