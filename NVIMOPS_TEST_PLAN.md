@@ -336,17 +336,21 @@ cat /tmp/test-plugin.yaml | ./nvp apply -f -
 
 ### 4.1 Generate Lua Files
 
-Setup:
+**Step 1:** Install some plugins from the library:
+
 ```bash
 ./nvp library install telescope treesitter lspconfig nvim-cmp
-./nvp enable telescope treesitter lspconfig nvim-cmp
 ```
 
-Generate:
+**Step 2:** Generate Lua files to a test directory:
+
 ```bash
-./nvp generate
-./nvp generate --output ~/.config/nvim/lua/plugins/managed
 ./nvp generate --output /tmp/nvim-test-output
+```
+
+**Step 3:** (Optional) Test other generate options:
+
+```bash
 ./nvp generate --dry-run
 ```
 
@@ -354,23 +358,29 @@ Generate:
 
 | Test | Command | Expected | Status |
 |------|---------|----------|--------|
-| Generate default | `generate` | Files in ~/.config/nvim/lua/plugins/nvp/ | |
 | Generate custom dir | `generate --output /tmp/out` | Files in /tmp/out/ | |
 | Generate dry-run | `generate --dry-run` | Shows what would generate | |
 | Only enabled | (some disabled) | Only enabled plugins generate | |
 
 ### 4.2 Verify Generated Lua
 
+**Prerequisite:** You must run 4.1 first to create `/tmp/nvim-test-output/`
+
+**Step 1:** Check file structure:
+
 ```bash
-# Check file structure
 ls -la /tmp/nvim-test-output/
+```
 
-# Verify Lua syntax
-for f in /tmp/nvim-test-output/*.lua; do
-  luac -p "$f" 2>&1 && echo "$f: OK" || echo "$f: FAIL"
-done
+**Step 2:** Verify Lua syntax (requires `luac` - skip if not installed):
 
-# Check content format
+```bash
+for f in /tmp/nvim-test-output/*.lua; do luac -p "$f" 2>&1 && echo "$f: OK" || echo "$f: FAIL"; done
+```
+
+**Step 3:** Check content format:
+
+```bash
 head -20 /tmp/nvim-test-output/telescope.lua
 ```
 
