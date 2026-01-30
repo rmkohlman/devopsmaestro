@@ -209,26 +209,10 @@ ls -la ~/.nvp/
 
 ### 3.2 Apply Plugin from YAML
 
-**Step 1:** Create test plugin file (copy this entire block including the EOF line):
+**Step 1:** Create test plugin file:
 
 ```bash
-cat > /tmp/test-plugin.yaml << 'EOF'
-apiVersion: nvp.io/v1
-kind: NvimPlugin
-metadata:
-  name: my-plugin
-  description: Test plugin for verification
-  category: testing
-  tags: ["test", "manual"]
-spec:
-  repo: test/my-plugin
-  branch: main
-  event: VeryLazy
-  config: |
-    require("my-plugin").setup({
-      enabled = true,
-    })
-EOF
+./tests/manual/nvp/create-test-plugin.sh
 ```
 
 **Step 2:** Run apply commands (one at a time):
@@ -456,42 +440,10 @@ mkdir -p /tmp/nvp-test/lua/plugins/managed
 ./nvp generate --output /tmp/nvp-test/lua/plugins/managed
 ```
 
-**Step 2:** Create minimal init.lua.
+**Step 2:** Create minimal init.lua:
 
-Option A - Use the helper script:
 ```bash
 ./tests/manual/nvp/create-test-init.sh
-```
-
-Option B - Create manually with your editor:
-```bash
-nvim /tmp/nvp-test/init.lua
-```
-
-Then paste this content:
-```lua
--- Minimal init.lua for testing nvp generated plugins
-vim.g.mapleader = " "
-vim.g.maplocalleader = " "
-
--- Bootstrap lazy.nvim
-local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
-if not vim.loop.fs_stat(lazypath) then
-  vim.fn.system({
-    "git", "clone", "--filter=blob:none",
-    "https://github.com/folke/lazy.nvim.git",
-    "--branch=stable", lazypath,
-  })
-end
-vim.opt.rtp:prepend(lazypath)
-
--- Load lazy.nvim with our plugins
-require("lazy").setup({
-  spec = {
-    { import = "plugins.managed" },
-  },
-  defaults = { lazy = true },
-})
 ```
 
 **Step 3:** Test nvim startup:
@@ -535,44 +487,24 @@ NVIM_APPNAME=nvp-test nvim
 
 ### 6.2 Invalid YAML
 
-Test error handling with invalid YAML inputs. Run each block separately:
-
-**Test: Wrong apiVersion** (copy entire block including EOF):
+**Step 1:** Create invalid YAML test files:
 
 ```bash
-cat << 'EOF' | ./nvp apply -f -
-apiVersion: wrong/v1
-kind: NvimPlugin
-metadata:
-  name: test
-spec:
-  repo: test/test
-EOF
+./tests/manual/nvp/create-invalid-yaml-tests.sh
 ```
 
-**Test: Wrong kind** (copy entire block including EOF):
+**Step 2:** Test each one (all should fail with validation errors):
 
 ```bash
-cat << 'EOF' | ./nvp apply -f -
-apiVersion: nvp.io/v1
-kind: WrongKind
-metadata:
-  name: test
-spec:
-  repo: test/test
-EOF
+./nvp apply -f /tmp/invalid-apiversion.yaml
 ```
 
-**Test: Missing required fields** (copy entire block including EOF):
+```bash
+./nvp apply -f /tmp/invalid-kind.yaml
+```
 
 ```bash
-cat << 'EOF' | ./nvp apply -f -
-apiVersion: nvp.io/v1
-kind: NvimPlugin
-metadata:
-  name: test
-spec: {}
-EOF
+./nvp apply -f /tmp/invalid-missing-repo.yaml
 ```
 
 **Expected:** Validation errors.
