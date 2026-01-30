@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.1] - 2026-01-29
+
+### 🚀 Added
+
+#### URL Support for `nvp apply`
+- **`--url` flag** - Fetch and apply plugin YAML directly from URLs
+- **GitHub shorthand** - `github:user/repo/path/file.yaml` expands to raw GitHub URL
+- **Multiple URLs** - Apply multiple plugins in one command: `--url url1 --url url2`
+- **Combine with `-f`** - Use both local files and remote URLs together
+
+**Example usage:**
+```bash
+nvp apply --url github:rmkohlman/nvim-yaml-plugins/plugins/telescope.yaml
+nvp apply --url github:rmkohlman/nvim-yaml-plugins/plugins/treesitter.yaml \
+          --url github:rmkohlman/nvim-yaml-plugins/plugins/lspconfig.yaml
+```
+
+#### Structured Logging for nvp
+- **`-v/--verbose` flag** - Enable debug output to stderr
+- **`--log-file` flag** - JSON logging to file for debugging
+- **Silent by default** - Following CLI best practices
+- **slog integration** - Same logging pattern as dvm
+
+#### nvim-yaml-plugins Repository
+- **New public repo** - https://github.com/rmkohlman/nvim-yaml-plugins
+- **16 plugin YAMLs** - All embedded plugins exported as standalone files
+- **Clean naming** - `telescope.yaml` instead of `02-telescope.yaml`
+
+### 🧪 Testing
+
+- **Added `cmd/nvp/root_test.go`** with 8 tests:
+  - `TestFetchURL_GitHubShorthand` - HTTP mock server testing
+  - `TestFetchURL_InvalidURL` - Error handling
+  - `TestFetchURL_NotFound` - 404 response handling
+  - `TestGitHubShorthandConversion` - Shorthand expansion (3 subtests)
+  - `TestApplyPluginData` - Plugin creation
+  - `TestApplyPluginData_InvalidYAML` - Error handling
+  - `TestApplyPluginData_Update` - Plugin updates
+  - `TestGetConfigDir` - Config directory resolution
+
+### 📦 Files Modified
+
+```
+cmd/nvp/root.go       - Added URL support, logging flags, fetchURL()
+cmd/nvp/root_test.go  - New test file with 8 tests
+```
+
+---
+
 ## [0.4.0] - 2026-01-29
 
 ### 🚀 Added
@@ -469,6 +518,7 @@ docs/
 
 ## Version History
 
+- **[0.4.1]** - 2026-01-29 - URL support for nvp apply + logging + tests
 - **[0.4.0]** - 2026-01-29 - nvp (NvimOps) standalone CLI + decoupled architecture
 - **[0.3.3]** - 2026-01-29 - Pre-generated shell completions in release archives
 - **[0.3.1]** - 2026-01-29 - Multi-platform support + decoupled architecture
