@@ -445,7 +445,7 @@ If you want to test the generated config actually works with Neovim:
 **Step 1:** Create test directory and generate plugins:
 
 ```bash
-mkdir -p /tmp/nvp-test/{lua/plugins/managed,lua/core}
+mkdir -p /tmp/nvp-test/lua/plugins/managed
 ```
 
 ```bash
@@ -456,10 +456,20 @@ mkdir -p /tmp/nvp-test/{lua/plugins/managed,lua/core}
 ./nvp generate --output /tmp/nvp-test/lua/plugins/managed
 ```
 
-**Step 2:** Create minimal init.lua (copy this entire block including EOF):
+**Step 2:** Create minimal init.lua.
 
+Option A - Use the helper script:
 ```bash
-cat > /tmp/nvp-test/init.lua << 'EOF'
+./tests/manual/nvp/create-test-init.sh
+```
+
+Option B - Create manually with your editor:
+```bash
+nvim /tmp/nvp-test/init.lua
+```
+
+Then paste this content:
+```lua
 -- Minimal init.lua for testing nvp generated plugins
 vim.g.mapleader = " "
 vim.g.maplocalleader = " "
@@ -482,7 +492,6 @@ require("lazy").setup({
   },
   defaults = { lazy = true },
 })
-EOF
 ```
 
 **Step 3:** Test nvim startup:
