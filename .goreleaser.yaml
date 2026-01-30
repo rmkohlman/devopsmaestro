@@ -10,31 +10,10 @@ before:
 
 # Build configuration
 builds:
-  # Main dvm binary
-  - id: dvm
-    binary: dvm
-    main: .
-    env:
-      - CGO_ENABLED=1
-    ldflags:
-      - -s -w
-      - -X main.Version={{.Version}}
-      - -X main.BuildTime={{.Date}}
-      - -X main.Commit={{.ShortCommit}}
-    goos:
-      - darwin
-    goarch:
-      - arm64
-    # Note: Only building darwin/arm64 for now
-    # Linux builds require cross-compilation toolchains that aren't available locally
-    # To add linux support, use GitHub Actions with appropriate runners
-    hooks:
-      post:
-        # Skip completion generation for dvm on GitHub runner (darwin binary can't run on linux)
-        # Completions will be generated locally or during local release
-        - cmd: sh -c 'echo "Skipping dvm completions (cross-compiled binary)"'
-          output: true
-
+  # NOTE: dvm is NOT built in CI because it requires CGO (SQLite)
+  # and cross-compiling CGO from Linux to Darwin requires complex toolchains.
+  # dvm should be built locally on macOS: go build -o dvm .
+  
   # nvp (NvimOps) binary - standalone Neovim plugin manager
   - id: nvp
     binary: nvp
@@ -61,21 +40,6 @@ builds:
 
 # Archive configuration
 archives:
-  # dvm archive (darwin only for now)
-  - id: dvm-archive
-    ids:
-      - dvm
-    name_template: >-
-      dvm_
-      {{- .Version }}_
-      {{- .Os }}_
-      {{- .Arch }}
-    files:
-      - README.md
-      - LICENSE
-      - CHANGELOG.md
-      - docs/**/*
-
   # nvp archive (cross-platform)
   - id: nvp-archive
     ids:
@@ -136,26 +100,23 @@ release:
   header: |
     ## DevOpsMaestro {{ .Tag }}
     
-    Welcome to this new release of DevOpsMaestro!
+    Welcome to this new release!
     
-    This release includes two binaries:
-    - **dvm** - Development workspace manager (macOS only)
-    - **nvp** - NvimOps plugin manager (cross-platform)
+    **nvp (NvimOps)** - DevOps-style Neovim plugin manager (cross-platform)
+    
+    > Note: `dvm` (the workspace manager) requires CGO and must be built locally on macOS.
+    > See the README for instructions.
   footer: |
     ---
     
     ## Installation
-    
-    ### dvm (macOS - Homebrew)
-    ```bash
-    brew install rmkohlman/tap/dvm
-    ```
     
     ### nvp (Cross-platform)
     Download the appropriate `nvp_*` archive for your platform from the assets below.
     
     **Quick start with nvp:**
     ```bash
+    nvp init                      # Initialize store
     nvp library list              # See available plugins
     nvp library install telescope # Install from library
     nvp generate                  # Generate Lua files
@@ -163,38 +124,19 @@ release:
     
     Shell completions are included in the `completions/` directory of each archive.
     
+    ### dvm (macOS only - build locally)
+    ```bash
+    git clone https://github.com/rmkohlman/devopsmaestro.git
+    cd devopsmaestro
+    go build -o dvm .
+    ```
+    
     **Full Changelog**: https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md
 
 # Homebrew Casks - GoReleaser will update the tap automatically
 # Note: Casks are the recommended way for distributing pre-built binaries
+# NOTE: dvm is not included here because it requires CGO and can't be cross-compiled in CI
 homebrew_casks:
-  # dvm Cask (macOS only, requires CGO)
-  - repository:
-      owner: rmkohlman
-      name: homebrew-tap
-      token: "{{ .Env.GITHUB_TOKEN }}"
-    ids:
-      - dvm-archive
-    name: dvm
-    commit_author:
-      name: Robert Kohlman
-      email: rkohlman@users.noreply.github.com
-    homepage: https://github.com/rmkohlman/devopsmaestro
-    description: "DevOpsMaestro (dvm) - CLI tool for managing development workspaces"
-    license: "GPL-3.0"
-    url:
-      verified: github.com/rmkohlman/devopsmaestro
-    skip_upload: true  # We maintain the cask manually
-    binaries:
-      - dvm
-    hooks:
-      post:
-        # Remove quarantine attribute for unsigned binary
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/dvm"]
-          end
-
   # nvp Cask (cross-platform, no CGO needed)
   - repository:
       owner: rmkohlman
