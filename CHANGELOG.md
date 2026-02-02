@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.1] - 2026-02-02
+
+### 🐛 Fixed
+- **BuildKitBuilder socket validation** - Validate containerd/buildkit sockets exist before attempting connection (fixes flaky behavior due to lazy connection)
+
+### 📚 Documentation
+- Updated README with two-tool structure and theme system documentation
+- Added nvp installation instructions to INSTALL.md
+- Added Part 9 (Theme Operations) to NVIMOPS_TEST_PLAN.md
+- Updated Homebrew docs with current tap status (devopsmaestro + nvimops formulas)
+- Added nvp shell completions to SHELL_COMPLETION.md
+- Documented GoReleaser automation in release-process.md
+- Updated CLAUDE.md with nvp architecture details
+
+---
+
 ## [0.5.0] - 2026-01-30
 
 ### 🚀 Added
