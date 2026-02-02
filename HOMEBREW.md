@@ -1,6 +1,58 @@
 # Homebrew Distribution Guide
 
-This guide explains how to make DevOpsMaestro (dvm) available via Homebrew.
+This guide explains how to distribute DevOpsMaestro tools via Homebrew.
+
+## Current Status ✅
+
+**Our Homebrew tap is live!** Both tools are available:
+
+```bash
+# Add the tap
+brew tap rmkohlman/tap
+
+# Install NvimOps (standalone Neovim plugin/theme manager)
+brew install rmkohlman/tap/nvimops
+nvp version  # Should show v0.5.0
+
+# Install DevOpsMaestro (workspace/container management)
+# Note: dvm requires CGO and must be built locally
+# See "Building dvm Locally" below
+```
+
+**Tap repository:** https://github.com/rmkohlman/homebrew-tap
+
+---
+
+## Available Formulas
+
+| Formula | Binary | Description | CGO Required |
+|---------|--------|-------------|--------------|
+| `nvimops` | `nvp` | Neovim plugin & theme manager | No |
+| `devopsmaestro` | `dvm` | Workspace/container management | Yes (SQLite) |
+
+### Installing NvimOps (nvp)
+
+```bash
+brew tap rmkohlman/tap
+brew install rmkohlman/tap/nvimops
+
+# Verify
+nvp version
+nvp --help
+```
+
+### Building dvm Locally
+
+dvm requires CGO for SQLite and cannot be distributed as a pre-built Homebrew bottle on macOS. Build from source:
+
+```bash
+git clone https://github.com/rmkohlman/devopsmaestro.git
+cd devopsmaestro
+go build -o dvm .
+sudo mv dvm /usr/local/bin/
+```
+
+---
 
 ## Overview
 
@@ -12,7 +64,7 @@ Homebrew installation works through **formulas** - Ruby files that tell Homebrew
 
 ## Two Distribution Options
 
-### Option 1: Personal Homebrew Tap (Recommended to Start)
+### Option 1: Personal Homebrew Tap ✅ (Current)
 
 **Pros:**
 - Full control over releases
@@ -306,9 +358,12 @@ brew unpin dvm                     # Allow upgrades again
 
 ## Current Status
 
-✅ Formula ready in `homebrew/dvm.rb`
-✅ Makefile configured for Homebrew-compatible builds
-✅ Version info embedded in binary
-⏳ Pending: GitHub repository URL
-⏳ Pending: First tagged release
-⏳ Pending: Homebrew tap creation
+✅ Homebrew tap live at https://github.com/rmkohlman/homebrew-tap
+✅ NvimOps (nvp) formula available - v0.5.0
+✅ DevOpsMaestro formula available (requires local CGO build)
+✅ GitHub releases with pre-built nvp binaries (4 platforms)
+✅ GoReleaser configured for automated releases
+
+**Formulas:**
+- `Formula/nvimops.rb` - NvimOps (nvp binary)
+- `Formula/devopsmaestro.rb` - DevOpsMaestro (dvm binary)

@@ -1,144 +1,106 @@
-# Shell Completion for DevOpsMaestro (dvm)
+# Shell Completion for DevOpsMaestro
 
-DevOpsMaestro supports shell autocompletion for all commands, flags, and arguments across **bash**, **zsh**, **fish**, and **PowerShell**.
+This guide covers shell completion for both tools:
+- **dvm** - DevOpsMaestro workspace/container management
+- **nvp** - NvimOps Neovim plugin & theme manager
+
+Both support shell autocompletion for **bash**, **zsh**, **fish**, and **PowerShell**.
 
 ## Features
 
-- ✅ **Command completion** - Tab-complete all dvm commands
-- ✅ **Flag completion** - Tab-complete all flags (--help, --config-path, etc.)
-- ✅ **Dynamic completions** - Smart suggestions for workspace names, templates, etc.
-- ✅ **Descriptions** - See helpful descriptions for each completion option
+- ✅ **Command completion** - Tab-complete all commands
+- ✅ **Flag completion** - Tab-complete all flags
+- ✅ **Dynamic completions** - Smart suggestions for plugin/theme names
+- ✅ **Descriptions** - See helpful descriptions for each option
 
 ---
 
 ## Quick Install
 
-### macOS
+### dvm Completions
 
-#### Zsh (default on macOS)
+#### macOS (Zsh)
 ```bash
-# Install completion script
 dvm completion zsh > $(brew --prefix)/share/zsh/site-functions/_dvm
-
-# Restart your shell
 exec zsh
 ```
 
-#### Bash (if using bash)
+#### macOS (Bash)
 ```bash
-# Install bash-completion if not already installed
 brew install bash-completion@2
-
-# Install dvm completion
 dvm completion bash > $(brew --prefix)/etc/bash_completion.d/dvm
-
-# Restart your shell
 exec bash
 ```
 
-### Linux
-
-#### Zsh
+#### Linux
 ```bash
-# Install completion script
+# Zsh
 dvm completion zsh > "${fpath[1]}/_dvm"
+exec zsh
 
-# Restart your shell
+# Bash
+sudo dvm completion bash > /etc/bash_completion.d/dvm
+exec bash
+```
+
+### nvp Completions
+
+#### macOS (Zsh)
+```bash
+nvp completion zsh > $(brew --prefix)/share/zsh/site-functions/_nvp
 exec zsh
 ```
 
-#### Bash
+#### macOS (Bash)
 ```bash
-# Install to system completions directory
-sudo dvm completion bash > /etc/bash_completion.d/dvm
+nvp completion bash > $(brew --prefix)/etc/bash_completion.d/nvp
+exec bash
+```
 
-# Or user-local (no sudo)
-mkdir -p ~/.local/share/bash-completion/completions
-dvm completion bash > ~/.local/share/bash-completion/completions/dvm
+#### Linux
+```bash
+# Zsh
+nvp completion zsh > "${fpath[1]}/_nvp"
+exec zsh
 
-# Restart your shell
+# Bash
+sudo nvp completion bash > /etc/bash_completion.d/nvp
 exec bash
 ```
 
 #### Fish
 ```bash
-# Install completion script
 dvm completion fish > ~/.config/fish/completions/dvm.fish
-
-# Reload fish config
+nvp completion fish > ~/.config/fish/completions/nvp.fish
 fish_config reload
-```
-
-### Windows (PowerShell)
-
-```powershell
-# Generate completion script
-dvm completion powershell > $HOME\Documents\PowerShell\Scripts\dvm-completion.ps1
-
-# Add to your PowerShell profile
-Add-Content $PROFILE ". $HOME\Documents\PowerShell\Scripts\dvm-completion.ps1"
-
-# Restart PowerShell
-```
-
----
-
-## Manual Installation
-
-If the quick install doesn't work, you can manually source the completion script:
-
-### Zsh
-
-Add to your `~/.zshrc`:
-
-```bash
-# Enable completion system
-autoload -U compinit; compinit
-
-# Load dvm completions
-source <(dvm completion zsh)
-```
-
-### Bash
-
-Add to your `~/.bashrc`:
-
-```bash
-# Load dvm completions
-source <(dvm completion bash)
-```
-
-### Fish
-
-Add to your `~/.config/fish/config.fish`:
-
-```fish
-# Load dvm completions
-dvm completion fish | source
 ```
 
 ---
 
 ## Testing Completion
 
-After installation, test that completion works:
-
+### dvm Completions
 ```bash
-# Type this and press TAB
-dvm n<TAB>
+dvm <TAB>
+# Shows: admin attach build create delete get nvim plugin project version workspace
 
-# Should complete to:
-dvm nvim
+dvm get <TAB>
+# Shows: platforms plugins projects workspaces
+```
 
-# Type this and press TAB
-dvm nvim init <TAB>
+### nvp Completions
+```bash
+nvp <TAB>
+# Shows: apply completion delete disable enable generate get init library list theme version
 
-# Should show:
-kickstart  -- Minimal, well-documented starter config
-lazyvim    -- Feature-rich, batteries-included config
-astronvim  -- Aesthetically pleasing, fully featured config
-minimal    -- Minimal config created by DevOpsMaestro
-custom     -- Clone from custom Git URL
+nvp library <TAB>
+# Shows: categories info install list show tags
+
+nvp theme <TAB>
+# Shows: apply delete generate get library list use
+
+nvp theme library <TAB>
+# Shows: install list show
 ```
 
 ---
@@ -306,17 +268,23 @@ cmd.RegisterFlagCompletionFunc("theme", func(cmd *cobra.Command, args []string, 
 
 ## Summary
 
-Shell completion is **built-in and automatic** with DevOpsMaestro. Just run:
+Shell completion is **built-in and automatic** with both tools. Just run:
 
 ```bash
-# One-line install (macOS zsh)
-dvm completion zsh > $(brew --prefix)/share/zsh/site-functions/_dvm && exec zsh
+# One-line install for both (macOS zsh)
+dvm completion zsh > $(brew --prefix)/share/zsh/site-functions/_dvm && \
+nvp completion zsh > $(brew --prefix)/share/zsh/site-functions/_nvp && \
+exec zsh
 
-# One-line install (Linux zsh)
-dvm completion zsh > "${fpath[1]}/_dvm" && exec zsh
+# One-line install for both (Linux zsh)
+dvm completion zsh > "${fpath[1]}/_dvm" && \
+nvp completion zsh > "${fpath[1]}/_nvp" && \
+exec zsh
 
-# One-line install (bash)
-dvm completion bash > ~/.local/share/bash-completion/completions/dvm && exec bash
+# One-line install for both (bash)
+dvm completion bash > ~/.local/share/bash-completion/completions/dvm && \
+nvp completion bash > ~/.local/share/bash-completion/completions/nvp && \
+exec bash
 ```
 
-Then enjoy tab-completion for all commands, flags, and arguments! 🎉
+Then enjoy tab-completion for all commands, flags, and arguments!

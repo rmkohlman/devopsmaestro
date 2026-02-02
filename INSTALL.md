@@ -1,8 +1,119 @@
 # Installation Guide
 
-DevOpsMaestro (dvm) can be installed in several ways depending on your needs.
+This repository contains two tools:
+- **NvimOps (nvp)** - Standalone Neovim plugin & theme manager
+- **DevOpsMaestro (dvm)** - Workspace/container management (requires CGO)
 
-## Quick Install (Recommended for Development)
+---
+
+## NvimOps (nvp) Installation
+
+### Homebrew (Recommended)
+
+```bash
+# Add the tap
+brew tap rmkohlman/tap
+
+# Install nvp
+brew install rmkohlman/tap/nvimops
+
+# Verify installation
+nvp version
+```
+
+### Download Pre-Built Binary
+
+**macOS (Apple Silicon):**
+```bash
+curl -L https://github.com/rmkohlman/devopsmaestro/releases/latest/download/nvp_0.5.0_darwin_arm64.tar.gz | tar xz
+chmod +x nvp
+sudo mv nvp /usr/local/bin/
+```
+
+**macOS (Intel):**
+```bash
+curl -L https://github.com/rmkohlman/devopsmaestro/releases/latest/download/nvp_0.5.0_darwin_amd64.tar.gz | tar xz
+chmod +x nvp
+sudo mv nvp /usr/local/bin/
+```
+
+**Linux (x86_64):**
+```bash
+curl -L https://github.com/rmkohlman/devopsmaestro/releases/latest/download/nvp_0.5.0_linux_amd64.tar.gz | tar xz
+chmod +x nvp
+sudo mv nvp /usr/local/bin/
+```
+
+**Linux (ARM64):**
+```bash
+curl -L https://github.com/rmkohlman/devopsmaestro/releases/latest/download/nvp_0.5.0_linux_arm64.tar.gz | tar xz
+chmod +x nvp
+sudo mv nvp /usr/local/bin/
+```
+
+### Build from Source
+
+```bash
+git clone https://github.com/rmkohlman/devopsmaestro.git
+cd devopsmaestro
+go build -o nvp ./cmd/nvp/
+sudo mv nvp /usr/local/bin/
+```
+
+### NvimOps Quick Start
+
+```bash
+# Initialize
+nvp init
+
+# Install plugins from library
+nvp library list
+nvp library install telescope treesitter lspconfig
+
+# Install a theme
+nvp theme library list
+nvp theme library install tokyonight-custom --use
+
+# Generate Lua files for Neovim
+nvp generate
+
+# Files created in ~/.config/nvim/lua/plugins/nvp/ and ~/.config/nvim/lua/theme/
+```
+
+---
+
+## DevOpsMaestro (dvm) Installation
+
+> **Note:** dvm requires CGO for SQLite and must be built locally on macOS.
+
+### Build from Source (Required)
+
+```bash
+git clone https://github.com/rmkohlman/devopsmaestro.git
+cd devopsmaestro
+go build -o dvm .
+sudo mv dvm /usr/local/bin/
+```
+
+### DevOpsMaestro Quick Start
+
+```bash
+# Initialize
+dvm admin init
+
+# Create a project
+dvm create project myproject --from-cwd
+
+# Build container
+dvm build
+
+# Attach to workspace
+dvm attach
+```
+
+---
+
+## Quick Install (Development)
 
 ```bash
 cd /path/to/devopsmaestro

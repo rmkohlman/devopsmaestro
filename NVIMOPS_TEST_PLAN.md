@@ -1,20 +1,21 @@
 # NvimOps Manual Test Plan
 
-> **Version**: v0.4.0-dev  
-> **Last Updated**: January 2026  
+> **Version**: v0.5.0  
+> **Last Updated**: January 2025  
 > **Binary**: `nvp`
 
 ---
 
 ## Overview
 
-NvimOps is a standalone CLI for managing Neovim plugin configurations using a DevOps-style YAML approach. It can be used independently or alongside dvm.
+NvimOps is a standalone CLI for managing Neovim plugin and theme configurations using a DevOps-style YAML approach. It can be used independently or alongside dvm.
 
 **Key Features:**
 - YAML-based plugin definitions (kubectl-style)
 - Built-in plugin library (16+ curated plugins)
+- **NEW in v0.5.0:** Theme system with 8 pre-built themes
 - Lua code generation for lazy.nvim
-- File-based storage (~/.nvp/plugins/)
+- File-based storage (~/.nvp/plugins/, ~/.nvp/themes/)
 - No database required
 
 ---
@@ -54,6 +55,7 @@ NVP_KEEP_OUTPUT=1 ./tests/manual/nvp/test-nvp.sh
 | 6 | Automated | Error handling & edge cases |
 | 7 | Automated | Shell completions |
 | 8 | Automated | Unit tests (Go) - Interface compliance |
+| 9 | Automated | **Theme operations (v0.5.0)** |
 
 ---
 
@@ -626,6 +628,257 @@ source /tmp/_nvp
 
 ---
 
+## Part 9: Theme Operations (v0.5.0)
+
+The theme system allows YAML-based colorscheme management with palette export.
+
+### 9.1 Theme Library List
+
+```bash
+./nvp theme library list
+./nvp theme library list -o yaml
+./nvp theme library list -o json
+```
+
+**Expected:** Lists 8 pre-built themes.
+
+| Test | Command | Expected | Status |
+|------|---------|----------|--------|
+| List all themes | `theme library list` | 8 themes listed | |
+| List as YAML | `theme library list -o yaml` | Valid YAML | |
+| List as JSON | `theme library list -o json` | Valid JSON | |
+
+### 9.2 Theme Library Show
+
+```bash
+./nvp theme library show tokyonight-custom
+./nvp theme library show tokyonight-custom -o yaml
+./nvp theme library show nonexistent
+```
+
+**Expected:** Shows theme definition.
+
+| Test | Command | Expected | Status |
+|------|---------|----------|--------|
+| Show theme | `theme library show tokyonight-custom` | Full theme info | |
+| Show as YAML | `theme library show tokyonight-custom -o yaml` | Valid YAML | |
+| Show nonexistent | `theme library show foo` | Error: not found | |
+
+### 9.3 Theme Library Install
+
+```bash
+./nvp theme library install tokyonight-custom
+./nvp theme library install tokyonight-custom --use
+./nvp theme library install catppuccin-mocha catppuccin-latte
+./nvp theme library install --all
+```
+
+**Expected:** Copies theme to local store.
+
+| Test | Command | Expected | Status |
+|------|---------|----------|--------|
+| Install single | `theme library install tokyonight-custom` | Success message | |
+| Install with --use | `theme library install tokyonight-custom --use` | Installed + set active | |
+| Install multiple | `theme library install a b` | Both installed | |
+| Install all | `theme library install --all` | All 8 installed | |
+
+### 9.4 Theme CRUD Operations
+
+```bash
+# List themes
+./nvp theme list
+./nvp theme list -o yaml
+
+# Get theme
+./nvp theme get tokyonight-custom
+./nvp theme get tokyonight-custom -o yaml
+
+# Use theme (set active)
+./nvp theme use tokyonight-custom
+
+# Delete theme
+./nvp theme delete tokyonight-custom
+./nvp theme delete tokyonight-custom --force
+```
+
+**Expected:** Standard CRUD operations on theme store.
+
+| Test | Command | Expected | Status |
+|------|---------|----------|--------|
+| List themes | `theme list` | Table of installed themes | |
+| Get theme | `theme get name` | Theme YAML | |
+| Use theme | `theme use name` | Sets active theme | |
+| Delete theme | `theme delete name` | Removes theme | |
+
+### 9.5 Theme Apply from YAML
+
+Create a test theme file:
+
+```bash
+cat > /tmp/test-theme.yaml << 'EOF'
+apiVersion: devopsmaestro.io/v1
+kind: NvimTheme
+metadata:
+  name: my-custom-theme
+  description: My custom colorscheme
+spec:
+  colorscheme: tokyonight
+  background: dark
+  repo: folke/tokyonight.nvim
+  palette:
+    primary: "#7aa2f7"
+    secondary: "#bb9af7"
+    accent: "#7dcfff"
+    bg: "#1a1b26"
+    fg: "#c0caf5"
+EOF
+```
+
+```bash
+./nvp theme apply -f /tmp/test-theme.yaml
+./nvp theme apply --url github:rmkohlman/nvim-yaml-plugins/themes/tokyonight-custom.yaml
+```
+
+**Expected:** Theme created/updated in store.
+
+| Test | Command | Expected | Status |
+|------|---------|----------|--------|
+| Apply from file | `theme apply -f test.yaml` | Theme created | |
+| Apply from URL | `theme apply --url github:...` | Theme fetched & applied | |
+| Apply invalid | `theme apply -f bad.yaml` | Error message | |
+
+### 9.6 Theme Generate
+
+```bash
+# Generate theme Lua files
+./nvp theme generate
+./nvp theme generate --output /tmp/theme-test
+
+# Check generated files
+ls -la ~/.config/nvim/lua/theme/
+cat ~/.config/nvim/lua/theme/init.lua
+cat ~/.config/nvim/lua/theme/palette.lua
+```
+
+**Expected:** Generates two Lua files.
+
+| Test | Command | Expected | Status |
+|------|---------|----------|--------|
+| Generate theme | `theme generate` | Creates init.lua + palette.lua | |
+| Generate custom dir | `theme generate --output /tmp/out` | Files in /tmp/out/ | |
+| Palette export | `cat palette.lua` | Has color values | |
+
+### 9.7 Palette Integration Test
+
+After generating a theme, verify other plugins can use the palette:
+
+```bash
+# Check palette.lua has required exports
+grep "M.primary" ~/.config/nvim/lua/theme/palette.lua
+grep "return M" ~/.config/nvim/lua/theme/palette.lua
+```
+
+**Expected:** Palette exports colors for plugin use.
+
+```lua
+-- Expected palette.lua structure:
+local M = {}
+M.primary = "#7aa2f7"
+M.secondary = "#bb9af7"
+-- ... more colors
+return M
+```
+
+### 9.8 Full Theme Workflow Test
+
+```bash
+# Clean start
+rm -rf ~/.nvp/themes
+
+# Initialize
+./nvp init
+
+# Install theme from library with --use
+./nvp theme library install tokyonight-custom --use
+
+# Verify it's active
+./nvp theme list  # Should show tokyonight-custom as active
+
+# Generate theme files
+./nvp theme generate --output /tmp/nvp-theme-test
+
+# Check generated files
+cat /tmp/nvp-theme-test/init.lua
+cat /tmp/nvp-theme-test/palette.lua
+
+# Verify Lua syntax
+luac -p /tmp/nvp-theme-test/init.lua && echo "init.lua OK"
+luac -p /tmp/nvp-theme-test/palette.lua && echo "palette.lua OK"
+```
+
+---
+
+## Test Summary Checklist (Updated for v0.5.0)
+
+### Part 1: Build & Basic Commands
+- [ ] Binary builds successfully
+- [ ] `--help` works for all commands
+- [ ] `version` command works
+
+### Part 2: Library Operations
+- [ ] `library list` shows 16+ plugins
+- [ ] `library show <name>` works
+- [ ] `library categories` and `tags` work
+- [ ] `library install` copies to store
+- [ ] Output formats (table, yaml, json) work
+
+### Part 3: Plugin CRUD
+- [ ] `init` creates store directory
+- [ ] `apply -f` creates/updates plugins
+- [ ] `apply -f -` reads from stdin
+- [ ] `list` shows stored plugins
+- [ ] `get` retrieves single plugin
+- [ ] `enable/disable` toggle plugin state
+- [ ] `delete` removes plugins
+
+### Part 4: Lua Generation
+- [ ] `generate` creates Lua files
+- [ ] Generated Lua has valid syntax
+- [ ] Only enabled plugins are generated
+- [ ] `generate-lua <name>` outputs single plugin
+
+### Part 5: Integration
+- [ ] Full workflow works end-to-end
+- [ ] Generated config works with Neovim (optional)
+
+### Part 6: Error Handling
+- [ ] Invalid files show clear errors
+- [ ] Invalid YAML shows validation errors
+- [ ] Missing arguments show usage
+
+### Part 7: Completions
+- [ ] All shell completions generate
+
+### Part 8: Unit Tests (Go)
+- [ ] `go test ./pkg/nvimops/...` passes
+- [ ] PluginStore interface compliance
+- [ ] LuaGenerator interface compliance
+- [ ] Store/Generator swappability tests pass
+
+### Part 9: Theme Operations (v0.5.0)
+- [ ] `theme library list` shows 8 themes
+- [ ] `theme library show <name>` works
+- [ ] `theme library install` copies to store
+- [ ] `theme library install --use` sets active
+- [ ] `theme list/get/use/delete` CRUD works
+- [ ] `theme apply -f` creates from YAML
+- [ ] `theme apply --url` fetches from URL
+- [ ] `theme generate` creates init.lua + palette.lua
+- [ ] Generated Lua syntax is valid
+- [ ] Palette exports colors correctly
+
+---
+
 ## Cleanup
 
 ```bash
@@ -633,7 +886,9 @@ source /tmp/_nvp
 rm -rf ~/.nvp
 rm -rf /tmp/nvp-test
 rm -rf /tmp/nvp-test-*
+rm -rf /tmp/nvp-theme-test
 rm -f /tmp/test-plugin.yaml
+rm -f /tmp/test-theme.yaml
 rm -f /tmp/nvp.bash /tmp/_nvp /tmp/nvp.fish
 
 # Remove binary (if testing locally)
@@ -830,5 +1085,5 @@ Report a bug! Include:
 
 **Tested by:** ________________  
 **Date:** ________________  
-**Version:** v0.4.0-dev  
+**Version:** v0.5.0  
 **Platform:** ________________

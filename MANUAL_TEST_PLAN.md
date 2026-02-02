@@ -1,7 +1,7 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.3.0-dev  
-> **Last Updated**: January 2026
+> **Version**: v0.5.0  
+> **Last Updated**: January 2025
 
 ---
 
@@ -17,6 +17,9 @@ dvm attach
 
 # After exiting container, run Part 2
 source tests/manual/part2-post-attach.sh
+
+# For nvp (NvimOps) testing, see NVIMOPS_TEST_PLAN.md
+./tests/manual/nvp/test-nvp.sh
 ```
 
 ---

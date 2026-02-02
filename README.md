@@ -1,60 +1,74 @@
-# DevOpsMaestro (dvm)
+# DevOpsMaestro
 
-**Kubernetes-style development environment orchestration with database-backed Neovim plugin management**
+**Kubernetes-style development environment orchestration with DevOps-style Neovim configuration management**
 
 [![Release](https://img.shields.io/github/v/release/rmkohlman/devopsmaestro)](https://github.com/rmkohlman/devopsmaestro/releases/latest)
 [![License](https://img.shields.io/badge/license-GPL--3.0%20%2B%20Commercial-blue)](https://github.com/rmkohlman/devopsmaestro/blob/main/LICENSING.md)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/rmkohlman/devopsmaestro)](https://golang.org/)
-[![Tests](https://img.shields.io/badge/tests-66%20passing-brightgreen)](https://github.com/rmkohlman/devopsmaestro)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](https://github.com/rmkohlman/devopsmaestro)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey)](https://github.com/rmkohlman/devopsmaestro/releases)
 
-DevOpsMaestro is a professional CLI tool that brings Kubernetes-style declarative configuration to development environments. Work inside containerized environments with consistent, reproducible Neovim setups managed through a database-backed plugin system.
+This repository contains **two tools**:
 
-## 🆕 What's New in v0.3.1
+| Tool | Binary | Description |
+|------|--------|-------------|
+| **DevOpsMaestro** | `dvm` | kubectl-style CLI for containerized dev environments |
+| **NvimOps** | `nvp` | Standalone Neovim plugin & theme manager using YAML |
 
-- 🖥️ **Multi-platform support**: OrbStack, Docker Desktop, Podman, Colima
-- 🔌 **Platform detection**: `dvm get platforms` shows available container runtimes
-- 🏗️ **Decoupled architecture**: Swappable builders, runtimes, and database drivers
-- 📝 **Structured logging**: `-v` for debug output, `--log-file` for JSON logs
-- 🧪 **Test infrastructure**: 34 automated tests in manual test scripts
-- 📚 **New documentation**: CLAUDE.md, STANDARDS.md, MANUAL_TEST_PLAN.md
-- 🐛 **Bug fixes**: Build without nvim config, improved attach warnings, Podman compatibility
+---
+
+## 🆕 What's New in v0.5.0
+
+### NvimOps (nvp) - NEW Theme System!
+
+- 🎨 **NvimTheme resource type** - Define colorschemes in YAML with palette export
+- 📚 **Theme library** - 8 pre-built themes (tokyonight, catppuccin, gruvbox, nord, rose-pine, kanagawa)
+- 🔗 **URL support** - Install themes from GitHub: `nvp theme apply --url github:user/repo/theme.yaml`
+- 🎯 **Palette integration** - Other plugins can use `require("theme").palette` for consistent colors
+- 🚀 **Lua generation** - Auto-generate lazy.nvim compatible theme configs
+
+### Previous Releases
+
+- **v0.4.1**: URL support for plugins, logging, enhanced tests
+- **v0.4.0**: nvp CLI, decoupled architecture, interface abstractions
+- **v0.3.x**: Multi-platform support (OrbStack, Docker Desktop, Podman, Colima)
 
 ---
 
 ## ✨ Key Features
 
-### 🚀 **kubectl-Style Workflow**
-- Declarative YAML configurations for everything
-- `dvm apply -f plugin.yaml` to manage Neovim plugins
-- `dvm get`, `dvm list`, `dvm delete` commands you already know
-- Multiple output formats: `table`, `yaml`, `json`
-- Beautiful colored output with emoji icons
+### 🚀 **Two Powerful Tools**
 
-### 🎨 **Professional Theme System**
-- **8 popular themes**: Catppuccin, Tokyo Night, Nord, Dracula, Gruvbox (light & dark)
-- **Auto-detection**: Automatically adapts to your terminal's light/dark theme
-- **Zero config**: Beautiful by default, customizable when you need it
-- **Flexible**: Use environment variable (`DVM_THEME=catppuccin-mocha`) or config file
-- **YAML syntax highlighting**: Keys in cyan, values in yellow
+**DevOpsMaestro (dvm)** - Workspace & Container Management
+- kubectl-style commands: `dvm get`, `dvm apply`, `dvm build`, `dvm attach`
+- Multi-platform: OrbStack, Docker Desktop, Podman, Colima
+- Database-backed configuration
+- Container-native development environments
 
-### 🔌 **Database-Backed Plugin System**
-- Define Neovim plugins once in YAML, store in database
-- Reference plugins by name across workspaces
-- Share plugin configurations across teams via git
-- 16+ pre-built plugins ready to use (Telescope, LSP, Treesitter, Copilot, etc.)
+**NvimOps (nvp)** - Neovim Plugin & Theme Management
+- Standalone CLI (no containers needed)
+- YAML-based plugin definitions
+- Built-in library of 16+ curated plugins
+- Theme system with palette export
+- Generates lazy.nvim compatible Lua files
 
-### 🐳 **Container-Native Development**
+### 🎨 **NvimOps Theme System (v0.5.0)**
+- **8 pre-built themes**: tokyonight, catppuccin, gruvbox, nord, rose-pine, kanagawa
+- **Palette export**: Other plugins use `require("theme").palette` for consistent colors
+- **URL support**: Install from GitHub repos
+- **YAML definitions**: Full control over colorscheme configuration
+
+### 🔌 **Plugin Library**
+- 16+ pre-built plugins: Telescope, LSP, Treesitter, Copilot, etc.
+- Install with one command: `nvp library install telescope`
+- Filter by category or tag
+- Automatic Lua generation
+
+### 🐳 **Container-Native Development (dvm)**
 - Each workspace runs in an isolated Docker container
 - Neovim pre-installed and configured automatically
 - Your project files mounted at `/workspace`
 - Consistent environment across machines and teams
-
-### 📦 **Reproducible Environments**
-- GitOps-friendly configuration management
-- Backup and restore workspace states
-- Version-controlled development setups
-- One command to rebuild entire environment
 
 ---
 
@@ -125,38 +139,55 @@ dvm attach
 
 ## 💾 Installation
 
-### Download Pre-Built Binary (Recommended)
+### Homebrew (Recommended)
 
-**macOS (Apple Silicon - M1/M2/M3):**
 ```bash
-curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.3.1/dvm-darwin-arm64 -o dvm
-chmod +x dvm
-sudo mv dvm /usr/local/bin/
-dvm version
+# Add the tap
+brew tap rmkohlman/tap
+
+# Install NvimOps (nvp) - Neovim plugin/theme manager
+brew install rmkohlman/tap/nvimops
+
+# Install DevOpsMaestro (dvm) - requires local build (CGO)
+# See "Build from Source" below
 ```
 
-**macOS (Intel):**
+### NvimOps Quick Start
+
 ```bash
-curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.3.1/dvm-darwin-amd64 -o dvm
-chmod +x dvm
-sudo mv dvm /usr/local/bin/
-dvm version
+# Initialize
+nvp init
+
+# Browse and install plugins
+nvp library list
+nvp library install telescope treesitter lspconfig
+
+# Browse and install themes
+nvp theme library list
+nvp theme library install tokyonight-custom --use
+
+# Generate Lua files for Neovim
+nvp generate
+
+# Files created in ~/.config/nvim/lua/plugins/nvp/
 ```
 
-**Linux (x86_64):**
-```bash
-curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.3.1/dvm-linux-amd64 -o dvm
-chmod +x dvm
-sudo mv dvm /usr/local/bin/
-dvm version
-```
+### DevOpsMaestro Quick Start
 
-**Linux (ARM64):**
 ```bash
-curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.3.1/dvm-linux-arm64 -o dvm
-chmod +x dvm
+# Build locally (requires Go + CGO)
+git clone https://github.com/rmkohlman/devopsmaestro.git
+cd devopsmaestro
+go build -o dvm .
 sudo mv dvm /usr/local/bin/
-dvm version
+
+# Initialize
+dvm admin init
+
+# Create workspace
+dvm create project myproject --from-cwd
+dvm build
+dvm attach
 ```
 
 ### Build from Source
@@ -164,24 +195,21 @@ dvm version
 ```bash
 git clone https://github.com/rmkohlman/devopsmaestro.git
 cd devopsmaestro
-git checkout v0.3.1
-go build -o dvm
-sudo mv dvm /usr/local/bin/
+
+# Build nvp (no CGO required)
+go build -o nvp ./cmd/nvp/
+
+# Build dvm (requires CGO for SQLite)
+go build -o dvm .
+
+# Install
+sudo mv nvp dvm /usr/local/bin/
 ```
-
-### Homebrew (Coming Soon)
-
-```bash
-brew install devopsmaestro/tap/dvm
-```
-
-**See [Releases](https://github.com/rmkohlman/devopsmaestro/releases) for all versions and checksums.**
 
 ### Prerequisites
 
 - **Go 1.21+** - [Download](https://golang.org/dl/)
-- **Docker** - [Get Docker](https://www.docker.com/get-started)
-- **Colima** (macOS) - `brew install colima`
+- **Docker** (for dvm) - [Get Docker](https://www.docker.com/get-started)
 - **Git** - Version control
 
 ---
@@ -1059,39 +1087,33 @@ For corporate or business use, a commercial license is required:
 
 ## 🎯 Roadmap
 
-### v0.2.0 - Enhanced UX ✅
-- ✅ kubectl-style plugin commands (`dvm get plugins`)
-- ✅ Beautiful colored output with emoji icons
-- ✅ Professional theme system (8 themes)
-- ✅ Auto-detection of terminal theme
-- ✅ YAML syntax highlighting
-- ✅ Multiple output formats (table, yaml, json)
-- ✅ 54+ comprehensive tests
+### v0.5.0 - NvimTheme System ✅ (Current)
+- ✅ NvimTheme resource type for YAML-based colorscheme management
+- ✅ Theme library with 8 pre-built themes
+- ✅ Theme CLI commands (library, apply, list, get, use, delete, generate)
+- ✅ Palette export for plugin color consistency
+- ✅ URL support for remote theme files
 
-### v0.3.1 - Multi-Platform Support ✅ (Current)
+### v0.4.x - NvimOps CLI ✅
+- ✅ Standalone nvp CLI for Neovim plugin management
+- ✅ Decoupled architecture with swappable interfaces
+- ✅ Built-in plugin library (16+ plugins)
+- ✅ Lua generation for lazy.nvim
+- ✅ URL support for remote plugin files
+
+### v0.3.x - Multi-Platform Support ✅
 - ✅ Multi-platform container runtime (OrbStack, Docker Desktop, Podman, Colima)
 - ✅ Platform detection (`dvm get platforms`)
 - ✅ Decoupled architecture (swappable builders, runtimes, database)
-- ✅ Structured logging with slog (`-v`, `--log-file`)
-- ✅ Neovim configuration management (`dvm nvim init/status`)
-- ✅ Shell completions (bash/zsh/fish/powershell)
-- ✅ 34 automated manual tests
+- ✅ Shell completions (bash/zsh/fish)
 
-### v0.4.0 - Developer Experience (Next)
-- ⏳ Plugin-to-nvim integration (use stored plugins in containers)
-- ⏳ Expanded logging across all commands
-- ⏳ `dvm logs` command for viewing logs
-- ⏳ Workspace templates
-- ⏳ Better error messages
-
-### v0.5.0 - Collaboration
-- ⏳ Team workspaces
-- ⏳ Plugin marketplace
-- ⏳ Cloud sync (optional)
-- ⏳ VS Code integration
+### v0.6.0 - Integration (Next)
+- ⏳ Integrate nvp with dvm (workspace plugin management)
+- ⏳ Theme preview command
+- ⏳ More themes (dracula, solarized, one-dark)
+- ⏳ Custom highlight groups in theme YAML
 
 ### v1.0.0 - Production Ready
-- ⏳ Homebrew official release
 - ⏳ Full test coverage (90%+)
 - ⏳ Performance optimizations
 - ⏳ Enterprise features

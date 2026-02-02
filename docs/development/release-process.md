@@ -2,6 +2,17 @@
 
 This document describes the complete workflow for creating DevOpsMaestro releases.
 
+## Overview
+
+This repository produces **two binaries** from a single release:
+
+| Binary | Tool | CGO Required | GoReleaser Build |
+|--------|------|--------------|------------------|
+| `dvm` | DevOpsMaestro | Yes (SQLite) | Cross-compiled (4 platforms) |
+| `nvp` | NvimOps | No | Cross-compiled (4 platforms) |
+
+**Note:** `dvm` requires CGO for SQLite, but GoReleaser can cross-compile it. Users may need to build locally on macOS due to CGO signing issues.
+
 ---
 
 ## 📋 Version Numbering
@@ -304,6 +315,92 @@ Try it out and let us know what you think!
 
 ---
 
+## 🤖 Automated Releases with GoReleaser
+
+**GoReleaser is now configured and active!**
+
+### How It Works
+
+1. Create and push a git tag: `git tag -a v0.5.0 -m "Release v0.5.0" && git push origin v0.5.0`
+2. GitHub Actions runs GoReleaser automatically
+3. GoReleaser builds both `dvm` and `nvp` for 4 platforms
+4. Creates GitHub release with all binaries
+
+### Configuration
+
+See `.goreleaser.yaml` in the repository root. Key points:
+- Builds `dvm` from `main.go`
+- Builds `nvp` from `cmd/nvp/main.go`
+- Produces 8 binaries total (2 tools × 4 platforms)
+- Generates tar.gz archives with checksums
+
+### Manual GoReleaser Commands
+
+```bash
+# Test configuration
+goreleaser check
+
+# Dry run (no release)
+goreleaser release --snapshot --skip=publish --clean
+
+# Actual release (usually done by CI)
+goreleaser release --clean
+```
+
+---
+
+## 🚀 Release Steps (Simplified with GoReleaser)
+
+### Step 1: Prepare Repository
+
+1. Update CHANGELOG.md with new version entry
+2. Ensure all tests pass: `go test ./...`
+3. Commit changes: `git commit -am "chore: prepare vX.Y.Z release"`
+
+### Step 2: Create and Push Tag
+
+```bash
+git tag -a vX.Y.Z -m "Release vX.Y.Z: <short description>"
+git push origin vX.Y.Z
+```
+
+### Step 3: Wait for GitHub Actions
+
+GitHub Actions will automatically:
+- Build both binaries for all platforms
+- Create GitHub release
+- Upload all artifacts
+
+### Step 4: Update Homebrew Tap
+
+After release is published:
+
+```bash
+cd /tmp
+git clone https://github.com/rmkohlman/homebrew-tap.git
+cd homebrew-tap
+
+# Update nvimops.rb with new version and SHA
+# (Get SHA from release checksums.txt)
+vim Formula/nvimops.rb
+
+git add . && git commit -m "nvimops X.Y.Z" && git push
+```
+
+### Step 5: Verify
+
+```bash
+# Test nvp via Homebrew
+brew update && brew upgrade rmkohlman/tap/nvimops
+nvp version
+
+# Test direct download
+curl -L https://github.com/rmkohlman/devopsmaestro/releases/latest/download/nvp_X.Y.Z_darwin_arm64.tar.gz | tar xz
+./nvp version
+```
+
+---
+
 ## 🤖 Future Automation
 
 ### GoReleaser (Planned for v0.3.0+)
@@ -440,4 +537,4 @@ file dvm-darwin-arm64
 
 ---
 
-**Last Updated:** 2026-01-24 (v0.2.0)
+**Last Updated:** 2025-01-24 (v0.5.0)

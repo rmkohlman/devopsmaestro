@@ -46,6 +46,15 @@ func NewBuildKitBuilder(cfg BuilderConfig) (*BuildKitBuilder, error) {
 		return nil, fmt.Errorf("platform %s does not provide buildkit socket", cfg.Platform.Type)
 	}
 
+	// Verify sockets exist before attempting to connect
+	// (client libraries use lazy connection which won't fail until first operation)
+	if _, err := os.Stat(containerdSocket); err != nil {
+		return nil, fmt.Errorf("containerd socket not accessible at %s: %w", containerdSocket, err)
+	}
+	if _, err := os.Stat(buildkitSocket); err != nil {
+		return nil, fmt.Errorf("buildkit socket not accessible at %s: %w", buildkitSocket, err)
+	}
+
 	// Connect to containerd for image operations
 	containerdClient, err := client.New(containerdSocket)
 	if err != nil {

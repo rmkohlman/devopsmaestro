@@ -25,6 +25,15 @@
 ~/Developer/tools/devopsmaestro-private/   # PRIVATE - Session state & decisions
 ```
 
+### Step 3: Know the Two Tools
+
+| Tool | Binary | Purpose | Entry Point |
+|------|--------|---------|-------------|
+| **DevOpsMaestro** | `dvm` | Workspace/container management | `main.go` |
+| **NvimOps** | `nvp` | Neovim plugin & theme management | `cmd/nvp/main.go` |
+
+**nvp is standalone** - Can be used without dvm, no database required, file-based storage at `~/.nvp/`
+
 ### Step 3: Reference Documents by Task
 
 | When Doing... | Read This Document | Location |
@@ -61,15 +70,21 @@ git add . && git commit -m "<commit message>" && git push
 ### Quick Command Reference
 
 ```bash
-# Build & Test
-go build -o dvm              # Build binary
-go test ./...                # Run all tests
-go fmt ./...                 # Format code
-go vet ./...                 # Check for issues
+# Build both binaries
+go build -o dvm .                # DevOpsMaestro (requires CGO)
+go build -o nvp ./cmd/nvp/       # NvimOps (no CGO)
+
+# Test all
+go test ./...
+
+# Test specific packages
+go test ./pkg/nvimops/... -v     # nvp library
+go test ./db/... -v              # dvm database
 
 # Manual Tests
-./tests/manual/part1-setup-and-build.sh   # Setup & build tests
-./tests/manual/part2-post-attach.sh       # Post-attach tests
+./tests/manual/nvp/test-nvp.sh           # nvp automated tests
+./tests/manual/part1-setup-and-build.sh  # dvm setup tests
+./tests/manual/part2-post-attach.sh      # dvm post-attach tests
 
 # Release (follow docs/development/release-process.md)
 git tag -a vX.Y.Z -m "Release vX.Y.Z: description"
@@ -475,74 +490,69 @@ func someCommand() error {
 ```
 devopsmaestro/
 ├── cmd/                    # CLI commands (Cobra)
-│   ├── root.go            # Root command, global flags
+│   ├── root.go            # dvm root command, global flags
 │   ├── init.go            # dvm admin init
 │   ├── create.go          # dvm create project/workspace
 │   ├── get.go             # dvm get projects/workspaces/plugins
 │   ├── use.go             # dvm use project/workspace
 │   ├── build.go           # dvm build
 │   ├── attach.go          # dvm attach
-│   └── plugin.go          # dvm plugin apply/list/get/delete
+│   ├── plugin.go          # dvm plugin apply/list/get/delete
+│   └── nvp/               # NvimOps CLI (standalone)
+│       ├── main.go        # nvp entry point
+│       └── root.go        # All nvp commands (~2000 lines)
 │
-├── db/                     # Database layer (DECOUPLED)
+├── pkg/nvimops/           # NvimOps library (used by nvp CLI)
+│   ├── nvimops.go         # Manager with options
+│   ├── plugin/            # Plugin types, parser, generator
+│   │   ├── types.go       # Plugin struct
+│   │   ├── parser.go      # YAML parsing
+│   │   ├── generator.go   # Lua generation
+│   │   └── interfaces.go  # LuaGenerator interface
+│   ├── store/             # Plugin storage
+│   │   ├── interface.go   # PluginStore interface
+│   │   ├── memory.go      # In-memory (testing)
+│   │   ├── file.go        # File-based (~/.nvp/plugins/)
+│   │   └── readonly.go    # ReadOnly wrapper for library
+│   ├── library/           # Embedded plugin library
+│   │   ├── library.go     # Library functions
+│   │   └── plugins/       # 16 embedded plugin YAMLs
+│   └── theme/             # Theme system (v0.5.0)
+│       ├── types.go       # Theme struct
+│       ├── parser.go      # YAML parsing
+│       ├── generator.go   # Lua generation (palette, init)
+│       ├── store.go       # Theme storage
+│       └── library/       # Embedded theme library
+│           ├── library.go
+│           └── themes/    # 8 embedded theme YAMLs
+│
+├── db/                     # Database layer (dvm only)
 │   ├── interfaces.go      # Driver, DataStore, QueryBuilder interfaces
 │   ├── driver.go          # Driver factory and registration
 │   ├── factory.go         # DataStore factory, legacy adapters
 │   ├── store.go           # SQLDataStore implementation
 │   ├── sqlite_driver.go   # SQLite Driver implementation
-│   ├── querybuilder.go    # QueryBuilder implementations
-│   ├── mock_driver.go     # MockDriver for testing
-│   ├── mock_store.go      # MockDataStore for testing
-│   └── database.go        # Legacy Database interface (deprecated)
+│   └── mock_*.go          # Mock implementations
 │
-├── operators/              # Container runtime layer (DECOUPLED)
+├── operators/              # Container runtime layer (dvm)
 │   ├── runtime_interface.go    # ContainerRuntime interface
 │   ├── runtime_factory.go      # Runtime factory
-│   ├── docker_runtime.go       # Docker/OrbStack/Podman implementation
-│   ├── containerd_runtime_v2.go # Containerd implementation
-│   ├── platform.go             # Platform detection
-│   └── mock_runtime.go         # MockContainerRuntime for testing
+│   ├── docker_runtime.go       # Docker/OrbStack/Podman
+│   └── platform.go             # Platform detection
 │
-├── builders/               # Image builder layer (DECOUPLED)
-│   ├── interfaces.go      # ImageBuilder interface
-│   ├── factory.go         # Builder factory
-│   ├── docker_builder.go  # Docker build implementation
-│   ├── buildkit_builder.go # BuildKit implementation
-│   └── helpers.go         # Shared utilities
-│
-├── output/                 # Output formatting (DECOUPLED)
-│   ├── interfaces.go      # Formatter interface
-│   ├── formatter.go       # Base formatter
-│   ├── plain_formatter.go # Plain text output
-│   ├── colored_formatter.go # Colored output with themes
-│   └── mock_formatter.go  # MockFormatter for testing
-│
-├── nvim/                   # Neovim configuration management
-│   ├── interfaces.go      # Manager interface
-│   ├── manager.go         # Default implementation
-│   └── mock_manager.go    # MockManager for testing
-│
-├── models/                 # Data models
-│   ├── project.go
-│   ├── workspace.go
-│   ├── nvim_plugin.go
-│   └── context.go
-│
+├── builders/               # Image builder layer (dvm)
+├── output/                 # Output formatting (dvm)
+├── nvim/                   # Neovim config management (dvm)
+├── models/                 # Data models (dvm)
 ├── config/                 # Configuration management
-│   └── config.go
-│
-├── migrations/             # Database migrations
-│   ├── sqlite/
-│   └── postgres/
-│
+├── migrations/             # Database migrations (dvm)
 ├── templates/              # Templates and pre-built configs
-│   ├── nvim-plugins/      # Pre-built Neovim plugin YAMLs
-│   └── minimal/           # Minimal nvim config template
 │
-├── main.go                # Entry point
-├── embed.go               # Embedded filesystem
+├── main.go                # dvm entry point
+├── .goreleaser.yaml       # GoReleaser config
 ├── CLAUDE.md              # THIS FILE - AI context
-├── MANUAL_TEST_PLAN.md    # Comprehensive manual test plan
+├── NVIMOPS_TEST_PLAN.md   # nvp test plan
+├── MANUAL_TEST_PLAN.md    # dvm test plan
 └── README.md              # User documentation
 ```
 
@@ -652,24 +662,29 @@ func TestDataStoreSwappability(t *testing.T) {
 
 ## Roadmap
 
-### v0.3.0 - Current Development
-- Multi-platform container runtime support (OrbStack, Colima, Podman, Docker Desktop)
-- Decoupled builder architecture (ImageBuilder interface)
-- Platform detection and selection
-- Output formatting system
-- Database layer decoupling (Driver/DataStore interfaces)
-- Mock implementations for all major interfaces
+### v0.5.0 - NvimTheme System ✅ (Current)
+- NvimTheme resource type for YAML-based colorscheme management
+- Theme library with 8 pre-built themes
+- Theme CLI commands (library, apply, list, get, use, delete, generate)
+- Palette export for plugin color consistency
+- URL support for remote theme files
 
-### v0.4.0 - Planned
-- nvim-yaml tool: Declarative Neovim configuration via YAML
-- Workspace nvim integration: Per-workspace Neovim configurations
-- Output refactoring: Migrate all commands to use output.Formatter
+### v0.4.x - NvimOps CLI ✅
+- Standalone nvp CLI for Neovim plugin management
+- Decoupled architecture with swappable interfaces
+- Built-in plugin library (16+ plugins)
+- Lua generation for lazy.nvim
 
-### v0.5.0 - Future (Kubernetes Operator)
-- Kubernetes runtime support: Run dev environments as Kubernetes pods
-- k3s/k3d integration: Lightweight k3s clusters on all platforms
-- DevOpsMaestro Operator: Kubernetes operator for managing workspaces
-- CRDs: Custom Resource Definitions for Workspace, Project, NvimConfig
+### v0.6.0 - Integration (Next)
+- Integrate nvp with dvm (DBPluginStore implements PluginStore)
+- `dvm workspace add-plugin/remove-plugin` using nvp as backend
+- Theme preview command
+- More themes (dracula, solarized, one-dark)
+
+### v1.0.0 - Production Ready
+- Full test coverage
+- Performance optimizations
+- Enterprise features
 
 ## Important Patterns to Follow
 
