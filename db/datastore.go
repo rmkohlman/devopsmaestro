@@ -102,6 +102,38 @@ type DataStore interface {
 	// SetWorkspacePluginEnabled enables or disables a plugin for a workspace.
 	SetWorkspacePluginEnabled(workspaceID int, pluginID int, enabled bool) error
 
+	// Theme Operations
+
+	// CreateTheme inserts a new nvim theme.
+	CreateTheme(theme *models.NvimThemeDB) error
+
+	// GetThemeByName retrieves a theme by its name.
+	GetThemeByName(name string) (*models.NvimThemeDB, error)
+
+	// GetThemeByID retrieves a theme by its ID.
+	GetThemeByID(id int) (*models.NvimThemeDB, error)
+
+	// UpdateTheme updates an existing theme.
+	UpdateTheme(theme *models.NvimThemeDB) error
+
+	// DeleteTheme removes a theme by name.
+	DeleteTheme(name string) error
+
+	// ListThemes retrieves all themes.
+	ListThemes() ([]*models.NvimThemeDB, error)
+
+	// ListThemesByCategory retrieves themes filtered by category.
+	ListThemesByCategory(category string) ([]*models.NvimThemeDB, error)
+
+	// GetActiveTheme retrieves the currently active theme.
+	GetActiveTheme() (*models.NvimThemeDB, error)
+
+	// SetActiveTheme sets the active theme by name (deactivates others).
+	SetActiveTheme(name string) error
+
+	// ClearActiveTheme deactivates all themes.
+	ClearActiveTheme() error
+
 	// Driver Access
 
 	// Driver returns the underlying database driver.

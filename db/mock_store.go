@@ -13,10 +13,12 @@ type MockDataStore struct {
 	mu sync.Mutex
 
 	// In-memory storage
-	Projects   map[string]*models.Project
-	Workspaces map[int]*models.Workspace
-	Plugins    map[string]*models.NvimPluginDB
-	Context    *models.Context
+	Projects    map[string]*models.Project
+	Workspaces  map[int]*models.Workspace
+	Plugins     map[string]*models.NvimPluginDB
+	Themes      map[string]*models.NvimThemeDB
+	ActiveTheme string
+	Context     *models.Context
 
 	// WorkspacePlugins maps workspaceID -> pluginIDs
 	WorkspacePlugins map[int]map[int]bool
@@ -53,6 +55,16 @@ type MockDataStore struct {
 	RemovePluginFromWorkspaceErr error
 	GetWorkspacePluginsErr       error
 	SetWorkspacePluginEnabledErr error
+	CreateThemeErr               error
+	GetThemeByNameErr            error
+	GetThemeByIDErr              error
+	UpdateThemeErr               error
+	DeleteThemeErr               error
+	ListThemesErr                error
+	ListThemesByCategoryErr      error
+	GetActiveThemeErr            error
+	SetActiveThemeErr            error
+	ClearActiveThemeErr          error
 	CloseErr                     error
 	PingErr                      error
 
@@ -63,6 +75,7 @@ type MockDataStore struct {
 	nextProjectID   int
 	nextWorkspaceID int
 	nextPluginID    int
+	nextThemeID     int
 }
 
 // MockDataStoreCall represents a recorded method call
@@ -77,12 +90,14 @@ func NewMockDataStore() *MockDataStore {
 		Projects:         make(map[string]*models.Project),
 		Workspaces:       make(map[int]*models.Workspace),
 		Plugins:          make(map[string]*models.NvimPluginDB),
+		Themes:           make(map[string]*models.NvimThemeDB),
 		WorkspacePlugins: make(map[int]map[int]bool),
 		Context:          &models.Context{ID: 1},
 		MockDriver:       NewMockDriver(),
 		nextProjectID:    1,
 		nextWorkspaceID:  1,
 		nextPluginID:     1,
+		nextThemeID:      1,
 	}
 }
 
@@ -493,6 +508,145 @@ func (m *MockDataStore) SetWorkspacePluginEnabled(workspaceID int, pluginID int,
 }
 
 // =============================================================================
+// Theme Operations
+// =============================================================================
+
+func (m *MockDataStore) CreateTheme(theme *models.NvimThemeDB) error {
+	m.recordCall("CreateTheme", theme)
+	if m.CreateThemeErr != nil {
+		return m.CreateThemeErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	theme.ID = m.nextThemeID
+	m.nextThemeID++
+	m.Themes[theme.Name] = theme
+	return nil
+}
+
+func (m *MockDataStore) GetThemeByName(name string) (*models.NvimThemeDB, error) {
+	m.recordCall("GetThemeByName", name)
+	if m.GetThemeByNameErr != nil {
+		return nil, m.GetThemeByNameErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if t, ok := m.Themes[name]; ok {
+		return t, nil
+	}
+	return nil, fmt.Errorf("theme not found: %s", name)
+}
+
+func (m *MockDataStore) GetThemeByID(id int) (*models.NvimThemeDB, error) {
+	m.recordCall("GetThemeByID", id)
+	if m.GetThemeByIDErr != nil {
+		return nil, m.GetThemeByIDErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, t := range m.Themes {
+		if t.ID == id {
+			return t, nil
+		}
+	}
+	return nil, fmt.Errorf("theme not found: %d", id)
+}
+
+func (m *MockDataStore) UpdateTheme(theme *models.NvimThemeDB) error {
+	m.recordCall("UpdateTheme", theme)
+	if m.UpdateThemeErr != nil {
+		return m.UpdateThemeErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.Themes[theme.Name] = theme
+	return nil
+}
+
+func (m *MockDataStore) DeleteTheme(name string) error {
+	m.recordCall("DeleteTheme", name)
+	if m.DeleteThemeErr != nil {
+		return m.DeleteThemeErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.Themes, name)
+	return nil
+}
+
+func (m *MockDataStore) ListThemes() ([]*models.NvimThemeDB, error) {
+	m.recordCall("ListThemes")
+	if m.ListThemesErr != nil {
+		return nil, m.ListThemesErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var themes []*models.NvimThemeDB
+	for _, t := range m.Themes {
+		themes = append(themes, t)
+	}
+	return themes, nil
+}
+
+func (m *MockDataStore) ListThemesByCategory(category string) ([]*models.NvimThemeDB, error) {
+	m.recordCall("ListThemesByCategory", category)
+	if m.ListThemesByCategoryErr != nil {
+		return nil, m.ListThemesByCategoryErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var themes []*models.NvimThemeDB
+	for _, t := range m.Themes {
+		if t.Category.Valid && t.Category.String == category {
+			themes = append(themes, t)
+		}
+	}
+	return themes, nil
+}
+
+func (m *MockDataStore) GetActiveTheme() (*models.NvimThemeDB, error) {
+	m.recordCall("GetActiveTheme")
+	if m.GetActiveThemeErr != nil {
+		return nil, m.GetActiveThemeErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.ActiveTheme == "" {
+		return nil, nil
+	}
+	if t, ok := m.Themes[m.ActiveTheme]; ok {
+		return t, nil
+	}
+	return nil, fmt.Errorf("active theme not found: %s", m.ActiveTheme)
+}
+
+func (m *MockDataStore) SetActiveTheme(name string) error {
+	m.recordCall("SetActiveTheme", name)
+	if m.SetActiveThemeErr != nil {
+		return m.SetActiveThemeErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	// Verify theme exists
+	if _, ok := m.Themes[name]; !ok {
+		return fmt.Errorf("theme not found: %s", name)
+	}
+	m.ActiveTheme = name
+	return nil
+}
+
+func (m *MockDataStore) ClearActiveTheme() error {
+	m.recordCall("ClearActiveTheme")
+	if m.ClearActiveThemeErr != nil {
+		return m.ClearActiveThemeErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.ActiveTheme = ""
+	return nil
+}
+
+// =============================================================================
 // Driver Access & Health
 // =============================================================================
 
@@ -541,12 +695,15 @@ func (m *MockDataStore) Reset() {
 	m.Projects = make(map[string]*models.Project)
 	m.Workspaces = make(map[int]*models.Workspace)
 	m.Plugins = make(map[string]*models.NvimPluginDB)
+	m.Themes = make(map[string]*models.NvimThemeDB)
 	m.WorkspacePlugins = make(map[int]map[int]bool)
+	m.ActiveTheme = ""
 	m.Context = &models.Context{ID: 1}
 	m.Calls = nil
 	m.nextProjectID = 1
 	m.nextWorkspaceID = 1
 	m.nextPluginID = 1
+	m.nextThemeID = 1
 }
 
 // Helper function
