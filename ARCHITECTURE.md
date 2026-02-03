@@ -4,6 +4,26 @@
 
 ---
 
+## ✅ Code Review Checklist
+
+Before writing or reviewing code, verify:
+
+```
+□ Functions accept INTERFACES, not concrete structs
+□ Factory functions return INTERFACES, not concrete types
+□ No direct instantiation of structs outside their package
+□ New implementations use existing interfaces (don't create new ones unnecessarily)
+□ cmd/ layer only imports interfaces, never implementations
+□ Business logic uses DataStore, not *SQLDataStore
+□ Container ops use ContainerRuntime, not *DockerRuntime
+□ Output uses render.Output(), not fmt.Print()
+□ Tests use mocks, not real implementations
+```
+
+**Quick smell test:** If you see `*SQLDataStore`, `*DockerRuntime`, or `fmt.Printf` in `cmd/`, it's likely tightly coupled.
+
+---
+
 ## Core Pattern
 
 **Every subsystem follows: Interface → Implementations → Factory**
