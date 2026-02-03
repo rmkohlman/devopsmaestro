@@ -91,19 +91,26 @@ Examples:
 
 		slog.Debug("resolved workspace", "image", workspace.ImageName, "project_path", project.Path)
 
-		// Initialize container runtime
-		runtime, err := operators.NewContainerRuntime()
+		// Detect container platform
+		detector, err := operators.NewPlatformDetector()
 		if err != nil {
-			slog.Error("failed to initialize container runtime", "error", err)
-			render.Error(fmt.Sprintf("Failed to initialize container runtime: %v", err))
+			slog.Error("failed to create platform detector", "error", err)
+			render.Error(fmt.Sprintf("Failed to detect container platform: %v", err))
 			return
 		}
 
-		slog.Info("using container runtime", "type", runtime.GetRuntimeType())
-		render.Info(fmt.Sprintf("Using %s runtime", runtime.GetRuntimeType()))
+		platform, err := detector.Detect()
+		if err != nil {
+			slog.Error("failed to detect platform", "error", err)
+			render.Error(fmt.Sprintf("No container runtime found: %v", err))
+			render.Info("Hint: Install OrbStack, Docker Desktop, or Colima")
+			return
+		}
+
+		slog.Info("detected platform", "name", platform.Name, "type", platform.Type, "socket", platform.SocketPath)
+		render.Info(fmt.Sprintf("Platform: %s", platform.Name))
 
 		// Use image name from workspace
-		// The build command stores the built image name (e.g., dvm-main-fastapi-test:latest)
 		imageName := workspace.ImageName
 
 		// If the image name doesn't have the dvm- prefix, it might be the original default
@@ -115,43 +122,79 @@ Examples:
 			fmt.Println()
 		}
 
-		render.Progress("Starting workspace container...")
-
-		// For Colima, we need to use nerdctl via SSH instead of direct containerd API
-		// because mounts and other operations don't work across host/VM boundary
-		profile := os.Getenv("COLIMA_ACTIVE_PROFILE")
-		if profile == "" {
-			profile = "default"
-		}
-
 		containerName := fmt.Sprintf("dvm-%s-%s", projectName, workspaceName)
-		slog.Debug("container details", "name", containerName, "image", imageName, "profile", profile)
+		slog.Debug("container details", "name", containerName, "image", imageName)
 
-		// Check if container already exists and is running
-		checkCmd := exec.Command("colima", "--profile", profile, "ssh", "--",
-			"sudo", "nerdctl", "--namespace", "devopsmaestro", "ps", "-q", "-f", fmt.Sprintf("name=%s", containerName))
-		output, _ := checkCmd.Output()
+		// Route to the appropriate attach implementation based on platform
+		switch platform.Type {
+		case operators.PlatformColima:
+			attachColima(platform, containerName, imageName, project.Path, projectName, workspaceName)
+		default:
+			// OrbStack, Docker Desktop, Podman - all use Docker CLI
+			attachDocker(platform, containerName, imageName, project.Path, projectName, workspaceName)
+		}
+	},
+}
 
-		if len(output) == 0 {
-			// Container doesn't exist or isn't running - create it
+// attachDocker handles attach for Docker-compatible runtimes (OrbStack, Docker Desktop, Podman)
+func attachDocker(platform *operators.Platform, containerName, imageName, projectPath, projectName, workspaceName string) {
+	render.Progress("Starting workspace container...")
+
+	// Check if container already exists and is running
+	checkCmd := exec.Command("docker", "-H", "unix://"+platform.SocketPath,
+		"ps", "-q", "-f", fmt.Sprintf("name=^%s$", containerName))
+	output, _ := checkCmd.Output()
+
+	if len(strings.TrimSpace(string(output))) == 0 {
+		// Check if container exists but is stopped
+		checkStoppedCmd := exec.Command("docker", "-H", "unix://"+platform.SocketPath,
+			"ps", "-aq", "-f", fmt.Sprintf("name=^%s$", containerName))
+		stoppedOutput, _ := checkStoppedCmd.Output()
+
+		if len(strings.TrimSpace(string(stoppedOutput))) > 0 {
+			// Container exists but is stopped - start it
+			render.Progress("Starting existing container...")
+			slog.Debug("starting stopped container", "name", containerName)
+
+			startCmd := exec.Command("docker", "-H", "unix://"+platform.SocketPath,
+				"start", containerName)
+			startCmd.Stdout = os.Stdout
+			startCmd.Stderr = os.Stderr
+
+			if err := startCmd.Run(); err != nil {
+				slog.Error("failed to start container", "name", containerName, "error", err)
+				render.Error(fmt.Sprintf("Failed to start container: %v", err))
+				return
+			}
+			slog.Info("container started", "name", containerName)
+		} else {
+			// Container doesn't exist - create it
 			render.Progress("Creating container...")
-			slog.Debug("creating new container", "name", containerName, "project_path", project.Path)
+			slog.Debug("creating new container", "name", containerName, "project_path", projectPath)
 
-			// Convert project path to VM path (assumes home directory is mounted)
-			vmProjectPath := project.Path
-
-			createCmd := exec.Command("colima", "--profile", profile, "ssh", "--",
-				"sudo", "nerdctl", "--namespace", "devopsmaestro", "run",
+			createArgs := []string{
+				"-H", "unix://" + platform.SocketPath,
+				"run",
 				"-d", // Detached
 				"--name", containerName,
-				"-v", fmt.Sprintf("%s:/workspace", vmProjectPath),
-				"-v", fmt.Sprintf("%s/.ssh:/root/.ssh:ro", os.Getenv("HOME")),
+				"--label", "io.devopsmaestro.managed=true",
+				"--label", "io.devopsmaestro.project=" + projectName,
+				"--label", "io.devopsmaestro.workspace=" + workspaceName,
+				"-v", fmt.Sprintf("%s:/workspace", projectPath),
 				"-w", "/workspace",
 				"-e", fmt.Sprintf("DVM_PROJECT=%s", projectName),
 				"-e", fmt.Sprintf("DVM_WORKSPACE=%s", workspaceName),
-				imageName,
-				"/bin/sleep", "infinity", // Keep container running
-			)
+			}
+
+			// Mount SSH keys if they exist
+			sshDir := os.Getenv("HOME") + "/.ssh"
+			if _, err := os.Stat(sshDir); err == nil {
+				createArgs = append(createArgs, "-v", fmt.Sprintf("%s:/home/dev/.ssh:ro", sshDir))
+			}
+
+			createArgs = append(createArgs, imageName, "/bin/sleep", "infinity")
+
+			createCmd := exec.Command("docker", createArgs...)
 			createCmd.Stdout = os.Stdout
 			createCmd.Stderr = os.Stderr
 
@@ -161,29 +204,99 @@ Examples:
 				return
 			}
 			slog.Info("container created", "name", containerName)
-		} else {
-			slog.Debug("container already running", "name", containerName)
-			render.Info("Container already running")
 		}
+	} else {
+		slog.Debug("container already running", "name", containerName)
+		render.Info("Container already running")
+	}
 
-		// Attach to container using nerdctl exec
-		render.Progress("Attaching to workspace...")
-		slog.Info("attaching to container", "name", containerName)
-		attachCmd := exec.Command("colima", "--profile", profile, "ssh", "--",
-			"sudo", "nerdctl", "--namespace", "devopsmaestro", "exec", "-it", containerName, "/bin/zsh", "-l")
-		attachCmd.Stdin = os.Stdin
-		attachCmd.Stdout = os.Stdout
-		attachCmd.Stderr = os.Stderr
+	// Attach to container
+	render.Progress("Attaching to workspace...")
+	slog.Info("attaching to container", "name", containerName)
 
-		if err := attachCmd.Run(); err != nil {
-			slog.Error("failed to attach to container", "name", containerName, "error", err)
-			render.Error(fmt.Sprintf("Failed to attach: %v", err))
+	attachCmd := exec.Command("docker", "-H", "unix://"+platform.SocketPath,
+		"exec", "-it", containerName, "/bin/zsh", "-l")
+	attachCmd.Stdin = os.Stdin
+	attachCmd.Stdout = os.Stdout
+	attachCmd.Stderr = os.Stderr
+
+	if err := attachCmd.Run(); err != nil {
+		slog.Error("failed to attach to container", "name", containerName, "error", err)
+		render.Error(fmt.Sprintf("Failed to attach: %v", err))
+		return
+	}
+
+	slog.Info("session ended", "container", containerName)
+	render.Info("Session ended.")
+}
+
+// attachColima handles attach for Colima with nerdctl
+func attachColima(platform *operators.Platform, containerName, imageName, projectPath, projectName, workspaceName string) {
+	render.Progress("Starting workspace container...")
+
+	profile := os.Getenv("COLIMA_ACTIVE_PROFILE")
+	if profile == "" {
+		profile = "default"
+	}
+
+	slog.Debug("using colima profile", "profile", profile)
+
+	// Check if container already exists and is running
+	checkCmd := exec.Command("colima", "--profile", profile, "ssh", "--",
+		"sudo", "nerdctl", "--namespace", "devopsmaestro", "ps", "-q", "-f", fmt.Sprintf("name=%s", containerName))
+	output, _ := checkCmd.Output()
+
+	if len(output) == 0 {
+		// Container doesn't exist or isn't running - create it
+		render.Progress("Creating container...")
+		slog.Debug("creating new container", "name", containerName, "project_path", projectPath)
+
+		// Convert project path to VM path (assumes home directory is mounted)
+		vmProjectPath := projectPath
+
+		createCmd := exec.Command("colima", "--profile", profile, "ssh", "--",
+			"sudo", "nerdctl", "--namespace", "devopsmaestro", "run",
+			"-d", // Detached
+			"--name", containerName,
+			"-v", fmt.Sprintf("%s:/workspace", vmProjectPath),
+			"-v", fmt.Sprintf("%s/.ssh:/root/.ssh:ro", os.Getenv("HOME")),
+			"-w", "/workspace",
+			"-e", fmt.Sprintf("DVM_PROJECT=%s", projectName),
+			"-e", fmt.Sprintf("DVM_WORKSPACE=%s", workspaceName),
+			imageName,
+			"/bin/sleep", "infinity", // Keep container running
+		)
+		createCmd.Stdout = os.Stdout
+		createCmd.Stderr = os.Stderr
+
+		if err := createCmd.Run(); err != nil {
+			slog.Error("failed to create container", "name", containerName, "error", err)
+			render.Error(fmt.Sprintf("Failed to create container: %v", err))
 			return
 		}
+		slog.Info("container created", "name", containerName)
+	} else {
+		slog.Debug("container already running", "name", containerName)
+		render.Info("Container already running")
+	}
 
-		slog.Info("session ended", "container", containerName)
-		render.Info("Session ended.")
-	},
+	// Attach to container using nerdctl exec
+	render.Progress("Attaching to workspace...")
+	slog.Info("attaching to container", "name", containerName)
+	attachCmd := exec.Command("colima", "--profile", profile, "ssh", "--",
+		"sudo", "nerdctl", "--namespace", "devopsmaestro", "exec", "-it", containerName, "/bin/zsh", "-l")
+	attachCmd.Stdin = os.Stdin
+	attachCmd.Stdout = os.Stdout
+	attachCmd.Stderr = os.Stderr
+
+	if err := attachCmd.Run(); err != nil {
+		slog.Error("failed to attach to container", "name", containerName, "error", err)
+		render.Error(fmt.Sprintf("Failed to attach: %v", err))
+		return
+	}
+
+	slog.Info("session ended", "container", containerName)
+	render.Info("Session ended.")
 }
 
 // Initializes the attach command

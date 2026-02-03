@@ -5,7 +5,6 @@ import (
 	"devopsmaestro/render"
 	"fmt"
 	"log/slog"
-	"os"
 	"os/exec"
 	"strings"
 
@@ -61,9 +60,10 @@ type ContainerInfo struct {
 
 // RuntimeInfo holds runtime information
 type RuntimeInfo struct {
-	Type    string `json:"type" yaml:"type"`
-	Profile string `json:"profile,omitempty" yaml:"profile,omitempty"`
-	Status  string `json:"status" yaml:"status"`
+	Type   string `json:"type" yaml:"type"`
+	Name   string `json:"name,omitempty" yaml:"name,omitempty"`
+	Socket string `json:"socket,omitempty" yaml:"socket,omitempty"`
+	Status string `json:"status" yaml:"status"`
 }
 
 func runStatus(cmd *cobra.Command) error {
@@ -84,28 +84,41 @@ func runStatus(cmd *cobra.Command) error {
 		}
 	}
 
-	// Get Colima profile and status
-	profile := os.Getenv("COLIMA_ACTIVE_PROFILE")
-	if profile == "" {
-		profile = "default"
+	// Detect container platform using the platform detector
+	detector, err := operators.NewPlatformDetector()
+	if err != nil {
+		slog.Debug("failed to create platform detector", "error", err)
+		status.Runtime = RuntimeInfo{
+			Type:   "unknown",
+			Status: "not found",
+		}
+		// Handle output format
+		if statusOutputFormat == "json" || statusOutputFormat == "yaml" {
+			return render.OutputWith(statusOutputFormat, status, render.Options{})
+		}
+		renderStatusColored(status)
+		return nil
 	}
 
-	status.Runtime = RuntimeInfo{
-		Type:    "colima/nerdctl",
-		Profile: profile,
-		Status:  "unknown",
-	}
-
-	// Check if Colima is running
-	checkCmd := exec.Command("colima", "--profile", profile, "status")
-	if err := checkCmd.Run(); err != nil {
-		status.Runtime.Status = "stopped"
+	platform, err := detector.Detect()
+	if err != nil {
+		slog.Debug("failed to detect platform", "error", err)
+		status.Runtime = RuntimeInfo{
+			Type:   "unknown",
+			Status: "not found",
+		}
 	} else {
-		status.Runtime.Status = "running"
+		status.Runtime = RuntimeInfo{
+			Type:   string(platform.Type),
+			Name:   platform.Name,
+			Socket: platform.SocketPath,
+			Status: "active",
+		}
 
-		// Get running containers
-		listCmd := exec.Command("colima", "--profile", profile, "ssh", "--",
-			"sudo", "nerdctl", "--namespace", "devopsmaestro", "ps", "--format", "{{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Image}}", "-f", "name=dvm-")
+		// Get running dvm containers using docker CLI (works for OrbStack, Docker Desktop, Podman)
+		listCmd := exec.Command("docker", "-H", "unix://"+platform.SocketPath,
+			"ps", "--format", "{{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Image}}",
+			"--filter", "label=io.devopsmaestro.managed=true")
 		output, err := listCmd.Output()
 		if err == nil {
 			lines := strings.Split(strings.TrimSpace(string(output)), "\n")
@@ -126,6 +139,8 @@ func runStatus(cmd *cobra.Command) error {
 					status.Containers = append(status.Containers, container)
 				}
 			}
+		} else {
+			slog.Debug("failed to list containers", "error", err)
 		}
 	}
 
@@ -157,12 +172,15 @@ func renderStatusColored(status StatusInfo) {
 
 	// Runtime section
 	render.Info("Runtime")
-	render.Info(fmt.Sprintf("  Type:    %s", status.Runtime.Type))
-	render.Info(fmt.Sprintf("  Profile: %s", status.Runtime.Profile))
-	if status.Runtime.Status == "running" {
-		render.Success(fmt.Sprintf("  Status:  %s", status.Runtime.Status))
+	if status.Runtime.Name != "" {
+		render.Info(fmt.Sprintf("  Platform: %s", status.Runtime.Name))
 	} else {
-		render.Warning(fmt.Sprintf("  Status:  %s", status.Runtime.Status))
+		render.Info(fmt.Sprintf("  Type:     %s", status.Runtime.Type))
+	}
+	if status.Runtime.Status == "active" {
+		render.Success(fmt.Sprintf("  Status:   %s", status.Runtime.Status))
+	} else {
+		render.Warning(fmt.Sprintf("  Status:   %s", status.Runtime.Status))
 	}
 
 	fmt.Println()
