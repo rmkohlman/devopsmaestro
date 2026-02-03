@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"devopsmaestro/models"
+	"devopsmaestro/pkg/nvimops/plugin"
 	"fmt"
 	"os"
 	"os/exec"
@@ -48,24 +48,21 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
 
-		// Get datastore from context (injected by root command)
-		datastore, err := getDataStore(cmd)
+		// Get nvim manager (uses DBStoreAdapter internally)
+		mgr, err := getNvimManager(cmd)
 		if err != nil {
-			return fmt.Errorf("failed to get datastore: %v", err)
+			return fmt.Errorf("failed to get nvim manager: %v", err)
 		}
+		defer mgr.Close()
 
 		// Get plugin
-		plugin, err := datastore.GetPluginByName(name)
+		p, err := mgr.Get(name)
 		if err != nil {
-			return fmt.Errorf("failed to get plugin: %v", err)
+			return fmt.Errorf("plugin not found: %s", name)
 		}
 
-		// Convert to YAML
-		pluginYAML, err := plugin.ToYAML()
-		if err != nil {
-			return fmt.Errorf("failed to convert plugin to YAML: %v", err)
-		}
-
+		// Convert to YAML using the plugin package
+		pluginYAML := p.ToYAML()
 		data, err := yaml.Marshal(pluginYAML)
 		if err != nil {
 			return fmt.Errorf("failed to marshal YAML: %v", err)
@@ -90,12 +87,12 @@ Examples:
 		}
 
 		// Open editor
-		editCmd := exec.Command(editor, tmpfile.Name())
-		editCmd.Stdin = os.Stdin
-		editCmd.Stdout = os.Stdout
-		editCmd.Stderr = os.Stderr
+		editCommand := exec.Command(editor, tmpfile.Name())
+		editCommand.Stdin = os.Stdin
+		editCommand.Stdout = os.Stdout
+		editCommand.Stderr = os.Stderr
 
-		if err := editCmd.Run(); err != nil {
+		if err := editCommand.Run(); err != nil {
 			return fmt.Errorf("editor exited with error: %v", err)
 		}
 
@@ -105,31 +102,18 @@ Examples:
 			return fmt.Errorf("failed to read edited file: %v", err)
 		}
 
-		// Parse and apply
-		var editedYAML models.NvimPluginYAML
-		if err := yaml.Unmarshal(editedData, &editedYAML); err != nil {
+		// Parse edited YAML using the plugin package
+		editedPlugin, err := plugin.ParseYAML(editedData)
+		if err != nil {
 			return fmt.Errorf("failed to parse edited YAML: %v", err)
 		}
 
-		// Validate kind
-		if editedYAML.Kind != "NvimPlugin" {
-			return fmt.Errorf("invalid kind: expected 'NvimPlugin', got '%s'", editedYAML.Kind)
-		}
-
-		// Convert and update
-		updatedPlugin := &models.NvimPluginDB{}
-		if err := updatedPlugin.FromYAML(editedYAML); err != nil {
-			return fmt.Errorf("failed to convert plugin: %v", err)
-		}
-
-		updatedPlugin.ID = plugin.ID
-		updatedPlugin.CreatedAt = plugin.CreatedAt
-
-		if err := datastore.UpdatePlugin(updatedPlugin); err != nil {
+		// Apply (upsert) the updated plugin
+		if err := mgr.Apply(editedPlugin); err != nil {
 			return fmt.Errorf("failed to update plugin: %v", err)
 		}
 
-		fmt.Printf("✓ Plugin '%s' updated successfully\n", updatedPlugin.Name)
+		fmt.Printf("✓ Plugin '%s' updated successfully\n", editedPlugin.Name)
 		return nil
 	},
 }

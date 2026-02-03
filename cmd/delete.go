@@ -52,10 +52,17 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
 
-		// Get datastore from context (injected by root command)
-		datastore, err := getDataStore(cmd)
+		// Get nvim manager (uses DBStoreAdapter internally)
+		mgr, err := getNvimManager(cmd)
 		if err != nil {
-			return fmt.Errorf("failed to get datastore: %v", err)
+			return fmt.Errorf("failed to get nvim manager: %v", err)
+		}
+		defer mgr.Close()
+
+		// Check if plugin exists
+		_, err = mgr.Get(name)
+		if err != nil {
+			return fmt.Errorf("plugin not found: %s", name)
 		}
 
 		// Confirm deletion
@@ -71,7 +78,7 @@ Examples:
 		}
 
 		// Delete plugin
-		if err := datastore.DeletePlugin(name); err != nil {
+		if err := mgr.Delete(name); err != nil {
 			return fmt.Errorf("failed to delete plugin: %v", err)
 		}
 

@@ -1,12 +1,11 @@
 package cmd
 
 import (
-	"devopsmaestro/models"
+	"devopsmaestro/pkg/nvimops/plugin"
 	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 )
 
 // applyCmd is the root 'apply' command for kubectl-style resource application
@@ -62,75 +61,54 @@ Examples:
 	},
 }
 
-// applyNvimPluginFromFile applies a single plugin file
-// This reuses the same logic as pluginApplyCmd but with the new command structure
+// applyNvimPluginFromFile applies a single plugin file using nvimops.Manager.
+// This provides a unified storage mechanism shared with nvp CLI.
 func applyNvimPluginFromFile(cmd *cobra.Command, filePath string) error {
 	var data []byte
 	var err error
+	var source string
 
 	// Read from stdin if filePath is "-"
 	if filePath == "-" {
 		data, err = os.ReadFile("/dev/stdin")
+		source = "stdin"
 		if err != nil {
 			return fmt.Errorf("failed to read from stdin: %v", err)
 		}
 	} else {
-		// Read YAML file
 		data, err = os.ReadFile(filePath)
+		source = filePath
 		if err != nil {
 			return fmt.Errorf("failed to read file: %v", err)
 		}
 	}
 
-	// Parse YAML
-	var pluginYAML models.NvimPluginYAML
-	if err := yaml.Unmarshal(data, &pluginYAML); err != nil {
-		return fmt.Errorf("failed to parse YAML: %v", err)
-	}
-
-	// Validate kind
-	if pluginYAML.Kind != "NvimPlugin" {
-		return fmt.Errorf("invalid kind: expected 'NvimPlugin', got '%s'", pluginYAML.Kind)
-	}
-
-	// Convert to database model
-	plugin := &models.NvimPluginDB{}
-	if err := plugin.FromYAML(pluginYAML); err != nil {
-		return fmt.Errorf("failed to convert plugin: %v", err)
-	}
-
-	// Get datastore from context (injected by root command)
-	datastore, err := getDataStore(cmd)
+	// Parse YAML using the nvimops plugin parser
+	p, err := plugin.ParseYAML(data)
 	if err != nil {
-		return fmt.Errorf("failed to get datastore: %v", err)
+		return fmt.Errorf("failed to parse plugin YAML: %v", err)
 	}
 
-	// Check if plugin already exists
-	existing, err := datastore.GetPluginByName(plugin.Name)
-	if err == nil && existing != nil {
-		// Update existing plugin
-		plugin.ID = existing.ID
-		plugin.CreatedAt = existing.CreatedAt
-		if err := datastore.UpdatePlugin(plugin); err != nil {
-			return fmt.Errorf("failed to update plugin: %v", err)
-		}
-		source := filePath
-		if filePath == "-" {
-			source = "stdin"
-		}
-		fmt.Printf("✓ Plugin '%s' configured (from %s)\n", plugin.Name, source)
-	} else {
-		// Create new plugin
-		if err := datastore.CreatePlugin(plugin); err != nil {
-			return fmt.Errorf("failed to create plugin: %v", err)
-		}
-		source := filePath
-		if filePath == "-" {
-			source = "stdin"
-		}
-		fmt.Printf("✓ Plugin '%s' created (from %s)\n", plugin.Name, source)
+	// Get nvim manager (uses DBStoreAdapter internally)
+	mgr, err := getNvimManager(cmd)
+	if err != nil {
+		return fmt.Errorf("failed to get nvim manager: %v", err)
+	}
+	defer mgr.Close()
+
+	// Check if plugin already exists (for messaging)
+	existing, _ := mgr.Get(p.Name)
+	action := "created"
+	if existing != nil {
+		action = "configured"
 	}
 
+	// Apply (upsert) the plugin
+	if err := mgr.Apply(p); err != nil {
+		return fmt.Errorf("failed to apply plugin: %v", err)
+	}
+
+	fmt.Printf("✓ Plugin '%s' %s (from %s)\n", p.Name, action, source)
 	return nil
 }
 

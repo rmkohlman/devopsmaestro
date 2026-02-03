@@ -7,6 +7,7 @@ import (
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/operators"
+	"devopsmaestro/pkg/nvimops/plugin"
 	"devopsmaestro/ui"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -257,12 +258,14 @@ func getWorkspace(cmd *cobra.Command, name string) error {
 }
 
 func getPlugins(cmd *cobra.Command) error {
-	sqlDS, err := getDataStore(cmd)
+	// Use nvimops.Manager for unified storage with nvp CLI
+	mgr, err := getNvimManager(cmd)
 	if err != nil {
 		return err
 	}
+	defer mgr.Close()
 
-	plugins, err := sqlDS.ListPlugins()
+	plugins, err := mgr.List()
 	if err != nil {
 		return fmt.Errorf("failed to list plugins: %w", err)
 	}
@@ -274,32 +277,34 @@ func getPlugins(cmd *cobra.Command) error {
 
 	switch getOutputFormat {
 	case "yaml":
-		return outputPluginsYAML(plugins)
+		return outputNvimPluginsYAML(plugins)
 	case "json":
-		return outputPluginsJSON(plugins)
+		return outputNvimPluginsJSON(plugins)
 	default:
-		return outputPluginsTable(plugins)
+		return outputNvimPluginsTable(plugins)
 	}
 }
 
 func getPlugin(cmd *cobra.Command, name string) error {
-	sqlDS, err := getDataStore(cmd)
+	// Use nvimops.Manager for unified storage with nvp CLI
+	mgr, err := getNvimManager(cmd)
 	if err != nil {
 		return err
 	}
+	defer mgr.Close()
 
-	plugin, err := sqlDS.GetPluginByName(name)
+	p, err := mgr.Get(name)
 	if err != nil {
 		return fmt.Errorf("failed to get plugin '%s': %w", name, err)
 	}
 
 	switch getOutputFormat {
 	case "yaml":
-		return outputPluginYAML(plugin)
+		return outputNvimPluginYAML(p)
 	case "json":
-		return outputPluginJSON(plugin)
+		return outputNvimPluginJSON(p)
 	default:
-		return outputPluginsTable([]*models.NvimPluginDB{plugin})
+		return outputNvimPluginsTable([]*plugin.Plugin{p})
 	}
 }
 
@@ -580,6 +585,101 @@ func outputPluginJSON(plugin *models.NvimPluginDB) error {
 	if err != nil {
 		return fmt.Errorf("failed to convert plugin to YAML: %w", err)
 	}
+
+	data, err := json.MarshalIndent(pluginYAML, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal JSON: %w", err)
+	}
+	fmt.Println(string(data))
+	return nil
+}
+
+// Output functions for plugin.Plugin type (used with nvimops.Manager)
+
+func outputNvimPluginsTable(plugins []*plugin.Plugin) error {
+	// Create table renderer with colored columns
+	tr := ui.PluginsTableRenderer([]string{})
+
+	for _, p := range plugins {
+		// Get version or default
+		version := "latest"
+		if p.Version != "" {
+			version = p.Version
+		} else if p.Branch != "" {
+			version = "branch:" + p.Branch
+		}
+
+		// Format enabled status
+		enabledStr := ui.CheckMark
+		if !p.Enabled {
+			enabledStr = ui.CrossMark
+		}
+
+		tr.AddRow(
+			p.Name+" "+ui.MutedStyle.Render(enabledStr),
+			ui.CategoryStyle.Render(p.Category),
+			ui.PathStyle.Render(p.Repo),
+			ui.VersionStyle.Render(version),
+		)
+	}
+
+	fmt.Println(tr.RenderSimple())
+	fmt.Println()
+	fmt.Println(ui.MutedStyle.Render(fmt.Sprintf("Total: %d plugins", len(plugins))))
+	return nil
+}
+
+func outputNvimPluginsYAML(plugins []*plugin.Plugin) error {
+	var yamlOutput string
+
+	for i, p := range plugins {
+		pluginYAML := p.ToYAML()
+		data, err := yaml.Marshal(&pluginYAML)
+		if err != nil {
+			return fmt.Errorf("failed to encode plugin %s: %w", p.Name, err)
+		}
+
+		yamlOutput += string(data)
+
+		// Add document separator between plugins (but not after the last one)
+		if i < len(plugins)-1 {
+			yamlOutput += "---\n"
+		}
+	}
+
+	// Colorize and print the entire YAML output
+	fmt.Print(ui.ColorizeYAML(yamlOutput))
+	return nil
+}
+
+func outputNvimPluginYAML(p *plugin.Plugin) error {
+	pluginYAML := p.ToYAML()
+	data, err := yaml.Marshal(&pluginYAML)
+	if err != nil {
+		return fmt.Errorf("failed to encode plugin: %w", err)
+	}
+
+	// Colorize and print the YAML output
+	fmt.Print(ui.ColorizeYAML(string(data)))
+	return nil
+}
+
+func outputNvimPluginsJSON(plugins []*plugin.Plugin) error {
+	pluginsYAML := make([]*plugin.PluginYAML, 0, len(plugins))
+	for _, p := range plugins {
+		pluginsYAML = append(pluginsYAML, p.ToYAML())
+	}
+
+	data, err := json.MarshalIndent(pluginsYAML, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal JSON: %w", err)
+	}
+	fmt.Println(string(data))
+	return nil
+}
+
+func outputNvimPluginJSON(p *plugin.Plugin) error {
+	pluginYAML := p.ToYAML()
 
 	data, err := json.MarshalIndent(pluginYAML, "", "  ")
 	if err != nil {
