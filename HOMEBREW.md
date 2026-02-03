@@ -12,7 +12,7 @@ brew tap rmkohlman/tap
 
 # Install NvimOps (standalone Neovim plugin/theme manager)
 brew install rmkohlman/tap/nvimops
-nvp version  # Should show v0.5.0
+nvp version  # Should show v0.5.1
 
 # Install DevOpsMaestro (workspace/container management)
 # Note: dvm requires CGO and must be built locally
@@ -359,7 +359,7 @@ brew unpin dvm                     # Allow upgrades again
 ## Current Status
 
 ✅ Homebrew tap live at https://github.com/rmkohlman/homebrew-tap
-✅ NvimOps (nvp) formula available - v0.5.0
+✅ NvimOps (nvp) formula available - v0.5.1
 ✅ DevOpsMaestro formula available (requires local CGO build)
 ✅ GitHub releases with pre-built nvp binaries (4 platforms)
 ✅ GoReleaser configured for automated releases

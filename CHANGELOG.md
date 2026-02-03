@@ -612,6 +612,7 @@ docs/
 
 ## Version History
 
+- **[0.5.1]** - 2026-02-02 - BuildKit socket validation fix + documentation updates
 - **[0.5.0]** - 2026-01-30 - NvimTheme system + exported palette for plugins
 - **[0.4.1]** - 2026-01-29 - URL support for nvp apply + logging + tests
 - **[0.4.0]** - 2026-01-29 - nvp (NvimOps) standalone CLI + decoupled architecture

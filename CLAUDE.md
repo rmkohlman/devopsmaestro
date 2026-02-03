@@ -662,7 +662,7 @@ func TestDataStoreSwappability(t *testing.T) {
 
 ## Roadmap
 
-### v0.5.0 - NvimTheme System ✅ (Current)
+### v0.5.1 - NvimTheme System ✅ (Current)
 - NvimTheme resource type for YAML-based colorscheme management
 - Theme library with 8 pre-built themes
 - Theme CLI commands (library, apply, list, get, use, delete, generate)

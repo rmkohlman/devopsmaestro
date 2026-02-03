@@ -25,28 +25,28 @@ nvp version
 
 **macOS (Apple Silicon):**
 ```bash
-curl -L https://github.com/rmkohlman/devopsmaestro/releases/latest/download/nvp_0.5.0_darwin_arm64.tar.gz | tar xz
+curl -L https://github.com/rmkohlman/devopsmaestro/releases/latest/download/nvp_0.5.1_darwin_arm64.tar.gz | tar xz
 chmod +x nvp
 sudo mv nvp /usr/local/bin/
 ```
 
 **macOS (Intel):**
 ```bash
-curl -L https://github.com/rmkohlman/devopsmaestro/releases/latest/download/nvp_0.5.0_darwin_amd64.tar.gz | tar xz
+curl -L https://github.com/rmkohlman/devopsmaestro/releases/latest/download/nvp_0.5.1_darwin_amd64.tar.gz | tar xz
 chmod +x nvp
 sudo mv nvp /usr/local/bin/
 ```
 
 **Linux (x86_64):**
 ```bash
-curl -L https://github.com/rmkohlman/devopsmaestro/releases/latest/download/nvp_0.5.0_linux_amd64.tar.gz | tar xz
+curl -L https://github.com/rmkohlman/devopsmaestro/releases/latest/download/nvp_0.5.1_linux_amd64.tar.gz | tar xz
 chmod +x nvp
 sudo mv nvp /usr/local/bin/
 ```
 
 **Linux (ARM64):**
 ```bash
-curl -L https://github.com/rmkohlman/devopsmaestro/releases/latest/download/nvp_0.5.0_linux_arm64.tar.gz | tar xz
+curl -L https://github.com/rmkohlman/devopsmaestro/releases/latest/download/nvp_0.5.1_linux_arm64.tar.gz | tar xz
 chmod +x nvp
 sudo mv nvp /usr/local/bin/
 ```

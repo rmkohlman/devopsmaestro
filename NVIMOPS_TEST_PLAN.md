@@ -1,6 +1,6 @@
 # NvimOps Manual Test Plan
 
-> **Version**: v0.5.0  
+> **Version**: v0.5.1  
 > **Last Updated**: January 2025  
 > **Binary**: `nvp`
 
@@ -1085,5 +1085,5 @@ Report a bug! Include:
 
 **Tested by:** ________________  
 **Date:** ________________  
-**Version:** v0.5.0  
+**Version:** v0.5.1  
 **Platform:** ________________
