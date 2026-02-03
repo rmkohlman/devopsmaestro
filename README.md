@@ -1,168 +1,69 @@
 # DevOpsMaestro
 
-**Kubernetes-style development environment orchestration with DevOps-style Neovim configuration management**
-
 [![Release](https://img.shields.io/github/v/release/rmkohlman/devopsmaestro)](https://github.com/rmkohlman/devopsmaestro/releases/latest)
-[![License](https://img.shields.io/badge/license-GPL--3.0%20%2B%20Commercial-blue)](https://github.com/rmkohlman/devopsmaestro/blob/main/LICENSING.md)
+[![CI](https://github.com/rmkohlman/devopsmaestro/actions/workflows/ci.yml/badge.svg)](https://github.com/rmkohlman/devopsmaestro/actions/workflows/ci.yml)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/rmkohlman/devopsmaestro)](https://golang.org/)
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](https://github.com/rmkohlman/devopsmaestro)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey)](https://github.com/rmkohlman/devopsmaestro/releases)
+[![License](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 
-This repository contains **two tools**:
+**kubectl-style CLI toolkit for containerized development environments.**
+
+DevOpsMaestro provides two tools:
 
 | Tool | Binary | Description |
 |------|--------|-------------|
-| **DevOpsMaestro** | `dvm` | kubectl-style CLI for containerized dev environments |
+| **DevOpsMaestro** | `dvm` | Workspace and project management with container-native dev environments |
 | **NvimOps** | `nvp` | Standalone Neovim plugin & theme manager using YAML |
 
 ---
 
-## 🆕 What's New in v0.5.1
+## Installation
 
-### NvimOps (nvp) - NEW Theme System!
-
-- 🎨 **NvimTheme resource type** - Define colorschemes in YAML with palette export
-- 📚 **Theme library** - 8 pre-built themes (tokyonight, catppuccin, gruvbox, nord, rose-pine, kanagawa)
-- 🔗 **URL support** - Install themes from GitHub: `nvp theme apply --url github:user/repo/theme.yaml`
-- 🎯 **Palette integration** - Other plugins can use `require("theme").palette` for consistent colors
-- 🚀 **Lua generation** - Auto-generate lazy.nvim compatible theme configs
-
-### Previous Releases
-
-- **v0.4.1**: URL support for plugins, logging, enhanced tests
-- **v0.4.0**: nvp CLI, decoupled architecture, interface abstractions
-- **v0.3.x**: Multi-platform support (OrbStack, Docker Desktop, Podman, Colima)
-
----
-
-## ✨ Key Features
-
-### 🚀 **Two Powerful Tools**
-
-**DevOpsMaestro (dvm)** - Workspace & Container Management
-- kubectl-style commands: `dvm get`, `dvm apply`, `dvm build`, `dvm attach`
-- Multi-platform: OrbStack, Docker Desktop, Podman, Colima
-- Database-backed configuration
-- Container-native development environments
-
-**NvimOps (nvp)** - Neovim Plugin & Theme Management
-- Standalone CLI (no containers needed)
-- YAML-based plugin definitions
-- Built-in library of 16+ curated plugins
-- Theme system with palette export
-- Generates lazy.nvim compatible Lua files
-
-### 🎨 **NvimOps Theme System (v0.5.0)**
-- **8 pre-built themes**: tokyonight, catppuccin, gruvbox, nord, rose-pine, kanagawa
-- **Palette export**: Other plugins use `require("theme").palette` for consistent colors
-- **URL support**: Install from GitHub repos
-- **YAML definitions**: Full control over colorscheme configuration
-
-### 🔌 **Plugin Library**
-- 16+ pre-built plugins: Telescope, LSP, Treesitter, Copilot, etc.
-- Install with one command: `nvp library install telescope`
-- Filter by category or tag
-- Automatic Lua generation
-
-### 🐳 **Container-Native Development (dvm)**
-- Each workspace runs in an isolated Docker container
-- Neovim pre-installed and configured automatically
-- Your project files mounted at `/workspace`
-- Consistent environment across machines and teams
-
----
-
-## 📋 Table of Contents
-
-- [Quick Start](#-quick-start)
-- [Installation](#-installation)
-- [Core Concepts](#-core-concepts)
-- [Plugin System](#-plugin-system)
-- [Theme System](#-theme-system)
-- [Usage](#-usage)
-- [Commands](#-commands)
-- [Configuration](#-configuration)
-- [Architecture](#-architecture)
-- [Examples](#-examples)
-- [Contributing](#-contributing)
-- [License](#-license)
-
----
-
-## 🚀 Quick Start
+### Homebrew
 
 ```bash
-# 1. Install dvm
-cd /path/to/devopsmaestro
-make install-dev
-
-# 2. Add to PATH (one-time setup)
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
-source ~/.zshrc
-
-# 3. Initialize environment
-dvm init
-
-# 4. Create a project
-dvm project create my-project
-cd my-project
-
-# 5. Apply plugin definitions
-dvm plugin apply -f https://raw.githubusercontent.com/.../telescope.yaml
-
-# 6. Create workspace with plugins
-cat > workspace.yaml <<EOF
-apiVersion: devopsmaestro.io/v1
-kind: Workspace
-metadata:
-  name: main
-spec:
-  nvim:
-    structure: custom
-    plugins:
-      - telescope
-      - treesitter
-      - lspconfig
-      - copilot
-EOF
-
-dvm apply -f workspace.yaml
-
-# 7. Build and enter your environment
-dvm build
-dvm attach
-
-# Inside container: nvim with all plugins configured! 🎉
-```
-
----
-
-## 💾 Installation
-
-### Homebrew (Recommended)
-
-```bash
-# Add the tap
 brew tap rmkohlman/tap
 
-# Install NvimOps (nvp) - Neovim plugin/theme manager
-brew install rmkohlman/tap/nvimops
+# NvimOps only (no containers needed)
+brew install nvimops
 
-# Install DevOpsMaestro (dvm) - requires local build (CGO)
-# See "Build from Source" below
+# DevOpsMaestro (requires local build for CGO/SQLite)
+# See "From Source" below
 ```
 
-### NvimOps Quick Start
+### From Source
+
+```bash
+git clone https://github.com/rmkohlman/devopsmaestro.git
+cd devopsmaestro
+
+# Build both binaries
+go build -o dvm .
+go build -o nvp ./cmd/nvp/
+
+# Install
+sudo mv dvm nvp /usr/local/bin/
+```
+
+### Requirements
+
+- **Go 1.25+** for building
+- **Docker** (for dvm) - OrbStack, Docker Desktop, Podman, or Colima
+
+---
+
+## Quick Start
+
+### NvimOps (nvp) - Neovim Plugin Manager
 
 ```bash
 # Initialize
 nvp init
 
-# Browse and install plugins
+# Browse and install plugins from library
 nvp library list
 nvp library install telescope treesitter lspconfig
 
-# Browse and install themes
+# Install a theme
 nvp theme library list
 nvp theme library install tokyonight-custom --use
 
@@ -172,986 +73,225 @@ nvp generate
 # Files created in ~/.config/nvim/lua/plugins/nvp/
 ```
 
-### DevOpsMaestro Quick Start
+### DevOpsMaestro (dvm) - Workspace Manager
 
 ```bash
-# Build locally (requires Go + CGO)
-git clone https://github.com/rmkohlman/devopsmaestro.git
-cd devopsmaestro
-go build -o dvm .
-sudo mv dvm /usr/local/bin/
-
 # Initialize
-dvm admin init
-
-# Create workspace
-dvm create project myproject --from-cwd
-dvm build
-dvm attach
-```
-
-### Build from Source
-
-```bash
-git clone https://github.com/rmkohlman/devopsmaestro.git
-cd devopsmaestro
-
-# Build nvp (no CGO required)
-go build -o nvp ./cmd/nvp/
-
-# Build dvm (requires CGO for SQLite)
-go build -o dvm .
-
-# Install
-sudo mv nvp dvm /usr/local/bin/
-```
-
-### Prerequisites
-
-- **Go 1.21+** - [Download](https://golang.org/dl/)
-- **Docker** (for dvm) - [Get Docker](https://www.docker.com/get-started)
-- **Git** - Version control
-
----
-
-## 🧠 Core Concepts
-
-### Projects
-A **project** is the top-level container for your work. It contains workspaces, configuration, and manages the Docker context.
-
-```bash
-dvm project create my-app
-cd my-app
-```
-
-### Workspaces
-A **workspace** is an isolated development environment running in a Docker container. Each workspace has:
-- Pre-configured Neovim with plugins
-- Programming language tools (LSPs, formatters, linters)
-- Your project files mounted at `/workspace`
-- Isolated dependencies and services
-
-```bash
-dvm workspace create main --language python
-```
-
-### Plugins (Neovim)
-**Plugins** are Neovim extensions stored in a database and referenced by name. Define once, use everywhere.
-
-```yaml
-apiVersion: devopsmaestro.io/v1
-kind: NvimPlugin
-metadata:
-  name: telescope
-  category: fuzzy-finder
-spec:
-  repo: nvim-telescope/telescope.nvim
-  branch: 0.1.x
-  dependencies:
-    - nvim-lua/plenary.nvim
-  config: |
-    require("telescope").setup({...})
-```
-
----
-
-## 🔌 Plugin System
-
-### How It Works
-
-```
-┌─────────────────────────────────────┐
-│  1. Define Plugin (YAML)            │
-│     templates/nvim-plugins/*.yaml   │
-└─────────────────────────────────────┘
-         ↓ (dvm plugin apply -f)
-┌─────────────────────────────────────┐
-│  2. Store in Database               │
-│     ~/.devopsmaestro/db.sqlite      │
-└─────────────────────────────────────┘
-         ↓ (dvm build)
-┌─────────────────────────────────────┐
-│  3. Generate Lua Files              │
-│     .config/nvim/lua/.../*.lua      │
-└─────────────────────────────────────┘
-         ↓ (Container build)
-┌─────────────────────────────────────┐
-│  4. Neovim Loads Plugins            │
-│     lazy.nvim → All configured!     │
-└─────────────────────────────────────┘
-```
-
-### Managing Plugins
-
-#### New kubectl-style Commands (v0.2.0+)
-```bash
-# List all available plugins (beautiful table)
-dvm get plugins
-
-# List plugins in YAML format
-dvm get plugins -o yaml
-
-# Get specific plugin details
-dvm get plugin telescope
-
-# Get plugin in YAML format (ready to edit/share)
-dvm get plugin telescope -o yaml > telescope.yaml
-```
-
-#### Legacy Commands (still supported)
-```bash
-# List all available plugins
-dvm plugin list -o table
-
-# View plugin details
-dvm plugin get telescope -o yaml
-
-# Apply a plugin definition
-dvm plugin apply -f telescope.yaml
-
-# Apply from stdin
-cat plugin.yaml | dvm plugin apply -f -
-
-# Edit a plugin
-dvm plugin edit telescope
-
-# Delete a plugin
-dvm plugin delete telescope
-```
-
-### Pre-Built Plugins (16+ Available)
-
-| Plugin | Category | Description |
-|--------|----------|-------------|
-| **tokyonight** | colorscheme | Beautiful color scheme |
-| **telescope** | fuzzy-finder | Fuzzy finder for files/grep |
-| **treesitter** | syntax | Advanced syntax highlighting |
-| **lspconfig** | lsp | LSP configurations |
-| **nvim-cmp** | completion | Autocompletion engine |
-| **mason** | lsp | LSP/formatter installer |
-| **copilot** | ai | GitHub Copilot integration |
-| **gitsigns** | git | Git integration |
-| **lazygit** | git | Terminal UI for git |
-| **which-key** | ui | Keybinding hints |
-| **lualine** | ui | Status line |
-| **autopairs** | editing | Auto-close brackets |
-| **comment** | editing | Smart commenting |
-| **surround** | editing | Surround text objects |
-| **alpha** | ui | Dashboard/greeter |
-
-**All plugins are stored in `templates/nvim-plugins/` and ready to apply!**
-
----
-
-## 🎨 Theme System
-
-### Beautiful Colors, Anywhere
-
-DevOpsMaestro features a professional theme system that makes your CLI output look stunning on any terminal. Choose from 8 popular themes or let it auto-detect your terminal's theme!
-
-### Available Themes
-
-| Theme | Style | Description |
-|-------|-------|-------------|
-| **auto** ⭐ | adaptive | Auto-detects light/dark terminal (default) |
-| **catppuccin-mocha** | dark | Soothing pastel purple-pink |
-| **catppuccin-latte** | light | Warm pastel purple-pink |
-| **tokyo-night** | dark | Vibrant blue-purple |
-| **nord** | dark | Cool bluish minimal |
-| **dracula** | dark | Classic purple-pink |
-| **gruvbox-dark** | dark | Warm retro colors |
-| **gruvbox-light** | light | Warm retro light |
-
-### Using Themes
-
-#### Option 1: Environment Variable (Quick Override)
-
-```bash
-# Try different themes
-DVM_THEME=catppuccin-mocha dvm get plugins
-DVM_THEME=tokyo-night dvm version
-DVM_THEME=nord dvm get plugin telescope -o yaml
-
-# Set for entire session
-export DVM_THEME=dracula
-dvm get plugins
-```
-
-#### Option 2: Config File (Permanent Setting)
-
-Create or edit `~/.devopsmaestro/config.yaml`:
-
-```yaml
-# DevOpsMaestro Configuration File
-
-# UI Theme
-# Options: auto, catppuccin-mocha, catppuccin-latte, tokyo-night,
-#          nord, dracula, gruvbox-dark, gruvbox-light
-# Default: auto (automatically adapts to your terminal's theme)
-theme: catppuccin-mocha
-```
-
-#### Option 3: Default (Zero Config)
-
-```bash
-# Just works! Auto-detects your terminal's light/dark theme
-dvm get plugins
-```
-
-### Theme Features
-
-**🎯 Auto-Detection (Default)**
-- Automatically detects if your terminal has a light or dark background
-- Adjusts colors for perfect contrast
-- Works with ANY terminal theme (Catppuccin, Tokyo Night, Solarized, etc.)
-
-**🌈 YAML Syntax Highlighting**
-- Keys displayed in cyan + bold
-- Values displayed in yellow
-- Comments in gray
-- Makes YAML output easy to read!
-
-```bash
-# Beautiful colored YAML output
-dvm get plugin telescope -o yaml
-```
-
-**🎨 Consistent Experience**
-- All output (tables, YAML, version info) uses your chosen theme
-- Emoji icons + colored text = professional appearance
-- Works across all commands
-
-### Theme Priority
-
-Themes are selected in this order:
-1. **Environment variable** (`DVM_THEME=nord`) - Highest priority
-2. **Config file** (`~/.devopsmaestro/config.yaml`) - Medium priority
-3. **Auto-detection** (`auto` theme) - Default
-
-### Examples
-
-```bash
-# Test all themes to find your favorite!
-for theme in auto catppuccin-mocha tokyo-night nord dracula gruvbox-dark; do
-    echo "Theme: $theme"
-    DVM_THEME=$theme dvm version
-    echo ""
-done
-
-# Use Catppuccin Mocha for everything
-echo "theme: catppuccin-mocha" >> ~/.devopsmaestro/config.yaml
-
-# Override config for one command
-DVM_THEME=tokyo-night dvm get plugins
-
-# Beautiful YAML with syntax highlighting
-DVM_THEME=nord dvm get plugin telescope -o yaml
-```
-
-### Why Themes?
-
-**For Consistency**: Match your terminal's existing color scheme  
-**For Readability**: High-contrast colors for better visibility  
-**For Customization**: Pick your favorite from popular themes  
-**For Professionalism**: Same approach as kubectl, gh, bat, delta
-
----
-
-## 📖 Usage
-
-### Basic Workflow
-
-```bash
-# 1. Initialize (first time only)
 dvm init
 
-# 2. Create project
-dvm project create my-app
-cd my-app
+# Create and use a project
+dvm create project myapp
+dvm use project myapp
 
-# 3. Create workspace
-dvm workspace create main --language python
+# Create a workspace
+dvm create workspace dev
+dvm use workspace dev
 
-# 4. Apply plugins (optional)
-dvm plugin apply -f ~/devopsmaestro/templates/nvim-plugins/telescope.yaml
-dvm plugin apply -f ~/devopsmaestro/templates/nvim-plugins/lspconfig.yaml
-
-# 5. Configure workspace plugins
-cat > workspace.yaml <<EOF
-apiVersion: devopsmaestro.io/v1
-kind: Workspace
-metadata:
-  name: main
-spec:
-  nvim:
-    structure: custom
-    plugins:
-      - telescope
-      - lspconfig
-      - copilot
-EOF
-
-dvm apply -f workspace.yaml
-
-# 6. Build container
+# Build and attach
 dvm build
-
-# 7. Enter workspace
 dvm attach
-
-# Inside container:
-# - Neovim is configured with all plugins
-# - Your project is at /workspace
-# - All tools installed and ready
-```
-
-### Working with Workspaces
-
-```bash
-# List workspaces
-dvm workspace list
-
-# Get workspace details
-dvm get workspace main -o yaml
-
-# Update workspace configuration
-dvm apply -f workspace.yaml
-
-# Rebuild workspace
-dvm build --force
-
-# Attach to workspace
-dvm attach
-
-# Stop workspace
-dvm stop
 ```
 
 ---
 
-## 🎯 Commands
+## Features
 
-### Project Management
+### dvm - Workspace Management
+
+- **kubectl-style commands** - Familiar `get`, `create`, `delete`, `apply` patterns
+- **Multi-platform** - OrbStack, Docker Desktop, Podman, Colima
+- **Container-native** - Isolated dev environments with Neovim pre-configured
+- **Database-backed** - SQLite storage for projects, workspaces, plugins
+- **YAML configuration** - Declarative workspace definitions
+
+### nvp - Neovim Plugin Manager
+
+- **YAML-based plugins** - Define plugins in YAML, generate Lua
+- **Built-in library** - 16+ curated plugins ready to install
+- **Theme system** - 8 pre-built themes with palette export
+- **URL support** - Install from GitHub repositories
+- **Standalone** - Works without containers
+
+---
+
+## Command Reference
+
+### Resource Aliases
+
+kubectl-style short aliases for faster commands:
+
+| Resource | Alias | Example |
+|----------|-------|---------|
+| projects | `proj` | `dvm get proj` |
+| workspaces | `ws` | `dvm get ws` |
+| context | `ctx` | `dvm get ctx` |
+| platforms | `plat` | `dvm get plat` |
+
+### dvm Commands
 
 ```bash
-dvm project create <name>              # Create new project
-dvm project list                       # List all projects
-dvm project delete <name>              # Delete project
-dvm get project <name> -o yaml         # Get project details
+# Status
+dvm status                    # Show current context and runtime info
+dvm status -o json            # JSON output
+
+# Projects
+dvm create project <name>     # Create project
+dvm get projects              # List projects (or: dvm get proj)
+dvm delete project <name>     # Delete project
+dvm use project <name>        # Set active project
+dvm use project --clear       # Clear active project
+
+# Workspaces
+dvm create workspace <name>   # Create workspace
+dvm get workspaces            # List workspaces (or: dvm get ws)
+dvm delete workspace <name>   # Delete workspace
+dvm use workspace <name>      # Set active workspace
+dvm use ws none               # Clear active workspace
+
+# Context
+dvm get context               # Show active project/workspace (or: dvm get ctx)
+
+# Build & Runtime
+dvm build                     # Build workspace container
+dvm attach                    # Attach to workspace
+dvm detach                    # Stop workspace container
+
+# Configuration
+dvm apply -f workspace.yaml   # Apply YAML configuration
+dvm get platforms             # List detected container platforms
 ```
 
-### Workspace Management
+### nvp Commands
 
 ```bash
-dvm workspace create <name>            # Create workspace
-dvm workspace list                     # List workspaces
-dvm workspace delete <name>            # Delete workspace
-dvm get workspace <name> -o yaml       # Get workspace config
-dvm apply -f workspace.yaml            # Apply configuration
-```
+# Plugins
+nvp library list              # List available plugins
+nvp library install <name>    # Install from library
+nvp apply -f plugin.yaml      # Apply plugin from file
+nvp apply --url github:user/repo/plugin.yaml
 
-### Plugin Management (kubectl-style)
+# Themes
+nvp theme library list        # List available themes
+nvp theme library install <name> --use
+nvp theme use <name>          # Set active theme
 
-#### New kubectl-style Commands (v0.2.0+)
-```bash
-# List plugins (kubectl-style)
-dvm get plugins                        # List all plugins (table)
-dvm get plugins -o yaml                # List all plugins (YAML)
-dvm get plugins -o json                # List all plugins (JSON)
-
-# Get specific plugin (kubectl-style)
-dvm get plugin <name>                  # Get plugin details (table)
-dvm get plugin <name> -o yaml          # Get plugin (YAML)
-dvm get plugin <name> -o json          # Get plugin (JSON)
-```
-
-#### Legacy Commands (still supported)
-```bash
-dvm plugin apply -f plugin.yaml        # Create/update plugin
-dvm plugin apply -f -                  # Apply from stdin
-dvm plugin get <name> -o yaml          # Get plugin details
-dvm plugin list -o table               # List all plugins
-dvm plugin edit <name>                 # Edit in $EDITOR
-dvm plugin delete <name>               # Delete plugin
-```
-
-### Build & Runtime
-
-```bash
-dvm build                              # Build container image
-dvm build --force                      # Force rebuild (no cache)
-dvm attach                             # Attach to workspace
-dvm stop                               # Stop workspace
-dvm exec -- <command>                  # Run command in workspace
-```
-
-### Administration
-
-```bash
-dvm init                               # Initialize environment
-dvm version                            # Show version info
-dvm admin migrate                      # Run database migrations
-dvm admin backup                       # Backup database
-```
-
-### Output Formats
-
-All `get` and `list` commands support multiple output formats:
-
-```bash
-dvm plugin list -o table               # Table (default)
-dvm plugin list -o yaml                # YAML
-dvm plugin list -o json                # JSON
-dvm get workspace main -o yaml         # YAML output
+# Generate
+nvp generate                  # Generate Lua files
 ```
 
 ---
 
-## ⚙️ Configuration
+## Configuration
 
-### Workspace Configuration
-
-Create `workspace.yaml`:
+### Workspace YAML
 
 ```yaml
 apiVersion: devopsmaestro.io/v1
 kind: Workspace
 metadata:
-  name: main
-  project: my-app
+  name: dev
 spec:
-  # Language and version
   language: python
   version: "3.11"
-  
-  # Neovim configuration
   nvim:
     structure: custom
     plugins:
-      - tokyonight
       - telescope
       - treesitter
       - lspconfig
-      - nvim-cmp
-      - mason
-      - copilot
-      - gitsigns
-      - lazygit
-      - which-key
-      - lualine
-  
-  # Container settings
-  container:
-    user: dev
-    uid: 1000
-    gid: 1000
-    workingDir: /workspace
-  
-  # Build customization
-  build:
-    devStage:
-      packages:
-        - git
-        - curl
-        - zsh
-        - neovim
-      customCommands:
-        - pip install pylsp black isort
 ```
 
-### Plugin Configuration
-
-Create plugin YAML files in `templates/nvim-plugins/`:
+### Plugin YAML
 
 ```yaml
 apiVersion: devopsmaestro.io/v1
 kind: NvimPlugin
 metadata:
   name: telescope
-  description: Fuzzy finder for files, grep, buffers
   category: fuzzy-finder
-  tags:
-    - finder
-    - search
 spec:
   repo: nvim-telescope/telescope.nvim
-  branch: 0.1.x
-  
   dependencies:
     - nvim-lua/plenary.nvim
-    - repo: nvim-telescope/telescope-fzf-native.nvim
-      build: make
-    - nvim-tree/nvim-web-devicons
-  
   config: |
-    local telescope = require("telescope")
-    telescope.setup({
-      defaults = {
-        path_display = { "smart" },
-      },
-    })
-    telescope.load_extension("fzf")
-  
-  keymaps:
-    - key: <leader>ff
-      mode: "n"
-      action: <cmd>Telescope find_files<cr>
-      desc: Fuzzy find files in cwd
-    - key: <leader>fs
-      mode: "n"
-      action: <cmd>Telescope live_grep<cr>
-      desc: Find string in cwd
+    require("telescope").setup({})
 ```
 
-### Environment Variables
-
-```bash
-# UI Theme (see Theme System section)
-export DVM_THEME=catppuccin-mocha  # Override theme
-
-# Database location
-export DVM_DATABASE_PATH=~/.devopsmaestro/devopsmaestro.db
-
-# Active project/workspace
-export DVM_PROJECT=my-app
-export DVM_WORKSPACE=main
-
-# Container runtime
-export COLIMA_PROFILE=local-lite
-```
-
-### Application Configuration
-
-Create `~/.devopsmaestro/config.yaml` for persistent settings:
+### Theme YAML
 
 ```yaml
-# DevOpsMaestro Configuration File
-
-# UI Theme (see Theme System section for all options)
-# Default: auto (adapts to terminal light/dark theme)
-theme: auto
+apiVersion: devopsmaestro.io/v1
+kind: NvimTheme
+metadata:
+  name: my-theme
+spec:
+  palette:
+    bg: "#1a1b26"
+    fg: "#c0caf5"
+    # ...
 ```
 
 ---
 
-## 🏗️ Architecture
-
-### System Components
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────┐
-│  CLI (cmd/)                                         │
-│  ├─ Project commands                                │
-│  ├─ Workspace commands                              │
-│  ├─ Plugin commands (kubectl-style)                 │
-│  └─ Build & runtime commands                        │
-└─────────────────────────────────────────────────────┘
-         ↓
-┌─────────────────────────────────────────────────────┐
-│  Database Layer (db/)                               │
-│  ├─ SQLite backend                                  │
-│  ├─ Projects, Workspaces, Plugins                   │
-│  └─ CRUD operations                                 │
-└─────────────────────────────────────────────────────┘
-         ↓
-┌─────────────────────────────────────────────────────┐
-│  Template Engine (templates/)                       │
-│  ├─ Plugin Lua generator                            │
-│  ├─ Dockerfile generator                            │
-│  └─ Neovim config generator                         │
-└─────────────────────────────────────────────────────┘
-         ↓
-┌─────────────────────────────────────────────────────┐
-│  Container Runtime (builders/)                      │
-│  ├─ Docker/BuildKit integration                     │
-│  ├─ Colima profile management                       │
-│  └─ Image building & caching                        │
-└─────────────────────────────────────────────────────┘
-```
-
-### Plugin System Architecture
-
-```
-YAML Definitions              Database                Container
-─────────────────            ─────────               ─────────
-telescope.yaml ─────┐
-lspconfig.yaml ─────┤─apply─→ nvim_plugins ─build─→ .config/nvim/
-copilot.yaml   ─────┤          └─ telescope           └─ telescope.lua
-mason.yaml     ─────┘             └─ lspconfig           └─ lspconfig.lua
-                                  └─ copilot              └─ copilot.lua
-                                  └─ mason                └─ mason.lua
-                                  
-                    workspace.yaml
-                         └─ plugins: [telescope, lspconfig, ...]
-```
-
-### File Structure
-
-```
-devopsmaestro/
-├── cmd/                    # CLI commands
-│   ├── root.go
-│   ├── project.go
-│   ├── workspace.go
-│   ├── plugin.go          # kubectl-style plugin commands
-│   ├── build.go
-│   ├── attach.go
-│   └── version.go
-├── db/                     # Database layer
-│   ├── database.go
-│   ├── sqldatastore.go
-│   └── migrations/
-├── models/                 # Data models
-│   ├── project.go
-│   ├── workspace.go
-│   └── nvim_plugin.go     # Plugin model with YAML conversion
-├── templates/              # Template generators
-│   ├── db_plugin_manager.go
-│   ├── dockerfile_generator.go
-│   └── nvim-plugins/      # Pre-built plugin YAMLs
-│       ├── telescope.yaml
-│       ├── lspconfig.yaml
-│       └── ... (16+ plugins)
-├── builders/               # Container builders
-│   ├── builder.go
-│   └── colima.go
-├── Makefile               # Build & install
-├── README.md              # This file!
-├── INSTALL.md             # Installation guide
-└── HOMEBREW.md            # Homebrew distribution guide
+dvm/nvp CLI
+    │
+    ├── render/          # Decoupled output formatting
+    ├── db/              # SQLite database layer (dvm)
+    ├── pkg/nvimops/     # Plugin/theme management (nvp)
+    │   ├── plugin/      # Plugin types, parser, generator
+    │   ├── theme/       # Theme types, parser, generator
+    │   ├── store/       # Storage interfaces
+    │   └── library/     # Embedded plugin/theme library
+    ├── operators/       # Container runtime abstraction
+    └── builders/        # Image building (Docker, BuildKit)
 ```
 
 ---
 
-## 💡 Examples
-
-### Example 1: Python Data Science Workspace
-
-```yaml
-# workspace.yaml
-apiVersion: devopsmaestro.io/v1
-kind: Workspace
-metadata:
-  name: data-science
-spec:
-  language: python
-  version: "3.11"
-  nvim:
-    structure: custom
-    plugins:
-      - tokyonight
-      - telescope
-      - treesitter
-      - lspconfig
-      - nvim-cmp
-      - copilot
-  build:
-    devStage:
-      customCommands:
-        - pip install jupyterlab pandas numpy matplotlib scikit-learn
-        - pip install pylsp python-lsp-server[all]
-```
+## Development
 
 ```bash
-dvm apply -f workspace.yaml
-dvm build
-dvm attach
-# Inside: nvim, Python LSP, Copilot, Jupyter all configured!
-```
-
-### Example 2: Go Microservice Workspace
-
-```yaml
-# workspace.yaml
-apiVersion: devopsmaestro.io/v1
-kind: Workspace
-metadata:
-  name: api-service
-spec:
-  language: golang
-  version: "1.21"
-  nvim:
-    structure: custom
-    plugins:
-      - telescope
-      - treesitter
-      - lspconfig
-      - mason
-      - gitsigns
-      - lazygit
-  build:
-    devStage:
-      languageTools:
-        - gopls
-        - delve
-        - golangci-lint
-```
-
-### Example 3: Custom Plugin Definition
-
-```yaml
-# my-custom-plugin.yaml
-apiVersion: devopsmaestro.io/v1
-kind: NvimPlugin
-metadata:
-  name: oil
-  description: File explorer that works like a buffer
-  category: file-explorer
-spec:
-  repo: stevearc/oil.nvim
-  dependencies:
-    - nvim-tree/nvim-web-devicons
-  config: |
-    require("oil").setup({
-      columns = {
-        "icon",
-        "permissions",
-        "size",
-        "mtime",
-      },
-    })
-  keymaps:
-    - key: <leader>e
-      mode: "n"
-      action: <cmd>Oil<cr>
-      desc: Open file explorer
-```
-
-```bash
-# Apply your custom plugin
-dvm plugin apply -f my-custom-plugin.yaml
-
-# Reference it in workspace
-# workspace.yaml:
-#   nvim:
-#     plugins:
-#       - oil
-
-dvm apply -f workspace.yaml
-dvm build
-```
-
----
-
-## 🛠️ Development
-
-### Building from Source
-
-```bash
-# Clone repository
-git clone https://github.com/yourusername/devopsmaestro.git
-cd devopsmaestro
-
-# Install dependencies
-make deps
-
 # Build
-make build
+go build -o dvm .
+go build -o nvp ./cmd/nvp/
 
-# Run tests
-make test
+# Test
+go test ./...
+go test ./... -race
 
-# Install locally
-make install-dev
-```
-
-### Makefile Targets
-
-```bash
-make help          # Show all targets
-make build         # Build binary
-make test          # Run tests
-make install       # Install to /usr/local/bin (sudo)
-make install-dev   # Install to ~/.local/bin (no sudo)
-make uninstall     # Remove binary
-make clean         # Clean build artifacts
-make fmt           # Format code
-make lint          # Run linters
-make release       # Build for multiple platforms
-make version       # Show version info
-```
-
-### Running Tests
-
-```bash
-# All tests
-make test
-
-# Specific package
-go test ./db/...
-go test ./models/...
-
-# With coverage
-go test -cover ./...
-
-# Verbose
-go test -v ./...
+# Lint (requires golangci-lint)
+golangci-lint run
 ```
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
-Contributions are welcome! We'd love your help making DevOpsMaestro better.
+Contributions welcome! Please:
 
-### How to Contribute
+1. Fork the repository
+2. Create a feature branch
+3. Run tests (`go test ./... -race`)
+4. Submit a pull request
 
-1. **Fork the repository**
-2. **Create a feature branch** (`git checkout -b feature/amazing-feature`)
-3. **Make your changes**
-4. **Run tests** (`make test`)
-5. **Format code** (`make fmt`)
-6. **Commit** (`git commit -m 'Add amazing feature'`)
-7. **Push** (`git push origin feature/amazing-feature`)
-8. **Open a Pull Request**
-
-### Areas We Need Help
-
-- 🔌 **More pre-built plugins** - Add your favorite Neovim plugins!
-- 📚 **Documentation** - Improve guides and examples
-- 🐛 **Bug fixes** - Found an issue? Fix it!
-- ✨ **Features** - Workspace templates, language support, etc.
-- 🧪 **Testing** - Add more test coverage
-
-### Guidelines
-
-- Follow Go best practices
-- Add tests for new features
-- Update documentation
-- Keep commits focused and descriptive
-- Be respectful and collaborative
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ---
 
-## 📝 License
+## License
 
-DevOpsMaestro uses a **dual-license model**:
+[GPL-3.0](LICENSE) - Free for personal and open source use.
 
-### 🆓 Free for Personal Use (GPL-3.0)
-
-- ✅ Personal projects
-- ✅ Individual developers
-- ✅ Open source projects (GPL-compatible)
-- ✅ Learning and education
-- ✅ Non-profit organizations
-
-### 💼 Commercial License Required
-
-For corporate or business use, a commercial license is required:
-
-- 🏢 Corporations, LLCs, business entities
-- 💰 Commercial development work
-- 👥 Employees using DevOpsMaestro at work
-- 🔒 Proprietary/closed-source software
-
-**📖 See [LICENSING.md](LICENSING.md) for detailed license guide with FAQs and examples.**
-
-**📜 License Files:**
-- [LICENSE](LICENSE) - Full GPL-3.0 text (free tier)
-- [LICENSE-COMMERCIAL.txt](LICENSE-COMMERCIAL.txt) - Commercial terms and pricing
-- [LICENSING.md](LICENSING.md) - Human-friendly licensing guide
-
-**💬 Contact for Commercial Licensing:**
-- Email: support@devopsmaestro.io
-- GitHub: [Open an issue](https://github.com/rmkohlman/devopsmaestro/issues)
+Commercial license available for business use. See [LICENSING.md](LICENSING.md).
 
 ---
 
-## 👥 Authors
+## Links
 
-- **Robert Kohlman** - *Creator & Lead Developer* - [@rmkohlman](https://github.com/rmkohlman)
-
----
-
-## 🙏 Acknowledgements
-
-- **[kubectl](https://kubernetes.io/docs/reference/kubectl/)** - Inspiration for the command structure
-- **[lazy.nvim](https://github.com/folke/lazy.nvim)** - Plugin manager used in DevOpsMaestro
-- **[Docker](https://www.docker.com/)** - Container runtime
-- **[Colima](https://github.com/abiosoft/colima)** - macOS container runtime
-- **[Cobra](https://github.com/spf13/cobra)** - CLI framework
-- **[Viper](https://github.com/spf13/viper)** - Configuration management
-
----
-
-## 📚 Additional Resources
-
-- [Installation Guide](INSTALL.md) - Detailed installation instructions
-- [Homebrew Guide](HOMEBREW.md) - Publishing to Homebrew
-- [Plugin Development](docs/plugins.md) - Creating custom plugins (coming soon)
-- [Workspace Templates](docs/templates.md) - Pre-built templates (coming soon)
-
----
-
-## 🎯 Roadmap
-
-### v0.5.1 - NvimTheme System ✅ (Current)
-- ✅ NvimTheme resource type for YAML-based colorscheme management
-- ✅ Theme library with 8 pre-built themes
-- ✅ Theme CLI commands (library, apply, list, get, use, delete, generate)
-- ✅ Palette export for plugin color consistency
-- ✅ URL support for remote theme files
-
-### v0.4.x - NvimOps CLI ✅
-- ✅ Standalone nvp CLI for Neovim plugin management
-- ✅ Decoupled architecture with swappable interfaces
-- ✅ Built-in plugin library (16+ plugins)
-- ✅ Lua generation for lazy.nvim
-- ✅ URL support for remote plugin files
-
-### v0.3.x - Multi-Platform Support ✅
-- ✅ Multi-platform container runtime (OrbStack, Docker Desktop, Podman, Colima)
-- ✅ Platform detection (`dvm get platforms`)
-- ✅ Decoupled architecture (swappable builders, runtimes, database)
-- ✅ Shell completions (bash/zsh/fish)
-
-### v0.6.0 - Integration (Next)
-- ⏳ Integrate nvp with dvm (workspace plugin management)
-- ⏳ Theme preview command
-- ⏳ More themes (dracula, solarized, one-dark)
-- ⏳ Custom highlight groups in theme YAML
-
-### v1.0.0 - Production Ready
-- ⏳ Full test coverage (90%+)
-- ⏳ Performance optimizations
-- ⏳ Enterprise features
-- ⏳ Windows support (WSL2)
-
----
-
-## ❓ FAQ
-
-**Q: How is this different from devcontainers?**  
-A: DevOpsMaestro uses a database-backed plugin system with kubectl-style commands. Plugins are defined once and shared across workspaces. It's more focused on Neovim-centric development workflows.
-
-**Q: Can I use this with VS Code?**  
-A: Currently focused on Neovim, but VS Code integration is on the roadmap!
-
-**Q: Does this work on Windows?**  
-A: Not yet. macOS and Linux are currently supported. Windows via WSL2 is planned.
-
-**Q: How do I share plugins with my team?**  
-A: Plugin YAML files can be committed to git. Your team applies them with `dvm plugin apply -f plugin.yaml`.
-
-**Q: Can I use my own Neovim config?**  
-A: Yes! You can customize plugins or bring your entire config. See Configuration section.
-
----
-
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/yourusername/devopsmaestro/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/devopsmaestro/discussions)
-- **Email**: support@devopsmaestro.io
-
----
-
-<div align="center">
-
-**⭐ Star us on GitHub if DevOpsMaestro helps you! ⭐**
-
-Made with ❤️ by developers, for developers.
-
-</div>
+- [Releases](https://github.com/rmkohlman/devopsmaestro/releases)
+- [Changelog](CHANGELOG.md)
+- [Homebrew Tap](https://github.com/rmkohlman/homebrew-tap)
+- [Plugin Library](https://github.com/rmkohlman/nvim-yaml-plugins)

@@ -7,6 +7,104 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.0] - 2026-02-03
+
+### 🚀 Added
+
+#### `dvm status` Command
+- **New status command** - Shows current context, runtime info, and running containers
+- **Context display** - Active project and workspace at a glance
+- **Runtime info** - Colima/nerdctl profile, status, container runtime
+- **Running containers** - List DVM workspace containers with status
+- **Output formats** - Supports `-o json` and `-o yaml` for scripting
+
+```bash
+dvm status           # Human-readable status
+dvm status -o json   # JSON output for scripts
+dvm status -o yaml   # YAML output
+```
+
+#### kubectl-style Resource Aliases
+- **Short aliases** for common resources - faster commands!
+- **Consistent across commands** - Works with `get`, `create`, `delete`, `use`
+
+| Resource | Alias | Example |
+|----------|-------|---------|
+| projects | `proj` | `dvm get proj` |
+| workspaces | `ws` | `dvm get ws` |
+| context | `ctx` | `dvm get ctx` |
+| platforms | `plat` | `dvm get plat` |
+
+```bash
+dvm get proj          # Same as 'dvm get projects'
+dvm get ws            # Same as 'dvm get workspaces'
+dvm use ws main       # Same as 'dvm use workspace main'
+dvm create proj api   # Same as 'dvm create project api'
+dvm delete ws dev     # Same as 'dvm delete workspace dev'
+```
+
+#### `dvm detach` Command
+- **Stop workspace containers** - Cleanly stop running workspace containers
+- **Context-aware** - Uses current workspace if none specified
+
+```bash
+dvm detach            # Stop current workspace container
+dvm detach myworkspace # Stop specific workspace
+```
+
+#### `dvm get context` Command
+- **View current context** - Show active project and workspace
+- **Multiple formats** - Table, JSON, YAML output
+
+```bash
+dvm get context       # or: dvm get ctx
+dvm get ctx -o yaml
+```
+
+#### Context Clear Commands
+- **`--clear` flag** - Clear current project or workspace context
+- **`none` argument** - Alternative way to clear context
+
+```bash
+dvm use project --clear    # Clear active project
+dvm use workspace none     # Clear active workspace
+```
+
+#### Delete Commands
+- **`dvm delete project`** - Delete a project and optionally its workspaces
+- **`dvm delete workspace`** - Delete a workspace
+- **`-p` flag** - Specify project for workspace commands
+
+```bash
+dvm delete project myproj
+dvm delete workspace dev -p myproj
+```
+
+### 🔧 Changed
+
+#### Render Package Migration
+- **Decoupled CLI output** - All commands now use the `render/` package
+- **Consistent formatting** - Unified output across all commands
+- **Better separation** - Commands prepare data, renderers display it
+- **Functions**: `render.Success()`, `render.Warning()`, `render.Info()`, `render.Error()`
+
+#### CI/CD with GitHub Actions
+- **Automated testing** - Tests run on push/PR to main
+- **Race detection** - All tests run with `-race` flag
+- **Build verification** - Both `dvm` and `nvp` binaries built and verified
+
+### 📚 Documentation
+
+- **ARCHITECTURE.md** - Decoupled pattern diagrams and code review checklist
+- **Streamlined docs** - Cleaner CLAUDE.md overview
+
+### 🧪 Testing
+
+- **Alias tests** - `cmd/aliases_test.go` with comprehensive coverage
+- **All tests passing** with race detector
+
+---
+
 ## [0.5.1] - 2026-02-02
 
 ### 🐛 Fixed
@@ -612,6 +710,7 @@ docs/
 
 ## Version History
 
+- **[0.6.0]** - 2026-02-03 - `dvm status`, kubectl aliases, `dvm detach`, context commands
 - **[0.5.1]** - 2026-02-02 - BuildKit socket validation fix + documentation updates
 - **[0.5.0]** - 2026-01-30 - NvimTheme system + exported palette for plugins
 - **[0.4.1]** - 2026-01-29 - URL support for nvp apply + logging + tests
