@@ -183,6 +183,95 @@ func (m *MockContainerRuntime) GetRuntimeType() string {
 	return m.RuntimeType
 }
 
+// GetPlatformName returns the mock platform name
+func (m *MockContainerRuntime) GetPlatformName() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	return "Mock Platform"
+}
+
+// ListWorkspaces lists all workspaces in the mock
+func (m *MockContainerRuntime) ListWorkspaces(ctx context.Context) ([]WorkspaceInfo, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.Calls = append(m.Calls, MockRuntimeCall{
+		Method: "ListWorkspaces",
+		Args:   []interface{}{},
+	})
+
+	var workspaces []WorkspaceInfo
+	for name, status := range m.Workspaces {
+		workspaces = append(workspaces, WorkspaceInfo{
+			ID:        fmt.Sprintf("mock-%s", name),
+			Name:      name,
+			Status:    status,
+			Image:     "mock-image:latest",
+			Project:   "mock-project",
+			Workspace: name,
+			Labels: map[string]string{
+				"io.devopsmaestro.managed":   "true",
+				"io.devopsmaestro.project":   "mock-project",
+				"io.devopsmaestro.workspace": name,
+			},
+		})
+	}
+
+	return workspaces, nil
+}
+
+// FindWorkspace finds a workspace by name
+func (m *MockContainerRuntime) FindWorkspace(ctx context.Context, name string) (*WorkspaceInfo, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.Calls = append(m.Calls, MockRuntimeCall{
+		Method: "FindWorkspace",
+		Args:   []interface{}{name},
+	})
+
+	status, exists := m.Workspaces[name]
+	if !exists {
+		return nil, nil
+	}
+
+	return &WorkspaceInfo{
+		ID:        fmt.Sprintf("mock-%s", name),
+		Name:      name,
+		Status:    status,
+		Image:     "mock-image:latest",
+		Project:   "mock-project",
+		Workspace: name,
+		Labels: map[string]string{
+			"io.devopsmaestro.managed":   "true",
+			"io.devopsmaestro.project":   "mock-project",
+			"io.devopsmaestro.workspace": name,
+		},
+	}, nil
+}
+
+// StopAllWorkspaces stops all workspaces in the mock
+func (m *MockContainerRuntime) StopAllWorkspaces(ctx context.Context) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.Calls = append(m.Calls, MockRuntimeCall{
+		Method: "StopAllWorkspaces",
+		Args:   []interface{}{},
+	})
+
+	stopped := 0
+	for name, status := range m.Workspaces {
+		if status == "running" {
+			m.Workspaces[name] = "stopped"
+			stopped++
+		}
+	}
+
+	return stopped, nil
+}
+
 // =============================================================================
 // Test Helper Methods
 // =============================================================================

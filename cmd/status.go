@@ -1,12 +1,11 @@
 package cmd
 
 import (
+	"context"
 	"devopsmaestro/operators"
 	"devopsmaestro/render"
 	"fmt"
 	"log/slog"
-	"os/exec"
-	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -62,7 +61,6 @@ type ContainerInfo struct {
 type RuntimeInfo struct {
 	Type   string `json:"type" yaml:"type"`
 	Name   string `json:"name,omitempty" yaml:"name,omitempty"`
-	Socket string `json:"socket,omitempty" yaml:"socket,omitempty"`
 	Status string `json:"status" yaml:"status"`
 }
 
@@ -84,10 +82,10 @@ func runStatus(cmd *cobra.Command) error {
 		}
 	}
 
-	// Detect container platform using the platform detector
-	detector, err := operators.NewPlatformDetector()
+	// Create container runtime using factory
+	runtime, err := operators.NewContainerRuntime()
 	if err != nil {
-		slog.Debug("failed to create platform detector", "error", err)
+		slog.Debug("failed to create runtime", "error", err)
 		status.Runtime = RuntimeInfo{
 			Type:   "unknown",
 			Status: "not found",
@@ -100,47 +98,28 @@ func runStatus(cmd *cobra.Command) error {
 		return nil
 	}
 
-	platform, err := detector.Detect()
-	if err != nil {
-		slog.Debug("failed to detect platform", "error", err)
-		status.Runtime = RuntimeInfo{
-			Type:   "unknown",
-			Status: "not found",
-		}
-	} else {
-		status.Runtime = RuntimeInfo{
-			Type:   string(platform.Type),
-			Name:   platform.Name,
-			Socket: platform.SocketPath,
-			Status: "active",
-		}
+	// Get runtime info
+	status.Runtime = RuntimeInfo{
+		Type:   runtime.GetRuntimeType(),
+		Name:   runtime.GetPlatformName(),
+		Status: "active",
+	}
 
-		// Get running dvm containers using docker CLI (works for OrbStack, Docker Desktop, Podman)
-		listCmd := exec.Command("docker", "-H", "unix://"+platform.SocketPath,
-			"ps", "--format", "{{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Image}}",
-			"--filter", "label=io.devopsmaestro.managed=true")
-		output, err := listCmd.Output()
-		if err == nil {
-			lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-			for _, line := range lines {
-				if line == "" {
-					continue
-				}
-				parts := strings.Split(line, "\t")
-				if len(parts) >= 3 {
-					container := ContainerInfo{
-						ID:     parts[0],
-						Name:   parts[1],
-						Status: parts[2],
-					}
-					if len(parts) >= 4 {
-						container.Image = parts[3]
-					}
-					status.Containers = append(status.Containers, container)
-				}
+	// List running workspaces using the runtime interface
+	workspaces, err := runtime.ListWorkspaces(context.Background())
+	if err != nil {
+		slog.Debug("failed to list workspaces", "error", err)
+	} else {
+		for _, ws := range workspaces {
+			// Only show running containers
+			if isRunning(ws.Status) {
+				status.Containers = append(status.Containers, ContainerInfo{
+					ID:     ws.ID,
+					Name:   ws.Name,
+					Status: ws.Status,
+					Image:  ws.Image,
+				})
 			}
-		} else {
-			slog.Debug("failed to list containers", "error", err)
 		}
 	}
 
@@ -152,6 +131,11 @@ func runStatus(cmd *cobra.Command) error {
 	// Default: colored output
 	renderStatusColored(status)
 	return nil
+}
+
+// isRunning checks if the status indicates a running container
+func isRunning(status string) bool {
+	return status == "running" || (len(status) >= 2 && status[:2] == "Up")
 }
 
 func renderStatusColored(status StatusInfo) {

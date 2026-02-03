@@ -42,42 +42,42 @@ func TestDetachIsSubcommandOfRoot(t *testing.T) {
 	assert.True(t, found, "detach should be a subcommand of root")
 }
 
-func TestSplitLines(t *testing.T) {
+func TestContainsRunning(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    string
-		expected []string
+		status   string
+		expected bool
 	}{
 		{
-			name:     "empty string",
-			input:    "",
-			expected: nil,
+			name:     "running status",
+			status:   "Up 5 minutes",
+			expected: true,
 		},
 		{
-			name:     "single line",
-			input:    "container1",
-			expected: []string{"container1"},
+			name:     "up status short",
+			status:   "Up",
+			expected: true,
 		},
 		{
-			name:     "multiple lines",
-			input:    "container1\ncontainer2\ncontainer3",
-			expected: []string{"container1", "container2", "container3"},
+			name:     "exited status",
+			status:   "Exited (0) 5 minutes ago",
+			expected: false,
 		},
 		{
-			name:     "with trailing newline",
-			input:    "container1\ncontainer2\n",
-			expected: []string{"container1", "container2"},
+			name:     "created status",
+			status:   "Created",
+			expected: false,
 		},
 		{
-			name:     "with empty lines",
-			input:    "container1\n\ncontainer2\n\n",
-			expected: []string{"container1", "container2"},
+			name:     "empty status",
+			status:   "",
+			expected: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := splitLines(tt.input)
+			result := containsRunning(tt.status)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

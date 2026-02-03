@@ -327,6 +327,131 @@ func (r *ContainerdRuntimeV2) Close() error {
 	return nil
 }
 
+// GetPlatformName returns the human-readable platform name
+func (r *ContainerdRuntimeV2) GetPlatformName() string {
+	return r.platform.Name
+}
+
+// ListWorkspaces lists all DVM-managed workspaces
+func (r *ContainerdRuntimeV2) ListWorkspaces(ctx context.Context) ([]WorkspaceInfo, error) {
+	ctx = namespaces.WithNamespace(ctx, r.namespace)
+
+	containers, err := r.client.Containers(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list containers: %w", err)
+	}
+
+	var workspaces []WorkspaceInfo
+	for _, c := range containers {
+		labels, err := c.Labels(ctx)
+		if err != nil {
+			continue
+		}
+
+		// Check for DVM management label
+		if labels["io.devopsmaestro.managed"] != "true" {
+			continue
+		}
+
+		// Get status
+		status := "created"
+		task, err := c.Task(ctx, nil)
+		if err == nil {
+			taskStatus, err := task.Status(ctx)
+			if err == nil {
+				status = string(taskStatus.Status)
+			}
+		}
+
+		// Get image
+		image, _ := c.Image(ctx)
+		imageName := ""
+		if image != nil {
+			imageName = image.Name()
+		}
+
+		workspaces = append(workspaces, WorkspaceInfo{
+			ID:        c.ID()[:12],
+			Name:      c.ID(), // containerd uses ID as name
+			Status:    status,
+			Image:     imageName,
+			Project:   labels["io.devopsmaestro.project"],
+			Workspace: labels["io.devopsmaestro.workspace"],
+			Labels:    labels,
+		})
+	}
+
+	return workspaces, nil
+}
+
+// FindWorkspace finds a workspace by name and returns its info
+func (r *ContainerdRuntimeV2) FindWorkspace(ctx context.Context, name string) (*WorkspaceInfo, error) {
+	ctx = namespaces.WithNamespace(ctx, r.namespace)
+
+	container, err := r.client.LoadContainer(ctx, name)
+	if err != nil {
+		return nil, nil // Not found
+	}
+
+	labels, err := container.Labels(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get labels: %w", err)
+	}
+
+	// Verify it's DVM-managed
+	if labels["io.devopsmaestro.managed"] != "true" {
+		return nil, nil
+	}
+
+	// Get status
+	status := "created"
+	task, err := container.Task(ctx, nil)
+	if err == nil {
+		taskStatus, err := task.Status(ctx)
+		if err == nil {
+			status = string(taskStatus.Status)
+		}
+	}
+
+	// Get image
+	image, _ := container.Image(ctx)
+	imageName := ""
+	if image != nil {
+		imageName = image.Name()
+	}
+
+	return &WorkspaceInfo{
+		ID:        container.ID()[:12],
+		Name:      container.ID(),
+		Status:    status,
+		Image:     imageName,
+		Project:   labels["io.devopsmaestro.project"],
+		Workspace: labels["io.devopsmaestro.workspace"],
+		Labels:    labels,
+	}, nil
+}
+
+// StopAllWorkspaces stops all DVM-managed workspaces
+func (r *ContainerdRuntimeV2) StopAllWorkspaces(ctx context.Context) (int, error) {
+	ctx = namespaces.WithNamespace(ctx, r.namespace)
+
+	workspaces, err := r.ListWorkspaces(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	stopped := 0
+	for _, ws := range workspaces {
+		if ws.Status == "running" {
+			if err := r.StopWorkspace(ctx, ws.Name); err == nil {
+				stopped++
+			}
+		}
+	}
+
+	return stopped, nil
+}
+
 // setupTerminal sets up the terminal for raw mode
 func setupTerminal() error {
 	fd := os.Stdin.Fd()

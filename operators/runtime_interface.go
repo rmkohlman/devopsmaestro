@@ -22,6 +22,29 @@ type ContainerRuntime interface {
 
 	// GetRuntimeType returns the runtime type (docker, kubernetes, etc.)
 	GetRuntimeType() string
+
+	// ListWorkspaces lists all DVM-managed workspaces
+	ListWorkspaces(ctx context.Context) ([]WorkspaceInfo, error)
+
+	// FindWorkspace finds a workspace by name and returns its info
+	FindWorkspace(ctx context.Context, name string) (*WorkspaceInfo, error)
+
+	// GetPlatformName returns the human-readable platform name
+	GetPlatformName() string
+
+	// StopAllWorkspaces stops all DVM-managed workspaces
+	StopAllWorkspaces(ctx context.Context) (int, error)
+}
+
+// WorkspaceInfo contains information about a running workspace
+type WorkspaceInfo struct {
+	ID        string            // Container/pod ID
+	Name      string            // Workspace name (container name)
+	Status    string            // Running, Stopped, etc.
+	Image     string            // Image name
+	Project   string            // Project name from labels
+	Workspace string            // Workspace name from labels
+	Labels    map[string]string // All labels
 }
 
 // BuildOptions contains options for building container images
@@ -39,6 +62,8 @@ type BuildOptions struct {
 type StartOptions struct {
 	ImageName     string            // Container image to use
 	WorkspaceName string            // Name of the workspace
+	ContainerName string            // Container name (e.g., "dvm-project-workspace")
+	ProjectName   string            // Project name for labels
 	ProjectPath   string            // Path to mount as /workspace
 	Env           map[string]string // Environment variables
 	WorkingDir    string            // Working directory inside container
