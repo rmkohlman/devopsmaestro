@@ -124,12 +124,44 @@ go build -o dvm .              # DevOpsMaestro
 go build -o nvp ./cmd/nvp/     # NvimOps
 
 # Test
-go test ./...
+go test ./...                  # All tests
+go test ./... -race            # With race detector (CI uses this)
 go test ./pkg/nvimops/... -v   # nvp tests
 go test ./db/... -v            # database tests
 
-# Lint
+# Lint (requires golangci-lint)
 golangci-lint run
+golangci-lint run --timeout=5m # With extended timeout
+```
+
+---
+
+## CI/CD
+
+### GitHub Actions Workflows
+
+| Workflow | File | Trigger | Jobs |
+|----------|------|---------|------|
+| CI | `.github/workflows/ci.yml` | Push/PR to main | Test, Build |
+| Release | `.github/workflows/release.yml` | Tag push (v*) | GoReleaser |
+
+### CI Jobs
+
+- **Test**: Runs `go test ./... -v -race -coverprofile=coverage.out`
+- **Build**: Builds both `dvm` and `nvp` binaries, verifies with `version` command
+- **Lint**: *Temporarily disabled* - waiting for golangci-lint to support Go 1.25
+
+### Requirements
+
+- **Go version**: 1.25.0 (set in `go.mod`)
+- **Race detector**: All tests must pass with `-race` flag
+
+### Checking CI Status
+
+```bash
+gh run list --limit 3          # Recent runs
+gh run view <RUN_ID>           # View specific run
+gh run watch <RUN_ID>          # Watch live
 ```
 
 ---
