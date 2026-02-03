@@ -208,27 +208,27 @@ source tests/manual/part2-post-attach.sh
 
 ## Part 3: Namespaced Nvim Commands (v0.6.0+)
 
-### New kubectl-style Nvim Commands
+### kubectl-style Nvim Commands
 
-These commands replace the old `dvm plugin` and `dvm get plugins` commands:
+These are the current nvim commands using kubectl-style namespacing:
 
-| New Command | Replaces | Description |
-|-------------|----------|-------------|
-| `dvm get nvim plugins` | `dvm get plugins` | List all nvim plugins |
-| `dvm get nvim plugin <name>` | `dvm get plugin <name>` | Get specific plugin |
-| `dvm apply nvim plugin -f <file>` | `dvm plugin apply -f <file>` | Apply plugin from YAML |
-| `dvm delete nvim plugin <name>` | `dvm plugin delete <name>` | Delete a plugin |
+| Command | Description |
+|---------|-------------|
+| `dvm get nvim plugins` | List all nvim plugins |
+| `dvm get nvim plugin <name>` | Get specific plugin |
+| `dvm apply nvim plugin -f <file>` | Apply plugin from YAML |
+| `dvm delete nvim plugin <name>` | Delete a plugin |
+| `dvm edit nvim plugin <name>` | Edit plugin in $EDITOR |
 
 ### Test: New Commands Work
 
 ```bash
-# Test listing plugins (new command)
+# Test listing plugins (empty if no plugins yet)
 dvm get nvim plugins
 dvm get nvim plugins -o yaml
 dvm get nvim plugins -o json
 
-# Test get specific plugin (requires a plugin to exist)
-# First apply one:
+# Apply a test plugin
 cat <<EOF | dvm apply nvim plugin -f -
 apiVersion: devopsmaestro.io/v1
 kind: NvimPlugin
@@ -246,36 +246,35 @@ dvm get nvim plugin test-plugin -o yaml
 
 # Delete it
 dvm delete nvim plugin test-plugin --force
+
+# Verify it's gone
+dvm get nvim plugins
 ```
 
 **Expected:** All commands work without errors.
 
-### Test: Deprecation Warnings
-
-```bash
-# Old commands should show deprecation warning
-dvm get plugins 2>&1 | head -2
-# Expected: ⚠️  'dvm get plugins' is deprecated. Use 'dvm get nvim plugins' instead.
-
-dvm get plugin test-plugin 2>&1 | head -2
-# Expected: ⚠️  'dvm get plugin' is deprecated. Use 'dvm get nvim plugin <name>' instead.
-
-dvm plugin list 2>&1 | head -2
-# Expected: ⚠️  'dvm plugin list' is deprecated. Use 'dvm get nvim plugins' instead.
-```
-
-**Expected:** Old commands still work but show deprecation warning on stderr.
-
 ### Test: Help Output
 
 ```bash
-# New commands should have complete help
+# All namespaced commands should have complete help
 dvm get nvim --help
 dvm apply nvim --help
 dvm delete nvim --help
+dvm edit nvim --help
 ```
 
-**Expected:** Help shows all available subcommands.
+**Expected:** Help shows all available subcommands (plugin, theme).
+
+### Test: Old Commands Removed
+
+```bash
+# These should NOT work (shows parent command help instead)
+dvm get plugins      # Should show 'dvm get' help, not plugin list
+dvm get plugin foo   # Should show 'dvm get' help, not plugin details
+dvm plugin list      # Should show error: unknown command
+```
+
+**Expected:** Old commands are removed, users must use new namespaced commands.
 
 ---
 
@@ -288,7 +287,7 @@ dvm delete nvim --help
 | Interactive: Python | 5 checks | | |
 | Interactive: Neovim | 2 checks | | |
 | Part 2: Post-Attach | 5 segments | | |
-| Part 3: Namespaced Commands | 6 checks | | |
+| Part 3: Namespaced Commands | 5 checks | | |
 
 ---
 

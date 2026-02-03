@@ -3,7 +3,6 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
@@ -71,51 +70,6 @@ var getWorkspaceCmd = &cobra.Command{
 	},
 }
 
-// getPluginsCmd lists all plugins (kubectl-style)
-// DEPRECATED: Use 'dvm get nvim plugins' instead
-var getPluginsCmd = &cobra.Command{
-	Use:   "plugins",
-	Short: "List all nvim plugins",
-	Long: `List all nvim plugins stored in the database (kubectl-style).
-
-DEPRECATED: Use 'dvm get nvim plugins' instead.
-
-Examples:
-  dvm get plugins
-  dvm get plugins -o yaml
-  dvm get plugins -o json`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		// Print deprecation warning
-		warning := "⚠️  'dvm get plugins' is deprecated. Use 'dvm get nvim plugins' instead.\n\n"
-		fmt.Fprint(os.Stderr, ui.WarningStyle.Render(warning))
-
-		return getPlugins(cmd)
-	},
-}
-
-// getPluginCmd gets a specific plugin (kubectl-style)
-// DEPRECATED: Use 'dvm get nvim plugin <name>' instead
-var getPluginCmd = &cobra.Command{
-	Use:   "plugin [name]",
-	Short: "Get a specific nvim plugin",
-	Long: `Get a specific nvim plugin by name (kubectl-style).
-
-DEPRECATED: Use 'dvm get nvim plugin <name>' instead.
-
-Examples:
-  dvm get plugin telescope
-  dvm get plugin telescope -o yaml
-  dvm get plugin lspconfig -o json`,
-	Args: cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		// Print deprecation warning
-		warning := "⚠️  'dvm get plugin' is deprecated. Use 'dvm get nvim plugin <name>' instead.\n\n"
-		fmt.Fprint(os.Stderr, ui.WarningStyle.Render(warning))
-
-		return getPlugin(cmd, args[0])
-	},
-}
-
 // getPlatformsCmd lists all detected container platforms
 var getPlatformsCmd = &cobra.Command{
 	Use:   "platforms",
@@ -137,8 +91,6 @@ func init() {
 	getCmd.AddCommand(getProjectCmd)
 	getCmd.AddCommand(getWorkspacesCmd)
 	getCmd.AddCommand(getWorkspaceCmd)
-	getCmd.AddCommand(getPluginsCmd)
-	getCmd.AddCommand(getPluginCmd)
 	getCmd.AddCommand(getPlatformsCmd)
 
 	// Add output format flag to all get commands

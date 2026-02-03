@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"fmt"
 	"os"
@@ -100,16 +99,10 @@ func applyNvimPluginFromFile(cmd *cobra.Command, filePath string) error {
 		return fmt.Errorf("failed to convert plugin: %v", err)
 	}
 
-	// Get database connection
-	database, err := db.InitializeDBConnection()
+	// Get datastore from context (injected by root command)
+	datastore, err := getDataStore(cmd)
 	if err != nil {
-		return fmt.Errorf("failed to connect to database: %v", err)
-	}
-	defer database.Close()
-
-	datastore, err := db.StoreFactory(database)
-	if err != nil {
-		return fmt.Errorf("failed to create datastore: %v", err)
+		return fmt.Errorf("failed to get datastore: %v", err)
 	}
 
 	// Check if plugin already exists

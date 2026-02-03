@@ -6,6 +6,25 @@
 
 ---
 
+## Design Philosophy
+
+**We build loosely coupled, decoupled, modular, cohesive code with responsibility segregation.**
+
+This means:
+- **Loosely Coupled**: Components interact through interfaces, not concrete implementations
+- **Decoupled**: Changes in one module don't cascade to others
+- **Modular**: Each piece can be developed, tested, and replaced independently
+- **Cohesive**: Related functionality is grouped together
+- **Responsibility Segregation**: Each component has a single, clear purpose
+
+**Why this matters:**
+- Testability: Mock any dependency for unit tests
+- Flexibility: Swap implementations without changing consumers
+- Maintainability: Fix bugs in isolation
+- Extensibility: Add new features without breaking existing code
+
+---
+
 ## Core Principles
 
 ### 1. DECOUPLING IS PARAMOUNT
@@ -76,7 +95,35 @@ func BuildWorkspace(builder *DockerBuilder, store *SQLDataStore) error {
 }
 ```
 
-### 4. ADAPTER PATTERN FOR BRIDGING
+### 4. DEPENDENCY INJECTION
+
+Dependencies should be injected, not created internally.
+
+```go
+// GOOD: Get dependency from context (injected by parent)
+func (cmd *cobra.Command) RunE(cmd *cobra.Command, args []string) error {
+    datastore, err := getDataStore(cmd)  // From context
+    if err != nil {
+        return err
+    }
+    return datastore.DeletePlugin(args[0])
+}
+
+// BAD: Create dependency internally (hard to test, tightly coupled)
+func (cmd *cobra.Command) RunE(cmd *cobra.Command, args []string) error {
+    database, _ := db.InitializeDBConnection()  // Creates its own connection
+    defer database.Close()
+    datastore, _ := db.StoreFactory(database)   // Creates its own store
+    return datastore.DeletePlugin(args[0])
+}
+```
+
+**Why injection matters:**
+- Tests can inject mocks instead of real databases
+- Parent can control lifecycle (connection pooling, transactions)
+- Easier to swap implementations
+
+### 5. ADAPTER PATTERN FOR BRIDGING
 
 When migrating from old to new architecture, use adapters to bridge interfaces.
 
@@ -94,7 +141,7 @@ func (d *DatabaseDriverAdapter) Execute(query string, args ...interface{}) (Resu
 }
 ```
 
-### 5. FACTORY PATTERN FOR CREATION
+### 6. FACTORY PATTERN FOR CREATION
 
 Use factories to:
 - Abstract creation logic

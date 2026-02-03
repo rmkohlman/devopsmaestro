@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"devopsmaestro/db"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -53,16 +52,10 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
 
-		// Get database connection
-		database, err := db.InitializeDBConnection()
+		// Get datastore from context (injected by root command)
+		datastore, err := getDataStore(cmd)
 		if err != nil {
-			return fmt.Errorf("failed to connect to database: %v", err)
-		}
-		defer database.Close()
-
-		datastore, err := db.StoreFactory(database)
-		if err != nil {
-			return fmt.Errorf("failed to create datastore: %v", err)
+			return fmt.Errorf("failed to get datastore: %v", err)
 		}
 
 		// Confirm deletion
