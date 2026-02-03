@@ -22,11 +22,22 @@ var getCmd = &cobra.Command{
 	Short: "Get resources (kubectl-style)",
 	Long: `Get resources in various formats (colored, yaml, json, plain).
 
+Resource aliases (kubectl-style):
+  projects   → proj
+  workspaces → ws
+  workspace  → ws
+  context    → ctx
+  platforms  → plat
+
 Examples:
   dvm get projects
+  dvm get proj                    # Same as 'get projects'
   dvm get workspaces
-  dvm get project my-api
+  dvm get ws                      # Same as 'get workspaces'
   dvm get workspace main
+  dvm get ws main                 # Same as 'get workspace main'
+  dvm get context
+  dvm get ctx                     # Same as 'get context'
   dvm get workspace main -o yaml
   dvm get project my-api -o json
 `,
@@ -34,8 +45,9 @@ Examples:
 
 // getProjectsCmd lists all projects
 var getProjectsCmd = &cobra.Command{
-	Use:   "projects",
-	Short: "List all projects",
+	Use:     "projects",
+	Aliases: []string{"proj"},
+	Short:   "List all projects",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return getProjects(cmd)
 	},
@@ -43,9 +55,10 @@ var getProjectsCmd = &cobra.Command{
 
 // getProjectCmd gets a specific project
 var getProjectCmd = &cobra.Command{
-	Use:   "project [name]",
-	Short: "Get a specific project",
-	Args:  cobra.ExactArgs(1),
+	Use:     "project [name]",
+	Aliases: []string{"proj"},
+	Short:   "Get a specific project",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return getProject(cmd, args[0])
 	},
@@ -53,12 +66,14 @@ var getProjectCmd = &cobra.Command{
 
 // getWorkspacesCmd lists all workspaces in current project
 var getWorkspacesCmd = &cobra.Command{
-	Use:   "workspaces",
-	Short: "List all workspaces in a project",
+	Use:     "workspaces",
+	Aliases: []string{"ws"},
+	Short:   "List all workspaces in a project",
 	Long: `List all workspaces in a project.
 
 Examples:
   dvm get workspaces              # List workspaces in active project
+  dvm get ws                      # Short form
   dvm get workspaces -p myproject # List workspaces in specific project`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return getWorkspaces(cmd)
@@ -67,12 +82,14 @@ Examples:
 
 // getWorkspaceCmd gets a specific workspace
 var getWorkspaceCmd = &cobra.Command{
-	Use:   "workspace [name]",
-	Short: "Get a specific workspace",
+	Use:     "workspace [name]",
+	Aliases: []string{"ws"},
+	Short:   "Get a specific workspace",
 	Long: `Get a specific workspace by name.
 
 Examples:
   dvm get workspace main              # Get workspace from active project
+  dvm get ws main                     # Short form
   dvm get workspace main -p myproject # Get workspace from specific project
   dvm get workspace main -o yaml      # Output as YAML`,
 	Args: cobra.ExactArgs(1),
@@ -83,12 +100,14 @@ Examples:
 
 // getPlatformsCmd lists all detected container platforms
 var getPlatformsCmd = &cobra.Command{
-	Use:   "platforms",
-	Short: "List all detected container platforms",
+	Use:     "platforms",
+	Aliases: []string{"plat"},
+	Short:   "List all detected container platforms",
 	Long: `List all detected container platforms (OrbStack, Colima, Docker Desktop, Podman).
 
 Examples:
   dvm get platforms
+  dvm get plat          # Short form
   dvm get platforms -o yaml
   dvm get platforms -o json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -98,23 +117,21 @@ Examples:
 
 // getContextCmd displays the current active context
 var getContextCmd = &cobra.Command{
-	Use:   "context",
-	Short: "Show current active context",
-	Long: `Display the currently active project and workspace context.
+	Use:     "context",
+	Aliases: []string{"ctx"},
+	Short:   "Display the current context",
+	Long: `Display the current active project and workspace context.
 
-The context determines the default project and workspace used by commands
-when -p (project) or -w (workspace) flags are not specified.
+The context determines which project and workspace commands operate on by default.
+Set context with 'dvm use project <name>' and 'dvm use workspace <name>'.
 
-Context can be set with:
-  dvm use project <name>      # Set active project
-  dvm use workspace <name>    # Set active workspace
-
-Context can also be overridden with environment variables:
-  DVM_PROJECT=myproject dvm get workspaces
-  DVM_WORKSPACE=dev dvm attach
+Context can also be set via environment variables:
+  DVM_PROJECT    - Override active project
+  DVM_WORKSPACE  - Override active workspace
 
 Examples:
-  dvm get context
+  dvm get context       # Show current context
+  dvm get ctx           # Short form
   dvm get context -o yaml
   dvm get context -o json`,
 	RunE: func(cmd *cobra.Command, args []string) error {

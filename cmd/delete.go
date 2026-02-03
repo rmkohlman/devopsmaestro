@@ -17,9 +17,15 @@ var deleteCmd = &cobra.Command{
 	Short: "Delete resources",
 	Long: `Delete resources by name.
 
+Resource aliases (kubectl-style):
+  project   → proj
+  workspace → ws
+
 Examples:
   dvm delete project my-api                   # Delete project and its workspaces
+  dvm delete proj my-api                      # Short form
   dvm delete workspace dev                    # Delete workspace from active project
+  dvm delete ws dev                           # Short form
   dvm delete workspace dev -p myproject       # Delete workspace from specific project
   dvm delete nvim plugin telescope            # Delete nvim plugin`,
 }
@@ -117,8 +123,9 @@ For now, use: nvp theme delete <name>`,
 // deleteProjectCmd deletes a project
 // Usage: dvm delete project <name>
 var deleteProjectCmd = &cobra.Command{
-	Use:   "project [name]",
-	Short: "Delete a project",
+	Use:     "project [name]",
+	Aliases: []string{"proj"},
+	Short:   "Delete a project",
 	Long: `Delete a project and optionally all its workspaces.
 
 This permanently removes the project from DVM's database.
@@ -126,6 +133,7 @@ By default, you will be prompted for confirmation.
 
 Examples:
   dvm delete project my-api
+  dvm delete proj my-api           # Short form
   dvm delete project my-api --force  # Skip confirmation`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -205,8 +213,9 @@ Examples:
 // deleteWorkspaceCmd deletes a workspace
 // Usage: dvm delete workspace <name>
 var deleteWorkspaceCmd = &cobra.Command{
-	Use:   "workspace [name]",
-	Short: "Delete a workspace",
+	Use:     "workspace [name]",
+	Aliases: []string{"ws"},
+	Short:   "Delete a workspace",
 	Long: `Delete a workspace from a project.
 
 This permanently removes the workspace from DVM's database.
@@ -215,6 +224,7 @@ By default, you will be prompted for confirmation.
 
 Examples:
   dvm delete workspace dev                    # Delete from active project
+  dvm delete ws dev                           # Short form
   dvm delete workspace dev -p myproject       # Delete from specific project
   dvm delete workspace dev --force            # Skip confirmation`,
 	Args: cobra.ExactArgs(1),

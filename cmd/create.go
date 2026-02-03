@@ -17,7 +17,17 @@ import (
 var createCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create resources",
-	Long:  `Create various resources like projects, workspaces, dependencies, etc.`,
+	Long: `Create various resources like projects, workspaces, dependencies, etc.
+
+Resource aliases (kubectl-style):
+  project   → proj
+  workspace → ws
+
+Examples:
+  dvm create project my-api --from-cwd
+  dvm create proj my-api --from-cwd    # Short form
+  dvm create workspace dev
+  dvm create ws dev                    # Short form`,
 }
 
 var (
@@ -30,13 +40,15 @@ var (
 
 // createProjectCmd creates a new project
 var createProjectCmd = &cobra.Command{
-	Use:   "project <name>",
-	Short: "Create a new project",
+	Use:     "project <name>",
+	Aliases: []string{"proj"},
+	Short:   "Create a new project",
 	Long: `Create a new project with the specified name.
 	
 Examples:
   # Create a project from the current directory
   dvm create project my-api --from-cwd
+  dvm create proj my-api --from-cwd    # Short form
   
   # Create a project with a specific path
   dvm create project my-api --path ~/code/my-api
@@ -152,8 +164,9 @@ Examples:
 
 // createWorkspaceCmd creates a new workspace in the current project
 var createWorkspaceCmd = &cobra.Command{
-	Use:   "workspace <name>",
-	Short: "Create a new workspace",
+	Use:     "workspace <name>",
+	Aliases: []string{"ws"},
+	Short:   "Create a new workspace",
 	Long: `Create a new workspace in a project.
 
 A workspace is an isolated development environment within a project.
@@ -162,6 +175,7 @@ You can have multiple workspaces per project (e.g., main, dev, feature-x).
 Examples:
   # Create a workspace named 'dev' in active project
   dvm create workspace dev
+  dvm create ws dev                # Short form
   
   # Create a workspace in a specific project
   dvm create workspace dev -p myproject

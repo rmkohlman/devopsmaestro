@@ -17,9 +17,15 @@ var useCmd = &cobra.Command{
 
 Use 'none' as the name to clear the context, or use --clear to clear all context.
 
+Resource aliases (kubectl-style):
+  project   → proj
+  workspace → ws
+
 Examples:
   dvm use project my-api        # Set active project
+  dvm use proj my-api           # Short form
   dvm use workspace dev         # Set active workspace
+  dvm use ws dev                # Short form
   dvm use project none          # Clear project context
   dvm use workspace none        # Clear workspace context
   dvm use --clear               # Clear all context`,
@@ -47,14 +53,16 @@ Examples:
 
 // useProjectCmd switches the active project
 var useProjectCmd = &cobra.Command{
-	Use:   "project <name>",
-	Short: "Switch to a project",
+	Use:     "project <name>",
+	Aliases: []string{"proj"},
+	Short:   "Switch to a project",
 	Long: `Set the specified project as the active context.
 
 Use 'none' as the name to clear the project context (also clears workspace).
 
 Examples:
   dvm use project my-api        # Set active project
+  dvm use proj my-api           # Short form
   dvm use project frontend      # Switch to another project
   dvm use project none          # Clear project context`,
 	Args: cobra.ExactArgs(1),
@@ -127,8 +135,9 @@ Examples:
 
 // useWorkspaceCmd switches the active workspace
 var useWorkspaceCmd = &cobra.Command{
-	Use:   "workspace <name>",
-	Short: "Switch to a workspace",
+	Use:     "workspace <name>",
+	Aliases: []string{"ws"},
+	Short:   "Switch to a workspace",
 	Long: `Set the specified workspace as the active context.
 Requires an active project to be set first (unless clearing with 'none').
 
@@ -136,6 +145,7 @@ Use 'none' as the name to clear the workspace context (keeps project).
 
 Examples:
   dvm use workspace main        # Set active workspace
+  dvm use ws main               # Short form
   dvm use workspace dev         # Switch to another workspace
   dvm use workspace none        # Clear workspace context`,
 	Args: cobra.ExactArgs(1),
