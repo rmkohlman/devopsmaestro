@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 )
 
@@ -59,52 +57,35 @@ Examples:
 
 // nvimGetThemesCmd lists all nvim themes (namespaced version)
 // Usage: dvm get nvim themes
-// Note: This is a placeholder for future dvm/nvp integration
 var nvimGetThemesCmd = &cobra.Command{
 	Use:     "themes",
 	Aliases: []string{"nt"},
 	Short:   "List all nvim themes",
-	Long: `List all nvim themes.
+	Long: `List all nvim themes stored in the database.
 
-Note: Theme management is currently available via the standalone 'nvp' CLI.
-This command will be integrated in a future version.
-
-For now, use: nvp theme list`,
+Examples:
+  dvm get nvim themes
+  dvm get nvim themes -o yaml
+  dvm get nvim themes -o json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Println("Theme management is currently available via the standalone 'nvp' CLI.")
-		fmt.Println("")
-		fmt.Println("Use these commands instead:")
-		fmt.Println("  nvp theme list              # List installed themes")
-		fmt.Println("  nvp theme library list      # List available themes")
-		fmt.Println("  nvp theme library install   # Install a theme")
-		fmt.Println("")
-		fmt.Println("Integration with dvm is planned for a future release.")
-		return nil
+		return getThemes(cmd)
 	},
 }
 
 // nvimGetThemeCmd gets a specific nvim theme (namespaced version)
 // Usage: dvm get nvim theme <name>
-// Note: This is a placeholder for future dvm/nvp integration
 var nvimGetThemeCmd = &cobra.Command{
 	Use:   "theme [name]",
 	Short: "Get a specific nvim theme",
 	Long: `Get a specific nvim theme by name.
 
-Note: Theme management is currently available via the standalone 'nvp' CLI.
-This command will be integrated in a future version.
-
-For now, use: nvp theme get <name>`,
+Examples:
+  dvm get nvim theme tokyonight
+  dvm get nvim theme tokyonight -o yaml
+  dvm get nvim theme catppuccin -o json`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		themeName := args[0]
-		fmt.Printf("Theme management is currently available via the standalone 'nvp' CLI.\n")
-		fmt.Println("")
-		fmt.Printf("Use this command instead:\n")
-		fmt.Printf("  nvp theme get %s\n", themeName)
-		fmt.Println("")
-		fmt.Println("Integration with dvm is planned for a future release.")
-		return nil
+		return getTheme(cmd, args[0])
 	},
 }
 

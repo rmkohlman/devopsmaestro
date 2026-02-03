@@ -7,6 +7,7 @@ import (
 	"devopsmaestro/models"
 	"devopsmaestro/operators"
 	"devopsmaestro/pkg/nvimops/plugin"
+	"devopsmaestro/pkg/nvimops/theme"
 	"devopsmaestro/render"
 
 	"github.com/spf13/cobra"
@@ -28,6 +29,8 @@ Resource aliases (kubectl-style):
   workspace  → ws
   context    → ctx
   platforms  → plat
+  nvim plugins → np
+  nvim themes  → nt
 
 Examples:
   dvm get projects
@@ -38,6 +41,8 @@ Examples:
   dvm get ws main                 # Same as 'get workspace main'
   dvm get context
   dvm get ctx                     # Same as 'get context'
+  dvm get np                      # Same as 'get nvim plugins'
+  dvm get nt                      # Same as 'get nvim themes'
   dvm get workspace main -o yaml
   dvm get project my-api -o json
 `,
@@ -139,6 +144,42 @@ Examples:
 	},
 }
 
+// getNvimPluginsShortCmd is a top-level shortcut for 'dvm get nvim plugins'
+// Usage: dvm get np
+var getNvimPluginsShortCmd = &cobra.Command{
+	Use:   "np",
+	Short: "List all nvim plugins (shortcut for 'nvim plugins')",
+	Long: `List all nvim plugins stored in the database.
+
+This is a shortcut for 'dvm get nvim plugins'.
+
+Examples:
+  dvm get np
+  dvm get np -o yaml
+  dvm get np -o json`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return getPlugins(cmd)
+	},
+}
+
+// getNvimThemesShortCmd is a top-level shortcut for 'dvm get nvim themes'
+// Usage: dvm get nt
+var getNvimThemesShortCmd = &cobra.Command{
+	Use:   "nt",
+	Short: "List all nvim themes (shortcut for 'nvim themes')",
+	Long: `List all nvim themes stored in the database.
+
+This is a shortcut for 'dvm get nvim themes'.
+
+Examples:
+  dvm get nt
+  dvm get nt -o yaml
+  dvm get nt -o json`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return getThemes(cmd)
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(getCmd)
 	getCmd.AddCommand(getProjectsCmd)
@@ -147,6 +188,10 @@ func init() {
 	getCmd.AddCommand(getWorkspaceCmd)
 	getCmd.AddCommand(getPlatformsCmd)
 	getCmd.AddCommand(getContextCmd)
+
+	// Add top-level shortcuts for nvim resources
+	getCmd.AddCommand(getNvimPluginsShortCmd)
+	getCmd.AddCommand(getNvimThemesShortCmd)
 
 	// Add output format flag to all get commands
 	// Maps to render package: json, yaml, plain, table, colored (default)
@@ -582,6 +627,151 @@ func getPlugin(cmd *cobra.Command, name string) error {
 	return render.OutputWith(getOutputFormat, kvData, render.Options{
 		Type:  render.TypeKeyValue,
 		Title: "Plugin Details",
+	})
+}
+
+func getThemes(cmd *cobra.Command) error {
+	// Use theme.Store for unified storage with nvp CLI
+	store, err := getThemeStore(cmd)
+	if err != nil {
+		return err
+	}
+
+	themes, err := store.List()
+	if err != nil {
+		return fmt.Errorf("failed to list themes: %w", err)
+	}
+
+	if len(themes) == 0 {
+		return render.OutputWith(getOutputFormat, nil, render.Options{
+			Empty:        true,
+			EmptyMessage: "No themes found",
+			EmptyHints:   []string{"dvm apply -f theme.yaml"},
+		})
+	}
+
+	// For JSON/YAML, output the model data directly
+	if getOutputFormat == "json" || getOutputFormat == "yaml" {
+		themesYAML := make([]*theme.ThemeYAML, len(themes))
+		for i, t := range themes {
+			themesYAML[i] = &theme.ThemeYAML{
+				APIVersion: "devopsmaestro.io/v1",
+				Kind:       "NvimTheme",
+				Metadata: theme.ThemeMetadata{
+					Name:        t.Name,
+					Description: t.Description,
+					Author:      t.Author,
+					Category:    t.Category,
+				},
+				Spec: theme.ThemeSpec{
+					Plugin:      t.Plugin,
+					Style:       t.Style,
+					Transparent: t.Transparent,
+					Colors:      t.Colors,
+					Options:     t.Options,
+				},
+			}
+		}
+		return render.OutputWith(getOutputFormat, themesYAML, render.Options{})
+	}
+
+	// For human output, build table data
+	tableData := render.TableData{
+		Headers: []string{"NAME", "CATEGORY", "PLUGIN", "STYLE"},
+		Rows:    make([][]string, len(themes)),
+	}
+
+	for i, t := range themes {
+		category := t.Category
+		if category == "" {
+			category = "-"
+		}
+		style := t.Style
+		if style == "" {
+			style = "default"
+		}
+
+		tableData.Rows[i] = []string{
+			t.Name,
+			category,
+			t.Plugin.Repo,
+			style,
+		}
+	}
+
+	return render.OutputWith(getOutputFormat, tableData, render.Options{
+		Type: render.TypeTable,
+	})
+}
+
+func getTheme(cmd *cobra.Command, name string) error {
+	// Use theme.Store for unified storage with nvp CLI
+	store, err := getThemeStore(cmd)
+	if err != nil {
+		return err
+	}
+
+	t, err := store.Get(name)
+	if err != nil {
+		return fmt.Errorf("failed to get theme '%s': %w", name, err)
+	}
+
+	// For JSON/YAML, output the model data directly
+	if getOutputFormat == "json" || getOutputFormat == "yaml" {
+		themeYAML := &theme.ThemeYAML{
+			APIVersion: "devopsmaestro.io/v1",
+			Kind:       "NvimTheme",
+			Metadata: theme.ThemeMetadata{
+				Name:        t.Name,
+				Description: t.Description,
+				Author:      t.Author,
+				Category:    t.Category,
+			},
+			Spec: theme.ThemeSpec{
+				Plugin:      t.Plugin,
+				Style:       t.Style,
+				Transparent: t.Transparent,
+				Colors:      t.Colors,
+				Options:     t.Options,
+			},
+		}
+		return render.OutputWith(getOutputFormat, themeYAML, render.Options{})
+	}
+
+	// For human output, show detail view
+	category := t.Category
+	if category == "" {
+		category = "-"
+	}
+	style := t.Style
+	if style == "" {
+		style = "default"
+	}
+	transparent := "no"
+	if t.Transparent {
+		transparent = "yes"
+	}
+
+	pairs := []render.KeyValue{
+		{Key: "Name", Value: t.Name},
+		{Key: "Plugin", Value: t.Plugin.Repo},
+		{Key: "Category", Value: category},
+		{Key: "Style", Value: style},
+		{Key: "Transparent", Value: transparent},
+	}
+
+	if t.Description != "" {
+		pairs = append(pairs, render.KeyValue{Key: "Description", Value: t.Description})
+	}
+	if t.Author != "" {
+		pairs = append(pairs, render.KeyValue{Key: "Author", Value: t.Author})
+	}
+
+	kvData := render.NewOrderedKeyValueData(pairs...)
+
+	return render.OutputWith(getOutputFormat, kvData, render.Options{
+		Type:  render.TypeKeyValue,
+		Title: "Theme Details",
 	})
 }
 
