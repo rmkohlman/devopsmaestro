@@ -152,14 +152,17 @@ Examples:
 var createWorkspaceCmd = &cobra.Command{
 	Use:   "workspace <name>",
 	Short: "Create a new workspace",
-	Long: `Create a new workspace in the current project.
+	Long: `Create a new workspace in a project.
 
 A workspace is an isolated development environment within a project.
 You can have multiple workspaces per project (e.g., main, dev, feature-x).
 
 Examples:
-  # Create a workspace named 'dev'
+  # Create a workspace named 'dev' in active project
   dvm create workspace dev
+  
+  # Create a workspace in a specific project
+  dvm create workspace dev -p myproject
   
   # Create with description
   dvm create workspace feature-auth --description "Auth feature branch"
@@ -170,18 +173,25 @@ Examples:
 	Run: func(cmd *cobra.Command, args []string) {
 		workspaceName := args[0]
 
-		// Get active project from context
+		// Get project from flag or context
+		projectFlag, _ := cmd.Flags().GetString("project")
+
 		contextMgr, err := operators.NewContextManager()
 		if err != nil {
 			fmt.Printf("Error: Failed to initialize context manager: %v\n", err)
 			return
 		}
 
-		projectName, err := contextMgr.GetActiveProject()
-		if err != nil {
-			fmt.Println("Error: No active project selected")
-			fmt.Println("Hint: Use 'dvm use project <name>' to select a project first")
-			return
+		var projectName string
+		if projectFlag != "" {
+			projectName = projectFlag
+		} else {
+			projectName, err = contextMgr.GetActiveProject()
+			if err != nil {
+				fmt.Println("Error: No project specified")
+				fmt.Println("Hint: Use -p <project> or 'dvm use project <name>' to select a project first")
+				return
+			}
 		}
 
 		// Get datastore from context
@@ -263,4 +273,5 @@ func init() {
 	// Workspace creation flags
 	createWorkspaceCmd.Flags().StringVar(&workspaceDescription, "description", "", "Workspace description")
 	createWorkspaceCmd.Flags().StringVar(&workspaceImage, "image", "", "Custom image name (default: dvm-<workspace>-<project>:latest)")
+	createWorkspaceCmd.Flags().StringP("project", "p", "", "Project name (defaults to active project)")
 }

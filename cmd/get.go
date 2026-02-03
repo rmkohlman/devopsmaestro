@@ -55,7 +55,12 @@ var getProjectCmd = &cobra.Command{
 // getWorkspacesCmd lists all workspaces in current project
 var getWorkspacesCmd = &cobra.Command{
 	Use:   "workspaces",
-	Short: "List all workspaces in current project",
+	Short: "List all workspaces in a project",
+	Long: `List all workspaces in a project.
+
+Examples:
+  dvm get workspaces              # List workspaces in active project
+  dvm get workspaces -p myproject # List workspaces in specific project`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return getWorkspaces(cmd)
 	},
@@ -65,7 +70,13 @@ var getWorkspacesCmd = &cobra.Command{
 var getWorkspaceCmd = &cobra.Command{
 	Use:   "workspace [name]",
 	Short: "Get a specific workspace",
-	Args:  cobra.ExactArgs(1),
+	Long: `Get a specific workspace by name.
+
+Examples:
+  dvm get workspace main              # Get workspace from active project
+  dvm get workspace main -p myproject # Get workspace from specific project
+  dvm get workspace main -o yaml      # Output as YAML`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return getWorkspace(cmd, args[0])
 	},
@@ -96,6 +107,10 @@ func init() {
 
 	// Add output format flag to all get commands
 	getCmd.PersistentFlags().StringVarP(&getOutputFormat, "output", "o", "table", "Output format (table, yaml, json)")
+
+	// Add project flag for workspace commands
+	getWorkspacesCmd.Flags().StringP("project", "p", "", "Project name (defaults to active project)")
+	getWorkspaceCmd.Flags().StringP("project", "p", "", "Project name (defaults to active project)")
 }
 
 func getDataStore(cmd *cobra.Command) (db.DataStore, error) {
@@ -170,19 +185,30 @@ func getProject(cmd *cobra.Command, name string) error {
 }
 
 func getWorkspaces(cmd *cobra.Command) error {
-	// Get current context
+	// Get project from flag or context
+	projectFlag, _ := cmd.Flags().GetString("project")
+
 	ctxMgr, err := operators.NewContextManager()
 	if err != nil {
 		return fmt.Errorf("failed to create context manager: %w", err)
 	}
 
-	projectName, err := ctxMgr.GetActiveProject()
-	if err != nil {
-		return fmt.Errorf("no active project set. Use 'dvm use project <name>' first")
+	var projectName string
+	if projectFlag != "" {
+		projectName = projectFlag
+	} else {
+		projectName, err = ctxMgr.GetActiveProject()
+		if err != nil {
+			return fmt.Errorf("no project specified. Use -p <project> or 'dvm use project <name>' first")
+		}
 	}
 
-	// Get active workspace
-	activeWorkspace, _ := ctxMgr.GetActiveWorkspace()
+	// Get active workspace (only relevant if viewing active project)
+	var activeWorkspace string
+	activeProject, _ := ctxMgr.GetActiveProject()
+	if activeProject == projectName {
+		activeWorkspace, _ = ctxMgr.GetActiveWorkspace()
+	}
 
 	sqlDS, err := getDataStore(cmd)
 	if err != nil {
@@ -217,19 +243,30 @@ func getWorkspaces(cmd *cobra.Command) error {
 }
 
 func getWorkspace(cmd *cobra.Command, name string) error {
-	// Get current context
+	// Get project from flag or context
+	projectFlag, _ := cmd.Flags().GetString("project")
+
 	ctxMgr, err := operators.NewContextManager()
 	if err != nil {
 		return fmt.Errorf("failed to create context manager: %w", err)
 	}
 
-	projectName, err := ctxMgr.GetActiveProject()
-	if err != nil {
-		return fmt.Errorf("no active project set. Use 'dvm use project <name>' first")
+	var projectName string
+	if projectFlag != "" {
+		projectName = projectFlag
+	} else {
+		projectName, err = ctxMgr.GetActiveProject()
+		if err != nil {
+			return fmt.Errorf("no project specified. Use -p <project> or 'dvm use project <name>' first")
+		}
 	}
 
-	// Get active workspace
-	activeWorkspace, _ := ctxMgr.GetActiveWorkspace()
+	// Get active workspace (only relevant if viewing active project)
+	var activeWorkspace string
+	activeProject, _ := ctxMgr.GetActiveProject()
+	if activeProject == projectName {
+		activeWorkspace, _ = ctxMgr.GetActiveWorkspace()
+	}
 
 	sqlDS, err := getDataStore(cmd)
 	if err != nil {
