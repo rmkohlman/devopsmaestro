@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"devopsmaestro/pkg/nvimops/plugin"
+	"devopsmaestro/render"
 	"fmt"
 	"os"
 	"os/exec"
@@ -113,7 +114,7 @@ Examples:
 			return fmt.Errorf("failed to update plugin: %v", err)
 		}
 
-		fmt.Printf("✓ Plugin '%s' updated successfully\n", editedPlugin.Name)
+		render.Success(fmt.Sprintf("Plugin '%s' updated successfully", editedPlugin.Name))
 		return nil
 	},
 }
@@ -130,14 +131,11 @@ This command will be integrated in a future version.
 For now, use: nvp theme get <name> -o yaml > theme.yaml && $EDITOR theme.yaml`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Println("Theme editing is currently available via the standalone 'nvp' CLI.")
-		fmt.Println("")
-		fmt.Println("Use these commands instead:")
-		fmt.Println("  nvp theme get <name> -o yaml > theme.yaml")
-		fmt.Println("  $EDITOR theme.yaml")
-		fmt.Println("  nvp theme apply -f theme.yaml")
-		fmt.Println("")
-		fmt.Println("Integration with dvm is planned for a future release.")
+		render.Info("Theme editing is currently available via the standalone 'nvp' CLI.")
+		render.Info("")
+		render.Info("Use these commands instead:\n  nvp theme get <name> -o yaml > theme.yaml\n  $EDITOR theme.yaml\n  nvp theme apply -f theme.yaml")
+		render.Info("")
+		render.Info("Integration with dvm is planned for a future release.")
 		return nil
 	},
 }

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"devopsmaestro/pkg/nvimops/plugin"
+	"devopsmaestro/render"
 	"fmt"
 	"os"
 
@@ -108,7 +109,7 @@ func applyNvimPluginFromFile(cmd *cobra.Command, filePath string) error {
 		return fmt.Errorf("failed to apply plugin: %v", err)
 	}
 
-	fmt.Printf("✓ Plugin '%s' %s (from %s)\n", p.Name, action, source)
+	render.Success(fmt.Sprintf("Plugin '%s' %s (from %s)", p.Name, action, source))
 	return nil
 }
 
@@ -123,12 +124,11 @@ This command will be integrated in a future version.
 
 For now, use: nvp theme apply -f <file>`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Println("Theme management is currently available via the standalone 'nvp' CLI.")
-		fmt.Println("")
-		fmt.Println("Use this command instead:")
-		fmt.Println("  nvp theme apply -f <file>")
-		fmt.Println("")
-		fmt.Println("Integration with dvm is planned for a future release.")
+		render.Info("Theme management is currently available via the standalone 'nvp' CLI.")
+		render.Info("")
+		render.Info("Use this command instead:\n  nvp theme apply -f <file>")
+		render.Info("")
+		render.Info("Integration with dvm is planned for a future release.")
 		return nil
 	},
 }

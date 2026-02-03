@@ -5,6 +5,7 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/operators"
+	"devopsmaestro/render"
 
 	"github.com/spf13/cobra"
 )
@@ -76,7 +77,7 @@ Examples:
 			var response string
 			fmt.Scanln(&response)
 			if response != "y" && response != "Y" {
-				fmt.Println("Aborted")
+				render.Info("Aborted")
 				return nil
 			}
 		}
@@ -86,7 +87,7 @@ Examples:
 			return fmt.Errorf("failed to delete plugin: %v", err)
 		}
 
-		fmt.Printf("✓ Plugin definition '%s' removed from DVM database\n", name)
+		render.Success(fmt.Sprintf("Plugin definition '%s' removed from DVM database", name))
 		return nil
 	},
 }
@@ -104,12 +105,11 @@ For now, use: nvp theme delete <name>`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		themeName := args[0]
-		fmt.Println("Theme management is currently available via the standalone 'nvp' CLI.")
-		fmt.Println("")
-		fmt.Printf("Use this command instead:\n")
-		fmt.Printf("  nvp theme delete %s\n", themeName)
-		fmt.Println("")
-		fmt.Println("Integration with dvm is planned for a future release.")
+		render.Info("Theme management is currently available via the standalone 'nvp' CLI.")
+		render.Info("")
+		render.Info(fmt.Sprintf("Use this command instead:\n  nvp theme delete %s", themeName))
+		render.Info("")
+		render.Info("Integration with dvm is planned for a future release.")
 		return nil
 	},
 }
@@ -155,17 +155,17 @@ Examples:
 		force, _ := cmd.Flags().GetBool("force")
 		if !force {
 			if len(workspaces) > 0 {
-				fmt.Printf("Project '%s' has %d workspace(s) that will also be deleted:\n", projectName, len(workspaces))
+				render.Warning(fmt.Sprintf("Project '%s' has %d workspace(s) that will also be deleted:", projectName, len(workspaces)))
 				for _, ws := range workspaces {
-					fmt.Printf("  - %s\n", ws.Name)
+					render.Info(fmt.Sprintf("  - %s", ws.Name))
 				}
-				fmt.Println()
+				render.Info("")
 			}
 			fmt.Printf("Delete project '%s' and all its workspaces? (y/N): ", projectName)
 			var response string
 			fmt.Scanln(&response)
 			if response != "y" && response != "Y" {
-				fmt.Println("Aborted")
+				render.Info("Aborted")
 				return nil
 			}
 		}
@@ -189,15 +189,15 @@ Examples:
 			if activeProject == projectName {
 				ctxMgr.ClearProject()
 				ctxMgr.ClearWorkspace()
-				fmt.Println("✓ Cleared active project context")
+				render.Info("Cleared active project context")
 			}
 		}
 
-		fmt.Printf("✓ Project '%s' deleted", projectName)
+		msg := fmt.Sprintf("Project '%s' deleted", projectName)
 		if len(workspaces) > 0 {
-			fmt.Printf(" (including %d workspace(s))", len(workspaces))
+			msg += fmt.Sprintf(" (including %d workspace(s))", len(workspaces))
 		}
-		fmt.Println()
+		render.Success(msg)
 		return nil
 	},
 }
@@ -268,7 +268,7 @@ Examples:
 			var response string
 			fmt.Scanln(&response)
 			if response != "y" && response != "Y" {
-				fmt.Println("Aborted")
+				render.Info("Aborted")
 				return nil
 			}
 		}
@@ -283,10 +283,10 @@ Examples:
 		activeWorkspace, _ := ctxMgr.GetActiveWorkspace()
 		if activeProject == projectName && activeWorkspace == workspaceName {
 			ctxMgr.ClearWorkspace()
-			fmt.Println("✓ Cleared active workspace context")
+			render.Info("Cleared active workspace context")
 		}
 
-		fmt.Printf("✓ Workspace '%s' deleted from project '%s'\n", workspaceName, projectName)
+		render.Success(fmt.Sprintf("Workspace '%s' deleted from project '%s'", workspaceName, projectName))
 		return nil
 	},
 }
