@@ -7,6 +7,7 @@ import (
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/operators"
+	"devopsmaestro/output"
 	"devopsmaestro/pkg/nvimops/plugin"
 	"devopsmaestro/ui"
 	"github.com/spf13/cobra"
@@ -97,6 +98,32 @@ Examples:
 	},
 }
 
+// getContextCmd displays the current active context
+var getContextCmd = &cobra.Command{
+	Use:   "context",
+	Short: "Show current active context",
+	Long: `Display the currently active project and workspace context.
+
+The context determines the default project and workspace used by commands
+when -p (project) or -w (workspace) flags are not specified.
+
+Context can be set with:
+  dvm use project <name>      # Set active project
+  dvm use workspace <name>    # Set active workspace
+
+Context can also be overridden with environment variables:
+  DVM_PROJECT=myproject dvm get workspaces
+  DVM_WORKSPACE=dev dvm attach
+
+Examples:
+  dvm get context
+  dvm get context -o yaml
+  dvm get context -o json`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return getContext(cmd)
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(getCmd)
 	getCmd.AddCommand(getProjectsCmd)
@@ -104,9 +131,11 @@ func init() {
 	getCmd.AddCommand(getWorkspacesCmd)
 	getCmd.AddCommand(getWorkspaceCmd)
 	getCmd.AddCommand(getPlatformsCmd)
+	getCmd.AddCommand(getContextCmd)
 
 	// Add output format flag to all get commands
-	getCmd.PersistentFlags().StringVarP(&getOutputFormat, "output", "o", "table", "Output format (table, yaml, json)")
+	// Default to empty string which maps to "colored" formatter for rich terminal output
+	getCmd.PersistentFlags().StringVarP(&getOutputFormat, "output", "o", "", "Output format (table, yaml, json, plain)")
 
 	// Add project flag for workspace commands
 	getWorkspacesCmd.Flags().StringP("project", "p", "", "Project name (defaults to active project)")
@@ -727,6 +756,69 @@ func outputNvimPluginJSON(p *plugin.Plugin) error {
 }
 
 // Platform output functions
+
+func getContext(cmd *cobra.Command) error {
+	ctxMgr, err := operators.NewContextManager()
+	if err != nil {
+		return fmt.Errorf("failed to create context manager: %w", err)
+	}
+
+	ctx, err := ctxMgr.LoadContext()
+	if err != nil {
+		return fmt.Errorf("failed to load context: %w", err)
+	}
+
+	// Use the decoupled formatter based on output format
+	formatter := output.ForOutput(getOutputFormat)
+
+	// Prepare context data for structured output
+	contextData := ContextOutput{
+		CurrentProject:   ctx.CurrentProject,
+		CurrentWorkspace: ctx.CurrentWorkspace,
+	}
+
+	return outputContext(formatter, contextData)
+}
+
+// ContextOutput represents context for output formatting
+type ContextOutput struct {
+	CurrentProject   string `yaml:"currentProject" json:"currentProject"`
+	CurrentWorkspace string `yaml:"currentWorkspace" json:"currentWorkspace"`
+}
+
+func outputContext(f output.Formatter, ctx ContextOutput) error {
+	switch f.GetStyle() {
+	case output.StyleJSON, output.StyleYAML:
+		// Structured output - use the formatter's Object method
+		return f.Object(ctx)
+	default:
+		// Table/colored output - use KeyValue for nice display
+		if ctx.CurrentProject == "" {
+			f.Info("No active context")
+			f.NewLine()
+			f.Println("Set context with:")
+			f.List([]string{
+				"dvm use project <name>",
+				"dvm use workspace <name>",
+			})
+			return nil
+		}
+
+		f.Section("Current Context")
+
+		workspace := ctx.CurrentWorkspace
+		if workspace == "" {
+			workspace = "(none)"
+		}
+
+		f.KeyValue(map[string]string{
+			"Project":   ctx.CurrentProject,
+			"Workspace": workspace,
+		})
+
+		return nil
+	}
+}
 
 func getPlatforms(cmd *cobra.Command) error {
 	detector, err := operators.NewPlatformDetector()
