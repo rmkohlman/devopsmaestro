@@ -1,6 +1,6 @@
 module devopsmaestro
 
-go 1.23
+go 1.25.0
 
 require (
 	github.com/charmbracelet/lipgloss v1.1.0
@@ -8,7 +8,7 @@ require (
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.24
-	github.com/moby/buildkit v0.27.0
+	github.com/moby/buildkit v0.26.3
 	github.com/moby/go-archive v0.2.0
 	github.com/moby/term v0.5.2
 	github.com/opencontainers/runtime-spec v1.3.0
