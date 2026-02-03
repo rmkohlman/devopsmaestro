@@ -118,8 +118,8 @@ func (m *MockManager) Push(workspace string) error {
 
 // Status returns the current status
 func (m *MockManager) Status() (*Status, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	m.Calls = append(m.Calls, MockManagerCall{
 		Method: "Status",
@@ -137,8 +137,8 @@ func (m *MockManager) Status() (*Status, error) {
 
 // ListWorkspaces returns the list of available workspaces
 func (m *MockManager) ListWorkspaces() ([]Workspace, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	m.Calls = append(m.Calls, MockManagerCall{
 		Method: "ListWorkspaces",

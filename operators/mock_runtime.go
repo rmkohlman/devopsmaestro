@@ -155,8 +155,8 @@ func (m *MockContainerRuntime) StopWorkspace(ctx context.Context, workspaceID st
 
 // GetWorkspaceStatus returns the status of a workspace
 func (m *MockContainerRuntime) GetWorkspaceStatus(ctx context.Context, workspaceID string) (string, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	m.Calls = append(m.Calls, MockRuntimeCall{
 		Method: "GetWorkspaceStatus",
