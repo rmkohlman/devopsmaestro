@@ -4,7 +4,7 @@ import (
 	"context"
 	"devopsmaestro/db"
 	"devopsmaestro/operators"
-	"devopsmaestro/output"
+	"devopsmaestro/render"
 	"fmt"
 	"log/slog"
 	"os"
@@ -43,16 +43,14 @@ func init() {
 }
 
 func runDetach(cmd *cobra.Command) error {
-	formatter := output.ForOutput("")
-
 	if detachAll {
-		return detachAllWorkspaces(formatter)
+		return detachAllWorkspaces()
 	}
 
-	return detachActiveWorkspace(cmd, formatter)
+	return detachActiveWorkspace(cmd)
 }
 
-func detachActiveWorkspace(cmd *cobra.Command, f output.Formatter) error {
+func detachActiveWorkspace(cmd *cobra.Command) error {
 	// Get context manager
 	contextMgr, err := operators.NewContextManager()
 	if err != nil {
@@ -62,15 +60,15 @@ func detachActiveWorkspace(cmd *cobra.Command, f output.Formatter) error {
 	// Get active project and workspace
 	projectName, err := contextMgr.GetActiveProject()
 	if err != nil {
-		f.Warning("No active project set")
-		f.Println("Set active project with: dvm use project <name>")
+		render.Warning("No active project set")
+		render.Info("Set active project with: dvm use project <name>")
 		return nil
 	}
 
 	workspaceName, err := contextMgr.GetActiveWorkspace()
 	if err != nil {
-		f.Warning("No active workspace set")
-		f.Println("Set active workspace with: dvm use workspace <name>")
+		render.Warning("No active workspace set")
+		render.Info("Set active workspace with: dvm use workspace <name>")
 		return nil
 	}
 
@@ -98,11 +96,11 @@ func detachActiveWorkspace(cmd *cobra.Command, f output.Formatter) error {
 
 	// Stop the container
 	containerName := fmt.Sprintf("dvm-%s-%s", projectName, workspaceName)
-	return stopContainer(containerName, f)
+	return stopContainer(containerName)
 }
 
-func detachAllWorkspaces(f output.Formatter) error {
-	f.Progress("Finding all DVM workspace containers...")
+func detachAllWorkspaces() error {
+	render.Progress("Finding all DVM workspace containers...")
 
 	// Get Colima profile
 	profile := os.Getenv("COLIMA_ACTIVE_PROFILE")
@@ -116,17 +114,17 @@ func detachAllWorkspaces(f output.Formatter) error {
 	listOutput, err := listCmd.Output()
 	if err != nil {
 		slog.Debug("no containers found or error listing", "error", err)
-		f.Info("No running DVM workspace containers found")
+		render.Info("No running DVM workspace containers found")
 		return nil
 	}
 
 	containers := splitLines(string(listOutput))
 	if len(containers) == 0 {
-		f.Info("No running DVM workspace containers found")
+		render.Info("No running DVM workspace containers found")
 		return nil
 	}
 
-	f.Info(fmt.Sprintf("Found %d running workspace(s)", len(containers)))
+	render.Info(fmt.Sprintf("Found %d running workspace(s)", len(containers)))
 
 	// Get container names for display
 	namesCmd := exec.Command("colima", "--profile", profile, "ssh", "--",
@@ -142,12 +140,12 @@ func detachAllWorkspaces(f output.Formatter) error {
 			name = names[i]
 		}
 
-		f.Progress(fmt.Sprintf("Stopping %s...", name))
+		render.Progress(fmt.Sprintf("Stopping %s...", name))
 
 		stopCmd := exec.Command("colima", "--profile", profile, "ssh", "--",
 			"sudo", "nerdctl", "--namespace", "devopsmaestro", "stop", containerID)
 		if err := stopCmd.Run(); err != nil {
-			f.Warning(fmt.Sprintf("Failed to stop %s: %v", name, err))
+			render.Warning(fmt.Sprintf("Failed to stop %s: %v", name, err))
 			continue
 		}
 
@@ -155,13 +153,13 @@ func detachAllWorkspaces(f output.Formatter) error {
 		slog.Info("container stopped", "name", name, "id", containerID)
 	}
 
-	f.NewLine()
-	f.Success(fmt.Sprintf("Stopped %d workspace container(s)", stopped))
+	fmt.Println()
+	render.Success(fmt.Sprintf("Stopped %d workspace container(s)", stopped))
 	return nil
 }
 
-func stopContainer(containerName string, f output.Formatter) error {
-	f.Progress(fmt.Sprintf("Stopping workspace '%s'...", containerName))
+func stopContainer(containerName string) error {
+	render.Progress(fmt.Sprintf("Stopping workspace '%s'...", containerName))
 
 	// Get Colima profile
 	profile := os.Getenv("COLIMA_ACTIVE_PROFILE")
@@ -175,7 +173,7 @@ func stopContainer(containerName string, f output.Formatter) error {
 	checkOutput, _ := checkCmd.Output()
 
 	if len(checkOutput) == 0 {
-		f.Info(fmt.Sprintf("Workspace '%s' is not running", containerName))
+		render.Info(fmt.Sprintf("Workspace '%s' is not running", containerName))
 		return nil
 	}
 
@@ -189,9 +187,9 @@ func stopContainer(containerName string, f output.Formatter) error {
 	}
 
 	slog.Info("workspace stopped", "name", containerName)
-	f.Success(fmt.Sprintf("Workspace '%s' stopped", containerName))
-	f.NewLine()
-	f.Println("Re-attach with: dvm attach")
+	render.Success(fmt.Sprintf("Workspace '%s' stopped", containerName))
+	fmt.Println()
+	render.Info("Re-attach with: dvm attach")
 
 	return nil
 }

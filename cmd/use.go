@@ -3,6 +3,7 @@ package cmd
 import (
 	"devopsmaestro/db"
 	"devopsmaestro/operators"
+	"devopsmaestro/render"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -35,7 +36,7 @@ Examples:
 				return fmt.Errorf("failed to clear context: %v", err)
 			}
 
-			fmt.Println("✓ Cleared all context (project and workspace)")
+			render.Success("Cleared all context (project and workspace)")
 			return nil
 		}
 
@@ -80,7 +81,7 @@ Examples:
 				ds.SetActiveWorkspace(nil)
 			}
 
-			fmt.Println("✓ Cleared project context (workspace also cleared)")
+			render.Success("Cleared project context (workspace also cleared)")
 			return nil
 		}
 
@@ -96,8 +97,8 @@ Examples:
 		// Verify project exists
 		project, err := ds.GetProjectByName(projectName)
 		if err != nil {
-			fmt.Printf("Error: Project '%s' not found: %v\n", projectName, err)
-			fmt.Println("\nHint: List available projects with: dvm get projects")
+			render.Error(fmt.Sprintf("Project '%s' not found: %v", projectName, err))
+			render.Info("Hint: List available projects with: dvm get projects")
 			return nil
 		}
 
@@ -113,13 +114,13 @@ Examples:
 
 		// Also update database context
 		if err := ds.SetActiveProject(&project.ID); err != nil {
-			fmt.Printf("Warning: Failed to update database context: %v\n", err)
+			render.Warning(fmt.Sprintf("Failed to update database context: %v", err))
 		}
 
-		fmt.Printf("✓ Switched to project '%s'\n", projectName)
-		fmt.Printf("  Path: %s\n", project.Path)
-
-		fmt.Println("\nNext: Select a workspace with: dvm use workspace <name>")
+		render.Success(fmt.Sprintf("Switched to project '%s'", projectName))
+		render.Info(fmt.Sprintf("Path: %s", project.Path))
+		fmt.Println()
+		render.Info("Next: Select a workspace with: dvm use workspace <name>")
 		return nil
 	},
 }
@@ -160,7 +161,7 @@ Examples:
 				ds.SetActiveWorkspace(nil)
 			}
 
-			fmt.Println("✓ Cleared workspace context")
+			render.Success("Cleared workspace context")
 			return nil
 		}
 
@@ -173,8 +174,8 @@ Examples:
 		// Get active project
 		projectName, err := contextMgr.GetActiveProject()
 		if err != nil {
-			fmt.Println("Error: No active project set")
-			fmt.Println("\nHint: Set active project first with: dvm use project <name>")
+			render.Error("No active project set")
+			render.Info("Hint: Set active project first with: dvm use project <name>")
 			return nil
 		}
 
@@ -196,8 +197,8 @@ Examples:
 		// Verify workspace exists
 		workspace, err := ds.GetWorkspaceByName(project.ID, workspaceName)
 		if err != nil {
-			fmt.Printf("Error: Workspace '%s' not found in project '%s': %v\n", workspaceName, projectName, err)
-			fmt.Println("\nHint: List available workspaces with: dvm get workspaces")
+			render.Error(fmt.Sprintf("Workspace '%s' not found in project '%s': %v", workspaceName, projectName, err))
+			render.Info("Hint: List available workspaces with: dvm get workspaces")
 			return nil
 		}
 
@@ -208,12 +209,12 @@ Examples:
 
 		// Also update database context
 		if err := ds.SetActiveWorkspace(&workspace.ID); err != nil {
-			fmt.Printf("Warning: Failed to update database context: %v\n", err)
+			render.Warning(fmt.Sprintf("Failed to update database context: %v", err))
 		}
 
-		fmt.Printf("✓ Switched to workspace '%s' in project '%s'\n", workspaceName, projectName)
-
-		fmt.Println("\nNext: Attach to your workspace with: dvm attach")
+		render.Success(fmt.Sprintf("Switched to workspace '%s' in project '%s'", workspaceName, projectName))
+		fmt.Println()
+		render.Info("Next: Attach to your workspace with: dvm attach")
 		return nil
 	},
 }

@@ -5,6 +5,7 @@ import (
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/operators"
+	"devopsmaestro/render"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -52,33 +53,33 @@ Examples:
 		if fromCwd {
 			path, err = os.Getwd()
 			if err != nil {
-				fmt.Printf("Error: Failed to get current directory: %v\n", err)
+				render.Error(fmt.Sprintf("Failed to get current directory: %v", err))
 				return
 			}
 		} else if projectPath != "" {
 			path, err = filepath.Abs(projectPath)
 			if err != nil {
-				fmt.Printf("Error: Invalid path: %v\n", err)
+				render.Error(fmt.Sprintf("Invalid path: %v", err))
 				return
 			}
 		} else {
-			fmt.Println("Error: Must specify either --from-cwd or --path")
+			render.Error("Must specify either --from-cwd or --path")
 			return
 		}
 
 		// Verify path exists
 		if _, err := os.Stat(path); os.IsNotExist(err) {
-			fmt.Printf("Error: Path does not exist: %s\n", path)
+			render.Error(fmt.Sprintf("Path does not exist: %s", path))
 			return
 		}
 
-		fmt.Printf("Creating project '%s' at %s...\n", projectName, path)
+		render.Progress(fmt.Sprintf("Creating project '%s' at %s...", projectName, path))
 
 		// Get datastore from context
 		ctx := cmd.Context()
 		dataStore := ctx.Value("dataStore").(*db.DataStore)
 		if dataStore == nil {
-			fmt.Println("Error: DataStore not initialized")
+			render.Error("DataStore not initialized")
 			return
 		}
 
@@ -95,21 +96,21 @@ Examples:
 		ds := *dataStore
 
 		if err := ds.CreateProject(project); err != nil {
-			fmt.Printf("Error: Failed to create project: %v\n", err)
+			render.Error(fmt.Sprintf("Failed to create project: %v", err))
 			return
 		}
 
 		// Get the created project to get its ID
 		createdProject, err := ds.GetProjectByName(projectName)
 		if err != nil {
-			fmt.Printf("Error: Failed to retrieve created project: %v\n", err)
+			render.Error(fmt.Sprintf("Failed to retrieve created project: %v", err))
 			return
 		}
 
-		fmt.Printf("✓ Project '%s' created successfully (ID: %d)\n", projectName, createdProject.ID)
+		render.Success(fmt.Sprintf("Project '%s' created successfully (ID: %d)", projectName, createdProject.ID))
 
 		// Auto-create "main" workspace
-		fmt.Println("Creating default 'main' workspace...")
+		render.Progress("Creating default 'main' workspace...")
 		workspace := &models.Workspace{
 			ProjectID: createdProject.ID,
 			Name:      "main",
@@ -122,29 +123,30 @@ Examples:
 		}
 
 		if err := ds.CreateWorkspace(workspace); err != nil {
-			fmt.Printf("Warning: Failed to create main workspace: %v\n", err)
-			fmt.Println("You can create it manually later with: dvm create workspace main")
+			render.Warning(fmt.Sprintf("Failed to create main workspace: %v", err))
+			render.Info("You can create it manually later with: dvm create workspace main")
 		} else {
-			fmt.Println("✓ Default 'main' workspace created")
+			render.Success("Default 'main' workspace created")
 		}
 
 		// Set project as active context
 		contextMgr, err := operators.NewContextManager()
 		if err != nil {
-			fmt.Printf("Warning: Failed to initialize context manager: %v\n", err)
+			render.Warning(fmt.Sprintf("Failed to initialize context manager: %v", err))
 		} else {
 			if err := contextMgr.SetProject(projectName); err != nil {
-				fmt.Printf("Warning: Failed to set active project: %v\n", err)
+				render.Warning(fmt.Sprintf("Failed to set active project: %v", err))
 			} else {
-				fmt.Printf("✓ Set '%s' as active project\n", projectName)
+				render.Success(fmt.Sprintf("Set '%s' as active project", projectName))
 			}
 		}
 
-		fmt.Println("\nNext steps:")
-		fmt.Println("  1. Use the main workspace:")
-		fmt.Println("     dvm use workspace main")
-		fmt.Println("  2. Start coding in your containerized environment:")
-		fmt.Println("     dvm attach")
+		fmt.Println()
+		render.Info("Next steps:")
+		render.Info("  1. Use the main workspace:")
+		render.Info("     dvm use workspace main")
+		render.Info("  2. Start coding in your containerized environment:")
+		render.Info("     dvm attach")
 	},
 }
 
@@ -178,7 +180,7 @@ Examples:
 
 		contextMgr, err := operators.NewContextManager()
 		if err != nil {
-			fmt.Printf("Error: Failed to initialize context manager: %v\n", err)
+			render.Error(fmt.Sprintf("Failed to initialize context manager: %v", err))
 			return
 		}
 
@@ -188,8 +190,8 @@ Examples:
 		} else {
 			projectName, err = contextMgr.GetActiveProject()
 			if err != nil {
-				fmt.Println("Error: No project specified")
-				fmt.Println("Hint: Use -p <project> or 'dvm use project <name>' to select a project first")
+				render.Error("No project specified")
+				render.Info("Hint: Use -p <project> or 'dvm use project <name>' to select a project first")
 				return
 			}
 		}
@@ -198,7 +200,7 @@ Examples:
 		ctx := cmd.Context()
 		dataStore := ctx.Value("dataStore").(*db.DataStore)
 		if dataStore == nil {
-			fmt.Println("Error: DataStore not initialized")
+			render.Error("DataStore not initialized")
 			return
 		}
 
@@ -207,7 +209,7 @@ Examples:
 		// Get project to get its ID
 		project, err := ds.GetProjectByName(projectName)
 		if err != nil {
-			fmt.Printf("Error: Project '%s' not found: %v\n", projectName, err)
+			render.Error(fmt.Sprintf("Project '%s' not found: %v", projectName, err))
 			return
 		}
 
@@ -216,7 +218,7 @@ Examples:
 		if err == nil {
 			for _, ws := range existingWorkspaces {
 				if ws.Name == workspaceName {
-					fmt.Printf("Error: Workspace '%s' already exists in project '%s'\n", workspaceName, projectName)
+					render.Error(fmt.Sprintf("Workspace '%s' already exists in project '%s'", workspaceName, projectName))
 					return
 				}
 			}
@@ -228,7 +230,7 @@ Examples:
 			imageName = fmt.Sprintf("dvm-%s-%s:latest", workspaceName, projectName)
 		}
 
-		fmt.Printf("Creating workspace '%s' in project '%s'...\n", workspaceName, projectName)
+		render.Progress(fmt.Sprintf("Creating workspace '%s' in project '%s'...", workspaceName, projectName))
 
 		// Create workspace
 		workspace := &models.Workspace{
@@ -243,19 +245,20 @@ Examples:
 		}
 
 		if err := ds.CreateWorkspace(workspace); err != nil {
-			fmt.Printf("Error: Failed to create workspace: %v\n", err)
+			render.Error(fmt.Sprintf("Failed to create workspace: %v", err))
 			return
 		}
 
-		fmt.Printf("✓ Workspace '%s' created successfully\n", workspaceName)
-		fmt.Printf("  Project: %s\n", projectName)
-		fmt.Printf("  Image:   %s\n", imageName)
+		render.Success(fmt.Sprintf("Workspace '%s' created successfully", workspaceName))
+		render.Info(fmt.Sprintf("Project: %s", projectName))
+		render.Info(fmt.Sprintf("Image:   %s", imageName))
 
-		fmt.Println("\nNext steps:")
-		fmt.Println("  1. Switch to this workspace:")
-		fmt.Printf("     dvm use workspace %s\n", workspaceName)
-		fmt.Println("  2. Build and attach:")
-		fmt.Println("     dvm build && dvm attach")
+		fmt.Println()
+		render.Info("Next steps:")
+		render.Info("  1. Switch to this workspace:")
+		render.Info(fmt.Sprintf("     dvm use workspace %s", workspaceName))
+		render.Info("  2. Build and attach:")
+		render.Info("     dvm build && dvm attach")
 	},
 }
 

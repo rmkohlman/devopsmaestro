@@ -59,8 +59,9 @@ If you have access to the toolkit folder, read those files first.
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                      Output Layer (output/)                      │
-│  Formatter interface → table, yaml, json output                 │
+│                      Render Layer (render/)                      │
+│  Decoupled output: JSON, YAML, Colored, Plain, Table renderers  │
+│  Commands prepare data → Renderers decide how to display        │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -90,6 +91,12 @@ devopsmaestro/
 │       ├── main.go        # nvp entry point
 │       └── root.go        # All nvp commands
 │
+├── render/                # Decoupled rendering system
+│   ├── interface.go       # Renderer interface, data types
+│   ├── registry.go        # Register(), Output(), Msg() helpers
+│   ├── renderer_*.go      # JSON, YAML, Colored, Plain, Table
+│   └── types.go           # RenderType, Options, Config
+│
 ├── pkg/nvimops/           # NvimOps library
 │   ├── plugin/            # Plugin types, parser, generator
 │   ├── theme/             # Theme types, parser, generator
@@ -99,7 +106,7 @@ devopsmaestro/
 ├── db/                    # Database layer (dvm only)
 ├── operators/             # Container runtime layer
 ├── builders/              # Image builder layer
-├── output/                # Output formatting
+├── output/                # Legacy output formatting (deprecated)
 ├── models/                # Data models
 └── migrations/            # Database migrations
 ```
@@ -167,6 +174,21 @@ gh run watch <RUN_ID>          # Watch live
 ---
 
 ## Key Interfaces
+
+### Renderer (`render/interface.go`)
+```go
+type Renderer interface {
+    Render(w io.Writer, data any, opts Options) error
+    RenderMessage(w io.Writer, msg Message) error
+    Name() RendererName
+    SupportsColor() bool
+}
+
+// Usage: Commands prepare data, renderers decide how to display
+render.OutputWith("json", data, render.Options{Type: render.TypeTable})
+render.Success("Operation completed")
+render.Warning("Check your config")
+```
 
 ### DataStore (`db/interfaces.go`)
 ```go

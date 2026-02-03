@@ -4,6 +4,7 @@ import (
 	"context"
 	"devopsmaestro/builders"
 	"devopsmaestro/operators"
+	"devopsmaestro/render"
 	"devopsmaestro/utils"
 	"fmt"
 	"log/slog"
@@ -103,8 +104,9 @@ func buildWorkspace(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to get workspace: %w", err)
 	}
 
-	fmt.Printf("Building workspace: %s/%s\n", projectName, workspaceName)
-	fmt.Printf("Project path: %s\n\n", project.Path)
+	render.Info(fmt.Sprintf("Building workspace: %s/%s", projectName, workspaceName))
+	render.Info(fmt.Sprintf("Project path: %s", project.Path))
+	fmt.Println()
 	slog.Debug("project details", "path", project.Path, "id", project.ID)
 
 	// Verify project path exists
@@ -114,16 +116,17 @@ func buildWorkspace(cmd *cobra.Command) error {
 	}
 
 	// Step 1: Detect platform
-	fmt.Println("→ Detecting container platform...")
+	render.Progress("Detecting container platform...")
 	platform, err := detectPlatform()
 	if err != nil {
 		return err
 	}
-	fmt.Printf("  Platform: %s\n", platform.Name)
+	render.Info(fmt.Sprintf("Platform: %s", platform.Name))
 	slog.Info("detected platform", "name", platform.Name, "type", platform.Type, "socket", platform.SocketPath)
 
 	// Step 2: Detect language
-	fmt.Println("\n→ Detecting project language...")
+	fmt.Println()
+	render.Progress("Detecting project language...")
 	lang, err := utils.DetectLanguage(project.Path)
 	if err != nil {
 		slog.Error("failed to detect language", "error", err)
@@ -134,26 +137,27 @@ func buildWorkspace(cmd *cobra.Command) error {
 	if lang != nil {
 		languageName = lang.Name
 		version = utils.DetectVersion(languageName, project.Path)
-		fmt.Printf("  Language: %s", languageName)
 		if version != "" {
-			fmt.Printf(" (version: %s)", version)
+			render.Info(fmt.Sprintf("Language: %s (version: %s)", languageName, version))
+		} else {
+			render.Info(fmt.Sprintf("Language: %s", languageName))
 		}
-		fmt.Println()
 		slog.Debug("detected language", "language", languageName, "version", version)
 	} else {
 		languageName = "unknown"
-		fmt.Println("  Language: Unknown (will use generic base)")
+		render.Info("Language: Unknown (will use generic base)")
 		slog.Debug("language detection failed, using generic base")
 	}
 
 	// Step 3: Check for existing Dockerfile
-	fmt.Println("\n→ Checking for Dockerfile...")
+	fmt.Println()
+	render.Progress("Checking for Dockerfile...")
 	hasDockerfile, dockerfilePath := utils.HasDockerfile(project.Path)
 	if hasDockerfile {
-		fmt.Printf("  Found: %s\n", dockerfilePath)
+		render.Info(fmt.Sprintf("Found: %s", dockerfilePath))
 		slog.Debug("found existing Dockerfile", "path", dockerfilePath)
 	} else {
-		fmt.Println("  No Dockerfile found, will generate from scratch")
+		render.Info("No Dockerfile found, will generate from scratch")
 		slog.Debug("no Dockerfile found, will generate")
 	}
 
@@ -172,7 +176,8 @@ func buildWorkspace(cmd *cobra.Command) error {
 	}
 
 	// Step 5: Generate Dockerfile
-	fmt.Println("\n→ Generating Dockerfile.dvm...")
+	fmt.Println()
+	render.Progress("Generating Dockerfile.dvm...")
 	slog.Debug("generating Dockerfile", "language", languageName, "version", version)
 	generator := builders.NewDockerfileGenerator(
 		workspace,
@@ -212,7 +217,8 @@ func buildWorkspace(cmd *cobra.Command) error {
 
 	// Step 6: Build image
 	imageName := fmt.Sprintf("dvm-%s-%s:latest", workspaceName, projectName)
-	fmt.Printf("\n→ Building image: %s\n", imageName)
+	fmt.Println()
+	render.Progress(fmt.Sprintf("Building image: %s", imageName))
 	slog.Info("building image", "image", imageName, "dockerfile", dvmDockerfile)
 
 	// Create image builder using the factory (decoupled from platform specifics)
@@ -234,8 +240,8 @@ func buildWorkspace(cmd *cobra.Command) error {
 		exists, err := builder.ImageExists(ctx)
 		if err == nil && exists {
 			slog.Debug("image already exists, skipping build", "image", imageName)
-			fmt.Printf("Image already exists: %s\n", imageName)
-			fmt.Println("Use --force to rebuild")
+			render.Info(fmt.Sprintf("Image already exists: %s", imageName))
+			render.Info("Use --force to rebuild")
 			return nil
 		}
 	}
@@ -275,13 +281,15 @@ func buildWorkspace(cmd *cobra.Command) error {
 	// Step 7: Update workspace image name in database
 	workspace.ImageName = imageName
 	if err := sqlDS.UpdateWorkspace(workspace); err != nil {
-		fmt.Printf("Warning: Failed to update workspace image name: %v\n", err)
+		render.Warning(fmt.Sprintf("Failed to update workspace image name: %v", err))
 	}
 
-	fmt.Printf("\n✓ Build complete!\n")
-	fmt.Printf("  Image: %s\n", imageName)
-	fmt.Printf("  Dockerfile: %s\n", dvmDockerfile)
-	fmt.Println("\nNext: Attach to your workspace with: dvm attach")
+	fmt.Println()
+	render.Success("Build complete!")
+	render.Info(fmt.Sprintf("Image: %s", imageName))
+	render.Info(fmt.Sprintf("Dockerfile: %s", dvmDockerfile))
+	fmt.Println()
+	render.Info("Next: Attach to your workspace with: dvm attach")
 
 	return nil
 }
@@ -326,7 +334,7 @@ func copyNvimConfig(workspaceYAML interface { /* models.WorkspaceYAML */
 
 	// Fallback: use reflection or just skip if types don't match
 	// For now, we'll extract this logic to avoid complex type assertions
-	fmt.Println("→ Copying Neovim configuration to build context...")
+	render.Progress("Copying Neovim configuration to build context...")
 
 	nvimConfigPath := filepath.Join(projectPath, ".config", "nvim")
 	if err := os.MkdirAll(nvimConfigPath, 0755); err != nil {
@@ -367,7 +375,7 @@ func copyNvimConfig(workspaceYAML interface { /* models.WorkspaceYAML */
 		return fmt.Errorf("failed to copy nvim templates: %w", err)
 	}
 
-	fmt.Println("✓ Neovim configuration copied")
+	render.Success("Neovim configuration copied")
 
 	// Note: Plugin generation would need the actual workspace spec and sqlDS
 	// This is a simplified version - the full implementation would use the passed types
@@ -380,7 +388,8 @@ func copyNvimConfig(workspaceYAML interface { /* models.WorkspaceYAML */
 // copyImageToNamespace copies the built image from buildkit namespace to devopsmaestro namespace
 // This is needed because BuildKit creates images in its own namespace
 func copyImageToNamespace(platform *operators.Platform, imageName string) error {
-	fmt.Printf("\n→ Copying image to devopsmaestro namespace...\n")
+	fmt.Println()
+	render.Progress("Copying image to devopsmaestro namespace...")
 
 	profile := platform.Profile
 	if profile == "" {
@@ -411,7 +420,7 @@ func copyImageToNamespace(platform *operators.Platform, imageName string) error 
 	cleanCmd := exec.Command("colima", "--profile", profile, "ssh", "--", "sudo", "rm", "-f", tmpFile)
 	cleanCmd.Run() // Ignore errors on cleanup
 
-	fmt.Printf("✓ Image copied to devopsmaestro namespace\n")
+	render.Success("Image copied to devopsmaestro namespace")
 	return nil
 }
 
