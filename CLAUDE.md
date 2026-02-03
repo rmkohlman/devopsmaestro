@@ -106,7 +106,6 @@ devopsmaestro/
 ├── db/                    # Database layer (dvm only)
 ├── operators/             # Container runtime layer
 ├── builders/              # Image builder layer
-├── output/                # Legacy output formatting (deprecated)
 ├── models/                # Data models
 └── migrations/            # Database migrations
 ```
