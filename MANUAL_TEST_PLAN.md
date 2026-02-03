@@ -1,7 +1,7 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.5.1  
-> **Last Updated**: January 2025
+> **Version**: v0.6.0  
+> **Last Updated**: February 2025
 
 ---
 
@@ -206,6 +206,79 @@ source tests/manual/part2-post-attach.sh
 
 ---
 
+## Part 3: Namespaced Nvim Commands (v0.6.0+)
+
+### New kubectl-style Nvim Commands
+
+These commands replace the old `dvm plugin` and `dvm get plugins` commands:
+
+| New Command | Replaces | Description |
+|-------------|----------|-------------|
+| `dvm get nvim plugins` | `dvm get plugins` | List all nvim plugins |
+| `dvm get nvim plugin <name>` | `dvm get plugin <name>` | Get specific plugin |
+| `dvm apply nvim plugin -f <file>` | `dvm plugin apply -f <file>` | Apply plugin from YAML |
+| `dvm delete nvim plugin <name>` | `dvm plugin delete <name>` | Delete a plugin |
+
+### Test: New Commands Work
+
+```bash
+# Test listing plugins (new command)
+dvm get nvim plugins
+dvm get nvim plugins -o yaml
+dvm get nvim plugins -o json
+
+# Test get specific plugin (requires a plugin to exist)
+# First apply one:
+cat <<EOF | dvm apply nvim plugin -f -
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: test-plugin
+  description: Test plugin for manual testing
+spec:
+  repo: test/test-plugin
+  lazy: true
+EOF
+
+# Then get it
+dvm get nvim plugin test-plugin
+dvm get nvim plugin test-plugin -o yaml
+
+# Delete it
+dvm delete nvim plugin test-plugin --force
+```
+
+**Expected:** All commands work without errors.
+
+### Test: Deprecation Warnings
+
+```bash
+# Old commands should show deprecation warning
+dvm get plugins 2>&1 | head -2
+# Expected: ⚠️  'dvm get plugins' is deprecated. Use 'dvm get nvim plugins' instead.
+
+dvm get plugin test-plugin 2>&1 | head -2
+# Expected: ⚠️  'dvm get plugin' is deprecated. Use 'dvm get nvim plugin <name>' instead.
+
+dvm plugin list 2>&1 | head -2
+# Expected: ⚠️  'dvm plugin list' is deprecated. Use 'dvm get nvim plugins' instead.
+```
+
+**Expected:** Old commands still work but show deprecation warning on stderr.
+
+### Test: Help Output
+
+```bash
+# New commands should have complete help
+dvm get nvim --help
+dvm apply nvim --help
+dvm delete nvim --help
+```
+
+**Expected:** Help shows all available subcommands.
+
+---
+
 ## Test Results Summary
 
 | Section | Tests | Pass | Fail |
@@ -215,6 +288,7 @@ source tests/manual/part2-post-attach.sh
 | Interactive: Python | 5 checks | | |
 | Interactive: Neovim | 2 checks | | |
 | Part 2: Post-Attach | 5 segments | | |
+| Part 3: Namespaced Commands | 6 checks | | |
 
 ---
 
@@ -267,5 +341,5 @@ colima nerdctl -- --namespace devopsmaestro images
 
 **Tested by:** ________________  
 **Date:** ________________  
-**Version:** v0.3.0-dev  
+**Version:** v0.6.0  
 **Platform:** ________________

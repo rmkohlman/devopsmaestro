@@ -3,6 +3,7 @@ package cmd
 import (
 	"devopsmaestro/db"
 	"devopsmaestro/models"
+	"devopsmaestro/ui"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,10 +13,22 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// printDeprecationWarning prints a deprecation warning to stderr
+func printDeprecationWarning(oldCmd, newCmd string) {
+	warning := fmt.Sprintf("⚠️  '%s' is deprecated. Use '%s' instead.\n\n", oldCmd, newCmd)
+	fmt.Fprint(os.Stderr, ui.WarningStyle.Render(warning))
+}
+
 var pluginCmd = &cobra.Command{
 	Use:   "plugin",
 	Short: "Manage nvim plugins",
-	Long:  `Create, update, list, and manage reusable nvim plugin definitions`,
+	Long: `Create, update, list, and manage reusable nvim plugin definitions.
+
+NOTE: This command is deprecated. Use the new namespaced commands instead:
+  dvm get nvim plugins          # List plugins
+  dvm get nvim plugin <name>    # Get specific plugin
+  dvm apply nvim plugin -f      # Apply from file
+  dvm delete nvim plugin <name> # Delete plugin`,
 }
 
 var pluginApplyCmd = &cobra.Command{
@@ -23,6 +36,8 @@ var pluginApplyCmd = &cobra.Command{
 	Short: "Apply a plugin definition from file or stdin",
 	Long: `Apply a plugin definition from a YAML file or stdin to the database.
 If the plugin already exists, it will be updated.
+
+DEPRECATED: Use 'dvm apply nvim plugin -f <file>' instead.
 
 Examples:
   # Apply from file
@@ -35,6 +50,8 @@ Examples:
   # Apply multiple files
   dvm plugin apply -f plugin1.yaml -f plugin2.yaml`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		printDeprecationWarning("dvm plugin apply", "dvm apply nvim plugin -f <file>")
+
 		files, _ := cmd.Flags().GetStringSlice("filename")
 
 		if len(files) == 0 {
@@ -132,6 +149,8 @@ var pluginListCmd = &cobra.Command{
 	Short: "List all available plugins",
 	Long: `List all nvim plugins stored in the database.
 
+DEPRECATED: Use 'dvm get nvim plugins' instead.
+
 Examples:
   # List as table (default)
   dvm plugin list
@@ -146,6 +165,8 @@ Examples:
   dvm plugin list --category lsp
   dvm plugin list --category lsp -o yaml`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		printDeprecationWarning("dvm plugin list", "dvm get nvim plugins")
+
 		// Get database connection
 		database, err := db.InitializeDBConnection()
 		if err != nil {
@@ -202,6 +223,8 @@ var pluginGetCmd = &cobra.Command{
 	Short: "Get a plugin definition",
 	Long: `Retrieve a plugin definition from the database and output in specified format.
 
+DEPRECATED: Use 'dvm get nvim plugin <name>' instead.
+
 Examples:
   # Get as YAML (default)
   dvm plugin get telescope
@@ -213,6 +236,8 @@ Examples:
   dvm plugin get telescope -o yaml > telescope.yaml`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		printDeprecationWarning("dvm plugin get", "dvm get nvim plugin <name>")
+
 		name := args[0]
 		outputFormat, _ := cmd.Flags().GetString("output")
 
@@ -267,15 +292,19 @@ var pluginDeleteCmd = &cobra.Command{
 	Short: "Delete a plugin definition from DVM's database",
 	Long: `Delete a plugin definition from DVM's database.
 
+DEPRECATED: Use 'dvm delete nvim plugin <name>' instead.
+
 This removes the plugin YAML definition that DVM stores for generating
 nvim configurations in workspace containers. It does NOT affect:
 - Your local nvim installation
 - Any existing container images
 - Plugins already installed in running containers
 
-The plugin definition can be re-added later with 'dvm plugin apply'.`,
+The plugin definition can be re-added later with 'dvm apply nvim plugin -f'.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		printDeprecationWarning("dvm plugin delete", "dvm delete nvim plugin <name>")
+
 		name := args[0]
 
 		// Get database connection

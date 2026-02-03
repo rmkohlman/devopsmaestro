@@ -9,6 +9,12 @@
 
 ### For AI Assistants
 
+**⚠️ IMPORTANT: Before writing any code, read these files in order:**
+
+1. **This file (CLAUDE.md)** - Architecture overview
+2. **STANDARDS.md** - Design patterns, coding standards, and development philosophy (REQUIRED)
+3. **MANUAL_TEST_PLAN.md** - Testing procedures for new features
+
 **Detailed planning and session docs are in the private toolkit repository:**
 
 ```
