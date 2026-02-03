@@ -1,0 +1,46 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimTheme
+metadata:
+  name: everforest
+  description: Everforest - Comfortable and pleasant green-based color scheme
+  author: sainnhe
+  category: dark
+spec:
+  plugin:
+    repo: "sainnhe/everforest"
+  style: dark
+  transparent: false
+  colors:
+    bg: "#2d353b"
+    bg_dark: "#272e33"
+    bg_highlight: "#343f44"
+    bg_search: "#a7c080"
+    bg_visual: "#4a555b"
+    fg: "#d3c6aa"
+    fg_dark: "#9da9a0"
+    fg_gutter: "#859289"
+    border: "#a7c080"
+    blue: "#7fbbb3"
+    cyan: "#83c092"
+    green: "#a7c080"
+    magenta: "#d699b6"
+    orange: "#e69875"
+    purple: "#d699b6"
+    red: "#e67e80"
+    teal: "#83c092"
+    yellow: "#dbbc7f"
+    comment: "#859289"
+    aqua: "#83c092"
+    bg_dim: "#232a2e"
+    bg0: "#2d353b"
+    bg1: "#343f44"
+    bg2: "#3d484d"
+    bg3: "#475258"
+    bg4: "#4f585e"
+    bg5: "#56635f"
+    grey0: "#7a8478"
+    grey1: "#859289"
+    grey2: "#9da9a0"
+    statusline1: "#a7c080"
+    statusline2: "#d3c6aa"
+    statusline3: "#e67e80"

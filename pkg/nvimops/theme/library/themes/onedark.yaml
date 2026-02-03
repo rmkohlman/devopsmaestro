@@ -1,0 +1,36 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimTheme
+metadata:
+  name: onedark
+  description: One Dark - Atom's iconic dark theme for Neovim
+  author: navarasu
+  category: dark
+spec:
+  plugin:
+    repo: "navarasu/onedark.nvim"
+  style: dark
+  transparent: false
+  colors:
+    bg: "#282c34"
+    bg_dark: "#21252b"
+    bg_highlight: "#2c313c"
+    bg_search: "#e5c07b"
+    bg_visual: "#3e4451"
+    fg: "#abb2bf"
+    fg_dark: "#828997"
+    fg_gutter: "#4b5263"
+    border: "#61afef"
+    blue: "#61afef"
+    cyan: "#56b6c2"
+    green: "#98c379"
+    magenta: "#c678dd"
+    orange: "#d19a66"
+    purple: "#c678dd"
+    red: "#e06c75"
+    teal: "#56b6c2"
+    yellow: "#e5c07b"
+    comment: "#5c6370"
+    dark_red: "#be5046"
+    dark_yellow: "#d19a66"
+    black: "#282c34"
+    white: "#abb2bf"
