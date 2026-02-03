@@ -1,0 +1,17 @@
+apiVersion: devopsmaestro.io/v1
+kind: TerminalPlugin
+metadata:
+  name: zsh-autosuggestions
+  description: Fish-like autosuggestions for zsh
+  category: productivity
+  tags:
+    - autosuggestions
+    - fish-like
+spec:
+  repo: zsh-users/zsh-autosuggestions
+  manager: manual
+  loadMode: immediate
+  priority: 10
+  config: |
+    ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=#666666"
+    ZSH_AUTOSUGGEST_STRATEGY=(history completion)

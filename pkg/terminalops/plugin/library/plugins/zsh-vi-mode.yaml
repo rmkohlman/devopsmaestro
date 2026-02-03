@@ -1,0 +1,19 @@
+apiVersion: devopsmaestro.io/v1
+kind: TerminalPlugin
+metadata:
+  name: zsh-vi-mode
+  description: Better and more complete vi mode for zsh
+  category: editing
+  tags:
+    - vi
+    - vim
+    - mode
+spec:
+  repo: jeffreytse/zsh-vi-mode
+  manager: manual
+  loadMode: immediate
+  priority: 15
+  config: |
+    # Reduce mode switch delay
+    ZVM_VI_INSERT_ESCAPE_BINDKEY=jk
+    ZVM_LINE_INIT_MODE=$ZVM_MODE_INSERT

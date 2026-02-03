@@ -1,0 +1,17 @@
+apiVersion: devopsmaestro.io/v1
+kind: TerminalPlugin
+metadata:
+  name: zsh-completions
+  description: Additional completion definitions for zsh
+  category: productivity
+  tags:
+    - completions
+    - autocomplete
+spec:
+  repo: zsh-users/zsh-completions
+  manager: manual
+  loadMode: immediate
+  priority: 5
+  config: |
+    # Add to fpath before compinit
+    fpath=($PLUGIN_DIR/zsh-completions/src $fpath)

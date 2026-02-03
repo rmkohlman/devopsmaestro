@@ -1,0 +1,30 @@
+apiVersion: devopsmaestro.io/v1
+kind: TerminalPrompt
+metadata:
+  name: starship-transient
+  description: Minimalist two-line prompt with transient support
+  category: minimal
+  tags:
+    - transient
+    - two-line
+    - clean
+spec:
+  type: starship
+  format: |
+    $directory$git_branch$git_status
+    $character
+  character:
+    success_symbol: "[λ](bold green)"
+    error_symbol: "[λ](bold red)"
+  modules:
+    directory:
+      options:
+        truncation_length: 3
+        truncate_to_repo: true
+      style: "bold cyan"
+    git_branch:
+      format: "on [$branch]($style) "
+      style: "bold purple"
+    git_status:
+      format: "[$all_status$ahead_behind]($style)"
+      style: "bold red"

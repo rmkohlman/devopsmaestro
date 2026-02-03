@@ -1,0 +1,15 @@
+apiVersion: devopsmaestro.io/v1
+kind: TerminalPlugin
+metadata:
+  name: zsh-syntax-highlighting
+  description: Fish-like syntax highlighting for zsh
+  category: productivity
+  tags:
+    - syntax
+    - highlighting
+    - fish-like
+spec:
+  repo: zsh-users/zsh-syntax-highlighting
+  manager: manual
+  loadMode: immediate
+  priority: 20

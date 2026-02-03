@@ -1,0 +1,21 @@
+apiVersion: devopsmaestro.io/v1
+kind: TerminalPlugin
+metadata:
+  name: zsh-history-substring-search
+  description: Fish-like history search with up/down arrows
+  category: productivity
+  tags:
+    - history
+    - search
+    - fish-like
+spec:
+  repo: zsh-users/zsh-history-substring-search
+  manager: manual
+  loadMode: immediate
+  priority: 25
+  config: |
+    # Bind up/down arrows for history search
+    bindkey '^[[A' history-substring-search-up
+    bindkey '^[[B' history-substring-search-down
+    bindkey -M vicmd 'k' history-substring-search-up
+    bindkey -M vicmd 'j' history-substring-search-down

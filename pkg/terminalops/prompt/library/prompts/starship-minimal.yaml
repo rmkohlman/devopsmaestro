@@ -1,0 +1,19 @@
+apiVersion: devopsmaestro.io/v1
+kind: TerminalPrompt
+metadata:
+  name: starship-minimal
+  description: Minimal Starship prompt - directory and character only
+  category: minimal
+  tags:
+    - fast
+    - simple
+spec:
+  type: starship
+  format: "$directory$character"
+  character:
+    success_symbol: "[❯](green)"
+    error_symbol: "[❯](red)"
+  modules:
+    directory:
+      options:
+        truncation_length: 2

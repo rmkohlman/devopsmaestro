@@ -1,0 +1,55 @@
+apiVersion: devopsmaestro.io/v1
+kind: TerminalPrompt
+metadata:
+  name: starship-powerline
+  description: Powerline-style prompt with language detection
+  category: feature-rich
+  tags:
+    - powerline
+    - languages
+    - git
+spec:
+  type: starship
+  format: "$username$hostname$directory$git_branch$git_status$golang$nodejs$python$rust$docker_context$cmd_duration$line_break$character"
+  character:
+    success_symbol: "[❯](bold green)"
+    error_symbol: "[✗](bold red)"
+    vicmd_symbol: "[❮](bold yellow)"
+  modules:
+    username:
+      format: "[$user]($style) "
+      style: "bold blue"
+      options:
+        show_always: false
+    hostname:
+      format: "[@$hostname]($style) "
+      style: "bold blue"
+      options:
+        ssh_only: true
+    directory:
+      options:
+        truncation_length: 4
+        truncate_to_repo: true
+    git_branch:
+      symbol: " "
+      style: "bold purple"
+    git_status:
+      style: "bold red"
+    golang:
+      symbol: " "
+      format: "[$symbol($version)]($style) "
+    nodejs:
+      symbol: " "
+      format: "[$symbol($version)]($style) "
+    python:
+      symbol: " "
+      format: "[$symbol($version)]($style) "
+    rust:
+      symbol: " "
+      format: "[$symbol($version)]($style) "
+    docker_context:
+      symbol: " "
+    cmd_duration:
+      options:
+        min_time: 2000
+      format: "took [$duration]($style) "

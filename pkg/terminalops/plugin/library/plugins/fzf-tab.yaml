@@ -1,0 +1,22 @@
+apiVersion: devopsmaestro.io/v1
+kind: TerminalPlugin
+metadata:
+  name: fzf-tab
+  description: Replace zsh default completion selection menu with fzf
+  category: productivity
+  tags:
+    - fzf
+    - completions
+    - fuzzy
+spec:
+  repo: Aloxaf/fzf-tab
+  manager: manual
+  loadMode: immediate
+  priority: 30
+  dependencies:
+    - zsh-completions
+  config: |
+    # Disable sort when completing git checkout
+    zstyle ':completion:*:git-checkout:*' sort false
+    # Preview directory contents with ls
+    zstyle ':fzf-tab:complete:cd:*' fzf-preview 'ls --color=always $realpath'

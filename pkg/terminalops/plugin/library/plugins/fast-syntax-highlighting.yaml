@@ -1,0 +1,15 @@
+apiVersion: devopsmaestro.io/v1
+kind: TerminalPlugin
+metadata:
+  name: fast-syntax-highlighting
+  description: Feature-rich syntax highlighting for zsh (faster alternative)
+  category: productivity
+  tags:
+    - syntax
+    - highlighting
+    - fast
+spec:
+  repo: zdharma-continuum/fast-syntax-highlighting
+  manager: manual
+  loadMode: immediate
+  priority: 20
