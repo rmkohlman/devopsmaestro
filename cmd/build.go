@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -220,7 +221,9 @@ func buildWorkspace(cmd *cobra.Command) error {
 	slog.Debug("saved Dockerfile", "path", dvmDockerfile)
 
 	// Step 6: Build image
-	imageName := fmt.Sprintf("dvm-%s-%s:latest", workspaceName, projectName)
+	// Use timestamp tag for versioning (enables container recreation on rebuild)
+	timestamp := time.Now().Format("20060102-150405")
+	imageName := fmt.Sprintf("dvm-%s-%s:%s", workspaceName, projectName, timestamp)
 	fmt.Println()
 	render.Progress(fmt.Sprintf("Building image: %s", imageName))
 	slog.Info("building image", "image", imageName, "dockerfile", dvmDockerfile)

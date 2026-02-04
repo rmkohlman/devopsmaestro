@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -97,10 +99,11 @@ func (d *DockerRuntime) BuildImage(ctx context.Context, opts BuildOptions) error
 }
 
 // StartWorkspace starts a Docker container as a workspace
-// It handles three cases:
-// 1. Container exists and is running -> return its ID
-// 2. Container exists but is stopped -> start it and return its ID
-// 3. Container doesn't exist -> create and start it
+// It handles these cases:
+// 1. Container exists with same image and is running -> return its ID
+// 2. Container exists with same image but is stopped -> start it and return its ID
+// 3. Container exists but uses a different image -> remove it and create new one
+// 4. Container doesn't exist -> create and start it
 func (d *DockerRuntime) StartWorkspace(ctx context.Context, opts StartOptions) (string, error) {
 	// Determine container name
 	containerName := opts.ContainerName
@@ -122,17 +125,39 @@ func (d *DockerRuntime) StartWorkspace(ctx context.Context, opts StartOptions) (
 	if len(existingContainers) > 0 {
 		existing := existingContainers[0]
 
-		// Check if it's running
-		if existing.State == "running" {
+		// Check if the container is using the requested image
+		// existing.Image contains the image name/tag the container was created with
+		if existing.Image != opts.ImageName {
+			fmt.Printf("Image changed: %s -> %s\n", existing.Image, opts.ImageName)
+			fmt.Printf("Recreating container with new image...\n")
+
+			// Stop container if running
+			if existing.State == "running" {
+				timeout := 10
+				if err := d.client.ContainerStop(ctx, existing.ID, container.StopOptions{Timeout: &timeout}); err != nil {
+					return "", fmt.Errorf("failed to stop old container: %w", err)
+				}
+			}
+
+			// Remove the old container
+			if err := d.client.ContainerRemove(ctx, existing.ID, container.RemoveOptions{}); err != nil {
+				return "", fmt.Errorf("failed to remove old container: %w", err)
+			}
+
+			// Fall through to create new container
+		} else {
+			// Same image - check if it's running
+			if existing.State == "running" {
+				return existing.ID[:12], nil
+			}
+
+			// Container exists but is stopped - start it
+			if err := d.client.ContainerStart(ctx, existing.ID, container.StartOptions{}); err != nil {
+				return "", fmt.Errorf("failed to start existing container: %w", err)
+			}
+
 			return existing.ID[:12], nil
 		}
-
-		// Container exists but is stopped - start it
-		if err := d.client.ContainerStart(ctx, existing.ID, container.StartOptions{}); err != nil {
-			return "", fmt.Errorf("failed to start existing container: %w", err)
-		}
-
-		return existing.ID[:12], nil
 	}
 
 	// Container doesn't exist - create it
@@ -245,6 +270,25 @@ func (d *DockerRuntime) AttachToWorkspace(ctx context.Context, workspaceID strin
 	}
 	defer term.RestoreTerminal(os.Stdin.Fd(), oldState)
 
+	// Set initial terminal size
+	if err := d.resizeExecTTY(ctx, execResp.ID); err != nil {
+		// Non-fatal: log and continue
+		fmt.Fprintf(os.Stderr, "Warning: failed to set terminal size: %v\n", err)
+	}
+
+	// Monitor for terminal resize signals (SIGWINCH)
+	sigchan := make(chan os.Signal, 1)
+	signal.Notify(sigchan, syscall.SIGWINCH)
+	go func() {
+		for range sigchan {
+			d.resizeExecTTY(ctx, execResp.ID)
+		}
+	}()
+	defer func() {
+		signal.Stop(sigchan)
+		close(sigchan)
+	}()
+
 	// Stream I/O
 	errChan := make(chan error, 2)
 
@@ -265,6 +309,19 @@ func (d *DockerRuntime) AttachToWorkspace(ctx context.Context, workspaceID strin
 
 	fmt.Printf("\n✓ Detached from workspace\n")
 	return nil
+}
+
+// resizeExecTTY resizes the TTY of an exec process to match the current terminal
+func (d *DockerRuntime) resizeExecTTY(ctx context.Context, execID string) error {
+	ws, err := term.GetWinsize(os.Stdin.Fd())
+	if err != nil {
+		return err
+	}
+
+	return d.client.ContainerExecResize(ctx, execID, container.ResizeOptions{
+		Height: uint(ws.Height),
+		Width:  uint(ws.Width),
+	})
 }
 
 // StopWorkspace stops a running workspace

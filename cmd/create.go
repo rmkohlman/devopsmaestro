@@ -239,9 +239,10 @@ Examples:
 		}
 
 		// Determine image name
+		// Use "pending" tag for new workspaces - actual tag set at build time
 		imageName := workspaceImage
 		if imageName == "" {
-			imageName = fmt.Sprintf("dvm-%s-%s:latest", workspaceName, projectName)
+			imageName = fmt.Sprintf("dvm-%s-%s:pending", workspaceName, projectName)
 		}
 
 		render.Progress(fmt.Sprintf("Creating workspace '%s' in project '%s'...", workspaceName, projectName))
@@ -289,6 +290,6 @@ func init() {
 
 	// Workspace creation flags
 	createWorkspaceCmd.Flags().StringVar(&workspaceDescription, "description", "", "Workspace description")
-	createWorkspaceCmd.Flags().StringVar(&workspaceImage, "image", "", "Custom image name (default: dvm-<workspace>-<project>:latest)")
+	createWorkspaceCmd.Flags().StringVar(&workspaceImage, "image", "", "Custom image name (default: dvm-<workspace>-<project>:<timestamp>)")
 	createWorkspaceCmd.Flags().StringP("project", "p", "", "Project name (defaults to active project)")
 }

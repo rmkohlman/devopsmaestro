@@ -98,13 +98,13 @@ func runAttach(cmd *cobra.Command) error {
 	// Use image name from workspace
 	imageName := workspace.ImageName
 
-	// If the image name doesn't have the dvm- prefix, it might be the original default
-	// and the workspace hasn't been built yet
-	if !strings.HasPrefix(imageName, "dvm-") {
+	// Check if workspace has been built (pending tag means not yet built)
+	if strings.HasSuffix(imageName, ":pending") || !strings.HasPrefix(imageName, "dvm-") {
 		slog.Warn("workspace image may not be built", "image", imageName)
-		render.Warning(fmt.Sprintf("Workspace image '%s' may not be built.", imageName))
+		render.Warning(fmt.Sprintf("Workspace image '%s' has not been built yet.", imageName))
 		render.Info("Run 'dvm build' first to build the development container.")
 		fmt.Println()
+		return fmt.Errorf("workspace not built: run 'dvm build' first")
 	}
 
 	containerName := fmt.Sprintf("dvm-%s-%s", projectName, workspaceName)
