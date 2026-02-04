@@ -79,21 +79,87 @@ nvp generate
 
 ### DevOpsMaestro (dvm) - Workspace Manager
 
+#### Option 1: Add an Existing Project
+
+Already have a project on your laptop? Add it to dvm:
+
 ```bash
-# Initialize
+# Initialize dvm (one-time setup)
 dvm init
 
-# Create and use a project
-dvm create project myapp
-dvm use project myapp
+# Go to your existing project
+cd ~/Developer/my-existing-app
 
-# Create a workspace
+# Create a project from the current directory
+dvm create project my-app --from-cwd
+
+# Or specify the path explicitly
+dvm create project my-app --path ~/Developer/my-existing-app
+
+# Set as active project
+dvm use project my-app
+
+# Create a workspace (defines your container environment)
+dvm create workspace dev
+dvm use workspace dev
+
+# Build the container image
+dvm build
+
+# Attach to the container (your project is mounted inside)
+dvm attach
+```
+
+#### Option 2: Start a New Project
+
+Starting fresh? Create a new project directory:
+
+```bash
+# Initialize dvm (one-time setup)
+dvm init
+
+# Create a new directory for your project
+mkdir ~/Developer/my-new-app
+cd ~/Developer/my-new-app
+
+# Initialize your code (e.g., git, go mod, npm init, etc.)
+git init
+go mod init github.com/myuser/my-new-app
+
+# Create a project in dvm
+dvm create project my-new-app --from-cwd
+
+# Set as active and create workspace
+dvm use project my-new-app
 dvm create workspace dev
 dvm use workspace dev
 
 # Build and attach
 dvm build
 dvm attach
+```
+
+#### Shorthand Version (using aliases)
+
+```bash
+cd ~/Developer/my-app
+dvm init                          # One-time setup
+dvm create proj myapp --from-cwd  # Create project
+dvm use proj myapp                # Set active
+dvm create ws dev                 # Create workspace
+dvm use ws dev                    # Set active
+dvm build                         # Build container
+dvm attach                        # Enter container
+```
+
+#### Verify Your Setup
+
+```bash
+dvm get ctx          # Show current project/workspace
+dvm get proj         # List all projects
+dvm get ws           # List workspaces in current project
+dvm get plat         # Check detected container platforms
+dvm status           # Full status overview
 ```
 
 ---
