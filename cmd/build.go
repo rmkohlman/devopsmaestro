@@ -4,6 +4,10 @@ import (
 	"context"
 	"devopsmaestro/builders"
 	"devopsmaestro/operators"
+	nvimconfig "devopsmaestro/pkg/nvimops/config"
+	"devopsmaestro/pkg/nvimops/plugin"
+	"devopsmaestro/pkg/nvimops/store"
+	"devopsmaestro/pkg/nvimops/theme"
 	"devopsmaestro/render"
 	"devopsmaestro/utils"
 	"fmt"
@@ -11,7 +15,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -318,11 +321,11 @@ func getPlatformInstallHint() string {
   - Podman: brew install podman && podman machine init && podman machine start`
 }
 
-// copyNvimConfig copies nvim configuration to the build context
+// copyNvimConfig generates nvim configuration using nvp and copies to build context
 func copyNvimConfig(workspaceYAML interface { /* models.WorkspaceYAML */
 }, projectPath, homeDir string, sqlDS interface { /* db.SQLDataStore */
 }) error {
-	// Type assertion to get the actual types
+	// Type assertion to get the actual types (keeping for future use)
 	ws, ok := workspaceYAML.(interface {
 		GetSpec() interface {
 			GetNvim() interface {
@@ -331,56 +334,98 @@ func copyNvimConfig(workspaceYAML interface { /* models.WorkspaceYAML */
 			}
 		}
 	})
+	_ = ws
+	_ = ok
 
-	// Fallback: use reflection or just skip if types don't match
-	// For now, we'll extract this logic to avoid complex type assertions
-	render.Progress("Copying Neovim configuration to build context...")
+	render.Progress("Generating Neovim configuration for container...")
 
 	nvimConfigPath := filepath.Join(projectPath, ".config", "nvim")
 	if err := os.MkdirAll(nvimConfigPath, 0755); err != nil {
 		return fmt.Errorf("failed to create nvim config directory: %w", err)
 	}
 
-	templatesPath := filepath.Join(homeDir, "Developer", "tools", "devopsmaestro", "templates", "nvim")
+	// Load core config from ~/.nvp/core.yaml or use defaults
+	nvpDir := filepath.Join(homeDir, ".nvp")
+	coreConfigPath := filepath.Join(nvpDir, "core.yaml")
 
-	err := filepath.Walk(templatesPath, func(path string, info os.FileInfo, err error) error {
+	var cfg *nvimconfig.CoreConfig
+	var err error
+
+	if _, statErr := os.Stat(coreConfigPath); statErr == nil {
+		cfg, err = nvimconfig.ParseYAMLFile(coreConfigPath)
 		if err != nil {
-			return err
+			slog.Warn("failed to parse core.yaml, using defaults", "error", err)
+			cfg = nvimconfig.DefaultCoreConfig()
 		}
-
-		if strings.HasSuffix(path, "config.yaml") {
-			return nil
-		}
-
-		relPath, err := filepath.Rel(templatesPath, path)
-		if err != nil {
-			return err
-		}
-
-		destPath := filepath.Join(nvimConfigPath, relPath)
-
-		if info.IsDir() {
-			return os.MkdirAll(destPath, info.Mode())
-		}
-
-		input, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-
-		return os.WriteFile(destPath, input, info.Mode())
-	})
-
-	if err != nil {
-		return fmt.Errorf("failed to copy nvim templates: %w", err)
+	} else {
+		slog.Debug("no core.yaml found, using defaults")
+		cfg = nvimconfig.DefaultCoreConfig()
 	}
 
-	render.Success("Neovim configuration copied")
+	// Load installed plugins from ~/.nvp/plugins/
+	var plugins []*plugin.Plugin
+	pluginsDir := filepath.Join(nvpDir, "plugins")
+	if _, statErr := os.Stat(pluginsDir); statErr == nil {
+		fileStore, err := store.NewFileStore(pluginsDir)
+		if err == nil {
+			plugins, _ = fileStore.List()
+			fileStore.Close()
+		}
+	}
 
-	// Note: Plugin generation would need the actual workspace spec and sqlDS
-	// This is a simplified version - the full implementation would use the passed types
-	_ = ws
-	_ = ok
+	// Filter to enabled plugins
+	var enabledPlugins []*plugin.Plugin
+	for _, p := range plugins {
+		if p.Enabled {
+			enabledPlugins = append(enabledPlugins, p)
+		}
+	}
+
+	slog.Debug("loaded nvp config", "plugins", len(enabledPlugins), "core_config", coreConfigPath)
+
+	// Generate the full nvim config structure
+	gen := nvimconfig.NewGenerator()
+	if err := gen.WriteToDirectory(cfg, enabledPlugins, nvimConfigPath); err != nil {
+		return fmt.Errorf("failed to generate nvim config: %w", err)
+	}
+
+	// Generate theme if active
+	themeDir := filepath.Join(nvpDir, "themes")
+	if _, statErr := os.Stat(themeDir); statErr == nil {
+		themeStore := theme.NewFileStore(nvpDir)
+		if activeTheme, _ := themeStore.GetActive(); activeTheme != nil {
+			themeGen := theme.NewGenerator()
+			generated, err := themeGen.Generate(activeTheme)
+			if err == nil {
+				ns := cfg.Namespace
+				if ns == "" {
+					ns = "workspace"
+				}
+
+				// Write theme files
+				themeFiles := map[string]string{
+					filepath.Join(nvimConfigPath, "lua", "theme", "palette.lua"):           generated.PaletteLua,
+					filepath.Join(nvimConfigPath, "lua", "theme", "init.lua"):              generated.InitLua,
+					filepath.Join(nvimConfigPath, "lua", ns, "plugins", "colorscheme.lua"): generated.PluginLua,
+				}
+
+				for path, content := range themeFiles {
+					dir := filepath.Dir(path)
+					if err := os.MkdirAll(dir, 0755); err != nil {
+						slog.Warn("failed to create theme dir", "path", dir, "error", err)
+						continue
+					}
+					if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+						slog.Warn("failed to write theme file", "path", path, "error", err)
+						continue
+					}
+				}
+				slog.Debug("generated theme", "name", activeTheme.Name)
+			}
+		}
+	}
+
+	render.Success(fmt.Sprintf("Neovim configuration generated (%d plugins)", len(enabledPlugins)))
 
 	return nil
 }
