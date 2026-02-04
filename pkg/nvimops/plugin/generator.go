@@ -211,13 +211,17 @@ func (g *Generator) writeKeys(lua *strings.Builder, indent string, keys []Keymap
 func (g *Generator) writeFunction(lua *strings.Builder, indent, funcName, code string) {
 	lua.WriteString(fmt.Sprintf("%s%s = function()\n", indent, funcName))
 
-	// Indent each line of the code
+	// Write the config code, preserving its original formatting (tabs, indentation)
+	// Only add base indentation to non-empty lines, preserve blank lines
 	lines := strings.Split(code, "\n")
 	funcIndent := indent + strings.Repeat(" ", g.IndentSize)
-	for _, line := range lines {
-		trimmed := strings.TrimRight(line, " \t")
-		if trimmed != "" {
-			lua.WriteString(funcIndent + trimmed + "\n")
+	for i, line := range lines {
+		trimmedRight := strings.TrimRight(line, " \t")
+		if trimmedRight != "" {
+			lua.WriteString(funcIndent + trimmedRight + "\n")
+		} else if i < len(lines)-1 {
+			// Preserve blank lines within the code (but not trailing)
+			lua.WriteString("\n")
 		}
 	}
 
