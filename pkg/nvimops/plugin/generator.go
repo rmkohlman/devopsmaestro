@@ -69,7 +69,11 @@ func (g *Generator) GenerateLua(p *Plugin) (string, error) {
 
 	// Build command
 	if p.Build != "" {
-		lua.WriteString(fmt.Sprintf("%sbuild = \"%s\",\n", indent, escapeString(p.Build)))
+		if isLuaExpression(p.Build) {
+			lua.WriteString(fmt.Sprintf("%sbuild = %s,\n", indent, p.Build))
+		} else {
+			lua.WriteString(fmt.Sprintf("%sbuild = \"%s\",\n", indent, escapeString(p.Build)))
+		}
 	}
 
 	// Init function (runs before plugin loads)

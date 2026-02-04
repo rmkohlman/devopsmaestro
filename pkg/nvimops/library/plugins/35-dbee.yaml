@@ -9,6 +9,9 @@ spec:
   repo: kndndrj/nvim-dbee
   dependencies:
     - repo: MunifTanjim/nui.nvim
-  build: "require('dbee').install()"
+  build: |
+    function()
+      require("dbee").install()
+    end
   config: |
     require("dbee").setup({})

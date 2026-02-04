@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"devopsmaestro/builders"
+	"devopsmaestro/db"
 	"devopsmaestro/operators"
 	nvimconfig "devopsmaestro/pkg/nvimops/config"
 	"devopsmaestro/pkg/nvimops/plugin"
@@ -213,7 +214,7 @@ func buildWorkspace(cmd *cobra.Command) error {
 
 	// Step 5.5: Copy nvim templates to build context if nvim config is enabled
 	if workspaceYAML.Spec.Nvim.Structure != "" && workspaceYAML.Spec.Nvim.Structure != "none" {
-		if err := copyNvimConfig(workspaceYAML, project.Path, homeDir, sqlDS); err != nil {
+		if err := copyNvimConfig(workspaceYAML.Spec.Nvim.Plugins, project.Path, homeDir, sqlDS); err != nil {
 			return err
 		}
 	}
@@ -322,21 +323,9 @@ func getPlatformInstallHint() string {
 }
 
 // copyNvimConfig generates nvim configuration using nvp and copies to build context
-func copyNvimConfig(workspaceYAML interface { /* models.WorkspaceYAML */
-}, projectPath, homeDir string, sqlDS interface { /* db.SQLDataStore */
-}) error {
-	// Type assertion to get the actual types (keeping for future use)
-	ws, ok := workspaceYAML.(interface {
-		GetSpec() interface {
-			GetNvim() interface {
-				GetStructure() string
-				GetPlugins() []string
-			}
-		}
-	})
-	_ = ws
-	_ = ok
-
+// It filters plugins based on the workspace's configured plugin list
+// Reads plugin data from the database (source of truth)
+func copyNvimConfig(workspacePlugins []string, projectPath, homeDir string, ds db.DataStore) error {
 	render.Progress("Generating Neovim configuration for container...")
 
 	nvimConfigPath := filepath.Join(projectPath, ".config", "nvim")
@@ -362,23 +351,43 @@ func copyNvimConfig(workspaceYAML interface { /* models.WorkspaceYAML */
 		cfg = nvimconfig.DefaultCoreConfig()
 	}
 
-	// Load installed plugins from ~/.nvp/plugins/
-	var plugins []*plugin.Plugin
-	pluginsDir := filepath.Join(nvpDir, "plugins")
-	if _, statErr := os.Stat(pluginsDir); statErr == nil {
-		fileStore, err := store.NewFileStore(pluginsDir)
-		if err == nil {
-			plugins, _ = fileStore.List()
-			fileStore.Close()
+	// Load plugins from database (source of truth)
+	dbAdapter := store.NewDBStoreAdapter(ds)
+	allPlugins, err := dbAdapter.List()
+	if err != nil {
+		slog.Warn("failed to list plugins from database", "error", err)
+		allPlugins = []*plugin.Plugin{}
+	}
+
+	// Build a map of plugin names for quick lookup
+	pluginMap := make(map[string]*plugin.Plugin)
+	for _, p := range allPlugins {
+		if p.Enabled {
+			pluginMap[p.Name] = p
 		}
 	}
 
-	// Filter to enabled plugins
+	// Filter plugins based on workspace configuration
 	var enabledPlugins []*plugin.Plugin
-	for _, p := range plugins {
-		if p.Enabled {
-			enabledPlugins = append(enabledPlugins, p)
+	if len(workspacePlugins) > 0 {
+		// Workspace has a specific plugin list - use only those
+		for _, name := range workspacePlugins {
+			if p, ok := pluginMap[name]; ok {
+				enabledPlugins = append(enabledPlugins, p)
+			} else {
+				slog.Warn("workspace references unknown plugin", "plugin", name)
+				render.Warning(fmt.Sprintf("Plugin '%s' not found in database (skipping)", name))
+			}
 		}
+		slog.Debug("using workspace-specific plugins", "count", len(enabledPlugins), "requested", len(workspacePlugins))
+	} else {
+		// No plugins configured for workspace - use all enabled plugins
+		for _, p := range allPlugins {
+			if p.Enabled {
+				enabledPlugins = append(enabledPlugins, p)
+			}
+		}
+		slog.Debug("no workspace plugins configured, using all enabled", "count", len(enabledPlugins))
 	}
 
 	slog.Debug("loaded nvp config", "plugins", len(enabledPlugins), "core_config", coreConfigPath)

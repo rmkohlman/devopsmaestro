@@ -41,61 +41,131 @@ Examples:
   dvm delete nvim theme tokyonight`,
 }
 
-// deleteNvimPluginCmd deletes a nvim plugin
-// Usage: dvm delete nvim plugin <name>
+// Flags for delete nvim plugin
+var (
+	deleteNvimWorkspaceFlag string
+	deleteNvimProjectFlag   string
+)
+
+// deleteNvimPluginCmd deletes a nvim plugin (from global library or workspace)
+// Usage: dvm delete nvim plugin <name>           # Delete from global library
+// Usage: dvm delete nvim plugin -w <ws> <name>   # Remove from workspace config
 var deleteNvimPluginCmd = &cobra.Command{
-	Use:   "plugin [name]",
-	Short: "Delete a nvim plugin",
-	Long: `Delete a nvim plugin definition from DVM's database.
+	Use:   "plugin [names...]",
+	Short: "Delete nvim plugin(s)",
+	Long: `Delete nvim plugin(s) from the global library or remove from a workspace.
 
-This removes the plugin YAML definition that DVM stores for generating
-nvim configurations in workspace containers. It does NOT affect:
-- Your local nvim installation
-- Any existing container images
-- Plugins already installed in running containers
-
-The plugin definition can be re-added later with 'dvm apply nvim plugin -f'.
+Without -w flag: Deletes plugin definition from global library (~/.nvp/plugins/).
+With -w flag:    Removes plugin(s) from workspace configuration (keeps in library).
 
 Examples:
-  dvm delete nvim plugin telescope
-  dvm delete nvim plugin telescope --force  # Skip confirmation`,
-	Args: cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		name := args[0]
+  dvm delete nvim plugin telescope              # Delete from global library
+  dvm delete nvim plugin telescope --force      # Skip confirmation
+  dvm delete nvim plugin -w dev telescope       # Remove from workspace 'dev'
+  dvm delete nvim plugin -w dev treesitter lsp  # Remove multiple from workspace`,
+	Args: cobra.MinimumNArgs(1),
+	RunE: runDeleteNvimPlugin,
+}
 
-		// Get nvim manager (uses DBStoreAdapter internally)
-		mgr, err := getNvimManager(cmd)
-		if err != nil {
-			return fmt.Errorf("failed to get nvim manager: %v", err)
+func runDeleteNvimPlugin(cmd *cobra.Command, args []string) error {
+	// If workspace flag provided, remove from workspace config
+	if deleteNvimWorkspaceFlag != "" {
+		return runDeleteWorkspacePlugins(cmd, args)
+	}
+
+	// Otherwise, delete from global library (original behavior)
+	return runDeleteGlobalPlugin(cmd, args[0])
+}
+
+func runDeleteGlobalPlugin(cmd *cobra.Command, name string) error {
+	// Get nvim manager (uses DBStoreAdapter internally)
+	mgr, err := getNvimManager(cmd)
+	if err != nil {
+		return fmt.Errorf("failed to get nvim manager: %v", err)
+	}
+	defer mgr.Close()
+
+	// Check if plugin exists
+	_, err = mgr.Get(name)
+	if err != nil {
+		return fmt.Errorf("plugin not found: %s", name)
+	}
+
+	// Confirm deletion
+	force, _ := cmd.Flags().GetBool("force")
+	if !force {
+		fmt.Printf("Delete plugin definition '%s' from global library? (y/N): ", name)
+		var response string
+		fmt.Scanln(&response)
+		if response != "y" && response != "Y" {
+			render.Info("Aborted")
+			return nil
 		}
-		defer mgr.Close()
+	}
 
-		// Check if plugin exists
-		_, err = mgr.Get(name)
-		if err != nil {
-			return fmt.Errorf("plugin not found: %s", name)
+	// Delete plugin
+	if err := mgr.Delete(name); err != nil {
+		return fmt.Errorf("failed to delete plugin: %v", err)
+	}
+
+	render.Success(fmt.Sprintf("Plugin '%s' removed from global library", name))
+	return nil
+}
+
+func runDeleteWorkspacePlugins(cmd *cobra.Command, pluginNames []string) error {
+	// Get workspace
+	workspace, _, err := getWorkspaceForPlugins(cmd, deleteNvimProjectFlag, deleteNvimWorkspaceFlag)
+	if err != nil {
+		return err
+	}
+
+	// Get datastore
+	ds, err := getDataStore(cmd)
+	if err != nil {
+		return err
+	}
+
+	// Get workspace plugin manager
+	mgr, err := NewWorkspacePluginManager()
+	if err != nil {
+		return err
+	}
+
+	// Remove plugins
+	removed, notFound := mgr.RemovePlugins(workspace, pluginNames)
+
+	// Save to database
+	if err := ds.UpdateWorkspace(workspace); err != nil {
+		return fmt.Errorf("failed to update workspace: %w", err)
+	}
+
+	// Report results
+	if len(removed) > 0 {
+		render.Success(fmt.Sprintf("Removed %d plugin(s) from workspace '%s':", len(removed), workspace.Name))
+		for _, p := range removed {
+			fmt.Printf("  - %s\n", p)
 		}
+	}
 
-		// Confirm deletion
-		force, _ := cmd.Flags().GetBool("force")
-		if !force {
-			fmt.Printf("Delete plugin definition '%s' from DVM database? (y/N): ", name)
-			var response string
-			fmt.Scanln(&response)
-			if response != "y" && response != "Y" {
-				render.Info("Aborted")
-				return nil
-			}
+	if len(notFound) > 0 {
+		render.Warning(fmt.Sprintf("Not found in workspace (%d):", len(notFound)))
+		for _, p := range notFound {
+			fmt.Printf("  ? %s\n", p)
 		}
+	}
 
-		// Delete plugin
-		if err := mgr.Delete(name); err != nil {
-			return fmt.Errorf("failed to delete plugin: %v", err)
-		}
+	remaining := mgr.ListPlugins(workspace)
+	if len(remaining) == 0 && len(removed) > 0 {
+		render.Info("Workspace has no plugins configured")
+		render.Info("Build will now use all plugins from global library")
+	}
 
-		render.Success(fmt.Sprintf("Plugin definition '%s' removed from DVM database", name))
-		return nil
-	},
+	if len(removed) > 0 {
+		fmt.Println()
+		render.Info(fmt.Sprintf("Rebuild workspace to apply: dvm build %s --force", workspace.Name))
+	}
+
+	return nil
 }
 
 // deleteNvimThemeCmd deletes a nvim theme (placeholder for future)
@@ -317,6 +387,8 @@ func init() {
 
 	// Add flags for nvim plugin
 	deleteNvimPluginCmd.Flags().BoolP("force", "f", false, "Skip confirmation prompt")
+	deleteNvimPluginCmd.Flags().StringVarP(&deleteNvimWorkspaceFlag, "workspace", "w", "", "Remove from workspace (instead of global library)")
+	deleteNvimPluginCmd.Flags().StringVarP(&deleteNvimProjectFlag, "project", "p", "", "Project for workspace (defaults to active)")
 
 	// Add flags for project
 	deleteProjectCmd.Flags().BoolP("force", "f", false, "Skip confirmation prompt")

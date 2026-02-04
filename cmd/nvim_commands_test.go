@@ -196,8 +196,8 @@ func TestKubectlStyleCommandPatterns(t *testing.T) {
 	// apply nvim plugin (apply from file)
 	assert.Equal(t, "plugin", applyNvimPluginCmd.Use)
 
-	// delete nvim plugin <name>
-	assert.Equal(t, "plugin [name]", deleteNvimPluginCmd.Use)
+	// delete nvim plugin <name> (supports multiple names for workspace deletion)
+	assert.Equal(t, "plugin [names...]", deleteNvimPluginCmd.Use)
 
 	// edit nvim plugin <name>
 	assert.Equal(t, "plugin [name]", editNvimPluginCmd.Use)
