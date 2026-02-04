@@ -11,18 +11,37 @@ import (
 	"devopsmaestro/pkg/nvimops/store"
 )
 
-// Test fetchURL with GitHub shorthand conversion
-func TestFetchURL_GitHubShorthand(t *testing.T) {
-	// Create a test server that mimics GitHub raw content
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Check the path matches expected GitHub raw format
-		expectedPath := "/rmkohlman/nvim-yaml-plugins/main/plugins/telescope.yaml"
-		if r.URL.Path != expectedPath {
-			t.Errorf("unexpected path: got %s, want %s", r.URL.Path, expectedPath)
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
+// Test isURL detection
+func TestIsURL(t *testing.T) {
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"http://example.com/file.yaml", true},
+		{"https://example.com/file.yaml", true},
+		{"github:user/repo/path/file.yaml", true},
+		{"./local/file.yaml", false},
+		{"/absolute/path/file.yaml", false},
+		{"file.yaml", false},
+		{"", false},
+		{"httpnotaurl", false},
+		{"githubnotaurl", false},
+	}
 
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := isURL(tt.input)
+			if got != tt.want {
+				t.Errorf("isURL(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+// Test nvimops.FetchURL with direct URL (using httptest server)
+func TestFetchURL_DirectURL(t *testing.T) {
+	// Create a test server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`apiVersion: devopsmaestro.io/v1
 kind: NvimPlugin
@@ -35,14 +54,12 @@ spec:
 	}))
 	defer server.Close()
 
-	// We can't easily test the GitHub shorthand without mocking the HTTP client
-	// So we'll test direct URL fetching
-	data, source, err := fetchURL(server.URL + "/rmkohlman/nvim-yaml-plugins/main/plugins/telescope.yaml")
+	data, source, err := nvimops.FetchURL(server.URL + "/plugins/telescope.yaml")
 	if err != nil {
-		t.Fatalf("fetchURL failed: %v", err)
+		t.Fatalf("FetchURL failed: %v", err)
 	}
 
-	if source != server.URL+"/rmkohlman/nvim-yaml-plugins/main/plugins/telescope.yaml" {
+	if source != server.URL+"/plugins/telescope.yaml" {
 		t.Errorf("unexpected source: %s", source)
 	}
 
@@ -51,33 +68,32 @@ spec:
 	}
 }
 
-// Test fetchURL with invalid URL
+// Test nvimops.FetchURL with invalid URL
 func TestFetchURL_InvalidURL(t *testing.T) {
-	_, _, err := fetchURL("http://localhost:99999/nonexistent.yaml")
+	_, _, err := nvimops.FetchURL("http://localhost:99999/nonexistent.yaml")
 	if err == nil {
 		t.Error("expected error for invalid URL")
 	}
 }
 
-// Test fetchURL with 404 response
+// Test nvimops.FetchURL with 404 response
 func TestFetchURL_NotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	}))
 	defer server.Close()
 
-	_, _, err := fetchURL(server.URL + "/notfound.yaml")
+	_, _, err := nvimops.FetchURL(server.URL + "/notfound.yaml")
 	if err == nil {
 		t.Error("expected error for 404 response")
 	}
 }
 
-// Test GitHub shorthand URL conversion
+// Test GitHub shorthand URL conversion (documents expected behavior)
 func TestGitHubShorthandConversion(t *testing.T) {
 	tests := []struct {
 		input   string
 		wantURL string
-		wantErr bool
 	}{
 		{
 			input:   "github:user/repo/path/file.yaml",
@@ -95,12 +111,9 @@ func TestGitHubShorthandConversion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			// We need to extract the URL conversion logic to test it
-			// For now, we'll test the full fetchURL which will fail on network
-			// but we can at least verify it doesn't panic
-
-			// The conversion happens inside fetchURL, so we can't test it directly
-			// without refactoring. This test documents the expected behavior.
+			// The conversion happens inside FetchURL
+			// We can't test it directly without making HTTP requests
+			// This test documents the expected behavior
 			_ = tt.wantURL
 		})
 	}

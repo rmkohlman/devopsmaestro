@@ -5,13 +5,11 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"text/tabwriter"
-	"time"
 
 	"devopsmaestro/pkg/nvimops"
 	nvimconfig "devopsmaestro/pkg/nvimops/config"
@@ -363,22 +361,22 @@ var applyCmd = &cobra.Command{
 	Long: `Apply a plugin definition from a YAML file or URL to the local store.
 If the plugin already exists, it will be updated.
 
-URL Formats:
-  https://example.com/plugin.yaml           # Direct URL
-  github:user/repo/path/plugin.yaml         # GitHub shorthand (uses raw.githubusercontent.com)
-  
+The -f flag accepts local files, URLs, or stdin (use '-' for stdin).
+URLs starting with http://, https://, or github: are fetched automatically.
+
+GitHub shorthand: github:user/repo/path/file.yaml
+   
 Examples:
   nvp apply -f telescope.yaml
   nvp apply -f plugin1.yaml -f plugin2.yaml
-  nvp apply --url https://raw.githubusercontent.com/user/repo/main/plugin.yaml
-  nvp apply --url github:rmkohlman/nvim-yaml-plugins/plugins/telescope.yaml
+  nvp apply -f https://raw.githubusercontent.com/user/repo/main/plugin.yaml
+  nvp apply -f github:rmkohlman/nvim-yaml-plugins/plugins/telescope.yaml
   cat plugin.yaml | nvp apply -f -`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		files, _ := cmd.Flags().GetStringSlice("filename")
-		urls, _ := cmd.Flags().GetStringSlice("url")
 
-		if len(files) == 0 && len(urls) == 0 {
-			return fmt.Errorf("must specify at least one file with -f flag or URL with --url flag")
+		if len(files) == 0 {
+			return fmt.Errorf("must specify at least one file or URL with -f flag")
 		}
 
 		mgr, err := getManager()
@@ -387,36 +385,26 @@ Examples:
 		}
 		defer mgr.Close()
 
-		// Process files
-		for _, file := range files {
+		// Process files and URLs (auto-detect)
+		for _, source := range files {
 			var data []byte
 			var err error
-			var source string
+			var displaySource string
 
-			if file == "-" {
+			if source == "-" {
 				data, err = io.ReadAll(os.Stdin)
-				source = "stdin"
+				displaySource = "stdin"
+			} else if isURL(source) {
+				data, displaySource, err = nvimops.FetchURL(source)
 			} else {
-				data, err = os.ReadFile(file)
-				source = file
+				data, err = os.ReadFile(source)
+				displaySource = source
 			}
 			if err != nil {
 				return fmt.Errorf("failed to read %s: %w", source, err)
 			}
 
-			if err := applyPluginData(mgr, data, source); err != nil {
-				return err
-			}
-		}
-
-		// Process URLs
-		for _, url := range urls {
-			data, source, err := fetchURL(url)
-			if err != nil {
-				return fmt.Errorf("failed to fetch %s: %w", url, err)
-			}
-
-			if err := applyPluginData(mgr, data, source); err != nil {
+			if err := applyPluginData(mgr, data, displaySource); err != nil {
 				return err
 			}
 		}
@@ -455,57 +443,15 @@ func applyPluginData(mgr *nvimops.Manager, data []byte, source string) error {
 	return nil
 }
 
-// fetchURL fetches plugin YAML from a URL, supporting GitHub shorthand
-func fetchURL(url string) ([]byte, string, error) {
-	originalURL := url
-
-	// Handle GitHub shorthand: github:user/repo/path/file.yaml
-	if strings.HasPrefix(url, "github:") {
-		path := strings.TrimPrefix(url, "github:")
-		// Split into user/repo and the rest
-		parts := strings.SplitN(path, "/", 3)
-		if len(parts) < 3 {
-			return nil, "", fmt.Errorf("invalid github URL format, expected github:user/repo/path/file.yaml")
-		}
-		user := parts[0]
-		repo := parts[1]
-		filePath := parts[2]
-		url = fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/main/%s", user, repo, filePath)
-		slog.Debug("converted GitHub shorthand", "original", originalURL, "url", url)
-	}
-
-	slog.Debug("fetching URL", "url", url)
-
-	// Fetch the URL
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
-
-	resp, err := client.Get(url)
-	if err != nil {
-		slog.Error("HTTP request failed", "url", url, "error", err)
-		return nil, "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		slog.Error("HTTP request returned error", "url", url, "status", resp.StatusCode)
-		return nil, "", fmt.Errorf("HTTP %d: %s", resp.StatusCode, resp.Status)
-	}
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		slog.Error("failed to read response body", "url", url, "error", err)
-		return nil, "", err
-	}
-
-	slog.Info("fetched URL successfully", "url", url, "bytes", len(data))
-	return data, url, nil
+// isURL checks if a string is a URL (http://, https://, or github: shorthand)
+func isURL(s string) bool {
+	return strings.HasPrefix(s, "http://") ||
+		strings.HasPrefix(s, "https://") ||
+		strings.HasPrefix(s, "github:")
 }
 
 func init() {
-	applyCmd.Flags().StringSliceP("filename", "f", nil, "Plugin YAML file(s) to apply (use '-' for stdin)")
-	applyCmd.Flags().StringSlice("url", nil, "Plugin YAML URL(s) to fetch and apply")
+	applyCmd.Flags().StringSliceP("filename", "f", nil, "Plugin YAML file(s) or URL(s) to apply (use '-' for stdin)")
 }
 
 // =============================================================================
@@ -924,19 +870,19 @@ var themeApplyCmd = &cobra.Command{
 	Short: "Apply a theme from file or URL",
 	Long: `Apply a theme definition from a YAML file or URL.
 
-URL Formats:
-  https://example.com/theme.yaml           # Direct URL
-  github:user/repo/path/theme.yaml         # GitHub shorthand
-  
+The -f flag accepts local files, URLs, or stdin (use '-' for stdin).
+URLs starting with http://, https://, or github: are fetched automatically.
+
+GitHub shorthand: github:user/repo/path/file.yaml
+   
 Examples:
   nvp theme apply -f my-theme.yaml
-  nvp theme apply --url github:user/repo/themes/custom.yaml`,
+  nvp theme apply -f github:user/repo/themes/custom.yaml`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		files, _ := cmd.Flags().GetStringSlice("filename")
-		urls, _ := cmd.Flags().GetStringSlice("url")
 
-		if len(files) == 0 && len(urls) == 0 {
-			return fmt.Errorf("must specify at least one file with -f flag or URL with --url flag")
+		if len(files) == 0 {
+			return fmt.Errorf("must specify at least one file or URL with -f flag")
 		}
 
 		themeStore := getThemeStore()
@@ -944,36 +890,26 @@ Examples:
 			return err
 		}
 
-		// Process files
-		for _, file := range files {
+		// Process files and URLs (auto-detect)
+		for _, source := range files {
 			var data []byte
 			var err error
-			var source string
+			var displaySource string
 
-			if file == "-" {
+			if source == "-" {
 				data, err = io.ReadAll(os.Stdin)
-				source = "stdin"
+				displaySource = "stdin"
+			} else if isURL(source) {
+				data, displaySource, err = nvimops.FetchURL(source)
 			} else {
-				data, err = os.ReadFile(file)
-				source = file
+				data, err = os.ReadFile(source)
+				displaySource = source
 			}
 			if err != nil {
 				return fmt.Errorf("failed to read %s: %w", source, err)
 			}
 
-			if err := applyThemeData(themeStore, data, source); err != nil {
-				return err
-			}
-		}
-
-		// Process URLs
-		for _, url := range urls {
-			data, source, err := fetchURL(url)
-			if err != nil {
-				return fmt.Errorf("failed to fetch %s: %w", url, err)
-			}
-
-			if err := applyThemeData(themeStore, data, source); err != nil {
+			if err := applyThemeData(themeStore, data, displaySource); err != nil {
 				return err
 			}
 		}
@@ -1444,8 +1380,7 @@ func init() {
 	// Flags
 	themeListCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")
 	themeGetCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json")
-	themeApplyCmd.Flags().StringSliceP("filename", "f", nil, "Theme YAML file(s)")
-	themeApplyCmd.Flags().StringSlice("url", nil, "Theme YAML URL(s)")
+	themeApplyCmd.Flags().StringSliceP("filename", "f", nil, "Theme YAML file(s) or URL(s) to apply")
 	themeDeleteCmd.Flags().BoolP("force", "f", false, "Skip confirmation")
 	themePreviewCmd.Flags().Bool("all", false, "Preview all library themes")
 	themeLibraryListCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")

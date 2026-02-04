@@ -5,9 +5,17 @@ import (
 	"devopsmaestro/render"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
+
+// isURL checks if a string is a URL (http://, https://, or github: shorthand)
+func isURL(s string) bool {
+	return strings.HasPrefix(s, "http://") ||
+		strings.HasPrefix(s, "https://") ||
+		strings.HasPrefix(s, "github:")
+}
 
 // applyCmd is the root 'apply' command for kubectl-style resource application
 // Usage: dvm apply -f <file> or dvm apply nvim plugin -f <file>
@@ -33,27 +41,40 @@ Examples:
   dvm apply nvim theme -f tokyonight.yaml`,
 }
 
-// applyNvimPluginCmd applies a nvim plugin from file
-// Usage: dvm apply nvim plugin -f <file>
+// applyNvimPluginCmd applies a nvim plugin from file or URL
+// Usage: dvm apply nvim plugin -f <file|url>
 var applyNvimPluginCmd = &cobra.Command{
 	Use:   "plugin",
-	Short: "Apply a nvim plugin from file",
-	Long: `Apply a nvim plugin definition from a YAML file to the database.
+	Short: "Apply a nvim plugin from file or URL",
+	Long: `Apply a nvim plugin definition from a YAML file or URL to the database.
 If the plugin already exists, it will be updated.
+
+The -f flag accepts local files, URLs, or stdin (use '-' for stdin).
+URLs starting with http://, https://, or github: are fetched automatically.
 
 Examples:
   dvm apply nvim plugin -f telescope.yaml
   dvm apply nvim plugin -f plugin1.yaml -f plugin2.yaml
+  dvm apply nvim plugin -f https://raw.githubusercontent.com/user/repo/main/plugin.yaml
+  dvm apply nvim plugin -f github:rmkohlman/nvim-yaml-plugins/plugins/telescope.yaml
+  dvm apply nvim plugin -f github:rmkohlman/nvim-yaml-plugins/plugins/telescope.yaml \
+                        -f github:rmkohlman/nvim-yaml-plugins/plugins/treesitter.yaml
   cat plugin.yaml | dvm apply nvim plugin -f -`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		files, _ := cmd.Flags().GetStringSlice("filename")
 
 		if len(files) == 0 {
-			return fmt.Errorf("must specify at least one file with -f flag")
+			return fmt.Errorf("must specify at least one file or URL with -f flag")
 		}
 
-		for _, filePath := range files {
-			if err := applyNvimPluginFromFile(cmd, filePath); err != nil {
+		for _, source := range files {
+			var err error
+			if isURL(source) {
+				err = applyNvimPluginFromURL(cmd, source)
+			} else {
+				err = applyNvimPluginFromFile(cmd, source)
+			}
+			if err != nil {
 				return err
 			}
 		}
@@ -113,6 +134,25 @@ func applyNvimPluginFromFile(cmd *cobra.Command, filePath string) error {
 	return nil
 }
 
+// applyNvimPluginFromURL applies a single plugin from URL using nvimops.Manager.
+// Supports GitHub shorthand: github:user/repo/path/file.yaml
+func applyNvimPluginFromURL(cmd *cobra.Command, url string) error {
+	// Get nvim manager (uses DBStoreAdapter internally)
+	mgr, err := getNvimManager(cmd)
+	if err != nil {
+		return fmt.Errorf("failed to get nvim manager: %v", err)
+	}
+	defer mgr.Close()
+
+	// Use Manager's ApplyURL which handles fetching and parsing
+	if err := mgr.ApplyURL(url); err != nil {
+		return fmt.Errorf("failed to apply plugin from URL: %v", err)
+	}
+
+	render.Success(fmt.Sprintf("Plugin applied from %s", url))
+	return nil
+}
+
 // applyNvimThemeCmd applies a nvim theme from file (placeholder for future)
 var applyNvimThemeCmd = &cobra.Command{
 	Use:   "theme",
@@ -143,9 +183,8 @@ func init() {
 	applyNvimCmd.AddCommand(applyNvimPluginCmd)
 	applyNvimCmd.AddCommand(applyNvimThemeCmd)
 
-	// Add flags
-	applyNvimPluginCmd.Flags().StringSliceP("filename", "f", []string{}, "Plugin YAML file(s) to apply (use '-' for stdin)")
-	applyNvimPluginCmd.MarkFlagRequired("filename")
+	// Add flags for plugin command - accepts files, URLs, or stdin
+	applyNvimPluginCmd.Flags().StringSliceP("filename", "f", []string{}, "Plugin YAML file(s) or URL(s) to apply (use '-' for stdin)")
 
 	applyNvimThemeCmd.Flags().StringSliceP("filename", "f", []string{}, "Theme YAML file(s) to apply (use '-' for stdin)")
 }

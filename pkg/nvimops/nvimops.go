@@ -32,8 +32,13 @@ package nvimops
 
 import (
 	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"devopsmaestro/pkg/nvimops/plugin"
 	"devopsmaestro/pkg/nvimops/store"
@@ -99,6 +104,72 @@ func (m *Manager) ApplyFile(path string) error {
 		return fmt.Errorf("failed to parse plugin file: %w", err)
 	}
 	return m.Apply(p)
+}
+
+// ApplyURL fetches a plugin YAML from a URL and applies it.
+// Supports GitHub shorthand: github:user/repo/path/file.yaml
+func (m *Manager) ApplyURL(url string) error {
+	data, fetchedURL, err := FetchURL(url)
+	if err != nil {
+		return fmt.Errorf("failed to fetch URL: %w", err)
+	}
+
+	p, err := plugin.ParseYAML(data)
+	if err != nil {
+		return fmt.Errorf("failed to parse plugin YAML from %s: %w", fetchedURL, err)
+	}
+
+	return m.Apply(p)
+}
+
+// FetchURL fetches content from a URL, supporting GitHub shorthand.
+// GitHub shorthand format: github:user/repo/path/file.yaml
+// Returns the data, the resolved URL, and any error.
+func FetchURL(url string) ([]byte, string, error) {
+	originalURL := url
+
+	// Handle GitHub shorthand: github:user/repo/path/file.yaml
+	if strings.HasPrefix(url, "github:") {
+		path := strings.TrimPrefix(url, "github:")
+		// Split into user/repo and the rest
+		parts := strings.SplitN(path, "/", 3)
+		if len(parts) < 3 {
+			return nil, "", fmt.Errorf("invalid github URL format, expected github:user/repo/path/file.yaml")
+		}
+		user := parts[0]
+		repo := parts[1]
+		filePath := parts[2]
+		url = fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/main/%s", user, repo, filePath)
+		slog.Debug("converted GitHub shorthand", "original", originalURL, "url", url)
+	}
+
+	slog.Debug("fetching URL", "url", url)
+
+	// Fetch the URL
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	resp, err := client.Get(url)
+	if err != nil {
+		slog.Error("HTTP request failed", "url", url, "error", err)
+		return nil, "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		slog.Error("HTTP request returned error", "url", url, "status", resp.StatusCode)
+		return nil, "", fmt.Errorf("HTTP %d: %s", resp.StatusCode, resp.Status)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		slog.Error("failed to read response body", "url", url, "error", err)
+		return nil, "", err
+	}
+
+	slog.Info("fetched URL successfully", "url", url, "bytes", len(data))
+	return data, url, nil
 }
 
 // Apply applies (upserts) a plugin to the store.
