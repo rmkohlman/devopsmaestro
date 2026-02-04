@@ -18,16 +18,20 @@ DevOpsMaestro provides two tools:
 
 ## Installation
 
-### Homebrew
+### Homebrew (Recommended)
 
 ```bash
 brew tap rmkohlman/tap
 
-# NvimOps only (no containers needed)
+# Install DevOpsMaestro (includes dvm)
+brew install devopsmaestro
+
+# Or install NvimOps only (no containers needed)
 brew install nvimops
 
-# DevOpsMaestro (requires local build for CGO/SQLite)
-# See "From Source" below
+# Verify installation
+dvm version   # Should show v0.7.0
+nvp version
 ```
 
 ### From Source
@@ -46,7 +50,7 @@ sudo mv dvm nvp /usr/local/bin/
 
 ### Requirements
 
-- **Go 1.25+** for building
+- **Go 1.25+** for building from source
 - **Docker** (for dvm) - OrbStack, Docker Desktop, Podman, or Colima
 
 ---

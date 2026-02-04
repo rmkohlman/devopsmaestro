@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.0] - 2026-02-03
+
+### 🚀 Added
+
+#### Terminal Resize Support
+- **Full terminal window on attach** - Container now uses the full terminal size
+- **Dynamic resize handling** - Terminal automatically adjusts when you resize your window
+- **SIGWINCH signal monitoring** - Proper signal handling for resize events
+
+#### Timestamp-Based Image Versioning
+- **Timestamp tags** - Images now tagged with `YYYYMMDD-HHMMSS` instead of `:latest`
+- **Auto-recreate on image change** - `dvm attach` detects when image has changed and recreates container
+- **Build history** - Each build creates a uniquely tagged image for rollback capability
+
+#### kubectl-Style Workspace Plugin Commands
+- **`dvm apply nvim plugin -f file.yaml`** - Apply plugin from YAML file
+- **`dvm get nvim plugins`** - List all nvim plugins from database
+- **`dvm get nvim plugin <name>`** - Get specific plugin details
+- **`dvm delete nvim plugin <name>`** - Delete a plugin
+- **Database as source of truth** - Plugins stored in SQLite, generated to Lua at build time
+
+#### Nvim Plugin Library
+- **16+ curated plugins** - Complete library matching nvim-config repo
+- **Improved plugin configs** - Better treesitter, telescope, and LSP configurations
+- **Array-of-maps rendering** - Fixed complex dependency rendering in generator
+
+#### Terminal Operations (dvt)
+- **New `dvt` CLI** - Terminal configuration management tool
+- **Terminalops package** - Decoupled interfaces for terminal management
+- **Shell, prompt, and plugin management** - Modular terminal customization
+
+#### Theme System Enhancements
+- **Theme preview command** - Preview themes before installing
+- **5 new themes** - Additional color schemes
+- **Database storage for themes** - Persistent theme configuration
+- **Shared palette package** - Unified color management across nvp/dvm
+
+### 🐛 Fixed
+
+- **Leader key not working** - Set `vim.g.mapleader` in init.lua before lazy.nvim loads
+- **Nvim config not in container** - Generate nvim config before Dockerfile so COPY instruction is included
+- **Complex plugin dependencies** - Dependencies with config/build options now stored correctly
+- **Platform detection** - Improved platform detection in status, attach, and detach commands
+
+### 🔧 Changed
+
+- **ContainerRuntime interface** - Commands now use decoupled runtime interface
+- **Image naming** - Changed from `:latest` to timestamp-based tags
+- **Workspace creation** - New workspaces get `:pending` tag until first build
+
+---
+
 ## [0.6.0] - 2026-02-03
 
 ### 🚀 Added
@@ -710,6 +762,7 @@ docs/
 
 ## Version History
 
+- **[0.7.0]** - 2026-02-03 - Terminal resize, timestamp-based image tags, auto-recreate containers
 - **[0.6.0]** - 2026-02-03 - `dvm status`, kubectl aliases, `dvm detach`, context commands
 - **[0.5.1]** - 2026-02-02 - BuildKit socket validation fix + documentation updates
 - **[0.5.0]** - 2026-01-30 - NvimTheme system + exported palette for plugins
