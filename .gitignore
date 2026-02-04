@@ -42,3 +42,6 @@ tests/manual/nvim-manager/testrunner.go
 /dvm
 /nvp
 /dvt
+
+# Build/release artifacts
+/dist/
