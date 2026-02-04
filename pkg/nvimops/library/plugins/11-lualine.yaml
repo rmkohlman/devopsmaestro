@@ -62,6 +62,31 @@ spec:
         theme = my_lualine_theme,
       },
       sections = {
+        lualine_c = {
+          {
+            function()
+              if vim.bo.filetype == "etree" then
+                return "ETree"
+              else
+                return vim.fn.fnamemodify(vim.fn.getcwd(), ":t")
+              end
+            end,
+            icon = "",
+            color = { fg = "#FFDA7B" },
+          },
+          {
+            "branch",
+            cond = function()
+              return vim.bo.filetype ~= "etree"
+            end,
+          },
+          {
+            "diff",
+            cond = function()
+              return vim.bo.filetype ~= "etree"
+            end,
+          },
+        },
         lualine_x = {
           {
             lazy_status.updates,

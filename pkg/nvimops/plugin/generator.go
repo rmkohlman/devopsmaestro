@@ -258,19 +258,49 @@ func (g *Generator) writeOptsValue(lua *strings.Builder, indent, key string, val
 	case int, int64, float64:
 		lua.WriteString(fmt.Sprintf("%s%s = %v,\n", indent, key, v))
 	case []interface{}:
-		// Array
-		lua.WriteString(fmt.Sprintf("%s%s = { ", indent, key))
-		for i, item := range v {
-			if i > 0 {
-				lua.WriteString(", ")
-			}
-			if str, ok := item.(string); ok {
-				lua.WriteString(fmt.Sprintf("\"%s\"", escapeString(str)))
-			} else {
-				lua.WriteString(fmt.Sprintf("%v", item))
+		// Array - check if it contains complex objects (maps)
+		hasComplexItems := false
+		for _, item := range v {
+			if _, isMap := item.(map[string]interface{}); isMap {
+				hasComplexItems = true
+				break
 			}
 		}
-		lua.WriteString(" },\n")
+
+		if hasComplexItems {
+			// Array of tables - format each on its own line
+			lua.WriteString(fmt.Sprintf("%s%s = {\n", indent, key))
+			indent2 := indent + strings.Repeat(" ", g.IndentSize)
+			for _, item := range v {
+				if m, ok := item.(map[string]interface{}); ok {
+					lua.WriteString(fmt.Sprintf("%s{\n", indent2))
+					indent3 := indent2 + strings.Repeat(" ", g.IndentSize)
+					for k, val := range m {
+						g.writeOptsValue(lua, indent3, k, val)
+					}
+					lua.WriteString(fmt.Sprintf("%s},\n", indent2))
+				} else if str, ok := item.(string); ok {
+					lua.WriteString(fmt.Sprintf("%s\"%s\",\n", indent2, escapeString(str)))
+				} else {
+					lua.WriteString(fmt.Sprintf("%s%v,\n", indent2, item))
+				}
+			}
+			lua.WriteString(fmt.Sprintf("%s},\n", indent))
+		} else {
+			// Simple array - inline format
+			lua.WriteString(fmt.Sprintf("%s%s = { ", indent, key))
+			for i, item := range v {
+				if i > 0 {
+					lua.WriteString(", ")
+				}
+				if str, ok := item.(string); ok {
+					lua.WriteString(fmt.Sprintf("\"%s\"", escapeString(str)))
+				} else {
+					lua.WriteString(fmt.Sprintf("%v", item))
+				}
+			}
+			lua.WriteString(" },\n")
+		}
 	case map[string]interface{}:
 		// Nested table
 		lua.WriteString(fmt.Sprintf("%s%s = {\n", indent, key))

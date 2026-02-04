@@ -16,6 +16,30 @@ spec:
     local chat = require("CopilotChat")
     local keymap = vim.keymap.set
 
+    -- Define a helper function to select files via glob pattern
+    local glob_select = function(opts)
+    	opts = opts or {}
+    	local pattern = opts.pattern or vim.fn.input("Glob pattern: ")
+    	if pattern == "" then
+    		return {}
+    	end
+
+    	local files = vim.split(vim.fn.glob(pattern, true, true) or "", "\n")
+    	local resources = {}
+    	for _, file in ipairs(files) do
+    		if file ~= "" then
+    			table.insert(resources, {
+    				uri = vim.uri.from_local(file),
+    				content = vim.fn.readfile(file),
+    			})
+    		end
+    	end
+    	return resources
+    end
+
+    -- Register the new selection function
+    require("CopilotChat.select").glob = glob_select
+
     chat.setup({
     	window = {
     		layout = "float",
@@ -67,5 +91,23 @@ spec:
     		keymap("n", "q", "<cmd>CopilotChatClose<cr>", { buffer = true, desc = "Close chat" })
     		keymap("n", "<c-p>", "<cmd>CopilotChatInputHistoryPrevious<cr>", { buffer = true, desc = "Previous prompt" })
     		keymap("n", "<c-n>", "<cmd>CopilotChatInputHistoryNext<cr>", { buffer = true, desc = "Next prompt" })
+
+    		-- Helper to make previous buffer modifiable
+    		local make_prev_buf_modifiable = function()
+    			local current_win = vim.api.nvim_get_current_win()
+    			vim.api.nvim_win_set_buf(0, vim.fn.bufnr("#"))
+    			vim.opt_local.modifiable = true
+    			vim.api.nvim_set_current_win(current_win)
+    		end
+
+    		keymap("n", "<C-y>", function()
+    			make_prev_buf_modifiable()
+    			vim.cmd("CopilotChatYankDiff")
+    		end, { buffer = true, desc = "Accept nearest diff and make modifiable" })
+
+    		keymap("n", "gd", function()
+    			make_prev_buf_modifiable()
+    			vim.cmd("CopilotChatDiff")
+    		end, { buffer = true, desc = "Show diff and make modifiable" })
     	end,
     })

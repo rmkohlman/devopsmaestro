@@ -53,7 +53,27 @@ spec:
       desc: "Obsidian: Search by tags"
     - key: "<leader>og"
       action: "<cmd>Obsidian follow_link<cr>"
-      desc: "Obsidian: Follow link"
+      desc: "Obsidian: Follow link/smart action"
+    # Navigation
+    - key: "]o"
+      action: 'function() require("obsidian").nav_link("next") end'
+      desc: "Obsidian: Go to next link"
+    - key: "[o"
+      action: 'function() require("obsidian").nav_link("prev") end'
+      desc: "Obsidian: Go to previous link"
+    # Visual mode actions
+    - key: "<leader>oe"
+      action: "<cmd>Obsidian extract_note<cr>"
+      mode: "v"
+      desc: "Obsidian: Extract to new note"
+    - key: "<leader>oll"
+      action: "<cmd>Obsidian link<cr>"
+      mode: "v"
+      desc: "Obsidian: Link visual selection"
+    - key: "<leader>onn"
+      action: "<cmd>Obsidian link_new<cr>"
+      mode: "v"
+      desc: "Obsidian: Link new note to selection"
     # Other
     - key: "<leader>otc"
       action: "<cmd>Obsidian toc<cr>"
