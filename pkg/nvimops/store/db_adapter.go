@@ -315,6 +315,7 @@ func pluginToDBModel(p *plugin.Plugin) *models.NvimPluginDB {
 					Build:   d.Build,
 					Version: d.Version,
 					Branch:  d.Branch,
+					Config:  d.Config,
 				}
 			} else {
 				depsData[i] = d.Repo

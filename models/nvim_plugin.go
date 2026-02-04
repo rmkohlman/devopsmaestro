@@ -72,10 +72,11 @@ type PluginSpec struct {
 
 // PluginDependency represents a plugin dependency
 type PluginDependency struct {
-	Repo    string `yaml:"repo"`
-	Build   string `yaml:"build,omitempty"`
-	Version string `yaml:"version,omitempty"`
-	Branch  string `yaml:"branch,omitempty"`
+	Repo    string `yaml:"repo" json:"repo"`
+	Build   string `yaml:"build,omitempty" json:"build,omitempty"`
+	Version string `yaml:"version,omitempty" json:"version,omitempty"`
+	Branch  string `yaml:"branch,omitempty" json:"branch,omitempty"`
+	Config  bool   `yaml:"config,omitempty" json:"config,omitempty"`
 }
 
 // PluginKeymap represents a key mapping

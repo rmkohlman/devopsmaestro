@@ -58,7 +58,7 @@ func (g *Generator) Generate(cfg *CoreConfig) (*GeneratedConfig, error) {
 	}
 
 	return &GeneratedConfig{
-		InitLua:        g.generateInitLua(ns),
+		InitLua:        g.generateInitLua(cfg, ns),
 		LazyLua:        g.generateLazyLua(ns),
 		CoreInitLua:    g.generateCoreInitLua(ns),
 		OptionsLua:     g.generateOptionsLua(cfg),
@@ -150,10 +150,19 @@ func (g *Generator) indent(level int) string {
 }
 
 // generateInitLua creates the root init.lua
-func (g *Generator) generateInitLua(namespace string) string {
-	return fmt.Sprintf(`require("%s.core")
+// Leader key MUST be set before lazy.nvim loads for mappings to work
+func (g *Generator) generateInitLua(cfg *CoreConfig, namespace string) string {
+	leader := cfg.Leader
+	if leader == "" {
+		leader = " "
+	}
+	return fmt.Sprintf(`-- Set leader key BEFORE loading lazy.nvim (required for mappings)
+vim.g.mapleader = "%s"
+vim.g.maplocalleader = "%s"
+
+require("%s.core")
 require("%s.lazy")
-`, namespace, namespace)
+`, leader, leader, namespace, namespace)
 }
 
 // generateLazyLua creates the lazy.nvim bootstrap file

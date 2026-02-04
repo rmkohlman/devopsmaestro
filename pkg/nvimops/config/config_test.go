@@ -110,14 +110,18 @@ options:
 
 func TestGenerator_GenerateInitLua(t *testing.T) {
 	gen := NewGenerator()
-	cfg := &CoreConfig{Namespace: "workspace"}
+	cfg := &CoreConfig{Namespace: "workspace", Leader: " "}
 
 	generated, err := gen.Generate(cfg)
 	if err != nil {
 		t.Fatalf("failed to generate: %v", err)
 	}
 
-	expected := `require("workspace.core")
+	expected := `-- Set leader key BEFORE loading lazy.nvim (required for mappings)
+vim.g.mapleader = " "
+vim.g.maplocalleader = " "
+
+require("workspace.core")
 require("workspace.lazy")
 `
 	if generated.InitLua != expected {
