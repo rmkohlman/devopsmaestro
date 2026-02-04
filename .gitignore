@@ -41,3 +41,4 @@ tests/manual/nvim-manager/testrunner.go
 # Built binaries
 /dvm
 /nvp
+/dvt
