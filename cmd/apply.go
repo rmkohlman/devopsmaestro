@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"devopsmaestro/pkg/nvimops"
 	"devopsmaestro/pkg/nvimops/plugin"
+	"devopsmaestro/pkg/nvimops/theme"
 	"devopsmaestro/render"
 	"fmt"
 	"os"
@@ -153,24 +155,109 @@ func applyNvimPluginFromURL(cmd *cobra.Command, url string) error {
 	return nil
 }
 
-// applyNvimThemeCmd applies a nvim theme from file (placeholder for future)
+// applyNvimThemeCmd applies a nvim theme from file or URL
+// Usage: dvm apply nvim theme -f <file|url>
 var applyNvimThemeCmd = &cobra.Command{
 	Use:   "theme",
-	Short: "Apply a nvim theme from file",
-	Long: `Apply a nvim theme definition from a YAML file.
+	Short: "Apply a nvim theme from file or URL",
+	Long: `Apply a nvim theme definition from a YAML file or URL to the database.
+If the theme already exists, it will be updated.
 
-Note: Theme management is currently available via the standalone 'nvp' CLI.
-This command will be integrated in a future version.
+The -f flag accepts local files, URLs, or stdin (use '-' for stdin).
+URLs starting with http://, https://, or github: are fetched automatically.
 
-For now, use: nvp theme apply -f <file>`,
+Examples:
+  dvm apply nvim theme -f tokyonight.yaml
+  dvm apply nvim theme -f theme1.yaml -f theme2.yaml
+  dvm apply nvim theme -f https://raw.githubusercontent.com/user/repo/main/theme.yaml
+  dvm apply nvim theme -f github:rmkohlman/nvim-yaml-plugins/themes/catppuccin-mocha.yaml
+  cat theme.yaml | dvm apply nvim theme -f -`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		render.Info("Theme management is currently available via the standalone 'nvp' CLI.")
-		render.Info("")
-		render.Info("Use this command instead:\n  nvp theme apply -f <file>")
-		render.Info("")
-		render.Info("Integration with dvm is planned for a future release.")
+		files, _ := cmd.Flags().GetStringSlice("filename")
+
+		if len(files) == 0 {
+			return fmt.Errorf("must specify at least one file or URL with -f flag")
+		}
+
+		for _, source := range files {
+			var err error
+			if isURL(source) {
+				err = applyNvimThemeFromURL(cmd, source)
+			} else {
+				err = applyNvimThemeFromFile(cmd, source)
+			}
+			if err != nil {
+				return err
+			}
+		}
+
 		return nil
 	},
+}
+
+// applyNvimThemeFromFile applies a single theme file using theme.Store.
+func applyNvimThemeFromFile(cmd *cobra.Command, filePath string) error {
+	var data []byte
+	var err error
+	var source string
+
+	// Read from stdin if filePath is "-"
+	if filePath == "-" {
+		data, err = os.ReadFile("/dev/stdin")
+		source = "stdin"
+		if err != nil {
+			return fmt.Errorf("failed to read from stdin: %v", err)
+		}
+	} else {
+		data, err = os.ReadFile(filePath)
+		source = filePath
+		if err != nil {
+			return fmt.Errorf("failed to read file: %v", err)
+		}
+	}
+
+	return applyNvimThemeData(cmd, data, source)
+}
+
+// applyNvimThemeFromURL applies a single theme from URL.
+// Supports GitHub shorthand: github:user/repo/path/file.yaml
+func applyNvimThemeFromURL(cmd *cobra.Command, url string) error {
+	data, resolvedURL, err := nvimops.FetchURL(url)
+	if err != nil {
+		return fmt.Errorf("failed to fetch URL: %v", err)
+	}
+
+	return applyNvimThemeData(cmd, data, resolvedURL)
+}
+
+// applyNvimThemeData parses and applies theme data to the store.
+func applyNvimThemeData(cmd *cobra.Command, data []byte, source string) error {
+	// Parse YAML using the theme parser
+	t, err := theme.ParseYAML(data)
+	if err != nil {
+		return fmt.Errorf("failed to parse theme YAML: %v", err)
+	}
+
+	// Get theme store (uses DBStoreAdapter internally)
+	store, err := getThemeStore(cmd)
+	if err != nil {
+		return fmt.Errorf("failed to get theme store: %v", err)
+	}
+
+	// Check if theme already exists (for messaging)
+	existing, _ := store.Get(t.Name)
+	action := "created"
+	if existing != nil {
+		action = "configured"
+	}
+
+	// Save (upsert) the theme
+	if err := store.Save(t); err != nil {
+		return fmt.Errorf("failed to apply theme: %v", err)
+	}
+
+	render.Success(fmt.Sprintf("Theme '%s' %s (from %s)", t.Name, action, source))
+	return nil
 }
 
 func init() {
@@ -186,5 +273,5 @@ func init() {
 	// Add flags for plugin command - accepts files, URLs, or stdin
 	applyNvimPluginCmd.Flags().StringSliceP("filename", "f", []string{}, "Plugin YAML file(s) or URL(s) to apply (use '-' for stdin)")
 
-	applyNvimThemeCmd.Flags().StringSliceP("filename", "f", []string{}, "Theme YAML file(s) to apply (use '-' for stdin)")
+	applyNvimThemeCmd.Flags().StringSliceP("filename", "f", []string{}, "Theme YAML file(s) or URL(s) to apply (use '-' for stdin)")
 }
