@@ -1,0 +1,27 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: todo-comments
+  description: "Highlight and search TODO comments"
+  category: ui
+  tags: ["ui", "comments", "todo"]
+spec:
+  repo: folke/todo-comments.nvim
+  event: ["BufReadPre", "BufNewFile"]
+  dependencies:
+    - repo: nvim-lua/plenary.nvim
+  config: |
+    local todo_comments = require("todo-comments")
+
+    -- set keymaps
+    local keymap = vim.keymap
+
+    keymap.set("n", "]t", function()
+    	todo_comments.jump_next()
+    end, { desc = "Next todo comment" })
+
+    keymap.set("n", "[t", function()
+    	todo_comments.jump_prev()
+    end, { desc = "Previous todo comment" })
+
+    todo_comments.setup()

@@ -1,0 +1,13 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: indent-blankline
+  description: "Indentation guides for Neovim"
+  category: ui
+  tags: ["ui", "indent", "guides"]
+spec:
+  repo: lukas-reineke/indent-blankline.nvim
+  event: ["BufReadPre", "BufNewFile"]
+  opts:
+    indent:
+      char: "┊"

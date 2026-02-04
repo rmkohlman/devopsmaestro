@@ -1,0 +1,12 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: dadbod
+  description: "Database client with UI and completion"
+  category: database
+  tags: ["database", "sql"]
+spec:
+  repo: tpope/vim-dadbod
+  config: |
+    -- Core dadbod is loaded, UI and completion are separate plugins
+    -- Use :DB command for database operations

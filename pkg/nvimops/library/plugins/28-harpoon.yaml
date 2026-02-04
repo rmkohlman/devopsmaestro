@@ -1,0 +1,49 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: harpoon
+  description: "Quick file navigation with marks"
+  category: navigation
+  tags: ["navigation", "marks", "files"]
+spec:
+  repo: ThePrimeagen/harpoon
+  branch: harpoon2
+  dependencies:
+    - repo: nvim-lua/plenary.nvim
+  config: |
+    local harpoon = require("harpoon")
+    local keymap = vim.keymap
+
+    harpoon:setup({})
+
+    -- Harpoon mappings with <leader>m prefix for "marks"
+    keymap.set("n", "<leader>ma", function()
+    	harpoon:list():add()
+    end, { desc = "Harpoon: Mark file" })
+    keymap.set("n", "<leader>mm", function()
+    	harpoon.ui:toggle_quick_menu(harpoon:list())
+    end, { desc = "Harpoon: Toggle quick menu" })
+
+    -- Telescope configuration for Harpoon
+    local conf = require("telescope.config").values
+    local function toggle_telescope(harpoon_files)
+    	local file_paths = {}
+    	for _, item in ipairs(harpoon_files.items) do
+    		table.insert(file_paths, item.value)
+    	end
+
+    	require("telescope.pickers")
+    		.new({}, {
+    			prompt_title = "Harpoon",
+    			finder = require("telescope.finders").new_table({
+    				results = file_paths,
+    			}),
+    			previewer = conf.file_previewer({}),
+    			sorter = conf.generic_sorter({}),
+    		})
+    		:find()
+    end
+
+    keymap.set("n", "<leader>ms", function()
+    	toggle_telescope(harpoon:list())
+    end, { desc = "Harpoon: Open with Telescope" })

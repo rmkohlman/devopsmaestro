@@ -1,0 +1,10 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: dressing
+  description: "Improved UI for vim.ui.select and vim.ui.input"
+  category: ui
+  tags: ["ui", "select", "input"]
+spec:
+  repo: stevearc/dressing.nvim
+  event: ["VeryLazy"]

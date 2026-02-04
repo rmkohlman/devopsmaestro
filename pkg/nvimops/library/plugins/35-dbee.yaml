@@ -1,0 +1,14 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: dbee
+  description: "Alternative database UI for Neovim"
+  category: database
+  tags: ["database", "sql", "ui"]
+spec:
+  repo: kndndrj/nvim-dbee
+  dependencies:
+    - repo: MunifTanjim/nui.nvim
+  build: "require('dbee').install()"
+  config: |
+    require("dbee").setup({})

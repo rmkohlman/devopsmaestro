@@ -1,0 +1,76 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: obsidian
+  description: "Obsidian vault integration for Neovim"
+  category: notes
+  tags: ["notes", "obsidian", "markdown"]
+spec:
+  repo: obsidian-nvim/obsidian.nvim
+  version: "*"
+  dependencies:
+    - repo: nvim-lua/plenary.nvim
+    - repo: nvim-telescope/telescope.nvim
+  keys:
+    # Daily notes
+    - key: "<leader>od"
+      action: "<cmd>Obsidian today<cr>"
+      desc: "Obsidian: Today's daily note"
+    - key: "<leader>ot"
+      action: "<cmd>Obsidian tomorrow<cr>"
+      desc: "Obsidian: Tomorrow's daily note"
+    - key: "<leader>oy"
+      action: "<cmd>Obsidian yesterday<cr>"
+      desc: "Obsidian: Yesterday's daily note"
+    - key: "<leader>oa"
+      action: "<cmd>Obsidian dailies<cr>"
+      desc: "Obsidian: All daily notes"
+    # Note management
+    - key: "<leader>on"
+      action: "<cmd>Obsidian new<cr>"
+      desc: "Obsidian: Create new note"
+    - key: "<leader>of"
+      action: "<cmd>Obsidian new_from_template<cr>"
+      desc: "Obsidian: New from template"
+    - key: "<leader>oo"
+      action: "<cmd>Obsidian open<cr>"
+      desc: "Obsidian: Open note in app"
+    - key: "<leader>oq"
+      action: "<cmd>Obsidian quick_switch<cr>"
+      desc: "Obsidian: Quick switch"
+    - key: "<leader>ow"
+      action: "<cmd>Obsidian workspace<cr>"
+      desc: "Obsidian: Switch workspace"
+    # Search
+    - key: "<leader>os"
+      action: "<cmd>Obsidian search<cr>"
+      desc: "Obsidian: Search vault content"
+    - key: "<leader>ob"
+      action: "<cmd>Obsidian backlinks<cr>"
+      desc: "Obsidian: Show backlinks"
+    - key: "<leader>ol"
+      action: "<cmd>Obsidian tags<cr>"
+      desc: "Obsidian: Search by tags"
+    - key: "<leader>og"
+      action: "<cmd>Obsidian follow_link<cr>"
+      desc: "Obsidian: Follow link"
+    # Other
+    - key: "<leader>otc"
+      action: "<cmd>Obsidian toc<cr>"
+      desc: "Obsidian: Table of contents"
+    - key: "<leader>oi"
+      action: "<cmd>Obsidian paste_img<cr>"
+      desc: "Obsidian: Paste image"
+    - key: "<leader>orr"
+      action: "<cmd>Obsidian rename<cr>"
+      desc: "Obsidian: Rename note"
+    - key: "<leader>otgl"
+      action: "<cmd>Obsidian toggle_checkbox<cr>"
+      desc: "Obsidian: Toggle checkbox"
+  opts:
+    workspaces:
+      - name: notes
+        path: "~/obsidian-notes"
+    ui:
+      enable: false
+    legacy_commands: false

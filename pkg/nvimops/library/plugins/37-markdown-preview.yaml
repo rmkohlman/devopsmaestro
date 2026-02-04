@@ -1,0 +1,23 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: markdown-preview
+  description: "Live markdown preview in browser"
+  category: editing
+  tags: ["markdown", "preview"]
+spec:
+  repo: iamcco/markdown-preview.nvim
+  ft: ["markdown"]
+  build: "cd app && npm install"
+  keys:
+    - key: "<leader>mp"
+      action: "<cmd>MarkdownPreviewToggle<cr>"
+      desc: "Markdown: Toggle Preview"
+  config: |
+    vim.g.mkdp_auto_close = 1
+    vim.g.mkdp_open_to_the_world = 0
+    vim.g.mkdp_command_for_global = 0
+    vim.g.mkdp_refresh_slow = 0
+    vim.g.mkdp_page_title = "「${name}」"
+    vim.g.mkdp_filetypes = { "markdown", "quarto" }
+    vim.g.mkdp_echo_preview_url = 1

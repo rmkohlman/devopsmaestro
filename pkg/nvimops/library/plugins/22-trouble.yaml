@@ -1,0 +1,31 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: trouble
+  description: "Pretty diagnostics and quickfix list"
+  category: ui
+  tags: ["ui", "diagnostics", "quickfix"]
+spec:
+  repo: folke/trouble.nvim
+  cmd: ["Trouble"]
+  dependencies:
+    - repo: nvim-tree/nvim-web-devicons
+    - repo: folke/todo-comments.nvim
+  keys:
+    - key: "<leader>xw"
+      action: "<cmd>Trouble diagnostics toggle<CR>"
+      desc: "Open trouble workspace diagnostics"
+    - key: "<leader>xd"
+      action: "<cmd>Trouble diagnostics toggle filter.buf=0<CR>"
+      desc: "Open trouble document diagnostics"
+    - key: "<leader>xq"
+      action: "<cmd>Trouble quickfix toggle<CR>"
+      desc: "Open trouble quickfix list"
+    - key: "<leader>xl"
+      action: "<cmd>Trouble loclist toggle<CR>"
+      desc: "Open trouble location list"
+    - key: "<leader>xt"
+      action: "<cmd>Trouble todo toggle<CR>"
+      desc: "Open todos in trouble"
+  opts:
+    focus: true

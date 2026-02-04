@@ -1,0 +1,19 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: render-markdown
+  description: "Render markdown in-editor with nice formatting"
+  category: editing
+  tags: ["markdown", "rendering"]
+spec:
+  repo: MeanderingProgrammer/render-markdown.nvim
+  ft: ["markdown", "quarto"]
+  dependencies:
+    - repo: nvim-treesitter/nvim-treesitter
+    - repo: echasnovski/mini.nvim
+  config: |
+    require("render-markdown").setup({
+    	enabled = true,
+    	render_modes = { "n", "c", "t" },
+    	max_file_size = 10.0,
+    })

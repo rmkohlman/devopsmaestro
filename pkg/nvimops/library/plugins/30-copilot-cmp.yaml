@@ -1,0 +1,13 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: copilot-cmp
+  description: "Copilot integration with nvim-cmp"
+  category: ai
+  tags: ["ai", "copilot", "completion"]
+spec:
+  repo: zbirenbaum/copilot-cmp
+  dependencies:
+    - repo: zbirenbaum/copilot.lua
+  config: |
+    require("copilot_cmp").setup()

@@ -1,0 +1,11 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: mini
+  description: "Collection of minimal Lua modules"
+  category: utility
+  tags: ["utility", "library"]
+spec:
+  repo: echasnovski/mini.nvim
+  version: "*"
+  config: "true"

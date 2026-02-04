@@ -1,0 +1,26 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: dadbod-ui
+  description: "Database UI for vim-dadbod"
+  category: database
+  tags: ["database", "sql", "ui"]
+spec:
+  repo: kristijanhusak/vim-dadbod-ui
+  cmd: ["DBUI", "DBUIToggle"]
+  dependencies:
+    - repo: tpope/vim-dadbod
+  keys:
+    - key: "<leader>bu"
+      action: "<cmd>DBUIToggle<CR>"
+      desc: "Toggle DB UI"
+    - key: "<leader>bf"
+      action: "<cmd>DBUIFindBuffer<CR>"
+      desc: "Find buffer"
+    - key: "<leader>br"
+      action: "<cmd>DBUIRenameBuffer<CR>"
+      desc: "Rename buffer"
+  init: |
+    vim.g.db_ui_use_nerd_fonts = 1
+  config: |
+    vim.g.db_ui_save_location = "~/.config/nvim/db_ui"

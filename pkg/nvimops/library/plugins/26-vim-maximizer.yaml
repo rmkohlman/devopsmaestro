@@ -1,0 +1,13 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: vim-maximizer
+  description: "Maximize and restore splits"
+  category: utility
+  tags: ["splits", "windows"]
+spec:
+  repo: szw/vim-maximizer
+  keys:
+    - key: "<leader>sm"
+      action: "<cmd>MaximizerToggle<CR>"
+      desc: "Maximize/minimize a split"

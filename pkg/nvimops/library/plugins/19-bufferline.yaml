@@ -1,0 +1,15 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: bufferline
+  description: "Buffer line with tabpage integration"
+  category: ui
+  tags: ["ui", "buffers", "tabs"]
+spec:
+  repo: akinsho/bufferline.nvim
+  version: "*"
+  dependencies:
+    - repo: nvim-tree/nvim-web-devicons
+  opts:
+    options:
+      mode: tabs

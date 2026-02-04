@@ -20,6 +20,8 @@ spec:
     	},
     	-- enable indentation
     	indent = { enable = true },
+    	-- auto install parsers when entering buffer (prevents errors on fresh install)
+    	auto_install = true,
     	-- ensure these language parsers are installed
     	ensure_installed = {
     		"json",

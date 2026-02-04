@@ -1,0 +1,71 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: copilot-chat
+  description: "GitHub Copilot Chat integration"
+  category: ai
+  tags: ["ai", "copilot", "chat"]
+spec:
+  repo: CopilotC-Nvim/CopilotChat.nvim
+  branch: canary
+  dependencies:
+    - repo: zbirenbaum/copilot.lua
+    - repo: nvim-lua/plenary.nvim
+    - repo: nvim-telescope/telescope.nvim
+  config: |
+    local chat = require("CopilotChat")
+    local keymap = vim.keymap.set
+
+    chat.setup({
+    	window = {
+    		layout = "float",
+    		width = 0.5,
+    	},
+    	prompts = {
+    		Explain = {
+    			prompt = "Explain this code",
+    			selection = require("CopilotChat.select").visual,
+    		},
+    		Fix = {
+    			prompt = "Fix this code",
+    			selection = require("CopilotChat.select").visual,
+    		},
+    		Tests = {
+    			prompt = "Create tests for this code",
+    			selection = require("CopilotChat.select").visual,
+    		},
+    		Review = {
+    			prompt = "Review this code for security issues and refactor suggestions",
+    			selection = require("CopilotChat.select").visual,
+    		},
+    	},
+    })
+
+    -- General chat commands
+    keymap("n", "<leader>cc", "<cmd>CopilotChat<cr>", { desc = "Toggle Copilot Chat" })
+    keymap("n", "<leader>cca", "<cmd>CopilotChatAdd<cr>", { desc = "Add code to chat context" })
+    keymap("n", "<leader>ccq", function()
+    	local input = vim.fn.input("Quick Chat: ")
+    	if input ~= "" then
+    		require("CopilotChat").ask(input)
+    	end
+    end, { desc = "Quick chat" })
+    keymap("n", "<leader>ccp", "<cmd>CopilotChatPrompts<cr>", { desc = "View prompt templates" })
+    keymap("n", "<leader>cch", "<cmd>CopilotChatHistory<cr>", { desc = "View chat history" })
+    keymap("n", "<leader>cce", "<cmd>CopilotChatReset<cr>", { desc = "Reset chat session" })
+
+    -- Visual mode prompts
+    keymap("v", "<leader>ccx", "<cmd>CopilotChat Explain<cr>", { desc = "Explain visual selection" })
+    keymap("v", "<leader>ccf", "<cmd>CopilotChat Fix<cr>", { desc = "Fix visual selection" })
+    keymap("v", "<leader>cct", "<cmd>CopilotChat Tests<cr>", { desc = "Test visual selection" })
+    keymap("v", "<leader>ccr", "<cmd>CopilotChat Review<cr>", { desc = "Review visual selection" })
+
+    -- Chat window key mappings
+    vim.api.nvim_create_autocmd("FileType", {
+    	pattern = "copilot-chat",
+    	callback = function()
+    		keymap("n", "q", "<cmd>CopilotChatClose<cr>", { buffer = true, desc = "Close chat" })
+    		keymap("n", "<c-p>", "<cmd>CopilotChatInputHistoryPrevious<cr>", { buffer = true, desc = "Previous prompt" })
+    		keymap("n", "<c-n>", "<cmd>CopilotChatInputHistoryNext<cr>", { buffer = true, desc = "Next prompt" })
+    	end,
+    })

@@ -1,0 +1,12 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: dadbod-completion
+  description: "Autocompletion for vim-dadbod"
+  category: database
+  tags: ["database", "sql", "completion"]
+spec:
+  repo: kristijanhusak/vim-dadbod-completion
+  ft: ["sql", "mysql", "plsql"]
+  dependencies:
+    - repo: tpope/vim-dadbod

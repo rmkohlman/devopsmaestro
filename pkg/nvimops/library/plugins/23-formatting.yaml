@@ -1,0 +1,50 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: formatting
+  description: "Code formatting with conform.nvim"
+  category: lsp
+  tags: ["formatting", "lsp"]
+spec:
+  repo: stevearc/conform.nvim
+  event: ["BufReadPre", "BufNewFile"]
+  config: |
+    local conform = require("conform")
+
+    conform.setup({
+    	formatters_by_ft = {
+    		javascript = { "prettier" },
+    		typescript = { "prettier" },
+    		javascriptreact = { "prettier" },
+    		typescriptreact = { "prettier" },
+    		svelte = { "prettier" },
+    		css = { "prettier" },
+    		html = { "prettier" },
+    		json = { "prettier" },
+    		yaml = { "prettier" },
+    		markdown = { "prettier" },
+    		graphql = { "prettier" },
+    		liquid = { "prettier" },
+    		lua = { "stylua" },
+    		python = { "isort", "black" },
+    		go = { "gofumpt", "goimports" },
+    		rust = { "rustup" },
+    		ocaml = { "ocamlformat" },
+    		dockerfile = { "prettier" },
+    		kubernetes = { "prettier" },
+    		helm = { "prettier" },
+    	},
+    	format_on_save = {
+    		lsp_fallback = true,
+    		async = false,
+    		timeout_ms = 3000,
+    	},
+    })
+
+    vim.keymap.set({ "n", "v" }, "<leader>mp", function()
+    	conform.format({
+    		lsp_fallback = true,
+    		async = false,
+    		timeout_ms = 1000,
+    	})
+    end, { desc = "Format file or range (in visual mode)" })

@@ -1,0 +1,29 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: toggleterm
+  description: "Terminal management with floating windows"
+  category: utility
+  tags: ["terminal", "utility"]
+spec:
+  repo: akinsho/toggleterm.nvim
+  version: "*"
+  opts:
+    direction: float
+    size: 20
+    open_mapping: "<M-j>"
+    float_opts:
+      border: curved
+    hide_numbers: true
+    shade_terminals: true
+  config: |
+    require("toggleterm").setup({
+    	direction = "float",
+    	size = 20,
+    	open_mapping = [[<M-j>]],
+    	float_opts = {
+    		border = "curved",
+    	},
+    	hide_numbers = true,
+    	shade_terminals = true,
+    })
