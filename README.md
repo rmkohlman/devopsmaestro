@@ -30,7 +30,7 @@ brew install devopsmaestro
 brew install nvimops
 
 # Verify installation
-dvm version   # Should show v0.7.0
+dvm version   # Should show v0.7.1
 nvp version
 ```
 
@@ -172,12 +172,15 @@ dvm get platforms             # List detected container platforms
 nvp library list              # List available plugins
 nvp library install <name>    # Install from library
 nvp apply -f plugin.yaml      # Apply plugin from file
-nvp apply --url github:user/repo/plugin.yaml
+nvp apply -f https://example.com/plugin.yaml  # Apply from URL (auto-detected)
+nvp apply -f github:user/repo/plugin.yaml     # GitHub shorthand
+nvp apply -f -                # Apply from stdin
 
 # Themes
 nvp theme library list        # List available themes
 nvp theme library install <name> --use
 nvp theme use <name>          # Set active theme
+nvp theme apply -f theme.yaml # Apply theme from file
 
 # Generate
 nvp generate                  # Generate Lua files
@@ -237,6 +240,35 @@ spec:
 
 ---
 
+## Source Types (kubectl-style)
+
+The `-f` flag accepts multiple source types, auto-detected from the path:
+
+| Source Type | Example | Description |
+|-------------|---------|-------------|
+| **File** | `-f plugin.yaml` | Local file path |
+| **URL** | `-f https://example.com/plugin.yaml` | HTTP/HTTPS URL |
+| **GitHub** | `-f github:user/repo/path.yaml` | GitHub shorthand |
+| **Stdin** | `-f -` | Read from stdin |
+
+```bash
+# Apply from local file
+dvm apply -f workspace.yaml
+nvp apply -f plugin.yaml
+
+# Apply from URL (auto-detected)
+nvp apply -f https://raw.githubusercontent.com/user/repo/main/plugin.yaml
+
+# Apply from GitHub (shorthand)
+nvp apply -f github:rmkohlman/nvim-yaml-plugins/plugins/telescope.yaml
+
+# Apply from stdin
+cat plugin.yaml | nvp apply -f -
+echo '...' | dvm apply -f -
+```
+
+---
+
 ## Architecture
 
 ```
@@ -244,6 +276,9 @@ dvm/nvp CLI
     │
     ├── render/          # Decoupled output formatting
     ├── db/              # SQLite database layer (dvm)
+    ├── pkg/source/      # Source resolution (file, URL, stdin, GitHub)
+    ├── pkg/resource/    # Unified resource interface & handlers
+    │   └── handlers/    # NvimPlugin, NvimTheme handlers
     ├── pkg/nvimops/     # Plugin/theme management (nvp)
     │   ├── plugin/      # Plugin types, parser, generator
     │   ├── theme/       # Theme types, parser, generator

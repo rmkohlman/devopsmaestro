@@ -5,6 +5,8 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/operators"
+	"devopsmaestro/pkg/resource"
+	"devopsmaestro/pkg/resource/handlers"
 	"devopsmaestro/render"
 
 	"github.com/spf13/cobra"
@@ -78,15 +80,14 @@ func runDeleteNvimPlugin(cmd *cobra.Command, args []string) error {
 }
 
 func runDeleteGlobalPlugin(cmd *cobra.Command, name string) error {
-	// Get nvim manager (uses DBStoreAdapter internally)
-	mgr, err := getNvimManager(cmd)
+	// Build resource context and use unified handler
+	ctx, err := buildResourceContext(cmd)
 	if err != nil {
-		return fmt.Errorf("failed to get nvim manager: %v", err)
+		return fmt.Errorf("failed to get resource context: %v", err)
 	}
-	defer mgr.Close()
 
 	// Check if plugin exists
-	_, err = mgr.Get(name)
+	_, err = resource.Get(ctx, handlers.KindNvimPlugin, name)
 	if err != nil {
 		return fmt.Errorf("plugin not found: %s", name)
 	}
@@ -104,7 +105,7 @@ func runDeleteGlobalPlugin(cmd *cobra.Command, name string) error {
 	}
 
 	// Delete plugin
-	if err := mgr.Delete(name); err != nil {
+	if err := resource.Delete(ctx, handlers.KindNvimPlugin, name); err != nil {
 		return fmt.Errorf("failed to delete plugin: %v", err)
 	}
 

@@ -1,22 +1,18 @@
 package cmd
 
 import (
-	"devopsmaestro/pkg/nvimops"
-	"devopsmaestro/pkg/nvimops/plugin"
-	"devopsmaestro/pkg/nvimops/theme"
+	"devopsmaestro/pkg/resource"
+	"devopsmaestro/pkg/resource/handlers"
+	"devopsmaestro/pkg/source"
 	"devopsmaestro/render"
 	"fmt"
-	"os"
-	"strings"
 
 	"github.com/spf13/cobra"
 )
 
-// isURL checks if a string is a URL (http://, https://, or github: shorthand)
-func isURL(s string) bool {
-	return strings.HasPrefix(s, "http://") ||
-		strings.HasPrefix(s, "https://") ||
-		strings.HasPrefix(s, "github:")
+func init() {
+	// Register resource handlers
+	handlers.RegisterAll()
 }
 
 // applyCmd is the root 'apply' command for kubectl-style resource application
@@ -24,12 +20,90 @@ func isURL(s string) bool {
 var applyCmd = &cobra.Command{
 	Use:   "apply",
 	Short: "Apply a configuration from file",
-	Long: `Apply a configuration to a resource from a YAML file.
+	Long: `Apply a configuration to a resource from a YAML file, URL, or stdin.
+
+The -f flag accepts local files, URLs, or stdin (use '-' for stdin).
+URLs starting with http://, https://, or github: are fetched automatically.
+
+The resource type is auto-detected from the 'kind' field in the YAML.
+Supported kinds: NvimPlugin, NvimTheme
 
 Examples:
-  dvm apply -f workspace.yaml           # Apply any resource
-  dvm apply nvim plugin -f plugin.yaml  # Apply nvim plugin
-  dvm apply -f plugin1.yaml -f plugin2.yaml  # Apply multiple files`,
+  dvm apply -f plugin.yaml                    # Apply any resource (auto-detect kind)
+  dvm apply -f plugin.yaml -f theme.yaml      # Apply multiple resources
+  dvm apply -f github:user/repo/plugin.yaml   # Apply from GitHub
+  dvm apply nvim plugin -f plugin.yaml        # Explicit kind (backward compat)`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		files, _ := cmd.Flags().GetStringSlice("filename")
+
+		if len(files) == 0 {
+			// No -f flag provided, show help
+			return cmd.Help()
+		}
+
+		return applyResources(cmd, files)
+	},
+}
+
+// applyResources applies resources from the given sources using the unified pipeline.
+func applyResources(cmd *cobra.Command, sources []string) error {
+	// Build resource context
+	ctx, err := buildResourceContext(cmd)
+	if err != nil {
+		return err
+	}
+
+	for _, src := range sources {
+		if err := applyResource(ctx, src); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// applyResource applies a single resource from the given source.
+func applyResource(ctx resource.Context, src string) error {
+	// 1. Resolve source and read data
+	s := source.Resolve(src)
+	data, displayName, err := s.Read()
+	if err != nil {
+		return fmt.Errorf("failed to read %s: %w", src, err)
+	}
+
+	// 2. Detect kind from YAML
+	kind, err := resource.DetectKind(data)
+	if err != nil {
+		return fmt.Errorf("failed to detect resource kind from %s: %w", displayName, err)
+	}
+
+	// 3. Get handler for this kind
+	handler, err := resource.MustGetHandler(kind)
+	if err != nil {
+		return fmt.Errorf("unsupported resource kind '%s' in %s", kind, displayName)
+	}
+
+	// 4. Check if resource exists (for messaging)
+	// We need to parse first to get the name
+	res, err := handler.Apply(ctx, data)
+	if err != nil {
+		return fmt.Errorf("failed to apply %s from %s: %w", kind, displayName, err)
+	}
+
+	render.Success(fmt.Sprintf("%s '%s' applied (from %s)", kind, res.GetName(), displayName))
+	return nil
+}
+
+// buildResourceContext creates a resource.Context from the command.
+func buildResourceContext(cmd *cobra.Command) (resource.Context, error) {
+	datastore, err := getDataStore(cmd)
+	if err != nil {
+		return resource.Context{}, fmt.Errorf("failed to get datastore: %w", err)
+	}
+
+	return resource.Context{
+		DataStore: datastore,
+	}, nil
 }
 
 // applyNvimCmd is the 'nvim' subcommand under 'apply'
@@ -59,8 +133,6 @@ Examples:
   dvm apply nvim plugin -f plugin1.yaml -f plugin2.yaml
   dvm apply nvim plugin -f https://raw.githubusercontent.com/user/repo/main/plugin.yaml
   dvm apply nvim plugin -f github:rmkohlman/nvim-yaml-plugins/plugins/telescope.yaml
-  dvm apply nvim plugin -f github:rmkohlman/nvim-yaml-plugins/plugins/telescope.yaml \
-                        -f github:rmkohlman/nvim-yaml-plugins/plugins/treesitter.yaml
   cat plugin.yaml | dvm apply nvim plugin -f -`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		files, _ := cmd.Flags().GetStringSlice("filename")
@@ -69,90 +141,9 @@ Examples:
 			return fmt.Errorf("must specify at least one file or URL with -f flag")
 		}
 
-		for _, source := range files {
-			var err error
-			if isURL(source) {
-				err = applyNvimPluginFromURL(cmd, source)
-			} else {
-				err = applyNvimPluginFromFile(cmd, source)
-			}
-			if err != nil {
-				return err
-			}
-		}
-
-		return nil
+		// Use the unified apply pipeline
+		return applyResources(cmd, files)
 	},
-}
-
-// applyNvimPluginFromFile applies a single plugin file using nvimops.Manager.
-// This provides a unified storage mechanism shared with nvp CLI.
-func applyNvimPluginFromFile(cmd *cobra.Command, filePath string) error {
-	var data []byte
-	var err error
-	var source string
-
-	// Read from stdin if filePath is "-"
-	if filePath == "-" {
-		data, err = os.ReadFile("/dev/stdin")
-		source = "stdin"
-		if err != nil {
-			return fmt.Errorf("failed to read from stdin: %v", err)
-		}
-	} else {
-		data, err = os.ReadFile(filePath)
-		source = filePath
-		if err != nil {
-			return fmt.Errorf("failed to read file: %v", err)
-		}
-	}
-
-	// Parse YAML using the nvimops plugin parser
-	p, err := plugin.ParseYAML(data)
-	if err != nil {
-		return fmt.Errorf("failed to parse plugin YAML: %v", err)
-	}
-
-	// Get nvim manager (uses DBStoreAdapter internally)
-	mgr, err := getNvimManager(cmd)
-	if err != nil {
-		return fmt.Errorf("failed to get nvim manager: %v", err)
-	}
-	defer mgr.Close()
-
-	// Check if plugin already exists (for messaging)
-	existing, _ := mgr.Get(p.Name)
-	action := "created"
-	if existing != nil {
-		action = "configured"
-	}
-
-	// Apply (upsert) the plugin
-	if err := mgr.Apply(p); err != nil {
-		return fmt.Errorf("failed to apply plugin: %v", err)
-	}
-
-	render.Success(fmt.Sprintf("Plugin '%s' %s (from %s)", p.Name, action, source))
-	return nil
-}
-
-// applyNvimPluginFromURL applies a single plugin from URL using nvimops.Manager.
-// Supports GitHub shorthand: github:user/repo/path/file.yaml
-func applyNvimPluginFromURL(cmd *cobra.Command, url string) error {
-	// Get nvim manager (uses DBStoreAdapter internally)
-	mgr, err := getNvimManager(cmd)
-	if err != nil {
-		return fmt.Errorf("failed to get nvim manager: %v", err)
-	}
-	defer mgr.Close()
-
-	// Use Manager's ApplyURL which handles fetching and parsing
-	if err := mgr.ApplyURL(url); err != nil {
-		return fmt.Errorf("failed to apply plugin from URL: %v", err)
-	}
-
-	render.Success(fmt.Sprintf("Plugin applied from %s", url))
-	return nil
 }
 
 // applyNvimThemeCmd applies a nvim theme from file or URL
@@ -179,89 +170,16 @@ Examples:
 			return fmt.Errorf("must specify at least one file or URL with -f flag")
 		}
 
-		for _, source := range files {
-			var err error
-			if isURL(source) {
-				err = applyNvimThemeFromURL(cmd, source)
-			} else {
-				err = applyNvimThemeFromFile(cmd, source)
-			}
-			if err != nil {
-				return err
-			}
-		}
-
-		return nil
+		// Use the unified apply pipeline
+		return applyResources(cmd, files)
 	},
-}
-
-// applyNvimThemeFromFile applies a single theme file using theme.Store.
-func applyNvimThemeFromFile(cmd *cobra.Command, filePath string) error {
-	var data []byte
-	var err error
-	var source string
-
-	// Read from stdin if filePath is "-"
-	if filePath == "-" {
-		data, err = os.ReadFile("/dev/stdin")
-		source = "stdin"
-		if err != nil {
-			return fmt.Errorf("failed to read from stdin: %v", err)
-		}
-	} else {
-		data, err = os.ReadFile(filePath)
-		source = filePath
-		if err != nil {
-			return fmt.Errorf("failed to read file: %v", err)
-		}
-	}
-
-	return applyNvimThemeData(cmd, data, source)
-}
-
-// applyNvimThemeFromURL applies a single theme from URL.
-// Supports GitHub shorthand: github:user/repo/path/file.yaml
-func applyNvimThemeFromURL(cmd *cobra.Command, url string) error {
-	data, resolvedURL, err := nvimops.FetchURL(url)
-	if err != nil {
-		return fmt.Errorf("failed to fetch URL: %v", err)
-	}
-
-	return applyNvimThemeData(cmd, data, resolvedURL)
-}
-
-// applyNvimThemeData parses and applies theme data to the store.
-func applyNvimThemeData(cmd *cobra.Command, data []byte, source string) error {
-	// Parse YAML using the theme parser
-	t, err := theme.ParseYAML(data)
-	if err != nil {
-		return fmt.Errorf("failed to parse theme YAML: %v", err)
-	}
-
-	// Get theme store (uses DBStoreAdapter internally)
-	store, err := getThemeStore(cmd)
-	if err != nil {
-		return fmt.Errorf("failed to get theme store: %v", err)
-	}
-
-	// Check if theme already exists (for messaging)
-	existing, _ := store.Get(t.Name)
-	action := "created"
-	if existing != nil {
-		action = "configured"
-	}
-
-	// Save (upsert) the theme
-	if err := store.Save(t); err != nil {
-		return fmt.Errorf("failed to apply theme: %v", err)
-	}
-
-	render.Success(fmt.Sprintf("Theme '%s' %s (from %s)", t.Name, action, source))
-	return nil
 }
 
 func init() {
 	rootCmd.AddCommand(applyCmd)
+
+	// Add -f flag to root apply command
+	applyCmd.Flags().StringSliceP("filename", "f", []string{}, "Resource YAML file(s) or URL(s) to apply (use '-' for stdin)")
 
 	// Add nvim subcommand to apply
 	applyCmd.AddCommand(applyNvimCmd)
@@ -270,8 +188,7 @@ func init() {
 	applyNvimCmd.AddCommand(applyNvimPluginCmd)
 	applyNvimCmd.AddCommand(applyNvimThemeCmd)
 
-	// Add flags for plugin command - accepts files, URLs, or stdin
+	// Add flags for subcommands (backward compatibility)
 	applyNvimPluginCmd.Flags().StringSliceP("filename", "f", []string{}, "Plugin YAML file(s) or URL(s) to apply (use '-' for stdin)")
-
 	applyNvimThemeCmd.Flags().StringSliceP("filename", "f", []string{}, "Theme YAML file(s) or URL(s) to apply (use '-' for stdin)")
 }

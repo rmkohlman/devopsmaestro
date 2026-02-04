@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"testing"
+
+	"devopsmaestro/pkg/source"
 )
 
-// Test isURL detection
+// Test URL detection using the source package
 func TestIsURL(t *testing.T) {
 	tests := []struct {
 		input string
@@ -36,9 +38,9 @@ func TestIsURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got := isURL(tt.input)
+			got := source.IsURL(tt.input)
 			if got != tt.want {
-				t.Errorf("isURL(%q) = %v, want %v", tt.input, got, tt.want)
+				t.Errorf("source.IsURL(%q) = %v, want %v", tt.input, got, tt.want)
 			}
 		})
 	}

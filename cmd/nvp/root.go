@@ -18,6 +18,9 @@ import (
 	"devopsmaestro/pkg/nvimops/store"
 	"devopsmaestro/pkg/nvimops/theme"
 	themelibrary "devopsmaestro/pkg/nvimops/theme/library"
+	"devopsmaestro/pkg/resource"
+	"devopsmaestro/pkg/resource/handlers"
+	"devopsmaestro/pkg/source"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -66,6 +69,9 @@ func init() {
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
 		initLogging()
 	}
+
+	// Register resource handlers for unified pipeline
+	handlers.RegisterAll()
 
 	// Add all commands
 	rootCmd.AddCommand(versionCmd)
@@ -379,75 +385,33 @@ Examples:
 			return fmt.Errorf("must specify at least one file or URL with -f flag")
 		}
 
-		mgr, err := getManager()
-		if err != nil {
-			return err
+		// Create resource context for file-based storage
+		ctx := resource.Context{
+			ConfigDir: getConfigDir(),
 		}
-		defer mgr.Close()
 
-		// Process files and URLs (auto-detect)
-		for _, source := range files {
-			var data []byte
-			var err error
-			var displaySource string
-
-			if source == "-" {
-				data, err = io.ReadAll(os.Stdin)
-				displaySource = "stdin"
-			} else if isURL(source) {
-				data, displaySource, err = nvimops.FetchURL(source)
-			} else {
-				data, err = os.ReadFile(source)
-				displaySource = source
-			}
+		// Process files and URLs using unified source resolution
+		for _, src := range files {
+			srcObj := source.Resolve(src)
+			data, displayName, err := srcObj.Read()
 			if err != nil {
-				return fmt.Errorf("failed to read %s: %w", source, err)
+				return fmt.Errorf("failed to read %s: %w", src, err)
 			}
 
-			if err := applyPluginData(mgr, data, displaySource); err != nil {
-				return err
+			// Use unified resource pipeline
+			res, err := resource.Apply(ctx, data, displayName)
+			if err != nil {
+				return fmt.Errorf("failed to apply from %s: %w", displayName, err)
 			}
+
+			// Determine if this was a create or update based on the resource type
+			// For now, just report success
+			slog.Info("resource applied", "kind", res.GetKind(), "name", res.GetName(), "source", displayName)
+			fmt.Printf("✓ %s '%s' applied (from %s)\n", res.GetKind(), res.GetName(), displayName)
 		}
 
 		return nil
 	},
-}
-
-// applyPluginData parses YAML data and applies it to the manager
-func applyPluginData(mgr *nvimops.Manager, data []byte, source string) error {
-	slog.Debug("parsing plugin YAML", "source", source, "bytes", len(data))
-
-	p, err := plugin.ParseYAML(data)
-	if err != nil {
-		slog.Error("failed to parse YAML", "source", source, "error", err)
-		return fmt.Errorf("failed to parse %s: %w", source, err)
-	}
-
-	// Check if exists for messaging
-	existing, _ := mgr.Get(p.Name)
-	action := "created"
-	if existing != nil {
-		action = "configured"
-		slog.Debug("updating existing plugin", "name", p.Name)
-	} else {
-		slog.Debug("creating new plugin", "name", p.Name)
-	}
-
-	if err := mgr.Apply(p); err != nil {
-		slog.Error("failed to apply plugin", "name", p.Name, "error", err)
-		return fmt.Errorf("failed to apply %s: %w", p.Name, err)
-	}
-
-	slog.Info("plugin applied", "name", p.Name, "action", action, "source", source)
-	fmt.Printf("✓ Plugin '%s' %s (from %s)\n", p.Name, action, source)
-	return nil
-}
-
-// isURL checks if a string is a URL (http://, https://, or github: shorthand)
-func isURL(s string) bool {
-	return strings.HasPrefix(s, "http://") ||
-		strings.HasPrefix(s, "https://") ||
-		strings.HasPrefix(s, "github:")
 }
 
 func init() {
@@ -885,63 +849,31 @@ Examples:
 			return fmt.Errorf("must specify at least one file or URL with -f flag")
 		}
 
-		themeStore := getThemeStore()
-		if err := themeStore.Init(); err != nil {
-			return err
+		// Create resource context for file-based storage
+		ctx := resource.Context{
+			ConfigDir: getConfigDir(),
 		}
 
-		// Process files and URLs (auto-detect)
-		for _, source := range files {
-			var data []byte
-			var err error
-			var displaySource string
-
-			if source == "-" {
-				data, err = io.ReadAll(os.Stdin)
-				displaySource = "stdin"
-			} else if isURL(source) {
-				data, displaySource, err = nvimops.FetchURL(source)
-			} else {
-				data, err = os.ReadFile(source)
-				displaySource = source
-			}
+		// Process files and URLs using unified source resolution
+		for _, src := range files {
+			srcObj := source.Resolve(src)
+			data, displayName, err := srcObj.Read()
 			if err != nil {
-				return fmt.Errorf("failed to read %s: %w", source, err)
+				return fmt.Errorf("failed to read %s: %w", src, err)
 			}
 
-			if err := applyThemeData(themeStore, data, displaySource); err != nil {
-				return err
+			// Use unified resource pipeline
+			res, err := resource.Apply(ctx, data, displayName)
+			if err != nil {
+				return fmt.Errorf("failed to apply from %s: %w", displayName, err)
 			}
+
+			slog.Info("resource applied", "kind", res.GetKind(), "name", res.GetName(), "source", displayName)
+			fmt.Printf("✓ %s '%s' applied (from %s)\n", res.GetKind(), res.GetName(), displayName)
 		}
 
 		return nil
 	},
-}
-
-func applyThemeData(themeStore *theme.FileStore, data []byte, source string) error {
-	slog.Debug("parsing theme YAML", "source", source, "bytes", len(data))
-
-	t, err := theme.ParseYAML(data)
-	if err != nil {
-		slog.Error("failed to parse theme YAML", "source", source, "error", err)
-		return fmt.Errorf("failed to parse %s: %w", source, err)
-	}
-
-	// Check if exists
-	existing, _ := themeStore.Get(t.Name)
-	action := "created"
-	if existing != nil {
-		action = "updated"
-	}
-
-	if err := themeStore.Save(t); err != nil {
-		slog.Error("failed to save theme", "name", t.Name, "error", err)
-		return fmt.Errorf("failed to save theme: %w", err)
-	}
-
-	slog.Info("theme applied", "name", t.Name, "action", action, "source", source)
-	fmt.Printf("✓ Theme '%s' %s (from %s)\n", t.Name, action, source)
-	return nil
 }
 
 var themeDeleteCmd = &cobra.Command{

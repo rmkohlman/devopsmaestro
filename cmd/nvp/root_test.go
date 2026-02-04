@@ -8,10 +8,15 @@ import (
 	"testing"
 
 	"devopsmaestro/pkg/nvimops"
-	"devopsmaestro/pkg/nvimops/store"
+	"devopsmaestro/pkg/resource"
+	"devopsmaestro/pkg/resource/handlers"
+	"devopsmaestro/pkg/source"
 )
 
-// Test isURL detection
+// Note: handlers.RegisterAll() is called in the main package's init(),
+// which runs before tests. No need to call it here.
+
+// Test source.IsURL detection (moved from local isURL)
 func TestIsURL(t *testing.T) {
 	tests := []struct {
 		input string
@@ -30,9 +35,9 @@ func TestIsURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got := isURL(tt.input)
+			got := source.IsURL(tt.input)
 			if got != tt.want {
-				t.Errorf("isURL(%q) = %v, want %v", tt.input, got, tt.want)
+				t.Errorf("source.IsURL(%q) = %v, want %v", tt.input, got, tt.want)
 			}
 		})
 	}
@@ -54,13 +59,13 @@ spec:
 	}))
 	defer server.Close()
 
-	data, source, err := nvimops.FetchURL(server.URL + "/plugins/telescope.yaml")
+	data, sourceURL, err := nvimops.FetchURL(server.URL + "/plugins/telescope.yaml")
 	if err != nil {
 		t.Fatalf("FetchURL failed: %v", err)
 	}
 
-	if source != server.URL+"/plugins/telescope.yaml" {
-		t.Errorf("unexpected source: %s", source)
+	if sourceURL != server.URL+"/plugins/telescope.yaml" {
+		t.Errorf("unexpected source: %s", sourceURL)
 	}
 
 	if len(data) == 0 {
@@ -111,15 +116,21 @@ func TestGitHubShorthandConversion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			// The conversion happens inside FetchURL
-			// We can't test it directly without making HTTP requests
-			// This test documents the expected behavior
-			_ = tt.wantURL
+			// The conversion happens inside source.NewGitHubSource
+			// Verify the URL is correctly formed
+			src := source.Resolve(tt.input)
+			if gs, ok := src.(*source.GitHubSource); ok {
+				if gs.URL != tt.wantURL {
+					t.Errorf("GitHubSource.URL = %q, want %q", gs.URL, tt.wantURL)
+				}
+			} else {
+				t.Errorf("expected *source.GitHubSource, got %T", src)
+			}
 		})
 	}
 }
 
-// Test applyPluginData with valid YAML
+// Test resource.Apply with valid plugin YAML (unified pipeline)
 func TestApplyPluginData(t *testing.T) {
 	// Create temp directory for test store
 	tmpDir, err := os.MkdirTemp("", "nvp-test-*")
@@ -133,18 +144,10 @@ func TestApplyPluginData(t *testing.T) {
 		t.Fatalf("failed to create plugins dir: %v", err)
 	}
 
-	fileStore, err := store.NewFileStore(pluginsDir)
-	if err != nil {
-		t.Fatalf("failed to create store: %v", err)
+	// Create resource context
+	ctx := resource.Context{
+		ConfigDir: tmpDir,
 	}
-
-	mgr, err := nvimops.NewWithOptions(nvimops.Options{
-		Store: fileStore,
-	})
-	if err != nil {
-		t.Fatalf("failed to create manager: %v", err)
-	}
-	defer mgr.Close()
 
 	validYAML := []byte(`apiVersion: devopsmaestro.io/v1
 kind: NvimPlugin
@@ -156,27 +159,21 @@ spec:
   repo: "test/test-plugin"
 `)
 
-	err = applyPluginData(mgr, validYAML, "test-source")
+	res, err := resource.Apply(ctx, validYAML, "test-source")
 	if err != nil {
-		t.Fatalf("applyPluginData failed: %v", err)
+		t.Fatalf("resource.Apply failed: %v", err)
 	}
 
-	// Verify plugin was created
-	p, err := mgr.Get("test-plugin")
-	if err != nil {
-		t.Fatalf("failed to get plugin: %v", err)
+	if res.GetKind() != "NvimPlugin" {
+		t.Errorf("unexpected kind: %s", res.GetKind())
 	}
 
-	if p.Name != "test-plugin" {
-		t.Errorf("unexpected plugin name: %s", p.Name)
-	}
-
-	if p.Description != "A test plugin" {
-		t.Errorf("unexpected description: %s", p.Description)
+	if res.GetName() != "test-plugin" {
+		t.Errorf("unexpected name: %s", res.GetName())
 	}
 }
 
-// Test applyPluginData with invalid YAML
+// Test resource.Apply with invalid YAML
 func TestApplyPluginData_InvalidYAML(t *testing.T) {
 	// Create temp directory for test store
 	tmpDir, err := os.MkdirTemp("", "nvp-test-*")
@@ -185,33 +182,20 @@ func TestApplyPluginData_InvalidYAML(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	pluginsDir := filepath.Join(tmpDir, "plugins")
-	if err := os.MkdirAll(pluginsDir, 0755); err != nil {
-		t.Fatalf("failed to create plugins dir: %v", err)
+	// Create resource context
+	ctx := resource.Context{
+		ConfigDir: tmpDir,
 	}
-
-	fileStore, err := store.NewFileStore(pluginsDir)
-	if err != nil {
-		t.Fatalf("failed to create store: %v", err)
-	}
-
-	mgr, err := nvimops.NewWithOptions(nvimops.Options{
-		Store: fileStore,
-	})
-	if err != nil {
-		t.Fatalf("failed to create manager: %v", err)
-	}
-	defer mgr.Close()
 
 	invalidYAML := []byte(`not: valid: yaml: content`)
 
-	err = applyPluginData(mgr, invalidYAML, "test-source")
+	_, err = resource.Apply(ctx, invalidYAML, "test-source")
 	if err == nil {
 		t.Error("expected error for invalid YAML")
 	}
 }
 
-// Test applyPluginData updates existing plugin
+// Test resource.Apply updates existing plugin
 func TestApplyPluginData_Update(t *testing.T) {
 	// Create temp directory for test store
 	tmpDir, err := os.MkdirTemp("", "nvp-test-*")
@@ -225,18 +209,10 @@ func TestApplyPluginData_Update(t *testing.T) {
 		t.Fatalf("failed to create plugins dir: %v", err)
 	}
 
-	fileStore, err := store.NewFileStore(pluginsDir)
-	if err != nil {
-		t.Fatalf("failed to create store: %v", err)
+	// Create resource context
+	ctx := resource.Context{
+		ConfigDir: tmpDir,
 	}
-
-	mgr, err := nvimops.NewWithOptions(nvimops.Options{
-		Store: fileStore,
-	})
-	if err != nil {
-		t.Fatalf("failed to create manager: %v", err)
-	}
-	defer mgr.Close()
 
 	// Create initial plugin
 	initialYAML := []byte(`apiVersion: devopsmaestro.io/v1
@@ -248,9 +224,9 @@ spec:
   repo: "test/test-plugin"
 `)
 
-	err = applyPluginData(mgr, initialYAML, "test-source")
+	_, err = resource.Apply(ctx, initialYAML, "test-source")
 	if err != nil {
-		t.Fatalf("applyPluginData (create) failed: %v", err)
+		t.Fatalf("resource.Apply (create) failed: %v", err)
 	}
 
 	// Update plugin
@@ -263,19 +239,22 @@ spec:
   repo: "test/test-plugin"
 `)
 
-	err = applyPluginData(mgr, updatedYAML, "test-source")
+	_, err = resource.Apply(ctx, updatedYAML, "test-source")
 	if err != nil {
-		t.Fatalf("applyPluginData (update) failed: %v", err)
+		t.Fatalf("resource.Apply (update) failed: %v", err)
 	}
 
-	// Verify plugin was updated
-	p, err := mgr.Get("test-plugin")
+	// Verify by getting the plugin
+	res, err := resource.Get(ctx, "NvimPlugin", "test-plugin")
 	if err != nil {
 		t.Fatalf("failed to get plugin: %v", err)
 	}
 
-	if p.Description != "Updated description" {
-		t.Errorf("plugin was not updated: got %s, want 'Updated description'", p.Description)
+	// Access the underlying plugin
+	if pr, ok := res.(*handlers.NvimPluginResource); ok {
+		if pr.Plugin().Description != "Updated description" {
+			t.Errorf("plugin was not updated: got %s, want 'Updated description'", pr.Plugin().Description)
+		}
 	}
 }
 

@@ -8,6 +8,8 @@ import (
 	"devopsmaestro/operators"
 	"devopsmaestro/pkg/nvimops/plugin"
 	"devopsmaestro/pkg/nvimops/theme"
+	"devopsmaestro/pkg/resource"
+	"devopsmaestro/pkg/resource/handlers"
 	"devopsmaestro/render"
 
 	"github.com/spf13/cobra"
@@ -524,24 +526,30 @@ func getWorkspace(cmd *cobra.Command, name string) error {
 }
 
 func getPlugins(cmd *cobra.Command) error {
-	// Use nvimops.Manager for unified storage with nvp CLI
-	mgr, err := getNvimManager(cmd)
+	// Build resource context and use unified handler
+	ctx, err := buildResourceContext(cmd)
 	if err != nil {
 		return err
 	}
-	defer mgr.Close()
 
-	plugins, err := mgr.List()
+	resources, err := resource.List(ctx, handlers.KindNvimPlugin)
 	if err != nil {
 		return fmt.Errorf("failed to list plugins: %w", err)
 	}
 
-	if len(plugins) == 0 {
+	if len(resources) == 0 {
 		return render.OutputWith(getOutputFormat, nil, render.Options{
 			Empty:        true,
 			EmptyMessage: "No plugins found",
 			EmptyHints:   []string{"dvm apply -f plugin.yaml"},
 		})
+	}
+
+	// Extract underlying plugins from resources
+	plugins := make([]*plugin.Plugin, len(resources))
+	for i, res := range resources {
+		pr := res.(*handlers.NvimPluginResource)
+		plugins[i] = pr.Plugin()
 	}
 
 	// For JSON/YAML, output the model data directly
@@ -586,17 +594,18 @@ func getPlugins(cmd *cobra.Command) error {
 }
 
 func getPlugin(cmd *cobra.Command, name string) error {
-	// Use nvimops.Manager for unified storage with nvp CLI
-	mgr, err := getNvimManager(cmd)
+	// Build resource context and use unified handler
+	ctx, err := buildResourceContext(cmd)
 	if err != nil {
 		return err
 	}
-	defer mgr.Close()
 
-	p, err := mgr.Get(name)
+	res, err := resource.Get(ctx, handlers.KindNvimPlugin, name)
 	if err != nil {
 		return fmt.Errorf("failed to get plugin '%s': %w", name, err)
 	}
+
+	p := res.(*handlers.NvimPluginResource).Plugin()
 
 	// For JSON/YAML, output the model data directly
 	if getOutputFormat == "json" || getOutputFormat == "yaml" {
@@ -631,23 +640,30 @@ func getPlugin(cmd *cobra.Command, name string) error {
 }
 
 func getThemes(cmd *cobra.Command) error {
-	// Use theme.Store for unified storage with nvp CLI
-	store, err := getThemeStore(cmd)
+	// Build resource context and use unified handler
+	ctx, err := buildResourceContext(cmd)
 	if err != nil {
 		return err
 	}
 
-	themes, err := store.List()
+	resources, err := resource.List(ctx, handlers.KindNvimTheme)
 	if err != nil {
 		return fmt.Errorf("failed to list themes: %w", err)
 	}
 
-	if len(themes) == 0 {
+	if len(resources) == 0 {
 		return render.OutputWith(getOutputFormat, nil, render.Options{
 			Empty:        true,
 			EmptyMessage: "No themes found",
 			EmptyHints:   []string{"dvm apply -f theme.yaml"},
 		})
+	}
+
+	// Extract underlying themes from resources
+	themes := make([]*theme.Theme, len(resources))
+	for i, res := range resources {
+		tr := res.(*handlers.NvimThemeResource)
+		themes[i] = tr.Theme()
 	}
 
 	// For JSON/YAML, output the model data directly
@@ -705,16 +721,18 @@ func getThemes(cmd *cobra.Command) error {
 }
 
 func getTheme(cmd *cobra.Command, name string) error {
-	// Use theme.Store for unified storage with nvp CLI
-	store, err := getThemeStore(cmd)
+	// Build resource context and use unified handler
+	ctx, err := buildResourceContext(cmd)
 	if err != nil {
 		return err
 	}
 
-	t, err := store.Get(name)
+	res, err := resource.Get(ctx, handlers.KindNvimTheme, name)
 	if err != nil {
 		return fmt.Errorf("failed to get theme '%s': %w", name, err)
 	}
+
+	t := res.(*handlers.NvimThemeResource).Theme()
 
 	// For JSON/YAML, output the model data directly
 	if getOutputFormat == "json" || getOutputFormat == "yaml" {

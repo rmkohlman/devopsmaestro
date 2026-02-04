@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.1] - 2026-02-04
+
+### 🚀 Added
+
+#### Unified Resource Pipeline
+- **`pkg/resource/` package** - Unified resource interface following kubectl patterns
+  - `Resource` interface - Common interface for all resource types (NvimPlugin, NvimTheme, etc.)
+  - `Handler` interface - CRUD operations per resource kind (Apply, Get, List, Delete, ToYAML)
+  - `Context` struct - Carries DataStore, PluginStore, ThemeStore, ConfigDir
+  - Registry pattern - Handlers registered at startup, looked up by Kind
+- **`pkg/source/` package** - Source resolution for kubectl-style `-f` flag
+  - `FileSource` - Read from local files
+  - `URLSource` - Fetch from HTTP/HTTPS URLs
+  - `StdinSource` - Read from stdin (`-f -`)
+  - `GitHubSource` - GitHub shorthand (`github:user/repo/path.yaml`)
+  - Automatic source type detection from path/URL
+
+#### Consistent Command Architecture
+- **`dvm apply`** - Refactored to use unified resource pipeline
+- **`dvm get nvim plugins/themes`** - Now uses `resource.List()` and `resource.Get()`
+- **`dvm delete nvim plugin`** - Now uses `resource.Delete()`
+- **`nvp apply`** - Refactored to use unified source/resource pipeline
+
+### 🔧 Changed
+
+#### Architecture Improvements
+- **Separation of concerns** - "How to get data" (Source) vs "What to do with data" (Handler)
+- **Extensible design** - Add new resource types by implementing Handler interface
+- **Testable** - All handlers work with mock stores for unit testing
+- **Consistent patterns** - All nvim resource operations go through unified interface
+
+### 📦 New Packages
+
+```
+pkg/source/
+├── source.go          # Source interface, Resolve(), DetectSourceType()
+└── source_test.go     # Comprehensive tests
+
+pkg/resource/
+├── resource.go        # Resource, Handler, Context interfaces
+├── registry.go        # Register(), Get(), List(), Delete(), Apply()
+├── resource_test.go   # Interface tests
+└── handlers/
+    ├── nvim_plugin.go # NvimPluginHandler, NvimPluginResource
+    └── nvim_theme.go  # NvimThemeHandler, NvimThemeResource
+```
+
+---
+
 ## [0.7.0] - 2026-02-03
 
 ### 🚀 Added
@@ -762,6 +811,7 @@ docs/
 
 ## Version History
 
+- **[0.7.1]** - 2026-02-04 - Unified resource pipeline, consistent command architecture
 - **[0.7.0]** - 2026-02-03 - Terminal resize, timestamp-based image tags, auto-recreate containers
 - **[0.6.0]** - 2026-02-03 - `dvm status`, kubectl aliases, `dvm detach`, context commands
 - **[0.5.1]** - 2026-02-02 - BuildKit socket validation fix + documentation updates
