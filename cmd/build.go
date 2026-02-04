@@ -179,7 +179,20 @@ func buildWorkspace(cmd *cobra.Command) error {
 		workspaceYAML.Spec.Container.WorkingDir = "/workspace"
 	}
 
-	// Step 5: Generate Dockerfile
+	// Get home directory for later use
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	// Step 5: Generate nvim config BEFORE Dockerfile (so Dockerfile generator can see .config/nvim/)
+	if workspaceYAML.Spec.Nvim.Structure != "" && workspaceYAML.Spec.Nvim.Structure != "none" {
+		if err := copyNvimConfig(workspaceYAML.Spec.Nvim.Plugins, project.Path, homeDir, sqlDS); err != nil {
+			return err
+		}
+	}
+
+	// Step 6: Generate Dockerfile (after nvim config so it can detect .config/nvim/)
 	fmt.Println()
 	render.Progress("Generating Dockerfile.dvm...")
 	slog.Debug("generating Dockerfile", "language", languageName, "version", version)
@@ -205,19 +218,6 @@ func buildWorkspace(cmd *cobra.Command) error {
 		return err
 	}
 	slog.Debug("saved Dockerfile", "path", dvmDockerfile)
-
-	// Get home directory for later use
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("failed to get home directory: %w", err)
-	}
-
-	// Step 5.5: Copy nvim templates to build context if nvim config is enabled
-	if workspaceYAML.Spec.Nvim.Structure != "" && workspaceYAML.Spec.Nvim.Structure != "none" {
-		if err := copyNvimConfig(workspaceYAML.Spec.Nvim.Plugins, project.Path, homeDir, sqlDS); err != nil {
-			return err
-		}
-	}
 
 	// Step 6: Build image
 	imageName := fmt.Sprintf("dvm-%s-%s:latest", workspaceName, projectName)
