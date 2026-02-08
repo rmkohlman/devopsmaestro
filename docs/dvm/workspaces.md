@@ -1,17 +1,20 @@
 # Workspaces
 
-Workspaces are isolated container environments for your projects.
+Workspaces are isolated container environments for your apps.
 
 ---
 
 ## What is a Workspace?
 
-A **workspace** is a containerized development environment:
+A **Workspace** is a containerized development environment:
 
+- Belongs to an App (your codebase)
 - Runs in a Docker container
-- Mounts your project directory
+- Mounts your app's source code directory
 - Has its own image with tools/dependencies
 - Can be customized with different configurations
+
+Think of it as your App running in **dev mode**.
 
 ---
 
@@ -19,7 +22,7 @@ A **workspace** is a containerized development environment:
 
 ### Basic Workspace
 
-Create a workspace in the active project:
+Create a workspace for the active app:
 
 ```bash
 dvm create workspace dev
@@ -27,10 +30,10 @@ dvm create workspace dev
 dvm create ws dev
 ```
 
-### In a Specific Project
+### In a Specific App
 
 ```bash
-dvm create ws dev -p my-api
+dvm create ws dev -a my-api
 ```
 
 ### With Description
@@ -60,7 +63,7 @@ dvm get ws
 Output:
 
 ```
-NAME          PROJECT    IMAGE                           STATUS   CREATED
+NAME          APP        IMAGE                           STATUS   CREATED
 ● dev         my-app     dvm-dev-my-app:20240204-1200    ready    2024-02-04
   test        my-app     dvm-test-my-app:pending         pending  2024-02-04
   feature-x   my-app     dvm-feature-x-my-app:pending    pending  2024-02-04
@@ -96,7 +99,9 @@ Check current context:
 
 ```bash
 dvm get ctx
-# Project:   my-app
+# Ecosystem: default
+# Domain:    default  
+# App:       my-app
 # Workspace: dev
 ```
 
@@ -201,7 +206,7 @@ Workspace images are tagged with timestamps:
 dvm-dev-my-app:20240204-120030
 ```
 
-Format: `dvm-<workspace>-<project>:<YYYYMMDD-HHMMSS>`
+Format: `dvm-<workspace>-<app>:<YYYYMMDD-HHMMSS>`
 
 When you run `dvm attach`:
 
@@ -245,5 +250,6 @@ dvm delete ws feature-old --force
 
 ## Next Steps
 
+- [Apps](apps.md) - Understand the App object
 - [Building & Attaching](build-attach.md) - Container lifecycle details
 - [Commands Reference](commands.md) - Full command documentation

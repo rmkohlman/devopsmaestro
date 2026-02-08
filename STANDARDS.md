@@ -42,8 +42,8 @@ This enables:
 ```go
 // 1. Define the interface (contract)
 type DataStore interface {
-    CreateProject(project *models.Project) error
-    GetProjectByName(name string) (*models.Project, error)
+    CreateApp(app *models.App) error
+    GetAppByName(name string) (*models.App, error)
 }
 
 // 2. Create implementation
@@ -51,7 +51,7 @@ type SQLDataStore struct {
     driver Driver
 }
 
-func (s *SQLDataStore) CreateProject(project *models.Project) error {
+func (s *SQLDataStore) CreateApp(app *models.App) error {
     // Implementation
 }
 
@@ -226,7 +226,7 @@ package/
 // MockDataStore implements DataStore for testing
 type MockDataStore struct {
     // Storage for test data
-    Projects   map[string]*models.Project
+    Apps       map[string]*models.App
     Workspaces map[int]map[string]*models.Workspace
     
     // Error injection
@@ -238,17 +238,17 @@ type MockDataStore struct {
 
 func NewMockDataStore() *MockDataStore {
     return &MockDataStore{
-        Projects:   make(map[string]*models.Project),
+        Apps:       make(map[string]*models.App),
         Workspaces: make(map[int]map[string]*models.Workspace),
     }
 }
 
-func (m *MockDataStore) GetProjectByName(name string) (*models.Project, error) {
-    m.Calls = append(m.Calls, "GetProjectByName")
+func (m *MockDataStore) GetAppByName(name string) (*models.App, error) {
+    m.Calls = append(m.Calls, "GetAppByName")
     if m.ErrorToReturn != nil {
         return nil, m.ErrorToReturn
     }
-    return m.Projects[name], nil
+    return m.Apps[name], nil
 }
 ```
 
@@ -276,7 +276,7 @@ func TestDataStoreSwappability(t *testing.T) {
     
     for _, store := range implementations {
         // Same tests should pass for all implementations
-        testProjectOperations(t, store)
+        testAppOperations(t, store)
     }
 }
 ```
@@ -330,17 +330,17 @@ func init() {
 
 ```go
 // GOOD
-func (s *SQLDataStore) GetProject(id int) (*models.Project, error) {
+func (s *SQLDataStore) GetApp(id int) (*models.App, error) {
     if id <= 0 {
-        return nil, fmt.Errorf("invalid project ID: %d", id)
+        return nil, fmt.Errorf("invalid app ID: %d", id)
     }
     // ...
 }
 
 // BAD - panics
-func (s *SQLDataStore) GetProject(id int) *models.Project {
+func (s *SQLDataStore) GetApp(id int) *models.App {
     if id <= 0 {
-        panic("invalid project ID")
+        panic("invalid app ID")
     }
     // ...
 }
@@ -361,19 +361,19 @@ if err := driver.Connect(); err != nil {
 ### Public API Documentation
 
 ```go
-// DataStore provides high-level operations for managing projects,
-// workspaces, and plugins. It abstracts the underlying database
+// DataStore provides high-level operations for managing ecosystems, domains,
+// apps, workspaces, and plugins. It abstracts the underlying database
 // driver and provides a clean interface for the application layer.
 //
 // Implementations must be safe for concurrent use.
 type DataStore interface {
-    // CreateProject creates a new project.
-    // Returns an error if a project with the same name already exists.
-    CreateProject(project *models.Project) error
+    // CreateApp creates a new app.
+    // Returns an error if an app with the same name already exists.
+    CreateApp(app *models.App) error
     
-    // GetProjectByName retrieves a project by name.
-    // Returns nil, nil if the project does not exist.
-    GetProjectByName(name string) (*models.Project, error)
+    // GetAppByName retrieves an app by name.
+    // Returns nil, nil if the app does not exist.
+    GetAppByName(name string) (*models.App, error)
 }
 ```
 

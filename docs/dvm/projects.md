@@ -1,6 +1,23 @@
 # Projects
 
+!!! warning "Deprecation Notice"
+    
+    **Projects are deprecated as of v0.8.0.** The Project concept has been split into:
+    
+    - **Domain** - Bounded context grouping (what Project used to be conceptually)
+    - **App** - The codebase/application (what Project used to store with `path`)
+    
+    Existing projects will be auto-migrated to Apps. See [Apps](apps.md) for the new approach.
+    
+    **Migration:** Your existing `dvm create project` commands will continue to work but will 
+    create Apps in the default Domain with a deprecation warning.
+
+---
+
 Projects in dvm represent codebases on your filesystem.
+
+> **Note:** This documentation describes the legacy Project object. For new projects, 
+> please use [Apps](apps.md) instead.
 
 ---
 

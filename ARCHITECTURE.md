@@ -1,6 +1,25 @@
 # DevOpsMaestro Architecture
 
 > Quick reference for the decoupled patterns. Read before writing new code.
+> For the complete architecture vision, see `docs/vision/architecture.md`.
+
+---
+
+## Object Hierarchy
+
+```
+Ecosystem → Domain → App → Workspace (dev mode)
+                      ↓
+                  (live mode - managed by Operator)
+```
+
+| Object | Purpose | Status |
+|--------|---------|--------|
+| **Ecosystem** | Top-level platform grouping | 🔴 v0.8.0 |
+| **Domain** | Bounded context (replaces Project) | 🔴 v0.8.0 |
+| **App** | The codebase (has `path`) | 🔴 v0.8.0 |
+| **Project** | ⚠️ DEPRECATED | 🟡 Migrate to App |
+| **Workspace** | Dev environment for App | 🟢 Exists |
 
 ---
 
@@ -119,7 +138,7 @@ Before writing or reviewing code, verify:
 ```
   Application Code                    db/
  ┌──────────────────┐           ┌─────────────────────┐
- │ store.ListProjects()         │     DataStore       │  High-level API
+ │ store.ListApps()              │     DataStore       │  High-level API
  │ store.CreateWorkspace()  ──► │  (business logic)   │
  └──────────────────┘           └──────────┬──────────┘
                                            │

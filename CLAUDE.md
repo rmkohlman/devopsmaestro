@@ -13,7 +13,8 @@
 
 1. **This file (CLAUDE.md)** - Architecture overview
 2. **STANDARDS.md** - Design patterns, coding standards, and development philosophy (REQUIRED)
-3. **MANUAL_TEST_PLAN.md** - Testing procedures for new features
+3. **docs/vision/architecture.md** - Complete architecture vision document
+4. **MANUAL_TEST_PLAN.md** - Testing procedures for new features
 
 **Detailed planning and session docs are in the private toolkit repository:**
 
@@ -33,6 +34,30 @@ If you have access to the toolkit folder, read those files first.
 ## Project Overview
 
 **DevOpsMaestro** is a kubectl-style CLI toolkit for managing containerized development environments with a GitOps mindset.
+
+### Core Object Hierarchy
+
+```
+Ecosystem → Domain → App → Workspace (dev mode)
+                      ↓
+                  (live mode - managed by Operator)
+```
+
+| Object | Purpose | Status |
+|--------|---------|--------|
+| **Ecosystem** | Top-level platform grouping | 🔴 Planned (v0.8.0) |
+| **Domain** | Bounded context (was "Project") | 🔴 Planned (v0.8.0) |
+| **App** | The codebase/application | 🔴 Planned (v0.8.0) |
+| **Project** | ⚠️ DEPRECATED - use Domain/App | 🟡 To migrate |
+| **Workspace** | Dev environment for an App | 🟢 Exists |
+| **Context** | Active selection state | 🟢 Exists |
+
+### Two Operating Modes
+
+| Mode | Requirements | Use Case |
+|------|--------------|----------|
+| **dvm alone** | Docker only | Basic workspace management |
+| **dvm + Operator** | Docker + k8s (Colima/OrbStack) | Full DevOps: live mode, CI/CD |
 
 ### Two Binaries
 
@@ -182,20 +207,28 @@ type Renderer interface {
     Name() RendererName
     SupportsColor() bool
 }
-
-// Usage: Commands prepare data, renderers decide how to display
-render.OutputWith("json", data, render.Options{Type: render.TypeTable})
-render.Success("Operation completed")
-render.Warning("Check your config")
 ```
 
 ### DataStore (`db/interfaces.go`)
 ```go
 type DataStore interface {
+    // Ecosystem operations (v0.8.0+)
+    CreateEcosystem(ecosystem *models.Ecosystem) error
+    GetEcosystemByName(name string) (*models.Ecosystem, error)
+    
+    // Domain operations (v0.8.0+)
+    CreateDomain(domain *models.Domain) error
+    GetDomainByName(name string) (*models.Domain, error)
+    
+    // App operations (v0.8.0+)
+    CreateApp(app *models.App) error
+    GetAppByName(name string) (*models.App, error)
+    
+    // Project operations (DEPRECATED - migrate to App)
     CreateProject(project *models.Project) error
     GetProjectByName(name string) (*models.Project, error)
-    ListProjects() ([]*models.Project, error)
-    // ... workspaces, plugins, context
+    
+    // Workspace, plugins, context...
 }
 ```
 
@@ -228,6 +261,8 @@ type PluginStore interface {
 | `README.md` | User documentation |
 | `CHANGELOG.md` | Version history |
 | `STANDARDS.md` | Code standards |
+| `ARCHITECTURE.md` | Quick architecture reference |
+| `docs/vision/architecture.md` | **Complete architecture vision** |
 | `MANUAL_TEST_PLAN.md` | Testing procedures |
 | `docs/development/release-process.md` | Release workflow |
 

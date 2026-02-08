@@ -5,6 +5,8 @@
 > **Status:** Living Document - defines the target state we're building toward.
 >
 > **Audience:** AI assistants, contributors, and future-you trying to understand the complete vision.
+>
+> **Last Updated:** v2.0 - Refined hierarchy with Domain and App objects
 
 ---
 
@@ -29,10 +31,26 @@
 
 DevOpsMaestro is evolving from a **containerized development environment manager** into a **complete local DevOps platform**. The vision is to provide developers with:
 
-1. **Development Environments** (Workspaces) - Where you write code
-2. **Running Services** (Services) - Where your code runs in production-like conditions
-3. **CI/CD Pipelines** (Tasks, Workflows, Pipelines) - How code moves from dev to service
-4. **Operator** - Automated daemon that watches for commits and orchestrates everything
+1. **Development Environments** (Workspaces) - Where you write code (App in dev mode)
+2. **Live Environments** (live mode) - Where your App runs in production-like conditions
+3. **CI/CD Pipelines** (Tasks, Workflows, Pipelines) - How code moves from dev to live
+4. **Operator** - Kubernetes Operator (CRD-based) that orchestrates everything
+
+### The Core Hierarchy
+
+```
+Ecosystem → Domain → App → Workspace (dev mode)
+                      ↓
+                  (live mode - managed by Operator)
+```
+
+| Object | Purpose | Analogy |
+|--------|---------|---------|
+| **Ecosystem** | Top-level platform grouping | A product area or company |
+| **Domain** | Bounded context within ecosystem | A team's area of responsibility |
+| **App** | The codebase/application (lives for years) | The actual code you build |
+| **Workspace** | Dev environment for an App | Where you write code |
+| **live mode** | App running in production-like env | Managed by Operator |
 
 ### The Core Flow
 
@@ -42,7 +60,7 @@ DevOpsMaestro is evolving from a **containerized development environment manager
 │  ┌──────────────────┐                                                       │
 │  │    WORKSPACE     │  ← You code here (nvim, tools, path to source)        │
 │  │    auth-api      │                                                       │
-│  │    env: dev      │                                                       │
+│  │    (dev mode)    │                                                       │
 │  └────────┬─────────┘                                                       │
 │           │ git commit                                                      │
 │           ▼                                                                 │
@@ -64,9 +82,9 @@ DevOpsMaestro is evolving from a **containerized development environment manager
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              LIVE ENVIRONMENT                                │
 │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐          │
-│  │     SERVICE      │  │     SERVICE      │  │     SERVICE      │          │
+│  │       APP        │  │       APP        │  │       APP        │          │
 │  │    auth-api      │  │    user-api      │  │   billing-api    │          │
-│  │    env: live     │  │    env: live     │  │    env: live     │          │
+│  │   (live mode)    │  │   (live mode)    │  │   (live mode)    │          │
 │  └──────────────────┘  └──────────────────┘  └──────────────────┘          │
 │           │                    │                      │                     │
 │           └────────────────────┼──────────────────────┘                     │
@@ -82,11 +100,19 @@ DevOpsMaestro is evolving from a **containerized development environment manager
 
 ### Why This Matters
 
-- **Workspace** = `env: dev` - Where you develop (nvim, tools, source code)
-- **Service** = `env: live` - Where your code runs after deployment
-- Same codebase, different runtime contexts
-- Multiple Services across Ecosystems can interact via shared Dependencies
+- **App** = The codebase that exists for years (the thing you build)
+- **Workspace** = App in dev mode - where you develop (nvim, tools, source code)
+- **live mode** = App running in production-like environment (Operator manages)
+- Same App, different runtime modes
+- Multiple Apps across Ecosystems can interact via shared Dependencies
 - Enables **full microservices testing locally** on your laptop
+
+### Two Operating Modes
+
+| Mode | Tool | Requirements | Use Case |
+|------|------|--------------|----------|
+| **dvm alone** | `dvm` CLI | Docker only | Basic workspace management, single dev |
+| **dvm + Operator** | `dvm` + k8s Operator | Docker + k8s (Colima/OrbStack) | Full DevOps: live mode, CI/CD, dependencies |
 
 ---
 
@@ -210,13 +236,13 @@ dvm delete service auth-api
 
 | Category | Objects | Purpose |
 |----------|---------|---------|
-| **Hierarchy** | Ecosystem, Project, Workspace, Service, Context | Organizational containers |
+| **Hierarchy** | Ecosystem, Domain, App, Workspace, Context | Organizational containers |
 | **Execution** | Task, Workflow, Pipeline, Orchestration, Job | CI/CD and automation |
 | **Data** | DataRecord, DataStore, DataLake | Test data management |
 | **Infrastructure** | Dependency, Volume, Action, Runtime | Services and storage |
 | **Reusability** | Template, ResourceDefinition | Templates and extensibility |
 | **Dev Tools** | NvimPlugin, NvimTheme, TerminalPrompt, TerminalPlugin, TerminalTheme | Editor and shell config |
-| **Operations** | Operator | Automation daemon |
+| **Operations** | Operator | Kubernetes Operator for live mode |
 
 ---
 
@@ -224,7 +250,7 @@ dvm delete service auth-api
 
 #### Ecosystem
 
-Top-level grouping of related projects. Think of it as a "platform" or "product area."
+Top-level grouping of related domains. Think of it as a "platform" or "product area."
 
 ```yaml
 apiVersion: devopsmaestro.io/v1
@@ -233,7 +259,7 @@ metadata:
   name: customer-platform
   description: All customer-facing services
 spec:
-  # Shared dependencies available to all projects/workspaces
+  # Shared dependencies available to all domains/apps
   dependencies:
     - name: platform-db        # Instance name
       ref: postgres            # References global Dependency definition
@@ -245,43 +271,45 @@ spec:
     - ref: integration-test-data
 ```
 
-#### Project
+#### Domain
 
-Groups related workspaces within an ecosystem. Think of it as a "domain" or "bounded context."
+Groups related Apps within an ecosystem. Think of it as a "bounded context" or "team area."
+**Note:** This was previously called "Project" but renamed to better reflect its long-lived nature.
 
 ```yaml
 apiVersion: devopsmaestro.io/v1
-kind: Project
+kind: Domain
 metadata:
   name: auth-domain
   ecosystem: customer-platform
   description: Authentication and authorization services
 spec:
-  # Project-level dependencies (in addition to ecosystem)
+  # Domain-level dependencies (in addition to ecosystem)
   dependencies:
     - name: auth-secrets
       ref: vault
   
-  # Project-level test data
+  # Domain-level test data
   dataStores:
     - ref: auth-test-data
   
-  # Default settings for workspaces in this project
+  # Default settings for apps in this domain
   defaults:
     language: go
     languageVersion: "1.23"
 ```
 
-#### Workspace
+#### App
 
-Development environment where you write code. Has a `path` to source code.
+The codebase/application - the core object that exists for years. Has a `path` to source code.
+Apps can run in **dev mode** (Workspace) or **live mode** (managed by Operator).
 
 ```yaml
 apiVersion: devopsmaestro.io/v1
-kind: Workspace
+kind: App
 metadata:
   name: auth-api
-  project: auth-domain
+  domain: auth-domain
   description: Authentication API service
 spec:
   # Path to source code on host machine
@@ -290,17 +318,44 @@ spec:
   language: go
   languageVersion: "1.23"
   
-  # Environment is always 'dev' for workspaces
-  environment: dev
+  # Resource limits for live mode
+  resources:
+    memory: 512Mi
+    cpu: 500m
   
+  # Port mappings
+  ports:
+    - containerPort: 8080
+      hostPort: 8080
+  
+  # Health check (used in live mode)
+  healthCheck:
+    path: /health
+    port: 8080
+    interval: 10s
+  
+  # Dependencies this app needs
+  dependencies:
+    - ref: platform-db       # Uses ecosystem's instance
+```
+
+#### Workspace
+
+Development environment for an App. This is where you write code.
+A Workspace is essentially an App running in **dev mode**.
+
+```yaml
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: dev
+  app: auth-api
+  description: Main development workspace
+spec:
   # Mount points into container
   mounts:
     - source: ~/Developer/auth-api
       target: /workspace
-  
-  # Use ecosystem's shared postgres instance
-  dependencies:
-    - ref: platform-db       # Same name = uses ecosystem's instance
   
   # Neovim configuration
   nvim:
@@ -318,48 +373,9 @@ spec:
       - zsh-syntax-highlighting
 ```
 
-#### Service
-
-Running instance deployed from a Workspace. Lives in the "live" environment.
-
-```yaml
-apiVersion: devopsmaestro.io/v1
-kind: Service
-metadata:
-  name: auth-api
-  project: auth-domain
-  description: Running auth-api service
-spec:
-  # Which workspace this service is deployed from
-  workspaceRef: auth-api
-  
-  # Environment is 'live' for services
-  environment: live
-  
-  # Resource limits for local runtime
-  resources:
-    memory: 512Mi
-    cpu: 500m
-  
-  # Port mappings
-  ports:
-    - containerPort: 8080
-      hostPort: 8080
-  
-  # Health check
-  healthCheck:
-    path: /health
-    port: 8080
-    interval: 10s
-  
-  # Uses same dependencies as workspace
-  dependencies:
-    - ref: platform-db
-```
-
 #### Context
 
-Active selection state - which ecosystem/project/workspace is currently selected.
+Active selection state - which ecosystem/domain/app/workspace is currently selected.
 
 ```yaml
 apiVersion: devopsmaestro.io/v1
@@ -368,8 +384,9 @@ metadata:
   name: current
 spec:
   ecosystem: customer-platform
-  project: auth-domain
-  workspace: auth-api
+  domain: auth-domain
+  app: auth-api
+  workspace: dev
 ```
 
 ---
@@ -385,7 +402,7 @@ apiVersion: devopsmaestro.io/v1
 kind: Task
 metadata:
   name: run-tests
-  project: auth-domain
+  domain: auth-domain
 spec:
   # Action to perform (extensible via Action objects)
   action: exec
@@ -420,7 +437,7 @@ apiVersion: devopsmaestro.io/v1
 kind: Workflow
 metadata:
   name: ci-workflow
-  project: auth-domain
+  domain: auth-domain
 spec:
   tasks:
     # These run in parallel (no dependencies)
@@ -453,7 +470,7 @@ apiVersion: devopsmaestro.io/v1
 kind: Pipeline
 metadata:
   name: ci-pipeline
-  project: auth-domain
+  domain: auth-domain
 spec:
   stages:
     - name: build
@@ -511,12 +528,12 @@ apiVersion: devopsmaestro.io/v1
 kind: Job
 metadata:
   name: on-commit-ci
-  project: auth-domain
+  domain: auth-domain
 spec:
   # What triggers this job
   trigger:
-    # Watch the workspace path for git commits
-    watch: workspace.path
+    # Watch the app path for git commits
+    watch: app.path
     event: commit
     # Or schedule-based
     # schedule: "0 * * * *"  # Every hour
@@ -551,7 +568,7 @@ apiVersion: devopsmaestro.io/v1
 kind: DataRecord
 metadata:
   name: test-user-alice
-  project: auth-domain
+  domain: auth-domain
 spec:
   # Which DataStore this record belongs to
   dataStoreRef: auth-test-data
@@ -574,7 +591,7 @@ apiVersion: devopsmaestro.io/v1
 kind: DataStore
 metadata:
   name: auth-test-data
-  project: auth-domain
+  domain: auth-domain
 spec:
   # Target dependency (where data will be inserted)
   target:
@@ -703,16 +720,16 @@ spec:
         - name: POSTGRES_DB
           value: platform_db
 
-# Workspace uses the SAME instance (same name)
-kind: Workspace
+# App uses the SAME instance (same name)
+kind: App
 metadata:
   name: auth-api
 spec:
   dependencies:
     - ref: platform-db       # Uses ecosystem's instance
 
-# Workspace creates its OWN instance (different name)
-kind: Workspace
+# App creates its OWN instance (different name)
+kind: App
 metadata:
   name: isolated-tests
 spec:
@@ -884,19 +901,14 @@ spec:
 **Using Templates:**
 
 ```yaml
-kind: Workspace
+kind: App
 metadata:
   name: auth-api
 spec:
-  template: go-api-workspace  # Apply template defaults
+  template: go-api-app  # Apply template defaults
   
   # Override specific values
   languageVersion: "1.24"
-  
-  # Add additional plugins
-  nvim:
-    plugins:
-      - copilot  # Added on top of template defaults
 ```
 
 #### ResourceDefinition
@@ -1119,7 +1131,8 @@ spec:
 
 #### Operator
 
-The automation daemon. Watches for events and orchestrates everything.
+The Kubernetes Operator (CRD-based). Manages Apps in live mode, orchestrates CI/CD.
+**Note:** Requires Kubernetes (Colima, OrbStack k8s, minikube). dvm works without Operator for basic workspace usage.
 
 ```yaml
 apiVersion: devopsmaestro.io/v1
@@ -1129,14 +1142,15 @@ metadata:
 spec:
   # What to watch
   watches:
-    - type: workspace
+    - type: app
       events: [commit]
       # Run this job when event occurs
       jobRef: on-commit-ci
     
-    - type: service
+    - type: app
+      mode: live
       events: [unhealthy]
-      jobRef: service-recovery
+      jobRef: app-recovery
   
   # Global settings
   settings:
@@ -1170,7 +1184,7 @@ spec:
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  Dependency (definitions): postgres, redis, kafka, mongodb, vault           │
 │  Action (definitions): exec, data.insert, data.delete, git.push, notify.*   │
-│  Template: go-api-workspace, python-service, node-frontend                  │
+│  Template: go-api-app, python-service, node-frontend                        │
 │  ResourceDefinition: custom CRDs                                            │
 │  Runtime: docker, orbstack, colima                                          │
 │  NvimPlugin, NvimTheme (library)                                            │
@@ -1187,21 +1201,26 @@ spec:
 │  Operator: default                                                          │
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                    PROJECT: auth-domain                              │   │
+│  │                    DOMAIN: auth-domain                               │   │
 │  ├─────────────────────────────────────────────────────────────────────┤   │
 │  │  Dependencies (instances): auth-secrets                              │   │
 │  │  DataStore: auth-test-data                                          │   │
 │  │  Task, Workflow, Pipeline, Job definitions                          │   │
 │  │                                                                      │   │
-│  │  ┌─────────────────────┐    ┌─────────────────────┐                 │   │
-│  │  │ WORKSPACE: auth-api │    │ SERVICE: auth-api   │                 │   │
-│  │  │ env: dev            │───▶│ env: live           │                 │   │
-│  │  │ path: ~/auth-api    │    │ (deployed instance) │                 │   │
-│  │  └─────────────────────┘    └─────────────────────┘                 │   │
+│  │  ┌─────────────────────────────────────────────────────────────┐    │   │
+│  │  │                    APP: auth-api                             │    │   │
+│  │  │  path: ~/Developer/auth-api                                  │    │   │
+│  │  ├─────────────────────────────────────────────────────────────┤    │   │
+│  │  │  ┌─────────────────┐    ┌─────────────────┐                 │    │   │
+│  │  │  │ WORKSPACE: dev  │    │  (live mode)    │                 │    │   │
+│  │  │  │ (dev mode)      │───▶│ managed by      │                 │    │   │
+│  │  │  │ where you code  │    │ Operator        │                 │    │   │
+│  │  │  └─────────────────┘    └─────────────────┘                 │    │   │
+│  │  └─────────────────────────────────────────────────────────────┘    │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                    PROJECT: user-domain                              │   │
+│  │                    DOMAIN: user-domain                               │   │
 │  │  (similar structure)                                                 │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1211,18 +1230,18 @@ spec:
 
 | Object | Contains/References | Contained By |
 |--------|---------------------|--------------|
-| **Ecosystem** | Projects, Dependency instances, DataLakes, Volumes, Operator | - |
-| **Project** | Workspaces, Services, Tasks, Workflows, Pipelines, Jobs, DataStores | Ecosystem |
-| **Workspace** | NvimPlugins, NvimTheme, TerminalPrompt, TerminalPlugins | Project |
-| **Service** | (deployed from Workspace) | Project |
-| **Task** | Actions | Project |
-| **Workflow** | Tasks | Project |
-| **Pipeline** | Workflows | Project |
+| **Ecosystem** | Domains, Dependency instances, DataLakes, Volumes, Operator | - |
+| **Domain** | Apps, Tasks, Workflows, Pipelines, Jobs, DataStores | Ecosystem |
+| **App** | Workspaces, path to source code, Dependencies | Domain |
+| **Workspace** | NvimPlugins, NvimTheme, TerminalPrompt, TerminalPlugins | App |
+| **Task** | Actions | Domain |
+| **Workflow** | Tasks | Domain |
+| **Pipeline** | Workflows | Domain |
 | **Orchestration** | Pipelines | Ecosystem |
-| **Job** | Pipeline/Workflow/Task reference, Trigger | Project |
+| **Job** | Pipeline/Workflow/Task reference, Trigger | Domain |
 | **DataLake** | DataStores | Ecosystem |
-| **DataStore** | DataRecords | Project |
-| **DataRecord** | Data | Project |
+| **DataStore** | DataRecords | Domain |
+| **DataRecord** | Data | Domain |
 | **Dependency** | (global definition) | Global |
 | **Template** | Default values for any Kind | Global |
 
@@ -1235,8 +1254,9 @@ spec:
 ```
 Global
   └── Ecosystem
-        └── Project
-              └── Workspace / Service
+        └── Domain
+              └── App
+                    └── Workspace
 ```
 
 ### Object Scope Summary
@@ -1245,8 +1265,9 @@ Global
 |-------|---------|
 | **Global** | Dependency (definitions), Action, Template, ResourceDefinition, Runtime, NvimPlugin*, NvimTheme*, TerminalPrompt*, TerminalPlugin*, TerminalTheme* |
 | **Ecosystem** | Ecosystem, Dependency (instances), DataLake, Volume, Operator, Orchestration |
-| **Project** | Project, Workspace, Service, Task, Workflow, Pipeline, Job, DataStore, DataRecord |
-| **Workspace** | (inherits from Project, references global dev tools) |
+| **Domain** | Domain, Task, Workflow, Pipeline, Job, DataStore, DataRecord |
+| **App** | App (with path), Dependencies |
+| **Workspace** | Workspace (inherits from App, references global dev tools) |
 
 *Dev tools (Nvim*, Terminal*) are defined globally but can be overridden at Workspace level.
 
@@ -1262,24 +1283,24 @@ spec:
     - name: platform-db      # Creates instance "platform-db"
       ref: postgres
 
-# Workspace A uses it
-kind: Workspace
+# App A uses it
+kind: App
 metadata:
   name: auth-api
 spec:
   dependencies:
     - ref: platform-db       # Uses ecosystem's "platform-db"
 
-# Workspace B also uses it
-kind: Workspace
+# App B also uses it
+kind: App
 metadata:
   name: user-api
 spec:
   dependencies:
     - ref: platform-db       # Same instance as auth-api
 
-# Workspace C creates its own
-kind: Workspace
+# App C creates its own
+kind: App
 metadata:
   name: isolated-tests
 spec:
@@ -1296,7 +1317,7 @@ spec:
 
 ```
 1. Developer runs: dvm attach auth-api
-   └── Starts Workspace container
+   └── Starts Workspace container for auth-api App
    └── Mounts ~/Developer/auth-api to /workspace
    └── Starts shared dependencies (platform-db)
    └── Opens shell with nvim configured
@@ -1307,7 +1328,7 @@ spec:
    └── Access to platform-db at localhost:5432
 
 3. Developer commits: git commit -m "Add feature"
-   └── Operator detects commit
+   └── Operator detects commit (if running)
    └── Triggers Job: on-commit-ci
    └── Job runs Pipeline: ci-pipeline
 ```
@@ -1322,11 +1343,11 @@ spec:
        ├── Task: run-tests (depends on lint, scan)
        └── Task: build-binary (depends on tests)
    
-   └── Stage 2: deploy-to-service
-       └── Task: deploy auth-api Service
+   └── Stage 2: deploy-to-live
+       └── Task: deploy auth-api to live mode
    
    └── Stage 3: integration-tests
-       └── Task: run integration tests against live Service
+       └── Task: run integration tests against live App
    
    └── Stage 4: chaos-tests (optional)
        └── Task: inject failures, verify resilience
@@ -1337,29 +1358,29 @@ spec:
 
 3. On Pipeline failure:
    └── Job.onFailure: notify.alert
-   └── Service NOT updated (stays at previous version)
+   └── App NOT deployed to live (stays at previous version)
 ```
 
-### Workflow 3: Multi-Service Interaction
+### Workflow 3: Multi-App Interaction
 
 ```
-1. Multiple Ecosystems running:
-   └── customer-platform
-       ├── auth-api Service (env: live)
-       ├── user-api Service (env: live)
-       └── billing-api Service (env: live)
+1. Multiple Apps running in live mode:
+   └── customer-platform ecosystem
+       ├── auth-api App (live mode)
+       ├── user-api App (live mode)
+       └── billing-api App (live mode)
    
-   └── internal-tools
-       ├── admin-api Service (env: live)
-       └── reporting-api Service (env: live)
+   └── internal-tools ecosystem
+       ├── admin-api App (live mode)
+       └── reporting-api App (live mode)
 
-2. All Services share:
+2. All Apps share:
    └── Global Redis (messaging)
    └── Global Kafka (events)
 
 3. Developer can:
-   └── Watch all Services interact
-   └── Run chaos tests across Services
+   └── Watch all Apps interact
+   └── Run chaos tests across Apps
    └── Debug issues by checking logs
    └── Fix in Workspace, commit, auto-deploy
 ```
@@ -1414,34 +1435,36 @@ dvm <verb> <object-type> [name] [flags]
 ```bash
 dvm get ecosystems
 dvm create ecosystem customer-platform
-dvm get projects [-e ecosystem]
-dvm create project auth-domain -e customer-platform
-dvm get workspaces [-p project]
-dvm get services [-p project]
+dvm get domains [-e ecosystem]
+dvm create domain auth-domain -e customer-platform
+dvm get apps [-d domain]
+dvm create app auth-api -d auth-domain --path ~/Developer/auth-api
+dvm get workspaces [-a app]
 dvm get context
 dvm use ecosystem customer-platform
-dvm use project auth-domain
-dvm use workspace auth-api
+dvm use domain auth-domain
+dvm use app auth-api
+dvm use workspace dev
 ```
 
 #### Execution
 ```bash
-dvm get tasks [-p project]
+dvm get tasks [-d domain]
 dvm run task lint-code
-dvm get workflows [-p project]
+dvm get workflows [-d domain]
 dvm run workflow ci-workflow
-dvm get pipelines [-p project]
+dvm get pipelines [-d domain]
 dvm run pipeline ci-pipeline
 dvm get orchestrations [-e ecosystem]
 dvm run orchestration full-platform-test
-dvm get jobs [-p project]
+dvm get jobs [-d domain]
 dvm status job on-commit-ci
 ```
 
 #### Data
 ```bash
-dvm get datarecords [-p project]
-dvm get datastores [-p project]
+dvm get datarecords [-d domain]
+dvm get datastores [-d domain]
 dvm get datalakes [-e ecosystem]
 dvm apply -f test-data.yaml
 ```
@@ -1485,7 +1508,8 @@ dvm operator logs
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--ecosystem` | `-e` | Ecosystem context |
-| `--project` | `-p` | Project context |
+| `--domain` | `-d` | Domain context |
+| `--app` | `-a` | App context |
 | `--workspace` | `-w` | Workspace context |
 | `--output` | `-o` | Output format (table, yaml, json) |
 | `--all` | `-A` | All (across contexts) |
@@ -1496,21 +1520,50 @@ dvm operator logs
 
 ## Implementation Phases
 
-### Phase 1: Foundation (v0.8.x - v0.9.x)
+### Phase 1: Hierarchy Foundation (v0.8.x)
 
-**Goal:** Add Ecosystem and restructure Workspace to have `path`.
+**Goal:** Add Ecosystem, Domain, and App objects.
 
 | Task | Description | Priority |
 |------|-------------|----------|
 | Add Ecosystem object | New table, CRUD operations | High |
-| Move `path` to Workspace | Currently on Project, move to Workspace | High |
-| Add Service object | Basic Service definition | High |
-| Update Context | Add ecosystem to context | Medium |
-| Update CLI | New commands for ecosystem | Medium |
+| Add Domain object | Replaces Project concept | High |
+| Add App object | Core object with `path` | High |
+| Update Workspace | Now belongs to App | High |
+| Update Context | Add ecosystem, domain, app | Medium |
+| Update CLI | New commands for hierarchy | Medium |
 
-**Migration:** Existing Projects become Projects with a default Ecosystem.
+### Phase 2: Migration (v0.9.x)
 
-### Phase 2: Execution (v1.0.x - v1.1.x)
+**Goal:** Migrate existing Projects to Apps, deprecate Project.
+
+| Task | Description | Priority |
+|------|-------------|----------|
+| Auto-migrate Projects → Apps | One-time migration | High |
+| Create default Ecosystem/Domain | For migrated data | High |
+| Add deprecation warnings | On old project commands | Medium |
+| Remove Project code | After migration complete | Low |
+
+### Phase 3: Terminal Tools (v0.10.x)
+
+**Goal:** Add TerminalPrompt, TerminalPlugin, TerminalTheme.
+
+| Task | Description | Priority |
+|------|-------------|----------|
+| Add TerminalPrompt object | Starship, oh-my-posh configs | Medium |
+| Add TerminalPlugin object | zsh/bash plugins | Medium |
+| Add TerminalTheme object | Terminal color schemes | Medium |
+
+### Phase 4: Templates (v0.11.x)
+
+**Goal:** Template system for reusable configurations.
+
+| Task | Description | Priority |
+|------|-------------|----------|
+| Add Template object | Reusable defaults for any Kind | Medium |
+| Template inheritance | Apps/Workspaces use templates | Medium |
+
+### Phase 5: Execution (v1.0.x - v1.1.x)
 
 **Goal:** Local CI/CD with Task, Workflow, Pipeline, Job.
 
@@ -1521,84 +1574,77 @@ dvm operator logs
 | Add Workflow object | Task composition | High |
 | Add Pipeline object | Stage-based CI/CD | High |
 | Add Job object | Trigger definitions | Medium |
-| Basic Operator | Watch for commits, trigger Jobs | Medium |
 
-### Phase 3: Services & Data (v1.2.x - v1.3.x)
+### Phase 6: Operator (v1.2.x+)
 
-**Goal:** Deploy Services, manage test data.
-
-| Task | Description | Priority |
-|------|-------------|----------|
-| Service deployment | Deploy Workspace to Service | High |
-| Dependency instances | Shared dependency management | High |
-| DataRecord/DataStore | Test data management | Medium |
-| DataLake | Ecosystem-wide test data | Medium |
-| Volume management | Persistent storage | Medium |
-
-### Phase 4: Operations (v1.4.x - v1.5.x)
-
-**Goal:** Full Operator with auto-push, chaos testing.
+**Goal:** Kubernetes Operator for live mode and automation.
 
 | Task | Description | Priority |
 |------|-------------|----------|
-| Full Operator | Watches, triggers, manages Services | High |
-| Auto-push on success | Git push after successful pipeline | High |
-| Orchestration | Multi-pipeline coordination | Medium |
-| Chaos actions | chaos.kill, chaos.latency | Medium |
-| Observability | Logs, metrics, status dashboards | Medium |
-
-### Phase 5: Extensibility (v2.0.x+)
-
-**Goal:** CRD-like extensibility, Templates, advanced features.
-
-| Task | Description | Priority |
-|------|-------------|----------|
-| Template system | Reusable defaults | Medium |
-| ResourceDefinition | Custom resource types | Medium |
-| Custom Actions | User-defined actions | Low |
-| Remote Runtime | Deploy to remote (future) | Low |
+| Operator CRDs | Define CRDs for k8s | High |
+| Live mode deployment | Deploy Apps to live | High |
+| Watch for commits | Trigger Jobs on commit | Medium |
+| Auto-push on success | Git push after pipeline | Medium |
+| Chaos actions | chaos.kill, chaos.latency | Low |
 
 ---
 
 ## Migration Path
 
-### From Current State (v0.7.x) to Phase 1
+### From Current State (v0.7.x) to Phase 1 (v0.8.x)
 
 **Current State:**
 - Project has `path`
-- Workspace has no `path`
-- No Ecosystem, Service, Task, etc.
+- Workspace belongs to Project
+- No Ecosystem, Domain, App, etc.
 
 **Migration Steps:**
 
 1. **Create default Ecosystem:**
    ```sql
    INSERT INTO ecosystems (name, description) 
-   VALUES ('default', 'Default ecosystem for migrated projects');
+   VALUES ('default', 'Default ecosystem for migrated data');
    ```
 
-2. **Link existing Projects to default Ecosystem:**
+2. **Create default Domain:**
    ```sql
-   ALTER TABLE projects ADD COLUMN ecosystem_id INTEGER;
-   UPDATE projects SET ecosystem_id = 1;  -- default ecosystem
+   INSERT INTO domains (name, ecosystem_id, description)
+   VALUES ('default', 1, 'Default domain for migrated projects');
    ```
 
-3. **Move `path` from Project to Workspace:**
+3. **Migrate Projects to Apps:**
    ```sql
-   ALTER TABLE workspaces ADD COLUMN path TEXT;
-   UPDATE workspaces SET path = (
-     SELECT path FROM projects WHERE projects.id = workspaces.project_id
+   -- For each Project, create an App
+   INSERT INTO apps (name, domain_id, path, description)
+   SELECT name, 1, path, description FROM projects;
+   ```
+
+4. **Update Workspaces to reference Apps:**
+   ```sql
+   ALTER TABLE workspaces ADD COLUMN app_id INTEGER;
+   UPDATE workspaces SET app_id = (
+     SELECT apps.id FROM apps 
+     JOIN projects ON apps.name = projects.name 
+     WHERE projects.id = workspaces.project_id
    );
-   ALTER TABLE projects DROP COLUMN path;
+   ALTER TABLE workspaces DROP COLUMN project_id;
    ```
 
-4. **Update CLI commands:**
-   - Add `dvm get ecosystems`, `dvm create ecosystem`, etc.
-   - Update context to include ecosystem
+5. **Update Context to include new fields:**
+   ```sql
+   ALTER TABLE context ADD COLUMN active_ecosystem_id INTEGER;
+   ALTER TABLE context ADD COLUMN active_domain_id INTEGER;
+   ALTER TABLE context ADD COLUMN active_app_id INTEGER;
+   -- Migrate active_project_id to active_app_id
+   ```
 
-5. **Backward compatibility:**
-   - `dvm create project` without `-e` uses 'default' ecosystem
-   - Existing configs continue to work
+6. **Update CLI commands:**
+   - Add `dvm get ecosystems`, `dvm get domains`, `dvm get apps`
+   - Add deprecation warnings to `dvm create project`, `dvm get projects`
+
+7. **Backward compatibility:**
+   - `dvm create project` still works but warns and creates App in default Domain
+   - Existing configs continue to work with warnings
 
 ---
 
@@ -1606,12 +1652,16 @@ dvm operator logs
 
 This document defines the complete vision for DevOpsMaestro as a **local DevOps platform**. The key concepts are:
 
-1. **Workspace** (dev) → **Service** (live) - Same code, different environments
-2. **Task** → **Workflow** → **Pipeline** → **Orchestration** - Composable CI/CD
-3. **Operator** - Watches commits, triggers Pipelines, deploys Services
-4. **Dependencies** - Global definitions, scoped instances
-5. **Templates** - Reusable defaults for any object
-6. **DataRecord/DataStore/DataLake** - Composable test data
+1. **Hierarchy:** Ecosystem → Domain → App → Workspace
+2. **App** is the core object - the codebase that exists for years
+3. **Workspace** = App in dev mode (where you write code)
+4. **live mode** = App running in production-like environment (Operator manages)
+5. **Task** → **Workflow** → **Pipeline** → **Orchestration** - Composable CI/CD
+6. **Operator** = Kubernetes Operator (CRD-based), not a local daemon
+7. **dvm without Operator** = basic workspace management (Docker only)
+8. **dvm with Operator** = full DevOps platform (requires k8s)
+9. **Dependencies** - Global definitions, scoped instances
+10. **Templates** - Reusable defaults for any object
 
 The architecture follows these principles:
 - Generic over specific
@@ -1619,10 +1669,10 @@ The architecture follows these principles:
 - Declarative everything
 - kubectl patterns
 
-Implementation is phased, starting with Foundation (Ecosystem, Workspace path, Service) and building toward full local DevOps with Operator, CI/CD, and chaos testing.
+Implementation is phased, starting with Hierarchy Foundation (Ecosystem, Domain, App) in v0.8.x and building toward full local DevOps with Operator, CI/CD, and chaos testing.
 
 ---
 
-**Document Version:** 1.0  
-**Last Updated:** During session defining complete architecture vision  
-**Next Steps:** Begin Phase 1 implementation
+**Document Version:** 2.0  
+**Last Updated:** Refined hierarchy with Domain and App objects  
+**Next Steps:** Begin Phase 1 implementation (v0.8.0)

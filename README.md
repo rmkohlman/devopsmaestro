@@ -11,8 +11,21 @@ DevOpsMaestro provides two tools:
 
 | Tool | Binary | Description |
 |------|--------|-------------|
-| **DevOpsMaestro** | `dvm` | Workspace and project management with container-native dev environments |
+| **DevOpsMaestro** | `dvm` | App and workspace management with container-native dev environments |
 | **NvimOps** | `nvp` | Standalone Neovim plugin & theme manager using YAML |
+
+### Object Hierarchy (v0.8.0+)
+
+```
+Ecosystem → Domain → App → Workspace
+```
+
+| Object | Purpose |
+|--------|---------|
+| **Ecosystem** | Top-level platform grouping |
+| **Domain** | Bounded context (team area) |
+| **App** | Your codebase (the thing you build) |
+| **Workspace** | Dev environment for an App |
 
 ---
 
@@ -79,25 +92,25 @@ nvp generate
 
 ### DevOpsMaestro (dvm) - Workspace Manager
 
-#### Option 1: Add an Existing Project
+#### Option 1: Add an Existing App
 
-Already have a project on your laptop? Add it to dvm:
+Already have a codebase on your laptop? Add it to dvm:
 
 ```bash
 # Initialize dvm (one-time setup)
 dvm init
 
-# Go to your existing project
+# Go to your existing codebase
 cd ~/Developer/my-existing-app
 
-# Create a project from the current directory
-dvm create project my-app --from-cwd
+# Create an app from the current directory
+dvm create app my-app --from-cwd
 
 # Or specify the path explicitly
-dvm create project my-app --path ~/Developer/my-existing-app
+dvm create app my-app --path ~/Developer/my-existing-app
 
-# Set as active project
-dvm use project my-app
+# Set as active app
+dvm use app my-app
 
 # Create a workspace (defines your container environment)
 dvm create workspace dev
@@ -106,19 +119,19 @@ dvm use workspace dev
 # Build the container image
 dvm build
 
-# Attach to the container (your project is mounted inside)
+# Attach to the container (your code is mounted inside)
 dvm attach
 ```
 
-#### Option 2: Start a New Project
+#### Option 2: Start a New App
 
-Starting fresh? Create a new project directory:
+Starting fresh? Create a new directory for your app:
 
 ```bash
 # Initialize dvm (one-time setup)
 dvm init
 
-# Create a new directory for your project
+# Create a new directory for your app
 mkdir ~/Developer/my-new-app
 cd ~/Developer/my-new-app
 
@@ -126,11 +139,11 @@ cd ~/Developer/my-new-app
 git init
 go mod init github.com/myuser/my-new-app
 
-# Create a project in dvm
-dvm create project my-new-app --from-cwd
+# Create an app in dvm
+dvm create app my-new-app --from-cwd
 
 # Set as active and create workspace
-dvm use project my-new-app
+dvm use app my-new-app
 dvm create workspace dev
 dvm use workspace dev
 
@@ -144,8 +157,8 @@ dvm attach
 ```bash
 cd ~/Developer/my-app
 dvm init                          # One-time setup
-dvm create proj myapp --from-cwd  # Create project
-dvm use proj myapp                # Set active
+dvm create app myapp --from-cwd   # Create app
+dvm use app myapp                 # Set active
 dvm create ws dev                 # Create workspace
 dvm use ws dev                    # Set active
 dvm build                         # Build container
@@ -155,9 +168,9 @@ dvm attach                        # Enter container
 #### Verify Your Setup
 
 ```bash
-dvm get ctx          # Show current project/workspace
-dvm get proj         # List all projects
-dvm get ws           # List workspaces in current project
+dvm get ctx          # Show current ecosystem/domain/app/workspace
+dvm get apps         # List all apps
+dvm get ws           # List workspaces in current app
 dvm get plat         # Check detected container platforms
 dvm status           # Full status overview
 ```
@@ -192,10 +205,13 @@ kubectl-style short aliases for faster commands:
 
 | Resource | Alias | Example |
 |----------|-------|---------|
-| projects | `proj` | `dvm get proj` |
+| ecosystems | `eco` | `dvm get eco` |
+| domains | `dom` | `dvm get dom` |
+| apps | `app` | `dvm get app` |
 | workspaces | `ws` | `dvm get ws` |
 | context | `ctx` | `dvm get ctx` |
 | platforms | `plat` | `dvm get plat` |
+| projects | `proj` | `dvm get proj` *(deprecated)* |
 
 ### dvm Commands
 
@@ -204,22 +220,35 @@ kubectl-style short aliases for faster commands:
 dvm status                    # Show current context and runtime info
 dvm status -o json            # JSON output
 
-# Projects
-dvm create project <name>     # Create project
-dvm get projects              # List projects (or: dvm get proj)
-dvm delete project <name>     # Delete project
-dvm use project <name>        # Set active project
-dvm use project --clear       # Clear active project
+# Ecosystems (v0.8.0+)
+dvm create ecosystem <name>   # Create ecosystem
+dvm get ecosystems            # List ecosystems
+dvm use ecosystem <name>      # Set active ecosystem
+
+# Domains (v0.8.0+)
+dvm create domain <name>      # Create domain
+dvm get domains               # List domains
+dvm use domain <name>         # Set active domain
+
+# Apps (v0.8.0+)
+dvm create app <name>         # Create app
+dvm get apps                  # List apps
+dvm delete app <name>         # Delete app
+dvm use app <name>            # Set active app
+
+# Projects (DEPRECATED - use Apps)
+dvm create project <name>     # Create project (deprecated)
+dvm get projects              # List projects (deprecated)
+dvm use project <name>        # Set active project (deprecated)
 
 # Workspaces
 dvm create workspace <name>   # Create workspace
 dvm get workspaces            # List workspaces (or: dvm get ws)
 dvm delete workspace <name>   # Delete workspace
 dvm use workspace <name>      # Set active workspace
-dvm use ws none               # Clear active workspace
 
 # Context
-dvm get context               # Show active project/workspace (or: dvm get ctx)
+dvm get context               # Show active ecosystem/domain/app/workspace
 
 # Build & Runtime
 dvm build                     # Build workspace container
