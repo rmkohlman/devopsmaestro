@@ -1,6 +1,6 @@
 # Private Repository Support Guide
 
-DevOpsMaestro provides comprehensive support for building projects that depend on private repositories across all major programming languages.
+DevOpsMaestro provides comprehensive support for building apps that depend on private repositories across all major programming languages.
 
 ## Supported Authentication Methods
 
@@ -331,7 +331,7 @@ Host git.company.com
 ### 1. Detection Phase (`utils/private_repo_detector.go`)
 
 ```go
-privateRepoInfo := utils.DetectPrivateRepos(projectPath, language)
+privateRepoInfo := utils.DetectPrivateRepos(appPath, language)
 // Returns:
 // - NeedsGit: bool
 // - NeedsSSH: bool
@@ -356,11 +356,11 @@ privateRepoInfo := utils.DetectPrivateRepos(projectPath, language)
 
 ---
 
-## Example: Complete Python Project
+## Example: Complete Python App
 
-**Project structure:**
+**App structure:**
 ```
-my-project/
+my-app/
 ├── requirements.txt
 ├── pyproject.toml
 └── src/
@@ -389,8 +389,8 @@ export GITHUB_USERNAME=myuser
 export GITHUB_PAT=ghp_xxxxx
 
 # Create and build
-dvm create project my-project --from-cwd
-dvm use project my-project
+dvm create app my-app --from-cwd
+dvm use app my-app
 dvm use workspace main
 dvm build
 ```

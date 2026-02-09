@@ -23,13 +23,13 @@ spec:
 
 ## Resource Types
 
-### 1. Project
+### 1. App
 
-Represents a top-level project (codebase).
+Represents a top-level app (codebase).
 
 ```yaml
 apiVersion: devopsmaestro.io/v1
-kind: Project
+kind: App
 metadata:
   name: my-api
   labels:
@@ -38,7 +38,7 @@ metadata:
   annotations:
     description: "RESTful API for user management"
 spec:
-  path: /Users/rkohlman/projects/my-api
+  path: /Users/rkohlman/apps/my-api
   workspaces:
     - main
     - debug
@@ -54,7 +54,7 @@ apiVersion: devopsmaestro.io/v1
 kind: Workspace
 metadata:
   name: main
-  project: my-api
+  app: my-api
   labels:
     language: golang
     env: development
@@ -159,7 +159,7 @@ spec:
   # Container mounts
   mounts:
     - type: bind
-      source: ${PROJECT_PATH}
+      source: ${APP_PATH}
       destination: /workspace
       readOnly: false
     - type: bind
@@ -173,7 +173,7 @@ spec:
   
   # SSH Key configuration
   sshKey:
-    mode: mount_host  # or: global_dvm, per_project, generate
+    mode: mount_host  # or: global_dvm, per_app, generate
     path: ${HOME}/.ssh  # used when mode=mount_host
   
   # Environment variables
@@ -297,16 +297,16 @@ spec:
   build:
     args:
       GITHUB_PAT: ${GITHUB_PAT}          # From environment
-      PROJECT_NAME: ${DVM_PROJECT_NAME}   # From context
+      APP_NAME: ${DVM_APP_NAME}          # From context
   mounts:
-    - source: ${PROJECT_PATH}             # Auto-filled from project
+    - source: ${APP_PATH}                # Auto-filled from app
       destination: /workspace
 ```
 
 ### Built-in Variables
 
-- `${PROJECT_NAME}` - Current project name
-- `${PROJECT_PATH}` - Full path to project directory
+- `${APP_NAME}` - Current app name
+- `${APP_PATH}` - Full path to app directory
 - `${WORKSPACE_NAME}` - Current workspace name
 - `${DVM_HOME}` - DevOpsMaestro home directory (~/.devopsmaestro)
 - `${HOME}` - User home directory
@@ -328,19 +328,19 @@ dvm get workspace main -o yaml > workspace.yaml
 dvm apply -f workspace.yaml
 ```
 
-### Create project from YAML
+### Create app from YAML
 
 ```bash
-cat > project.yaml <<EOF
+cat > app.yaml <<EOF
 apiVersion: devopsmaestro.io/v1
-kind: Project
+kind: App
 metadata:
   name: my-new-api
 spec:
-  path: /Users/rkohlman/projects/my-new-api
+  path: /Users/rkohlman/apps/my-new-api
 EOF
 
-dvm apply -f project.yaml
+dvm apply -f app.yaml
 ```
 
 ### Backup entire configuration
@@ -349,7 +349,7 @@ dvm apply -f project.yaml
 dvm admin backup --output backup.yaml
 ```
 
-This creates a multi-document YAML file with all projects, workspaces, and templates.
+This creates a multi-document YAML file with all apps, workspaces, and templates.
 
 ---
 
@@ -373,11 +373,11 @@ The `dvm get` command can export any resource to YAML format:
 # Export single workspace
 dvm get workspace main -o yaml
 
-# Export all workspaces in a project
+# Export all workspaces in an app
 dvm get workspaces -o yaml
 
-# Export entire project with all workspaces
-dvm get project my-api --include-workspaces -o yaml
+# Export entire app with all workspaces
+dvm get app my-api --include-workspaces -o yaml
 
 # Export everything (multi-document YAML)
 dvm admin backup -o yaml

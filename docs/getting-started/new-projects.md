@@ -1,14 +1,14 @@
-# Starting New Projects
+# Starting New Apps
 
-Create a new project from scratch with DevOpsMaestro.
+Create a new app from scratch with DevOpsMaestro.
 
 ---
 
 ## Overview
 
-When starting a new project with dvm:
+When starting a new app with dvm:
 
-1. **Create your project directory** - Standard project setup
+1. **Create your app directory** - Standard app setup
 2. **Initialize your code** - git, package manager, etc.
 3. **Add to dvm** - Track with DevOpsMaestro
 4. **Build & attach** - Start coding in a container
@@ -25,22 +25,22 @@ If you haven't already:
 dvm init
 ```
 
-### 2. Create Your Project Directory
+### 2. Create Your App Directory
 
 ```bash
-mkdir ~/Developer/my-new-project
-cd ~/Developer/my-new-project
+mkdir ~/Developer/my-new-app
+cd ~/Developer/my-new-app
 ```
 
 ### 3. Initialize Your Code
 
-Set up your project as you normally would:
+Set up your app as you normally would:
 
 === "Go"
 
     ```bash
     git init
-    go mod init github.com/myuser/my-new-project
+    go mod init github.com/myuser/my-new-app
     touch main.go
     ```
 
@@ -71,19 +71,19 @@ Set up your project as you normally would:
 ### 4. Add to dvm
 
 ```bash
-dvm create project my-new-project --from-cwd
+dvm create app my-new-app --from-cwd
 ```
 
 Add a description to help remember what it's for:
 
 ```bash
-dvm create project my-new-project --from-cwd --description "New REST API service"
+dvm create app my-new-app --from-cwd --description "New REST API service"
 ```
 
 ### 5. Set Active Context
 
 ```bash
-dvm use project my-new-project
+dvm use app my-new-app
 ```
 
 ### 6. Create a Workspace
@@ -117,10 +117,10 @@ You're now in your containerized environment!
 
 ## Complete Examples
 
-### New Go Project
+### New Go App
 
 ```bash
-# Create and setup project
+# Create and setup app
 mkdir ~/Developer/go-api
 cd ~/Developer/go-api
 git init
@@ -138,8 +138,8 @@ func main() {
 EOF
 
 # Add to dvm
-dvm create proj go-api --from-cwd
-dvm use proj go-api
+dvm create app go-api --from-cwd
+dvm use app go-api
 dvm create ws dev
 dvm use ws dev
 
@@ -152,10 +152,10 @@ dvm attach
 # nvim main.go  (with gopls LSP!)
 ```
 
-### New Python Project
+### New Python App
 
 ```bash
-# Create and setup project
+# Create and setup app
 mkdir ~/Developer/python-app
 cd ~/Developer/python-app
 git init
@@ -177,8 +177,8 @@ def read_root():
 EOF
 
 # Add to dvm
-dvm create proj python-app --from-cwd
-dvm use proj python-app
+dvm create app python-app --from-cwd
+dvm use app python-app
 dvm create ws dev
 dvm use ws dev
 
@@ -191,10 +191,10 @@ dvm attach
 # uvicorn main:app --reload
 ```
 
-### New Node.js Project
+### New Node.js App
 
 ```bash
-# Create and setup project
+# Create and setup app
 mkdir ~/Developer/node-app
 cd ~/Developer/node-app
 git init
@@ -218,8 +218,8 @@ EOF
 npm install express
 
 # Add to dvm
-dvm create proj node-app --from-cwd
-dvm use proj node-app
+dvm create app node-app --from-cwd
+dvm use app node-app
 dvm create ws dev
 dvm use ws dev
 
@@ -234,37 +234,37 @@ dvm attach
 
 ---
 
-## Project Templates (Coming Soon)
+## App Templates (Coming Soon)
 
 !!! note "Future Feature"
     
-    Project templates will allow you to scaffold new projects with pre-configured setups:
+    App templates will allow you to scaffold new apps with pre-configured setups:
     
     ```bash
     # Future syntax
-    dvm create project my-api --template go-api
-    dvm create project my-app --template python-fastapi
+    dvm create app my-api --template go-api
+    dvm create app my-app --template python-fastapi
     ```
 
 ---
 
-## Tips for New Projects
+## Tips for New Apps
 
 ### Use Descriptive Names
 
 ```bash
 # Good
-dvm create proj user-auth-service --from-cwd
-dvm create proj data-pipeline --from-cwd
+dvm create app user-auth-service --from-cwd
+dvm create app data-pipeline --from-cwd
 
 # Less helpful
-dvm create proj app1 --from-cwd
+dvm create app app1 --from-cwd
 ```
 
 ### Add Descriptions
 
 ```bash
-dvm create proj my-api --from-cwd --description "REST API for user management"
+dvm create app my-api --from-cwd --description "REST API for user management"
 ```
 
 ### Create Purpose-Specific Workspaces
@@ -289,8 +289,8 @@ dvm create ws debug --description "Debugging with extra tools"
 dvm get ctx
 dvm status
 
-# View project details
-dvm get project my-new-project -o yaml
+# View app details
+dvm get app my-new-app -o yaml
 ```
 
 ---

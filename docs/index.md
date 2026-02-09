@@ -14,7 +14,7 @@ DevOpsMaestro provides two powerful CLI tools for modern development workflows:
 
 | Tool | Binary | Description |
 |------|--------|-------------|
-| **DevOpsMaestro** | `dvm` | Workspace and project management with container-native dev environments |
+| **DevOpsMaestro** | `dvm` | Workspace and app management with container-native dev environments |
 | **NvimOps** | `nvp` | Standalone Neovim plugin & theme manager using YAML |
 
 ## Key Features
@@ -24,7 +24,7 @@ DevOpsMaestro provides two powerful CLI tools for modern development workflows:
 - :material-kubernetes: **kubectl-style commands** - Familiar `get`, `create`, `delete`, `apply` patterns
 - :material-docker: **Multi-platform** - OrbStack, Docker Desktop, Podman, Colima
 - :material-cube-outline: **Container-native** - Isolated dev environments with Neovim pre-configured
-- :material-database: **Database-backed** - SQLite storage for projects, workspaces, plugins
+- :material-database: **Database-backed** - SQLite storage for apps, workspaces, plugins
 - :material-file-document: **YAML configuration** - Declarative workspace definitions
 
 ### nvp - Neovim Plugin Manager
@@ -65,14 +65,14 @@ DevOpsMaestro provides two powerful CLI tools for modern development workflows:
 
 ## Quick Example
 
-### Add an existing project to dvm
+### Add an existing app to dvm
 
 ```bash
 cd ~/Developer/my-existing-app
 
 dvm init                              # One-time setup
-dvm create project my-app --from-cwd  # Create project from current dir
-dvm use project my-app                # Set as active
+dvm create app my-app --from-cwd      # Create app from current dir
+dvm use app my-app                    # Set as active
 dvm create workspace dev              # Create a workspace
 dvm use workspace dev                 # Set as active
 dvm build                             # Build container
@@ -99,7 +99,7 @@ nvp generate                          # Generate Lua files
 
     ---
 
-    Install DevOpsMaestro and set up your first project
+    Install DevOpsMaestro and set up your first app
 
     [:octicons-arrow-right-24: Installation](getting-started/installation.md)
 

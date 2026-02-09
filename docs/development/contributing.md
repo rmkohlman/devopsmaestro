@@ -204,10 +204,10 @@ go tool cover -html=coverage.out
 func TestMyFeature(t *testing.T) {
     // Arrange
     store := NewMockDataStore()
-    store.Projects["test"] = &models.Project{Name: "test"}
+    store.Apps["test"] = &models.App{Name: "test"}
     
     // Act
-    result, err := store.GetProjectByName("test")
+    result, err := store.GetAppByName("test")
     
     // Assert
     if err != nil {

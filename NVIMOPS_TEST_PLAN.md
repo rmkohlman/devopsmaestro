@@ -23,7 +23,7 @@ NvimOps is a standalone CLI for managing Neovim plugin and theme configurations 
 ## Quick Start
 
 ```bash
-# Change to project directory first
+# Change to app directory first
 cd ~/Developer/tools/devopsmaestro
 
 # Run full automated test suite

@@ -41,7 +41,7 @@ Database layer (dvm only):
 
 - `DataStore` interface
 - SQLite implementation
-- Projects, workspaces, plugins storage
+- Apps, workspaces, plugins storage
 
 ### pkg/source/
 
@@ -94,8 +94,8 @@ Interface → Implementation → Factory pattern:
 ```go
 // Interface
 type DataStore interface {
-    CreateProject(project *Project) error
-    GetProjectByName(name string) (*Project, error)
+    CreateApp(app *App) error
+    GetAppByName(name string) (*App, error)
     // ...
 }
 
@@ -115,8 +115,8 @@ func NewSQLDataStore(path string) (*SQLDataStore, error) {
 Familiar command structure:
 
 ```
-dvm get projects
-dvm create project <name>
+dvm get apps
+dvm create app <name>
 dvm delete workspace <name>
 dvm apply -f config.yaml
 ```
@@ -134,11 +134,11 @@ Mock implementations for all interfaces:
 
 ```go
 type MockDataStore struct {
-    projects map[string]*Project
+    apps map[string]*App
 }
 
-func (m *MockDataStore) CreateProject(p *Project) error {
-    m.projects[p.Name] = p
+func (m *MockDataStore) CreateApp(a *App) error {
+    m.apps[a.Name] = a
     return nil
 }
 ```
@@ -169,8 +169,8 @@ How `apply` works:
 ## Database Schema
 
 ```sql
--- Projects
-CREATE TABLE projects (
+-- Apps
+CREATE TABLE apps (
     id INTEGER PRIMARY KEY,
     name TEXT UNIQUE NOT NULL,
     path TEXT NOT NULL,
@@ -182,7 +182,7 @@ CREATE TABLE projects (
 -- Workspaces
 CREATE TABLE workspaces (
     id INTEGER PRIMARY KEY,
-    project_id INTEGER REFERENCES projects(id),
+    app_id INTEGER REFERENCES apps(id),
     name TEXT NOT NULL,
     image_name TEXT,
     status TEXT,

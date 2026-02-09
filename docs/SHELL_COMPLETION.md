@@ -82,10 +82,10 @@ fish_config reload
 ### dvm Completions
 ```bash
 dvm <TAB>
-# Shows: admin attach build create delete get nvim plugin project version workspace
+# Shows: admin attach build create delete get nvim plugin app version workspace
 
 dvm get <TAB>
-# Shows: platforms plugins projects workspaces
+# Shows: platforms plugins apps workspaces
 ```
 
 ### nvp Completions
@@ -110,7 +110,7 @@ nvp theme library <TAB>
 ### Commands
 - `dvm <TAB>` - Show all available commands
 - `dvm nvim <TAB>` - Show nvim subcommands (init, status, sync, push)
-- `dvm get <TAB>` - Show get subcommands (plugins, projects, workspaces)
+- `dvm get <TAB>` - Show get subcommands (plugins, apps, workspaces)
 
 ### Flags
 - `dvm nvim init --<TAB>` - Show all flags (--config-path, --git-clone, --overwrite)

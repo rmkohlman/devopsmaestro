@@ -41,7 +41,7 @@ source tests/manual/part2-post-attach.sh
 **What it tests:**
 - Cleanup and initialization
 - Platform detection (table, yaml, json formats)
-- Project creation from GitHub repo
+- App creation from GitHub repo
 - Workspace management (create, list, switch)
 - Image build without nvim config
 
@@ -320,14 +320,14 @@ Use `builtin cd` instead of `cd` to bypass zoxide:
 builtin cd ~/Developer/sandbox/dvm-test-fastapi
 ```
 
-### Build hangs on "Detecting project language"
+### Build hangs on "Detecting app language"
 
-Check that the project path is correct:
+Check that the app path is correct:
 ```bash
-sqlite3 ~/.devopsmaestro/devopsmaestro.db "SELECT name, path FROM projects;"
+sqlite3 ~/.devopsmaestro/devopsmaestro.db "SELECT name, path FROM apps;"
 ```
 
-If the path is wrong (e.g., `/Users/you` instead of the project dir), re-run Part 1.
+If the path is wrong (e.g., `/Users/you` instead of the app dir), re-run Part 1.
 
 ### Image not found after build
 

@@ -16,7 +16,7 @@ dvm build
 
 This will:
 
-1. Detect your project language
+1. Detect your app's language
 2. Generate a Dockerfile (if needed)
 3. Build the container image
 4. Install language tools and LSP servers
@@ -42,7 +42,7 @@ dvm build --no-cache
 
 ## What Gets Built?
 
-dvm auto-detects your project and sets up:
+dvm auto-detects your app and sets up:
 
 | Language | Tools Installed |
 |----------|-----------------|
@@ -82,7 +82,7 @@ dvm attach test
 ## What Happens on Attach?
 
 1. **Container starts** (if not running)
-2. **Project mounted** at `/workspace`
+2. **App mounted** at `/workspace`
 3. **Terminal connects** with full resize support
 4. **You're inside!** Ready to code
 
@@ -93,7 +93,7 @@ dvm attach test
 │  │  Container                                    │  │
 │  │  /workspace $ nvim .                         │  │
 │  │                                              │  │
-│  │  Your project files are here                 │  │
+│  │  Your app files are here                 │  │
 │  │  Changes sync automatically                  │  │
 │  └──────────────────────────────────────────────┘  │
 └────────────────────────────────────────────────────┘
@@ -106,7 +106,7 @@ dvm attach test
 Once attached:
 
 ```bash
-# Your project is at /workspace
+# Your app is at /workspace
 cd /workspace
 ls
 
@@ -224,7 +224,7 @@ dvm attach -v
 
 ### Changes Not Persisting
 
-Your project is **mounted**, so changes should persist. If they don't:
+Your app is **mounted**, so changes should persist. If they don't:
 
 1. Make sure you're editing in `/workspace`
 2. Check that the mount is working: `ls /workspace`

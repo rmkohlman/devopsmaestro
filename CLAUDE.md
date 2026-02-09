@@ -64,7 +64,7 @@ Ecosystem → Domain → App → Workspace (dev mode)
 
 | Binary | Purpose | Entry Point |
 |--------|---------|-------------|
-| `dvm` | Workspace/project management | `main.go` |
+| `dvm` | Workspace/app management | `main.go` |
 | `nvp` | Neovim plugin/theme management (standalone) | `cmd/nvp/main.go` |
 
 ### Key Value Proposition
@@ -111,8 +111,8 @@ Ecosystem → Domain → App → Workspace (dev mode)
 devopsmaestro/
 ├── cmd/                    # CLI commands (Cobra)
 │   ├── root.go            # dvm root command
-│   ├── create.go          # dvm create project/workspace
-│   ├── get.go             # dvm get projects/workspaces/plugins
+│   ├── create.go          # dvm create app/workspace
+│   ├── get.go             # dvm get apps/workspaces/plugins
 │   └── nvp/               # NvimOps CLI (standalone)
 │       ├── main.go        # nvp entry point
 │       └── root.go        # All nvp commands

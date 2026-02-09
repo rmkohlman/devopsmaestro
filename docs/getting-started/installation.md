@@ -126,5 +126,5 @@ nvp init
 ## Next Steps
 
 - [Quick Start Guide](quickstart.md) - Get up and running in 5 minutes
-- [Add an Existing Project](existing-projects.md) - Add your current repos to dvm
-- [Start a New Project](new-projects.md) - Create a new project from scratch
+- [Add an Existing App](existing-projects.md) - Add your current repos to dvm
+- [Start a New App](new-projects.md) - Create a new app from scratch

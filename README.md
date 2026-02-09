@@ -184,7 +184,7 @@ dvm status           # Full status overview
 - **kubectl-style commands** - Familiar `get`, `create`, `delete`, `apply` patterns
 - **Multi-platform** - OrbStack, Docker Desktop, Podman, Colima
 - **Container-native** - Isolated dev environments with Neovim pre-configured
-- **Database-backed** - SQLite storage for projects, workspaces, plugins
+- **Database-backed** - SQLite storage for apps, workspaces, plugins
 - **YAML configuration** - Declarative workspace definitions
 
 ### nvp - Neovim Plugin Manager

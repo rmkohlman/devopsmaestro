@@ -79,10 +79,10 @@ apiVersion: devopsmaestro.io/v1
 kind: Workspace
 metadata:
   name: main
-  project: my-project
+  app: my-app
 spec:
   image:
-    name: dvm-main-my-project
+    name: dvm-main-my-app
   nvim:
     structure: custom
     plugins:

@@ -30,48 +30,44 @@ Creates `~/.devopsmaestro/devopsmaestro.db`.
 
 ---
 
-## Projects
+## Apps
 
-### `dvm create project`
+### `dvm create app`
 
-Create a new project.
+Create a new app.
 
 ```bash
-dvm create project <name> [flags]
+dvm create app <name> [flags]
 ```
-
-**Aliases:** `proj`
 
 **Flags:**
 
 | Flag | Description |
 |------|-------------|
-| `--from-cwd` | Use current working directory as project path |
-| `--path <path>` | Specific path for the project |
-| `--description <text>` | Project description |
+| `--from-cwd` | Use current working directory as app path |
+| `--path <path>` | Specific path for the app |
+| `--description <text>` | App description |
 
 **Examples:**
 
 ```bash
 # Create from current directory
-dvm create project my-api --from-cwd
+dvm create app my-api --from-cwd
 
 # Create with explicit path
-dvm create project my-api --path ~/Developer/my-api
+dvm create app my-api --path ~/Developer/my-api
 
 # Create with description
-dvm create project my-api --from-cwd --description "REST API service"
+dvm create app my-api --from-cwd --description "REST API service"
 ```
 
-### `dvm get projects`
+### `dvm get apps`
 
-List all projects.
+List all apps.
 
 ```bash
-dvm get projects [flags]
+dvm get apps [flags]
 ```
-
-**Aliases:** `proj`
 
 **Flags:**
 
@@ -82,36 +78,34 @@ dvm get projects [flags]
 **Examples:**
 
 ```bash
-dvm get projects
-dvm get proj
-dvm get proj -o yaml
-dvm get proj -o json
+dvm get apps
+dvm get app
+dvm get app -o yaml
+dvm get app -o json
 ```
 
-### `dvm get project`
+### `dvm get app`
 
-Get a specific project.
+Get a specific app.
 
 ```bash
-dvm get project <name> [flags]
+dvm get app <name> [flags]
 ```
 
 **Examples:**
 
 ```bash
-dvm get project my-api
-dvm get project my-api -o yaml
+dvm get app my-api
+dvm get app my-api -o yaml
 ```
 
-### `dvm delete project`
+### `dvm delete app`
 
-Delete a project.
+Delete an app.
 
 ```bash
-dvm delete project <name> [flags]
+dvm delete app <name> [flags]
 ```
-
-**Aliases:** `proj`
 
 **Flags:**
 
@@ -122,32 +116,29 @@ dvm delete project <name> [flags]
 **Examples:**
 
 ```bash
-dvm delete project my-api
-dvm delete proj my-api --force
+dvm delete app my-api
+dvm delete app my-api --force
 ```
 
-### `dvm use project`
+### `dvm use app`
 
-Set the active project.
+Set the active app.
 
 ```bash
-dvm use project <name> [flags]
+dvm use app <name> [flags]
 ```
-
-**Aliases:** `proj`
 
 **Flags:**
 
 | Flag | Description |
 |------|-------------|
-| `--clear` | Clear active project |
+| `--clear` | Clear active app |
 
 **Examples:**
 
 ```bash
-dvm use project my-api
-dvm use proj my-api
-dvm use project --clear
+dvm use app my-api
+dvm use app --clear
 ```
 
 ---
@@ -168,7 +159,7 @@ dvm create workspace <name> [flags]
 
 | Flag | Description |
 |------|-------------|
-| `-p, --project <name>` | Project name (defaults to active project) |
+| `-a, --app <name>` | App name (defaults to active app) |
 | `--description <text>` | Workspace description |
 | `--image <name>` | Custom image name |
 
@@ -177,13 +168,13 @@ dvm create workspace <name> [flags]
 ```bash
 dvm create workspace dev
 dvm create ws dev
-dvm create ws dev -p my-api
+dvm create ws dev -a my-api
 dvm create ws staging --description "Staging environment"
 ```
 
 ### `dvm get workspaces`
 
-List workspaces in a project.
+List workspaces in an app.
 
 ```bash
 dvm get workspaces [flags]
@@ -195,7 +186,7 @@ dvm get workspaces [flags]
 
 | Flag | Description |
 |------|-------------|
-| `-p, --project <name>` | Project name (defaults to active project) |
+| `-a, --app <name>` | App name (defaults to active app) |
 | `-o, --output <format>` | Output format: `json`, `yaml`, `plain`, `table` |
 
 **Examples:**
@@ -203,7 +194,7 @@ dvm get workspaces [flags]
 ```bash
 dvm get workspaces
 dvm get ws
-dvm get ws -p my-api
+dvm get ws -a my-api
 dvm get ws -o yaml
 ```
 
@@ -236,7 +227,7 @@ dvm delete workspace <name> [flags]
 
 | Flag | Description |
 |------|-------------|
-| `-p, --project <name>` | Project name (defaults to active project) |
+| `-a, --app <name>` | App name (defaults to active app) |
 | `-f, --force` | Skip confirmation prompt |
 
 **Examples:**
@@ -244,7 +235,7 @@ dvm delete workspace <name> [flags]
 ```bash
 dvm delete workspace dev
 dvm delete ws dev --force
-dvm delete ws dev -p my-api
+dvm delete ws dev -a my-api
 ```
 
 ### `dvm use workspace`
@@ -271,7 +262,7 @@ dvm use ws none  # Clear active workspace
 
 ### `dvm get context`
 
-Show current active project and workspace.
+Show current active app and workspace.
 
 ```bash
 dvm get context [flags]
@@ -461,7 +452,7 @@ dvm delete nvim plugin <name> [flags]
 |------|-------------|
 | `-f, --force` | Skip confirmation |
 | `-w, --workspace <name>` | Remove from workspace (instead of global) |
-| `-p, --project <name>` | Project for workspace |
+| `-a, --app <name>` | App for workspace |
 
 ---
 

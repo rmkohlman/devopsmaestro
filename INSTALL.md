@@ -45,8 +45,8 @@ sudo mv dvm /usr/local/bin/
 # Initialize
 dvm init
 
-# Create a project
-dvm create project myproject --from-cwd
+# Create an app
+dvm create app myapp --from-cwd
 
 # Build container image
 dvm build
@@ -286,7 +286,7 @@ After installation:
 
 1. Initialize your environment: `dvm init`
 2. Check status: `dvm status`
-3. Create a project: `dvm create project myproject --from-cwd`
+3. Create an app: `dvm create app myapp --from-cwd`
 4. Build container: `dvm build`
 5. Attach to workspace: `dvm attach`
 
