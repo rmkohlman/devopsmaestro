@@ -59,6 +59,8 @@ func createTestSchema(driver Driver) error {
 			name TEXT NOT NULL,
 			path TEXT NOT NULL,
 			description TEXT,
+			language TEXT,
+			build_config TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (domain_id) REFERENCES domains(id),
@@ -856,6 +858,255 @@ func TestSQLDataStore_ListAllApps(t *testing.T) {
 
 	if len(apps) != 4 {
 		t.Errorf("ListAllApps() returned %d apps, want 4", len(apps))
+	}
+}
+
+// =============================================================================
+// App Language/BuildConfig Tests
+// =============================================================================
+
+func TestSQLDataStore_CreateApp_WithLanguage(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	ecosystem := &models.Ecosystem{Name: "app-lang-ecosystem"}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	domain := &models.Domain{
+		EcosystemID: ecosystem.ID,
+		Name:        "app-lang-domain",
+	}
+	if err := ds.CreateDomain(domain); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	// Create app with language config (JSON serialized)
+	langJSON := `{"name":"golang","version":"1.22"}`
+	app := &models.App{
+		DomainID: domain.ID,
+		Name:     "lang-test-app",
+		Path:     "/path/to/golang-app",
+		Language: sql.NullString{String: langJSON, Valid: true},
+	}
+
+	if err := ds.CreateApp(app); err != nil {
+		t.Fatalf("CreateApp() error = %v", err)
+	}
+
+	// Retrieve and verify
+	retrieved, err := ds.GetAppByID(app.ID)
+	if err != nil {
+		t.Fatalf("GetAppByID() error = %v", err)
+	}
+
+	if !retrieved.Language.Valid {
+		t.Error("Retrieved app Language should be valid")
+	}
+	if retrieved.Language.String != langJSON {
+		t.Errorf("Language = %q, want %q", retrieved.Language.String, langJSON)
+	}
+}
+
+func TestSQLDataStore_CreateApp_WithBuildConfig(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	ecosystem := &models.Ecosystem{Name: "app-build-ecosystem"}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	domain := &models.Domain{
+		EcosystemID: ecosystem.ID,
+		Name:        "app-build-domain",
+	}
+	if err := ds.CreateDomain(domain); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	// Create app with build config (JSON serialized)
+	buildJSON := `{"dockerfile":"Dockerfile.dev","args":{"BUILD_ENV":"development","DEBUG":"true"}}`
+	app := &models.App{
+		DomainID:    domain.ID,
+		Name:        "build-test-app",
+		Path:        "/path/to/build-app",
+		BuildConfig: sql.NullString{String: buildJSON, Valid: true},
+	}
+
+	if err := ds.CreateApp(app); err != nil {
+		t.Fatalf("CreateApp() error = %v", err)
+	}
+
+	// Retrieve and verify
+	retrieved, err := ds.GetAppByID(app.ID)
+	if err != nil {
+		t.Fatalf("GetAppByID() error = %v", err)
+	}
+
+	if !retrieved.BuildConfig.Valid {
+		t.Error("Retrieved app BuildConfig should be valid")
+	}
+	if retrieved.BuildConfig.String != buildJSON {
+		t.Errorf("BuildConfig = %q, want %q", retrieved.BuildConfig.String, buildJSON)
+	}
+}
+
+func TestSQLDataStore_UpdateApp_Language(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	ecosystem := &models.Ecosystem{Name: "app-updatelang-ecosystem"}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	domain := &models.Domain{
+		EcosystemID: ecosystem.ID,
+		Name:        "app-updatelang-domain",
+	}
+	if err := ds.CreateDomain(domain); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	// Create app without language initially
+	app := &models.App{
+		DomainID: domain.ID,
+		Name:     "update-lang-app",
+		Path:     "/path/to/app",
+	}
+	if err := ds.CreateApp(app); err != nil {
+		t.Fatalf("CreateApp() error = %v", err)
+	}
+
+	// Update with language
+	langJSON := `{"name":"python","version":"3.11"}`
+	app.Language = sql.NullString{String: langJSON, Valid: true}
+
+	if err := ds.UpdateApp(app); err != nil {
+		t.Fatalf("UpdateApp() error = %v", err)
+	}
+
+	// Verify update
+	retrieved, err := ds.GetAppByID(app.ID)
+	if err != nil {
+		t.Fatalf("GetAppByID() error = %v", err)
+	}
+
+	if !retrieved.Language.Valid {
+		t.Error("Updated app Language should be valid")
+	}
+	if retrieved.Language.String != langJSON {
+		t.Errorf("Language = %q, want %q", retrieved.Language.String, langJSON)
+	}
+}
+
+func TestSQLDataStore_App_PreservesLanguageAndBuildConfig(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	ecosystem := &models.Ecosystem{Name: "app-preserve-ecosystem"}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	domain := &models.Domain{
+		EcosystemID: ecosystem.ID,
+		Name:        "app-preserve-domain",
+	}
+	if err := ds.CreateDomain(domain); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	// Create app with both language and build config
+	langJSON := `{"name":"nodejs","version":"20"}`
+	buildJSON := `{"dockerfile":"Dockerfile","args":{"NODE_ENV":"development"},"target":"dev"}`
+
+	app := &models.App{
+		DomainID:    domain.ID,
+		Name:        "full-config-app",
+		Path:        "/path/to/node-app",
+		Description: sql.NullString{String: "Full config test", Valid: true},
+		Language:    sql.NullString{String: langJSON, Valid: true},
+		BuildConfig: sql.NullString{String: buildJSON, Valid: true},
+	}
+
+	if err := ds.CreateApp(app); err != nil {
+		t.Fatalf("CreateApp() error = %v", err)
+	}
+
+	// Test GetAppByName
+	byName, err := ds.GetAppByName(domain.ID, "full-config-app")
+	if err != nil {
+		t.Fatalf("GetAppByName() error = %v", err)
+	}
+	if byName.Language.String != langJSON {
+		t.Errorf("GetAppByName() Language = %q, want %q", byName.Language.String, langJSON)
+	}
+	if byName.BuildConfig.String != buildJSON {
+		t.Errorf("GetAppByName() BuildConfig = %q, want %q", byName.BuildConfig.String, buildJSON)
+	}
+
+	// Test GetAppByNameGlobal
+	byGlobal, err := ds.GetAppByNameGlobal("full-config-app")
+	if err != nil {
+		t.Fatalf("GetAppByNameGlobal() error = %v", err)
+	}
+	if byGlobal.Language.String != langJSON {
+		t.Errorf("GetAppByNameGlobal() Language = %q, want %q", byGlobal.Language.String, langJSON)
+	}
+	if byGlobal.BuildConfig.String != buildJSON {
+		t.Errorf("GetAppByNameGlobal() BuildConfig = %q, want %q", byGlobal.BuildConfig.String, buildJSON)
+	}
+
+	// Test GetAppByID
+	byID, err := ds.GetAppByID(app.ID)
+	if err != nil {
+		t.Fatalf("GetAppByID() error = %v", err)
+	}
+	if byID.Language.String != langJSON {
+		t.Errorf("GetAppByID() Language = %q, want %q", byID.Language.String, langJSON)
+	}
+	if byID.BuildConfig.String != buildJSON {
+		t.Errorf("GetAppByID() BuildConfig = %q, want %q", byID.BuildConfig.String, buildJSON)
+	}
+
+	// Test ListAppsByDomain
+	domainApps, err := ds.ListAppsByDomain(domain.ID)
+	if err != nil {
+		t.Fatalf("ListAppsByDomain() error = %v", err)
+	}
+	if len(domainApps) != 1 {
+		t.Fatalf("ListAppsByDomain() returned %d apps, want 1", len(domainApps))
+	}
+	if domainApps[0].Language.String != langJSON {
+		t.Errorf("ListAppsByDomain() Language = %q, want %q", domainApps[0].Language.String, langJSON)
+	}
+	if domainApps[0].BuildConfig.String != buildJSON {
+		t.Errorf("ListAppsByDomain() BuildConfig = %q, want %q", domainApps[0].BuildConfig.String, buildJSON)
+	}
+
+	// Test ListAllApps
+	allApps, err := ds.ListAllApps()
+	if err != nil {
+		t.Fatalf("ListAllApps() error = %v", err)
+	}
+	var found *models.App
+	for _, a := range allApps {
+		if a.Name == "full-config-app" {
+			found = a
+			break
+		}
+	}
+	if found == nil {
+		t.Fatal("ListAllApps() did not return full-config-app")
+	}
+	if found.Language.String != langJSON {
+		t.Errorf("ListAllApps() Language = %q, want %q", found.Language.String, langJSON)
+	}
+	if found.BuildConfig.String != buildJSON {
+		t.Errorf("ListAllApps() BuildConfig = %q, want %q", found.BuildConfig.String, buildJSON)
 	}
 }
 

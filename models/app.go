@@ -148,3 +148,33 @@ func (a *App) FromYAML(yaml AppYAML) {
 		}
 	}
 }
+
+// GetLanguageConfig parses and returns the language configuration.
+// Returns nil if no language is configured or parsing fails.
+func (a *App) GetLanguageConfig() *AppLanguageConfig {
+	if !a.Language.Valid || a.Language.String == "" {
+		return nil
+	}
+	var cfg AppLanguageConfig
+	if err := json.Unmarshal([]byte(a.Language.String), &cfg); err != nil {
+		return nil
+	}
+	// Return nil if the config is empty (no name set)
+	if cfg.Name == "" {
+		return nil
+	}
+	return &cfg
+}
+
+// GetBuildConfig parses and returns the build configuration.
+// Returns nil if no build config is configured or parsing fails.
+func (a *App) GetBuildConfig() *AppBuildConfig {
+	if !a.BuildConfig.Valid || a.BuildConfig.String == "" {
+		return nil
+	}
+	var cfg AppBuildConfig
+	if err := json.Unmarshal([]byte(a.BuildConfig.String), &cfg); err != nil {
+		return nil
+	}
+	return &cfg
+}

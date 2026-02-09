@@ -4,6 +4,7 @@ import (
 	"context"
 	"devopsmaestro/builders"
 	"devopsmaestro/db"
+	"devopsmaestro/models"
 	"devopsmaestro/operators"
 	nvimconfig "devopsmaestro/pkg/nvimops/config"
 	"devopsmaestro/pkg/nvimops/plugin"
@@ -129,19 +130,18 @@ func buildWorkspace(cmd *cobra.Command) error {
 	render.Info(fmt.Sprintf("Platform: %s", platform.Name))
 	slog.Info("detected platform", "name", platform.Name, "type", platform.Type, "socket", platform.SocketPath)
 
-	// Step 2: Detect language
+	// Step 2: Detect language (use App.Language if set, fall back to auto-detection)
 	fmt.Println()
 	render.Progress("Detecting app language...")
-	lang, err := utils.DetectLanguage(app.Path)
-	if err != nil {
-		slog.Error("failed to detect language", "error", err)
-		return fmt.Errorf("failed to detect language: %w", err)
-	}
+	languageName, version, wasDetected := getLanguageFromApp(app)
 
-	var languageName, version string
-	if lang != nil {
-		languageName = lang.Name
-		version = utils.DetectVersion(languageName, app.Path)
+	if !wasDetected {
+		render.Info(fmt.Sprintf("Language: %s (from app config)", languageName))
+		if version != "" {
+			render.Info(fmt.Sprintf("Version: %s", version))
+		}
+		slog.Debug("using language from app config", "language", languageName, "version", version)
+	} else if languageName != "unknown" {
 		if version != "" {
 			render.Info(fmt.Sprintf("Language: %s (version: %s)", languageName, version))
 		} else {
@@ -149,7 +149,6 @@ func buildWorkspace(cmd *cobra.Command) error {
 		}
 		slog.Debug("detected language", "language", languageName, "version", version)
 	} else {
-		languageName = "unknown"
 		render.Info("Language: Unknown (will use generic base)")
 		slog.Debug("language detection failed, using generic base")
 	}
@@ -255,6 +254,16 @@ func buildWorkspace(cmd *cobra.Command) error {
 
 	// Prepare build args (from environment and config)
 	buildArgs := make(map[string]string)
+
+	// First, merge App's build args (lowest priority - can be overridden)
+	if buildConfig := app.GetBuildConfig(); buildConfig != nil {
+		for k, v := range buildConfig.Args {
+			buildArgs[k] = v
+			slog.Debug("using build arg from app config", "key", k)
+		}
+	}
+
+	// Then, environment variables (higher priority - overrides app config)
 	if ghUser := os.Getenv("GITHUB_USERNAME"); ghUser != "" {
 		buildArgs["GITHUB_USERNAME"] = ghUser
 		slog.Debug("using GITHUB_USERNAME from environment")
@@ -314,6 +323,30 @@ func detectPlatform() (*operators.Platform, error) {
 	}
 
 	return platform, nil
+}
+
+// getLanguageFromApp extracts language config from App, falls back to detection.
+// Returns (languageName, version, wasDetected) - wasDetected is true if we fell back to auto-detection.
+func getLanguageFromApp(app *models.App) (langName, version string, detected bool) {
+	// Try App.Language first (uses model's GetLanguageConfig method)
+	if langConfig := app.GetLanguageConfig(); langConfig != nil {
+		slog.Debug("using language from app model", "language", langConfig.Name, "version", langConfig.Version)
+		return langConfig.Name, langConfig.Version, false
+	}
+
+	// Fall back to auto-detection
+	lang, err := utils.DetectLanguage(app.Path)
+	if err != nil {
+		slog.Debug("language detection error", "error", err)
+		return "unknown", "", true
+	}
+
+	if lang != nil {
+		ver := utils.DetectVersion(lang.Name, app.Path)
+		return lang.Name, ver, true
+	}
+
+	return "unknown", "", true
 }
 
 // getPlatformInstallHint returns helpful installation instructions

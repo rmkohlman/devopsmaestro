@@ -542,6 +542,8 @@ func createIntegrationSchema(driver Driver) error {
 			name TEXT NOT NULL,
 			path TEXT NOT NULL,
 			description TEXT,
+			language TEXT,
+			build_config TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (domain_id) REFERENCES domains(id),
