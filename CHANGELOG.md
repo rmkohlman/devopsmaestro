@@ -7,6 +7,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.0] - 2025-01-06
+
+### 🚀 Added
+
+#### New Object Hierarchy
+- **Ecosystem** - Top-level platform grouping (e.g., "acme-corp")
+- **Domain** - Bounded context within an ecosystem (replaces "Project")
+- **App** - The codebase/application within a domain
+- **Workspace** - Development environment for an App
+
+#### App Model Enhancements
+- **`spec.language`** - Primary language configuration (name, version)
+- **`spec.build`** - Build configuration (dockerfile, buildpack, args, target, context)
+- **`spec.dependencies`** - Dependency management (file, install command, extras)
+- **`spec.services`** - Service dependencies (postgres, redis, etc. with version, port, env)
+- **`spec.ports`** - Port exposure for the application
+- **JSON storage** - Language and build config stored as JSON in database
+
+#### Workspace Model Enhancements
+- **`spec.terminal`** - Terminal multiplexer config (tmux, zellij, screen)
+- **`spec.build.devStage.devTools`** - Developer tools (gopls, delve, pylsp, etc.)
+- **Cleaner separation** - Workspace now focuses purely on dev environment
+
+#### New Commands
+- **`dvm create ecosystem`** - Create a new ecosystem
+- **`dvm create domain`** - Create a domain within an ecosystem
+- **`dvm create app`** - Create an app within a domain
+- **`dvm get ecosystems`** - List all ecosystems
+- **`dvm get domains`** - List domains in current ecosystem
+- **`dvm get apps`** - List apps in current domain
+- **`dvm use ecosystem`** - Set active ecosystem
+- **`dvm use domain`** - Set active domain
+- **`dvm use app`** - Set active app
+
+### 🔧 Changed
+
+#### Model Separation (App vs Workspace)
+- **App owns codebase concerns**: language, build config, services, ports, dependencies
+- **Workspace owns dev environment**: nvim, shell, terminal, dev tools, mounts
+- **Renamed `LanguageTools` to `DevTools`** in workspace spec (clearer intent)
+- **Removed `Languages` from Workspace** - moved to App's language config
+- **Removed `Ports` from Workspace container** - App owns port exposure
+- **Renamed `BuildConfig` to `DevBuildConfig`** in workspace (dev-specific)
+
+#### Terminology Migration
+- **Project → Domain** - "Project" was overloaded, "Domain" is clearer (DDD concept)
+- **Backward compatibility** - Old "project" commands still work with deprecation warnings
+
+### 📚 Documentation
+
+- **Updated YAML schema documentation** - Complete rewrite showing App/Workspace separation
+- **Clear separation guide** - Table showing which concerns belong where
+- **Language-specific examples** - Python, Go, Node.js App + Workspace pairs
+- **Updated quickstart guide** - Full hierarchy workflow (ecosystem → domain → app → workspace)
+- **Updated command reference** - All new hierarchy commands documented
+
+### 🧪 Testing
+
+- **All tests passing** with race detector
+- **JSON marshal/unmarshal** implemented for App language and build config
+
+---
+
+## [0.7.2] - 2025-01-05
+
+### 🐛 Fixed
+- Minor bug fixes and stability improvements
+
+---
+
 ## [0.7.1] - 2026-02-04
 
 ### 🚀 Added
@@ -811,6 +881,8 @@ docs/
 
 ## Version History
 
+- **[0.8.0]** - 2025-01-06 - New object hierarchy (Ecosystem/Domain/App/Workspace), model separation
+- **[0.7.2]** - 2025-01-05 - Bug fixes and stability improvements
 - **[0.7.1]** - 2026-02-04 - Unified resource pipeline, consistent command architecture
 - **[0.7.0]** - 2026-02-03 - Terminal resize, timestamp-based image tags, auto-recreate containers
 - **[0.6.0]** - 2026-02-03 - `dvm status`, kubectl aliases, `dvm detach`, context commands
