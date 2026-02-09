@@ -12,6 +12,23 @@ Get up and running with DevOpsMaestro in 5 minutes.
 
 ---
 
+## Object Hierarchy
+
+DevOpsMaestro organizes your development environments in a hierarchy:
+
+```
+Ecosystem → Domain → App → Workspace
+```
+
+| Level | Purpose | Example |
+|-------|---------|---------|
+| **Ecosystem** | Top-level platform grouping | `my-platform` |
+| **Domain** | Bounded context (group of related apps) | `backend`, `frontend` |
+| **App** | A codebase/application | `my-api`, `web-app` |
+| **Workspace** | Development environment for an app | `dev`, `feature-x` |
+
+---
+
 ## 5-Minute Setup
 
 ### Step 1: Initialize dvm
@@ -24,7 +41,21 @@ dvm init
 
 This creates `~/.devopsmaestro/devopsmaestro.db`.
 
-### Step 2: Create an App
+### Step 2: Create the Hierarchy
+
+Set up the organizational structure:
+
+```bash
+# Create an ecosystem (top-level grouping)
+dvm create ecosystem my-platform
+
+# Create a domain (bounded context)
+dvm create domain backend
+```
+
+> **Tip:** Each `create` command automatically sets the created resource as active, so you can continue to the next level immediately.
+
+### Step 3: Create an App
 
 === "Existing App"
 
@@ -51,16 +82,6 @@ This creates `~/.devopsmaestro/devopsmaestro.db`.
     dvm create app my-app --from-cwd
     ```
 
-### Step 3: Set Active Context
-
-```bash
-# Set the active app
-dvm use app my-app
-
-# Verify
-dvm get ctx
-```
-
 ### Step 4: Create a Workspace
 
 A workspace defines your containerized development environment:
@@ -68,12 +89,31 @@ A workspace defines your containerized development environment:
 ```bash
 # Create a workspace named "dev"
 dvm create workspace dev
+```
 
-# Set it as active
+### Step 5: Verify Context
+
+Check that everything is set up correctly:
+
+```bash
+dvm get context
+```
+
+You should see output like:
+
+```
+Current Context
+  App:       my-app
+  Workspace: (none)
+```
+
+Set your workspace as active:
+
+```bash
 dvm use workspace dev
 ```
 
-### Step 5: Build the Container
+### Step 6: Build the Container
 
 ```bash
 dvm build
@@ -86,7 +126,7 @@ This will:
 - Build a container image with dev tools
 - Configure Neovim with plugins
 
-### Step 6: Attach to the Container
+### Step 7: Attach to the Container
 
 ```bash
 dvm attach
@@ -96,29 +136,40 @@ You're now inside your containerized dev environment! Your app is mounted and re
 
 ---
 
+## One-Liner Setup (After Init)
+
+Once you understand the hierarchy, you can set up a new project quickly:
+
+```bash
+cd ~/Developer/my-app
+dvm create eco my-platform && dvm create dom backend && dvm create app my-app --from-cwd && dvm create ws dev
+dvm build && dvm attach
+```
+
+---
+
 ## Shorthand Commands
 
 Use kubectl-style aliases for faster workflows:
 
-| Full Command | Shorthand |
-|--------------|-----------|
-| `dvm get apps` | `dvm get app` |
-| `dvm get workspaces` | `dvm get ws` |
-| `dvm get context` | `dvm get ctx` |
-| `dvm create app` | `dvm create app` |
-| `dvm create workspace` | `dvm create ws` |
-| `dvm use app` | `dvm use app` |
-| `dvm use workspace` | `dvm use ws` |
+| Resource | Full | Alias |
+|----------|------|-------|
+| Ecosystem | `ecosystem` | `eco` |
+| Domain | `domain` | `dom` |
+| App | `app` | `a`, `application` |
+| Workspace | `workspace` | `ws` |
+| Context | `context` | `ctx` |
+| Platforms | `platforms` | `plat` |
 
 **Example using shorthand:**
 
 ```bash
+dvm create eco my-platform
+dvm create dom backend
 dvm create app my-app --from-cwd
-dvm use app my-app
 dvm create ws dev
 dvm use ws dev
-dvm build
-dvm attach
+dvm build && dvm attach
 ```
 
 ---
@@ -129,8 +180,17 @@ dvm attach
 # Check your current context
 dvm get ctx
 
-# List all apps
+# List all ecosystems
+dvm get eco
+
+# List all domains (in active ecosystem)
+dvm get dom
+
+# List all apps (in active domain)
 dvm get apps
+
+# List all apps (across all domains)
+dvm get apps --all
 
 # List workspaces in current app
 dvm get ws
@@ -143,6 +203,35 @@ dvm status
 
 # Stop and exit the container
 dvm detach
+```
+
+---
+
+## Switching Context
+
+Navigate your hierarchy using `dvm use`:
+
+```bash
+# Switch ecosystem
+dvm use eco my-platform
+
+# Switch domain
+dvm use dom frontend
+
+# Switch app
+dvm use app web-app
+
+# Switch workspace
+dvm use ws dev
+
+# Clear a specific level (clears levels below too)
+dvm use eco none      # Clears ecosystem, domain, app
+dvm use dom none      # Clears domain, app
+dvm use app none      # Clears app, workspace
+dvm use ws none       # Clears workspace only
+
+# Clear all context at once
+dvm use --clear
 ```
 
 ---

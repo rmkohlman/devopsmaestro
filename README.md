@@ -100,6 +100,10 @@ Already have a codebase on your laptop? Add it to dvm:
 # Initialize dvm (one-time setup)
 dvm init
 
+# Set up the hierarchy (one-time or when starting new projects)
+dvm create ecosystem my-platform    # Top-level grouping
+dvm create domain backend           # Bounded context
+
 # Go to your existing codebase
 cd ~/Developer/my-existing-app
 
@@ -108,9 +112,6 @@ dvm create app my-app --from-cwd
 
 # Or specify the path explicitly
 dvm create app my-app --path ~/Developer/my-existing-app
-
-# Set as active app
-dvm use app my-app
 
 # Create a workspace (defines your container environment)
 dvm create workspace dev
@@ -131,6 +132,10 @@ Starting fresh? Create a new directory for your app:
 # Initialize dvm (one-time setup)
 dvm init
 
+# Set up the hierarchy (one-time or when starting new projects)
+dvm create ecosystem my-platform    # Top-level grouping
+dvm create domain backend           # Bounded context
+
 # Create a new directory for your app
 mkdir ~/Developer/my-new-app
 cd ~/Developer/my-new-app
@@ -142,8 +147,7 @@ go mod init github.com/myuser/my-new-app
 # Create an app in dvm
 dvm create app my-new-app --from-cwd
 
-# Set as active and create workspace
-dvm use app my-new-app
+# Create workspace
 dvm create workspace dev
 dvm use workspace dev
 
@@ -156,13 +160,13 @@ dvm attach
 
 ```bash
 cd ~/Developer/my-app
-dvm init                          # One-time setup
-dvm create app myapp --from-cwd   # Create app
-dvm use app myapp                 # Set active
-dvm create ws dev                 # Create workspace
-dvm use ws dev                    # Set active
-dvm build                         # Build container
-dvm attach                        # Enter container
+dvm init                                # One-time setup
+dvm create eco my-platform              # Create ecosystem (one-time)
+dvm create dom backend                  # Create domain (one-time)
+dvm create app myapp --from-cwd         # Create app
+dvm create ws dev                       # Create workspace
+dvm use ws dev                          # Set active
+dvm build && dvm attach                 # Build and enter container
 ```
 
 #### Verify Your Setup
