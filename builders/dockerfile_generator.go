@@ -237,7 +237,7 @@ func (g *DockerfileGenerator) generateDevStage(dockerfile *strings.Builder) {
 		packages = g.getDefaultPackages()
 	}
 
-	languageTools := g.workspaceYAML.Build.DevStage.LanguageTools
+	languageTools := g.workspaceYAML.Build.DevStage.DevTools
 	if len(languageTools) == 0 {
 		languageTools = g.getDefaultLanguageTools()
 	}

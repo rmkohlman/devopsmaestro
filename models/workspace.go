@@ -37,13 +37,21 @@ type WorkspaceMetadata struct {
 	Annotations map[string]string `yaml:"annotations,omitempty"`
 }
 
-// WorkspaceSpec contains the complete workspace specification
+// WorkspaceSpec contains the complete workspace specification.
+// Workspaces focus on DEVELOPER ENVIRONMENT concerns:
+// - Editor configuration (nvim)
+// - Shell setup (zsh, bash, oh-my-zsh)
+// - Terminal multiplexer (tmux)
+// - Dev user setup (UID/GID mapping)
+// - Dev mounts (SSH keys, gitconfig)
+//
+// App-level concerns (language, build, services, ports) belong in AppSpec.
 type WorkspaceSpec struct {
 	Image     ImageConfig       `yaml:"image"`
-	Build     BuildConfig       `yaml:"build"`
+	Build     DevBuildConfig    `yaml:"build"`
 	Shell     ShellConfig       `yaml:"shell"`
+	Terminal  TerminalConfig    `yaml:"terminal,omitempty"`
 	Nvim      NvimConfig        `yaml:"nvim"`
-	Languages []LanguageConfig  `yaml:"languages,omitempty"`
 	Mounts    []MountConfig     `yaml:"mounts,omitempty"`
 	SSHKey    SSHKeyConfig      `yaml:"sshKey,omitempty"`
 	Env       map[string]string `yaml:"env,omitempty"`
@@ -57,17 +65,26 @@ type ImageConfig struct {
 	BaseImage string `yaml:"baseImage,omitempty"`
 }
 
-// BuildConfig defines the build configuration for the dev stage
-type BuildConfig struct {
+// DevBuildConfig defines the build configuration for the dev environment.
+// This focuses on developer tools added on top of the app's base image.
+type DevBuildConfig struct {
 	Args     map[string]string `yaml:"args,omitempty"`
 	DevStage DevStageConfig    `yaml:"devStage"`
 }
 
-// DevStageConfig defines what to add in the dev stage
+// DevStageConfig defines what developer tools to add in the dev stage.
+// These are tools for the developer, not the app itself.
 type DevStageConfig struct {
-	Packages       []string `yaml:"packages,omitempty"`
-	LanguageTools  []string `yaml:"languageTools,omitempty"`
-	CustomCommands []string `yaml:"customCommands,omitempty"`
+	Packages       []string `yaml:"packages,omitempty"`       // System packages (ripgrep, fd, etc.)
+	DevTools       []string `yaml:"devTools,omitempty"`       // Language dev tools (gopls, delve, pylsp, etc.)
+	CustomCommands []string `yaml:"customCommands,omitempty"` // Custom setup commands
+}
+
+// TerminalConfig defines terminal multiplexer configuration
+type TerminalConfig struct {
+	Type       string `yaml:"type,omitempty"`       // tmux, zellij, screen
+	ConfigPath string `yaml:"configPath,omitempty"` // Path to config file to mount
+	Autostart  bool   `yaml:"autostart,omitempty"`  // Start on attach
 }
 
 // ShellConfig defines shell configuration
@@ -86,18 +103,6 @@ type NvimConfig struct {
 	CustomConfig string   `yaml:"customConfig,omitempty"` // Raw Lua config
 }
 
-// LanguageConfig defines language-specific configuration
-type LanguageConfig struct {
-	Name      string            `yaml:"name"`
-	Version   string            `yaml:"version,omitempty"`
-	LSP       string            `yaml:"lsp,omitempty"`
-	Linter    string            `yaml:"linter,omitempty"`
-	Formatter string            `yaml:"formatter,omitempty"`
-	Debugger  string            `yaml:"debugger,omitempty"`
-	Framework string            `yaml:"framework,omitempty"`
-	EnvVars   map[string]string `yaml:"envVars,omitempty"`
-}
-
 // MountConfig defines a container mount
 type MountConfig struct {
 	Type        string `yaml:"type"` // bind, volume, tmpfs
@@ -112,7 +117,8 @@ type SSHKeyConfig struct {
 	Path string `yaml:"path,omitempty"`
 }
 
-// ContainerConfig defines container runtime settings
+// ContainerConfig defines container runtime settings for the dev environment.
+// Port exposure is handled at the App level, not here.
 type ContainerConfig struct {
 	User       string         `yaml:"user,omitempty"`
 	UID        int            `yaml:"uid,omitempty"`
@@ -120,7 +126,6 @@ type ContainerConfig struct {
 	WorkingDir string         `yaml:"workingDir,omitempty"`
 	Command    []string       `yaml:"command,omitempty"`
 	Entrypoint []string       `yaml:"entrypoint,omitempty"`
-	Ports      []string       `yaml:"ports,omitempty"`
 	Resources  ResourceLimits `yaml:"resources,omitempty"`
 }
 
