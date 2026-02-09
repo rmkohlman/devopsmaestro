@@ -17,8 +17,8 @@ type PrivateRepoInfo struct {
 	GitURLType        string // "https", "ssh", or "mixed"
 }
 
-// DetectPrivateRepos scans project files for private repository references
-func DetectPrivateRepos(projectPath, language string) *PrivateRepoInfo {
+// DetectPrivateRepos scans app files for private repository references
+func DetectPrivateRepos(appPath, language string) *PrivateRepoInfo {
 	info := &PrivateRepoInfo{
 		RequiredBuildArgs: []string{},
 		DetectedInFiles:   []string{},
@@ -26,22 +26,22 @@ func DetectPrivateRepos(projectPath, language string) *PrivateRepoInfo {
 
 	switch language {
 	case "python":
-		detectPythonPrivateRepos(projectPath, info)
+		detectPythonPrivateRepos(appPath, info)
 	case "golang":
-		detectGoPrivateRepos(projectPath, info)
+		detectGoPrivateRepos(appPath, info)
 	case "nodejs":
-		detectNodePrivateRepos(projectPath, info)
+		detectNodePrivateRepos(appPath, info)
 	case "java":
-		detectJavaPrivateRepos(projectPath, info)
+		detectJavaPrivateRepos(appPath, info)
 	case "rust":
-		detectRustPrivateRepos(projectPath, info)
+		detectRustPrivateRepos(appPath, info)
 	}
 
 	return info
 }
 
-func detectPythonPrivateRepos(projectPath string, info *PrivateRepoInfo) {
-	reqFile := filepath.Join(projectPath, "requirements.txt")
+func detectPythonPrivateRepos(appPath string, info *PrivateRepoInfo) {
+	reqFile := filepath.Join(appPath, "requirements.txt")
 	content, err := os.ReadFile(reqFile)
 	if err != nil {
 		return
@@ -89,8 +89,8 @@ func detectPythonPrivateRepos(projectPath string, info *PrivateRepoInfo) {
 	}
 }
 
-func detectGoPrivateRepos(projectPath string, info *PrivateRepoInfo) {
-	goModFile := filepath.Join(projectPath, "go.mod")
+func detectGoPrivateRepos(appPath string, info *PrivateRepoInfo) {
+	goModFile := filepath.Join(appPath, "go.mod")
 	content, err := os.ReadFile(goModFile)
 	if err != nil {
 		return
@@ -137,8 +137,8 @@ func detectGoPrivateRepos(projectPath string, info *PrivateRepoInfo) {
 	}
 }
 
-func detectNodePrivateRepos(projectPath string, info *PrivateRepoInfo) {
-	pkgFile := filepath.Join(projectPath, "package.json")
+func detectNodePrivateRepos(appPath string, info *PrivateRepoInfo) {
+	pkgFile := filepath.Join(appPath, "package.json")
 	content, err := os.ReadFile(pkgFile)
 	if err != nil {
 		return
@@ -175,8 +175,8 @@ func detectNodePrivateRepos(projectPath string, info *PrivateRepoInfo) {
 	}
 }
 
-func detectJavaPrivateRepos(projectPath string, info *PrivateRepoInfo) {
-	pomFile := filepath.Join(projectPath, "pom.xml")
+func detectJavaPrivateRepos(appPath string, info *PrivateRepoInfo) {
+	pomFile := filepath.Join(appPath, "pom.xml")
 	if _, err := os.Stat(pomFile); err == nil {
 		content, err := os.ReadFile(pomFile)
 		if err != nil {
@@ -191,7 +191,7 @@ func detectJavaPrivateRepos(projectPath string, info *PrivateRepoInfo) {
 	}
 
 	// Check for Gradle
-	gradleFile := filepath.Join(projectPath, "build.gradle")
+	gradleFile := filepath.Join(appPath, "build.gradle")
 	if _, err := os.Stat(gradleFile); err == nil {
 		content, err := os.ReadFile(gradleFile)
 		if err != nil {
@@ -205,8 +205,8 @@ func detectJavaPrivateRepos(projectPath string, info *PrivateRepoInfo) {
 	}
 }
 
-func detectRustPrivateRepos(projectPath string, info *PrivateRepoInfo) {
-	cargoFile := filepath.Join(projectPath, "Cargo.toml")
+func detectRustPrivateRepos(appPath string, info *PrivateRepoInfo) {
+	cargoFile := filepath.Join(appPath, "Cargo.toml")
 	content, err := os.ReadFile(cargoFile)
 	if err != nil {
 		return

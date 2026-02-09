@@ -20,10 +20,10 @@ func TestMockContainerRuntime_BuildImage(t *testing.T) {
 
 	opts := BuildOptions{
 		ImageName:    "test-image:latest",
-		ProjectPath:  "/test/project",
+		AppPath:      "/test/app",
 		Tags:         []string{"test-image:v1"},
 		Dockerfile:   "Dockerfile",
-		BuildContext: "/test/project",
+		BuildContext: "/test/app",
 	}
 
 	err := mock.BuildImage(context.Background(), opts)
@@ -65,7 +65,7 @@ func TestMockContainerRuntime_StartWorkspace(t *testing.T) {
 	opts := StartOptions{
 		ImageName:     "my-image:latest",
 		WorkspaceName: "test-ws",
-		ProjectPath:   "/project",
+		AppPath:       "/app",
 	}
 
 	containerID, err := mock.StartWorkspace(context.Background(), opts)
@@ -324,7 +324,7 @@ func TestContainerRuntime_Swappability(t *testing.T) {
 		// Build an image
 		err := runtime.BuildImage(ctx, BuildOptions{
 			ImageName:    "swappable-test:latest",
-			ProjectPath:  "/test",
+			AppPath:      "/test",
 			BuildContext: "/test",
 		})
 		if err != nil {

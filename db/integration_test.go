@@ -151,7 +151,7 @@ func TestIntegration_FullStack_WorkspaceWorkflow(t *testing.T) {
 
 	// --- Create Workspace ---
 	workspace := &models.Workspace{
-		ProjectID:   project.ID,
+		AppID:       project.ID, // Using project.ID as AppID during migration
 		Name:        "integration-workspace",
 		Description: sql.NullString{String: "Integration workspace", Valid: true},
 		ImageName:   "integration:v1",
@@ -184,9 +184,9 @@ func TestIntegration_FullStack_WorkspaceWorkflow(t *testing.T) {
 	}
 
 	// --- List ---
-	workspaces, err := store.ListWorkspacesByProject(project.ID)
+	workspaces, err := store.ListWorkspacesByApp(project.ID)
 	if err != nil {
-		t.Fatalf("ListWorkspacesByProject() error = %v", err)
+		t.Fatalf("ListWorkspacesByApp() error = %v", err)
 	}
 	if len(workspaces) != 1 {
 		t.Errorf("List returned %d workspaces, want 1", len(workspaces))
@@ -202,7 +202,7 @@ func TestIntegration_FullStack_ContextWorkflow(t *testing.T) {
 	store.CreateProject(project)
 
 	workspace := &models.Workspace{
-		ProjectID: project.ID,
+		AppID:     project.ID, // Using project.ID as AppID during migration
 		Name:      "ctx-int-workspace",
 		ImageName: "ctx:latest",
 		Status:    "stopped",
@@ -519,6 +519,34 @@ func createIntegrationTestStore(t *testing.T) DataStore {
 // createIntegrationSchema creates the database schema for integration tests
 func createIntegrationSchema(driver Driver) error {
 	queries := []string{
+		`CREATE TABLE IF NOT EXISTS ecosystems (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL UNIQUE,
+			description TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS domains (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			ecosystem_id INTEGER NOT NULL,
+			name TEXT NOT NULL,
+			description TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (ecosystem_id) REFERENCES ecosystems(id),
+			UNIQUE(ecosystem_id, name)
+		)`,
+		`CREATE TABLE IF NOT EXISTS apps (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			domain_id INTEGER NOT NULL,
+			name TEXT NOT NULL,
+			path TEXT NOT NULL,
+			description TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (domain_id) REFERENCES domains(id),
+			UNIQUE(domain_id, name)
+		)`,
 		`CREATE TABLE IF NOT EXISTS projects (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT NOT NULL UNIQUE,
@@ -529,7 +557,7 @@ func createIntegrationSchema(driver Driver) error {
 		)`,
 		`CREATE TABLE IF NOT EXISTS workspaces (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			project_id INTEGER NOT NULL,
+			app_id INTEGER NOT NULL,
 			name TEXT NOT NULL,
 			description TEXT,
 			image_name TEXT,
@@ -539,14 +567,22 @@ func createIntegrationSchema(driver Driver) error {
 			nvim_plugins TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY (project_id) REFERENCES projects(id),
-			UNIQUE(project_id, name)
+			FOREIGN KEY (app_id) REFERENCES apps(id),
+			UNIQUE(app_id, name)
 		)`,
 		`CREATE TABLE IF NOT EXISTS context (
 			id INTEGER PRIMARY KEY CHECK (id = 1),
-			active_project_id INTEGER,
+			active_ecosystem_id INTEGER,
+			active_domain_id INTEGER,
+			active_app_id INTEGER,
 			active_workspace_id INTEGER,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+			active_project_id INTEGER,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (active_ecosystem_id) REFERENCES ecosystems(id),
+			FOREIGN KEY (active_domain_id) REFERENCES domains(id),
+			FOREIGN KEY (active_app_id) REFERENCES apps(id),
+			FOREIGN KEY (active_workspace_id) REFERENCES workspaces(id),
+			FOREIGN KEY (active_project_id) REFERENCES projects(id)
 		)`,
 		`CREATE TABLE IF NOT EXISTS nvim_plugins (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,

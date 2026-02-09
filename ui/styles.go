@@ -309,12 +309,12 @@ func FormatPlugin(name string, enabled bool) string {
 }
 
 // FormatContext formats context info with icon
-func FormatContext(projectName, workspaceName string) string {
-	projectStyle := lipgloss.NewStyle().Foreground(PrimaryColor)
+func FormatContext(appName, workspaceName string) string {
+	appStyle := lipgloss.NewStyle().Foreground(PrimaryColor)
 	workspaceStyle := lipgloss.NewStyle().Foreground(SecondaryColor)
 	return fmt.Sprintf("%s %s/%s",
 		IconContext,
-		projectStyle.Render(projectName),
+		appStyle.Render(appName),
 		workspaceStyle.Render(workspaceName))
 }
 

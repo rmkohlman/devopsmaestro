@@ -175,8 +175,8 @@ func (d *DockerRuntime) StartWorkspace(ctx context.Context, opts StartOptions) (
 
 	// Build environment variables
 	env := envMapToSlice(opts.Env)
-	if opts.ProjectName != "" {
-		env = append(env, fmt.Sprintf("DVM_PROJECT=%s", opts.ProjectName))
+	if opts.AppName != "" {
+		env = append(env, fmt.Sprintf("DVM_APP=%s", opts.AppName))
 	}
 	if opts.WorkspaceName != "" {
 		env = append(env, fmt.Sprintf("DVM_WORKSPACE=%s", opts.WorkspaceName))
@@ -193,14 +193,14 @@ func (d *DockerRuntime) StartWorkspace(ctx context.Context, opts StartOptions) (
 		Labels: map[string]string{
 			"io.devopsmaestro.managed":   "true",
 			"io.devopsmaestro.namespace": "devopsmaestro",
-			"io.devopsmaestro.project":   opts.ProjectName,
+			"io.devopsmaestro.app":       opts.AppName,
 			"io.devopsmaestro.workspace": opts.WorkspaceName,
 		},
 	}
 
 	// Build volume mounts
 	binds := []string{
-		fmt.Sprintf("%s:/workspace", opts.ProjectPath),
+		fmt.Sprintf("%s:/workspace", opts.AppPath),
 	}
 
 	// Mount SSH keys if they exist
@@ -401,7 +401,7 @@ func (d *DockerRuntime) ListWorkspaces(ctx context.Context) ([]WorkspaceInfo, er
 			Name:      name,
 			Status:    c.Status,
 			Image:     c.Image,
-			Project:   c.Labels["io.devopsmaestro.project"],
+			App:       c.Labels["io.devopsmaestro.app"],
 			Workspace: c.Labels["io.devopsmaestro.workspace"],
 			Labels:    c.Labels,
 		})
@@ -442,7 +442,7 @@ func (d *DockerRuntime) FindWorkspace(ctx context.Context, name string) (*Worksp
 		Name:      containerName,
 		Status:    c.Status,
 		Image:     c.Image,
-		Project:   c.Labels["io.devopsmaestro.project"],
+		App:       c.Labels["io.devopsmaestro.app"],
 		Workspace: c.Labels["io.devopsmaestro.workspace"],
 		Labels:    c.Labels,
 	}, nil

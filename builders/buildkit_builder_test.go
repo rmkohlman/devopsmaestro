@@ -22,8 +22,8 @@ func TestNewBuildKitBuilder_MissingContainerdSocket(t *testing.T) {
 			SocketPath: "/test/docker.sock",
 			HomeDir:    "/home/user",
 		},
-		ProjectPath: "/tmp/test",
-		ImageName:   "test:latest",
+		AppPath:   "/tmp/test",
+		ImageName: "test:latest",
 	}
 
 	builder, err := NewBuildKitBuilder(config)
@@ -53,8 +53,8 @@ func TestNewBuildKitBuilder_InvalidSockets(t *testing.T) {
 			Profile:    "nonexistent",
 			HomeDir:    "/nonexistent-home-dir-12345",
 		},
-		ProjectPath: "/tmp/test",
-		ImageName:   "test:latest",
+		AppPath:   "/tmp/test",
+		ImageName: "test:latest",
 	}
 
 	builder, err := NewBuildKitBuilder(config)
@@ -90,13 +90,13 @@ func requireContainerdPlatform(t *testing.T) *operators.Platform {
 func TestIntegration_BuildKitBuilder_New(t *testing.T) {
 	platform := requireContainerdPlatform(t)
 
-	projectPath := t.TempDir()
+	appPath := t.TempDir()
 
 	config := BuilderConfig{
-		Platform:    platform,
-		Namespace:   "devopsmaestro",
-		ProjectPath: projectPath,
-		ImageName:   "test-buildkit-builder:latest",
+		Platform:  platform,
+		Namespace: "devopsmaestro",
+		AppPath:   appPath,
+		ImageName: "test-buildkit-builder:latest",
 	}
 
 	builder, err := NewBuildKitBuilder(config)
@@ -109,8 +109,8 @@ func TestIntegration_BuildKitBuilder_New(t *testing.T) {
 	if builder.namespace != "devopsmaestro" {
 		t.Errorf("namespace = %q, want %q", builder.namespace, "devopsmaestro")
 	}
-	if builder.projectPath != projectPath {
-		t.Errorf("projectPath = %q, want %q", builder.projectPath, projectPath)
+	if builder.appPath != appPath {
+		t.Errorf("appPath = %q, want %q", builder.appPath, appPath)
 	}
 	if builder.imageName != "test-buildkit-builder:latest" {
 		t.Errorf("imageName = %q, want %q", builder.imageName, "test-buildkit-builder:latest")
@@ -126,13 +126,13 @@ func TestIntegration_BuildKitBuilder_New(t *testing.T) {
 func TestIntegration_BuildKitBuilder_Close(t *testing.T) {
 	platform := requireContainerdPlatform(t)
 
-	projectPath := t.TempDir()
+	appPath := t.TempDir()
 
 	config := BuilderConfig{
-		Platform:    platform,
-		Namespace:   "devopsmaestro",
-		ProjectPath: projectPath,
-		ImageName:   "test-buildkit-close:latest",
+		Platform:  platform,
+		Namespace: "devopsmaestro",
+		AppPath:   appPath,
+		ImageName: "test-buildkit-close:latest",
 	}
 
 	builder, err := NewBuildKitBuilder(config)
@@ -155,13 +155,13 @@ func TestIntegration_BuildKitBuilder_Close(t *testing.T) {
 func TestIntegration_BuildKitBuilder_ImageExists_NotFound(t *testing.T) {
 	platform := requireContainerdPlatform(t)
 
-	projectPath := t.TempDir()
+	appPath := t.TempDir()
 
 	config := BuilderConfig{
-		Platform:    platform,
-		Namespace:   "devopsmaestro",
-		ProjectPath: projectPath,
-		ImageName:   "nonexistent-buildkit-image-" + t.Name() + ":v999",
+		Platform:  platform,
+		Namespace: "devopsmaestro",
+		AppPath:   appPath,
+		ImageName: "nonexistent-buildkit-image-" + t.Name() + ":v999",
 	}
 
 	builder, err := NewBuildKitBuilder(config)
@@ -189,8 +189,8 @@ func TestIntegration_BuildKitBuilder_Build(t *testing.T) {
 	platform := requireContainerdPlatform(t)
 
 	// Create temporary project with Dockerfile
-	projectPath := t.TempDir()
-	dockerfile := filepath.Join(projectPath, "Dockerfile")
+	appPath := t.TempDir()
+	dockerfile := filepath.Join(appPath, "Dockerfile")
 	err := os.WriteFile(dockerfile, []byte(`
 FROM alpine:latest
 RUN echo "buildkit test"
@@ -202,10 +202,10 @@ RUN echo "buildkit test"
 	imageName := "dvm-test-buildkit-builder:test"
 
 	config := BuilderConfig{
-		Platform:    platform,
-		Namespace:   "devopsmaestro",
-		ProjectPath: projectPath,
-		ImageName:   imageName,
+		Platform:  platform,
+		Namespace: "devopsmaestro",
+		AppPath:   appPath,
+		ImageName: imageName,
 	}
 
 	builder, err := NewBuildKitBuilder(config)
@@ -238,8 +238,8 @@ func TestIntegration_BuildKitBuilder_Build_WithBuildArgs(t *testing.T) {
 
 	platform := requireContainerdPlatform(t)
 
-	projectPath := t.TempDir()
-	dockerfile := filepath.Join(projectPath, "Dockerfile")
+	appPath := t.TempDir()
+	dockerfile := filepath.Join(appPath, "Dockerfile")
 	err := os.WriteFile(dockerfile, []byte(`
 FROM alpine:latest
 ARG VERSION=unknown
@@ -251,10 +251,10 @@ RUN echo "Version: ${VERSION}, Env: ${ENVIRONMENT}"
 	}
 
 	config := BuilderConfig{
-		Platform:    platform,
-		Namespace:   "devopsmaestro",
-		ProjectPath: projectPath,
-		ImageName:   "dvm-test-buildkit-args:test",
+		Platform:  platform,
+		Namespace: "devopsmaestro",
+		AppPath:   appPath,
+		ImageName: "dvm-test-buildkit-args:test",
 	}
 
 	builder, err := NewBuildKitBuilder(config)
@@ -283,8 +283,8 @@ func TestIntegration_BuildKitBuilder_Build_WithTarget(t *testing.T) {
 
 	platform := requireContainerdPlatform(t)
 
-	projectPath := t.TempDir()
-	dockerfile := filepath.Join(projectPath, "Dockerfile")
+	appPath := t.TempDir()
+	dockerfile := filepath.Join(appPath, "Dockerfile")
 	err := os.WriteFile(dockerfile, []byte(`
 FROM alpine:latest AS builder
 RUN echo "building"
@@ -300,10 +300,10 @@ RUN echo "testing"
 	}
 
 	config := BuilderConfig{
-		Platform:    platform,
-		Namespace:   "devopsmaestro",
-		ProjectPath: projectPath,
-		ImageName:   "dvm-test-buildkit-target:test",
+		Platform:  platform,
+		Namespace: "devopsmaestro",
+		AppPath:   appPath,
+		ImageName: "dvm-test-buildkit-target:test",
 	}
 
 	builder, err := NewBuildKitBuilder(config)
@@ -330,8 +330,8 @@ func TestIntegration_BuildKitBuilder_Build_NoCache(t *testing.T) {
 
 	platform := requireContainerdPlatform(t)
 
-	projectPath := t.TempDir()
-	dockerfile := filepath.Join(projectPath, "Dockerfile")
+	appPath := t.TempDir()
+	dockerfile := filepath.Join(appPath, "Dockerfile")
 	err := os.WriteFile(dockerfile, []byte(`
 FROM alpine:latest
 RUN echo "no cache test"
@@ -341,10 +341,10 @@ RUN echo "no cache test"
 	}
 
 	config := BuilderConfig{
-		Platform:    platform,
-		Namespace:   "devopsmaestro",
-		ProjectPath: projectPath,
-		ImageName:   "dvm-test-buildkit-nocache:test",
+		Platform:  platform,
+		Namespace: "devopsmaestro",
+		AppPath:   appPath,
+		ImageName: "dvm-test-buildkit-nocache:test",
 	}
 
 	builder, err := NewBuildKitBuilder(config)
@@ -370,10 +370,10 @@ func TestIntegration_BuildKitBuilder_Build_CustomDockerfile(t *testing.T) {
 
 	platform := requireContainerdPlatform(t)
 
-	projectPath := t.TempDir()
+	appPath := t.TempDir()
 
 	// Create custom Dockerfile
-	customDockerfile := filepath.Join(projectPath, "Dockerfile.buildkit")
+	customDockerfile := filepath.Join(appPath, "Dockerfile.buildkit")
 	err := os.WriteFile(customDockerfile, []byte(`
 FROM alpine:latest
 LABEL builder="buildkit"
@@ -384,11 +384,11 @@ RUN echo "custom dockerfile for buildkit"
 	}
 
 	config := BuilderConfig{
-		Platform:    platform,
-		Namespace:   "devopsmaestro",
-		ProjectPath: projectPath,
-		ImageName:   "dvm-test-buildkit-custom:test",
-		Dockerfile:  customDockerfile,
+		Platform:   platform,
+		Namespace:  "devopsmaestro",
+		AppPath:    appPath,
+		ImageName:  "dvm-test-buildkit-custom:test",
+		Dockerfile: customDockerfile,
 	}
 
 	builder, err := NewBuildKitBuilder(config)

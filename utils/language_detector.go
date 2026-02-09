@@ -13,8 +13,8 @@ type Language struct {
 	Files   []string // Files that indicated this language
 }
 
-// DetectLanguage attempts to detect the primary language of a project
-func DetectLanguage(projectPath string) (*Language, error) {
+// DetectLanguage attempts to detect the primary language of an app
+func DetectLanguage(appPath string) (*Language, error) {
 	// Check for language-specific files
 	indicators := map[string][]string{
 		"python": {"requirements.txt", "setup.py", "pyproject.toml", "Pipfile", "*.py"},
@@ -27,8 +27,8 @@ func DetectLanguage(projectPath string) (*Language, error) {
 
 	detected := make(map[string]int)
 
-	// Walk the project directory
-	err := filepath.Walk(projectPath, func(path string, info os.FileInfo, err error) error {
+	// Walk the app directory
+	err := filepath.Walk(appPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil // Skip errors
 		}
@@ -83,8 +83,8 @@ func DetectLanguage(projectPath string) (*Language, error) {
 	}, nil
 }
 
-// HasDockerfile checks if a project has a Dockerfile
-func HasDockerfile(projectPath string) (bool, string) {
+// HasDockerfile checks if an app has a Dockerfile
+func HasDockerfile(appPath string) (bool, string) {
 	dockerfilePaths := []string{
 		"Dockerfile",
 		"dockerfile",
@@ -93,7 +93,7 @@ func HasDockerfile(projectPath string) (bool, string) {
 	}
 
 	for _, name := range dockerfilePaths {
-		path := filepath.Join(projectPath, name)
+		path := filepath.Join(appPath, name)
 		if _, err := os.Stat(path); err == nil {
 			return true, path
 		}
@@ -103,22 +103,22 @@ func HasDockerfile(projectPath string) (bool, string) {
 }
 
 // DetectVersion attempts to detect the version of a language/runtime
-func DetectVersion(lang, projectPath string) string {
+func DetectVersion(lang, appPath string) string {
 	switch lang {
 	case "python":
-		return detectPythonVersion(projectPath)
+		return detectPythonVersion(appPath)
 	case "golang":
-		return detectGoVersion(projectPath)
+		return detectGoVersion(appPath)
 	case "nodejs":
-		return detectNodeVersion(projectPath)
+		return detectNodeVersion(appPath)
 	default:
 		return ""
 	}
 }
 
-func detectPythonVersion(projectPath string) string {
+func detectPythonVersion(appPath string) string {
 	// Check for .python-version file
-	versionFile := filepath.Join(projectPath, ".python-version")
+	versionFile := filepath.Join(appPath, ".python-version")
 	if data, err := os.ReadFile(versionFile); err == nil {
 		return strings.TrimSpace(string(data))
 	}
@@ -128,9 +128,9 @@ func detectPythonVersion(projectPath string) string {
 	return "3.11"
 }
 
-func detectGoVersion(projectPath string) string {
+func detectGoVersion(appPath string) string {
 	// Check go.mod for go version
-	goMod := filepath.Join(projectPath, "go.mod")
+	goMod := filepath.Join(appPath, "go.mod")
 	if data, err := os.ReadFile(goMod); err == nil {
 		lines := strings.Split(string(data), "\n")
 		for _, line := range lines {
@@ -146,9 +146,9 @@ func detectGoVersion(projectPath string) string {
 	return "1.22"
 }
 
-func detectNodeVersion(projectPath string) string {
+func detectNodeVersion(appPath string) string {
 	// Check .nvmrc
-	nvmrc := filepath.Join(projectPath, ".nvmrc")
+	nvmrc := filepath.Join(appPath, ".nvmrc")
 	if data, err := os.ReadFile(nvmrc); err == nil {
 		return strings.TrimSpace(string(data))
 	}

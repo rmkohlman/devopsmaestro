@@ -13,6 +13,9 @@ type MockDataStore struct {
 	mu sync.Mutex
 
 	// In-memory storage
+	Ecosystems  map[string]*models.Ecosystem
+	Domains     map[int]*models.Domain // keyed by ID for easier lookup
+	Apps        map[int]*models.App    // keyed by ID for easier lookup
 	Projects    map[string]*models.Project
 	Workspaces  map[int]*models.Workspace
 	Plugins     map[string]*models.NvimPluginDB
@@ -27,6 +30,26 @@ type MockDataStore struct {
 	MockDriver *MockDriver
 
 	// Error injection for testing error paths
+	CreateEcosystemErr           error
+	GetEcosystemByNameErr        error
+	GetEcosystemByIDErr          error
+	UpdateEcosystemErr           error
+	DeleteEcosystemErr           error
+	ListEcosystemsErr            error
+	CreateDomainErr              error
+	GetDomainByNameErr           error
+	GetDomainByIDErr             error
+	UpdateDomainErr              error
+	DeleteDomainErr              error
+	ListDomainsByEcosystemErr    error
+	ListAllDomainsErr            error
+	CreateAppErr                 error
+	GetAppByNameErr              error
+	GetAppByIDErr                error
+	UpdateAppErr                 error
+	DeleteAppErr                 error
+	ListAppsByDomainErr          error
+	ListAllAppsErr               error
 	CreateProjectErr             error
 	GetProjectByNameErr          error
 	GetProjectByIDErr            error
@@ -38,11 +61,14 @@ type MockDataStore struct {
 	GetWorkspaceByIDErr          error
 	UpdateWorkspaceErr           error
 	DeleteWorkspaceErr           error
-	ListWorkspacesByProjectErr   error
+	ListWorkspacesByAppErr       error
 	ListAllWorkspacesErr         error
 	GetContextErr                error
-	SetActiveProjectErr          error
+	SetActiveEcosystemErr        error
+	SetActiveDomainErr           error
+	SetActiveAppErr              error
 	SetActiveWorkspaceErr        error
+	SetActiveProjectErr          error
 	CreatePluginErr              error
 	GetPluginByNameErr           error
 	GetPluginByIDErr             error
@@ -72,6 +98,9 @@ type MockDataStore struct {
 	Calls []MockDataStoreCall
 
 	// Auto-increment IDs
+	nextEcosystemID int
+	nextDomainID    int
+	nextAppID       int
 	nextProjectID   int
 	nextWorkspaceID int
 	nextPluginID    int
@@ -87,6 +116,9 @@ type MockDataStoreCall struct {
 // NewMockDataStore creates a new mock data store with initialized storage
 func NewMockDataStore() *MockDataStore {
 	return &MockDataStore{
+		Ecosystems:       make(map[string]*models.Ecosystem),
+		Domains:          make(map[int]*models.Domain),
+		Apps:             make(map[int]*models.App),
 		Projects:         make(map[string]*models.Project),
 		Workspaces:       make(map[int]*models.Workspace),
 		Plugins:          make(map[string]*models.NvimPluginDB),
@@ -94,6 +126,9 @@ func NewMockDataStore() *MockDataStore {
 		WorkspacePlugins: make(map[int]map[int]bool),
 		Context:          &models.Context{ID: 1},
 		MockDriver:       NewMockDriver(),
+		nextEcosystemID:  1,
+		nextDomainID:     1,
+		nextAppID:        1,
 		nextProjectID:    1,
 		nextWorkspaceID:  1,
 		nextPluginID:     1,
@@ -105,6 +140,296 @@ func (m *MockDataStore) recordCall(method string, args ...interface{}) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.Calls = append(m.Calls, MockDataStoreCall{Method: method, Args: args})
+}
+
+// =============================================================================
+// Ecosystem Operations
+// =============================================================================
+
+func (m *MockDataStore) CreateEcosystem(ecosystem *models.Ecosystem) error {
+	m.recordCall("CreateEcosystem", ecosystem)
+	if m.CreateEcosystemErr != nil {
+		return m.CreateEcosystemErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	ecosystem.ID = m.nextEcosystemID
+	m.nextEcosystemID++
+	m.Ecosystems[ecosystem.Name] = ecosystem
+	return nil
+}
+
+func (m *MockDataStore) GetEcosystemByName(name string) (*models.Ecosystem, error) {
+	m.recordCall("GetEcosystemByName", name)
+	if m.GetEcosystemByNameErr != nil {
+		return nil, m.GetEcosystemByNameErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if e, ok := m.Ecosystems[name]; ok {
+		return e, nil
+	}
+	return nil, fmt.Errorf("ecosystem not found: %s", name)
+}
+
+func (m *MockDataStore) GetEcosystemByID(id int) (*models.Ecosystem, error) {
+	m.recordCall("GetEcosystemByID", id)
+	if m.GetEcosystemByIDErr != nil {
+		return nil, m.GetEcosystemByIDErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, e := range m.Ecosystems {
+		if e.ID == id {
+			return e, nil
+		}
+	}
+	return nil, fmt.Errorf("ecosystem not found: %d", id)
+}
+
+func (m *MockDataStore) UpdateEcosystem(ecosystem *models.Ecosystem) error {
+	m.recordCall("UpdateEcosystem", ecosystem)
+	if m.UpdateEcosystemErr != nil {
+		return m.UpdateEcosystemErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.Ecosystems[ecosystem.Name] = ecosystem
+	return nil
+}
+
+func (m *MockDataStore) DeleteEcosystem(name string) error {
+	m.recordCall("DeleteEcosystem", name)
+	if m.DeleteEcosystemErr != nil {
+		return m.DeleteEcosystemErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.Ecosystems, name)
+	return nil
+}
+
+func (m *MockDataStore) ListEcosystems() ([]*models.Ecosystem, error) {
+	m.recordCall("ListEcosystems")
+	if m.ListEcosystemsErr != nil {
+		return nil, m.ListEcosystemsErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var ecosystems []*models.Ecosystem
+	for _, e := range m.Ecosystems {
+		ecosystems = append(ecosystems, e)
+	}
+	return ecosystems, nil
+}
+
+// =============================================================================
+// Domain Operations
+// =============================================================================
+
+func (m *MockDataStore) CreateDomain(domain *models.Domain) error {
+	m.recordCall("CreateDomain", domain)
+	if m.CreateDomainErr != nil {
+		return m.CreateDomainErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	domain.ID = m.nextDomainID
+	m.nextDomainID++
+	m.Domains[domain.ID] = domain
+	return nil
+}
+
+func (m *MockDataStore) GetDomainByName(ecosystemID int, name string) (*models.Domain, error) {
+	m.recordCall("GetDomainByName", ecosystemID, name)
+	if m.GetDomainByNameErr != nil {
+		return nil, m.GetDomainByNameErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, d := range m.Domains {
+		if d.EcosystemID == ecosystemID && d.Name == name {
+			return d, nil
+		}
+	}
+	return nil, fmt.Errorf("domain not found: %s", name)
+}
+
+func (m *MockDataStore) GetDomainByID(id int) (*models.Domain, error) {
+	m.recordCall("GetDomainByID", id)
+	if m.GetDomainByIDErr != nil {
+		return nil, m.GetDomainByIDErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if d, ok := m.Domains[id]; ok {
+		return d, nil
+	}
+	return nil, fmt.Errorf("domain not found: %d", id)
+}
+
+func (m *MockDataStore) UpdateDomain(domain *models.Domain) error {
+	m.recordCall("UpdateDomain", domain)
+	if m.UpdateDomainErr != nil {
+		return m.UpdateDomainErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.Domains[domain.ID] = domain
+	return nil
+}
+
+func (m *MockDataStore) DeleteDomain(id int) error {
+	m.recordCall("DeleteDomain", id)
+	if m.DeleteDomainErr != nil {
+		return m.DeleteDomainErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.Domains, id)
+	return nil
+}
+
+func (m *MockDataStore) ListDomainsByEcosystem(ecosystemID int) ([]*models.Domain, error) {
+	m.recordCall("ListDomainsByEcosystem", ecosystemID)
+	if m.ListDomainsByEcosystemErr != nil {
+		return nil, m.ListDomainsByEcosystemErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var domains []*models.Domain
+	for _, d := range m.Domains {
+		if d.EcosystemID == ecosystemID {
+			domains = append(domains, d)
+		}
+	}
+	return domains, nil
+}
+
+func (m *MockDataStore) ListAllDomains() ([]*models.Domain, error) {
+	m.recordCall("ListAllDomains")
+	if m.ListAllDomainsErr != nil {
+		return nil, m.ListAllDomainsErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var domains []*models.Domain
+	for _, d := range m.Domains {
+		domains = append(domains, d)
+	}
+	return domains, nil
+}
+
+// =============================================================================
+// App Operations
+// =============================================================================
+
+func (m *MockDataStore) CreateApp(app *models.App) error {
+	m.recordCall("CreateApp", app)
+	if m.CreateAppErr != nil {
+		return m.CreateAppErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	app.ID = m.nextAppID
+	m.nextAppID++
+	m.Apps[app.ID] = app
+	return nil
+}
+
+func (m *MockDataStore) GetAppByName(domainID int, name string) (*models.App, error) {
+	m.recordCall("GetAppByName", domainID, name)
+	if m.GetAppByNameErr != nil {
+		return nil, m.GetAppByNameErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, a := range m.Apps {
+		if a.DomainID == domainID && a.Name == name {
+			return a, nil
+		}
+	}
+	return nil, fmt.Errorf("app not found: %s", name)
+}
+
+func (m *MockDataStore) GetAppByNameGlobal(name string) (*models.App, error) {
+	m.recordCall("GetAppByNameGlobal", name)
+	if m.GetAppByNameErr != nil {
+		return nil, m.GetAppByNameErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, a := range m.Apps {
+		if a.Name == name {
+			return a, nil
+		}
+	}
+	return nil, fmt.Errorf("app not found: %s", name)
+}
+
+func (m *MockDataStore) GetAppByID(id int) (*models.App, error) {
+	m.recordCall("GetAppByID", id)
+	if m.GetAppByIDErr != nil {
+		return nil, m.GetAppByIDErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if a, ok := m.Apps[id]; ok {
+		return a, nil
+	}
+	return nil, fmt.Errorf("app not found: %d", id)
+}
+
+func (m *MockDataStore) UpdateApp(app *models.App) error {
+	m.recordCall("UpdateApp", app)
+	if m.UpdateAppErr != nil {
+		return m.UpdateAppErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.Apps[app.ID] = app
+	return nil
+}
+
+func (m *MockDataStore) DeleteApp(id int) error {
+	m.recordCall("DeleteApp", id)
+	if m.DeleteAppErr != nil {
+		return m.DeleteAppErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.Apps, id)
+	return nil
+}
+
+func (m *MockDataStore) ListAppsByDomain(domainID int) ([]*models.App, error) {
+	m.recordCall("ListAppsByDomain", domainID)
+	if m.ListAppsByDomainErr != nil {
+		return nil, m.ListAppsByDomainErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var apps []*models.App
+	for _, a := range m.Apps {
+		if a.DomainID == domainID {
+			apps = append(apps, a)
+		}
+	}
+	return apps, nil
+}
+
+func (m *MockDataStore) ListAllApps() ([]*models.App, error) {
+	m.recordCall("ListAllApps")
+	if m.ListAllAppsErr != nil {
+		return nil, m.ListAllAppsErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var apps []*models.App
+	for _, a := range m.Apps {
+		apps = append(apps, a)
+	}
+	return apps, nil
 }
 
 // =============================================================================
@@ -205,15 +530,15 @@ func (m *MockDataStore) CreateWorkspace(workspace *models.Workspace) error {
 	return nil
 }
 
-func (m *MockDataStore) GetWorkspaceByName(projectID int, name string) (*models.Workspace, error) {
-	m.recordCall("GetWorkspaceByName", projectID, name)
+func (m *MockDataStore) GetWorkspaceByName(appID int, name string) (*models.Workspace, error) {
+	m.recordCall("GetWorkspaceByName", appID, name)
 	if m.GetWorkspaceByNameErr != nil {
 		return nil, m.GetWorkspaceByNameErr
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, ws := range m.Workspaces {
-		if ws.ProjectID == projectID && ws.Name == name {
+		if ws.AppID == appID && ws.Name == name {
 			return ws, nil
 		}
 	}
@@ -255,16 +580,16 @@ func (m *MockDataStore) DeleteWorkspace(id int) error {
 	return nil
 }
 
-func (m *MockDataStore) ListWorkspacesByProject(projectID int) ([]*models.Workspace, error) {
-	m.recordCall("ListWorkspacesByProject", projectID)
-	if m.ListWorkspacesByProjectErr != nil {
-		return nil, m.ListWorkspacesByProjectErr
+func (m *MockDataStore) ListWorkspacesByApp(appID int) ([]*models.Workspace, error) {
+	m.recordCall("ListWorkspacesByApp", appID)
+	if m.ListWorkspacesByAppErr != nil {
+		return nil, m.ListWorkspacesByAppErr
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var workspaces []*models.Workspace
 	for _, ws := range m.Workspaces {
-		if ws.ProjectID == projectID {
+		if ws.AppID == appID {
 			workspaces = append(workspaces, ws)
 		}
 	}
@@ -299,14 +624,36 @@ func (m *MockDataStore) GetContext() (*models.Context, error) {
 	return m.Context, nil
 }
 
-func (m *MockDataStore) SetActiveProject(projectID *int) error {
-	m.recordCall("SetActiveProject", projectID)
-	if m.SetActiveProjectErr != nil {
-		return m.SetActiveProjectErr
+func (m *MockDataStore) SetActiveEcosystem(ecosystemID *int) error {
+	m.recordCall("SetActiveEcosystem", ecosystemID)
+	if m.SetActiveEcosystemErr != nil {
+		return m.SetActiveEcosystemErr
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.Context.ActiveProjectID = projectID
+	m.Context.ActiveEcosystemID = ecosystemID
+	return nil
+}
+
+func (m *MockDataStore) SetActiveDomain(domainID *int) error {
+	m.recordCall("SetActiveDomain", domainID)
+	if m.SetActiveDomainErr != nil {
+		return m.SetActiveDomainErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.Context.ActiveDomainID = domainID
+	return nil
+}
+
+func (m *MockDataStore) SetActiveApp(appID *int) error {
+	m.recordCall("SetActiveApp", appID)
+	if m.SetActiveAppErr != nil {
+		return m.SetActiveAppErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.Context.ActiveAppID = appID
 	return nil
 }
 
@@ -318,6 +665,17 @@ func (m *MockDataStore) SetActiveWorkspace(workspaceID *int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.Context.ActiveWorkspaceID = workspaceID
+	return nil
+}
+
+func (m *MockDataStore) SetActiveProject(projectID *int) error {
+	m.recordCall("SetActiveProject", projectID)
+	if m.SetActiveProjectErr != nil {
+		return m.SetActiveProjectErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.Context.ActiveProjectID = projectID
 	return nil
 }
 
@@ -692,6 +1050,9 @@ func (m *MockDataStore) ResetCalls() {
 func (m *MockDataStore) Reset() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.Ecosystems = make(map[string]*models.Ecosystem)
+	m.Domains = make(map[int]*models.Domain)
+	m.Apps = make(map[int]*models.App)
 	m.Projects = make(map[string]*models.Project)
 	m.Workspaces = make(map[int]*models.Workspace)
 	m.Plugins = make(map[string]*models.NvimPluginDB)
@@ -700,6 +1061,9 @@ func (m *MockDataStore) Reset() {
 	m.ActiveTheme = ""
 	m.Context = &models.Context{ID: 1}
 	m.Calls = nil
+	m.nextEcosystemID = 1
+	m.nextDomainID = 1
+	m.nextAppID = 1
 	m.nextProjectID = 1
 	m.nextWorkspaceID = 1
 	m.nextPluginID = 1

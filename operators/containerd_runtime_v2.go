@@ -140,7 +140,7 @@ func (r *ContainerdRuntimeV2) StartWorkspace(ctx context.Context, opts StartOpti
 	// Create mount specs
 	mounts := []specs.Mount{
 		{
-			Source:      opts.ProjectPath,
+			Source:      opts.AppPath,
 			Destination: "/workspace",
 			Type:        "bind",
 			Options:     []string{"rbind", "rw"},
@@ -375,7 +375,7 @@ func (r *ContainerdRuntimeV2) ListWorkspaces(ctx context.Context) ([]WorkspaceIn
 			Name:      c.ID(), // containerd uses ID as name
 			Status:    status,
 			Image:     imageName,
-			Project:   labels["io.devopsmaestro.project"],
+			App:       labels["io.devopsmaestro.app"],
 			Workspace: labels["io.devopsmaestro.workspace"],
 			Labels:    labels,
 		})
@@ -425,7 +425,7 @@ func (r *ContainerdRuntimeV2) FindWorkspace(ctx context.Context, name string) (*
 		Name:      container.ID(),
 		Status:    status,
 		Image:     imageName,
-		Project:   labels["io.devopsmaestro.project"],
+		App:       labels["io.devopsmaestro.app"],
 		Workspace: labels["io.devopsmaestro.workspace"],
 		Labels:    labels,
 	}, nil

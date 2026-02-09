@@ -63,11 +63,11 @@ func detachActiveWorkspace(cmd *cobra.Command, runtime operators.ContainerRuntim
 		return fmt.Errorf("failed to initialize context manager: %w", err)
 	}
 
-	// Get active project and workspace
-	projectName, err := contextMgr.GetActiveProject()
+	// Get active app and workspace
+	appName, err := contextMgr.GetActiveApp()
 	if err != nil {
-		render.Warning("No active project set")
-		render.Info("Set active project with: dvm use project <name>")
+		render.Warning("No active app set")
+		render.Info("Set active app with: dvm use app <name>")
 		return nil
 	}
 
@@ -78,7 +78,7 @@ func detachActiveWorkspace(cmd *cobra.Command, runtime operators.ContainerRuntim
 		return nil
 	}
 
-	slog.Debug("detach context", "project", projectName, "workspace", workspaceName)
+	slog.Debug("detach context", "app", appName, "workspace", workspaceName)
 
 	// Get datastore from context
 	ctx := cmd.Context()
@@ -89,19 +89,19 @@ func detachActiveWorkspace(cmd *cobra.Command, runtime operators.ContainerRuntim
 
 	ds := *dataStore
 
-	// Verify project and workspace exist
-	project, err := ds.GetProjectByName(projectName)
+	// Verify app and workspace exist (search globally across all domains)
+	app, err := ds.GetAppByNameGlobal(appName)
 	if err != nil {
-		return fmt.Errorf("failed to get project '%s': %w", projectName, err)
+		return fmt.Errorf("failed to get app '%s': %w", appName, err)
 	}
 
-	_, err = ds.GetWorkspaceByName(project.ID, workspaceName)
+	_, err = ds.GetWorkspaceByName(app.ID, workspaceName)
 	if err != nil {
 		return fmt.Errorf("failed to get workspace '%s': %w", workspaceName, err)
 	}
 
 	// Stop the container
-	containerName := fmt.Sprintf("dvm-%s-%s", projectName, workspaceName)
+	containerName := fmt.Sprintf("dvm-%s-%s", appName, workspaceName)
 	return stopWorkspace(runtime, containerName)
 }
 

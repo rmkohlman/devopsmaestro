@@ -8,14 +8,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// ContextManager manages the active project/workspace context (kubectl-style)
+// ContextManager manages the active app/workspace context (kubectl-style)
 type ContextManager struct {
 	contextFilePath string
 }
 
 // ContextConfig represents the context configuration
 type ContextConfig struct {
-	CurrentProject   string `yaml:"current_project"`
+	CurrentApp       string `yaml:"current_app"`
 	CurrentWorkspace string `yaml:"current_workspace"`
 }
 
@@ -34,25 +34,25 @@ func NewContextManager() (*ContextManager, error) {
 	}, nil
 }
 
-// GetActiveProject returns the active project name
-// Precedence: DVM_PROJECT env var → context.yaml → error
-func (cm *ContextManager) GetActiveProject() (string, error) {
+// GetActiveApp returns the active app name
+// Precedence: DVM_APP env var → context.yaml → error
+func (cm *ContextManager) GetActiveApp() (string, error) {
 	// Check environment variable first
-	if project := os.Getenv("DVM_PROJECT"); project != "" {
-		return project, nil
+	if app := os.Getenv("DVM_APP"); app != "" {
+		return app, nil
 	}
 
 	// Check context file
 	ctx, err := cm.LoadContext()
 	if err != nil {
-		return "", fmt.Errorf("no active project context (use 'dvm use project <name>' or set DVM_PROJECT)")
+		return "", fmt.Errorf("no active app context (use 'dvm use app <name>' or set DVM_APP)")
 	}
 
-	if ctx.CurrentProject == "" {
-		return "", fmt.Errorf("no active project context (use 'dvm use project <name>')")
+	if ctx.CurrentApp == "" {
+		return "", fmt.Errorf("no active app context (use 'dvm use app <name>')")
 	}
 
-	return ctx.CurrentProject, nil
+	return ctx.CurrentApp, nil
 }
 
 // GetActiveWorkspace returns the active workspace name
@@ -76,41 +76,41 @@ func (cm *ContextManager) GetActiveWorkspace() (string, error) {
 	return ctx.CurrentWorkspace, nil
 }
 
-// SetProject sets the active project
-func (cm *ContextManager) SetProject(projectName string) error {
+// SetApp sets the active app
+func (cm *ContextManager) SetApp(appName string) error {
 	ctx, _ := cm.LoadContext() // Ignore error if file doesn't exist
 	if ctx == nil {
 		ctx = &ContextConfig{}
 	}
 
-	ctx.CurrentProject = projectName
-	// Clear workspace when switching projects
+	ctx.CurrentApp = appName
+	// Clear workspace when switching apps
 	ctx.CurrentWorkspace = ""
 
 	return cm.SaveContext(ctx)
 }
 
-// SetWorkspace sets the active workspace (requires active project)
+// SetWorkspace sets the active workspace (requires active app)
 func (cm *ContextManager) SetWorkspace(workspaceName string) error {
 	ctx, err := cm.LoadContext()
-	if err != nil || ctx.CurrentProject == "" {
-		return fmt.Errorf("no active project (use 'dvm use project <name>' first)")
+	if err != nil || ctx.CurrentApp == "" {
+		return fmt.Errorf("no active app (use 'dvm use app <name>' first)")
 	}
 
 	ctx.CurrentWorkspace = workspaceName
 	return cm.SaveContext(ctx)
 }
 
-// ClearProject clears the active project and workspace
-func (cm *ContextManager) ClearProject() error {
+// ClearApp clears the active app and workspace
+func (cm *ContextManager) ClearApp() error {
 	ctx := &ContextConfig{
-		CurrentProject:   "",
+		CurrentApp:       "",
 		CurrentWorkspace: "",
 	}
 	return cm.SaveContext(ctx)
 }
 
-// ClearWorkspace clears the active workspace (keeps project)
+// ClearWorkspace clears the active workspace (keeps app)
 func (cm *ContextManager) ClearWorkspace() error {
 	ctx, err := cm.LoadContext()
 	if err != nil {
@@ -169,13 +169,13 @@ func (cm *ContextManager) GetContextSummary() (string, error) {
 		return "", err
 	}
 
-	if ctx.CurrentProject == "" {
+	if ctx.CurrentApp == "" {
 		return "No active context", nil
 	}
 
 	if ctx.CurrentWorkspace == "" {
-		return fmt.Sprintf("Project: %s (no workspace selected)", ctx.CurrentProject), nil
+		return fmt.Sprintf("App: %s (no workspace selected)", ctx.CurrentApp), nil
 	}
 
-	return fmt.Sprintf("Project: %s | Workspace: %s", ctx.CurrentProject, ctx.CurrentWorkspace), nil
+	return fmt.Sprintf("App: %s | Workspace: %s", ctx.CurrentApp, ctx.CurrentWorkspace), nil
 }

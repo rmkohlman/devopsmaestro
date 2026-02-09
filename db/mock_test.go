@@ -399,9 +399,9 @@ func TestMockDataStore_WorkspaceCRUD(t *testing.T) {
 
 	// Create workspace
 	workspace := &models.Workspace{
-		ProjectID: project.ID,
-		Name:      "main",
-		Status:    "stopped",
+		AppID:  project.ID, // Using project.ID as AppID during migration
+		Name:   "main",
+		Status: "stopped",
 	}
 	if err := store.CreateWorkspace(workspace); err != nil {
 		t.Fatalf("CreateWorkspace() error = %v", err)
@@ -425,13 +425,13 @@ func TestMockDataStore_WorkspaceCRUD(t *testing.T) {
 		t.Fatalf("GetWorkspaceByID() error = %v", err)
 	}
 
-	// List by project
-	workspaces, err := store.ListWorkspacesByProject(project.ID)
+	// List by app (using project.ID as appID during migration)
+	workspaces, err := store.ListWorkspacesByApp(project.ID)
 	if err != nil {
-		t.Fatalf("ListWorkspacesByProject() error = %v", err)
+		t.Fatalf("ListWorkspacesByApp() error = %v", err)
 	}
 	if len(workspaces) != 1 {
-		t.Errorf("ListWorkspacesByProject() returned %d workspaces, want 1", len(workspaces))
+		t.Errorf("ListWorkspacesByApp() returned %d workspaces, want 1", len(workspaces))
 	}
 
 	// List all

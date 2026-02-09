@@ -208,11 +208,11 @@ func (m *MockContainerRuntime) ListWorkspaces(ctx context.Context) ([]WorkspaceI
 			Name:      name,
 			Status:    status,
 			Image:     "mock-image:latest",
-			Project:   "mock-project",
+			App:       "mock-app",
 			Workspace: name,
 			Labels: map[string]string{
 				"io.devopsmaestro.managed":   "true",
-				"io.devopsmaestro.project":   "mock-project",
+				"io.devopsmaestro.app":       "mock-app",
 				"io.devopsmaestro.workspace": name,
 			},
 		})
@@ -241,11 +241,11 @@ func (m *MockContainerRuntime) FindWorkspace(ctx context.Context, name string) (
 		Name:      name,
 		Status:    status,
 		Image:     "mock-image:latest",
-		Project:   "mock-project",
+		App:       "mock-app",
 		Workspace: name,
 		Labels: map[string]string{
 			"io.devopsmaestro.managed":   "true",
-			"io.devopsmaestro.project":   "mock-project",
+			"io.devopsmaestro.app":       "mock-app",
 			"io.devopsmaestro.workspace": name,
 		},
 	}, nil

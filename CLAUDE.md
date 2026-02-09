@@ -13,8 +13,9 @@
 
 1. **This file (CLAUDE.md)** - Architecture overview
 2. **STANDARDS.md** - Design patterns, coding standards, and development philosophy (REQUIRED)
-3. **docs/vision/architecture.md** - Complete architecture vision document
-4. **MANUAL_TEST_PLAN.md** - Testing procedures for new features
+3. **.claude/instructions.md** - Mandatory patterns checklist and quick reference (REQUIRED)
+4. **docs/vision/architecture.md** - Complete architecture vision document
+5. **MANUAL_TEST_PLAN.md** - Testing procedures for new features
 
 **Detailed planning and session docs are in the private toolkit repository:**
 
@@ -45,9 +46,9 @@ Ecosystem → Domain → App → Workspace (dev mode)
 
 | Object | Purpose | Status |
 |--------|---------|--------|
-| **Ecosystem** | Top-level platform grouping | 🔴 Planned (v0.8.0) |
-| **Domain** | Bounded context (was "Project") | 🔴 Planned (v0.8.0) |
-| **App** | The codebase/application | 🔴 Planned (v0.8.0) |
+| **Ecosystem** | Top-level platform grouping | 🟢 Complete (v0.8.0) |
+| **Domain** | Bounded context (was "Project") | 🟢 Complete (v0.8.0) |
+| **App** | The codebase/application | 🟢 Complete (v0.8.0) |
 | **Project** | ⚠️ DEPRECATED - use Domain/App | 🟡 To migrate |
 | **Workspace** | Dev environment for an App | 🟢 Exists |
 | **Context** | Active selection state | 🟢 Exists |

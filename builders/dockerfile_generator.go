@@ -16,18 +16,18 @@ type DockerfileGenerator struct {
 	workspaceYAML  models.WorkspaceSpec
 	language       string
 	version        string
-	projectPath    string
+	appPath        string
 	baseDockerfile string
 }
 
 // NewDockerfileGenerator creates a new Dockerfile generator
-func NewDockerfileGenerator(ws *models.Workspace, wsYAML models.WorkspaceSpec, lang, version, projectPath, baseDockerfile string) *DockerfileGenerator {
+func NewDockerfileGenerator(ws *models.Workspace, wsYAML models.WorkspaceSpec, lang, version, appPath, baseDockerfile string) *DockerfileGenerator {
 	return &DockerfileGenerator{
 		workspace:      ws,
 		workspaceYAML:  wsYAML,
 		language:       lang,
 		version:        version,
-		projectPath:    projectPath,
+		appPath:        appPath,
 		baseDockerfile: baseDockerfile,
 	}
 }
@@ -41,7 +41,7 @@ func (g *DockerfileGenerator) Generate() (string, error) {
 	dockerfile.WriteString("# Development container with tools for coding\n\n")
 
 	// Detect private repository usage
-	privateRepoInfo := utils.DetectPrivateRepos(g.projectPath, g.language)
+	privateRepoInfo := utils.DetectPrivateRepos(g.appPath, g.language)
 
 	// Add ARG declarations for build-time variables
 	if len(privateRepoInfo.RequiredBuildArgs) > 0 {
@@ -420,7 +420,7 @@ func (g *DockerfileGenerator) generateNvimSection(dockerfile *strings.Builder) {
 
 	// Check if nvim config directory exists in the build context
 	// If not, skip the nvim section to avoid build failures
-	nvimConfigPath := filepath.Join(g.projectPath, ".config", "nvim")
+	nvimConfigPath := filepath.Join(g.appPath, ".config", "nvim")
 	if _, err := os.Stat(nvimConfigPath); os.IsNotExist(err) {
 		// Nvim config doesn't exist - skip this section
 		dockerfile.WriteString("# Skipping Neovim configuration (no .config/nvim in build context)\n")

@@ -6,10 +6,10 @@ import (
 	"time"
 )
 
-// Workspace represents a workspace entity associated with a project.
+// Workspace represents a workspace entity associated with an app.
 type Workspace struct {
 	ID            int            `db:"id" json:"id" yaml:"-"`
-	ProjectID     int            `db:"project_id" json:"project_id" yaml:"-"`
+	AppID         int            `db:"app_id" json:"app_id" yaml:"-"`
 	Name          string         `db:"name" json:"name" yaml:"name"`
 	Description   sql.NullString `db:"description" json:"description,omitempty" yaml:"description,omitempty"`
 	ImageName     string         `db:"image_name" json:"image_name" yaml:"image_name"`
@@ -32,7 +32,7 @@ type WorkspaceYAML struct {
 // WorkspaceMetadata contains workspace metadata
 type WorkspaceMetadata struct {
 	Name        string            `yaml:"name"`
-	Project     string            `yaml:"project"`
+	App         string            `yaml:"app"`
 	Labels      map[string]string `yaml:"labels,omitempty"`
 	Annotations map[string]string `yaml:"annotations,omitempty"`
 }
@@ -131,7 +131,7 @@ type ResourceLimits struct {
 }
 
 // ToYAML converts a Workspace to YAML format
-func (w *Workspace) ToYAML(projectName string) WorkspaceYAML {
+func (w *Workspace) ToYAML(appName string) WorkspaceYAML {
 	description := ""
 	if w.Description.Valid {
 		description = w.Description.String
@@ -160,7 +160,7 @@ func (w *Workspace) ToYAML(projectName string) WorkspaceYAML {
 		Kind:       "Workspace",
 		Metadata: WorkspaceMetadata{
 			Name:        w.Name,
-			Project:     projectName,
+			App:         appName,
 			Labels:      make(map[string]string),
 			Annotations: annotations,
 		},

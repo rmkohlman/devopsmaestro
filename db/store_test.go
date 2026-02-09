@@ -36,6 +36,34 @@ func createTestDataStore(t *testing.T) *SQLDataStore {
 // createTestSchema creates the required tables for testing
 func createTestSchema(driver Driver) error {
 	queries := []string{
+		`CREATE TABLE IF NOT EXISTS ecosystems (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL UNIQUE,
+			description TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS domains (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			ecosystem_id INTEGER NOT NULL,
+			name TEXT NOT NULL,
+			description TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (ecosystem_id) REFERENCES ecosystems(id),
+			UNIQUE(ecosystem_id, name)
+		)`,
+		`CREATE TABLE IF NOT EXISTS apps (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			domain_id INTEGER NOT NULL,
+			name TEXT NOT NULL,
+			path TEXT NOT NULL,
+			description TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (domain_id) REFERENCES domains(id),
+			UNIQUE(domain_id, name)
+		)`,
 		`CREATE TABLE IF NOT EXISTS projects (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT NOT NULL UNIQUE,
@@ -46,7 +74,7 @@ func createTestSchema(driver Driver) error {
 		)`,
 		`CREATE TABLE IF NOT EXISTS workspaces (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			project_id INTEGER NOT NULL,
+			app_id INTEGER NOT NULL,
 			name TEXT NOT NULL,
 			description TEXT,
 			image_name TEXT,
@@ -56,16 +84,22 @@ func createTestSchema(driver Driver) error {
 			nvim_plugins TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY (project_id) REFERENCES projects(id),
-			UNIQUE(project_id, name)
+			FOREIGN KEY (app_id) REFERENCES apps(id),
+			UNIQUE(app_id, name)
 		)`,
 		`CREATE TABLE IF NOT EXISTS context (
 			id INTEGER PRIMARY KEY CHECK (id = 1),
-			active_project_id INTEGER,
+			active_ecosystem_id INTEGER,
+			active_domain_id INTEGER,
+			active_app_id INTEGER,
 			active_workspace_id INTEGER,
+			active_project_id INTEGER,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY (active_project_id) REFERENCES projects(id),
-			FOREIGN KEY (active_workspace_id) REFERENCES workspaces(id)
+			FOREIGN KEY (active_ecosystem_id) REFERENCES ecosystems(id),
+			FOREIGN KEY (active_domain_id) REFERENCES domains(id),
+			FOREIGN KEY (active_app_id) REFERENCES apps(id),
+			FOREIGN KEY (active_workspace_id) REFERENCES workspaces(id),
+			FOREIGN KEY (active_project_id) REFERENCES projects(id)
 		)`,
 		`CREATE TABLE IF NOT EXISTS nvim_plugins (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -112,6 +146,717 @@ func createTestSchema(driver Driver) error {
 	}
 
 	return nil
+}
+
+// =============================================================================
+// Ecosystem CRUD Tests
+// =============================================================================
+
+func TestSQLDataStore_CreateEcosystem(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	ecosystem := &models.Ecosystem{
+		Name: "test-ecosystem",
+		Description: sql.NullString{
+			String: "Test description",
+			Valid:  true,
+		},
+	}
+
+	err := ds.CreateEcosystem(ecosystem)
+	if err != nil {
+		t.Fatalf("CreateEcosystem() error = %v", err)
+	}
+
+	if ecosystem.ID == 0 {
+		t.Errorf("CreateEcosystem() did not set ecosystem.ID")
+	}
+}
+
+func TestSQLDataStore_GetEcosystemByName(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	// Create an ecosystem first
+	ecosystem := &models.Ecosystem{
+		Name: "findme-ecosystem",
+		Description: sql.NullString{
+			String: "Find me",
+			Valid:  true,
+		},
+	}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup CreateEcosystem() error = %v", err)
+	}
+
+	// Retrieve by name
+	retrieved, err := ds.GetEcosystemByName("findme-ecosystem")
+	if err != nil {
+		t.Fatalf("GetEcosystemByName() error = %v", err)
+	}
+
+	if retrieved.Name != "findme-ecosystem" {
+		t.Errorf("GetEcosystemByName() Name = %q, want %q", retrieved.Name, "findme-ecosystem")
+	}
+	if retrieved.Description.String != "Find me" {
+		t.Errorf("GetEcosystemByName() Description = %q, want %q", retrieved.Description.String, "Find me")
+	}
+}
+
+func TestSQLDataStore_GetEcosystemByName_NotFound(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	_, err := ds.GetEcosystemByName("nonexistent")
+	if err == nil {
+		t.Errorf("GetEcosystemByName() expected error for nonexistent ecosystem")
+	}
+}
+
+func TestSQLDataStore_GetEcosystemByID(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	ecosystem := &models.Ecosystem{
+		Name: "getbyid-ecosystem",
+	}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	retrieved, err := ds.GetEcosystemByID(ecosystem.ID)
+	if err != nil {
+		t.Fatalf("GetEcosystemByID() error = %v", err)
+	}
+
+	if retrieved.ID != ecosystem.ID {
+		t.Errorf("GetEcosystemByID() ID = %d, want %d", retrieved.ID, ecosystem.ID)
+	}
+}
+
+func TestSQLDataStore_UpdateEcosystem(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	ecosystem := &models.Ecosystem{
+		Name: "update-ecosystem",
+	}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	// Update the ecosystem
+	ecosystem.Description = sql.NullString{String: "Updated description", Valid: true}
+
+	if err := ds.UpdateEcosystem(ecosystem); err != nil {
+		t.Fatalf("UpdateEcosystem() error = %v", err)
+	}
+
+	// Verify update
+	retrieved, err := ds.GetEcosystemByID(ecosystem.ID)
+	if err != nil {
+		t.Fatalf("Verification error: %v", err)
+	}
+
+	if retrieved.Description.String != "Updated description" {
+		t.Errorf("UpdateEcosystem() Description = %q, want %q", retrieved.Description.String, "Updated description")
+	}
+}
+
+func TestSQLDataStore_DeleteEcosystem(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	ecosystem := &models.Ecosystem{
+		Name: "delete-ecosystem",
+	}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	if err := ds.DeleteEcosystem("delete-ecosystem"); err != nil {
+		t.Fatalf("DeleteEcosystem() error = %v", err)
+	}
+
+	// Verify deletion
+	_, err := ds.GetEcosystemByName("delete-ecosystem")
+	if err == nil {
+		t.Errorf("DeleteEcosystem() ecosystem should not exist after deletion")
+	}
+}
+
+func TestSQLDataStore_ListEcosystems(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	// Create multiple ecosystems
+	for i := 1; i <= 3; i++ {
+		ecosystem := &models.Ecosystem{
+			Name: "list-ecosystem-" + string(rune('0'+i)),
+		}
+		if err := ds.CreateEcosystem(ecosystem); err != nil {
+			t.Fatalf("Setup error: %v", err)
+		}
+	}
+
+	ecosystems, err := ds.ListEcosystems()
+	if err != nil {
+		t.Fatalf("ListEcosystems() error = %v", err)
+	}
+
+	if len(ecosystems) != 3 {
+		t.Errorf("ListEcosystems() returned %d ecosystems, want 3", len(ecosystems))
+	}
+}
+
+// =============================================================================
+// Domain CRUD Tests
+// =============================================================================
+
+func TestSQLDataStore_CreateDomain(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	// Create an ecosystem first
+	ecosystem := &models.Ecosystem{Name: "domain-test-ecosystem"}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup CreateEcosystem() error = %v", err)
+	}
+
+	domain := &models.Domain{
+		EcosystemID: ecosystem.ID,
+		Name:        "test-domain",
+		Description: sql.NullString{
+			String: "Test domain description",
+			Valid:  true,
+		},
+	}
+
+	err := ds.CreateDomain(domain)
+	if err != nil {
+		t.Fatalf("CreateDomain() error = %v", err)
+	}
+
+	if domain.ID == 0 {
+		t.Errorf("CreateDomain() did not set domain.ID")
+	}
+}
+
+func TestSQLDataStore_GetDomainByName(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	// Create an ecosystem first
+	ecosystem := &models.Ecosystem{Name: "domain-findme-ecosystem"}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup CreateEcosystem() error = %v", err)
+	}
+
+	// Create a domain
+	domain := &models.Domain{
+		EcosystemID: ecosystem.ID,
+		Name:        "findme-domain",
+		Description: sql.NullString{
+			String: "Find me",
+			Valid:  true,
+		},
+	}
+	if err := ds.CreateDomain(domain); err != nil {
+		t.Fatalf("Setup CreateDomain() error = %v", err)
+	}
+
+	// Retrieve by name
+	retrieved, err := ds.GetDomainByName(ecosystem.ID, "findme-domain")
+	if err != nil {
+		t.Fatalf("GetDomainByName() error = %v", err)
+	}
+
+	if retrieved.Name != "findme-domain" {
+		t.Errorf("GetDomainByName() Name = %q, want %q", retrieved.Name, "findme-domain")
+	}
+	if retrieved.EcosystemID != ecosystem.ID {
+		t.Errorf("GetDomainByName() EcosystemID = %d, want %d", retrieved.EcosystemID, ecosystem.ID)
+	}
+}
+
+func TestSQLDataStore_GetDomainByName_NotFound(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	// Create an ecosystem first
+	ecosystem := &models.Ecosystem{Name: "domain-notfound-ecosystem"}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	_, err := ds.GetDomainByName(ecosystem.ID, "nonexistent")
+	if err == nil {
+		t.Errorf("GetDomainByName() expected error for nonexistent domain")
+	}
+}
+
+func TestSQLDataStore_GetDomainByID(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	ecosystem := &models.Ecosystem{Name: "domain-getbyid-ecosystem"}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	domain := &models.Domain{
+		EcosystemID: ecosystem.ID,
+		Name:        "getbyid-domain",
+	}
+	if err := ds.CreateDomain(domain); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	retrieved, err := ds.GetDomainByID(domain.ID)
+	if err != nil {
+		t.Fatalf("GetDomainByID() error = %v", err)
+	}
+
+	if retrieved.ID != domain.ID {
+		t.Errorf("GetDomainByID() ID = %d, want %d", retrieved.ID, domain.ID)
+	}
+}
+
+func TestSQLDataStore_UpdateDomain(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	ecosystem := &models.Ecosystem{Name: "domain-update-ecosystem"}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	domain := &models.Domain{
+		EcosystemID: ecosystem.ID,
+		Name:        "update-domain",
+	}
+	if err := ds.CreateDomain(domain); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	// Update the domain
+	domain.Description = sql.NullString{String: "Updated description", Valid: true}
+
+	if err := ds.UpdateDomain(domain); err != nil {
+		t.Fatalf("UpdateDomain() error = %v", err)
+	}
+
+	// Verify update
+	retrieved, err := ds.GetDomainByID(domain.ID)
+	if err != nil {
+		t.Fatalf("Verification error: %v", err)
+	}
+
+	if retrieved.Description.String != "Updated description" {
+		t.Errorf("UpdateDomain() Description = %q, want %q", retrieved.Description.String, "Updated description")
+	}
+}
+
+func TestSQLDataStore_DeleteDomain(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	ecosystem := &models.Ecosystem{Name: "domain-delete-ecosystem"}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	domain := &models.Domain{
+		EcosystemID: ecosystem.ID,
+		Name:        "delete-domain",
+	}
+	if err := ds.CreateDomain(domain); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	if err := ds.DeleteDomain(domain.ID); err != nil {
+		t.Fatalf("DeleteDomain() error = %v", err)
+	}
+
+	// Verify deletion
+	_, err := ds.GetDomainByID(domain.ID)
+	if err == nil {
+		t.Errorf("DeleteDomain() domain should not exist after deletion")
+	}
+}
+
+func TestSQLDataStore_ListDomainsByEcosystem(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	ecosystem := &models.Ecosystem{Name: "domain-list-ecosystem"}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	// Create multiple domains
+	for i := 1; i <= 3; i++ {
+		domain := &models.Domain{
+			EcosystemID: ecosystem.ID,
+			Name:        "list-domain-" + string(rune('0'+i)),
+		}
+		if err := ds.CreateDomain(domain); err != nil {
+			t.Fatalf("Setup error: %v", err)
+		}
+	}
+
+	domains, err := ds.ListDomainsByEcosystem(ecosystem.ID)
+	if err != nil {
+		t.Fatalf("ListDomainsByEcosystem() error = %v", err)
+	}
+
+	if len(domains) != 3 {
+		t.Errorf("ListDomainsByEcosystem() returned %d domains, want 3", len(domains))
+	}
+}
+
+func TestSQLDataStore_ListAllDomains(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	// Create two ecosystems with domains
+	for e := 1; e <= 2; e++ {
+		ecosystem := &models.Ecosystem{
+			Name: "listall-eco-" + string(rune('0'+e)),
+		}
+		if err := ds.CreateEcosystem(ecosystem); err != nil {
+			t.Fatalf("Setup error: %v", err)
+		}
+
+		for d := 1; d <= 2; d++ {
+			domain := &models.Domain{
+				EcosystemID: ecosystem.ID,
+				Name:        "domain-" + string(rune('0'+d)),
+			}
+			if err := ds.CreateDomain(domain); err != nil {
+				t.Fatalf("Setup error: %v", err)
+			}
+		}
+	}
+
+	domains, err := ds.ListAllDomains()
+	if err != nil {
+		t.Fatalf("ListAllDomains() error = %v", err)
+	}
+
+	if len(domains) != 4 {
+		t.Errorf("ListAllDomains() returned %d domains, want 4", len(domains))
+	}
+}
+
+// =============================================================================
+// App CRUD Tests
+// =============================================================================
+
+func TestSQLDataStore_CreateApp(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	// Create ecosystem and domain first
+	ecosystem := &models.Ecosystem{Name: "app-test-ecosystem"}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	domain := &models.Domain{
+		EcosystemID: ecosystem.ID,
+		Name:        "app-test-domain",
+	}
+	if err := ds.CreateDomain(domain); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	app := &models.App{
+		DomainID: domain.ID,
+		Name:     "test-app",
+		Path:     "/path/to/app",
+		Description: sql.NullString{
+			String: "Test app description",
+			Valid:  true,
+		},
+	}
+
+	err := ds.CreateApp(app)
+	if err != nil {
+		t.Fatalf("CreateApp() error = %v", err)
+	}
+
+	if app.ID == 0 {
+		t.Errorf("CreateApp() did not set app.ID")
+	}
+}
+
+func TestSQLDataStore_GetAppByName(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	// Create ecosystem and domain
+	ecosystem := &models.Ecosystem{Name: "app-findme-ecosystem"}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	domain := &models.Domain{
+		EcosystemID: ecosystem.ID,
+		Name:        "app-findme-domain",
+	}
+	if err := ds.CreateDomain(domain); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	// Create an app
+	app := &models.App{
+		DomainID: domain.ID,
+		Name:     "findme-app",
+		Path:     "/path/to/findme",
+	}
+	if err := ds.CreateApp(app); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	// Retrieve by name
+	retrieved, err := ds.GetAppByName(domain.ID, "findme-app")
+	if err != nil {
+		t.Fatalf("GetAppByName() error = %v", err)
+	}
+
+	if retrieved.Name != "findme-app" {
+		t.Errorf("GetAppByName() Name = %q, want %q", retrieved.Name, "findme-app")
+	}
+	if retrieved.Path != "/path/to/findme" {
+		t.Errorf("GetAppByName() Path = %q, want %q", retrieved.Path, "/path/to/findme")
+	}
+}
+
+func TestSQLDataStore_GetAppByName_NotFound(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	// Create ecosystem and domain
+	ecosystem := &models.Ecosystem{Name: "app-notfound-ecosystem"}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	domain := &models.Domain{
+		EcosystemID: ecosystem.ID,
+		Name:        "app-notfound-domain",
+	}
+	if err := ds.CreateDomain(domain); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	_, err := ds.GetAppByName(domain.ID, "nonexistent")
+	if err == nil {
+		t.Errorf("GetAppByName() expected error for nonexistent app")
+	}
+}
+
+func TestSQLDataStore_GetAppByID(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	ecosystem := &models.Ecosystem{Name: "app-getbyid-ecosystem"}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	domain := &models.Domain{
+		EcosystemID: ecosystem.ID,
+		Name:        "app-getbyid-domain",
+	}
+	if err := ds.CreateDomain(domain); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	app := &models.App{
+		DomainID: domain.ID,
+		Name:     "getbyid-app",
+		Path:     "/path/to/getbyid",
+	}
+	if err := ds.CreateApp(app); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	retrieved, err := ds.GetAppByID(app.ID)
+	if err != nil {
+		t.Fatalf("GetAppByID() error = %v", err)
+	}
+
+	if retrieved.ID != app.ID {
+		t.Errorf("GetAppByID() ID = %d, want %d", retrieved.ID, app.ID)
+	}
+}
+
+func TestSQLDataStore_UpdateApp(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	ecosystem := &models.Ecosystem{Name: "app-update-ecosystem"}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	domain := &models.Domain{
+		EcosystemID: ecosystem.ID,
+		Name:        "app-update-domain",
+	}
+	if err := ds.CreateDomain(domain); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	app := &models.App{
+		DomainID: domain.ID,
+		Name:     "update-app",
+		Path:     "/original/path",
+	}
+	if err := ds.CreateApp(app); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	// Update the app
+	app.Path = "/updated/path"
+	app.Description = sql.NullString{String: "Updated description", Valid: true}
+
+	if err := ds.UpdateApp(app); err != nil {
+		t.Fatalf("UpdateApp() error = %v", err)
+	}
+
+	// Verify update
+	retrieved, err := ds.GetAppByID(app.ID)
+	if err != nil {
+		t.Fatalf("Verification error: %v", err)
+	}
+
+	if retrieved.Path != "/updated/path" {
+		t.Errorf("UpdateApp() Path = %q, want %q", retrieved.Path, "/updated/path")
+	}
+	if retrieved.Description.String != "Updated description" {
+		t.Errorf("UpdateApp() Description = %q, want %q", retrieved.Description.String, "Updated description")
+	}
+}
+
+func TestSQLDataStore_DeleteApp(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	ecosystem := &models.Ecosystem{Name: "app-delete-ecosystem"}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	domain := &models.Domain{
+		EcosystemID: ecosystem.ID,
+		Name:        "app-delete-domain",
+	}
+	if err := ds.CreateDomain(domain); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	app := &models.App{
+		DomainID: domain.ID,
+		Name:     "delete-app",
+		Path:     "/path/to/delete",
+	}
+	if err := ds.CreateApp(app); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	if err := ds.DeleteApp(app.ID); err != nil {
+		t.Fatalf("DeleteApp() error = %v", err)
+	}
+
+	// Verify deletion
+	_, err := ds.GetAppByID(app.ID)
+	if err == nil {
+		t.Errorf("DeleteApp() app should not exist after deletion")
+	}
+}
+
+func TestSQLDataStore_ListAppsByDomain(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	ecosystem := &models.Ecosystem{Name: "app-list-ecosystem"}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	domain := &models.Domain{
+		EcosystemID: ecosystem.ID,
+		Name:        "app-list-domain",
+	}
+	if err := ds.CreateDomain(domain); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	// Create multiple apps
+	for i := 1; i <= 3; i++ {
+		app := &models.App{
+			DomainID: domain.ID,
+			Name:     "list-app-" + string(rune('0'+i)),
+			Path:     "/path/" + string(rune('0'+i)),
+		}
+		if err := ds.CreateApp(app); err != nil {
+			t.Fatalf("Setup error: %v", err)
+		}
+	}
+
+	apps, err := ds.ListAppsByDomain(domain.ID)
+	if err != nil {
+		t.Fatalf("ListAppsByDomain() error = %v", err)
+	}
+
+	if len(apps) != 3 {
+		t.Errorf("ListAppsByDomain() returned %d apps, want 3", len(apps))
+	}
+}
+
+func TestSQLDataStore_ListAllApps(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	ecosystem := &models.Ecosystem{Name: "app-listall-ecosystem"}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	// Create two domains with apps
+	for d := 1; d <= 2; d++ {
+		domain := &models.Domain{
+			EcosystemID: ecosystem.ID,
+			Name:        "listall-domain-" + string(rune('0'+d)),
+		}
+		if err := ds.CreateDomain(domain); err != nil {
+			t.Fatalf("Setup error: %v", err)
+		}
+
+		for a := 1; a <= 2; a++ {
+			app := &models.App{
+				DomainID: domain.ID,
+				Name:     "app-" + string(rune('0'+a)),
+				Path:     "/path/" + string(rune('0'+a)),
+			}
+			if err := ds.CreateApp(app); err != nil {
+				t.Fatalf("Setup error: %v", err)
+			}
+		}
+	}
+
+	apps, err := ds.ListAllApps()
+	if err != nil {
+		t.Fatalf("ListAllApps() error = %v", err)
+	}
+
+	if len(apps) != 4 {
+		t.Errorf("ListAllApps() returned %d apps, want 4", len(apps))
+	}
 }
 
 // =============================================================================
@@ -297,7 +1042,7 @@ func TestSQLDataStore_CreateWorkspace(t *testing.T) {
 	}
 
 	workspace := &models.Workspace{
-		ProjectID: project.ID,
+		AppID:     project.ID, // Using project.ID as AppID during migration
 		Name:      "test-workspace",
 		ImageName: "test:latest",
 		Status:    "stopped",
@@ -323,7 +1068,7 @@ func TestSQLDataStore_GetWorkspaceByName(t *testing.T) {
 	}
 
 	workspace := &models.Workspace{
-		ProjectID: project.ID,
+		AppID:     project.ID, // Using project.ID as AppID during migration
 		Name:      "findme-ws",
 		ImageName: "image:v1",
 		Status:    "running",
@@ -355,7 +1100,7 @@ func TestSQLDataStore_GetWorkspaceByID(t *testing.T) {
 	}
 
 	workspace := &models.Workspace{
-		ProjectID: project.ID,
+		AppID:     project.ID, // Using project.ID as AppID during migration
 		Name:      "getbyid-ws",
 		ImageName: "test:v2",
 		Status:    "stopped",
@@ -384,7 +1129,7 @@ func TestSQLDataStore_UpdateWorkspace(t *testing.T) {
 	}
 
 	workspace := &models.Workspace{
-		ProjectID: project.ID,
+		AppID:     project.ID, // Using project.ID as AppID during migration
 		Name:      "update-ws",
 		ImageName: "old:image",
 		Status:    "stopped",
@@ -425,7 +1170,7 @@ func TestSQLDataStore_DeleteWorkspace(t *testing.T) {
 	}
 
 	workspace := &models.Workspace{
-		ProjectID: project.ID,
+		AppID:     project.ID, // Using project.ID as AppID during migration
 		Name:      "delete-ws",
 		ImageName: "img:latest",
 		Status:    "stopped",
@@ -444,7 +1189,7 @@ func TestSQLDataStore_DeleteWorkspace(t *testing.T) {
 	}
 }
 
-func TestSQLDataStore_ListWorkspacesByProject(t *testing.T) {
+func TestSQLDataStore_ListWorkspacesByApp(t *testing.T) {
 	ds := createTestDataStore(t)
 	defer ds.Close()
 
@@ -456,7 +1201,7 @@ func TestSQLDataStore_ListWorkspacesByProject(t *testing.T) {
 	// Create multiple workspaces
 	for i := 1; i <= 3; i++ {
 		ws := &models.Workspace{
-			ProjectID: project.ID,
+			AppID:     project.ID, // Using project.ID as AppID during migration
 			Name:      "ws-" + string(rune('0'+i)),
 			ImageName: "img:v" + string(rune('0'+i)),
 			Status:    "stopped",
@@ -466,13 +1211,13 @@ func TestSQLDataStore_ListWorkspacesByProject(t *testing.T) {
 		}
 	}
 
-	workspaces, err := ds.ListWorkspacesByProject(project.ID)
+	workspaces, err := ds.ListWorkspacesByApp(project.ID)
 	if err != nil {
-		t.Fatalf("ListWorkspacesByProject() error = %v", err)
+		t.Fatalf("ListWorkspacesByApp() error = %v", err)
 	}
 
 	if len(workspaces) != 3 {
-		t.Errorf("ListWorkspacesByProject() returned %d workspaces, want 3", len(workspaces))
+		t.Errorf("ListWorkspacesByApp() returned %d workspaces, want 3", len(workspaces))
 	}
 }
 
@@ -492,7 +1237,7 @@ func TestSQLDataStore_ListAllWorkspaces(t *testing.T) {
 
 		for w := 1; w <= 2; w++ {
 			ws := &models.Workspace{
-				ProjectID: project.ID,
+				AppID:     project.ID, // Using project.ID as AppID during migration
 				Name:      "ws-" + string(rune('0'+w)),
 				ImageName: "img:latest",
 				Status:    "stopped",
@@ -528,7 +1273,7 @@ func TestSQLDataStore_Context(t *testing.T) {
 	}
 
 	workspace := &models.Workspace{
-		ProjectID: project.ID,
+		AppID:     project.ID, // Using project.ID as AppID during migration
 		Name:      "ctx-workspace",
 		ImageName: "ctx:img",
 		Status:    "stopped",
@@ -592,6 +1337,227 @@ func TestSQLDataStore_ClearContext(t *testing.T) {
 
 	if ctx.ActiveProjectID != nil {
 		t.Errorf("SetActiveProject(nil) should clear ActiveProjectID")
+	}
+}
+
+func TestSQLDataStore_Context_Ecosystem(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	// Create an ecosystem
+	ecosystem := &models.Ecosystem{Name: "ctx-ecosystem"}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	// Set active ecosystem
+	if err := ds.SetActiveEcosystem(&ecosystem.ID); err != nil {
+		t.Fatalf("SetActiveEcosystem() error = %v", err)
+	}
+
+	// Get context and verify
+	ctx, err := ds.GetContext()
+	if err != nil {
+		t.Fatalf("GetContext() error = %v", err)
+	}
+
+	if ctx.ActiveEcosystemID == nil || *ctx.ActiveEcosystemID != ecosystem.ID {
+		t.Errorf("GetContext() ActiveEcosystemID = %v, want %d", ctx.ActiveEcosystemID, ecosystem.ID)
+	}
+
+	// Clear active ecosystem
+	if err := ds.SetActiveEcosystem(nil); err != nil {
+		t.Fatalf("SetActiveEcosystem(nil) error = %v", err)
+	}
+
+	ctx, err = ds.GetContext()
+	if err != nil {
+		t.Fatalf("GetContext() after clear error = %v", err)
+	}
+
+	if ctx.ActiveEcosystemID != nil {
+		t.Errorf("SetActiveEcosystem(nil) should clear ActiveEcosystemID")
+	}
+}
+
+func TestSQLDataStore_Context_Domain(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	// Create ecosystem and domain
+	ecosystem := &models.Ecosystem{Name: "ctx-domain-ecosystem"}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	domain := &models.Domain{
+		EcosystemID: ecosystem.ID,
+		Name:        "ctx-domain",
+	}
+	if err := ds.CreateDomain(domain); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	// Set active domain
+	if err := ds.SetActiveDomain(&domain.ID); err != nil {
+		t.Fatalf("SetActiveDomain() error = %v", err)
+	}
+
+	// Get context and verify
+	ctx, err := ds.GetContext()
+	if err != nil {
+		t.Fatalf("GetContext() error = %v", err)
+	}
+
+	if ctx.ActiveDomainID == nil || *ctx.ActiveDomainID != domain.ID {
+		t.Errorf("GetContext() ActiveDomainID = %v, want %d", ctx.ActiveDomainID, domain.ID)
+	}
+
+	// Clear active domain
+	if err := ds.SetActiveDomain(nil); err != nil {
+		t.Fatalf("SetActiveDomain(nil) error = %v", err)
+	}
+
+	ctx, err = ds.GetContext()
+	if err != nil {
+		t.Fatalf("GetContext() after clear error = %v", err)
+	}
+
+	if ctx.ActiveDomainID != nil {
+		t.Errorf("SetActiveDomain(nil) should clear ActiveDomainID")
+	}
+}
+
+func TestSQLDataStore_Context_App(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	// Create ecosystem, domain, and app
+	ecosystem := &models.Ecosystem{Name: "ctx-app-ecosystem"}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	domain := &models.Domain{
+		EcosystemID: ecosystem.ID,
+		Name:        "ctx-app-domain",
+	}
+	if err := ds.CreateDomain(domain); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	app := &models.App{
+		DomainID: domain.ID,
+		Name:     "ctx-app",
+		Path:     "/path/to/ctx-app",
+	}
+	if err := ds.CreateApp(app); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	// Set active app
+	if err := ds.SetActiveApp(&app.ID); err != nil {
+		t.Fatalf("SetActiveApp() error = %v", err)
+	}
+
+	// Get context and verify
+	ctx, err := ds.GetContext()
+	if err != nil {
+		t.Fatalf("GetContext() error = %v", err)
+	}
+
+	if ctx.ActiveAppID == nil || *ctx.ActiveAppID != app.ID {
+		t.Errorf("GetContext() ActiveAppID = %v, want %d", ctx.ActiveAppID, app.ID)
+	}
+
+	// Clear active app
+	if err := ds.SetActiveApp(nil); err != nil {
+		t.Fatalf("SetActiveApp(nil) error = %v", err)
+	}
+
+	ctx, err = ds.GetContext()
+	if err != nil {
+		t.Fatalf("GetContext() after clear error = %v", err)
+	}
+
+	if ctx.ActiveAppID != nil {
+		t.Errorf("SetActiveApp(nil) should clear ActiveAppID")
+	}
+}
+
+func TestSQLDataStore_Context_FullHierarchy(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	// Create full hierarchy: Ecosystem -> Domain -> App -> Workspace
+	ecosystem := &models.Ecosystem{Name: "full-ctx-ecosystem"}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	domain := &models.Domain{
+		EcosystemID: ecosystem.ID,
+		Name:        "full-ctx-domain",
+	}
+	if err := ds.CreateDomain(domain); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	app := &models.App{
+		DomainID: domain.ID,
+		Name:     "full-ctx-app",
+		Path:     "/path/to/full-ctx-app",
+	}
+	if err := ds.CreateApp(app); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	project := &models.Project{Name: "full-ctx-project", Path: "/full/ctx"}
+	if err := ds.CreateProject(project); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	workspace := &models.Workspace{
+		AppID:     project.ID, // Using project.ID as AppID during migration
+		Name:      "full-ctx-workspace",
+		ImageName: "full:img",
+		Status:    "stopped",
+	}
+	if err := ds.CreateWorkspace(workspace); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	// Set all active entities
+	if err := ds.SetActiveEcosystem(&ecosystem.ID); err != nil {
+		t.Fatalf("SetActiveEcosystem() error = %v", err)
+	}
+	if err := ds.SetActiveDomain(&domain.ID); err != nil {
+		t.Fatalf("SetActiveDomain() error = %v", err)
+	}
+	if err := ds.SetActiveApp(&app.ID); err != nil {
+		t.Fatalf("SetActiveApp() error = %v", err)
+	}
+	if err := ds.SetActiveWorkspace(&workspace.ID); err != nil {
+		t.Fatalf("SetActiveWorkspace() error = %v", err)
+	}
+
+	// Get context and verify all
+	ctx, err := ds.GetContext()
+	if err != nil {
+		t.Fatalf("GetContext() error = %v", err)
+	}
+
+	if ctx.ActiveEcosystemID == nil || *ctx.ActiveEcosystemID != ecosystem.ID {
+		t.Errorf("GetContext() ActiveEcosystemID = %v, want %d", ctx.ActiveEcosystemID, ecosystem.ID)
+	}
+	if ctx.ActiveDomainID == nil || *ctx.ActiveDomainID != domain.ID {
+		t.Errorf("GetContext() ActiveDomainID = %v, want %d", ctx.ActiveDomainID, domain.ID)
+	}
+	if ctx.ActiveAppID == nil || *ctx.ActiveAppID != app.ID {
+		t.Errorf("GetContext() ActiveAppID = %v, want %d", ctx.ActiveAppID, app.ID)
+	}
+	if ctx.ActiveWorkspaceID == nil || *ctx.ActiveWorkspaceID != workspace.ID {
+		t.Errorf("GetContext() ActiveWorkspaceID = %v, want %d", ctx.ActiveWorkspaceID, workspace.ID)
 	}
 }
 
@@ -713,7 +1679,7 @@ func TestSQLDataStore_WorkspacePluginAssociation(t *testing.T) {
 	}
 
 	workspace := &models.Workspace{
-		ProjectID: project.ID,
+		AppID:     project.ID, // Using project.ID as AppID during migration
 		Name:      "wp-workspace",
 		ImageName: "img:latest",
 		Status:    "stopped",

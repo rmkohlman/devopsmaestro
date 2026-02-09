@@ -16,7 +16,7 @@ var statusCmd = &cobra.Command{
 	Short: "Show status of DVM and running workspaces",
 	Long: `Show the current status of DVM including:
 
-- Active project and workspace context
+- Active app and workspace context
 - Running workspace containers
 - Container runtime information
 
@@ -45,7 +45,7 @@ type StatusInfo struct {
 
 // ContextInfo holds the current context
 type ContextInfo struct {
-	Project   string `json:"project,omitempty" yaml:"project,omitempty"`
+	App       string `json:"app,omitempty" yaml:"app,omitempty"`
 	Workspace string `json:"workspace,omitempty" yaml:"workspace,omitempty"`
 }
 
@@ -74,10 +74,10 @@ func runStatus(cmd *cobra.Command) error {
 	if err != nil {
 		slog.Debug("failed to get context manager", "error", err)
 	} else {
-		project, _ := contextMgr.GetActiveProject()
+		app, _ := contextMgr.GetActiveApp()
 		workspace, _ := contextMgr.GetActiveWorkspace()
 		status.Context = ContextInfo{
-			Project:   project,
+			App:       app,
 			Workspace: workspace,
 		}
 	}
@@ -141,10 +141,10 @@ func isRunning(status string) bool {
 func renderStatusColored(status StatusInfo) {
 	// Context section
 	render.Info("Context")
-	if status.Context.Project != "" {
-		render.Success(fmt.Sprintf("  Project:   %s", status.Context.Project))
+	if status.Context.App != "" {
+		render.Success(fmt.Sprintf("  App:       %s", status.Context.App))
 	} else {
-		render.Warning("  Project:   (none)")
+		render.Warning("  App:       (none)")
 	}
 	if status.Context.Workspace != "" {
 		render.Success(fmt.Sprintf("  Workspace: %s", status.Context.Workspace))

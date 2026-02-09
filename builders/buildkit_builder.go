@@ -26,7 +26,7 @@ type BuildKitBuilder struct {
 	containerdClient *client.Client
 	buildkitClient   *bkclient.Client
 	namespace        string
-	projectPath      string
+	appPath          string
 	imageName        string
 	dockerfile       string
 	containerdSocket string
@@ -72,7 +72,7 @@ func NewBuildKitBuilder(cfg BuilderConfig) (*BuildKitBuilder, error) {
 		containerdClient: containerdClient,
 		buildkitClient:   buildkitClient,
 		namespace:        cfg.Namespace,
-		projectPath:      cfg.ProjectPath,
+		appPath:          cfg.AppPath,
 		imageName:        cfg.ImageName,
 		dockerfile:       cfg.Dockerfile,
 		containerdSocket: containerdSocket,
@@ -90,7 +90,7 @@ func (b *BuildKitBuilder) Build(ctx context.Context, opts BuildOptions) error {
 	// Determine dockerfile path
 	dockerfilePath := b.dockerfile
 	if dockerfilePath == "" {
-		dockerfilePath = filepath.Join(b.projectPath, "Dockerfile")
+		dockerfilePath = filepath.Join(b.appPath, "Dockerfile")
 	}
 
 	// Prepare build options
@@ -98,7 +98,7 @@ func (b *BuildKitBuilder) Build(ctx context.Context, opts BuildOptions) error {
 	// This is more reliable than trying to use the "image" type which only stores in BuildKit cache.
 	solveOpts := bkclient.SolveOpt{
 		LocalDirs: map[string]string{
-			"context":    b.projectPath,
+			"context":    b.appPath,
 			"dockerfile": filepath.Dir(dockerfilePath),
 		},
 		Frontend: "dockerfile.v0",

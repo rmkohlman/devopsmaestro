@@ -17,11 +17,11 @@ import (
 // This implementation uses the docker CLI rather than the SDK to avoid
 // version compatibility issues and provide consistent behavior across platforms.
 type DockerBuilder struct {
-	platform    *operators.Platform
-	namespace   string
-	projectPath string
-	imageName   string
-	dockerfile  string
+	platform   *operators.Platform
+	namespace  string
+	appPath    string
+	imageName  string
+	dockerfile string
 }
 
 // NewDockerBuilder creates a new Docker CLI-based image builder.
@@ -37,11 +37,11 @@ func NewDockerBuilder(cfg BuilderConfig) (*DockerBuilder, error) {
 	}
 
 	return &DockerBuilder{
-		platform:    cfg.Platform,
-		namespace:   cfg.Namespace,
-		projectPath: cfg.ProjectPath,
-		imageName:   cfg.ImageName,
-		dockerfile:  cfg.Dockerfile,
+		platform:   cfg.Platform,
+		namespace:  cfg.Namespace,
+		appPath:    cfg.AppPath,
+		imageName:  cfg.ImageName,
+		dockerfile: cfg.Dockerfile,
 	}, nil
 }
 
@@ -57,9 +57,9 @@ func (b *DockerBuilder) Build(ctx context.Context, opts BuildOptions) error {
 	// Add dockerfile flag if specified
 	dockerfilePath := b.dockerfile
 	if dockerfilePath != "" {
-		// Make path relative to project path if absolute
+		// Make path relative to app path if absolute
 		if filepath.IsAbs(dockerfilePath) {
-			rel, err := filepath.Rel(b.projectPath, dockerfilePath)
+			rel, err := filepath.Rel(b.appPath, dockerfilePath)
 			if err == nil {
 				dockerfilePath = rel
 			}
@@ -110,7 +110,7 @@ func (b *DockerBuilder) Build(ctx context.Context, opts BuildOptions) error {
 
 	// Execute docker build
 	cmd := exec.CommandContext(ctx, "docker", args...)
-	cmd.Dir = b.projectPath
+	cmd.Dir = b.appPath
 	cmd.Env = append(os.Environ(), "DOCKER_HOST=unix://"+b.platform.SocketPath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

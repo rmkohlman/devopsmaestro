@@ -17,11 +17,11 @@ func TestGetContextCommandHelp(t *testing.T) {
 	// Verify help text contains useful information
 	helpText := getContextCmd.Long
 
-	assert.Contains(t, helpText, "project")
+	assert.Contains(t, helpText, "app")
 	assert.Contains(t, helpText, "workspace")
-	assert.Contains(t, helpText, "dvm use project")
+	assert.Contains(t, helpText, "dvm use app")
 	assert.Contains(t, helpText, "dvm use workspace")
-	assert.Contains(t, helpText, "DVM_PROJECT")
+	assert.Contains(t, helpText, "DVM_APP")
 	assert.Contains(t, helpText, "DVM_WORKSPACE")
 }
 

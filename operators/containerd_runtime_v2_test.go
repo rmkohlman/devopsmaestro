@@ -85,7 +85,7 @@ func TestStartOptions(t *testing.T) {
 	opts := StartOptions{
 		ImageName:     "alpine:latest",
 		WorkspaceName: "test-workspace",
-		ProjectPath:   "/tmp/test",
+		AppPath:       "/tmp/test",
 		WorkingDir:    "/workspace",
 		Command:       []string{"/bin/sh"},
 		Env: map[string]string{
@@ -116,8 +116,8 @@ func TestWorkspaceLifecycle(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	// Create temporary project directory
-	projectPath := t.TempDir()
+	// Create temporary app directory
+	appPath := t.TempDir()
 
 	workspaceName := "test-workspace-lifecycle"
 
@@ -126,7 +126,7 @@ func TestWorkspaceLifecycle(t *testing.T) {
 		containerID, err := runtime.StartWorkspace(ctx, StartOptions{
 			ImageName:     "alpine:latest",
 			WorkspaceName: workspaceName,
-			ProjectPath:   projectPath,
+			AppPath:       appPath,
 			WorkingDir:    "/workspace",
 			Command:       []string{"/bin/sh", "-c", "sleep 30"},
 			Env: map[string]string{
@@ -183,7 +183,7 @@ func TestWorkspaceLifecycle(t *testing.T) {
 		containerID, err := runtime.StartWorkspace(ctx, StartOptions{
 			ImageName:     "alpine:latest",
 			WorkspaceName: workspaceName,
-			ProjectPath:   projectPath,
+			AppPath:       appPath,
 			WorkingDir:    "/workspace",
 			Command:       []string{"/bin/sh", "-c", "sleep 10"},
 		})
@@ -225,9 +225,9 @@ func TestStartWorkspaceWithMounts(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Create temporary project directory with a test file
-	projectPath := t.TempDir()
-	testFile := filepath.Join(projectPath, "test.txt")
+	// Create temporary app directory with a test file
+	appPath := t.TempDir()
+	testFile := filepath.Join(appPath, "test.txt")
 	if err := os.WriteFile(testFile, []byte("hello from host"), 0644); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
@@ -238,7 +238,7 @@ func TestStartWorkspaceWithMounts(t *testing.T) {
 	containerID, err := runtime.StartWorkspace(ctx, StartOptions{
 		ImageName:     "alpine:latest",
 		WorkspaceName: workspaceName,
-		ProjectPath:   projectPath,
+		AppPath:       appPath,
 		WorkingDir:    "/workspace",
 		Command:       []string{"/bin/sh", "-c", "sleep 20"},
 	})
@@ -312,19 +312,19 @@ func TestStartWorkspaceWithEnvVars(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	projectPath := t.TempDir()
+	appPath := t.TempDir()
 	workspaceName := "test-workspace-env"
 
 	// Start workspace with custom env vars
 	containerID, err := runtime.StartWorkspace(ctx, StartOptions{
 		ImageName:     "alpine:latest",
 		WorkspaceName: workspaceName,
-		ProjectPath:   projectPath,
+		AppPath:       appPath,
 		WorkingDir:    "/workspace",
 		Command:       []string{"/bin/sh", "-c", "sleep 15"},
 		Env: map[string]string{
-			"CUSTOM_VAR":  "custom_value",
-			"DVM_PROJECT": "test-project",
+			"CUSTOM_VAR": "custom_value",
+			"DVM_APP":    "test-app",
 		},
 	})
 	if err != nil {

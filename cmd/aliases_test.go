@@ -14,24 +14,24 @@ func TestResourceAliases(t *testing.T) {
 		cmd      *cobra.Command
 		expected []string
 	}{
-		// Get command aliases
-		{"get projects", getProjectsCmd, []string{"proj"}},
-		{"get project", getProjectCmd, []string{"proj"}},
+		// Get command aliases (Apps replaced Projects)
+		{"get apps", getAppsCmd, []string{"app", "application", "applications"}},
+		{"get app", getAppCmd, []string{"application"}},
 		{"get workspaces", getWorkspacesCmd, []string{"ws"}},
 		{"get workspace", getWorkspaceCmd, []string{"ws"}},
 		{"get context", getContextCmd, []string{"ctx"}},
 		{"get platforms", getPlatformsCmd, []string{"plat"}},
 
-		// Create command aliases
-		{"create project", createProjectCmd, []string{"proj"}},
+		// Create command aliases (Apps replaced Projects)
+		{"create app", createAppCmd, []string{"application"}},
 		{"create workspace", createWorkspaceCmd, []string{"ws"}},
 
-		// Delete command aliases
-		{"delete project", deleteProjectCmd, []string{"proj"}},
+		// Delete command aliases (Apps replaced Projects)
+		{"delete app", deleteAppCmd, []string{"application"}},
 		{"delete workspace", deleteWorkspaceCmd, []string{"ws"}},
 
 		// Use command aliases
-		{"use project", useProjectCmd, []string{"proj"}},
+		{"use app", useAppCmd, []string{"a"}},
 		{"use workspace", useWorkspaceCmd, []string{"ws"}},
 	}
 
@@ -58,19 +58,20 @@ func TestAliasesInHelpText(t *testing.T) {
 		helpText    string
 		shouldMatch string
 	}{
-		{"get command help", getCmd.Long, "proj"},
-		{"get command help", getCmd.Long, "ws"},
-		{"get command help", getCmd.Long, "ctx"},
-		{"create command help", createCmd.Long, "proj"},
-		{"create command help", createCmd.Long, "ws"},
-		{"delete command help", deleteCmd.Long, "proj"},
-		{"delete command help", deleteCmd.Long, "ws"},
-		{"use command help", useCmd.Long, "proj"},
-		{"use command help", useCmd.Long, "ws"},
+		// Apps replaced Projects - check for "app" or "a" aliases
+		{"get command help contains app", getCmd.Long, "app"},
+		{"get command help contains ws", getCmd.Long, "ws"},
+		{"get command help contains ctx", getCmd.Long, "ctx"},
+		{"create command help contains app", createCmd.Long, "app"},
+		{"create command help contains ws", createCmd.Long, "ws"},
+		{"delete command help contains app", deleteCmd.Long, "app"},
+		{"delete command help contains ws", deleteCmd.Long, "ws"},
+		{"use command help contains app", useCmd.Long, "app"},
+		{"use command help contains ws", useCmd.Long, "ws"},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name+" contains "+tt.shouldMatch, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			if !strings.Contains(tt.helpText, tt.shouldMatch) {
 				t.Errorf("help text should contain %q", tt.shouldMatch)
 			}
@@ -82,9 +83,10 @@ func TestAliasesInHelpText(t *testing.T) {
 func TestAliasReference(t *testing.T) {
 	// This test documents all supported kubectl-style aliases
 	// Format: full name → alias
+	// NOTE: Apps replaced Projects in the migration
 	aliases := map[string]string{
-		"projects":   "proj",
-		"project":    "proj",
+		"apps":       "app, application, applications",
+		"app":        "application",
 		"workspaces": "ws",
 		"workspace":  "ws",
 		"context":    "ctx",
@@ -106,21 +108,20 @@ func TestAliasReference(t *testing.T) {
 // TestAliasCommandExecution tests that aliases work through command execution
 func TestAliasCommandExecution(t *testing.T) {
 	// Verify that the subcommands are properly registered with their aliases
-	// Note: For commands where both singular and plural share the same alias (proj, ws),
-	// we just verify that an alias exists, not which specific command it maps to
+	// NOTE: Apps replaced Projects - now using "app" and "application" aliases
 	tests := []struct {
 		parent *cobra.Command
 		alias  string
 	}{
-		{getCmd, "proj"},
+		{getCmd, "app"},
 		{getCmd, "ws"},
 		{getCmd, "ctx"},
 		{getCmd, "plat"},
-		{createCmd, "proj"},
+		{createCmd, "application"},
 		{createCmd, "ws"},
-		{deleteCmd, "proj"},
+		{deleteCmd, "application"},
 		{deleteCmd, "ws"},
-		{useCmd, "proj"},
+		{useCmd, "a"},
 		{useCmd, "ws"},
 	}
 

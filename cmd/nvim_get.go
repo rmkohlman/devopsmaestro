@@ -12,10 +12,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Flags for workspace/project filtering
+// Flags for workspace/app filtering
 var (
 	nvimWorkspaceFlag string
-	nvimProjectFlag   string
+	nvimAppFlag       string
 )
 
 // nvimGetCmd is the 'nvim' subcommand under 'get' for kubectl-style namespacing
@@ -37,7 +37,7 @@ Examples:
 }
 
 // nvimGetPluginsCmd lists nvim plugins (global or workspace-filtered)
-// Usage: dvm get nvim plugins [-w workspace] [-p project]
+// Usage: dvm get nvim plugins [-w workspace] [-a app]
 var nvimGetPluginsCmd = &cobra.Command{
 	Use:     "plugins",
 	Aliases: []string{"np"},
@@ -50,7 +50,7 @@ With -w flag:  Lists only plugins configured for the specified workspace.
 Examples:
   dvm get nvim plugins                  # List all global plugins
   dvm get nvim plugins -w dev           # List plugins for workspace 'dev'
-  dvm get nvim plugins -p myproj -w dev # Explicit project and workspace
+  dvm get nvim plugins -a myapp -w dev  # Explicit app and workspace
   dvm get nvim plugins -o yaml          # Output as YAML`,
 	RunE: runGetNvimPlugins,
 }
@@ -117,9 +117,9 @@ func init() {
 	nvimGetCmd.AddCommand(nvimGetThemesCmd)
 	nvimGetCmd.AddCommand(nvimGetThemeCmd)
 
-	// Add workspace/project flags to plugins command
+	// Add workspace/app flags to plugins command
 	nvimGetPluginsCmd.Flags().StringVarP(&nvimWorkspaceFlag, "workspace", "w", "", "Filter by workspace")
-	nvimGetPluginsCmd.Flags().StringVarP(&nvimProjectFlag, "project", "p", "", "Project for workspace (defaults to active)")
+	nvimGetPluginsCmd.Flags().StringVarP(&nvimAppFlag, "app", "a", "", "App for workspace (defaults to active)")
 }
 
 // runGetNvimPlugins handles both global and workspace-scoped plugin listing
@@ -130,7 +130,7 @@ func runGetNvimPlugins(cmd *cobra.Command, args []string) error {
 	}
 
 	// Workspace-scoped: get workspace and its plugin list
-	workspace, projectName, err := getWorkspaceForPlugins(cmd, nvimProjectFlag, nvimWorkspaceFlag)
+	workspace, appName, err := getWorkspaceForPlugins(cmd, nvimAppFlag, nvimWorkspaceFlag)
 	if err != nil {
 		return err
 	}
@@ -145,7 +145,7 @@ func runGetNvimPlugins(cmd *cobra.Command, args []string) error {
 
 	// If no plugins configured, show helpful message
 	if len(workspacePluginNames) == 0 {
-		return renderEmptyWorkspacePlugins(workspace.Name, projectName)
+		return renderEmptyWorkspacePlugins(workspace.Name, appName)
 	}
 
 	// Get full plugin details from global library
@@ -164,22 +164,22 @@ func runGetNvimPlugins(cmd *cobra.Command, args []string) error {
 	plugins := filterPluginsByNames(allPlugins, workspacePluginNames)
 
 	// Render output
-	return renderWorkspacePlugins(workspace.Name, projectName, plugins, workspacePluginNames)
+	return renderWorkspacePlugins(workspace.Name, appName, plugins, workspacePluginNames)
 }
 
 // getWorkspaceForPlugins resolves the workspace from flags or context
-func getWorkspaceForPlugins(cmd *cobra.Command, projectFlag, workspaceFlag string) (*models.Workspace, string, error) {
+func getWorkspaceForPlugins(cmd *cobra.Command, appFlag, workspaceFlag string) (*models.Workspace, string, error) {
 	ctxMgr, err := operators.NewContextManager()
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create context manager: %w", err)
 	}
 
-	// Resolve project name
-	projectName := projectFlag
-	if projectName == "" {
-		projectName, err = ctxMgr.GetActiveProject()
+	// Resolve app name
+	appName := appFlag
+	if appName == "" {
+		appName, err = ctxMgr.GetActiveApp()
 		if err != nil {
-			return nil, "", fmt.Errorf("no project specified. Use -p <project> or 'dvm use project <name>' first")
+			return nil, "", fmt.Errorf("no app specified. Use -a <app> or 'dvm use app <name>' first")
 		}
 	}
 
@@ -189,19 +189,19 @@ func getWorkspaceForPlugins(cmd *cobra.Command, projectFlag, workspaceFlag strin
 		return nil, "", err
 	}
 
-	// Get project
-	project, err := ds.GetProjectByName(projectName)
+	// Get app (v0.8.0+ uses App model with GetAppByNameGlobal)
+	app, err := ds.GetAppByNameGlobal(appName)
 	if err != nil {
-		return nil, "", fmt.Errorf("project '%s' not found: %w", projectName, err)
+		return nil, "", fmt.Errorf("app '%s' not found: %w", appName, err)
 	}
 
 	// Get workspace
-	workspace, err := ds.GetWorkspaceByName(project.ID, workspaceFlag)
+	workspace, err := ds.GetWorkspaceByName(app.ID, workspaceFlag)
 	if err != nil {
-		return nil, "", fmt.Errorf("workspace '%s' not found in project '%s': %w", workspaceFlag, projectName, err)
+		return nil, "", fmt.Errorf("workspace '%s' not found in app '%s': %w", workspaceFlag, appName, err)
 	}
 
-	return workspace, projectName, nil
+	return workspace, appName, nil
 }
 
 // filterPluginsByNames filters plugins to only those in the names list
@@ -221,16 +221,16 @@ func filterPluginsByNames(plugins []*plugin.Plugin, names []string) []*plugin.Pl
 }
 
 // renderEmptyWorkspacePlugins renders the empty state for workspace plugins
-func renderEmptyWorkspacePlugins(workspaceName, projectName string) error {
+func renderEmptyWorkspacePlugins(workspaceName, appName string) error {
 	if getOutputFormat == "json" || getOutputFormat == "yaml" {
 		data := struct {
 			Workspace string   `json:"workspace" yaml:"workspace"`
-			Project   string   `json:"project" yaml:"project"`
+			App       string   `json:"app" yaml:"app"`
 			Plugins   []string `json:"plugins" yaml:"plugins"`
 			Message   string   `json:"message" yaml:"message"`
 		}{
 			Workspace: workspaceName,
-			Project:   projectName,
+			App:       appName,
 			Plugins:   []string{},
 			Message:   "No plugins configured. Build will use all global plugins.",
 		}
@@ -247,7 +247,7 @@ func renderEmptyWorkspacePlugins(workspaceName, projectName string) error {
 }
 
 // renderWorkspacePlugins renders the workspace plugin list
-func renderWorkspacePlugins(workspaceName, projectName string, plugins []*plugin.Plugin, configuredNames []string) error {
+func renderWorkspacePlugins(workspaceName, appName string, plugins []*plugin.Plugin, configuredNames []string) error {
 	// For JSON/YAML output
 	if getOutputFormat == "json" || getOutputFormat == "yaml" {
 		pluginsYAML := make([]*plugin.PluginYAML, len(plugins))
@@ -257,11 +257,11 @@ func renderWorkspacePlugins(workspaceName, projectName string, plugins []*plugin
 
 		data := struct {
 			Workspace string               `json:"workspace" yaml:"workspace"`
-			Project   string               `json:"project" yaml:"project"`
+			App       string               `json:"app" yaml:"app"`
 			Plugins   []*plugin.PluginYAML `json:"plugins" yaml:"plugins"`
 		}{
 			Workspace: workspaceName,
-			Project:   projectName,
+			App:       appName,
 			Plugins:   pluginsYAML,
 		}
 		return render.OutputWith(getOutputFormat, data, render.Options{})
@@ -316,7 +316,7 @@ func renderWorkspacePlugins(workspaceName, projectName string, plugins []*plugin
 // WorkspacePluginsOutput represents workspace plugins for structured output
 type WorkspacePluginsOutput struct {
 	Workspace string   `json:"workspace" yaml:"workspace"`
-	Project   string   `json:"project" yaml:"project"`
+	App       string   `json:"app" yaml:"app"`
 	Plugins   []string `json:"plugins" yaml:"plugins"`
 }
 

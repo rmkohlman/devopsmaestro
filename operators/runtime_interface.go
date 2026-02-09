@@ -5,7 +5,7 @@ import "context"
 // ContainerRuntime defines the interface for container runtime operations
 // This abstraction allows DevOpsMaestro to work with Docker, Kubernetes, or any other runtime
 type ContainerRuntime interface {
-	// BuildImage builds a container image from the project
+	// BuildImage builds a container image from the app
 	BuildImage(ctx context.Context, opts BuildOptions) error
 
 	// StartWorkspace starts a workspace container/pod
@@ -42,15 +42,15 @@ type WorkspaceInfo struct {
 	Name      string            // Workspace name (container name)
 	Status    string            // Running, Stopped, etc.
 	Image     string            // Image name
-	Project   string            // Project name from labels
+	App       string            // App name from labels
 	Workspace string            // Workspace name from labels
 	Labels    map[string]string // All labels
 }
 
 // BuildOptions contains options for building container images
 type BuildOptions struct {
-	ProjectPath  string            // Path to the project on the host
-	ProjectName  string            // Name of the project
+	AppPath      string            // Path to the app on the host
+	AppName      string            // Name of the app
 	ImageName    string            // Name of the image to build
 	Dockerfile   string            // Path to Dockerfile
 	BuildContext string            // Path to build context
@@ -62,9 +62,9 @@ type BuildOptions struct {
 type StartOptions struct {
 	ImageName     string            // Container image to use
 	WorkspaceName string            // Name of the workspace
-	ContainerName string            // Container name (e.g., "dvm-project-workspace")
-	ProjectName   string            // Project name for labels
-	ProjectPath   string            // Path to mount as /workspace
+	ContainerName string            // Container name (e.g., "dvm-app-workspace")
+	AppName       string            // App name for labels
+	AppPath       string            // Path to mount as /workspace
 	Env           map[string]string // Environment variables
 	WorkingDir    string            // Working directory inside container
 	Command       []string          // Command to run (default: /bin/zsh)

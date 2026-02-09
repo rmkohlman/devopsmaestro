@@ -13,25 +13,25 @@ import (
 //
 // Works with: Colima (containerd mode via nerdctl CLI)
 type NerdctlBuilder struct {
-	profile     string
-	namespace   string
-	projectPath string
-	imageName   string
-	dockerfile  string
+	profile    string
+	namespace  string
+	appPath    string
+	imageName  string
+	dockerfile string
 }
 
 // NewNerdctlBuilder creates a new nerdctl-based image builder.
 // This builder shells out to `colima nerdctl` for build operations.
-func NewNerdctlBuilder(profile, namespace, projectPath, imageName, dockerfile string) *NerdctlBuilder {
+func NewNerdctlBuilder(profile, namespace, appPath, imageName, dockerfile string) *NerdctlBuilder {
 	if profile == "" {
 		profile = GetColimaProfile()
 	}
 	return &NerdctlBuilder{
-		profile:     profile,
-		namespace:   namespace,
-		projectPath: projectPath,
-		imageName:   imageName,
-		dockerfile:  dockerfile,
+		profile:    profile,
+		namespace:  namespace,
+		appPath:    appPath,
+		imageName:  imageName,
+		dockerfile: dockerfile,
 	}
 }
 
@@ -78,14 +78,14 @@ func (b *NerdctlBuilder) Build(ctx context.Context, opts BuildOptions) error {
 	args = append(args, "--progress", "plain")
 
 	// Add build context last
-	args = append(args, b.projectPath)
+	args = append(args, b.appPath)
 
 	fmt.Printf("Building image: %s\n", b.imageName)
 	fmt.Printf("Command: colima %s\n\n", strings.Join(args, " "))
 
 	// Execute colima nerdctl build
 	cmd := exec.CommandContext(ctx, "colima", args...)
-	cmd.Dir = b.projectPath
+	cmd.Dir = b.appPath
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 

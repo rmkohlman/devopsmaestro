@@ -297,7 +297,7 @@ func (c *ContainerdRuntime) StartWorkspace(ctx context.Context, opts StartOption
 			// Skip TTY for now since we're using NullIO
 			oci.WithMounts([]specs.Mount{
 				{
-					Source:      opts.ProjectPath,
+					Source:      opts.AppPath,
 					Destination: "/workspace",
 					Type:        "bind",
 					Options:     []string{"rbind", "rw"},

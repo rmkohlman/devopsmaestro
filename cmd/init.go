@@ -111,8 +111,8 @@ templates:
 		fmt.Println("\nNext steps:")
 		fmt.Println("  1. Copy your dev environment templates:")
 		fmt.Println("     (We'll create a script for this)")
-		fmt.Println("  2. Create your first project:")
-		fmt.Println("     dvm create project <name> --from-cwd")
+		fmt.Println("  2. Create your first app:")
+		fmt.Println("     dvm create app <name> --from-cwd")
 		fmt.Println("  3. Start coding:")
 		fmt.Println("     dvm use workspace main && dvm attach")
 	},

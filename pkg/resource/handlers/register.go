@@ -30,7 +30,14 @@ var registerOnce sync.Once
 // This function is idempotent and safe to call multiple times.
 func RegisterAll() {
 	registerOnce.Do(func() {
+		// Nvim resources
 		resource.Register(NewNvimPluginHandler())
 		resource.Register(NewNvimThemeHandler())
+
+		// Object hierarchy resources (Ecosystem -> Domain -> App -> Workspace)
+		resource.Register(NewEcosystemHandler())
+		resource.Register(NewDomainHandler())
+		resource.Register(NewAppHandler())
+		resource.Register(NewWorkspaceHandler())
 	})
 }

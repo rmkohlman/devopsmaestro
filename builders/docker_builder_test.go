@@ -20,8 +20,8 @@ func TestNewDockerBuilder_InvalidSocket(t *testing.T) {
 			Type:       operators.PlatformOrbStack,
 			SocketPath: "/nonexistent/socket.sock",
 		},
-		ProjectPath: "/tmp/test",
-		ImageName:   "test:latest",
+		AppPath:   "/tmp/test",
+		ImageName: "test:latest",
 	}
 
 	builder, err := NewDockerBuilder(config)
@@ -66,13 +66,13 @@ func requireDockerPlatform(t *testing.T) *operators.Platform {
 func TestIntegration_DockerBuilder_New(t *testing.T) {
 	platform := requireDockerPlatform(t)
 
-	projectPath := t.TempDir()
+	appPath := t.TempDir()
 
 	config := BuilderConfig{
-		Platform:    platform,
-		Namespace:   "devopsmaestro",
-		ProjectPath: projectPath,
-		ImageName:   "test-docker-builder:latest",
+		Platform:  platform,
+		Namespace: "devopsmaestro",
+		AppPath:   appPath,
+		ImageName: "test-docker-builder:latest",
 	}
 
 	builder, err := NewDockerBuilder(config)
@@ -88,8 +88,8 @@ func TestIntegration_DockerBuilder_New(t *testing.T) {
 	if builder.namespace != "devopsmaestro" {
 		t.Errorf("namespace = %q, want %q", builder.namespace, "devopsmaestro")
 	}
-	if builder.projectPath != projectPath {
-		t.Errorf("projectPath = %q, want %q", builder.projectPath, projectPath)
+	if builder.appPath != appPath {
+		t.Errorf("appPath = %q, want %q", builder.appPath, appPath)
 	}
 	if builder.imageName != "test-docker-builder:latest" {
 		t.Errorf("imageName = %q, want %q", builder.imageName, "test-docker-builder:latest")
@@ -99,13 +99,13 @@ func TestIntegration_DockerBuilder_New(t *testing.T) {
 func TestIntegration_DockerBuilder_ImageExists_NotFound(t *testing.T) {
 	platform := requireDockerPlatform(t)
 
-	projectPath := t.TempDir()
+	appPath := t.TempDir()
 
 	config := BuilderConfig{
-		Platform:    platform,
-		Namespace:   "devopsmaestro",
-		ProjectPath: projectPath,
-		ImageName:   "nonexistent-image-" + t.Name() + ":v999",
+		Platform:  platform,
+		Namespace: "devopsmaestro",
+		AppPath:   appPath,
+		ImageName: "nonexistent-image-" + t.Name() + ":v999",
 	}
 
 	builder, err := NewDockerBuilder(config)
@@ -132,9 +132,9 @@ func TestIntegration_DockerBuilder_Build(t *testing.T) {
 
 	platform := requireDockerPlatform(t)
 
-	// Create temporary project with Dockerfile
-	projectPath := t.TempDir()
-	dockerfile := filepath.Join(projectPath, "Dockerfile")
+	// Create temporary app directory with Dockerfile
+	appPath := t.TempDir()
+	dockerfile := filepath.Join(appPath, "Dockerfile")
 	err := os.WriteFile(dockerfile, []byte(`
 FROM alpine:latest
 RUN echo "test"
@@ -146,10 +146,10 @@ RUN echo "test"
 	imageName := "dvm-test-docker-builder:test"
 
 	config := BuilderConfig{
-		Platform:    platform,
-		Namespace:   "devopsmaestro",
-		ProjectPath: projectPath,
-		ImageName:   imageName,
+		Platform:  platform,
+		Namespace: "devopsmaestro",
+		AppPath:   appPath,
+		ImageName: imageName,
 	}
 
 	builder, err := NewDockerBuilder(config)
@@ -194,8 +194,8 @@ func TestIntegration_DockerBuilder_Build_WithOptions(t *testing.T) {
 
 	platform := requireDockerPlatform(t)
 
-	projectPath := t.TempDir()
-	dockerfile := filepath.Join(projectPath, "Dockerfile")
+	appPath := t.TempDir()
+	dockerfile := filepath.Join(appPath, "Dockerfile")
 	err := os.WriteFile(dockerfile, []byte(`
 FROM alpine:latest
 ARG BUILD_VERSION=unknown
@@ -208,10 +208,10 @@ RUN echo "Version: ${BUILD_VERSION}"
 	imageName := "dvm-test-docker-builder-opts:test"
 
 	config := BuilderConfig{
-		Platform:    platform,
-		Namespace:   "devopsmaestro",
-		ProjectPath: projectPath,
-		ImageName:   imageName,
+		Platform:  platform,
+		Namespace: "devopsmaestro",
+		AppPath:   appPath,
+		ImageName: imageName,
 	}
 
 	builder, err := NewDockerBuilder(config)
@@ -241,10 +241,10 @@ func TestIntegration_DockerBuilder_Build_CustomDockerfile(t *testing.T) {
 
 	platform := requireDockerPlatform(t)
 
-	projectPath := t.TempDir()
+	appPath := t.TempDir()
 
 	// Create custom Dockerfile with different name
-	customDockerfile := filepath.Join(projectPath, "Dockerfile.custom")
+	customDockerfile := filepath.Join(appPath, "Dockerfile.custom")
 	err := os.WriteFile(customDockerfile, []byte(`
 FROM alpine:latest
 LABEL test="custom-dockerfile"
@@ -256,11 +256,11 @@ LABEL test="custom-dockerfile"
 	imageName := "dvm-test-docker-builder-custom:test"
 
 	config := BuilderConfig{
-		Platform:    platform,
-		Namespace:   "devopsmaestro",
-		ProjectPath: projectPath,
-		ImageName:   imageName,
-		Dockerfile:  customDockerfile,
+		Platform:   platform,
+		Namespace:  "devopsmaestro",
+		AppPath:    appPath,
+		ImageName:  imageName,
+		Dockerfile: customDockerfile,
 	}
 
 	builder, err := NewDockerBuilder(config)
@@ -280,8 +280,8 @@ LABEL test="custom-dockerfile"
 func TestDockerBuilder_Build_Cancelled(t *testing.T) {
 	platform := requireDockerPlatform(t)
 
-	projectPath := t.TempDir()
-	dockerfile := filepath.Join(projectPath, "Dockerfile")
+	appPath := t.TempDir()
+	dockerfile := filepath.Join(appPath, "Dockerfile")
 	err := os.WriteFile(dockerfile, []byte(`
 FROM alpine:latest
 RUN sleep 60
@@ -291,10 +291,10 @@ RUN sleep 60
 	}
 
 	config := BuilderConfig{
-		Platform:    platform,
-		Namespace:   "devopsmaestro",
-		ProjectPath: projectPath,
-		ImageName:   "dvm-test-cancelled:test",
+		Platform:  platform,
+		Namespace: "devopsmaestro",
+		AppPath:   appPath,
+		ImageName: "dvm-test-cancelled:test",
 	}
 
 	builder, err := NewDockerBuilder(config)

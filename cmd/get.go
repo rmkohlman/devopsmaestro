@@ -26,7 +26,7 @@ var getCmd = &cobra.Command{
 	Long: `Get resources in various formats (colored, yaml, json, plain).
 
 Resource aliases (kubectl-style):
-  projects   → proj
+  apps       → a, app
   workspaces → ws
   workspace  → ws
   context    → ctx
@@ -35,8 +35,8 @@ Resource aliases (kubectl-style):
   nvim themes  → nt
 
 Examples:
-  dvm get projects
-  dvm get proj                    # Same as 'get projects'
+  dvm get apps
+  dvm get a                       # Same as 'get apps'
   dvm get workspaces
   dvm get ws                      # Same as 'get workspaces'
   dvm get workspace main
@@ -46,42 +46,21 @@ Examples:
   dvm get np                      # Same as 'get nvim plugins'
   dvm get nt                      # Same as 'get nvim themes'
   dvm get workspace main -o yaml
-  dvm get project my-api -o json
+  dvm get app my-api -o json
 `,
 }
 
-// getProjectsCmd lists all projects
-var getProjectsCmd = &cobra.Command{
-	Use:     "projects",
-	Aliases: []string{"proj"},
-	Short:   "List all projects",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return getProjects(cmd)
-	},
-}
-
-// getProjectCmd gets a specific project
-var getProjectCmd = &cobra.Command{
-	Use:     "project [name]",
-	Aliases: []string{"proj"},
-	Short:   "Get a specific project",
-	Args:    cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return getProject(cmd, args[0])
-	},
-}
-
-// getWorkspacesCmd lists all workspaces in current project
+// getWorkspacesCmd lists all workspaces in current app
 var getWorkspacesCmd = &cobra.Command{
 	Use:     "workspaces",
 	Aliases: []string{"ws"},
-	Short:   "List all workspaces in a project",
-	Long: `List all workspaces in a project.
+	Short:   "List all workspaces in an app",
+	Long: `List all workspaces in an app.
 
 Examples:
-  dvm get workspaces              # List workspaces in active project
+  dvm get workspaces              # List workspaces in active app
   dvm get ws                      # Short form
-  dvm get workspaces -p myproject # List workspaces in specific project`,
+  dvm get workspaces --app myapp  # List workspaces in specific app`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return getWorkspaces(cmd)
 	},
@@ -95,9 +74,9 @@ var getWorkspaceCmd = &cobra.Command{
 	Long: `Get a specific workspace by name.
 
 Examples:
-  dvm get workspace main              # Get workspace from active project
+  dvm get workspace main              # Get workspace from active app
   dvm get ws main                     # Short form
-  dvm get workspace main -p myproject # Get workspace from specific project
+  dvm get workspace main --app myapp  # Get workspace from specific app
   dvm get workspace main -o yaml      # Output as YAML`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -127,13 +106,13 @@ var getContextCmd = &cobra.Command{
 	Use:     "context",
 	Aliases: []string{"ctx"},
 	Short:   "Display the current context",
-	Long: `Display the current active project and workspace context.
+	Long: `Display the current active app and workspace context.
 
-The context determines which project and workspace commands operate on by default.
-Set context with 'dvm use project <name>' and 'dvm use workspace <name>'.
+The context determines which app and workspace commands operate on by default.
+Set context with 'dvm use app <name>' and 'dvm use workspace <name>'.
 
 Context can also be set via environment variables:
-  DVM_PROJECT    - Override active project
+  DVM_APP        - Override active app
   DVM_WORKSPACE  - Override active workspace
 
 Examples:
@@ -184,8 +163,6 @@ Examples:
 
 func init() {
 	rootCmd.AddCommand(getCmd)
-	getCmd.AddCommand(getProjectsCmd)
-	getCmd.AddCommand(getProjectCmd)
 	getCmd.AddCommand(getWorkspacesCmd)
 	getCmd.AddCommand(getWorkspaceCmd)
 	getCmd.AddCommand(getPlatformsCmd)
@@ -199,9 +176,9 @@ func init() {
 	// Maps to render package: json, yaml, plain, table, colored (default)
 	getCmd.PersistentFlags().StringVarP(&getOutputFormat, "output", "o", "", "Output format (json, yaml, plain, table, colored)")
 
-	// Add project flag for workspace commands
-	getWorkspacesCmd.Flags().StringP("project", "p", "", "Project name (defaults to active project)")
-	getWorkspaceCmd.Flags().StringP("project", "p", "", "Project name (defaults to active project)")
+	// Add app flag for workspace commands
+	getWorkspacesCmd.Flags().StringP("app", "a", "", "App name (defaults to active app)")
+	getWorkspaceCmd.Flags().StringP("app", "a", "", "App name (defaults to active app)")
 }
 
 func getDataStore(cmd *cobra.Command) (db.DataStore, error) {
@@ -216,7 +193,7 @@ func getDataStore(cmd *cobra.Command) (db.DataStore, error) {
 
 // ContextOutput represents context for output formatting
 type ContextOutput struct {
-	CurrentProject   string `yaml:"currentProject" json:"currentProject"`
+	CurrentApp       string `yaml:"currentApp" json:"currentApp"`
 	CurrentWorkspace string `yaml:"currentWorkspace" json:"currentWorkspace"`
 }
 
@@ -233,12 +210,12 @@ func getContext(cmd *cobra.Command) error {
 
 	// Build structured data
 	data := ContextOutput{
-		CurrentProject:   ctx.CurrentProject,
+		CurrentApp:       ctx.CurrentApp,
 		CurrentWorkspace: ctx.CurrentWorkspace,
 	}
 
 	// Check if empty
-	isEmpty := ctx.CurrentProject == ""
+	isEmpty := ctx.CurrentApp == ""
 
 	// For structured output (JSON/YAML), always output the data structure
 	// For human output, show nice key-value display
@@ -252,7 +229,7 @@ func getContext(cmd *cobra.Command) error {
 			Empty:        true,
 			EmptyMessage: "No active context",
 			EmptyHints: []string{
-				"dvm use project <name>",
+				"dvm use app <name>",
 				"dvm use workspace <name>",
 			},
 		})
@@ -264,7 +241,7 @@ func getContext(cmd *cobra.Command) error {
 	}
 
 	kvData := render.NewOrderedKeyValueData(
-		render.KeyValue{Key: "Project", Value: ctx.CurrentProject},
+		render.KeyValue{Key: "App", Value: ctx.CurrentApp},
 		render.KeyValue{Key: "Workspace", Value: workspace},
 	)
 
@@ -274,128 +251,29 @@ func getContext(cmd *cobra.Command) error {
 	})
 }
 
-func getProjects(cmd *cobra.Command) error {
-	sqlDS, err := getDataStore(cmd)
-	if err != nil {
-		return err
-	}
-
-	projects, err := sqlDS.ListProjects()
-	if err != nil {
-		return fmt.Errorf("failed to list projects: %w", err)
-	}
-
-	// Get active project for highlighting
-	ctxMgr, _ := operators.NewContextManager()
-	var activeProject string
-	if ctxMgr != nil {
-		activeProject, _ = ctxMgr.GetActiveProject()
-	}
-
-	if len(projects) == 0 {
-		return render.OutputWith(getOutputFormat, nil, render.Options{
-			Empty:        true,
-			EmptyMessage: "No projects found",
-			EmptyHints:   []string{"dvm create project <name> --path <path>"},
-		})
-	}
-
-	// For JSON/YAML, output the model data directly
-	if getOutputFormat == "json" || getOutputFormat == "yaml" {
-		projectsYAML := make([]models.ProjectYAML, len(projects))
-		for i, p := range projects {
-			projectsYAML[i] = p.ToYAML()
-		}
-		return render.OutputWith(getOutputFormat, projectsYAML, render.Options{})
-	}
-
-	// For human output, build table data
-	tableData := render.TableData{
-		Headers: []string{"NAME", "PATH", "CREATED"},
-		Rows:    make([][]string, len(projects)),
-	}
-
-	for i, p := range projects {
-		name := p.Name
-		if p.Name == activeProject {
-			name = "● " + name // Active indicator
-		}
-		tableData.Rows[i] = []string{
-			name,
-			p.Path,
-			p.CreatedAt.Format("2006-01-02 15:04"),
-		}
-	}
-
-	return render.OutputWith(getOutputFormat, tableData, render.Options{
-		Type: render.TypeTable,
-	})
-}
-
-func getProject(cmd *cobra.Command, name string) error {
-	sqlDS, err := getDataStore(cmd)
-	if err != nil {
-		return err
-	}
-
-	project, err := sqlDS.GetProjectByName(name)
-	if err != nil {
-		return fmt.Errorf("failed to get project: %w", err)
-	}
-
-	// For JSON/YAML, output the model data directly
-	if getOutputFormat == "json" || getOutputFormat == "yaml" {
-		return render.OutputWith(getOutputFormat, project.ToYAML(), render.Options{})
-	}
-
-	// For human output, show detail view
-	ctxMgr, _ := operators.NewContextManager()
-	var activeProject string
-	if ctxMgr != nil {
-		activeProject, _ = ctxMgr.GetActiveProject()
-	}
-
-	isActive := project.Name == activeProject
-	nameDisplay := project.Name
-	if isActive {
-		nameDisplay = "● " + nameDisplay + " (active)"
-	}
-
-	kvData := render.NewOrderedKeyValueData(
-		render.KeyValue{Key: "Name", Value: nameDisplay},
-		render.KeyValue{Key: "Path", Value: project.Path},
-		render.KeyValue{Key: "Created", Value: project.CreatedAt.Format("2006-01-02 15:04:05")},
-	)
-
-	return render.OutputWith(getOutputFormat, kvData, render.Options{
-		Type:  render.TypeKeyValue,
-		Title: "Project Details",
-	})
-}
-
 func getWorkspaces(cmd *cobra.Command) error {
-	// Get project from flag or context
-	projectFlag, _ := cmd.Flags().GetString("project")
+	// Get app from flag or context
+	appFlag, _ := cmd.Flags().GetString("app")
 
 	ctxMgr, err := operators.NewContextManager()
 	if err != nil {
 		return fmt.Errorf("failed to create context manager: %w", err)
 	}
 
-	var projectName string
-	if projectFlag != "" {
-		projectName = projectFlag
+	var appName string
+	if appFlag != "" {
+		appName = appFlag
 	} else {
-		projectName, err = ctxMgr.GetActiveProject()
+		appName, err = ctxMgr.GetActiveApp()
 		if err != nil {
-			return fmt.Errorf("no project specified. Use -p <project> or 'dvm use project <name>' first")
+			return fmt.Errorf("no app specified. Use --app <name> or 'dvm use app <name>' first")
 		}
 	}
 
-	// Get active workspace (only relevant if viewing active project)
+	// Get active workspace (only relevant if viewing active app)
 	var activeWorkspace string
-	activeProject, _ := ctxMgr.GetActiveProject()
-	if activeProject == projectName {
+	activeApp, _ := ctxMgr.GetActiveApp()
+	if activeApp == appName {
 		activeWorkspace, _ = ctxMgr.GetActiveWorkspace()
 	}
 
@@ -404,14 +282,14 @@ func getWorkspaces(cmd *cobra.Command) error {
 		return err
 	}
 
-	// Get project to get its ID
-	project, err := sqlDS.GetProjectByName(projectName)
+	// Get app to get its ID (search globally across all domains)
+	app, err := sqlDS.GetAppByNameGlobal(appName)
 	if err != nil {
-		return fmt.Errorf("failed to get project: %w", err)
+		return fmt.Errorf("app '%s' not found: %w", appName, err)
 	}
 
-	// List workspaces for this project
-	workspaces, err := sqlDS.ListWorkspacesByProject(project.ID)
+	// List workspaces for this app
+	workspaces, err := sqlDS.ListWorkspacesByApp(app.ID)
 	if err != nil {
 		return fmt.Errorf("failed to list workspaces: %w", err)
 	}
@@ -419,7 +297,7 @@ func getWorkspaces(cmd *cobra.Command) error {
 	if len(workspaces) == 0 {
 		return render.OutputWith(getOutputFormat, nil, render.Options{
 			Empty:        true,
-			EmptyMessage: fmt.Sprintf("No workspaces found in project '%s'", projectName),
+			EmptyMessage: fmt.Sprintf("No workspaces found in app '%s'", appName),
 			EmptyHints:   []string{"dvm create workspace <name>"},
 		})
 	}
@@ -428,14 +306,14 @@ func getWorkspaces(cmd *cobra.Command) error {
 	if getOutputFormat == "json" || getOutputFormat == "yaml" {
 		workspacesYAML := make([]models.WorkspaceYAML, len(workspaces))
 		for i, ws := range workspaces {
-			workspacesYAML[i] = ws.ToYAML(projectName)
+			workspacesYAML[i] = ws.ToYAML(appName)
 		}
 		return render.OutputWith(getOutputFormat, workspacesYAML, render.Options{})
 	}
 
 	// For human output, build table data
 	tableData := render.TableData{
-		Headers: []string{"NAME", "PROJECT", "IMAGE", "STATUS", "CREATED"},
+		Headers: []string{"NAME", "APP", "IMAGE", "STATUS", "CREATED"},
 		Rows:    make([][]string, len(workspaces)),
 	}
 
@@ -446,7 +324,7 @@ func getWorkspaces(cmd *cobra.Command) error {
 		}
 		tableData.Rows[i] = []string{
 			name,
-			projectName,
+			appName,
 			ws.ImageName,
 			ws.Status,
 			ws.CreatedAt.Format("2006-01-02 15:04"),
@@ -459,21 +337,21 @@ func getWorkspaces(cmd *cobra.Command) error {
 }
 
 func getWorkspace(cmd *cobra.Command, name string) error {
-	// Get project from flag or context
-	projectFlag, _ := cmd.Flags().GetString("project")
+	// Get app from flag or context
+	appFlag, _ := cmd.Flags().GetString("app")
 
 	ctxMgr, err := operators.NewContextManager()
 	if err != nil {
 		return fmt.Errorf("failed to create context manager: %w", err)
 	}
 
-	var projectName string
-	if projectFlag != "" {
-		projectName = projectFlag
+	var appName string
+	if appFlag != "" {
+		appName = appFlag
 	} else {
-		projectName, err = ctxMgr.GetActiveProject()
+		appName, err = ctxMgr.GetActiveApp()
 		if err != nil {
-			return fmt.Errorf("no project specified. Use -p <project> or 'dvm use project <name>' first")
+			return fmt.Errorf("no app specified. Use --app <name> or 'dvm use app <name>' first")
 		}
 	}
 
@@ -482,26 +360,26 @@ func getWorkspace(cmd *cobra.Command, name string) error {
 		return err
 	}
 
-	// Get project to get its ID
-	project, err := sqlDS.GetProjectByName(projectName)
+	// Get app to get its ID (search globally across all domains)
+	app, err := sqlDS.GetAppByNameGlobal(appName)
 	if err != nil {
-		return fmt.Errorf("failed to get project: %w", err)
+		return fmt.Errorf("app '%s' not found: %w", appName, err)
 	}
 
-	workspace, err := sqlDS.GetWorkspaceByName(project.ID, name)
+	workspace, err := sqlDS.GetWorkspaceByName(app.ID, name)
 	if err != nil {
 		return fmt.Errorf("failed to get workspace: %w", err)
 	}
 
 	// For JSON/YAML, output the model data directly
 	if getOutputFormat == "json" || getOutputFormat == "yaml" {
-		return render.OutputWith(getOutputFormat, workspace.ToYAML(projectName), render.Options{})
+		return render.OutputWith(getOutputFormat, workspace.ToYAML(appName), render.Options{})
 	}
 
 	// For human output, show detail view
 	var activeWorkspace string
-	activeProject, _ := ctxMgr.GetActiveProject()
-	if activeProject == projectName {
+	activeApp, _ := ctxMgr.GetActiveApp()
+	if activeApp == appName {
 		activeWorkspace, _ = ctxMgr.GetActiveWorkspace()
 	}
 
@@ -513,7 +391,7 @@ func getWorkspace(cmd *cobra.Command, name string) error {
 
 	kvData := render.NewOrderedKeyValueData(
 		render.KeyValue{Key: "Name", Value: nameDisplay},
-		render.KeyValue{Key: "Project", Value: projectName},
+		render.KeyValue{Key: "App", Value: appName},
 		render.KeyValue{Key: "Image", Value: workspace.ImageName},
 		render.KeyValue{Key: "Status", Value: workspace.Status},
 		render.KeyValue{Key: "Created", Value: workspace.CreatedAt.Format("2006-01-02 15:04:05")},

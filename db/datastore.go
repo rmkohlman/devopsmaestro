@@ -8,7 +8,78 @@ import (
 // It provides a business-logic oriented API that abstracts away database specifics.
 // Implementations can use any underlying Driver (SQLite, PostgreSQL, DuckDB, etc.).
 type DataStore interface {
-	// Project Operations
+	// Ecosystem Operations (top-level grouping)
+
+	// CreateEcosystem inserts a new ecosystem into the database.
+	CreateEcosystem(ecosystem *models.Ecosystem) error
+
+	// GetEcosystemByName retrieves an ecosystem by its name.
+	GetEcosystemByName(name string) (*models.Ecosystem, error)
+
+	// GetEcosystemByID retrieves an ecosystem by its ID.
+	GetEcosystemByID(id int) (*models.Ecosystem, error)
+
+	// UpdateEcosystem updates an existing ecosystem.
+	UpdateEcosystem(ecosystem *models.Ecosystem) error
+
+	// DeleteEcosystem removes an ecosystem by name.
+	DeleteEcosystem(name string) error
+
+	// ListEcosystems retrieves all ecosystems.
+	ListEcosystems() ([]*models.Ecosystem, error)
+
+	// Domain Operations (bounded context within an ecosystem)
+
+	// CreateDomain inserts a new domain into the database.
+	CreateDomain(domain *models.Domain) error
+
+	// GetDomainByName retrieves a domain by ecosystem ID and name.
+	GetDomainByName(ecosystemID int, name string) (*models.Domain, error)
+
+	// GetDomainByID retrieves a domain by its ID.
+	GetDomainByID(id int) (*models.Domain, error)
+
+	// UpdateDomain updates an existing domain.
+	UpdateDomain(domain *models.Domain) error
+
+	// DeleteDomain removes a domain by ID.
+	DeleteDomain(id int) error
+
+	// ListDomainsByEcosystem retrieves all domains for an ecosystem.
+	ListDomainsByEcosystem(ecosystemID int) ([]*models.Domain, error)
+
+	// ListAllDomains retrieves all domains across all ecosystems.
+	ListAllDomains() ([]*models.Domain, error)
+
+	// App Operations (codebase/application within a domain)
+
+	// CreateApp inserts a new app into the database.
+	CreateApp(app *models.App) error
+
+	// GetAppByName retrieves an app by domain ID and name.
+	GetAppByName(domainID int, name string) (*models.App, error)
+
+	// GetAppByNameGlobal retrieves an app by name across all domains.
+	// Returns the first match if multiple apps have the same name in different domains.
+	// This is useful for CLI convenience when the user doesn't want to specify domain context.
+	GetAppByNameGlobal(name string) (*models.App, error)
+
+	// GetAppByID retrieves an app by its ID.
+	GetAppByID(id int) (*models.App, error)
+
+	// UpdateApp updates an existing app.
+	UpdateApp(app *models.App) error
+
+	// DeleteApp removes an app by ID.
+	DeleteApp(id int) error
+
+	// ListAppsByDomain retrieves all apps for a domain.
+	ListAppsByDomain(domainID int) ([]*models.App, error)
+
+	// ListAllApps retrieves all apps across all domains.
+	ListAllApps() ([]*models.App, error)
+
+	// Project Operations (DEPRECATED: migrate to Domain/App)
 
 	// CreateProject inserts a new project into the database.
 	CreateProject(project *models.Project) error
@@ -33,8 +104,8 @@ type DataStore interface {
 	// CreateWorkspace inserts a new workspace.
 	CreateWorkspace(workspace *models.Workspace) error
 
-	// GetWorkspaceByName retrieves a workspace by project ID and name.
-	GetWorkspaceByName(projectID int, name string) (*models.Workspace, error)
+	// GetWorkspaceByName retrieves a workspace by app ID and name.
+	GetWorkspaceByName(appID int, name string) (*models.Workspace, error)
 
 	// GetWorkspaceByID retrieves a workspace by its ID.
 	GetWorkspaceByID(id int) (*models.Workspace, error)
@@ -45,22 +116,33 @@ type DataStore interface {
 	// DeleteWorkspace removes a workspace by ID.
 	DeleteWorkspace(id int) error
 
-	// ListWorkspacesByProject retrieves all workspaces for a project.
-	ListWorkspacesByProject(projectID int) ([]*models.Workspace, error)
+	// ListWorkspacesByApp retrieves all workspaces for an app.
+	ListWorkspacesByApp(appID int) ([]*models.Workspace, error)
 
-	// ListAllWorkspaces retrieves all workspaces across all projects.
+	// ListAllWorkspaces retrieves all workspaces across all apps.
 	ListAllWorkspaces() ([]*models.Workspace, error)
 
-	// Context Operations (active project/workspace tracking)
+	// Context Operations (active selection state tracking)
+	// The hierarchy is: Ecosystem -> Domain -> App -> Workspace
 
 	// GetContext retrieves the current context.
 	GetContext() (*models.Context, error)
 
-	// SetActiveProject sets the active project in the context.
-	SetActiveProject(projectID *int) error
+	// SetActiveEcosystem sets the active ecosystem in the context.
+	SetActiveEcosystem(ecosystemID *int) error
+
+	// SetActiveDomain sets the active domain in the context.
+	SetActiveDomain(domainID *int) error
+
+	// SetActiveApp sets the active app in the context.
+	SetActiveApp(appID *int) error
 
 	// SetActiveWorkspace sets the active workspace in the context.
 	SetActiveWorkspace(workspaceID *int) error
+
+	// SetActiveProject sets the active project in the context.
+	// DEPRECATED: Use SetActiveApp instead. Will be removed in v0.9.0.
+	SetActiveProject(projectID *int) error
 
 	// Plugin Operations
 

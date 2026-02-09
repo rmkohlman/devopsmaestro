@@ -13,11 +13,11 @@
 //
 //	platform, _ := operators.NewPlatformDetector().Detect()
 //	builder, _ := builders.NewImageBuilder(builders.BuilderConfig{
-//	    Platform:    platform,
-//	    Namespace:   "devopsmaestro",
-//	    ProjectPath: "/path/to/project",
-//	    ImageName:   "myimage:latest",
-//	    Dockerfile:  "/path/to/Dockerfile",
+//	    Platform:   platform,
+//	    Namespace:  "devopsmaestro",
+//	    AppPath:    "/path/to/app",
+//	    ImageName:  "myimage:latest",
+//	    Dockerfile: "/path/to/Dockerfile",
 //	})
 //	defer builder.Close()
 //	err := builder.Build(ctx, builders.BuildOptions{})

@@ -34,10 +34,10 @@ var buildCmd = &cobra.Command{
 	Long: `Build a development container image for the active workspace.
 
 This command:
-- Detects the project language
+- Detects the app language
 - Generates or extends Dockerfile with dev tools
 - Builds the image using the detected container platform
-- Tags as dvm-<workspace>-<project>:latest
+- Tags as dvm-<workspace>-<app>:latest
 
 Supports multiple platforms:
 - OrbStack (uses Docker API)
@@ -75,10 +75,10 @@ func buildWorkspace(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to create context manager: %w", err)
 	}
 
-	projectName, err := ctxMgr.GetActiveProject()
+	appName, err := ctxMgr.GetActiveApp()
 	if err != nil {
-		slog.Debug("no active project set")
-		return fmt.Errorf("no active project set. Use 'dvm use project <name>' first")
+		slog.Debug("no active app set")
+		return fmt.Errorf("no active app set. Use 'dvm use app <name>' first")
 	}
 
 	workspaceName, err := ctxMgr.GetActiveWorkspace()
@@ -87,7 +87,7 @@ func buildWorkspace(cmd *cobra.Command) error {
 		return fmt.Errorf("no active workspace set. Use 'dvm use workspace <name>' first")
 	}
 
-	slog.Debug("build context", "project", projectName, "workspace", workspaceName)
+	slog.Debug("build context", "app", appName, "workspace", workspaceName)
 
 	// Get datastore
 	sqlDS, err := getDataStore(cmd)
@@ -95,29 +95,29 @@ func buildWorkspace(cmd *cobra.Command) error {
 		return err
 	}
 
-	// Get project
-	project, err := sqlDS.GetProjectByName(projectName)
+	// Get app (search globally across all domains)
+	app, err := sqlDS.GetAppByNameGlobal(appName)
 	if err != nil {
-		slog.Error("failed to get project", "name", projectName, "error", err)
-		return fmt.Errorf("failed to get project: %w", err)
+		slog.Error("failed to get app", "name", appName, "error", err)
+		return fmt.Errorf("failed to get app: %w", err)
 	}
 
 	// Get workspace
-	workspace, err := sqlDS.GetWorkspaceByName(project.ID, workspaceName)
+	workspace, err := sqlDS.GetWorkspaceByName(app.ID, workspaceName)
 	if err != nil {
-		slog.Error("failed to get workspace", "name", workspaceName, "project_id", project.ID, "error", err)
+		slog.Error("failed to get workspace", "name", workspaceName, "app_id", app.ID, "error", err)
 		return fmt.Errorf("failed to get workspace: %w", err)
 	}
 
-	render.Info(fmt.Sprintf("Building workspace: %s/%s", projectName, workspaceName))
-	render.Info(fmt.Sprintf("Project path: %s", project.Path))
+	render.Info(fmt.Sprintf("Building workspace: %s/%s", appName, workspaceName))
+	render.Info(fmt.Sprintf("App path: %s", app.Path))
 	fmt.Println()
-	slog.Debug("project details", "path", project.Path, "id", project.ID)
+	slog.Debug("app details", "path", app.Path, "id", app.ID)
 
-	// Verify project path exists
-	if _, err := os.Stat(project.Path); os.IsNotExist(err) {
-		slog.Error("project path does not exist", "path", project.Path)
-		return fmt.Errorf("project path does not exist: %s", project.Path)
+	// Verify app path exists
+	if _, err := os.Stat(app.Path); os.IsNotExist(err) {
+		slog.Error("app path does not exist", "path", app.Path)
+		return fmt.Errorf("app path does not exist: %s", app.Path)
 	}
 
 	// Step 1: Detect platform
@@ -131,8 +131,8 @@ func buildWorkspace(cmd *cobra.Command) error {
 
 	// Step 2: Detect language
 	fmt.Println()
-	render.Progress("Detecting project language...")
-	lang, err := utils.DetectLanguage(project.Path)
+	render.Progress("Detecting app language...")
+	lang, err := utils.DetectLanguage(app.Path)
 	if err != nil {
 		slog.Error("failed to detect language", "error", err)
 		return fmt.Errorf("failed to detect language: %w", err)
@@ -141,7 +141,7 @@ func buildWorkspace(cmd *cobra.Command) error {
 	var languageName, version string
 	if lang != nil {
 		languageName = lang.Name
-		version = utils.DetectVersion(languageName, project.Path)
+		version = utils.DetectVersion(languageName, app.Path)
 		if version != "" {
 			render.Info(fmt.Sprintf("Language: %s (version: %s)", languageName, version))
 		} else {
@@ -157,7 +157,7 @@ func buildWorkspace(cmd *cobra.Command) error {
 	// Step 3: Check for existing Dockerfile
 	fmt.Println()
 	render.Progress("Checking for Dockerfile...")
-	hasDockerfile, dockerfilePath := utils.HasDockerfile(project.Path)
+	hasDockerfile, dockerfilePath := utils.HasDockerfile(app.Path)
 	if hasDockerfile {
 		render.Info(fmt.Sprintf("Found: %s", dockerfilePath))
 		slog.Debug("found existing Dockerfile", "path", dockerfilePath)
@@ -167,7 +167,7 @@ func buildWorkspace(cmd *cobra.Command) error {
 	}
 
 	// Step 4: Generate workspace spec (for now, use defaults)
-	workspaceYAML := workspace.ToYAML(projectName)
+	workspaceYAML := workspace.ToYAML(appName)
 
 	// Set some sensible defaults if not configured
 	if workspaceYAML.Spec.Shell.Type == "" {
@@ -188,7 +188,7 @@ func buildWorkspace(cmd *cobra.Command) error {
 
 	// Step 5: Generate nvim config BEFORE Dockerfile (so Dockerfile generator can see .config/nvim/)
 	if workspaceYAML.Spec.Nvim.Structure != "" && workspaceYAML.Spec.Nvim.Structure != "none" {
-		if err := copyNvimConfig(workspaceYAML.Spec.Nvim.Plugins, project.Path, homeDir, sqlDS); err != nil {
+		if err := copyNvimConfig(workspaceYAML.Spec.Nvim.Plugins, app.Path, homeDir, sqlDS); err != nil {
 			return err
 		}
 	}
@@ -202,7 +202,7 @@ func buildWorkspace(cmd *cobra.Command) error {
 		workspaceYAML.Spec,
 		languageName,
 		version,
-		project.Path,
+		app.Path,
 		dockerfilePath,
 	)
 
@@ -213,7 +213,7 @@ func buildWorkspace(cmd *cobra.Command) error {
 	}
 
 	// Save Dockerfile
-	dvmDockerfile, err := builders.SaveDockerfile(dockerfileContent, project.Path)
+	dvmDockerfile, err := builders.SaveDockerfile(dockerfileContent, app.Path)
 	if err != nil {
 		slog.Error("failed to save Dockerfile", "error", err)
 		return err
@@ -223,18 +223,18 @@ func buildWorkspace(cmd *cobra.Command) error {
 	// Step 6: Build image
 	// Use timestamp tag for versioning (enables container recreation on rebuild)
 	timestamp := time.Now().Format("20060102-150405")
-	imageName := fmt.Sprintf("dvm-%s-%s:%s", workspaceName, projectName, timestamp)
+	imageName := fmt.Sprintf("dvm-%s-%s:%s", workspaceName, appName, timestamp)
 	fmt.Println()
 	render.Progress(fmt.Sprintf("Building image: %s", imageName))
 	slog.Info("building image", "image", imageName, "dockerfile", dvmDockerfile)
 
 	// Create image builder using the factory (decoupled from platform specifics)
 	builder, err := builders.NewImageBuilder(builders.BuilderConfig{
-		Platform:    platform,
-		Namespace:   "devopsmaestro",
-		ProjectPath: project.Path,
-		ImageName:   imageName,
-		Dockerfile:  dvmDockerfile,
+		Platform:   platform,
+		Namespace:  "devopsmaestro",
+		AppPath:    app.Path,
+		ImageName:  imageName,
+		Dockerfile: dvmDockerfile,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create builder: %w", err)
@@ -328,10 +328,10 @@ func getPlatformInstallHint() string {
 // copyNvimConfig generates nvim configuration using nvp and copies to build context
 // It filters plugins based on the workspace's configured plugin list
 // Reads plugin data from the database (source of truth)
-func copyNvimConfig(workspacePlugins []string, projectPath, homeDir string, ds db.DataStore) error {
+func copyNvimConfig(workspacePlugins []string, appPath, homeDir string, ds db.DataStore) error {
 	render.Progress("Generating Neovim configuration for container...")
 
-	nvimConfigPath := filepath.Join(projectPath, ".config", "nvim")
+	nvimConfigPath := filepath.Join(appPath, ".config", "nvim")
 	if err := os.MkdirAll(nvimConfigPath, 0755); err != nil {
 		return fmt.Errorf("failed to create nvim config directory: %w", err)
 	}

@@ -164,6 +164,154 @@ type MockDataStoreFactory struct {
 }
 ```
 
+### 7. RESOURCE/HANDLER PATTERN FOR CLI OPERATIONS
+
+**ALL CLI commands that perform CRUD operations on resources MUST use the Resource/Handler pattern.**
+
+This is the unified kubectl-style pattern for managing resources. It provides:
+- Consistent API across all resource types
+- Decoupled rendering (JSON, YAML, table output)
+- YAML-based apply pipeline (`dvm apply -f resource.yaml`)
+- Easy addition of new resource types
+
+**Architecture:**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    CLI Commands (cmd/)                          │
+│  dvm get apps, dvm create ecosystem, dvm apply -f file.yaml    │
+└───────────────────────────────┬─────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                 Resource Registry (pkg/resource/)               │
+│  resource.Get(), resource.List(), resource.Apply()              │
+│  Routes to appropriate handler by Kind                          │
+└───────────────────────────────┬─────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              Resource Handlers (pkg/resource/handlers/)         │
+│  EcosystemHandler, DomainHandler, AppHandler, NvimPluginHandler │
+│  Each implements: Apply, Get, List, Delete, ToYAML              │
+└───────────────────────────────┬─────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    DataStore (db/)                              │
+│  Actual database operations                                     │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Resource Interface (`pkg/resource/resource.go`):**
+
+```go
+// Resource represents any manageable resource
+type Resource interface {
+    GetKind() string   // e.g., "Ecosystem", "App", "NvimPlugin"
+    GetName() string   // Unique name
+    Validate() error   // Validation logic
+}
+
+// Handler knows how to manage a specific resource type
+type Handler interface {
+    Kind() string
+    Apply(ctx Context, data []byte) (Resource, error)
+    Get(ctx Context, name string) (Resource, error)
+    List(ctx Context) ([]Resource, error)
+    Delete(ctx Context, name string) error
+    ToYAML(res Resource) ([]byte, error)
+}
+```
+
+**Adding a New Resource Type:**
+
+1. **Create Handler** (`pkg/resource/handlers/myresource.go`):
+```go
+const KindMyResource = "MyResource"
+
+type MyResourceHandler struct{}
+
+func NewMyResourceHandler() *MyResourceHandler {
+    return &MyResourceHandler{}
+}
+
+func (h *MyResourceHandler) Kind() string { return KindMyResource }
+
+func (h *MyResourceHandler) Apply(ctx resource.Context, data []byte) (resource.Resource, error) {
+    // Parse YAML, upsert to database
+}
+
+func (h *MyResourceHandler) Get(ctx resource.Context, name string) (resource.Resource, error) {
+    // Get from database, wrap in Resource
+}
+
+func (h *MyResourceHandler) List(ctx resource.Context) ([]resource.Resource, error) {
+    // List from database
+}
+
+func (h *MyResourceHandler) Delete(ctx resource.Context, name string) error {
+    // Delete from database
+}
+
+func (h *MyResourceHandler) ToYAML(res resource.Resource) ([]byte, error) {
+    // Serialize to YAML
+}
+
+// Resource wrapper
+type MyResourceResource struct {
+    model *models.MyResource
+}
+
+func (r *MyResourceResource) GetKind() string { return KindMyResource }
+func (r *MyResourceResource) GetName() string { return r.model.Name }
+func (r *MyResourceResource) Validate() error { /* validation */ }
+```
+
+2. **Register Handler** (`pkg/resource/handlers/register.go`):
+```go
+func RegisterAll() {
+    registerOnce.Do(func() {
+        resource.Register(NewMyResourceHandler())
+        // ... other handlers
+    })
+}
+```
+
+3. **Use in CLI Commands**:
+```go
+// In cmd/myresource.go
+func getMyResources(cmd *cobra.Command) error {
+    ctx, err := buildResourceContext(cmd)
+    if err != nil {
+        return err
+    }
+
+    // Use the unified resource API
+    resources, err := resource.List(ctx, handlers.KindMyResource)
+    if err != nil {
+        return err
+    }
+
+    // Render output (decoupled)
+    return render.OutputWith(getOutputFormat, resources, render.Options{
+        Type: render.TypeTable,
+    })
+}
+```
+
+**Current Resource Types:**
+
+| Kind | Handler | Status |
+|------|---------|--------|
+| `Ecosystem` | `EcosystemHandler` | ✅ Complete |
+| `Domain` | `DomainHandler` | ✅ Complete |
+| `App` | `AppHandler` | ✅ Complete |
+| `NvimPlugin` | `NvimPluginHandler` | ✅ Complete |
+| `NvimTheme` | `NvimThemeHandler` | ✅ Complete |
+| `Project` | — | ⚠️ Needs migration (deprecated) |
+| `Workspace` | — | ⚠️ Needs migration |
+
 ---
 
 ## Design Pattern Checklist

@@ -15,13 +15,13 @@ type BuilderConfig struct {
 	// Namespace is the container namespace (e.g., "devopsmaestro")
 	Namespace string
 
-	// ProjectPath is the path to the project directory (required)
-	ProjectPath string
+	// AppPath is the path to the app directory (required)
+	AppPath string
 
 	// ImageName is the name/tag for the built image (required)
 	ImageName string
 
-	// Dockerfile is the path to the Dockerfile (optional, defaults to ProjectPath/Dockerfile)
+	// Dockerfile is the path to the Dockerfile (optional, defaults to AppPath/Dockerfile)
 	Dockerfile string
 }
 
@@ -30,8 +30,8 @@ func (c BuilderConfig) Validate() error {
 	if c.Platform == nil {
 		return fmt.Errorf("platform is required")
 	}
-	if c.ProjectPath == "" {
-		return fmt.Errorf("project path is required")
+	if c.AppPath == "" {
+		return fmt.Errorf("app path is required")
 	}
 	if c.ImageName == "" {
 		return fmt.Errorf("image name is required")

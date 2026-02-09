@@ -20,16 +20,16 @@ var deleteCmd = &cobra.Command{
 	Long: `Delete resources by name.
 
 Resource aliases (kubectl-style):
-  project   → proj
+  app       → a
   workspace → ws
 
 Examples:
-  dvm delete project my-api                   # Delete project and its workspaces
-  dvm delete proj my-api                      # Short form
-  dvm delete workspace dev                    # Delete workspace from active project
-  dvm delete ws dev                           # Short form
-  dvm delete workspace dev -p myproject       # Delete workspace from specific project
-  dvm delete nvim plugin telescope            # Delete nvim plugin`,
+  dvm delete app my-api                        # Delete app and its workspaces
+  dvm delete a my-api                          # Short form
+  dvm delete workspace dev                     # Delete workspace from active app
+  dvm delete ws dev                            # Short form
+  dvm delete workspace dev -p myapp            # Delete workspace from specific app
+  dvm delete nvim plugin telescope             # Delete nvim plugin`,
 }
 
 // deleteNvimCmd is the 'nvim' subcommand under 'delete'
@@ -46,7 +46,7 @@ Examples:
 // Flags for delete nvim plugin
 var (
 	deleteNvimWorkspaceFlag string
-	deleteNvimProjectFlag   string
+	deleteNvimAppFlag       string
 )
 
 // deleteNvimPluginCmd deletes a nvim plugin (from global library or workspace)
@@ -115,7 +115,7 @@ func runDeleteGlobalPlugin(cmd *cobra.Command, name string) error {
 
 func runDeleteWorkspacePlugins(cmd *cobra.Command, pluginNames []string) error {
 	// Get workspace
-	workspace, _, err := getWorkspaceForPlugins(cmd, deleteNvimProjectFlag, deleteNvimWorkspaceFlag)
+	workspace, _, err := getWorkspaceForPlugins(cmd, deleteNvimAppFlag, deleteNvimWorkspaceFlag)
 	if err != nil {
 		return err
 	}
@@ -191,134 +191,43 @@ For now, use: nvp theme delete <name>`,
 	},
 }
 
-// deleteProjectCmd deletes a project
-// Usage: dvm delete project <name>
-var deleteProjectCmd = &cobra.Command{
-	Use:     "project [name]",
-	Aliases: []string{"proj"},
-	Short:   "Delete a project",
-	Long: `Delete a project and optionally all its workspaces.
-
-This permanently removes the project from DVM's database.
-By default, you will be prompted for confirmation.
-
-Examples:
-  dvm delete project my-api
-  dvm delete proj my-api           # Short form
-  dvm delete project my-api --force  # Skip confirmation`,
-	Args: cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		projectName := args[0]
-
-		// Get datastore from context
-		ctx := cmd.Context()
-		dataStore := ctx.Value("dataStore").(*db.DataStore)
-		if dataStore == nil {
-			return fmt.Errorf("dataStore not initialized")
-		}
-		ds := *dataStore
-
-		// Check if project exists
-		project, err := ds.GetProjectByName(projectName)
-		if err != nil {
-			return fmt.Errorf("project not found: %s", projectName)
-		}
-
-		// Check for workspaces
-		workspaces, err := ds.ListWorkspacesByProject(project.ID)
-		if err != nil {
-			return fmt.Errorf("failed to list workspaces: %v", err)
-		}
-
-		// Confirm deletion
-		force, _ := cmd.Flags().GetBool("force")
-		if !force {
-			if len(workspaces) > 0 {
-				render.Warning(fmt.Sprintf("Project '%s' has %d workspace(s) that will also be deleted:", projectName, len(workspaces)))
-				for _, ws := range workspaces {
-					render.Info(fmt.Sprintf("  - %s", ws.Name))
-				}
-				render.Info("")
-			}
-			fmt.Printf("Delete project '%s' and all its workspaces? (y/N): ", projectName)
-			var response string
-			fmt.Scanln(&response)
-			if response != "y" && response != "Y" {
-				render.Info("Aborted")
-				return nil
-			}
-		}
-
-		// Delete all workspaces first
-		for _, ws := range workspaces {
-			if err := ds.DeleteWorkspace(ws.ID); err != nil {
-				return fmt.Errorf("failed to delete workspace '%s': %v", ws.Name, err)
-			}
-		}
-
-		// Delete the project
-		if err := ds.DeleteProject(projectName); err != nil {
-			return fmt.Errorf("failed to delete project: %v", err)
-		}
-
-		// Clear context if this was the active project
-		ctxMgr, err := operators.NewContextManager()
-		if err == nil {
-			activeProject, _ := ctxMgr.GetActiveProject()
-			if activeProject == projectName {
-				ctxMgr.ClearProject()
-				ctxMgr.ClearWorkspace()
-				render.Info("Cleared active project context")
-			}
-		}
-
-		msg := fmt.Sprintf("Project '%s' deleted", projectName)
-		if len(workspaces) > 0 {
-			msg += fmt.Sprintf(" (including %d workspace(s))", len(workspaces))
-		}
-		render.Success(msg)
-		return nil
-	},
-}
-
 // deleteWorkspaceCmd deletes a workspace
 // Usage: dvm delete workspace <name>
 var deleteWorkspaceCmd = &cobra.Command{
 	Use:     "workspace [name]",
 	Aliases: []string{"ws"},
 	Short:   "Delete a workspace",
-	Long: `Delete a workspace from a project.
+	Long: `Delete a workspace from an app.
 
 This permanently removes the workspace from DVM's database.
 It does NOT delete any container images or running containers.
 By default, you will be prompted for confirmation.
 
 Examples:
-  dvm delete workspace dev                    # Delete from active project
+  dvm delete workspace dev                    # Delete from active app
   dvm delete ws dev                           # Short form
-  dvm delete workspace dev -p myproject       # Delete from specific project
+  dvm delete workspace dev --app myapp        # Delete from specific app
   dvm delete workspace dev --force            # Skip confirmation`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		workspaceName := args[0]
 
-		// Get project from flag or context
-		projectFlag, _ := cmd.Flags().GetString("project")
+		// Get app from flag or context
+		appFlag, _ := cmd.Flags().GetString("app")
 
 		ctxMgr, err := operators.NewContextManager()
 		if err != nil {
 			return fmt.Errorf("failed to create context manager: %v", err)
 		}
 
-		var projectName string
-		if projectFlag != "" {
-			// Use the -p flag value
-			projectName = projectFlag
+		var appName string
+		if appFlag != "" {
+			appName = appFlag
 		} else {
-			// Fall back to active project context
-			projectName, err = ctxMgr.GetActiveProject()
+			// Fall back to active app context
+			appName, err = ctxMgr.GetActiveApp()
 			if err != nil {
-				return fmt.Errorf("no project specified. Use -p <project> or 'dvm use project <name>' first")
+				return fmt.Errorf("no app specified. Use --app <name> or 'dvm use app <name>' first")
 			}
 		}
 
@@ -330,22 +239,22 @@ Examples:
 		}
 		ds := *dataStore
 
-		// Get project to get its ID
-		project, err := ds.GetProjectByName(projectName)
+		// Get app to get its ID (search globally across all domains)
+		app, err := ds.GetAppByNameGlobal(appName)
 		if err != nil {
-			return fmt.Errorf("project '%s' not found: %v", projectName, err)
+			return fmt.Errorf("app '%s' not found: %v", appName, err)
 		}
 
 		// Check if workspace exists
-		workspace, err := ds.GetWorkspaceByName(project.ID, workspaceName)
+		workspace, err := ds.GetWorkspaceByName(app.ID, workspaceName)
 		if err != nil {
-			return fmt.Errorf("workspace '%s' not found in project '%s'", workspaceName, projectName)
+			return fmt.Errorf("workspace '%s' not found in app '%s'", workspaceName, appName)
 		}
 
 		// Confirm deletion
 		force, _ := cmd.Flags().GetBool("force")
 		if !force {
-			fmt.Printf("Delete workspace '%s' from project '%s'? (y/N): ", workspaceName, projectName)
+			fmt.Printf("Delete workspace '%s' from app '%s'? (y/N): ", workspaceName, appName)
 			var response string
 			fmt.Scanln(&response)
 			if response != "y" && response != "Y" {
@@ -359,15 +268,15 @@ Examples:
 			return fmt.Errorf("failed to delete workspace: %v", err)
 		}
 
-		// Clear context if this was the active workspace in the active project
-		activeProject, _ := ctxMgr.GetActiveProject()
+		// Clear context if this was the active workspace in the active app
+		activeApp, _ := ctxMgr.GetActiveApp()
 		activeWorkspace, _ := ctxMgr.GetActiveWorkspace()
-		if activeProject == projectName && activeWorkspace == workspaceName {
+		if activeApp == appName && activeWorkspace == workspaceName {
 			ctxMgr.ClearWorkspace()
 			render.Info("Cleared active workspace context")
 		}
 
-		render.Success(fmt.Sprintf("Workspace '%s' deleted from project '%s'", workspaceName, projectName))
+		render.Success(fmt.Sprintf("Workspace '%s' deleted from app '%s'", workspaceName, appName))
 		return nil
 	},
 }
@@ -382,19 +291,15 @@ func init() {
 	deleteNvimCmd.AddCommand(deleteNvimPluginCmd)
 	deleteNvimCmd.AddCommand(deleteNvimThemeCmd)
 
-	// Add project and workspace commands directly under delete
-	deleteCmd.AddCommand(deleteProjectCmd)
+	// Add workspace command directly under delete
 	deleteCmd.AddCommand(deleteWorkspaceCmd)
 
 	// Add flags for nvim plugin
 	deleteNvimPluginCmd.Flags().BoolP("force", "f", false, "Skip confirmation prompt")
 	deleteNvimPluginCmd.Flags().StringVarP(&deleteNvimWorkspaceFlag, "workspace", "w", "", "Remove from workspace (instead of global library)")
-	deleteNvimPluginCmd.Flags().StringVarP(&deleteNvimProjectFlag, "project", "p", "", "Project for workspace (defaults to active)")
-
-	// Add flags for project
-	deleteProjectCmd.Flags().BoolP("force", "f", false, "Skip confirmation prompt")
+	deleteNvimPluginCmd.Flags().StringVarP(&deleteNvimAppFlag, "app", "a", "", "App for workspace (defaults to active)")
 
 	// Add flags for workspace
 	deleteWorkspaceCmd.Flags().BoolP("force", "f", false, "Skip confirmation prompt")
-	deleteWorkspaceCmd.Flags().StringP("project", "p", "", "Project name (defaults to active project)")
+	deleteWorkspaceCmd.Flags().StringP("app", "a", "", "App name (defaults to active app)")
 }

@@ -20,7 +20,7 @@ func TestBuilderConfig_Validate(t *testing.T) {
 			errMsg:  "platform is required",
 		},
 		{
-			name: "missing project path",
+			name: "missing app path",
 			config: BuilderConfig{
 				Platform: &operators.Platform{
 					Type:       operators.PlatformOrbStack,
@@ -28,7 +28,7 @@ func TestBuilderConfig_Validate(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			errMsg:  "project path is required",
+			errMsg:  "app path is required",
 		},
 		{
 			name: "missing image name",
@@ -37,7 +37,7 @@ func TestBuilderConfig_Validate(t *testing.T) {
 					Type:       operators.PlatformOrbStack,
 					SocketPath: "/test/socket",
 				},
-				ProjectPath: "/test/project",
+				AppPath: "/test/project",
 			},
 			wantErr: true,
 			errMsg:  "image name is required",
@@ -49,8 +49,8 @@ func TestBuilderConfig_Validate(t *testing.T) {
 					Type:       operators.PlatformOrbStack,
 					SocketPath: "/test/socket",
 				},
-				ProjectPath: "/test/project",
-				ImageName:   "test:latest",
+				AppPath:   "/test/project",
+				ImageName: "test:latest",
 			},
 			wantErr: false,
 		},
@@ -63,10 +63,10 @@ func TestBuilderConfig_Validate(t *testing.T) {
 					Profile:    "default",
 					HomeDir:    "/home/user",
 				},
-				Namespace:   "devopsmaestro",
-				ProjectPath: "/test/project",
-				ImageName:   "myimage:v1.0",
-				Dockerfile:  "/test/project/Dockerfile.custom",
+				Namespace:  "devopsmaestro",
+				AppPath:    "/test/project",
+				ImageName:  "myimage:v1.0",
+				Dockerfile: "/test/project/Dockerfile.custom",
 			},
 			wantErr: false,
 		},
@@ -101,7 +101,7 @@ func TestNewImageBuilder_InvalidConfig(t *testing.T) {
 			config: BuilderConfig{},
 		},
 		{
-			name: "missing project path",
+			name: "missing app path",
 			config: BuilderConfig{
 				Platform: &operators.Platform{
 					Type:       operators.PlatformOrbStack,
@@ -116,7 +116,7 @@ func TestNewImageBuilder_InvalidConfig(t *testing.T) {
 					Type:       operators.PlatformOrbStack,
 					SocketPath: "/test/socket",
 				},
-				ProjectPath: "/test/project",
+				AppPath: "/test/project",
 			},
 		},
 	}
@@ -140,8 +140,8 @@ func TestNewImageBuilder_UnsupportedPlatform(t *testing.T) {
 			Type:       operators.PlatformUnknown,
 			SocketPath: "/test/socket",
 		},
-		ProjectPath: "/test/project",
-		ImageName:   "test:latest",
+		AppPath:   "/test/project",
+		ImageName: "test:latest",
 	}
 
 	builder, err := NewImageBuilder(config)
@@ -245,14 +245,14 @@ func TestIntegration_NewImageBuilder_OrbStack(t *testing.T) {
 		t.Skip("OrbStack not available")
 	}
 
-	// Create temporary project directory
-	projectPath := t.TempDir()
+	// Create temporary app directory
+	appPath := t.TempDir()
 
 	config := BuilderConfig{
-		Platform:    orbstack,
-		Namespace:   "test",
-		ProjectPath: projectPath,
-		ImageName:   "test-orbstack:latest",
+		Platform:  orbstack,
+		Namespace: "test",
+		AppPath:   appPath,
+		ImageName: "test-orbstack:latest",
 	}
 
 	builder, err := NewImageBuilder(config)
@@ -287,13 +287,13 @@ func TestIntegration_NewImageBuilder_Podman(t *testing.T) {
 		t.Skip("Podman not available")
 	}
 
-	projectPath := t.TempDir()
+	appPath := t.TempDir()
 
 	config := BuilderConfig{
-		Platform:    podman,
-		Namespace:   "test",
-		ProjectPath: projectPath,
-		ImageName:   "test-podman:latest",
+		Platform:  podman,
+		Namespace: "test",
+		AppPath:   appPath,
+		ImageName: "test-podman:latest",
 	}
 
 	builder, err := NewImageBuilder(config)
@@ -327,13 +327,13 @@ func TestIntegration_NewImageBuilder_Colima(t *testing.T) {
 		t.Skip("Colima not available")
 	}
 
-	projectPath := t.TempDir()
+	appPath := t.TempDir()
 
 	config := BuilderConfig{
-		Platform:    colima,
-		Namespace:   "test",
-		ProjectPath: projectPath,
-		ImageName:   "test-colima:latest",
+		Platform:  colima,
+		Namespace: "test",
+		AppPath:   appPath,
+		ImageName: "test-colima:latest",
 	}
 
 	builder, err := NewImageBuilder(config)

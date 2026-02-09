@@ -19,7 +19,7 @@ import (
 // Flags for set nvim plugin command
 var (
 	setNvimWorkspaceFlag string
-	setNvimProjectFlag   string
+	setNvimAppFlag       string
 	setNvimAllFlag       bool
 	setNvimClearFlag     bool
 )
@@ -62,7 +62,7 @@ Examples:
   dvm set nvim plugin -w dev treesitter lspconfig telescope
   dvm set nvim plugin -w dev --all      # Add all global plugins
   dvm set nvim plugin -w dev --clear    # Remove all plugins from workspace
-  dvm set nvim plugin -p myproj -w dev treesitter  # Explicit project`,
+  dvm set nvim plugin -a myapp -w dev treesitter  # Explicit app`,
 	RunE: runSetNvimPlugin,
 }
 
@@ -73,7 +73,7 @@ func init() {
 
 	// Add flags
 	setNvimPluginCmd.Flags().StringVarP(&setNvimWorkspaceFlag, "workspace", "w", "", "Workspace to configure (required)")
-	setNvimPluginCmd.Flags().StringVarP(&setNvimProjectFlag, "project", "p", "", "Project for workspace (defaults to active)")
+	setNvimPluginCmd.Flags().StringVarP(&setNvimAppFlag, "app", "a", "", "App for workspace (defaults to active)")
 	setNvimPluginCmd.Flags().BoolVar(&setNvimAllFlag, "all", false, "Add all plugins from global library")
 	setNvimPluginCmd.Flags().BoolVar(&setNvimClearFlag, "clear", false, "Remove all plugins from workspace")
 
@@ -92,7 +92,7 @@ func runSetNvimPlugin(cmd *cobra.Command, args []string) error {
 	}
 
 	// Get workspace
-	workspace, projectName, err := getWorkspaceForPlugins(cmd, setNvimProjectFlag, setNvimWorkspaceFlag)
+	workspace, appName, err := getWorkspaceForPlugins(cmd, setNvimAppFlag, setNvimWorkspaceFlag)
 	if err != nil {
 		return err
 	}
@@ -178,7 +178,7 @@ func runSetNvimPlugin(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 		render.Info(fmt.Sprintf("View configured plugins: dvm get nvim plugins -w %s", workspace.Name))
 		render.Info(fmt.Sprintf("Rebuild workspace to apply: dvm build %s --force", workspace.Name))
-		_ = projectName // Used for context in messages if needed
+		_ = appName // Used for context in messages if needed
 	}
 
 	return nil
@@ -186,7 +186,7 @@ func runSetNvimPlugin(cmd *cobra.Command, args []string) error {
 
 func runClearWorkspacePlugins(cmd *cobra.Command) error {
 	// Get workspace
-	workspace, _, err := getWorkspaceForPlugins(cmd, setNvimProjectFlag, setNvimWorkspaceFlag)
+	workspace, _, err := getWorkspaceForPlugins(cmd, setNvimAppFlag, setNvimWorkspaceFlag)
 	if err != nil {
 		return err
 	}

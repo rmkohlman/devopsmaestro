@@ -23,7 +23,7 @@ If the container image doesn't exist, it will be built first.
 The workspace provides your complete dev environment with:
 - Neovim configuration
 - oh-my-zsh + Powerlevel10k theme
-- Your project files mounted at /workspace
+- Your app files mounted at /workspace
 
 Press Ctrl+D to detach from the workspace.
 
@@ -46,10 +46,10 @@ func runAttach(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to initialize context manager: %w", err)
 	}
 
-	// Get active project and workspace
-	projectName, err := contextMgr.GetActiveProject()
+	// Get active app and workspace
+	appName, err := contextMgr.GetActiveApp()
 	if err != nil {
-		render.Info("Hint: Set active project with: dvm use project <name>")
+		render.Info("Hint: Set active app with: dvm use app <name>")
 		return err
 	}
 
@@ -59,8 +59,8 @@ func runAttach(cmd *cobra.Command) error {
 		return err
 	}
 
-	slog.Debug("attach context", "project", projectName, "workspace", workspaceName)
-	render.Info(fmt.Sprintf("Project: %s | Workspace: %s", projectName, workspaceName))
+	slog.Debug("attach context", "app", appName, "workspace", workspaceName)
+	render.Info(fmt.Sprintf("App: %s | Workspace: %s", appName, workspaceName))
 
 	// Get datastore from context
 	ctx := cmd.Context()
@@ -71,19 +71,19 @@ func runAttach(cmd *cobra.Command) error {
 
 	ds := *dataStore
 
-	// Get project
-	project, err := ds.GetProjectByName(projectName)
+	// Get app (search globally across all domains)
+	app, err := ds.GetAppByNameGlobal(appName)
 	if err != nil {
-		return fmt.Errorf("failed to get project '%s': %w", projectName, err)
+		return fmt.Errorf("failed to get app '%s': %w", appName, err)
 	}
 
 	// Get workspace
-	workspace, err := ds.GetWorkspaceByName(project.ID, workspaceName)
+	workspace, err := ds.GetWorkspaceByName(app.ID, workspaceName)
 	if err != nil {
 		return fmt.Errorf("failed to get workspace '%s': %w", workspaceName, err)
 	}
 
-	slog.Debug("resolved workspace", "image", workspace.ImageName, "project_path", project.Path)
+	slog.Debug("resolved workspace", "image", workspace.ImageName, "app_path", app.Path)
 
 	// Create container runtime using factory
 	runtime, err := operators.NewContainerRuntime()
@@ -107,7 +107,7 @@ func runAttach(cmd *cobra.Command) error {
 		return fmt.Errorf("workspace not built: run 'dvm build' first")
 	}
 
-	containerName := fmt.Sprintf("dvm-%s-%s", projectName, workspaceName)
+	containerName := fmt.Sprintf("dvm-%s-%s", appName, workspaceName)
 	slog.Debug("container details", "name", containerName, "image", imageName)
 
 	// Start workspace (handles existing containers automatically)
@@ -117,8 +117,8 @@ func runAttach(cmd *cobra.Command) error {
 		ImageName:     imageName,
 		WorkspaceName: workspaceName,
 		ContainerName: containerName,
-		ProjectName:   projectName,
-		ProjectPath:   project.Path,
+		AppName:       appName,
+		AppPath:       app.Path,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to start workspace: %w", err)
