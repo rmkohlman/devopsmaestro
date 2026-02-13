@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"devopsmaestro/models"
+	"strings"
 	"testing"
 )
 
@@ -2024,4 +2025,185 @@ func TestSQLDataStore_Close(t *testing.T) {
 
 func TestSQLDataStore_ImplementsDataStore(t *testing.T) {
 	var _ DataStore = (*SQLDataStore)(nil)
+}
+
+// =============================================================================
+// Migration Schema Tests (v0.8.2 fixes)
+// =============================================================================
+
+// TestSQLDataStore_MigrationSchema_AppsTableHasLanguageAndBuildConfig verifies
+// that the apps table schema includes language and build_config columns.
+// This test was added to prevent regression of the v0.8.2 fix where these
+// columns were missing from the migration file 007_add_apps.up.sql.
+func TestSQLDataStore_MigrationSchema_AppsTableHasLanguageAndBuildConfig(t *testing.T) {
+	// Create a driver with a fresh database
+	cfg := DriverConfig{Type: DriverMemory}
+	driver, err := NewMemorySQLiteDriver(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create test driver: %v", err)
+	}
+	defer driver.Close()
+
+	if err := driver.Connect(); err != nil {
+		t.Fatalf("Failed to connect test driver: %v", err)
+	}
+
+	// Apply the exact schema that should match migration 007_add_apps.up.sql
+	// This verifies that apps can be created with language and build_config columns
+	migrationSQL := `
+		CREATE TABLE IF NOT EXISTS ecosystems (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL UNIQUE,
+			description TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+		
+		CREATE TABLE IF NOT EXISTS domains (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			ecosystem_id INTEGER NOT NULL,
+			name TEXT NOT NULL,
+			description TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (ecosystem_id) REFERENCES ecosystems(id),
+			UNIQUE(ecosystem_id, name)
+		);
+		
+		CREATE TABLE IF NOT EXISTS apps (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			domain_id INTEGER NOT NULL,
+			name TEXT NOT NULL,
+			path TEXT NOT NULL,
+			description TEXT,
+			language TEXT,
+			build_config TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE,
+			UNIQUE(domain_id, name)
+		);
+	`
+
+	// Execute migration-style SQL
+	_, err = driver.Execute(migrationSQL)
+	if err != nil {
+		t.Fatalf("Migration SQL failed: %v", err)
+	}
+
+	// Create DataStore
+	ds := NewSQLDataStore(driver, nil)
+
+	// Create ecosystem
+	ecosystem := &models.Ecosystem{Name: "migration-test-ecosystem"}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("CreateEcosystem() error = %v", err)
+	}
+
+	// Create domain
+	domain := &models.Domain{
+		EcosystemID: ecosystem.ID,
+		Name:        "migration-test-domain",
+	}
+	if err := ds.CreateDomain(domain); err != nil {
+		t.Fatalf("CreateDomain() error = %v", err)
+	}
+
+	// Create app with language and build_config - this is the critical test
+	// This would have failed before the v0.8.2 fix with:
+	// "table apps has no column named language"
+	langJSON := `{"name":"golang","version":"1.25"}`
+	buildJSON := `{"dockerfile":"Dockerfile","args":{"CGO_ENABLED":"1"}}`
+
+	app := &models.App{
+		DomainID:    domain.ID,
+		Name:        "migration-test-app",
+		Path:        "/path/to/app",
+		Language:    sql.NullString{String: langJSON, Valid: true},
+		BuildConfig: sql.NullString{String: buildJSON, Valid: true},
+	}
+
+	err = ds.CreateApp(app)
+	if err != nil {
+		t.Fatalf("CreateApp() with language and build_config failed: %v\n"+
+			"This indicates the migration schema is missing required columns.", err)
+	}
+
+	// Verify the data was stored correctly
+	retrieved, err := ds.GetAppByID(app.ID)
+	if err != nil {
+		t.Fatalf("GetAppByID() error = %v", err)
+	}
+
+	if !retrieved.Language.Valid || retrieved.Language.String != langJSON {
+		t.Errorf("Language not persisted correctly: got %q, want %q",
+			retrieved.Language.String, langJSON)
+	}
+
+	if !retrieved.BuildConfig.Valid || retrieved.BuildConfig.String != buildJSON {
+		t.Errorf("BuildConfig not persisted correctly: got %q, want %q",
+			retrieved.BuildConfig.String, buildJSON)
+	}
+}
+
+// =============================================================================
+// Error Message Tests (v0.8.2 fixes)
+// =============================================================================
+
+// TestSQLDataStore_CreateApp_ErrorNotDuplicated verifies that CreateApp errors
+// do not contain duplicate error wrapping like "failed to create app: failed to create app:"
+// This test was added after the v0.8.2 fix that removed duplicate error wrapping.
+func TestSQLDataStore_CreateApp_ErrorNotDuplicated(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	// Setup: Create ecosystem and domain
+	ecosystem := &models.Ecosystem{Name: "error-test-ecosystem"}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup CreateEcosystem() error = %v", err)
+	}
+
+	domain := &models.Domain{
+		EcosystemID: ecosystem.ID,
+		Name:        "error-test-domain",
+	}
+	if err := ds.CreateDomain(domain); err != nil {
+		t.Fatalf("Setup CreateDomain() error = %v", err)
+	}
+
+	// Create first app
+	app1 := &models.App{
+		DomainID: domain.ID,
+		Name:     "duplicate-app",
+		Path:     "/path/to/app",
+	}
+	if err := ds.CreateApp(app1); err != nil {
+		t.Fatalf("CreateApp() first app error = %v", err)
+	}
+
+	// Try to create duplicate app - should fail with unique constraint
+	app2 := &models.App{
+		DomainID: domain.ID,
+		Name:     "duplicate-app", // Same name, same domain
+		Path:     "/path/to/other",
+	}
+
+	err := ds.CreateApp(app2)
+	if err == nil {
+		t.Fatal("CreateApp() with duplicate name should fail")
+	}
+
+	errMsg := err.Error()
+
+	// The error should NOT contain duplicated phrases
+	// Before fix: "failed to create app: failed to create app: UNIQUE constraint failed"
+	// After fix: "UNIQUE constraint failed" (raw error from sqlite)
+	if strings.Contains(errMsg, "failed to create app: failed to create app") {
+		t.Errorf("CreateApp() error message contains duplicate wrapping: %q", errMsg)
+	}
+
+	// Verify it's still a meaningful error
+	if !strings.Contains(errMsg, "UNIQUE") {
+		t.Errorf("CreateApp() error should mention UNIQUE constraint: %q", errMsg)
+	}
 }

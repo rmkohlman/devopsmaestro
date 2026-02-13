@@ -291,7 +291,7 @@ func (ds *SQLDataStore) CreateApp(app *models.App) error {
 
 	result, err := ds.driver.Execute(query, app.DomainID, app.Name, app.Path, app.Description, app.Language, app.BuildConfig)
 	if err != nil {
-		return fmt.Errorf("failed to create app: %w", err)
+		return err
 	}
 
 	id, err := result.LastInsertId()
