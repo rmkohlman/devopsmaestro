@@ -9,7 +9,9 @@ permissions:
   contents: write
 
 jobs:
-  goreleaser:
+  # Build nvp (no CGO) via GoReleaser on ubuntu
+  # This handles all platforms since nvp doesn't need CGO
+  goreleaser-nvp:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -31,3 +33,284 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+
+  # Build dvm (requires CGO for SQLite) natively on macOS
+  build-dvm-darwin:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - runner: macos-14        # Apple Silicon (M1/M2)
+            goos: darwin
+            goarch: arm64
+          - runner: macos-13        # Intel
+            goos: darwin
+            goarch: amd64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Build dvm
+        env:
+          CGO_ENABLED: 1
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          go build -ldflags "-s -w -X main.Version=${{ steps.version.outputs.VERSION }} -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ) -X main.Commit=$(git rev-parse --short HEAD)" -o dvm .
+
+      - name: Generate completions
+        run: |
+          mkdir -p completions
+          ./dvm completion bash > completions/dvm.bash
+          ./dvm completion zsh > completions/_dvm
+          ./dvm completion fish > completions/dvm.fish
+
+      - name: Create archive
+        run: |
+          tar -czvf devopsmaestro_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz \
+            dvm \
+            completions/ \
+            README.md \
+            LICENSE
+
+      - name: Generate checksum
+        run: |
+          shasum -a 256 devopsmaestro_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz > devopsmaestro_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz.sha256
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            devopsmaestro_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz
+            devopsmaestro_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Update Homebrew tap after all builds complete
+  update-homebrew:
+    needs: [goreleaser-nvp, build-dvm-darwin]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@v4
+        with:
+          repository: rmkohlman/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          path: homebrew-tap
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Wait for release assets to be available
+        run: sleep 30
+
+      - name: Download release assets and compute checksums
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          
+          # Download dvm archives
+          gh release download v${VERSION} \
+            --repo rmkohlman/devopsmaestro \
+            --pattern "devopsmaestro_${VERSION}_darwin_*.tar.gz" \
+            --dir /tmp/assets || true
+          
+          # Download nvp archives
+          gh release download v${VERSION} \
+            --repo rmkohlman/devopsmaestro \
+            --pattern "nvp_${VERSION}_*.tar.gz" \
+            --dir /tmp/assets || true
+          
+          # Compute checksums
+          cd /tmp/assets
+          for f in *.tar.gz; do
+            shasum -a 256 "$f" | awk '{print $1}' > "${f}.sha256sum"
+          done
+          
+          # Export checksums as env vars
+          echo "DVM_DARWIN_ARM64_SHA256=$(cat devopsmaestro_${VERSION}_darwin_arm64.tar.gz.sha256sum 2>/dev/null || echo '')" >> $GITHUB_ENV
+          echo "DVM_DARWIN_AMD64_SHA256=$(cat devopsmaestro_${VERSION}_darwin_amd64.tar.gz.sha256sum 2>/dev/null || echo '')" >> $GITHUB_ENV
+          echo "NVP_DARWIN_ARM64_SHA256=$(cat nvp_${VERSION}_darwin_arm64.tar.gz.sha256sum 2>/dev/null || echo '')" >> $GITHUB_ENV
+          echo "NVP_DARWIN_AMD64_SHA256=$(cat nvp_${VERSION}_darwin_amd64.tar.gz.sha256sum 2>/dev/null || echo '')" >> $GITHUB_ENV
+          echo "NVP_LINUX_ARM64_SHA256=$(cat nvp_${VERSION}_linux_arm64.tar.gz.sha256sum 2>/dev/null || echo '')" >> $GITHUB_ENV
+          echo "NVP_LINUX_AMD64_SHA256=$(cat nvp_${VERSION}_linux_amd64.tar.gz.sha256sum 2>/dev/null || echo '')" >> $GITHUB_ENV
+
+      - name: Update devopsmaestro formula
+        run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          cat > homebrew-tap/Formula/devopsmaestro.rb << 'FORMULA_EOF'
+          # typed: false
+          # frozen_string_literal: true
+
+          class Devopsmaestro < Formula
+            desc "DevOpsMaestro (dvm) - kubectl-style CLI for containerized dev environments"
+            homepage "https://github.com/rmkohlman/devopsmaestro"
+            version "VERSION_PLACEHOLDER"
+            license "GPL-3.0"
+
+            on_macos do
+              on_arm do
+                url "https://github.com/rmkohlman/devopsmaestro/releases/download/vVERSION_PLACEHOLDER/devopsmaestro_VERSION_PLACEHOLDER_darwin_arm64.tar.gz"
+                sha256 "DVM_DARWIN_ARM64_SHA256_PLACEHOLDER"
+              end
+              on_intel do
+                url "https://github.com/rmkohlman/devopsmaestro/releases/download/vVERSION_PLACEHOLDER/devopsmaestro_VERSION_PLACEHOLDER_darwin_amd64.tar.gz"
+                sha256 "DVM_DARWIN_AMD64_SHA256_PLACEHOLDER"
+              end
+            end
+
+            head "https://github.com/rmkohlman/devopsmaestro.git", branch: "main"
+
+            conflicts_with "dvm", because: "both install the dvm binary"
+
+            depends_on "go" => :build if build.head?
+
+            def install
+              if build.head?
+                system "go", "build",
+                       "-ldflags", "-s -w -X main.Version=HEAD -X main.Commit=#{`git rev-parse --short HEAD`.strip} -X main.BuildTime=#{Time.now.utc.iso8601}",
+                       "-o", bin/"dvm",
+                       "."
+                generate_completions_from_executable(bin/"dvm", "completion")
+              else
+                bin.install "dvm"
+                bash_completion.install "completions/dvm.bash" => "dvm"
+                zsh_completion.install "completions/_dvm"
+                fish_completion.install "completions/dvm.fish"
+              end
+            end
+
+            def caveats
+              <<~EOS
+                To get started:
+                  dvm admin init
+                  dvm create app myapp --from-cwd
+
+                Shell completions have been installed automatically for bash, zsh, and fish.
+                Restart your shell or source your profile to enable them.
+              EOS
+            end
+
+            test do
+              assert_match "dvm", shell_output("#{bin}/dvm --help")
+              assert_match version.to_s, shell_output("#{bin}/dvm version")
+            end
+          end
+          FORMULA_EOF
+          
+          # Replace placeholders
+          sed -i "s/VERSION_PLACEHOLDER/${VERSION}/g" homebrew-tap/Formula/devopsmaestro.rb
+          sed -i "s/DVM_DARWIN_ARM64_SHA256_PLACEHOLDER/${DVM_DARWIN_ARM64_SHA256}/g" homebrew-tap/Formula/devopsmaestro.rb
+          sed -i "s/DVM_DARWIN_AMD64_SHA256_PLACEHOLDER/${DVM_DARWIN_AMD64_SHA256}/g" homebrew-tap/Formula/devopsmaestro.rb
+
+      - name: Update nvimops formula
+        run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          cat > homebrew-tap/Formula/nvimops.rb << 'FORMULA_EOF'
+          # typed: false
+          # frozen_string_literal: true
+
+          class Nvimops < Formula
+            desc "NvimOps (nvp) - DevOps-style Neovim plugin and theme manager"
+            homepage "https://github.com/rmkohlman/devopsmaestro"
+            version "VERSION_PLACEHOLDER"
+            license "GPL-3.0"
+
+            on_macos do
+              on_arm do
+                url "https://github.com/rmkohlman/devopsmaestro/releases/download/vVERSION_PLACEHOLDER/nvp_VERSION_PLACEHOLDER_darwin_arm64.tar.gz"
+                sha256 "NVP_DARWIN_ARM64_SHA256_PLACEHOLDER"
+              end
+              on_intel do
+                url "https://github.com/rmkohlman/devopsmaestro/releases/download/vVERSION_PLACEHOLDER/nvp_VERSION_PLACEHOLDER_darwin_amd64.tar.gz"
+                sha256 "NVP_DARWIN_AMD64_SHA256_PLACEHOLDER"
+              end
+            end
+
+            on_linux do
+              on_arm do
+                url "https://github.com/rmkohlman/devopsmaestro/releases/download/vVERSION_PLACEHOLDER/nvp_VERSION_PLACEHOLDER_linux_arm64.tar.gz"
+                sha256 "NVP_LINUX_ARM64_SHA256_PLACEHOLDER"
+              end
+              on_intel do
+                url "https://github.com/rmkohlman/devopsmaestro/releases/download/vVERSION_PLACEHOLDER/nvp_VERSION_PLACEHOLDER_linux_amd64.tar.gz"
+                sha256 "NVP_LINUX_AMD64_SHA256_PLACEHOLDER"
+              end
+            end
+
+            head "https://github.com/rmkohlman/devopsmaestro.git", branch: "main"
+
+            depends_on "go" => :build if build.head?
+
+            def install
+              if build.head?
+                system "go", "build",
+                       "-ldflags", "-s -w -X main.Version=HEAD -X main.Commit=#{`git rev-parse --short HEAD`.strip} -X main.BuildTime=#{Time.now.utc.iso8601}",
+                       "-o", bin/"nvp",
+                       "./cmd/nvp/"
+                generate_completions_from_executable(bin/"nvp", "completion")
+              else
+                bin.install "nvp"
+                bash_completion.install "completions/nvp.bash" => "nvp"
+                zsh_completion.install "completions/_nvp"
+                fish_completion.install "completions/nvp.fish"
+              end
+            end
+
+            def caveats
+              <<~EOS
+                NvimOps (nvp) - DevOps-style Neovim plugin and theme manager
+
+                Quick Start:
+                  nvp init                        # Initialize plugin store
+                  nvp library list                # Browse available plugins
+                  nvp library install telescope   # Install from library
+                  nvp theme library list          # Browse available themes
+                  nvp theme library install tokyonight-night --use
+                  nvp generate                    # Generate Lua files
+
+                Generated files: ~/.config/nvim/lua/plugins/nvp/
+                Theme files:     ~/.config/nvim/lua/theme/
+
+                Documentation: https://github.com/rmkohlman/devopsmaestro#nvimops
+
+                Shell completions have been installed for bash, zsh, and fish.
+                Restart your shell or source your profile to enable them.
+              EOS
+            end
+
+            test do
+              assert_match "nvp", shell_output("#{bin}/nvp --help")
+              assert_match version.to_s, shell_output("#{bin}/nvp version")
+            end
+          end
+          FORMULA_EOF
+          
+          # Replace placeholders
+          sed -i "s/VERSION_PLACEHOLDER/${VERSION}/g" homebrew-tap/Formula/nvimops.rb
+          sed -i "s/NVP_DARWIN_ARM64_SHA256_PLACEHOLDER/${NVP_DARWIN_ARM64_SHA256}/g" homebrew-tap/Formula/nvimops.rb
+          sed -i "s/NVP_DARWIN_AMD64_SHA256_PLACEHOLDER/${NVP_DARWIN_AMD64_SHA256}/g" homebrew-tap/Formula/nvimops.rb
+          sed -i "s/NVP_LINUX_ARM64_SHA256_PLACEHOLDER/${NVP_LINUX_ARM64_SHA256}/g" homebrew-tap/Formula/nvimops.rb
+          sed -i "s/NVP_LINUX_AMD64_SHA256_PLACEHOLDER/${NVP_LINUX_AMD64_SHA256}/g" homebrew-tap/Formula/nvimops.rb
+
+      - name: Commit and push formula updates
+        run: |
+          cd homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/devopsmaestro.rb Formula/nvimops.rb
+          git diff --staged --quiet || git commit -m "Update formulas to v${{ steps.version.outputs.VERSION }}"
+          git push
