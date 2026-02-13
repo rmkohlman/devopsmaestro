@@ -43,7 +43,7 @@ jobs:
           - runner: macos-14        # Apple Silicon (M1/M2)
             goos: darwin
             goarch: arm64
-          - runner: macos-13        # Intel
+          - runner: macos-15        # Intel
             goos: darwin
             goarch: amd64
     steps:
