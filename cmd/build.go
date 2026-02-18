@@ -11,6 +11,7 @@ import (
 	"devopsmaestro/pkg/nvimops/plugin"
 	"devopsmaestro/pkg/nvimops/store"
 	"devopsmaestro/pkg/nvimops/theme"
+	"devopsmaestro/pkg/resolver"
 	"devopsmaestro/render"
 	"devopsmaestro/utils"
 	"fmt"
@@ -27,6 +28,7 @@ var (
 	buildForce   bool
 	buildNocache bool
 	buildTarget  string
+	buildFlags   HierarchyFlags
 )
 
 // buildCmd represents the build command
@@ -49,10 +51,18 @@ Supports multiple platforms:
 
 Use DVM_PLATFORM environment variable to select a specific platform.
 
+Flags:
+  -e, --ecosystem   Filter by ecosystem name
+  -d, --domain      Filter by domain name  
+  -a, --app         Filter by app name
+  -w, --workspace   Filter by workspace name
+
 Examples:
   dvm build
   dvm build --force
   dvm build --no-cache
+  dvm build -a portal                 # Build workspace in 'portal' app
+  dvm build -e healthcare -a portal   # Specify ecosystem and app
   DVM_PLATFORM=colima dvm build
 `,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -65,31 +75,11 @@ func init() {
 	buildCmd.Flags().BoolVar(&buildForce, "force", false, "Force rebuild even if image exists")
 	buildCmd.Flags().BoolVar(&buildNocache, "no-cache", false, "Build without using cache")
 	buildCmd.Flags().StringVar(&buildTarget, "target", "dev", "Build target stage (default: dev)")
+	AddHierarchyFlags(buildCmd, &buildFlags)
 }
 
 func buildWorkspace(cmd *cobra.Command) error {
 	slog.Info("starting build")
-
-	// Get current context
-	ctxMgr, err := operators.NewContextManager()
-	if err != nil {
-		slog.Error("failed to create context manager", "error", err)
-		return fmt.Errorf("failed to create context manager: %w", err)
-	}
-
-	appName, err := ctxMgr.GetActiveApp()
-	if err != nil {
-		slog.Debug("no active app set")
-		return fmt.Errorf("no active app set. Use 'dvm use app <name>' first")
-	}
-
-	workspaceName, err := ctxMgr.GetActiveWorkspace()
-	if err != nil {
-		slog.Debug("no active workspace set")
-		return fmt.Errorf("no active workspace set. Use 'dvm use workspace <name>' first")
-	}
-
-	slog.Debug("build context", "app", appName, "workspace", workspaceName)
 
 	// Get datastore
 	sqlDS, err := getDataStore(cmd)
@@ -97,18 +87,85 @@ func buildWorkspace(cmd *cobra.Command) error {
 		return err
 	}
 
-	// Get app (search globally across all domains)
-	app, err := sqlDS.GetAppByNameGlobal(appName)
-	if err != nil {
-		slog.Error("failed to get app", "name", appName, "error", err)
-		return fmt.Errorf("failed to get app: %w", err)
-	}
+	var app *models.App
+	var workspace *models.Workspace
+	var appName, workspaceName string
 
-	// Get workspace
-	workspace, err := sqlDS.GetWorkspaceByName(app.ID, workspaceName)
-	if err != nil {
-		slog.Error("failed to get workspace", "name", workspaceName, "app_id", app.ID, "error", err)
-		return fmt.Errorf("failed to get workspace: %w", err)
+	// Check if hierarchy flags were provided
+	if buildFlags.HasAnyFlag() {
+		// Use resolver to find workspace
+		slog.Debug("using hierarchy flags", "ecosystem", buildFlags.Ecosystem,
+			"domain", buildFlags.Domain, "app", buildFlags.App, "workspace", buildFlags.Workspace)
+
+		wsResolver := resolver.NewWorkspaceResolver(sqlDS)
+		result, err := wsResolver.Resolve(buildFlags.ToFilter())
+		if err != nil {
+			// Check if ambiguous and provide helpful output
+			if ambiguousErr, ok := resolver.IsAmbiguousError(err); ok {
+				render.Warning("Multiple workspaces match your criteria")
+				fmt.Println(ambiguousErr.FormatDisambiguation())
+				return fmt.Errorf("ambiguous workspace selection")
+			}
+			if resolver.IsNoWorkspaceFoundError(err) {
+				render.Warning("No workspace found matching your criteria")
+				render.Info("Hint: Use 'dvm get workspaces' to see available workspaces")
+				return err
+			}
+			return fmt.Errorf("failed to resolve workspace: %w", err)
+		}
+
+		// Use resolved workspace and app
+		workspace = result.Workspace
+		app = result.App
+		appName = app.Name
+		workspaceName = workspace.Name
+
+		// Update context to the resolved workspace
+		if err := updateContextFromHierarchy(sqlDS, result); err != nil {
+			slog.Warn("failed to update context", "error", err)
+			// Continue anyway - this is not fatal
+		}
+
+		render.Info(fmt.Sprintf("Resolved: %s", result.FullPath()))
+	} else {
+		// Fall back to existing context-based behavior
+		ctxMgr, err := operators.NewContextManager()
+		if err != nil {
+			slog.Error("failed to create context manager", "error", err)
+			return fmt.Errorf("failed to create context manager: %w", err)
+		}
+
+		appName, err = ctxMgr.GetActiveApp()
+		if err != nil {
+			slog.Debug("no active app set")
+			render.Info("Hint: Set active app with: dvm use app <name>")
+			render.Info("      Or use flags: dvm build -a <app>")
+			return fmt.Errorf("no active app set. Use 'dvm use app <name>' first")
+		}
+
+		workspaceName, err = ctxMgr.GetActiveWorkspace()
+		if err != nil {
+			slog.Debug("no active workspace set")
+			render.Info("Hint: Set active workspace with: dvm use workspace <name>")
+			render.Info("      Or use flags: dvm build -w <workspace>")
+			return fmt.Errorf("no active workspace set. Use 'dvm use workspace <name>' first")
+		}
+
+		slog.Debug("build context", "app", appName, "workspace", workspaceName)
+
+		// Get app (search globally across all domains)
+		app, err = sqlDS.GetAppByNameGlobal(appName)
+		if err != nil {
+			slog.Error("failed to get app", "name", appName, "error", err)
+			return fmt.Errorf("failed to get app: %w", err)
+		}
+
+		// Get workspace
+		workspace, err = sqlDS.GetWorkspaceByName(app.ID, workspaceName)
+		if err != nil {
+			slog.Error("failed to get workspace", "name", workspaceName, "app_id", app.ID, "error", err)
+			return fmt.Errorf("failed to get workspace: %w", err)
+		}
 	}
 
 	render.Info(fmt.Sprintf("Building workspace: %s/%s", appName, workspaceName))

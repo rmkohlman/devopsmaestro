@@ -669,6 +669,90 @@ func (ds *SQLDataStore) ListAllWorkspaces() ([]*models.Workspace, error) {
 	return workspaces, nil
 }
 
+// FindWorkspaces searches for workspaces matching the given filter criteria.
+// Returns workspaces with their full hierarchy information (ecosystem, domain, app).
+// Use this for smart workspace resolution when the user provides partial criteria.
+func (ds *SQLDataStore) FindWorkspaces(filter models.WorkspaceFilter) ([]*models.WorkspaceWithHierarchy, error) {
+	// Build query with JOINs to get full hierarchy
+	query := `SELECT 
+		w.id, w.app_id, w.name, w.description, w.image_name, w.container_id, w.status, w.nvim_structure, w.nvim_plugins, w.created_at, w.updated_at,
+		a.id, a.domain_id, a.name, a.path, a.description, a.language, a.build_config, a.created_at, a.updated_at,
+		d.id, d.ecosystem_id, d.name, d.description, d.created_at, d.updated_at,
+		e.id, e.name, e.description, e.created_at, e.updated_at
+	FROM workspaces w
+	JOIN apps a ON w.app_id = a.id
+	JOIN domains d ON a.domain_id = d.id
+	JOIN ecosystems e ON d.ecosystem_id = e.id
+	WHERE 1=1`
+
+	var args []interface{}
+
+	// Add filter conditions
+	if filter.EcosystemName != "" {
+		query += " AND e.name = ?"
+		args = append(args, filter.EcosystemName)
+	}
+	if filter.DomainName != "" {
+		query += " AND d.name = ?"
+		args = append(args, filter.DomainName)
+	}
+	if filter.AppName != "" {
+		query += " AND a.name = ?"
+		args = append(args, filter.AppName)
+	}
+	if filter.WorkspaceName != "" {
+		query += " AND w.name = ?"
+		args = append(args, filter.WorkspaceName)
+	}
+
+	query += " ORDER BY e.name, d.name, a.name, w.name"
+
+	rows, err := ds.driver.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find workspaces: %w", err)
+	}
+	defer rows.Close()
+
+	var results []*models.WorkspaceWithHierarchy
+	for rows.Next() {
+		workspace := &models.Workspace{}
+		app := &models.App{}
+		domain := &models.Domain{}
+		ecosystem := &models.Ecosystem{}
+
+		if err := rows.Scan(
+			// Workspace fields
+			&workspace.ID, &workspace.AppID, &workspace.Name, &workspace.Description,
+			&workspace.ImageName, &workspace.ContainerID, &workspace.Status, &workspace.NvimStructure,
+			&workspace.NvimPlugins, &workspace.CreatedAt, &workspace.UpdatedAt,
+			// App fields
+			&app.ID, &app.DomainID, &app.Name, &app.Path, &app.Description,
+			&app.Language, &app.BuildConfig, &app.CreatedAt, &app.UpdatedAt,
+			// Domain fields
+			&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description,
+			&domain.CreatedAt, &domain.UpdatedAt,
+			// Ecosystem fields
+			&ecosystem.ID, &ecosystem.Name, &ecosystem.Description,
+			&ecosystem.CreatedAt, &ecosystem.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan workspace with hierarchy: %w", err)
+		}
+
+		results = append(results, &models.WorkspaceWithHierarchy{
+			Workspace: workspace,
+			App:       app,
+			Domain:    domain,
+			Ecosystem: ecosystem,
+		})
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over workspaces: %w", err)
+	}
+
+	return results, nil
+}
+
 // =============================================================================
 // Context Operations
 // =============================================================================

@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.9.0] - 2026-02-17
+
+### 🚀 Added
+
+#### Smart Workspace Resolution
+- **Hierarchy flags** - All workspace commands now support `-e`, `-d`, `-a`, `-w` flags for smart resolution
+- **No more sequential `dvm use` commands** - Specify criteria directly on the command line
+- **Automatic disambiguation** - When multiple workspaces match, shows full paths to help you choose
+- **Context auto-update** - Resolved workspace automatically becomes the active context
+
+#### New Flags for Commands
+- **`dvm attach`** - Added `-e/--ecosystem`, `-d/--domain`, `-a/--app`, `-w/--workspace`
+- **`dvm build`** - Added `-e/--ecosystem`, `-d/--domain`, `-a/--app`, `-w/--workspace`
+- **`dvm detach`** - Added `-e/--ecosystem`, `-d/--domain`, `-a/--app`, `-w/--workspace`
+- **`dvm get workspaces`** - Added hierarchy flags for filtering
+- **`dvm get workspace`** - Added hierarchy flags, workspace name now optional with flags
+
+#### Resolver Package
+- **`pkg/resolver/`** - New package for workspace resolution logic
+  - `WorkspaceResolver` interface and implementation
+  - `AmbiguousError` with `FormatDisambiguation()` for helpful output
+  - `ErrNoWorkspaceFound` for clear error handling
+- **`FindWorkspaces()` DataStore method** - Query workspaces across full hierarchy with JOINs
+
+### 🔧 Changed
+
+- **`dvm detach --all`** - Changed shorthand from `-a` to `-A` (frees `-a` for `--app`)
+- **`dvm get workspace`** - Workspace name argument now optional when using flags
+
+### 📖 Examples
+
+```bash
+# Before (verbose - required multiple commands)
+dvm use ecosystem healthcare
+dvm use domain billing  
+dvm use app portal
+dvm use workspace staging
+dvm attach
+
+# After (smart resolution - single command)
+dvm attach -a portal                 # Find workspace in 'portal' app
+dvm attach -e healthcare -a portal   # Specify ecosystem and app
+dvm build -a portal -w staging       # Build specific workspace
+dvm detach -A                        # Stop ALL workspaces (note: -A not -a)
+dvm get workspaces -e healthcare     # List all workspaces in ecosystem
+```
+
+---
+
 ## [0.8.0] - 2025-01-06
 
 ### 🚀 Added

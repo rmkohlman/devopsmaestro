@@ -64,6 +64,7 @@ type MockDataStore struct {
 	DeleteWorkspaceErr           error
 	ListWorkspacesByAppErr       error
 	ListAllWorkspacesErr         error
+	FindWorkspacesErr            error
 	GetContextErr                error
 	SetActiveEcosystemErr        error
 	SetActiveDomainErr           error
@@ -609,6 +610,66 @@ func (m *MockDataStore) ListAllWorkspaces() ([]*models.Workspace, error) {
 		workspaces = append(workspaces, ws)
 	}
 	return workspaces, nil
+}
+
+func (m *MockDataStore) FindWorkspaces(filter models.WorkspaceFilter) ([]*models.WorkspaceWithHierarchy, error) {
+	m.recordCall("FindWorkspaces", filter)
+	if m.FindWorkspacesErr != nil {
+		return nil, m.FindWorkspacesErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var results []*models.WorkspaceWithHierarchy
+
+	for _, ws := range m.Workspaces {
+		// Get the app for this workspace
+		app, ok := m.Apps[ws.AppID]
+		if !ok {
+			continue
+		}
+
+		// Get the domain for this app
+		domain, ok := m.Domains[app.DomainID]
+		if !ok {
+			continue
+		}
+
+		// Get the ecosystem for this domain
+		var ecosystem *models.Ecosystem
+		for _, e := range m.Ecosystems {
+			if e.ID == domain.EcosystemID {
+				ecosystem = e
+				break
+			}
+		}
+		if ecosystem == nil {
+			continue
+		}
+
+		// Apply filters
+		if filter.EcosystemName != "" && ecosystem.Name != filter.EcosystemName {
+			continue
+		}
+		if filter.DomainName != "" && domain.Name != filter.DomainName {
+			continue
+		}
+		if filter.AppName != "" && app.Name != filter.AppName {
+			continue
+		}
+		if filter.WorkspaceName != "" && ws.Name != filter.WorkspaceName {
+			continue
+		}
+
+		results = append(results, &models.WorkspaceWithHierarchy{
+			Workspace: ws,
+			App:       app,
+			Domain:    domain,
+			Ecosystem: ecosystem,
+		})
+	}
+
+	return results, nil
 }
 
 // =============================================================================

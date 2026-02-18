@@ -26,8 +26,17 @@ func TestDetachCommandFlags(t *testing.T) {
 	// Verify flags are registered
 	allFlag := detachCmd.Flags().Lookup("all")
 	assert.NotNil(t, allFlag)
-	assert.Equal(t, "a", allFlag.Shorthand)
+	assert.Equal(t, "A", allFlag.Shorthand) // Changed from -a to -A to free up -a for --app
 	assert.Equal(t, "false", allFlag.DefValue)
+
+	// Verify hierarchy flags are registered
+	ecoFlag := detachCmd.Flags().Lookup("ecosystem")
+	assert.NotNil(t, ecoFlag)
+	assert.Equal(t, "e", ecoFlag.Shorthand)
+
+	appFlag := detachCmd.Flags().Lookup("app")
+	assert.NotNil(t, appFlag)
+	assert.Equal(t, "a", appFlag.Shorthand)
 }
 
 func TestDetachIsSubcommandOfRoot(t *testing.T) {

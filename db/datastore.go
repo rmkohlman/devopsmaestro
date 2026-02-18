@@ -122,6 +122,11 @@ type DataStore interface {
 	// ListAllWorkspaces retrieves all workspaces across all apps.
 	ListAllWorkspaces() ([]*models.Workspace, error)
 
+	// FindWorkspaces searches for workspaces matching the given filter criteria.
+	// Returns workspaces with their full hierarchy information (ecosystem, domain, app).
+	// Use this for smart workspace resolution when the user provides partial criteria.
+	FindWorkspaces(filter models.WorkspaceFilter) ([]*models.WorkspaceWithHierarchy, error)
+
 	// Context Operations (active selection state tracking)
 	// The hierarchy is: Ecosystem -> Domain -> App -> Workspace
 

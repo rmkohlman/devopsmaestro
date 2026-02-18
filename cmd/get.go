@@ -8,6 +8,7 @@ import (
 	"devopsmaestro/operators"
 	"devopsmaestro/pkg/nvimops/plugin"
 	"devopsmaestro/pkg/nvimops/theme"
+	"devopsmaestro/pkg/resolver"
 	"devopsmaestro/pkg/resource"
 	"devopsmaestro/pkg/resource/handlers"
 	"devopsmaestro/render"
@@ -16,7 +17,9 @@ import (
 )
 
 var (
-	getOutputFormat string
+	getOutputFormat    string
+	getWorkspacesFlags HierarchyFlags
+	getWorkspaceFlags  HierarchyFlags
 )
 
 // getCmd represents the get command
@@ -57,10 +60,17 @@ var getWorkspacesCmd = &cobra.Command{
 	Short:   "List all workspaces in an app",
 	Long: `List all workspaces in an app.
 
+Flags:
+  -e, --ecosystem   Filter by ecosystem name
+  -d, --domain      Filter by domain name  
+  -a, --app         Filter by app name
+  -w, --workspace   Filter by workspace name
+
 Examples:
   dvm get workspaces              # List workspaces in active app
   dvm get ws                      # Short form
-  dvm get workspaces --app myapp  # List workspaces in specific app`,
+  dvm get workspaces -a myapp     # List workspaces in specific app
+  dvm get workspaces -e healthcare -a portal`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return getWorkspaces(cmd)
 	},
@@ -73,14 +83,25 @@ var getWorkspaceCmd = &cobra.Command{
 	Short:   "Get a specific workspace",
 	Long: `Get a specific workspace by name.
 
+Flags:
+  -e, --ecosystem   Filter by ecosystem name
+  -d, --domain      Filter by domain name  
+  -a, --app         Filter by app name
+  -w, --workspace   Filter by workspace name (alternative to positional arg)
+
 Examples:
   dvm get workspace main              # Get workspace from active app
   dvm get ws main                     # Short form
-  dvm get workspace main --app myapp  # Get workspace from specific app
+  dvm get workspace main -a myapp     # Get workspace from specific app
+  dvm get workspace -a portal         # Get workspace if only one exists
   dvm get workspace main -o yaml      # Output as YAML`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return getWorkspace(cmd, args[0])
+		name := ""
+		if len(args) > 0 {
+			name = args[0]
+		}
+		return getWorkspace(cmd, name)
 	},
 }
 
@@ -176,9 +197,9 @@ func init() {
 	// Maps to render package: json, yaml, plain, table, colored (default)
 	getCmd.PersistentFlags().StringVarP(&getOutputFormat, "output", "o", "", "Output format (json, yaml, plain, table, colored)")
 
-	// Add app flag for workspace commands
-	getWorkspacesCmd.Flags().StringP("app", "a", "", "App name (defaults to active app)")
-	getWorkspaceCmd.Flags().StringP("app", "a", "", "App name (defaults to active app)")
+	// Add hierarchy flags for workspace commands
+	AddHierarchyFlags(getWorkspacesCmd, &getWorkspacesFlags)
+	AddHierarchyFlags(getWorkspaceCmd, &getWorkspaceFlags)
 }
 
 func getDataStore(cmd *cobra.Command) (db.DataStore, error) {
@@ -252,22 +273,73 @@ func getContext(cmd *cobra.Command) error {
 }
 
 func getWorkspaces(cmd *cobra.Command) error {
-	// Get app from flag or context
-	appFlag, _ := cmd.Flags().GetString("app")
+	sqlDS, err := getDataStore(cmd)
+	if err != nil {
+		return err
+	}
 
+	// Check if hierarchy flags were provided
+	if getWorkspacesFlags.HasAnyFlag() {
+		// Use resolver to find matching workspaces
+		wsResolver := resolver.NewWorkspaceResolver(sqlDS)
+		results, err := wsResolver.ResolveAll(getWorkspacesFlags.ToFilter())
+		if err != nil {
+			if resolver.IsNoWorkspaceFoundError(err) {
+				return render.OutputWith(getOutputFormat, nil, render.Options{
+					Empty:        true,
+					EmptyMessage: "No workspaces found matching criteria",
+					EmptyHints:   []string{"dvm create workspace <name>"},
+				})
+			}
+			return fmt.Errorf("failed to resolve workspaces: %w", err)
+		}
+
+		if len(results) == 0 {
+			return render.OutputWith(getOutputFormat, nil, render.Options{
+				Empty:        true,
+				EmptyMessage: "No workspaces found matching criteria",
+				EmptyHints:   []string{"dvm create workspace <name>"},
+			})
+		}
+
+		// For JSON/YAML, output the model data directly
+		if getOutputFormat == "json" || getOutputFormat == "yaml" {
+			workspacesYAML := make([]models.WorkspaceYAML, len(results))
+			for i, wh := range results {
+				workspacesYAML[i] = wh.Workspace.ToYAML(wh.App.Name)
+			}
+			return render.OutputWith(getOutputFormat, workspacesYAML, render.Options{})
+		}
+
+		// For human output, build table data with full path
+		tableData := render.TableData{
+			Headers: []string{"NAME", "PATH", "IMAGE", "STATUS"},
+			Rows:    make([][]string, len(results)),
+		}
+
+		for i, wh := range results {
+			tableData.Rows[i] = []string{
+				wh.Workspace.Name,
+				wh.FullPath(),
+				wh.Workspace.ImageName,
+				wh.Workspace.Status,
+			}
+		}
+
+		return render.OutputWith(getOutputFormat, tableData, render.Options{
+			Type: render.TypeTable,
+		})
+	}
+
+	// Fall back to existing context-based behavior
 	ctxMgr, err := operators.NewContextManager()
 	if err != nil {
 		return fmt.Errorf("failed to create context manager: %w", err)
 	}
 
-	var appName string
-	if appFlag != "" {
-		appName = appFlag
-	} else {
-		appName, err = ctxMgr.GetActiveApp()
-		if err != nil {
-			return fmt.Errorf("no app specified. Use --app <name> or 'dvm use app <name>' first")
-		}
+	appName, err := ctxMgr.GetActiveApp()
+	if err != nil {
+		return fmt.Errorf("no app specified. Use -a <name> or 'dvm use app <name>' first")
 	}
 
 	// Get active workspace (only relevant if viewing active app)
@@ -275,11 +347,6 @@ func getWorkspaces(cmd *cobra.Command) error {
 	activeApp, _ := ctxMgr.GetActiveApp()
 	if activeApp == appName {
 		activeWorkspace, _ = ctxMgr.GetActiveWorkspace()
-	}
-
-	sqlDS, err := getDataStore(cmd)
-	if err != nil {
-		return err
 	}
 
 	// Get app to get its ID (search globally across all domains)
@@ -337,38 +404,69 @@ func getWorkspaces(cmd *cobra.Command) error {
 }
 
 func getWorkspace(cmd *cobra.Command, name string) error {
-	// Get app from flag or context
-	appFlag, _ := cmd.Flags().GetString("app")
-
-	ctxMgr, err := operators.NewContextManager()
-	if err != nil {
-		return fmt.Errorf("failed to create context manager: %w", err)
-	}
-
-	var appName string
-	if appFlag != "" {
-		appName = appFlag
-	} else {
-		appName, err = ctxMgr.GetActiveApp()
-		if err != nil {
-			return fmt.Errorf("no app specified. Use --app <name> or 'dvm use app <name>' first")
-		}
-	}
-
 	sqlDS, err := getDataStore(cmd)
 	if err != nil {
 		return err
 	}
 
-	// Get app to get its ID (search globally across all domains)
-	app, err := sqlDS.GetAppByNameGlobal(appName)
-	if err != nil {
-		return fmt.Errorf("app '%s' not found: %w", appName, err)
+	var workspace *models.Workspace
+	var app *models.App
+	var appName string
+
+	// If name is provided via positional arg, add it to the filter
+	filter := getWorkspaceFlags.ToFilter()
+	if name != "" {
+		filter.WorkspaceName = name
 	}
 
-	workspace, err := sqlDS.GetWorkspaceByName(app.ID, name)
-	if err != nil {
-		return fmt.Errorf("failed to get workspace: %w", err)
+	// Check if any criteria were provided (flags or positional arg)
+	if filter.EcosystemName != "" || filter.DomainName != "" || filter.AppName != "" || filter.WorkspaceName != "" {
+		// Use resolver to find workspace
+		wsResolver := resolver.NewWorkspaceResolver(sqlDS)
+		result, err := wsResolver.Resolve(filter)
+		if err != nil {
+			// Check if ambiguous and provide helpful output
+			if ambiguousErr, ok := resolver.IsAmbiguousError(err); ok {
+				render.Warning("Multiple workspaces match your criteria")
+				fmt.Println(ambiguousErr.FormatDisambiguation())
+				return fmt.Errorf("ambiguous workspace selection")
+			}
+			if resolver.IsNoWorkspaceFoundError(err) {
+				render.Warning("No workspace found matching your criteria")
+				render.Info("Hint: Use 'dvm get workspaces' to see available workspaces")
+				return err
+			}
+			return fmt.Errorf("failed to resolve workspace: %w", err)
+		}
+
+		workspace = result.Workspace
+		app = result.App
+		appName = app.Name
+
+		// Update context to the resolved workspace
+		if err := updateContextFromHierarchy(sqlDS, result); err != nil {
+			// Continue anyway - this is not fatal
+		}
+	} else {
+		// Fall back to existing context-based behavior
+		ctxMgr, err := operators.NewContextManager()
+		if err != nil {
+			return fmt.Errorf("failed to create context manager: %w", err)
+		}
+
+		appName, err = ctxMgr.GetActiveApp()
+		if err != nil {
+			return fmt.Errorf("no app specified. Use -a <name> or 'dvm use app <name>' first")
+		}
+
+		// Get app to get its ID (search globally across all domains)
+		app, err = sqlDS.GetAppByNameGlobal(appName)
+		if err != nil {
+			return fmt.Errorf("app '%s' not found: %w", appName, err)
+		}
+
+		// Need workspace name when using context-based lookup
+		return fmt.Errorf("workspace name required. Use: dvm get workspace <name>")
 	}
 
 	// For JSON/YAML, output the model data directly
@@ -377,6 +475,7 @@ func getWorkspace(cmd *cobra.Command, name string) error {
 	}
 
 	// For human output, show detail view
+	ctxMgr, _ := operators.NewContextManager()
 	var activeWorkspace string
 	activeApp, _ := ctxMgr.GetActiveApp()
 	if activeApp == appName {

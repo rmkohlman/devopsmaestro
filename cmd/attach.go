@@ -3,7 +3,9 @@ package cmd
 import (
 	"context"
 	"devopsmaestro/db"
+	"devopsmaestro/models"
 	"devopsmaestro/operators"
+	"devopsmaestro/pkg/resolver"
 	"devopsmaestro/render"
 	"fmt"
 	"log/slog"
@@ -11,6 +13,9 @@ import (
 
 	"github.com/spf13/cobra"
 )
+
+// attachFlags holds the hierarchy flags for the attach command
+var attachFlags HierarchyFlags
 
 // attachCmd attaches to the active workspace
 var attachCmd = &cobra.Command{
@@ -27,9 +32,17 @@ The workspace provides your complete dev environment with:
 
 Press Ctrl+D to detach from the workspace.
 
+Flags:
+  -e, --ecosystem   Filter by ecosystem name
+  -d, --domain      Filter by domain name  
+  -a, --app         Filter by app name
+  -w, --workspace   Filter by workspace name
+
 Examples:
-  dvm attach
-  DVM_WORKSPACE=dev dvm attach  # Override with env var`,
+  dvm attach                           # Use current context
+  dvm attach -a portal                 # Attach to workspace in 'portal' app
+  dvm attach -e healthcare -a portal   # Specify ecosystem and app
+  dvm attach -a portal -w staging      # Specify app and workspace name`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := runAttach(cmd); err != nil {
 			render.Error(err.Error())
@@ -40,48 +53,90 @@ Examples:
 func runAttach(cmd *cobra.Command) error {
 	slog.Info("starting attach")
 
-	// Get context manager
-	contextMgr, err := operators.NewContextManager()
-	if err != nil {
-		return fmt.Errorf("failed to initialize context manager: %w", err)
-	}
-
-	// Get active app and workspace
-	appName, err := contextMgr.GetActiveApp()
-	if err != nil {
-		render.Info("Hint: Set active app with: dvm use app <name>")
-		return err
-	}
-
-	workspaceName, err := contextMgr.GetActiveWorkspace()
-	if err != nil {
-		render.Info("Hint: Set active workspace with: dvm use workspace <name>")
-		return err
-	}
-
-	slog.Debug("attach context", "app", appName, "workspace", workspaceName)
-	render.Info(fmt.Sprintf("App: %s | Workspace: %s", appName, workspaceName))
-
 	// Get datastore from context
 	ctx := cmd.Context()
 	dataStore := ctx.Value("dataStore").(*db.DataStore)
 	if dataStore == nil {
 		return fmt.Errorf("dataStore not initialized")
 	}
-
 	ds := *dataStore
 
-	// Get app (search globally across all domains)
-	app, err := ds.GetAppByNameGlobal(appName)
-	if err != nil {
-		return fmt.Errorf("failed to get app '%s': %w", appName, err)
+	var app *models.App
+	var workspace *models.Workspace
+	var appName, workspaceName string
+
+	// Check if hierarchy flags were provided
+	if attachFlags.HasAnyFlag() {
+		// Use resolver to find workspace
+		slog.Debug("using hierarchy flags", "ecosystem", attachFlags.Ecosystem,
+			"domain", attachFlags.Domain, "app", attachFlags.App, "workspace", attachFlags.Workspace)
+
+		wsResolver := resolver.NewWorkspaceResolver(ds)
+		result, err := wsResolver.Resolve(attachFlags.ToFilter())
+		if err != nil {
+			// Check if ambiguous and provide helpful output
+			if ambiguousErr, ok := resolver.IsAmbiguousError(err); ok {
+				render.Warning("Multiple workspaces match your criteria")
+				fmt.Println(ambiguousErr.FormatDisambiguation())
+				return fmt.Errorf("ambiguous workspace selection")
+			}
+			if resolver.IsNoWorkspaceFoundError(err) {
+				render.Warning("No workspace found matching your criteria")
+				render.Info("Hint: Use 'dvm get workspaces' to see available workspaces")
+				return err
+			}
+			return fmt.Errorf("failed to resolve workspace: %w", err)
+		}
+
+		// Use resolved workspace and app
+		workspace = result.Workspace
+		app = result.App
+		appName = app.Name
+		workspaceName = workspace.Name
+
+		// Update context to the resolved workspace
+		if err := updateContextFromHierarchy(ds, result); err != nil {
+			slog.Warn("failed to update context", "error", err)
+			// Continue anyway - this is not fatal
+		}
+
+		render.Info(fmt.Sprintf("Resolved: %s", result.FullPath()))
+	} else {
+		// Fall back to existing context-based behavior
+		contextMgr, err := operators.NewContextManager()
+		if err != nil {
+			return fmt.Errorf("failed to initialize context manager: %w", err)
+		}
+
+		appName, err = contextMgr.GetActiveApp()
+		if err != nil {
+			render.Info("Hint: Set active app with: dvm use app <name>")
+			render.Info("      Or use flags: dvm attach -a <app>")
+			return err
+		}
+
+		workspaceName, err = contextMgr.GetActiveWorkspace()
+		if err != nil {
+			render.Info("Hint: Set active workspace with: dvm use workspace <name>")
+			render.Info("      Or use flags: dvm attach -w <workspace>")
+			return err
+		}
+
+		// Get app (search globally across all domains)
+		app, err = ds.GetAppByNameGlobal(appName)
+		if err != nil {
+			return fmt.Errorf("failed to get app '%s': %w", appName, err)
+		}
+
+		// Get workspace
+		workspace, err = ds.GetWorkspaceByName(app.ID, workspaceName)
+		if err != nil {
+			return fmt.Errorf("failed to get workspace '%s': %w", workspaceName, err)
+		}
 	}
 
-	// Get workspace
-	workspace, err := ds.GetWorkspaceByName(app.ID, workspaceName)
-	if err != nil {
-		return fmt.Errorf("failed to get workspace '%s': %w", workspaceName, err)
-	}
+	slog.Debug("attach context", "app", appName, "workspace", workspaceName)
+	render.Info(fmt.Sprintf("App: %s | Workspace: %s", appName, workspaceName))
 
 	slog.Debug("resolved workspace", "image", workspace.ImageName, "app_path", app.Path)
 
@@ -139,7 +194,26 @@ func runAttach(cmd *cobra.Command) error {
 	return nil
 }
 
+// updateContextFromHierarchy updates the database context with the resolved hierarchy.
+// This ensures that subsequent commands without flags use the same workspace.
+func updateContextFromHierarchy(ds db.DataStore, wh *models.WorkspaceWithHierarchy) error {
+	if err := ds.SetActiveEcosystem(&wh.Ecosystem.ID); err != nil {
+		return err
+	}
+	if err := ds.SetActiveDomain(&wh.Domain.ID); err != nil {
+		return err
+	}
+	if err := ds.SetActiveApp(&wh.App.ID); err != nil {
+		return err
+	}
+	if err := ds.SetActiveWorkspace(&wh.Workspace.ID); err != nil {
+		return err
+	}
+	return nil
+}
+
 // Initializes the attach command
 func init() {
 	rootCmd.AddCommand(attachCmd)
+	AddHierarchyFlags(attachCmd, &attachFlags)
 }
