@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.9.4] - 2026-02-18
+
+### 🐛 Fixed
+
+- **Colima containerd SSH operations** - Fixed container attach, stop, and status operations in Colima by using `nerdctl` via SSH instead of direct containerd client calls. This resolves connection issues when using Colima as the container runtime.
+- **Container runtime platform detection** - Fixed platform detection mismatch by passing the detected platform to the containerd runtime. This prevents architecture conflicts when creating containers on different platforms.
+
+---
+
 ## [0.9.3] - 2026-02-18
 
 ### 🐛 Fixed
