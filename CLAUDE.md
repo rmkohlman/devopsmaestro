@@ -36,6 +36,7 @@ Ask yourself: "Which agents does this task need?"
 | Neovim plugins, themes, nvp | `nvimops` |
 | Writing or running tests | `test` |
 | Documentation updates | `document` |
+| Git operations (commit, push, pull, branch) | `release` |
 | Release process, CI/CD | `release` |
 | Design patterns, architecture | `architecture` (advisory) |
 | Security concerns | `security` (advisory) |
@@ -180,7 +181,7 @@ You (orchestrator):
 | `@nvimops` | `pkg/nvimops/`, `cmd/nvp/` | NvimOps features |
 | `@test` | `*_test.go`, MANUAL_TEST_PLAN.md | Testing |
 | `@document` | `*.md` files, documentation | Documentation |
-| `@release` | CI/CD, CHANGELOG, Homebrew | Releases |
+| `@release` | CI/CD, CHANGELOG, Homebrew | Releases, ALL git operations |
 
 ### Delegation Examples
 
@@ -314,6 +315,7 @@ gh run list --limit 3
 3. ❌ **Don't skip security review** - Ask @security for risky changes
 4. ❌ **Don't bypass Resource/Handler** - Ask @cli-architect if unsure
 5. ❌ **Don't release without @test and @release**
+6. ❌ **Don't run git commands directly** - Delegate to @release
 
 ---
 
@@ -324,6 +326,7 @@ gh run list --limit 3
 3. ✅ **Verify with @architecture** for design decisions
 4. ✅ **Run tests** before considering work complete
 5. ✅ **Update documentation** via @document
+6. ✅ **Delegate ALL git operations** to @release
 
 ---
 
