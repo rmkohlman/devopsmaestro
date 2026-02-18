@@ -134,7 +134,7 @@ func (c *ContainerdRuntime) StartWorkspace(ctx context.Context, opts StartOption
 	envSlice := envMapToSliceContainerd(opts.Env)
 
 	// Clean up any existing container with the same name
-	if existingContainer, err := c.client.LoadContainer(ctx, opts.WorkspaceName); err == nil {
+	if existingContainer, err := c.client.LoadContainer(ctx, opts.ContainerName); err == nil {
 		// Container exists, delete it
 		if task, err := existingContainer.Task(ctx, nil); err == nil {
 			// Task exists, kill it first
@@ -283,15 +283,15 @@ func (c *ContainerdRuntime) StartWorkspace(ctx context.Context, opts StartOption
 
 	container, err := c.client.NewContainer(
 		ctx,
-		opts.WorkspaceName,
+		opts.ContainerName,
 		client.WithImage(image),
 		client.WithSnapshotter("overlayfs"),
-		client.WithNewSnapshot(opts.WorkspaceName+"-snapshot", image),
+		client.WithNewSnapshot(opts.ContainerName+"-snapshot", image),
 		client.WithNewSpec(
 			withLinuxSpec, // Apply this first to create the Linux section
 			oci.WithImageConfigArgs(image, command),
 			oci.WithDefaultUnixDevices, // Add default devices like /dev/null
-			oci.WithHostname(opts.WorkspaceName),
+			oci.WithHostname(opts.ContainerName),
 			oci.WithProcessCwd(workingDir),
 			oci.WithEnv(envSlice),
 			// Skip TTY for now since we're using NullIO

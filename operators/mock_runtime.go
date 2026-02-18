@@ -95,11 +95,15 @@ func (m *MockContainerRuntime) StartWorkspace(ctx context.Context, opts StartOpt
 		return "", fmt.Errorf("image not found: %s", opts.ImageName)
 	}
 
-	// Mark workspace as running
-	m.Workspaces[opts.WorkspaceName] = "running"
+	// Mark workspace as running - use ContainerName if provided, else WorkspaceName
+	containerKey := opts.ContainerName
+	if containerKey == "" {
+		containerKey = opts.WorkspaceName
+	}
+	m.Workspaces[containerKey] = "running"
 
 	// Return a mock container ID
-	containerID := fmt.Sprintf("mock-container-%s", opts.WorkspaceName)
+	containerID := fmt.Sprintf("mock-container-%s", containerKey)
 	return containerID, nil
 }
 

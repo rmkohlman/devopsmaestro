@@ -106,7 +106,7 @@ func (r *ContainerdRuntimeV2) startWorkspaceViaColima(ctx context.Context, opts 
 
 	// First check if container already exists and is running
 	checkCmd := fmt.Sprintf("sudo nerdctl --namespace %s inspect %s 2>/dev/null && echo EXISTS || echo NOTFOUND",
-		r.namespace, opts.WorkspaceName)
+		r.namespace, opts.ContainerName)
 	checkExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", checkCmd)
 	output, _ := checkExec.Output()
 	containerExists := string(output) != "" && string(output) != "NOTFOUND\n"
@@ -114,19 +114,19 @@ func (r *ContainerdRuntimeV2) startWorkspaceViaColima(ctx context.Context, opts 
 	if containerExists {
 		// Check if it's running
 		statusCmd := fmt.Sprintf("sudo nerdctl --namespace %s inspect -f '{{.State.Status}}' %s 2>/dev/null || echo stopped",
-			r.namespace, opts.WorkspaceName)
+			r.namespace, opts.ContainerName)
 		statusExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", statusCmd)
 		statusOutput, _ := statusExec.Output()
 		status := string(statusOutput)
 
 		if status == "running\n" || status == "running" {
 			// Already running, return the container name as ID
-			return opts.WorkspaceName, nil
+			return opts.ContainerName, nil
 		}
 
 		// Container exists but not running, remove it first
 		rmCmd := fmt.Sprintf("sudo nerdctl --namespace %s rm -f %s 2>/dev/null || true",
-			r.namespace, opts.WorkspaceName)
+			r.namespace, opts.ContainerName)
 		rmExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", rmCmd)
 		rmExec.Run()
 	}
@@ -149,7 +149,7 @@ func (r *ContainerdRuntimeV2) startWorkspaceViaColima(ctx context.Context, opts 
 		"sudo", "nerdctl",
 		"--namespace", r.namespace,
 		"run", "-d",
-		"--name", opts.WorkspaceName,
+		"--name", opts.ContainerName,
 		"-w", workingDir,
 	}
 
@@ -209,8 +209,8 @@ func (r *ContainerdRuntimeV2) startWorkspaceViaColima(ctx context.Context, opts 
 		containerID = containerID[:12]
 	}
 
-	// Return the workspace name as the ID (that's what we use to reference it)
-	return opts.WorkspaceName, nil
+	// Return the container name as the ID (that's what we use to reference it)
+	return opts.ContainerName, nil
 }
 
 // needsQuoting returns true if a string needs shell quoting
@@ -235,7 +235,7 @@ func (r *ContainerdRuntimeV2) startWorkspaceDirectAPI(ctx context.Context, opts 
 	}
 
 	// Check if container already exists
-	existingContainer, err := r.client.LoadContainer(ctx, opts.WorkspaceName)
+	existingContainer, err := r.client.LoadContainer(ctx, opts.ContainerName)
 	if err == nil {
 		// Container exists - clean it up
 		task, err := existingContainer.Task(ctx, nil)
@@ -302,10 +302,10 @@ func (r *ContainerdRuntimeV2) startWorkspaceDirectAPI(ctx context.Context, opts 
 	// Use Compose to combine base spec with customizations
 	container, err := r.client.NewContainer(
 		ctx,
-		opts.WorkspaceName,
+		opts.ContainerName,
 		client.WithImage(image),
 		client.WithSnapshotter("overlayfs"),
-		client.WithNewSnapshot(opts.WorkspaceName+"-snapshot", image),
+		client.WithNewSnapshot(opts.ContainerName+"-snapshot", image),
 		client.WithRuntime("io.containerd.runc.v2", nil), // Explicitly use runc runtime
 		client.WithNewSpec(
 			oci.Compose(
