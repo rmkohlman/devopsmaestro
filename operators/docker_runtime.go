@@ -105,11 +105,8 @@ func (d *DockerRuntime) BuildImage(ctx context.Context, opts BuildOptions) error
 // 3. Container exists but uses a different image -> remove it and create new one
 // 4. Container doesn't exist -> create and start it
 func (d *DockerRuntime) StartWorkspace(ctx context.Context, opts StartOptions) (string, error) {
-	// Determine container name
-	containerName := opts.ContainerName
-	if containerName == "" {
-		containerName = opts.WorkspaceName
-	}
+	// Determine container name using helper
+	containerName := opts.ComputeContainerName()
 
 	// Check if container already exists
 	existingContainers, err := d.client.ContainerList(ctx, container.ListOptions{
@@ -161,11 +158,8 @@ func (d *DockerRuntime) StartWorkspace(ctx context.Context, opts StartOptions) (
 	}
 
 	// Container doesn't exist - create it
-	// Set default command to keep container running
-	command := opts.Command
-	if len(command) == 0 {
-		command = []string{"/bin/sleep", "infinity"}
-	}
+	// Set command to keep container running using helper
+	command := opts.ComputeCommand()
 
 	// Set default working directory
 	workingDir := opts.WorkingDir

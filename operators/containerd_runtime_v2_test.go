@@ -9,6 +9,85 @@ import (
 	"time"
 )
 
+// TestStartOptions_Helpers tests the new helper functions for container naming and command computation
+func TestStartOptions_Helpers(t *testing.T) {
+	t.Run("ComputeContainerName with ContainerName set", func(t *testing.T) {
+		opts := StartOptions{
+			WorkspaceName: "my-workspace",
+			ContainerName: "custom-container",
+		}
+
+		result := opts.ComputeContainerName()
+		expected := "custom-container"
+		if result != expected {
+			t.Errorf("Expected %s, got %s", expected, result)
+		}
+	})
+
+	t.Run("ComputeContainerName with ContainerName empty", func(t *testing.T) {
+		opts := StartOptions{
+			WorkspaceName: "my-workspace",
+			ContainerName: "",
+		}
+
+		result := opts.ComputeContainerName()
+		expected := "my-workspace"
+		if result != expected {
+			t.Errorf("Expected %s, got %s", expected, result)
+		}
+	})
+
+	t.Run("ComputeCommand with Command set", func(t *testing.T) {
+		opts := StartOptions{
+			Command: []string{"/bin/zsh", "-l"},
+		}
+
+		result := opts.ComputeCommand()
+		expected := []string{"/bin/zsh", "-l"}
+		if len(result) != len(expected) {
+			t.Errorf("Expected %v, got %v", expected, result)
+		}
+		for i, cmd := range result {
+			if cmd != expected[i] {
+				t.Errorf("Expected %v, got %v", expected, result)
+				break
+			}
+		}
+	})
+
+	t.Run("ComputeCommand with Command empty", func(t *testing.T) {
+		opts := StartOptions{
+			Command: []string{},
+		}
+
+		result := opts.ComputeCommand()
+		expected := []string{"/bin/sleep", "infinity"}
+		if len(result) != len(expected) {
+			t.Errorf("Expected %v, got %v", expected, result)
+		}
+		for i, cmd := range result {
+			if cmd != expected[i] {
+				t.Errorf("Expected %v, got %v", expected, result)
+				break
+			}
+		}
+	})
+
+	t.Run("DefaultKeepAliveCommand", func(t *testing.T) {
+		result := DefaultKeepAliveCommand()
+		expected := []string{"/bin/sleep", "infinity"}
+		if len(result) != len(expected) {
+			t.Errorf("Expected %v, got %v", expected, result)
+		}
+		for i, cmd := range result {
+			if cmd != expected[i] {
+				t.Errorf("Expected %v, got %v", expected, result)
+				break
+			}
+		}
+	})
+}
+
 // requireContainerdPlatform skips the test if no containerd platform is available
 func requireContainerdPlatform(t *testing.T) *Platform {
 	t.Helper()

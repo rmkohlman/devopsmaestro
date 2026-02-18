@@ -118,11 +118,8 @@ func (c *ContainerdRuntime) StartWorkspace(ctx context.Context, opts StartOption
 		}
 	}
 
-	// Set default command if not specified
-	command := opts.Command
-	if len(command) == 0 {
-		command = []string{"/bin/zsh"}
-	}
+	// Set command to keep container running using helper
+	command := opts.ComputeCommand()
 
 	// Set default working directory
 	workingDir := opts.WorkingDir
@@ -134,7 +131,8 @@ func (c *ContainerdRuntime) StartWorkspace(ctx context.Context, opts StartOption
 	envSlice := envMapToSliceContainerd(opts.Env)
 
 	// Clean up any existing container with the same name
-	if existingContainer, err := c.client.LoadContainer(ctx, opts.ContainerName); err == nil {
+	containerName := opts.ComputeContainerName()
+	if existingContainer, err := c.client.LoadContainer(ctx, containerName); err == nil {
 		// Container exists, delete it
 		if task, err := existingContainer.Task(ctx, nil); err == nil {
 			// Task exists, kill it first
@@ -283,15 +281,15 @@ func (c *ContainerdRuntime) StartWorkspace(ctx context.Context, opts StartOption
 
 	container, err := c.client.NewContainer(
 		ctx,
-		opts.ContainerName,
+		containerName,
 		client.WithImage(image),
 		client.WithSnapshotter("overlayfs"),
-		client.WithNewSnapshot(opts.ContainerName+"-snapshot", image),
+		client.WithNewSnapshot(containerName+"-snapshot", image),
 		client.WithNewSpec(
 			withLinuxSpec, // Apply this first to create the Linux section
 			oci.WithImageConfigArgs(image, command),
 			oci.WithDefaultUnixDevices, // Add default devices like /dev/null
-			oci.WithHostname(opts.ContainerName),
+			oci.WithHostname(containerName),
 			oci.WithProcessCwd(workingDir),
 			oci.WithEnv(envSlice),
 			// Skip TTY for now since we're using NullIO

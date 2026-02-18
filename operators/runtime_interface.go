@@ -8,7 +8,13 @@ type ContainerRuntime interface {
 	// BuildImage builds a container image from the app
 	BuildImage(ctx context.Context, opts BuildOptions) error
 
-	// StartWorkspace starts a workspace container/pod
+	// StartWorkspace creates and starts a workspace container.
+	//
+	// Contracts:
+	// - If ContainerName is empty, uses WorkspaceName
+	// - If Command is empty, uses "/bin/sleep infinity" to keep container alive
+	// - Attach to the running container with AttachToWorkspace
+	// - Returns container ID (or container name for some runtimes)
 	StartWorkspace(ctx context.Context, opts StartOptions) (string, error)
 
 	// AttachToWorkspace attaches an interactive terminal to a running workspace
@@ -60,12 +66,36 @@ type BuildOptions struct {
 
 // StartOptions contains options for starting a workspace
 type StartOptions struct {
-	ImageName     string            // Container image to use
-	WorkspaceName string            // Name of the workspace
-	ContainerName string            // Container name (e.g., "dvm-app-workspace")
-	AppName       string            // App name for labels
-	AppPath       string            // Path to mount as /workspace
+	ImageName     string            // Image to run
+	WorkspaceName string            // Logical workspace name (used in labels)
+	ContainerName string            // Physical container name (if empty, uses WorkspaceName)
+	AppName       string            // App name for labeling
+	AppPath       string            // Host path to mount at /workspace
+	WorkingDir    string            // Container working directory (default: /workspace)
+	Command       []string          // Command to run (default: /bin/sleep infinity for keep-alive)
 	Env           map[string]string // Environment variables
-	WorkingDir    string            // Working directory inside container
-	Command       []string          // Command to run (default: /bin/zsh)
+}
+
+// computeContainerName returns the container name to use.
+// If ContainerName is set, use it. Otherwise fall back to WorkspaceName.
+func (opts StartOptions) ComputeContainerName() string {
+	if opts.ContainerName != "" {
+		return opts.ContainerName
+	}
+	return opts.WorkspaceName
+}
+
+// DefaultKeepAliveCommand returns the standard command to keep containers running.
+// Use this when Command is empty in StartOptions.
+func DefaultKeepAliveCommand() []string {
+	return []string{"/bin/sleep", "infinity"}
+}
+
+// ComputeCommand returns the command to use for starting a container.
+// If Command is set, use it. Otherwise use the default keep-alive command.
+func (opts StartOptions) ComputeCommand() []string {
+	if len(opts.Command) > 0 {
+		return opts.Command
+	}
+	return DefaultKeepAliveCommand()
 }
