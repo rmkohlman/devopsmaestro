@@ -379,8 +379,9 @@ func (r *ContainerdRuntimeV2) attachViaColima(ctx context.Context, containerID s
 	}
 
 	// Attach via nerdctl exec
+	// Note: colima ssh doesn't have a -t flag like regular ssh - TTY is automatic
 	cmd := fmt.Sprintf("sudo nerdctl --namespace %s exec -it %s /bin/zsh -l", r.namespace, containerID)
-	execCmd := []string{"colima", "--profile", profile, "ssh", "-t", "--", "sh", "-c", cmd}
+	execCmd := []string{"colima", "--profile", profile, "ssh", "--", "sh", "-c", cmd}
 
 	// Find colima in PATH
 	colimaPath, err := exec.LookPath("colima")
