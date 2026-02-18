@@ -133,10 +133,10 @@ func (r *ContainerdRuntimeV2) startWorkspaceViaColima(ctx context.Context, opts 
 	}
 
 	// Build nerdctl run command
-	// Set default command
+	// Set default command to keep container running
 	command := opts.Command
 	if len(command) == 0 {
-		command = []string{"/bin/zsh", "-l"}
+		command = []string{"/bin/sleep", "infinity"}
 	}
 
 	// Set default working directory
@@ -257,10 +257,10 @@ func (r *ContainerdRuntimeV2) startWorkspaceDirectAPI(ctx context.Context, opts 
 		existingContainer.Delete(ctx, client.WithSnapshotCleanup)
 	}
 
-	// Set default command
+	// Set default command to keep container running
 	command := opts.Command
 	if len(command) == 0 {
-		command = []string{"/bin/zsh", "-l"}
+		command = []string{"/bin/sleep", "infinity"}
 	}
 
 	// Set default working directory
