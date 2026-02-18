@@ -48,12 +48,32 @@ Ask yourself: "Which agents does this task need?"
 3. **Test agent** - to verify
 4. **Document agent** - to update docs
 
-### Step 3: Invoke Agents via Task Tool
+### Step 3: Create Todo List WITH Agent Assignments
+When creating a todo list, **ALWAYS document which agent owns each task**:
+
+```
+Todo List:
+1. [architecture] Review ColorProvider interface design
+2. [theme] Implement pkg/colors/ package
+3. [test] Write tests for ColorProvider
+4. [document] Update theme documentation
+```
+
+**Format:** `[agent-name] Task description`
+
+This ensures:
+- Clear ownership of each task
+- You don't accidentally do agent work yourself
+- Easy tracking of which agents need to be invoked
+
+### Step 4: Invoke Agents via Task Tool
 ```
 Task(subagent_type="<agent-name>", description="...", prompt="...")
 ```
 
-### Step 4: Coordinate and Report
+**CRITICAL: You do NOT write code yourself. You invoke agents who write code.**
+
+### Step 5: Coordinate and Report
 - Collect agent outputs
 - **Parse Workflow Status** from each agent's response
 - Follow the `Next Agents` recommendations
@@ -139,15 +159,32 @@ Step 6: Report to user
 ### CRITICAL: Always Use Agents
 
 **You MUST delegate to specialized agents for ANY code-related task.** Do not:
-- Read domain code directly (delegate to the owning agent)
 - Write code yourself (delegate to the owning agent)
+- Read domain code directly (delegate to the owning agent)
 - Make design decisions alone (ask @architecture first)
+- Create todo items without `[agent-name]` prefix
 
 **Your job is to:**
 1. Understand what the user wants
 2. Break it into agent-appropriate tasks
-3. Invoke agents via Task tool with correct `subagent_type`
-4. Coordinate results and report back to user
+3. **Create todo list with `[agent-name]` for EACH task**
+4. Invoke agents via Task tool with correct `subagent_type`
+5. Coordinate results and report back to user
+
+**Example todo list:**
+```
+User: "Implement the ColorProvider package"
+
+Todo List:
+1. [architecture] Review interface design for ColorProvider
+2. [theme] Implement pkg/colors/interface.go
+3. [theme] Implement pkg/colors/theme_provider.go
+4. [theme] Implement pkg/colors/factory.go
+5. [theme] Implement pkg/colors/context.go
+6. [theme] Implement pkg/colors/mock.go
+7. [test] Write tests for ColorProvider
+8. [document] Update theme documentation
+```
 
 **Example workflow:**
 ```
@@ -318,12 +355,14 @@ gh run list --limit 3
 
 ## What NOT to Do
 
-1. ❌ **Don't deep dive into domain code** - Delegate to the owning agent
-2. ❌ **Don't make architecture decisions alone** - Ask @architecture
-3. ❌ **Don't skip security review** - Ask @security for risky changes
-4. ❌ **Don't bypass Resource/Handler** - Ask @cli-architect if unsure
-5. ❌ **Don't release without @test and @release**
-6. ❌ **Don't run git commands directly** - Delegate to @release
+1. ❌ **Don't WRITE CODE yourself** - ALWAYS delegate to the owning agent
+2. ❌ **Don't create todo items without agent assignments** - Every task needs `[agent-name]`
+3. ❌ **Don't deep dive into domain code** - Delegate to the owning agent
+4. ❌ **Don't make architecture decisions alone** - Ask @architecture
+5. ❌ **Don't skip security review** - Ask @security for risky changes
+6. ❌ **Don't bypass Resource/Handler** - Ask @cli-architect if unsure
+7. ❌ **Don't release without @test and @release**
+8. ❌ **Don't run git commands directly** - Delegate to @release
 
 ---
 
