@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/containerd/containerd/v2/client"
@@ -347,6 +348,63 @@ func (r *ContainerdRuntimeV2) startWorkspaceDirectAPI(ctx context.Context, opts 
 // AttachToWorkspace attaches to a running workspace container
 // For Colima, we use nerdctl via SSH since direct FIFO-based IO doesn't work across host/VM boundary
 func (r *ContainerdRuntimeV2) AttachToWorkspace(ctx context.Context, containerID string) error {
+	// For Colima, use nerdctl via SSH (containerd API doesn't work well across VM boundary)
+	if r.platform.Type == PlatformColima {
+		return r.attachViaColima(ctx, containerID)
+	}
+
+	// For other platforms, use containerd API directly
+	return r.attachDirectAPI(ctx, containerID)
+}
+
+// attachViaColima attaches to a container using nerdctl via SSH for Colima
+func (r *ContainerdRuntimeV2) attachViaColima(ctx context.Context, containerID string) error {
+	profile := r.platform.Profile
+	if profile == "" {
+		profile = "default"
+	}
+
+	// Check if container exists and is running via nerdctl
+	statusCmd := fmt.Sprintf("sudo nerdctl --namespace %s inspect -f '{{.State.Status}}' %s 2>/dev/null || echo not_found",
+		r.namespace, containerID)
+	statusExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", statusCmd)
+	statusOutput, err := statusExec.Output()
+	if err != nil {
+		return fmt.Errorf("failed to check container status: %w", err)
+	}
+
+	status := strings.TrimSpace(string(statusOutput))
+	if status == "not_found" {
+		return fmt.Errorf("container not found: %s", containerID)
+	}
+
+	if status != "running" {
+		return fmt.Errorf("container is not running (status: %s)", status)
+	}
+
+	// Attach via nerdctl exec
+	cmd := fmt.Sprintf("sudo nerdctl --namespace %s exec -it %s /bin/zsh -l", r.namespace, containerID)
+	execCmd := []string{"colima", "--profile", profile, "ssh", "-t", "--", "sh", "-c", cmd}
+
+	// Create exec command
+	execProc := &exec.Cmd{
+		Path:   "/usr/bin/colima",
+		Args:   execCmd,
+		Stdin:  os.Stdin,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
+
+	// Run the command
+	if err := execProc.Run(); err != nil {
+		return fmt.Errorf("failed to attach: %w", err)
+	}
+
+	return nil
+}
+
+// attachDirectAPI attaches to a container using containerd API directly
+func (r *ContainerdRuntimeV2) attachDirectAPI(ctx context.Context, containerID string) error {
 	ctx = namespaces.WithNamespace(ctx, r.namespace)
 
 	// Load the container
@@ -371,39 +429,40 @@ func (r *ContainerdRuntimeV2) AttachToWorkspace(ctx context.Context, containerID
 		return fmt.Errorf("container is not running (status: %s)", status.Status)
 	}
 
-	// For Colima, use nerdctl exec via SSH for interactive attach
-	// This avoids FIFO issues when client is on host and containerd is in VM
-	if r.platform.Type == PlatformColima {
-		cmd := fmt.Sprintf("sudo nerdctl --namespace %s exec -it %s /bin/zsh -l", r.namespace, containerID)
-		profile := r.platform.Profile
-		if profile == "" {
-			profile = "default"
-		}
-		execCmd := []string{"colima", "--profile", profile, "ssh", "-t", "--", "sh", "-c", cmd}
-
-		// Create exec command
-		execProc := &exec.Cmd{
-			Path:   "/usr/bin/colima",
-			Args:   execCmd,
-			Stdin:  os.Stdin,
-			Stdout: os.Stdout,
-			Stderr: os.Stderr,
-		}
-
-		// Run the command
-		if err := execProc.Run(); err != nil {
-			return fmt.Errorf("failed to attach: %w", err)
-		}
-
-		return nil
-	}
-
-	// For other platforms, return not implemented
+	// For other platforms, return not implemented for now
 	return fmt.Errorf("attach not implemented for platform %s with containerd runtime", r.platform.Name)
 }
 
 // StopWorkspace stops a running workspace
 func (r *ContainerdRuntimeV2) StopWorkspace(ctx context.Context, containerID string) error {
+	// For Colima, use nerdctl via SSH (containerd API doesn't work well across VM boundary)
+	if r.platform.Type == PlatformColima {
+		return r.stopViaColima(ctx, containerID)
+	}
+
+	// For other platforms, use containerd API directly
+	return r.stopDirectAPI(ctx, containerID)
+}
+
+// stopViaColima stops a container using nerdctl via SSH for Colima
+func (r *ContainerdRuntimeV2) stopViaColima(ctx context.Context, containerID string) error {
+	profile := r.platform.Profile
+	if profile == "" {
+		profile = "default"
+	}
+
+	// Stop the container using nerdctl
+	stopCmd := fmt.Sprintf("sudo nerdctl --namespace %s stop %s 2>/dev/null || true", r.namespace, containerID)
+	stopExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", stopCmd)
+	if err := stopExec.Run(); err != nil {
+		return fmt.Errorf("failed to stop container: %w", err)
+	}
+
+	return nil
+}
+
+// stopDirectAPI stops a container using containerd API directly
+func (r *ContainerdRuntimeV2) stopDirectAPI(ctx context.Context, containerID string) error {
 	ctx = namespaces.WithNamespace(ctx, r.namespace)
 
 	container, err := r.client.LoadContainer(ctx, containerID)
@@ -440,6 +499,41 @@ func (r *ContainerdRuntimeV2) StopWorkspace(ctx context.Context, containerID str
 
 // GetWorkspaceStatus returns the status of a workspace
 func (r *ContainerdRuntimeV2) GetWorkspaceStatus(ctx context.Context, containerID string) (string, error) {
+	// For Colima, use nerdctl via SSH (containerd API doesn't work well across VM boundary)
+	if r.platform.Type == PlatformColima {
+		return r.getStatusViaColima(ctx, containerID)
+	}
+
+	// For other platforms, use containerd API directly
+	return r.getStatusDirectAPI(ctx, containerID)
+}
+
+// getStatusViaColima gets container status using nerdctl via SSH for Colima
+func (r *ContainerdRuntimeV2) getStatusViaColima(ctx context.Context, containerID string) (string, error) {
+	profile := r.platform.Profile
+	if profile == "" {
+		profile = "default"
+	}
+
+	// Check if container exists and get its status via nerdctl
+	statusCmd := fmt.Sprintf("sudo nerdctl --namespace %s inspect -f '{{.State.Status}}' %s 2>/dev/null || echo not_found",
+		r.namespace, containerID)
+	statusExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", statusCmd)
+	statusOutput, err := statusExec.Output()
+	if err != nil {
+		return "unknown", fmt.Errorf("failed to check container status: %w", err)
+	}
+
+	status := strings.TrimSpace(string(statusOutput))
+	if status == "not_found" {
+		return "not_found", nil
+	}
+
+	return status, nil
+}
+
+// getStatusDirectAPI gets container status using containerd API directly
+func (r *ContainerdRuntimeV2) getStatusDirectAPI(ctx context.Context, containerID string) (string, error) {
 	ctx = namespaces.WithNamespace(ctx, r.namespace)
 
 	container, err := r.client.LoadContainer(ctx, containerID)
