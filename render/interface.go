@@ -1,6 +1,9 @@
 package render
 
-import "io"
+import (
+	"context"
+	"io"
+)
 
 // Renderer is the interface that all renderers must implement.
 // Renderers are responsible for deciding how to display data based on
@@ -10,8 +13,16 @@ type Renderer interface {
 	// The Options provide hints about the data structure and display preferences.
 	Render(w io.Writer, data any, opts Options) error
 
+	// RenderWithContext outputs the data with context available for theming.
+	// New context-aware method that allows access to ColorProvider.
+	RenderWithContext(ctx context.Context, w io.Writer, data any, opts Options) error
+
 	// RenderMessage outputs a status message (info, success, warning, error, etc.)
 	RenderMessage(w io.Writer, msg Message) error
+
+	// RenderMessageWithContext outputs a status message with context available for theming.
+	// New context-aware method that allows access to ColorProvider.
+	RenderMessageWithContext(ctx context.Context, w io.Writer, msg Message) error
 
 	// Name returns the renderer's identifier
 	Name() RendererName

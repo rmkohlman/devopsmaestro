@@ -1,6 +1,7 @@
 package render
 
 import (
+	"context"
 	"io"
 
 	"gopkg.in/yaml.v3"
@@ -27,6 +28,12 @@ func (r *YAMLRenderer) SupportsColor() bool {
 
 // Render outputs data as YAML
 func (r *YAMLRenderer) Render(w io.Writer, data any, opts Options) error {
+	// YAML renderer ignores context - no theming needed
+	return r.RenderWithContext(context.Background(), w, data, opts)
+}
+
+// RenderWithContext outputs data as YAML (ignores context for YAML output)
+func (r *YAMLRenderer) RenderWithContext(ctx context.Context, w io.Writer, data any, opts Options) error {
 	// Handle empty state
 	if opts.Empty {
 		if data == nil {
@@ -67,6 +74,12 @@ func (r *YAMLRenderer) Render(w io.Writer, data any, opts Options) error {
 
 // RenderMessage outputs a message as YAML
 func (r *YAMLRenderer) RenderMessage(w io.Writer, msg Message) error {
+	// YAML renderer ignores context - no theming needed
+	return r.RenderMessageWithContext(context.Background(), w, msg)
+}
+
+// RenderMessageWithContext outputs a message as YAML (ignores context)
+func (r *YAMLRenderer) RenderMessageWithContext(ctx context.Context, w io.Writer, msg Message) error {
 	data := map[string]string{
 		"level":   string(msg.Level),
 		"message": msg.Content,

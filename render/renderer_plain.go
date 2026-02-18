@@ -1,6 +1,7 @@
 package render
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"strings"
@@ -27,6 +28,12 @@ func (r *PlainRenderer) SupportsColor() bool {
 
 // Render outputs data as plain text
 func (r *PlainRenderer) Render(w io.Writer, data any, opts Options) error {
+	// Plain renderer ignores context - no theming needed
+	return r.RenderWithContext(context.Background(), w, data, opts)
+}
+
+// RenderWithContext outputs data as plain text (ignores context)
+func (r *PlainRenderer) RenderWithContext(ctx context.Context, w io.Writer, data any, opts Options) error {
 	// Handle empty state
 	if opts.Empty {
 		if opts.EmptyMessage != "" {
@@ -141,6 +148,12 @@ func (r *PlainRenderer) renderList(w io.Writer, list ListData) error {
 
 // RenderMessage outputs a message as plain text
 func (r *PlainRenderer) RenderMessage(w io.Writer, msg Message) error {
+	// Plain renderer ignores context - no theming needed
+	return r.RenderMessageWithContext(context.Background(), w, msg)
+}
+
+// RenderMessageWithContext outputs a message as plain text (ignores context)
+func (r *PlainRenderer) RenderMessageWithContext(ctx context.Context, w io.Writer, msg Message) error {
 	prefix := ""
 	switch msg.Level {
 	case LevelSuccess:

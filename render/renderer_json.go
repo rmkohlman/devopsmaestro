@@ -1,6 +1,7 @@
 package render
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 )
@@ -28,6 +29,12 @@ func (r *JSONRenderer) SupportsColor() bool {
 
 // Render outputs data as JSON
 func (r *JSONRenderer) Render(w io.Writer, data any, opts Options) error {
+	// JSON renderer ignores context - no theming needed
+	return r.RenderWithContext(context.Background(), w, data, opts)
+}
+
+// RenderWithContext outputs data as JSON (ignores context for JSON output)
+func (r *JSONRenderer) RenderWithContext(ctx context.Context, w io.Writer, data any, opts Options) error {
 	// Handle empty state
 	if opts.Empty {
 		// For JSON, output an empty object or the data as-is
@@ -70,6 +77,12 @@ func (r *JSONRenderer) Render(w io.Writer, data any, opts Options) error {
 
 // RenderMessage outputs a message as JSON
 func (r *JSONRenderer) RenderMessage(w io.Writer, msg Message) error {
+	// JSON renderer ignores context - no theming needed
+	return r.RenderMessageWithContext(context.Background(), w, msg)
+}
+
+// RenderMessageWithContext outputs a message as JSON (ignores context)
+func (r *JSONRenderer) RenderMessageWithContext(ctx context.Context, w io.Writer, msg Message) error {
 	data := map[string]string{
 		"level":   string(msg.Level),
 		"message": msg.Content,

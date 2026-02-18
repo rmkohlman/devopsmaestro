@@ -1,10 +1,12 @@
 package render
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"strings"
 
+	"devopsmaestro/pkg/colors"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -87,6 +89,22 @@ func defaultStyles() styles {
 	}
 }
 
+// stylesFromProvider creates styles from a ColorProvider
+func stylesFromProvider(provider colors.ColorProvider) styles {
+	return styles{
+		success:   lipgloss.NewStyle().Foreground(lipgloss.Color(provider.Success())),
+		warning:   lipgloss.NewStyle().Foreground(lipgloss.Color(provider.Warning())),
+		errStyle:  lipgloss.NewStyle().Foreground(lipgloss.Color(provider.Error())),
+		info:      lipgloss.NewStyle().Foreground(lipgloss.Color(provider.Info())),
+		muted:     lipgloss.NewStyle().Foreground(lipgloss.Color(provider.Muted())),
+		header:    lipgloss.NewStyle().Foreground(lipgloss.Color(provider.Accent())).Bold(true),
+		title:     lipgloss.NewStyle().Foreground(lipgloss.Color(provider.Primary())).Bold(true),
+		key:       lipgloss.NewStyle().Foreground(lipgloss.Color(provider.Secondary())),
+		value:     lipgloss.NewStyle().Foreground(lipgloss.Color(provider.Foreground())),
+		highlight: lipgloss.NewStyle().Foreground(lipgloss.Color(provider.Accent())).Bold(true),
+	}
+}
+
 // ColoredRenderer outputs richly formatted text with colors and icons.
 // This is the default renderer for interactive terminal use.
 type ColoredRenderer struct {
@@ -120,18 +138,34 @@ func (r *ColoredRenderer) SupportsColor() bool {
 	return true
 }
 
+// getStyles returns styles from ColorProvider if available in context, otherwise defaults
+func (r *ColoredRenderer) getStyles(ctx context.Context) styles {
+	if provider, ok := colors.FromContext(ctx); ok {
+		return stylesFromProvider(provider)
+	}
+	return r.styles
+}
+
 // Render outputs data with colors and formatting
 func (r *ColoredRenderer) Render(w io.Writer, data any, opts Options) error {
+	// Use background context for backward compatibility
+	return r.RenderWithContext(context.Background(), w, data, opts)
+}
+
+// RenderWithContext outputs data with colors and formatting using context for theming
+func (r *ColoredRenderer) RenderWithContext(ctx context.Context, w io.Writer, data any, opts Options) error {
+	styles := r.getStyles(ctx)
+
 	// Handle empty state
 	if opts.Empty {
 		if opts.EmptyMessage != "" {
-			r.RenderMessage(w, Message{Level: LevelInfo, Content: opts.EmptyMessage})
+			r.RenderMessageWithContext(ctx, w, Message{Level: LevelInfo, Content: opts.EmptyMessage})
 		}
 		if len(opts.EmptyHints) > 0 {
 			fmt.Fprintln(w)
 			fmt.Fprintln(w, "Set context with:")
 			for _, hint := range opts.EmptyHints {
-				fmt.Fprintf(w, "  %s %s\n", r.styles.info.Render(r.icons.Bullet), hint)
+				fmt.Fprintf(w, "  %s %s\n", styles.info.Render(r.icons.Bullet), hint)
 			}
 		}
 		return nil
@@ -140,23 +174,23 @@ func (r *ColoredRenderer) Render(w io.Writer, data any, opts Options) error {
 	// Render title if present
 	if opts.Title != "" {
 		fmt.Fprintln(w)
-		fmt.Fprintln(w, r.styles.title.Render(r.icons.Section+" "+opts.Title))
+		fmt.Fprintln(w, styles.title.Render(r.icons.Section+" "+opts.Title))
 		fmt.Fprintln(w)
 	}
 
 	// Render based on type hint or data type
 	switch v := data.(type) {
 	case KeyValueData:
-		return r.renderKeyValue(w, v)
+		return r.renderKeyValueWithStyles(w, v, styles)
 	case TableData:
-		return r.renderTable(w, v)
+		return r.renderTableWithStyles(w, v, styles)
 	case ListData:
-		return r.renderList(w, v)
+		return r.renderListWithStyles(w, v, styles)
 	case []string:
-		return r.renderList(w, ListData{Items: v})
+		return r.renderListWithStyles(w, ListData{Items: v}, styles)
 	case map[string]string:
 		kv := NewKeyValueData(v)
-		return r.renderKeyValue(w, kv)
+		return r.renderKeyValueWithStyles(w, kv, styles)
 	default:
 		// For other types, just print
 		fmt.Fprintf(w, "%v\n", data)
@@ -166,17 +200,25 @@ func (r *ColoredRenderer) Render(w io.Writer, data any, opts Options) error {
 }
 
 func (r *ColoredRenderer) renderKeyValue(w io.Writer, kv KeyValueData) error {
+	return r.renderKeyValueWithStyles(w, kv, r.styles)
+}
+
+func (r *ColoredRenderer) renderKeyValueWithStyles(w io.Writer, kv KeyValueData, styles styles) error {
 	for _, pair := range kv.Pairs {
-		key := r.styles.key.Render(pair.Key + ":")
-		value := r.styles.value.Render(pair.Value)
+		key := styles.key.Render(pair.Key + ":")
+		value := styles.value.Render(pair.Value)
 		fmt.Fprintf(w, "%s %s\n", key, value)
 	}
 	return nil
 }
 
 func (r *ColoredRenderer) renderTable(w io.Writer, t TableData) error {
+	return r.renderTableWithStyles(w, t, r.styles)
+}
+
+func (r *ColoredRenderer) renderTableWithStyles(w io.Writer, t TableData, styles styles) error {
 	if len(t.Rows) == 0 {
-		fmt.Fprintln(w, r.styles.muted.Render("No data"))
+		fmt.Fprintln(w, styles.muted.Render("No data"))
 		return nil
 	}
 
@@ -196,14 +238,14 @@ func (r *ColoredRenderer) renderTable(w io.Writer, t TableData) error {
 	// Print headers
 	var headerParts []string
 	for i, h := range t.Headers {
-		headerParts = append(headerParts, r.styles.header.Render(fmt.Sprintf("%-*s", widths[i], h)))
+		headerParts = append(headerParts, styles.header.Render(fmt.Sprintf("%-*s", widths[i], h)))
 	}
 	fmt.Fprintln(w, strings.Join(headerParts, "   "))
 
 	// Print separator
 	var sepParts []string
 	for _, width := range widths {
-		sepParts = append(sepParts, r.styles.muted.Render(strings.Repeat("─", width)))
+		sepParts = append(sepParts, styles.muted.Render(strings.Repeat("─", width)))
 	}
 	fmt.Fprintln(w, strings.Join(sepParts, "   "))
 
@@ -222,38 +264,50 @@ func (r *ColoredRenderer) renderTable(w io.Writer, t TableData) error {
 }
 
 func (r *ColoredRenderer) renderList(w io.Writer, list ListData) error {
+	return r.renderListWithStyles(w, list, r.styles)
+}
+
+func (r *ColoredRenderer) renderListWithStyles(w io.Writer, list ListData, styles styles) error {
 	for _, item := range list.Items {
-		fmt.Fprintf(w, "  %s %s\n", r.styles.info.Render(r.icons.Bullet), item)
+		fmt.Fprintf(w, "  %s %s\n", styles.info.Render(r.icons.Bullet), item)
 	}
 	return nil
 }
 
 // RenderMessage outputs a styled message
 func (r *ColoredRenderer) RenderMessage(w io.Writer, msg Message) error {
+	// Use background context for backward compatibility
+	return r.RenderMessageWithContext(context.Background(), w, msg)
+}
+
+// RenderMessageWithContext outputs a styled message with context for theming
+func (r *ColoredRenderer) RenderMessageWithContext(ctx context.Context, w io.Writer, msg Message) error {
+	styles := r.getStyles(ctx)
+
 	var icon string
 	var style lipgloss.Style
 
 	switch msg.Level {
 	case LevelSuccess:
 		icon = r.icons.Success
-		style = r.styles.success
+		style = styles.success
 	case LevelWarning:
 		icon = r.icons.Warning
-		style = r.styles.warning
+		style = styles.warning
 	case LevelError:
 		icon = r.icons.Error
-		style = r.styles.errStyle
+		style = styles.errStyle
 	case LevelProgress:
 		icon = r.icons.Progress
-		style = r.styles.info
+		style = styles.info
 	case LevelDebug:
 		icon = ""
-		style = r.styles.muted
+		style = styles.muted
 	case LevelInfo:
 		fallthrough
 	default:
 		icon = r.icons.Info
-		style = r.styles.info
+		style = styles.info
 	}
 
 	if icon != "" {

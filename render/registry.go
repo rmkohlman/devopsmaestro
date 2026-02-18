@@ -1,6 +1,7 @@
 package render
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -116,6 +117,26 @@ func ResolveRenderer(override string) Renderer {
 	return r
 }
 
+// OutputWithContext renders data using the resolved renderer to the default writer with context.
+// This is the new context-aware entry point for commands to output data.
+func OutputWithContext(ctx context.Context, data any, opts Options) error {
+	return OutputToWithContext(ctx, defaultWriter, "", data, opts)
+}
+
+// OutputWithContextAndRenderer renders data using a specific renderer (by name or from flag) with context.
+func OutputWithContextAndRenderer(ctx context.Context, rendererOverride string, data any, opts Options) error {
+	return OutputToWithContext(ctx, defaultWriter, rendererOverride, data, opts)
+}
+
+// OutputToWithContext renders data to a specific writer with optional renderer override and context.
+func OutputToWithContext(ctx context.Context, w io.Writer, rendererOverride string, data any, opts Options) error {
+	r := ResolveRenderer(rendererOverride)
+	if r == nil {
+		return fmt.Errorf("no renderer available")
+	}
+	return r.RenderWithContext(ctx, w, data, opts)
+}
+
 // Output renders data using the resolved renderer to the default writer.
 // This is the main entry point for commands to output data.
 func Output(data any, opts Options) error {
@@ -134,6 +155,25 @@ func OutputTo(w io.Writer, rendererOverride string, data any, opts Options) erro
 		return fmt.Errorf("no renderer available")
 	}
 	return r.Render(w, data, opts)
+}
+
+// MsgWithContext outputs a status message using the resolved renderer with context.
+func MsgWithContext(ctx context.Context, level MessageLevel, content string) error {
+	return MsgToWithContext(ctx, defaultWriter, "", Message{Level: level, Content: content})
+}
+
+// MsgWithContextAndRenderer outputs a status message with a specific renderer and context.
+func MsgWithContextAndRenderer(ctx context.Context, rendererOverride string, level MessageLevel, content string) error {
+	return MsgToWithContext(ctx, defaultWriter, rendererOverride, Message{Level: level, Content: content})
+}
+
+// MsgToWithContext outputs a status message to a specific writer with context.
+func MsgToWithContext(ctx context.Context, w io.Writer, rendererOverride string, msg Message) error {
+	r := ResolveRenderer(rendererOverride)
+	if r == nil {
+		return fmt.Errorf("no renderer available")
+	}
+	return r.RenderMessageWithContext(ctx, w, msg)
 }
 
 // Message outputs a status message using the resolved renderer.
