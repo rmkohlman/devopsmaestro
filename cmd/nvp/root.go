@@ -11,6 +11,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"devopsmaestro/pkg/colors"
 	"devopsmaestro/pkg/nvimops"
 	nvimconfig "devopsmaestro/pkg/nvimops/config"
 	"devopsmaestro/pkg/nvimops/library"
@@ -32,6 +33,7 @@ var (
 	outputFmt string
 	verbose   bool
 	logFile   string
+	noColor   bool
 )
 
 // rootCmd is the base command
@@ -64,10 +66,24 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&configDir, "config", "", "Config directory (default: ~/.nvp)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable debug logging")
 	rootCmd.PersistentFlags().StringVar(&logFile, "log-file", "", "Write logs to file (JSON format)")
+	rootCmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "Disable colored output")
 
-	// Initialize logging before any command runs
+	// Initialize logging and ColorProvider before any command runs
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
 		initLogging()
+
+		// Initialize ColorProvider for nvp
+		// nvp uses its own theme path under ~/.nvp/themes
+		nvpThemePath := filepath.Join(getConfigDir(), "themes")
+		ctx, err := colors.InitColorProviderForCommand(
+			cmd.Context(),
+			nvpThemePath,
+			noColor,
+		)
+		if err != nil {
+			slog.Warn("using default colors", "error", err)
+		}
+		cmd.SetContext(ctx)
 	}
 
 	// Register resource handlers for unified pipeline

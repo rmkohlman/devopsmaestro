@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"devopsmaestro/db"
+	"devopsmaestro/pkg/colors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -15,6 +16,7 @@ import (
 var (
 	verbose bool
 	logFile string
+	noColor bool
 )
 
 var rootCmd = &cobra.Command{
@@ -32,8 +34,18 @@ func Execute(database *db.Database, dataStore *db.DataStore, executor *Executor,
 		// Initialize logging
 		initLogging()
 
+		// Initialize ColorProvider
+		ctx, err := colors.InitColorProviderForCommand(
+			cmd.Context(),
+			colors.GetDefaultThemePath(),
+			noColor,
+		)
+		if err != nil {
+			slog.Warn("using default colors", "error", err)
+		}
+
 		// Set the database, dataStore, and executor for all commands
-		ctx := context.WithValue(cmd.Context(), "database", database)
+		ctx = context.WithValue(ctx, "database", database)
 		ctx = context.WithValue(ctx, "dataStore", dataStore)
 		ctx = context.WithValue(ctx, "executor", executor)
 		ctx = context.WithValue(ctx, "migrationsFS", migrationsFS)
@@ -50,6 +62,7 @@ func init() {
 	// Global flags available to all commands
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable debug logging")
 	rootCmd.PersistentFlags().StringVar(&logFile, "log-file", "", "Write logs to file (JSON format)")
+	rootCmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "Disable colored output")
 }
 
 // initLogging configures the global slog logger based on flags.
