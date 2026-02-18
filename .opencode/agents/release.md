@@ -48,6 +48,79 @@ CHANGELOG.md                       # Version history and release notes
 docs/development/release-process.md  # Release documentation
 ```
 
+## ⚠️ CRITICAL: Domain Understanding Requirement
+
+**You MUST deeply understand the entire release infrastructure as your domain.**
+
+Before making ANY changes to release workflows or fixing release issues, you MUST:
+
+### 1. Understand GitHub Actions Workflows
+
+- **Job dependencies**: How `needs:` controls execution order
+- **Matrix builds**: How `strategy.matrix` creates parallel jobs
+- **Artifacts**: How jobs share data via `actions/upload-artifact` and `actions/download-artifact`
+- **Secrets**: How `${{ secrets.* }}` are accessed and scoped
+- **Concurrency**: Race conditions between parallel jobs
+- **API propagation**: GitHub API has eventual consistency - resources may not be immediately available
+
+**Before fixing workflow issues:**
+```bash
+# Read the FULL workflow file
+cat .github/workflows/release.yml
+
+# Understand job dependencies and execution order
+# Map out: which jobs run in parallel vs sequential
+# Identify: what each job produces and what it needs
+```
+
+### 2. Understand GoReleaser
+
+- **How it creates releases**: GoReleaser creates the GitHub Release AND uploads assets
+- **Configuration**: `.goreleaser.yaml` controls binary names, archives, checksums
+- **Hooks**: pre/post hooks for custom steps
+- **Templates**: How version/commit info is injected
+
+**The release workflow architecture:**
+```
+┌─────────────────────┐
+│   goreleaser-nvp    │  ← Creates GitHub Release + uploads nvp binaries
+│   (ubuntu-latest)   │
+└──────────┬──────────┘
+           │ needs (release must exist first)
+           ▼
+┌─────────────────────┐
+│  build-dvm-darwin   │  ← Uploads dvm binaries to existing release
+│  (macos-14, macos-15)│
+└──────────┬──────────┘
+           │ needs (all binaries must be uploaded)
+           ▼
+┌─────────────────────┐
+│   update-homebrew   │  ← Downloads assets, updates tap formulas
+│   (ubuntu-latest)   │
+└─────────────────────┘
+```
+
+### 3. Understand Homebrew Tap Process
+
+- **Formula structure**: Ruby DSL with `on_macos`, `on_arm`, `on_intel` blocks
+- **SHA256 checksums**: Must match release assets exactly
+- **Version strings**: Must be updated in multiple places
+- **Installation**: What files go where (`bin.install`, `bash_completion.install`, etc.)
+
+### 4. When Fixing Release Issues
+
+**ALWAYS:**
+1. Read the FULL workflow file first (don't assume you know the structure)
+2. Check workflow run logs to understand EXACTLY what failed
+3. Trace the job dependency chain
+4. Consider timing/race conditions between jobs
+5. Test your understanding before making changes
+
+**NEVER:**
+- Make changes without reading the current workflow state
+- Assume job execution order without checking `needs:`
+- Ignore the relationship between GoReleaser and manual build jobs
+
 ## CI/CD System
 
 ### GitHub Actions Workflows
@@ -216,42 +289,36 @@ brew info devopsmaestro  # Should show new version
 brew info nvimops        # Should show new version
 ```
 
-```bash
-# 1. Pre-flight checks
-go test ./... -race
-go build -o dvm .
-go build -o nvp ./cmd/nvp/
-
-# 2. Update CHANGELOG.md
-# Move [Unreleased] items to new version section
-# Add date: ## [X.Y.Z] - YYYY-MM-DD
-
-# 3. Commit release prep
-git add CHANGELOG.md
-git commit -m "chore: prepare release vX.Y.Z"
-
-# 4. Create and push tag
-git tag -a vX.Y.Z -m "Release vX.Y.Z"
-git push origin main
-git push origin vX.Y.Z
-
-# 5. Monitor release workflow
-gh run list --limit 1
-gh run view <run-id> --log
-
-# 6. Verify release
-gh release view vX.Y.Z
-gh release download vX.Y.Z --dir /tmp/verify
-
-# 7. Verify Homebrew
-brew update
-brew info devopsmaestro  # Should show new version
-brew info nvimops        # Should show new version
-```
-
 ## Known Issues and Solutions
 
-### 1. Release Workflow Race Condition
+### 1. Release Workflow Race Condition (FIXED in v0.9.2)
+
+**Problem:** `build-dvm-darwin` jobs tried to upload to a release that didn't exist yet.
+
+**Root Cause:** 
+- `goreleaser-nvp` creates the GitHub Release via GoReleaser
+- `build-dvm-darwin` was running IN PARALLEL (no `needs:` dependency)
+- `gh release upload` failed with "release not found"
+
+**Solution Applied:**
+1. Added `needs: [goreleaser-nvp]` to `build-dvm-darwin` job
+2. Added a "Wait for release to be ready" step that polls GitHub API:
+```yaml
+- name: Wait for release to be ready
+  run: |
+    for i in {1..30}; do
+      if gh release view ${{ github.ref_name }} > /dev/null 2>&1; then
+        echo "Release is ready"
+        break
+      fi
+      echo "Waiting... (attempt $i/30)"
+      sleep 2
+    done
+```
+
+**Key Lesson:** Always verify job execution order matches your mental model. Read the workflow file!
+
+### 2. Old Race Condition (Historical)
 
 **Problem:** If `softprops/action-gh-release` fails with "Too many retries", parallel matrix jobs are conflicting.
 
