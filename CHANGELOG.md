@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.9.6] - 2026-02-18
+
+### 🐛 Fixed
+
+- **Colima path lookup** - Fixed hardcoded `/usr/bin/colima` path to use PATH lookup for better system compatibility. Colima can now be found automatically regardless of installation method.
+
+### 🔧 Improved
+
+- **Container runtime standardization** - Added helper functions for container naming and command defaults. Standardized container runtime implementations with consistent helper methods for improved maintainability.
+
+---
+
 ## [0.9.5] - 2026-02-18
 
 ### 🐛 Fixed
