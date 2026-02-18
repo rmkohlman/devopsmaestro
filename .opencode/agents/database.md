@@ -27,17 +27,37 @@ You are the Database Agent for DevOpsMaestro. You own all code that interacts wi
 ### Files You Own
 ```
 db/
-├── interfaces.go         # DataStore interface (CRITICAL)
-├── sqlite.go             # SQLite implementation
-├── sqlite_test.go        # SQLite tests
-├── migrations.go         # Migration runner
-└── errors.go             # Database-specific errors
+├── datastore.go          # DataStore interface (CRITICAL)
+├── interfaces.go         # Driver, Row, Rows, Result, Transaction interfaces
+├── store.go              # SQLDataStore implementation (main file)
+├── driver.go             # Database driver abstraction
+├── sqlite_driver.go      # SQLite driver implementation
+├── sqlite.go             # SQLite utilities
+├── postgres.go           # PostgreSQL driver (future)
+├── querybuilder.go       # SQL query builder
+├── factory.go            # DataStoreFactory, CreateDataStore()
+├── database.go           # Database utilities
+├── mock_store.go         # Mock DataStore for testing
+├── mock_driver.go        # Mock driver for testing
+├── store_test.go         # Store tests
+├── sqlite_driver_test.go # SQLite driver tests
+├── querybuilder_test.go  # Query builder tests
+├── integration_test.go   # Integration tests
+├── mock_test.go          # Mock tests
+├── testutils/            # Test utilities
+└── migrations/           # Embedded migrations subdirectory
 
-migrations/
-├── 001_initial.sql
-├── 002_add_ecosystems.sql
-├── 003_add_domains.sql
-└── ...
+migrations/sqlite/        # Actual migration files
+├── 001_init.up.sql
+├── 002_add_plugins.up.sql
+├── 003_add_workspace_nvim_config.{up,down}.sql
+├── 004_add_themes.{up,down}.sql
+├── 005_add_ecosystems.{up,down}.sql
+├── 006_add_domains.{up,down}.sql
+├── 007_add_apps.{up,down}.sql
+├── 008_update_context.{up,down}.sql
+├── 009_workspace_app_id.{up,down}.sql
+└── 010_add_credentials.{up,down}.sql
 ```
 
 ### DataStore Interface
@@ -139,18 +159,20 @@ CREATE TABLE IF NOT EXISTS secrets (
 
 ### Creating a New Migration
 
-1. Create file with next sequence number: `migrations/XXX_description.sql`
+1. Create files with next sequence number: `migrations/sqlite/XXX_description.{up,down}.sql`
 2. Use `IF NOT EXISTS` / `IF EXISTS` for safety
 3. Test migration up and down
-4. Update the embedded migrations in `migrations.go`
+4. Migrations are embedded via `//go:embed` directive
 
 ### Migration Naming
 ```
-001_initial.sql
-002_add_ecosystems.sql
-003_add_domains.sql
-004_rename_project_to_app.sql
-005_add_plugin_enabled_flag.sql
+001_init.up.sql
+002_add_plugins.up.sql
+003_add_workspace_nvim_config.up.sql  # with matching .down.sql
+004_add_themes.up.sql
+005_add_ecosystems.up.sql
+006_add_domains.up.sql
+007_add_apps.up.sql
 ```
 
 ### Schema Changes

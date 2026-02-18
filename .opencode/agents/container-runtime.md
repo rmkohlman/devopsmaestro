@@ -27,14 +27,20 @@ You are the Container Runtime Agent for DevOpsMaestro. You own all code that int
 ### Files You Own
 ```
 operators/
-├── runtime_interface.go      # ContainerRuntime interface
-├── docker_runtime.go         # Docker implementation
-├── containerd_runtime_v2.go  # Containerd/Colima implementation
-├── orbstack_runtime.go       # OrbStack implementation
-├── podman_runtime.go         # Podman implementation
-├── runtime_factory.go        # Factory for runtime selection
-└── platform_detection.go     # Platform/runtime detection
+├── runtime_interface.go          # ContainerRuntime interface (CRITICAL)
+├── docker_runtime.go             # Docker implementation
+├── containerd_runtime.go         # Original containerd implementation
+├── containerd_runtime_v2.go      # Colima/containerd via nerdctl (ACTIVE)
+├── containerd_runtime_v2_test.go # Containerd v2 tests
+├── runtime_factory.go            # NewContainerRuntime() factory
+├── platform.go                   # Platform/runtime detection
+├── platform_test.go              # Platform tests
+├── context_manager.go            # Context management
+├── mock_runtime.go               # Mock runtime for testing
+└── mock_runtime_test.go          # Mock runtime tests
 ```
+
+**Note:** There is no `orbstack_runtime.go` or `podman_runtime.go` yet - these are future implementations.
 
 ### ContainerRuntime Interface
 ```go

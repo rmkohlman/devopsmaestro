@@ -28,17 +28,21 @@ You are the Builder Agent for DevOpsMaestro. You own all code related to buildin
 ### Files You Own
 ```
 builders/
-├── builder_interface.go      # ImageBuilder interface
-├── dockerfile_builder.go     # Dockerfile generation
+├── interfaces.go             # ImageBuilder interface (CRITICAL)
+├── interfaces_test.go        # Interface tests
+├── factory.go                # Builder factory
+├── factory_test.go           # Factory tests
+├── dockerfile_generator.go   # Dockerfile generation
+├── dockerfile_generator_test.go
+├── docker_builder.go         # Docker build implementation
+├── docker_builder_test.go
 ├── buildkit_builder.go       # BuildKit implementation
-├── build_cache.go            # Build caching logic
-└── templates/                # Dockerfile templates
-    ├── base.dockerfile
-    ├── go.dockerfile
-    ├── node.dockerfile
-    ├── python.dockerfile
-    └── rust.dockerfile
+├── buildkit_builder_test.go
+├── nerdctl_builder.go        # Nerdctl builder (for Colima)
+└── helpers.go                # Build helpers
 ```
+
+**Note:** There is no `templates/` directory - Dockerfile templates are generated programmatically in `dockerfile_generator.go`.
 
 ### ImageBuilder Interface
 ```go

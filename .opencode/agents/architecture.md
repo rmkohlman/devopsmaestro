@@ -69,13 +69,21 @@ func (d *DockerRuntime) StartWorkspace(...) { ... }
 
 ```
 cmd/           → CLI commands (Cobra) - thin, delegates to packages
-db/            → DataStore interface + SQLite implementation
+db/            → DataStore interface + SQLite/Postgres implementations
 operators/     → ContainerRuntime interface + implementations
-builders/      → Image builder interface + implementations
+builders/      → ImageBuilder interface + implementations
 render/        → Renderer interface + implementations
 models/        → Data models (no business logic)
-pkg/nvimops/   → NvimOps library (standalone)
-pkg/palette/   → Shared palette utilities
+migrations/    → Database migrations (sqlite/)
+config/        → Configuration handling
+utils/         → Utility functions
+pkg/
+├── nvimops/   → NvimOps library (standalone)
+├── palette/   → Shared palette utilities
+├── resolver/  → Dependency resolution
+├── resource/  → Resource handling
+├── source/    → Source management
+└── terminalops/ → Terminal operations
 ```
 
 ## What to Review

@@ -26,16 +26,25 @@ You are the Render Agent for DevOpsMaestro. You own the render package and ensur
 ### Files You Own
 ```
 render/
-├── interface.go          # Renderer interface
-├── registry.go           # Register(), Output(), Msg() helpers
-├── types.go              # RenderType, Options, Config
-├── renderer_json.go      # JSON renderer
-├── renderer_yaml.go      # YAML renderer
-├── renderer_table.go     # Table renderer (default)
-├── renderer_colored.go   # Colored text renderer
-├── renderer_plain.go     # Plain text renderer
-└── renderer_wide.go      # Wide table format
+├── interface.go              # Renderer interface (CRITICAL)
+├── interface_test.go         # Interface tests
+├── registry.go               # Register(), Output(), Msg() helpers
+├── registry_test.go          # Registry tests
+├── types.go                  # RenderType, Options, Config
+├── types_test.go             # Types tests
+├── renderer_json.go          # JSON renderer
+├── renderer_json_test.go
+├── renderer_yaml.go          # YAML renderer
+├── renderer_yaml_test.go
+├── renderer_table.go         # Table renderer (default)
+├── renderer_table_test.go
+├── renderer_colored.go       # Colored text renderer
+├── renderer_colored_test.go
+├── renderer_plain.go         # Plain text renderer
+└── renderer_plain_test.go
 ```
+
+**Note:** There is no `renderer_wide.go` - wide format is handled as an option within `renderer_table.go`.
 
 ## Renderer Interface
 
