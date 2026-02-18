@@ -28,59 +28,99 @@ You are the Builder Agent for DevOpsMaestro. You own all code related to buildin
 ### Files You Own
 ```
 builders/
-├── interfaces.go             # ImageBuilder interface (CRITICAL)
+├── interfaces.go             # ImageBuilder interface (CRITICAL - your API contract)
 ├── interfaces_test.go        # Interface tests
-├── factory.go                # Builder factory
+├── factory.go                # NewImageBuilder() factory (CRITICAL)
 ├── factory_test.go           # Factory tests
 ├── dockerfile_generator.go   # Dockerfile generation
 ├── dockerfile_generator_test.go
-├── docker_builder.go         # Docker build implementation
+├── docker_builder.go         # Docker API implementation (internal)
 ├── docker_builder_test.go
-├── buildkit_builder.go       # BuildKit implementation
+├── buildkit_builder.go       # BuildKit gRPC implementation (internal)
 ├── buildkit_builder_test.go
-├── nerdctl_builder.go        # Nerdctl builder (for Colima)
+├── nerdctl_builder.go        # Nerdctl CLI implementation (internal)
 └── helpers.go                # Build helpers
 ```
 
-**Note:** There is no `templates/` directory - Dockerfile templates are generated programmatically in `dockerfile_generator.go`.
+**Note:** Dockerfile templates are generated programmatically in `dockerfile_generator.go` (no templates/ directory).
 
-### ImageBuilder Interface
+## Microservice Mindset
+
+**Treat your domain like a microservice:**
+
+1. **Own the Interface** - `ImageBuilder` in `interfaces.go` is your public API contract
+2. **Hide Implementation** - DockerBuilder, BuildKitBuilder, NerdctlBuilder are internal implementations
+3. **Factory Pattern** - Consumers use `NewImageBuilder()` factory, never instantiate implementations directly
+4. **Swappable** - New builder backends can be added without affecting consumers
+5. **Clean Boundaries** - Only expose what consumers need (Build, ImageExists, Close)
+
+### What You Own vs What You Expose
+
+| Internal (Hide) | External (Expose) |
+|-----------------|-------------------|
+| DockerBuilder struct | ImageBuilder interface |
+| BuildKitBuilder struct | BuildOptions struct |
+| NerdctlBuilder struct | NewImageBuilder() factory |
+| Connection management | BuilderConfig struct |
+| Platform-specific logic | Error types |
+
+### ImageBuilder Interface (ACTUAL - from interfaces.go)
 ```go
+// ImageBuilder defines the interface for building container images.
+// All implementations must be safe for concurrent use.
 type ImageBuilder interface {
-    // Build an image from options
+    // Build builds a container image from a Dockerfile.
+    // Returns an error if the build fails.
     Build(ctx context.Context, opts BuildOptions) error
-    
-    // Generate Dockerfile content
-    GenerateDockerfile(opts DockerfileOptions) (string, error)
-    
-    // Check if image exists
-    ImageExists(ctx context.Context, tag string) (bool, error)
-    
-    // List built images
-    ListImages(ctx context.Context) ([]ImageInfo, error)
-    
-    // Remove image
-    RemoveImage(ctx context.Context, tag string) error
+
+    // ImageExists checks if an image with the configured name already exists.
+    // Returns (true, nil) if exists, (false, nil) if not, (false, err) on error.
+    ImageExists(ctx context.Context) (bool, error)
+
+    // Close releases any resources held by the builder (connections, etc).
+    // Should be called when the builder is no longer needed.
+    Close() error
 }
 
 type BuildOptions struct {
-    Context    string            // Build context path
-    Dockerfile string            // Dockerfile path or content
-    Tag        string            // Image tag
-    BuildArgs  map[string]string // Build arguments
-    NoCache    bool              // Disable cache
-    Platform   string            // Target platform
-}
+    // BuildArgs are build-time variables passed to the Dockerfile
+    BuildArgs map[string]string
 
-type DockerfileOptions struct {
-    BaseImage   string            // Base image
-    Language    string            // go, node, python, rust
-    Version     string            // Language version
-    WorkDir     string            // Working directory
-    Packages    []string          // System packages to install
-    SetupCmds   []string          // Setup commands
-    EnvVars     map[string]string // Environment variables
+    // Target specifies the target stage for multi-stage builds
+    Target string
+
+    // NoCache disables the build cache when true
+    NoCache bool
+
+    // Pull forces pulling the base image even if cached
+    Pull bool
 }
+```
+
+### BuilderConfig (Factory Input)
+```go
+type BuilderConfig struct {
+    Platform   operators.ContainerPlatform // Platform type
+    Namespace  string                       // Container namespace
+    AppPath    string                       // Path to app source
+    ImageName  string                       // Target image name/tag
+    Dockerfile string                       // Path to Dockerfile
+}
+```
+
+### Factory Usage
+```go
+// Consumers ALWAYS use the factory, never instantiate builders directly
+platform, _ := operators.NewPlatformDetector().Detect()
+builder, _ := builders.NewImageBuilder(builders.BuilderConfig{
+    Platform:   platform,
+    Namespace:  "devopsmaestro",
+    AppPath:    "/path/to/app",
+    ImageName:  "myimage:latest",
+    Dockerfile: "/path/to/Dockerfile",
+})
+defer builder.Close()
+err := builder.Build(ctx, builders.BuildOptions{})
 ```
 
 ## Dockerfile Generation

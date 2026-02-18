@@ -42,25 +42,79 @@ operators/
 
 **Note:** There is no `orbstack_runtime.go` or `podman_runtime.go` yet - these are future implementations.
 
-### ContainerRuntime Interface
+## ContainerRuntime Interface (Actual)
+
+This is the actual interface from `operators/runtime_interface.go`:
+
 ```go
 type ContainerRuntime interface {
-    // Lifecycle
-    StartWorkspace(ctx context.Context, opts StartOptions) (string, error)
-    StopWorkspace(ctx context.Context, containerID string) error
-    RemoveWorkspace(ctx context.Context, containerID string) error
-    
-    // Interaction
-    AttachToWorkspace(ctx context.Context, containerID string) error
-    ExecInWorkspace(ctx context.Context, containerID string, cmd []string) error
-    
-    // Information
-    GetWorkspaceStatus(ctx context.Context, containerID string) (Status, error)
-    ListWorkspaces(ctx context.Context) ([]WorkspaceInfo, error)
-    
-    // Images
-    PullImage(ctx context.Context, image string) error
+    // BuildImage builds a container image from the app
     BuildImage(ctx context.Context, opts BuildOptions) error
+
+    // StartWorkspace starts a workspace container/pod
+    StartWorkspace(ctx context.Context, opts StartOptions) (string, error)
+
+    // AttachToWorkspace attaches an interactive terminal to a running workspace
+    AttachToWorkspace(ctx context.Context, workspaceID string) error
+
+    // StopWorkspace stops a running workspace
+    StopWorkspace(ctx context.Context, workspaceID string) error
+
+    // GetWorkspaceStatus returns the current status of a workspace
+    GetWorkspaceStatus(ctx context.Context, workspaceID string) (string, error)
+
+    // GetRuntimeType returns the runtime type (docker, kubernetes, etc.)
+    GetRuntimeType() string
+
+    // ListWorkspaces lists all DVM-managed workspaces
+    ListWorkspaces(ctx context.Context) ([]WorkspaceInfo, error)
+
+    // FindWorkspace finds a workspace by name and returns its info
+    FindWorkspace(ctx context.Context, name string) (*WorkspaceInfo, error)
+
+    // GetPlatformName returns the human-readable platform name
+    GetPlatformName() string
+
+    // StopAllWorkspaces stops all DVM-managed workspaces
+    StopAllWorkspaces(ctx context.Context) (int, error)
+}
+```
+
+### Supporting Types
+
+```go
+// WorkspaceInfo contains information about a running workspace
+type WorkspaceInfo struct {
+    ID        string            // Container/pod ID
+    Name      string            // Workspace name (container name)
+    Status    string            // Running, Stopped, etc.
+    Image     string            // Image name
+    App       string            // App name from labels
+    Workspace string            // Workspace name from labels
+    Labels    map[string]string // All labels
+}
+
+// BuildOptions contains options for building container images
+type BuildOptions struct {
+    AppPath      string            // Path to the app on the host
+    AppName      string            // Name of the app
+    ImageName    string            // Name of the image to build
+    Dockerfile   string            // Path to Dockerfile
+    BuildContext string            // Path to build context
+    Tags         []string          // Additional tags for the image
+    BuildArgs    map[string]string // Build arguments
+}
+
+// StartOptions contains options for starting a workspace
+type StartOptions struct {
+    ImageName     string            // Container image to use
+    WorkspaceName string            // Name of the workspace
+    ContainerName string            // Container name (e.g., "dvm-app-workspace")
+    AppName       string            // App name for labels
+    AppPath       string            // Path to mount as /workspace
+    Env           map[string]string // Environment variables
+    WorkingDir    string            // Working directory inside container
+    Command       []string          // Command to run (default: /bin/zsh)
 }
 ```
 
@@ -70,25 +124,28 @@ type ContainerRuntime interface {
 - Direct Docker API via docker client library
 - Works on all platforms
 - Most straightforward implementation
+- Use `docker_runtime.go`
 
 ### Colima (macOS with containerd)
 - containerd runs INSIDE the VM, not on host
 - Cannot access macOS paths directly from containerd API
 - **Solution**: Use `nerdctl` via `colima ssh`
+- Use `containerd_runtime_v2.go` (the v2 version!)
+
 ```go
-// WRONG: Direct containerd API for mounts
+// WRONG: Direct containerd API for mounts (fails on Colima)
 container, err := client.NewContainer(ctx, id, containerd.WithNewSpec(...))
 
 // CORRECT: Use nerdctl via SSH
 cmd := exec.Command("colima", "ssh", "--", "nerdctl", "run", ...)
 ```
 
-### OrbStack
+### OrbStack (Future)
 - Linux VM with optimized file sharing
 - Can use Docker API or native containerd
 - Better performance than Colima on macOS
 
-### Podman
+### Podman (Future)
 - Daemonless, rootless containers
 - Different socket path
 - Mostly Docker-compatible API
@@ -110,7 +167,7 @@ func NewContainerRuntime(platform Platform) (ContainerRuntime, error) {
     case PlatformDocker:
         return NewDockerRuntime(platform)
     case PlatformColima:
-        return NewContainerdRuntimeV2(platform)
+        return NewContainerdRuntimeV2(platform)  // Use V2 for Colima!
     case PlatformOrbStack:
         return NewOrbStackRuntime(platform)
     // ...
@@ -134,7 +191,7 @@ func DetectPlatform() (Platform, error) {
 - Platform-specific error messages
 - Helpful suggestions for common issues
 
-## Common Issues to Handle
+## Common Issues
 
 ### Volume Mounts
 - macOS: Paths may need translation for VM-based runtimes
@@ -155,6 +212,7 @@ func DetectPlatform() (Platform, error) {
 
 - **@architecture** - Interface design decisions
 - **@security** - Security implications (privileged mode, mounts)
+- **@builder** - Image building coordination
 
 ## Testing
 
@@ -170,6 +228,6 @@ CONTAINER_RUNTIME=colima go test ./operators/... -v
 ## Reference
 
 - `STANDARDS.md` - Coding patterns
-- Docker SDK docs
-- containerd client docs
-- nerdctl documentation
+- Docker SDK docs: https://pkg.go.dev/github.com/docker/docker/client
+- containerd client docs: https://pkg.go.dev/github.com/containerd/containerd
+- nerdctl documentation: https://github.com/containerd/nerdctl

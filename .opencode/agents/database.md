@@ -27,7 +27,7 @@ You are the Database Agent for DevOpsMaestro. You own all code that interacts wi
 ### Files You Own
 ```
 db/
-├── datastore.go          # DataStore interface (CRITICAL)
+├── datastore.go          # DataStore interface (CRITICAL - the contract)
 ├── interfaces.go         # Driver, Row, Rows, Result, Transaction interfaces
 ├── store.go              # SQLDataStore implementation (main file)
 ├── driver.go             # Database driver abstraction
@@ -60,68 +60,123 @@ migrations/sqlite/        # Actual migration files
 └── 010_add_credentials.{up,down}.sql
 ```
 
-### DataStore Interface
+## DataStore Interface (Actual)
+
+This is the actual interface from `db/datastore.go`:
+
 ```go
 type DataStore interface {
-    // Ecosystem operations
+    // Ecosystem Operations (top-level grouping)
     CreateEcosystem(ecosystem *models.Ecosystem) error
     GetEcosystemByName(name string) (*models.Ecosystem, error)
-    ListEcosystems() ([]*models.Ecosystem, error)
+    GetEcosystemByID(id int) (*models.Ecosystem, error)
+    UpdateEcosystem(ecosystem *models.Ecosystem) error
     DeleteEcosystem(name string) error
-    
-    // Domain operations
+    ListEcosystems() ([]*models.Ecosystem, error)
+
+    // Domain Operations (bounded context within an ecosystem)
     CreateDomain(domain *models.Domain) error
-    GetDomainByName(name string) (*models.Domain, error)
-    ListDomains() ([]*models.Domain, error)
-    ListDomainsByEcosystem(ecosystemID int64) ([]*models.Domain, error)
-    DeleteDomain(name string) error
-    
-    // App operations
+    GetDomainByName(ecosystemID int, name string) (*models.Domain, error)
+    GetDomainByID(id int) (*models.Domain, error)
+    UpdateDomain(domain *models.Domain) error
+    DeleteDomain(id int) error
+    ListDomainsByEcosystem(ecosystemID int) ([]*models.Domain, error)
+    ListAllDomains() ([]*models.Domain, error)
+
+    // App Operations (codebase/application within a domain)
     CreateApp(app *models.App) error
-    GetAppByName(name string) (*models.App, error)
-    ListApps() ([]*models.App, error)
-    ListAppsByDomain(domainID int64) ([]*models.App, error)
-    DeleteApp(name string) error
-    
-    // Workspace operations
+    GetAppByName(domainID int, name string) (*models.App, error)
+    GetAppByNameGlobal(name string) (*models.App, error)
+    GetAppByID(id int) (*models.App, error)
+    UpdateApp(app *models.App) error
+    DeleteApp(id int) error
+    ListAppsByDomain(domainID int) ([]*models.App, error)
+    ListAllApps() ([]*models.App, error)
+
+    // Project Operations (DEPRECATED: migrate to Domain/App)
+    CreateProject(project *models.Project) error
+    GetProjectByName(name string) (*models.Project, error)
+    GetProjectByID(id int) (*models.Project, error)
+    UpdateProject(project *models.Project) error
+    DeleteProject(name string) error
+    ListProjects() ([]*models.Project, error)
+
+    // Workspace Operations
     CreateWorkspace(workspace *models.Workspace) error
-    GetWorkspaceByName(name string) (*models.Workspace, error)
-    ListWorkspaces() ([]*models.Workspace, error)
-    ListWorkspacesByApp(appID int64) ([]*models.Workspace, error)
-    ListAllWorkspaces() ([]*models.Workspace, error)
+    GetWorkspaceByName(appID int, name string) (*models.Workspace, error)
+    GetWorkspaceByID(id int) (*models.Workspace, error)
     UpdateWorkspace(workspace *models.Workspace) error
-    DeleteWorkspace(name string) error
-    
-    // Context operations
+    DeleteWorkspace(id int) error
+    ListWorkspacesByApp(appID int) ([]*models.Workspace, error)
+    ListAllWorkspaces() ([]*models.Workspace, error)
+    FindWorkspaces(filter models.WorkspaceFilter) ([]*models.WorkspaceWithHierarchy, error)
+
+    // Context Operations (active selection state)
     GetContext() (*models.Context, error)
-    SetContext(context *models.Context) error
-    
-    // Plugin operations (for nvp integration)
-    SavePlugin(plugin *models.Plugin) error
-    GetPlugin(name string) (*models.Plugin, error)
-    ListPlugins() ([]*models.Plugin, error)
+    SetActiveEcosystem(ecosystemID *int) error
+    SetActiveDomain(domainID *int) error
+    SetActiveApp(appID *int) error
+    SetActiveWorkspace(workspaceID *int) error
+    SetActiveProject(projectID *int) error  // DEPRECATED
+
+    // Plugin Operations
+    CreatePlugin(plugin *models.NvimPluginDB) error
+    GetPluginByName(name string) (*models.NvimPluginDB, error)
+    GetPluginByID(id int) (*models.NvimPluginDB, error)
+    UpdatePlugin(plugin *models.NvimPluginDB) error
     DeletePlugin(name string) error
-    
-    // Theme operations (for nvp integration)
-    SaveTheme(theme *models.Theme) error
-    GetTheme(name string) (*models.Theme, error)
-    ListThemes() ([]*models.Theme, error)
+    ListPlugins() ([]*models.NvimPluginDB, error)
+    ListPluginsByCategory(category string) ([]*models.NvimPluginDB, error)
+    ListPluginsByTags(tags []string) ([]*models.NvimPluginDB, error)
+
+    // Workspace Plugin Associations
+    AddPluginToWorkspace(workspaceID int, pluginID int) error
+    RemovePluginFromWorkspace(workspaceID int, pluginID int) error
+    GetWorkspacePlugins(workspaceID int) ([]*models.NvimPluginDB, error)
+    SetWorkspacePluginEnabled(workspaceID int, pluginID int, enabled bool) error
+
+    // Theme Operations
+    CreateTheme(theme *models.NvimThemeDB) error
+    GetThemeByName(name string) (*models.NvimThemeDB, error)
+    GetThemeByID(id int) (*models.NvimThemeDB, error)
+    UpdateTheme(theme *models.NvimThemeDB) error
     DeleteTheme(name string) error
-    
-    // Lifecycle
+    ListThemes() ([]*models.NvimThemeDB, error)
+    ListThemesByCategory(category string) ([]*models.NvimThemeDB, error)
+    GetActiveTheme() (*models.NvimThemeDB, error)
+    SetActiveTheme(name string) error
+    ClearActiveTheme() error
+
+    // Credential Operations
+    CreateCredential(credential *models.CredentialDB) error
+    GetCredential(scopeType models.CredentialScopeType, scopeID int64, name string) (*models.CredentialDB, error)
+    UpdateCredential(credential *models.CredentialDB) error
+    DeleteCredential(scopeType models.CredentialScopeType, scopeID int64, name string) error
+    ListCredentialsByScope(scopeType models.CredentialScopeType, scopeID int64) ([]*models.CredentialDB, error)
+    ListAllCredentials() ([]*models.CredentialDB, error)
+
+    // Driver Access
+    Driver() Driver
+
+    // Health and Maintenance
     Close() error
-    Migrate() error
+    Ping() error
 }
 ```
 
+## Object Hierarchy
+
+```
+Ecosystem → Domain → App → Workspace
+    ↓          ↓       ↓        ↓
+ (org)    (context) (code)   (dev env)
+```
+
+Each level has full CRUD operations. The Context tracks the user's active selection.
+
 ## Design Principles
 
-### 1. Interface Segregation
-- Keep DataStore interface focused
-- Consider splitting if it grows too large
-- Smaller interfaces are easier to mock
-
-### 2. No SQL in Business Logic
+### 1. No SQL Outside db/
 ```go
 // BAD: SQL leaking outside db/
 rows, err := db.Query("SELECT * FROM workspaces WHERE app_id = ?", appID)
@@ -130,29 +185,20 @@ rows, err := db.Query("SELECT * FROM workspaces WHERE app_id = ?", appID)
 workspaces, err := dataStore.ListWorkspacesByApp(appID)
 ```
 
-### 3. Transaction Support
+### 2. Interface Segregation
+- Keep DataStore interface focused
+- All implementations must implement the full interface
+- Use MockDataStore for testing
+
+### 3. Driver Abstraction
 ```go
-// For complex operations, support transactions
-type DataStore interface {
-    // ...
-    WithTransaction(fn func(tx DataStore) error) error
+// Driver interface allows swapping SQLite for PostgreSQL
+type Driver interface {
+    Open(path string) error
+    Close() error
+    Query(query string, args ...interface{}) (Rows, error)
+    Exec(query string, args ...interface{}) (Result, error)
 }
-```
-
-### 4. Migration Best Practices
-```sql
--- migrations/004_add_secrets.sql
-
--- Always use IF NOT EXISTS
-CREATE TABLE IF NOT EXISTS secrets (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
-    -- ...
-);
-
--- Always add down migration in comments
--- DOWN:
--- DROP TABLE secrets;
 ```
 
 ## Migration Guidelines
@@ -222,15 +268,8 @@ go test ./db/... -race
 - **@architecture** - Interface design decisions
 - **@security** - Data security, SQL injection prevention
 
-## Future Considerations
+## Models Location
 
-### Swappable Backends
-The DataStore interface allows swapping SQLite for:
-- PostgreSQL (for multi-user scenarios)
-- MySQL
-- In-memory (for testing)
-
-### Data Models Location
 Models live in `models/` package, not `db/`:
 ```go
 // models/workspace.go
@@ -249,5 +288,5 @@ type Workspace struct {
 1. **SQL outside db/**: All queries must be in db/ package
 2. **Missing migrations**: Schema changes need migration files
 3. **Breaking changes**: Think about backwards compatibility
-4. **No transactions**: Complex operations need transaction support
+4. **Missing mock updates**: When adding interface methods, update MockDataStore
 5. **Missing indexes**: Add indexes for frequently queried columns

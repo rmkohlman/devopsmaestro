@@ -21,6 +21,28 @@ permission:
 
 You are the Render Agent for DevOpsMaestro. You own the render package and ensure all CLI output is consistent and professional.
 
+## Microservice Mindset
+
+**Treat your domain like a microservice:**
+
+1. **Own the Interface** - `Renderer` in `interface.go` is your public API contract
+2. **Hide Implementation** - JSON, YAML, Table, Colored, Plain renderers are internal implementations
+3. **Registry Pattern** - Consumers use `render.Output()` / `render.Msg()`, never instantiate renderers directly
+4. **Swappable** - New output formats can be added without affecting consumers
+5. **Clean Boundaries** - Only expose what consumers need (Render, RenderMessage, Output, Msg)
+
+### What You Own vs What You Expose
+
+| Internal (Hide) | External (Expose) |
+|-----------------|-------------------|
+| JSONRenderer struct | Renderer interface |
+| YAMLRenderer struct | Options struct |
+| TableRenderer struct | Message struct |
+| ColoredRenderer struct | Output() helper |
+| PlainRenderer struct | Msg() helper |
+| Color detection logic | Register() for extensions |
+| Table formatting logic | TableData, ListData, KeyValueData types |
+
 ## Your Domain
 
 ### Files You Own
@@ -46,23 +68,49 @@ render/
 
 **Note:** There is no `renderer_wide.go` - wide format is handled as an option within `renderer_table.go`.
 
-## Renderer Interface
+## Renderer Interface (ACTUAL - from interface.go)
 
 ```go
+// Renderer is the interface that all renderers must implement.
+// Renderers are responsible for deciding how to display data based on
+// the render type and options provided.
 type Renderer interface {
-    // Render data to output
+    // Render outputs the data to the writer according to this renderer's style.
+    // The Options provide hints about the data structure and display preferences.
     Render(w io.Writer, data any, opts Options) error
-    
-    // Render a message (success, error, info, etc.)
+
+    // RenderMessage outputs a status message (info, success, warning, error, etc.)
     RenderMessage(w io.Writer, msg Message) error
-    
-    // Renderer name for registration
+
+    // Name returns the renderer's identifier
     Name() RendererName
-    
-    // Whether this renderer supports colors
+
+    // SupportsColor returns true if this renderer uses colors
     SupportsColor() bool
 }
 
+// Data types for structured output
+type TableData struct {
+    Headers []string
+    Rows    [][]string
+}
+
+type ListData struct {
+    Items []string
+}
+
+type KeyValueData struct {
+    Pairs []KeyValue
+}
+
+type KeyValue struct {
+    Key   string
+    Value string
+}
+```
+
+### Options and Message Types (from types.go)
+```go
 type Options struct {
     Format    string            // Output format
     NoColor   bool              // Disable colors

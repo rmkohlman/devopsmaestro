@@ -22,33 +22,76 @@ permission:
 
 You are the NvimOps Agent for DevOpsMaestro. You own all code related to NvimOps (nvp) - the Neovim plugin and theme manager.
 
+## Microservice Mindset
+
+**Treat your domain like a microservice:**
+
+1. **Own the Interfaces** - `PluginStore` and `LuaGenerator` are your public API contracts
+2. **Hide Implementation** - FileStore, DBAdapter, MemoryStore are internal implementations
+3. **Factory/Constructor Pattern** - Consumers use factory functions, never instantiate stores directly
+4. **Swappable** - Storage backends can be changed without affecting consumers (file → database)
+5. **Clean Boundaries** - Only expose what consumers need (CRUD operations, generation)
+
+### What You Own vs What You Expose
+
+| Internal (Hide) | External (Expose) |
+|-----------------|-------------------|
+| FileStore struct | PluginStore interface |
+| DBAdapter struct | LuaGenerator interface |
+| MemoryStore struct | Plugin struct |
+| ReadOnlyStore struct | Theme struct |
+| File parsing logic | Error types (ErrNotFound, ErrAlreadyExists) |
+| Lua generation details | NewFileStore(), NewDBAdapter() factories |
+
 ## Your Domain
 
-### Files You Own
+### Files You Own (ACTUAL)
 ```
 cmd/nvp/
 ├── main.go               # nvp entry point
-└── root.go               # All nvp commands
+├── root.go               # All nvp commands
+└── root_test.go          # Command tests
 
 pkg/nvimops/
+├── nvimops.go            # Package entry point
+├── nvimops_test.go       # Integration tests
+├── config/
+│   ├── types.go          # Config types
+│   ├── parser.go         # Config parsing
+│   ├── generator.go      # Config generation
+│   └── config_test.go
 ├── plugin/
-│   ├── types.go          # Plugin struct, options
+│   ├── types.go          # Plugin struct
+│   ├── interfaces.go     # LuaGenerator interface (CRITICAL)
+│   ├── interface_test.go
 │   ├── parser.go         # YAML plugin parsing
-│   └── generator.go      # Lua code generation
+│   ├── yaml.go           # YAML utilities
+│   ├── generator.go      # Lua code generation
+│   └── plugin_test.go
 ├── theme/
 │   ├── types.go          # Theme struct
 │   ├── parser.go         # Theme parsing
-│   └── generator.go      # Theme Lua generation
+│   ├── store.go          # ThemeStore interface
+│   ├── generator.go      # Theme Lua generation
+│   ├── generator_test.go
+│   ├── db_adapter.go     # Database adapter (dvm integration)
+│   ├── db_adapter_test.go
+│   └── theme_test.go
+│   └── library/          # Theme library
 ├── store/
-│   ├── interface.go      # PluginStore, ThemeStore interfaces
-│   ├── file_store.go     # File-based storage
-│   └── db_adapter.go     # Database adapter (dvm integration)
+│   ├── interface.go      # PluginStore interface (CRITICAL)
+│   ├── interface_test.go
+│   ├── file.go           # File-based storage
+│   ├── db_adapter.go     # Database adapter (dvm integration)
+│   ├── db_adapter_test.go
+│   ├── memory.go         # In-memory store (testing)
+│   ├── readonly.go       # Read-only wrapper
+│   └── store_test.go
 ├── library/
-│   ├── embedded.go       # Embedded plugin library
-│   ├── fetcher.go        # Remote library fetching
-│   └── plugins/          # Embedded YAML definitions
-└── config/
-    └── paths.go          # Config paths
+│   ├── library.go        # Plugin library management
+│   ├── library_test.go
+│   └── plugins/          # Embedded YAML plugin definitions
+└── (no separate config/ paths.go - config in config/)
 
 pkg/palette/
 ├── palette.go            # Palette struct, semantic colors
@@ -56,7 +99,66 @@ pkg/palette/
 └── terminal.go           # Terminal color extraction
 ```
 
-## NvimOps Architecture
+## Core Interfaces (ACTUAL)
+
+### PluginStore Interface (from store/interface.go)
+```go
+// PluginStore defines the interface for plugin storage operations.
+// Implementations can store plugins in files, databases, or memory.
+type PluginStore interface {
+    // Create adds a new plugin to the store.
+    // Returns an error if a plugin with the same name already exists.
+    Create(p *plugin.Plugin) error
+
+    // Update modifies an existing plugin in the store.
+    // Returns an error if the plugin doesn't exist.
+    Update(p *plugin.Plugin) error
+
+    // Upsert creates or updates a plugin (create if not exists, update if exists).
+    Upsert(p *plugin.Plugin) error
+
+    // Delete removes a plugin from the store by name.
+    // Returns an error if the plugin doesn't exist.
+    Delete(name string) error
+
+    // Get retrieves a plugin by name.
+    // Returns nil and an error if the plugin doesn't exist.
+    Get(name string) (*plugin.Plugin, error)
+
+    // List returns all plugins in the store.
+    List() ([]*plugin.Plugin, error)
+
+    // ListByCategory returns plugins in a specific category.
+    ListByCategory(category string) ([]*plugin.Plugin, error)
+
+    // ListByTag returns plugins that have a specific tag.
+    ListByTag(tag string) ([]*plugin.Plugin, error)
+
+    // Exists checks if a plugin with the given name exists.
+    Exists(name string) (bool, error)
+
+    // Close releases any resources held by the store.
+    Close() error
+}
+
+// Error types
+type ErrNotFound struct{ Name string }
+type ErrAlreadyExists struct{ Name string }
+```
+
+### LuaGenerator Interface (from plugin/interfaces.go)
+```go
+// LuaGenerator defines the interface for converting plugins to Lua code.
+// This allows different Lua generation strategies to be swapped in.
+type LuaGenerator interface {
+    // GenerateLua converts a Plugin to lazy.nvim compatible Lua code.
+    // Returns the raw Lua code without file headers.
+    GenerateLua(p *Plugin) (string, error)
+
+    // GenerateLuaFile generates Lua with a header comment for file output.
+    GenerateLuaFile(p *Plugin) (string, error)
+}
+```
 
 ### Standalone Mode (nvp only)
 ```
@@ -205,31 +307,7 @@ nvp library list      # List available plugins
 nvp library search lsp
 ```
 
-## Store Interfaces
-
-### PluginStore
-```go
-type PluginStore interface {
-    Save(plugin *plugin.Plugin) error
-    Get(name string) (*plugin.Plugin, error)
-    List() ([]*plugin.Plugin, error)
-    Delete(name string) error
-}
-```
-
-### ThemeStore
-```go
-type ThemeStore interface {
-    Save(theme *theme.Theme) error
-    Get(name string) (*theme.Theme, error)
-    List() ([]*theme.Theme, error)
-    Delete(name string) error
-    GetActive() (*theme.Theme, error)
-    SetActive(name string) error
-}
-```
-
-## Testing
+## NvimOps Architecture
 
 ```bash
 # Run nvp tests
