@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"devopsmaestro/builders"
+	"devopsmaestro/config"
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/operators"
@@ -263,14 +264,11 @@ func buildWorkspace(cmd *cobra.Command) error {
 		}
 	}
 
-	// Then, environment variables (higher priority - overrides app config)
-	if ghUser := os.Getenv("GITHUB_USERNAME"); ghUser != "" {
-		buildArgs["GITHUB_USERNAME"] = ghUser
-		slog.Debug("using GITHUB_USERNAME from environment")
-	}
-	if ghPat := os.Getenv("GITHUB_PAT"); ghPat != "" {
-		buildArgs["GITHUB_PAT"] = ghPat
-		slog.Debug("using GITHUB_PAT from environment")
+	// Load and resolve credentials from the hierarchy
+	resolvedCreds := loadBuildCredentials(sqlDS, app, workspace)
+	for k, v := range resolvedCreds {
+		buildArgs[k] = v
+		slog.Debug("using credential", "key", k)
 	}
 
 	slog.Debug("starting image build", "target", buildTarget, "no_cache", buildNocache)
@@ -521,4 +519,95 @@ func getRelativePath(base, target string) string {
 		return target
 	}
 	return rel
+}
+
+// loadBuildCredentials loads and resolves credentials from the hierarchy:
+// Global -> Ecosystem -> Domain -> App -> Workspace
+// Environment variables always take highest priority.
+func loadBuildCredentials(ds db.DataStore, app *models.App, workspace *models.Workspace) map[string]string {
+	var scopes []config.CredentialScope
+
+	// Layer 1: Global credentials from config file
+	globalCreds := config.GetGlobalCredentials()
+	if len(globalCreds) > 0 {
+		scopes = append(scopes, config.CredentialScope{
+			Type:        "global",
+			ID:          0,
+			Name:        "global",
+			Credentials: globalCreds,
+		})
+		slog.Debug("loaded global credentials", "count", len(globalCreds))
+	}
+
+	// Layer 2: Ecosystem credentials (if app belongs to a domain with an ecosystem)
+	if app.DomainID > 0 {
+		domain, err := ds.GetDomainByID(app.DomainID)
+		if err == nil && domain.EcosystemID > 0 {
+			ecosystem, err := ds.GetEcosystemByID(domain.EcosystemID)
+			if err == nil {
+				ecoCreds, err := ds.ListCredentialsByScope(models.CredentialScopeEcosystem, int64(ecosystem.ID))
+				if err == nil && len(ecoCreds) > 0 {
+					scopes = append(scopes, config.CredentialScope{
+						Type:        "ecosystem",
+						ID:          int64(ecosystem.ID),
+						Name:        ecosystem.Name,
+						Credentials: models.CredentialsToMap(ecoCreds),
+					})
+					slog.Debug("loaded ecosystem credentials", "ecosystem", ecosystem.Name, "count", len(ecoCreds))
+				}
+			}
+
+			// Layer 3: Domain credentials
+			domainCreds, err := ds.ListCredentialsByScope(models.CredentialScopeDomain, int64(domain.ID))
+			if err == nil && len(domainCreds) > 0 {
+				scopes = append(scopes, config.CredentialScope{
+					Type:        "domain",
+					ID:          int64(domain.ID),
+					Name:        domain.Name,
+					Credentials: models.CredentialsToMap(domainCreds),
+				})
+				slog.Debug("loaded domain credentials", "domain", domain.Name, "count", len(domainCreds))
+			}
+		}
+	}
+
+	// Layer 4: App credentials
+	appCreds, err := ds.ListCredentialsByScope(models.CredentialScopeApp, int64(app.ID))
+	if err == nil && len(appCreds) > 0 {
+		scopes = append(scopes, config.CredentialScope{
+			Type:        "app",
+			ID:          int64(app.ID),
+			Name:        app.Name,
+			Credentials: models.CredentialsToMap(appCreds),
+		})
+		slog.Debug("loaded app credentials", "app", app.Name, "count", len(appCreds))
+	}
+
+	// Layer 5: Workspace credentials
+	if workspace != nil {
+		wsCreds, err := ds.ListCredentialsByScope(models.CredentialScopeWorkspace, int64(workspace.ID))
+		if err == nil && len(wsCreds) > 0 {
+			scopes = append(scopes, config.CredentialScope{
+				Type:        "workspace",
+				ID:          int64(workspace.ID),
+				Name:        workspace.Name,
+				Credentials: models.CredentialsToMap(wsCreds),
+			})
+			slog.Debug("loaded workspace credentials", "workspace", workspace.Name, "count", len(wsCreds))
+		}
+	}
+
+	// Resolve all credentials (env vars checked last internally)
+	resolved, errors := config.ResolveCredentialsWithErrors(scopes...)
+
+	// Log any resolution errors
+	for name, err := range errors {
+		slog.Warn("failed to resolve credential", "name", name, "error", err)
+	}
+
+	if len(resolved) > 0 {
+		slog.Info("resolved build credentials", "count", len(resolved))
+	}
+
+	return resolved
 }

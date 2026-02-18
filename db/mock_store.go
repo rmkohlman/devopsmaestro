@@ -20,6 +20,7 @@ type MockDataStore struct {
 	Workspaces  map[int]*models.Workspace
 	Plugins     map[string]*models.NvimPluginDB
 	Themes      map[string]*models.NvimThemeDB
+	Credentials map[string]*models.CredentialDB // keyed by "scopeType:scopeID:name"
 	ActiveTheme string
 	Context     *models.Context
 
@@ -1005,6 +1006,98 @@ func (m *MockDataStore) ClearActiveTheme() error {
 }
 
 // =============================================================================
+// Credential Operations
+// =============================================================================
+
+func (m *MockDataStore) credentialKey(scopeType models.CredentialScopeType, scopeID int64, name string) string {
+	return fmt.Sprintf("%s:%d:%s", scopeType, scopeID, name)
+}
+
+func (m *MockDataStore) CreateCredential(credential *models.CredentialDB) error {
+	m.recordCall("CreateCredential", credential)
+	if m.Credentials == nil {
+		m.Credentials = make(map[string]*models.CredentialDB)
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	key := m.credentialKey(credential.ScopeType, credential.ScopeID, credential.Name)
+	if _, exists := m.Credentials[key]; exists {
+		return fmt.Errorf("credential already exists: %s", credential.Name)
+	}
+	m.Credentials[key] = credential
+	return nil
+}
+
+func (m *MockDataStore) GetCredential(scopeType models.CredentialScopeType, scopeID int64, name string) (*models.CredentialDB, error) {
+	m.recordCall("GetCredential", scopeType, scopeID, name)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.Credentials == nil {
+		return nil, fmt.Errorf("credential not found: %s", name)
+	}
+	key := m.credentialKey(scopeType, scopeID, name)
+	if cred, ok := m.Credentials[key]; ok {
+		return cred, nil
+	}
+	return nil, fmt.Errorf("credential not found: %s", name)
+}
+
+func (m *MockDataStore) UpdateCredential(credential *models.CredentialDB) error {
+	m.recordCall("UpdateCredential", credential)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.Credentials == nil {
+		return fmt.Errorf("credential not found: %s", credential.Name)
+	}
+	key := m.credentialKey(credential.ScopeType, credential.ScopeID, credential.Name)
+	if _, exists := m.Credentials[key]; !exists {
+		return fmt.Errorf("credential not found: %s", credential.Name)
+	}
+	m.Credentials[key] = credential
+	return nil
+}
+
+func (m *MockDataStore) DeleteCredential(scopeType models.CredentialScopeType, scopeID int64, name string) error {
+	m.recordCall("DeleteCredential", scopeType, scopeID, name)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.Credentials == nil {
+		return fmt.Errorf("credential not found: %s", name)
+	}
+	key := m.credentialKey(scopeType, scopeID, name)
+	if _, exists := m.Credentials[key]; !exists {
+		return fmt.Errorf("credential not found: %s", name)
+	}
+	delete(m.Credentials, key)
+	return nil
+}
+
+func (m *MockDataStore) ListCredentialsByScope(scopeType models.CredentialScopeType, scopeID int64) ([]*models.CredentialDB, error) {
+	m.recordCall("ListCredentialsByScope", scopeType, scopeID)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var result []*models.CredentialDB
+	prefix := fmt.Sprintf("%s:%d:", scopeType, scopeID)
+	for key, cred := range m.Credentials {
+		if len(key) >= len(prefix) && key[:len(prefix)] == prefix {
+			result = append(result, cred)
+		}
+	}
+	return result, nil
+}
+
+func (m *MockDataStore) ListAllCredentials() ([]*models.CredentialDB, error) {
+	m.recordCall("ListAllCredentials")
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var result []*models.CredentialDB
+	for _, cred := range m.Credentials {
+		result = append(result, cred)
+	}
+	return result, nil
+}
+
+// =============================================================================
 // Driver Access & Health
 // =============================================================================
 
@@ -1057,6 +1150,7 @@ func (m *MockDataStore) Reset() {
 	m.Workspaces = make(map[int]*models.Workspace)
 	m.Plugins = make(map[string]*models.NvimPluginDB)
 	m.Themes = make(map[string]*models.NvimThemeDB)
+	m.Credentials = make(map[string]*models.CredentialDB)
 	m.WorkspacePlugins = make(map[int]map[int]bool)
 	m.ActiveTheme = ""
 	m.Context = &models.Context{ID: 1}

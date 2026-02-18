@@ -216,6 +216,26 @@ type DataStore interface {
 	// ClearActiveTheme deactivates all themes.
 	ClearActiveTheme() error
 
+	// Credential Operations
+
+	// CreateCredential inserts a new credential configuration.
+	CreateCredential(credential *models.CredentialDB) error
+
+	// GetCredential retrieves a credential by scope and name.
+	GetCredential(scopeType models.CredentialScopeType, scopeID int64, name string) (*models.CredentialDB, error)
+
+	// UpdateCredential updates an existing credential.
+	UpdateCredential(credential *models.CredentialDB) error
+
+	// DeleteCredential removes a credential by scope and name.
+	DeleteCredential(scopeType models.CredentialScopeType, scopeID int64, name string) error
+
+	// ListCredentialsByScope retrieves all credentials for a specific scope.
+	ListCredentialsByScope(scopeType models.CredentialScopeType, scopeID int64) ([]*models.CredentialDB, error)
+
+	// ListAllCredentials retrieves all credentials across all scopes.
+	ListAllCredentials() ([]*models.CredentialDB, error)
+
 	// Driver Access
 
 	// Driver returns the underlying database driver.

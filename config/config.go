@@ -10,7 +10,8 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	Theme string `mapstructure:"theme"` // UI theme (auto, catppuccin-mocha, etc.)
+	Theme       string      `mapstructure:"theme"`       // UI theme (auto, catppuccin-mocha, etc.)
+	Credentials Credentials `mapstructure:"credentials"` // Global credentials for builds
 }
 
 // GetConfig returns the current configuration
@@ -19,13 +20,19 @@ func GetConfig() *Config {
 	if err := viper.Unmarshal(&cfg); err != nil {
 		// Return defaults if unmarshal fails
 		return &Config{
-			Theme: "auto",
+			Theme:       "auto",
+			Credentials: make(Credentials),
 		}
 	}
 
 	// If theme is empty, set default
 	if cfg.Theme == "" {
 		cfg.Theme = "auto"
+	}
+
+	// Ensure credentials map is initialized
+	if cfg.Credentials == nil {
+		cfg.Credentials = make(Credentials)
 	}
 
 	return &cfg
@@ -94,12 +101,33 @@ func CreateDefaultConfig(configPath string) error {
 	configFile := filepath.Join(configPath, "config.yaml")
 
 	defaultConfig := `# DevOpsMaestro Configuration File
-# For more information, see: https://github.com/yourusername/devopsmaestro
+# For more information, see: https://github.com/rmkohlman/devopsmaestro
 
 # UI Theme
 # Options: auto, catppuccin-mocha, catppuccin-latte, tokyo-night, nord, dracula, gruvbox-dark, gruvbox-light
 # Default: auto (automatically adapts to your terminal's light/dark theme)
 theme: auto
+
+# Global Credentials
+# These are used during 'dvm build' for private repository access.
+# Credentials are inherited: Global -> Ecosystem -> Domain -> App -> Workspace
+# Environment variables always take highest priority.
+#
+# Example:
+# credentials:
+#   GITHUB_USERNAME:
+#     source: keychain
+#     service: dvm-github-username
+#   GITHUB_PAT:
+#     source: keychain
+#     service: dvm-github-pat
+#   NPM_TOKEN:
+#     source: env
+#     env: MY_NPM_TOKEN
+#
+# To add credentials to macOS Keychain:
+#   security add-generic-password -s "dvm-github-pat" -a "$USER" -w "ghp_yourtoken"
+credentials: {}
 `
 
 	return os.WriteFile(configFile, []byte(defaultConfig), 0644)
