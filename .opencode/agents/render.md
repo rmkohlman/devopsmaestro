@@ -43,6 +43,27 @@ You are the Render Agent for DevOpsMaestro. You own the render package and ensur
 | Color detection logic | Register() for extensions |
 | Table formatting logic | TableData, ListData, KeyValueData types |
 
+## Dependencies
+
+The render package depends on `pkg/colors/` for theme colors:
+- **Uses `ColorProvider` interface** for all color operations
+- **Gets ColorProvider from context** via `colors.FromContext(ctx)`
+- **Does NOT import theme package directly** - only uses the interface
+- **Coordination with Theme Agent** - when render needs new color methods, coordinate with theme agent to add them to the ColorProvider interface
+
+### Color Usage Pattern
+```go
+// Get colors from context
+colors := colors.FromContext(ctx)
+
+// Use ColorProvider methods instead of hardcoded colors
+successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colors.Success()))
+errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colors.Error()))
+warningStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colors.Warning()))
+```
+
+**Key Principle: Render package never imports theme internals. It only uses the ColorProvider interface.**
+
 ## Your Domain
 
 ### Files You Own
@@ -234,18 +255,28 @@ var workspaceColumns = []TableColumn{
 }
 ```
 
-### Status Colors
+### Status Colors (Using ColorProvider)
 ```go
-func statusColor(status string) string {
+func statusColor(ctx context.Context, status string) string {
+    colors := colors.FromContext(ctx)
+    
     switch status {
     case "Running":
-        return color.Green(status)
+        return lipgloss.NewStyle().
+            Foreground(lipgloss.Color(colors.Success())).
+            Render(status)
     case "Stopped":
-        return color.Yellow(status)
+        return lipgloss.NewStyle().
+            Foreground(lipgloss.Color(colors.Warning())).
+            Render(status)
     case "Error":
-        return color.Red(status)
+        return lipgloss.NewStyle().
+            Foreground(lipgloss.Color(colors.Error())).
+            Render(status)
     default:
-        return status
+        return lipgloss.NewStyle().
+            Foreground(lipgloss.Color(colors.Text())).
+            Render(status)
     }
 }
 ```
@@ -269,19 +300,47 @@ func SupportsColor() bool {
 }
 ```
 
-### Color Functions
+### Using ColorProvider Interface
 ```go
-var color = struct {
-    Green   func(string) string
-    Yellow  func(string) string
-    Red     func(string) string
-    Blue    func(string) string
-    Bold    func(string) string
-    Dim     func(string) string
-}{
-    Green:  func(s string) string { return "\033[32m" + s + "\033[0m" },
-    Yellow: func(s string) string { return "\033[33m" + s + "\033[0m" },
-    // ...
+// Get colors from context (provided by theme agent)
+colors := colors.FromContext(ctx)
+
+// Use ColorProvider methods for all colors
+func statusColor(ctx context.Context, status string) string {
+    colors := colors.FromContext(ctx)
+    
+    switch status {
+    case "Running":
+        return colors.Success()  // Green from theme
+    case "Stopped":
+        return colors.Warning()  // Yellow from theme
+    case "Error":
+        return colors.Error()    // Red from theme
+    default:
+        return colors.Text()     // Default text color
+    }
+}
+
+// Create styled components using ColorProvider
+func createStyles(ctx context.Context) struct {
+    Success lipgloss.Style
+    Error   lipgloss.Style
+    Warning lipgloss.Style
+    Info    lipgloss.Style
+} {
+    colors := colors.FromContext(ctx)
+    
+    return struct {
+        Success lipgloss.Style
+        Error   lipgloss.Style
+        Warning lipgloss.Style
+        Info    lipgloss.Style
+    }{
+        Success: lipgloss.NewStyle().Foreground(lipgloss.Color(colors.Success())),
+        Error:   lipgloss.NewStyle().Foreground(lipgloss.Color(colors.Error())),
+        Warning: lipgloss.NewStyle().Foreground(lipgloss.Color(colors.Warning())),
+        Info:    lipgloss.NewStyle().Foreground(lipgloss.Color(colors.Info())),
+    }
 }
 ```
 
@@ -304,6 +363,7 @@ var color = struct {
 ## Delegate To
 
 - **@cli-architect** - Review output format decisions for kubectl consistency
+- **@theme** - When render needs new color methods, coordinate to add them to ColorProvider interface
 
 ## Testing
 

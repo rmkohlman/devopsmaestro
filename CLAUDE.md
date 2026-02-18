@@ -34,6 +34,7 @@ Ask yourself: "Which agents does this task need?"
 | Image building, Dockerfiles | `builder` |
 | Output formatting, tables, colors | `render` |
 | Neovim plugins, themes, nvp | `nvimops` |
+| Theme colors, palettes, ColorProvider | `theme` |
 | Writing or running tests | `test` |
 | Documentation updates | `document` |
 | Git operations (commit, push, pull, branch) | `release` |
@@ -179,6 +180,7 @@ You (orchestrator):
 | `@builder` | `builders/`, ImageBuilder interface | Image building |
 | `@render` | `render/`, Renderer interface | Output formatting |
 | `@nvimops` | `pkg/nvimops/`, `cmd/nvp/` | NvimOps features |
+| `@theme` | `pkg/colors/`, `pkg/palette/`, `pkg/nvimops/theme/` | Theme colors, palettes, ColorProvider |
 | `@test` | `*_test.go`, MANUAL_TEST_PLAN.md | Testing |
 | `@document` | `*.md` files, documentation | Documentation |
 | `@release` | CI/CD, CHANGELOG, Homebrew | Releases, ALL git operations |
@@ -197,6 +199,12 @@ You: This is a container runtime issue.
      → @container-runtime for the fix
      → @security to review mount security
      → @test for verification
+
+User: "Add support for custom theme colors"
+You: This involves theme color management and color provider.
+     → @theme for color system implementation
+     → @nvimops if Neovim theme integration needed
+     → @test for color validation tests
 
 User: "Release v0.10.0"
 You: Full release workflow.
