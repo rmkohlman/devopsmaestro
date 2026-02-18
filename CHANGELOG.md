@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.9.7] - 2026-02-18
+
+### 🐛 Fixed
+
+- **Colima SSH command** - Removed invalid `-t` flag from `colima ssh` command in `attachViaColima` function. The `colima ssh` command doesn't support TTY allocation flags like regular SSH - TTY is automatically allocated.
+
+---
+
 ## [0.9.6] - 2026-02-18
 
 ### 🐛 Fixed
