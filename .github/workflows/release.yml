@@ -36,6 +36,7 @@ jobs:
 
   # Build dvm (requires CGO for SQLite) natively on macOS
   build-dvm-darwin:
+    needs: [goreleaser-nvp]
     runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
