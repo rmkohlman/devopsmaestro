@@ -290,3 +290,25 @@ type Workspace struct {
 3. **Breaking changes**: Think about backwards compatibility
 4. **Missing mock updates**: When adding interface methods, update MockDataStore
 5. **Missing indexes**: Add indexes for frequently queried columns
+
+---
+
+## Workflow Protocol
+
+### Pre-Invocation
+Before I start, the orchestrator should have consulted:
+- `architecture` - For schema design review and interface patterns
+
+### Post-Completion
+After I complete my task, the orchestrator should invoke:
+- `test` - To write/run tests for the database changes
+- `document` - If schema or API changed
+
+### Output Protocol
+When completing a task, I will end my response with:
+
+#### Workflow Status
+- **Completed**: <what database changes I made>
+- **Files Changed**: <list of files I modified>
+- **Next Agents**: test, document (or just test if no doc changes needed)
+- **Blockers**: <any database issues preventing progress, or "None">

@@ -333,3 +333,24 @@ go build -o nvp ./cmd/nvp/
 - `README.md` - NvimOps section
 - `pkg/palette/` - Shared palette utilities
 - External: nvim-yaml-plugins repo
+
+---
+
+## Workflow Protocol
+
+### Pre-Invocation
+Before I start, the orchestrator should have consulted:
+- `architecture` - For interface changes and design patterns
+
+### Post-Completion
+After I complete my task, the orchestrator should invoke:
+- `test` - To write/run tests for the nvimops changes
+
+### Output Protocol
+When completing a task, I will end my response with:
+
+#### Workflow Status
+- **Completed**: <what nvimops changes I made>
+- **Files Changed**: <list of files I modified>
+- **Next Agents**: test
+- **Blockers**: <any nvimops issues preventing progress, or "None">

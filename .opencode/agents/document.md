@@ -212,3 +212,24 @@ When updating docs, check these for accuracy:
 - Modify code files (only .md files)
 - Make up features that don't exist
 - Document unimplemented functionality
+
+---
+
+## Workflow Protocol
+
+### Pre-Invocation
+Before I start, the orchestrator should have consulted:
+- None (document can start immediately to update existing documentation)
+
+### Post-Completion
+After I complete my task, the orchestrator should invoke:
+- None (documentation is usually the last step in the workflow)
+
+### Output Protocol
+When completing a task, I will end my response with:
+
+#### Workflow Status
+- **Completed**: <what documentation I updated>
+- **Files Changed**: <list of .md files I modified>
+- **Next Agents**: None (documentation is typically final)
+- **Blockers**: <any documentation issues, or "None">

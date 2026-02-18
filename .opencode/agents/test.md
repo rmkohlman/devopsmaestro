@@ -272,3 +272,24 @@ func TestRequiresDocker(t *testing.T) {
     // ...
 }
 ```
+
+---
+
+## Workflow Protocol
+
+### Pre-Invocation
+Before I start, the orchestrator should have consulted:
+- None (test can start immediately to verify existing functionality)
+
+### Post-Completion
+After I complete my task, the orchestrator should invoke:
+- `document` - If tests revealed that documentation needs updates
+
+### Output Protocol
+When completing a task, I will end my response with:
+
+#### Workflow Status
+- **Completed**: <what tests I wrote/ran and results>
+- **Files Changed**: <list of test files I modified>
+- **Next Agents**: document (if docs need updates, otherwise none)
+- **Blockers**: <any test failures that must be fixed, or "None">

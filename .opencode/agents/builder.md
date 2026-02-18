@@ -298,3 +298,24 @@ LABEL org.opencontainers.image.source="https://github.com/rmkohlman/devopsmaestr
 LABEL org.opencontainers.image.version="1.0.0"
 LABEL org.opencontainers.image.description="DevOpsMaestro workspace"
 ```
+
+---
+
+## Workflow Protocol
+
+### Pre-Invocation
+Before I start, the orchestrator should have consulted:
+- `architecture` - For interface changes and design patterns
+
+### Post-Completion
+After I complete my task, the orchestrator should invoke:
+- `test` - To write/run tests for the builder changes
+
+### Output Protocol
+When completing a task, I will end my response with:
+
+#### Workflow Status
+- **Completed**: <what builder changes I made>
+- **Files Changed**: <list of files I modified>
+- **Next Agents**: test
+- **Blockers**: <any builder issues preventing progress, or "None">

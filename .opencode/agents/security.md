@@ -225,3 +225,24 @@ When you find issues, report them as:
 ### HIGH
 ...
 ```
+
+---
+
+## Workflow Protocol
+
+### Pre-Invocation
+Before I start, I am advisory and consulted first:
+- None (advisory agent - consulted by orchestrator for security review)
+
+### Post-Completion
+After I complete my review, the orchestrator should invoke:
+- Back to orchestrator with security recommendations and any critical issues that must be fixed
+
+### Output Protocol
+When completing a task, I will end my response with:
+
+#### Workflow Status
+- **Completed**: <what security aspects I reviewed and any issues found>
+- **Files Changed**: None (advisory only - I don't modify code)
+- **Next Agents**: <recommended agents to fix security issues>
+- **Blockers**: <any critical security issues that block release, or "None">

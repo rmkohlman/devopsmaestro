@@ -346,3 +346,24 @@ func renderWorkspace(workspace *models.Workspace, format string) error {
     // Same pattern, but for single item
 }
 ```
+
+---
+
+## Workflow Protocol
+
+### Pre-Invocation
+Before I start, the orchestrator should have consulted:
+- `architecture` - For new data types or interface changes
+
+### Post-Completion
+After I complete my task, the orchestrator should invoke:
+- `test` - To write/run tests for the render changes
+
+### Output Protocol
+When completing a task, I will end my response with:
+
+#### Workflow Status
+- **Completed**: <what render changes I made>
+- **Files Changed**: <list of files I modified>
+- **Next Agents**: test
+- **Blockers**: <any render issues preventing progress, or "None">

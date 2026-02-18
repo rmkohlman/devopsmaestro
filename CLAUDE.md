@@ -53,8 +53,84 @@ Task(subagent_type="<agent-name>", description="...", prompt="...")
 
 ### Step 4: Coordinate and Report
 - Collect agent outputs
-- Resolve any conflicts
+- **Parse Workflow Status** from each agent's response
+- Follow the `Next Agents` recommendations
 - Report summary to user
+
+---
+
+## Workflow Protocol
+
+Agents now include a **Workflow Protocol** section that specifies:
+- **Pre-Invocation**: Who should be consulted BEFORE the agent works
+- **Post-Completion**: Who should be invoked AFTER the agent completes
+- **Output Protocol**: Structured output format
+
+### Standard Workflow Chains
+
+**Code Change Workflow:**
+```
+architecture → domain agent → test → document
+   (design)    (implement)   (verify)  (docs)
+```
+
+**Security-Sensitive Workflow:**
+```
+security → domain agent → security → test
+(pre-review) (implement) (post-review) (verify)
+```
+
+**Release Workflow:**
+```
+test → document → release
+(verify) (CHANGELOG) (tag/push)
+```
+
+### Parsing Agent Output
+
+Each agent will end their response with:
+```
+#### Workflow Status
+- **Completed**: <what was done>
+- **Files Changed**: <list of files>
+- **Next Agents**: test, document
+- **Blockers**: None
+```
+
+**You MUST read the `Next Agents` field and invoke those agents next.**
+
+### Example Full Workflow
+
+```
+User: "Add a description field to workspaces"
+
+Step 1: Identify agents needed
+  - architecture (design review)
+  - database (schema + interface)
+  - test (verify)
+  - document (if API changed)
+
+Step 2: Invoke architecture first
+  → architecture reviews, recommends migration pattern
+  → Workflow Status: Next Agents: database
+
+Step 3: Invoke database
+  → database creates migration, updates DataStore
+  → Workflow Status: Next Agents: test, document
+
+Step 4: Invoke test
+  → test writes/runs tests
+  → Workflow Status: Next Agents: document (if docs need update)
+
+Step 5: Invoke document
+  → document updates relevant docs
+  → Workflow Status: Next Agents: (none)
+
+Step 6: Report to user
+  - All changes complete
+  - Tests passing
+  - Docs updated
+```
 
 ---
 

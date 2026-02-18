@@ -231,3 +231,26 @@ CONTAINER_RUNTIME=colima go test ./operators/... -v
 - Docker SDK docs: https://pkg.go.dev/github.com/docker/docker/client
 - containerd client docs: https://pkg.go.dev/github.com/containerd/containerd
 - nerdctl documentation: https://github.com/containerd/nerdctl
+
+---
+
+## Workflow Protocol
+
+### Pre-Invocation
+Before I start, the orchestrator should have consulted:
+- `architecture` - For interface changes and design patterns
+- `security` - For mount/permission changes and security implications
+
+### Post-Completion
+After I complete my task, the orchestrator should invoke:
+- `test` - To write/run tests for the container runtime changes
+- `security` - For security review of container operations
+
+### Output Protocol
+When completing a task, I will end my response with:
+
+#### Workflow Status
+- **Completed**: <what container runtime changes I made>
+- **Files Changed**: <list of files I modified>
+- **Next Agents**: test, security
+- **Blockers**: <any container runtime issues preventing progress, or "None">

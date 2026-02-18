@@ -358,3 +358,24 @@ When you need domain-specific expertise:
 - `ARCHITECTURE.md` - Quick architecture reference
 - `.claude/instructions.md` - Mandatory patterns checklist
 - `docs/vision/architecture.md` - Complete architecture vision
+
+---
+
+## Workflow Protocol
+
+### Pre-Invocation
+Before I start, I am advisory and consulted first:
+- None (advisory agent - consulted by orchestrator before others work)
+
+### Post-Completion
+After I complete my review, the orchestrator should invoke:
+- Back to orchestrator with design recommendations and any patterns that should be applied
+
+### Output Protocol
+When completing a task, I will end my response with:
+
+#### Workflow Status
+- **Completed**: <what I reviewed and recommended>
+- **Files Changed**: None (advisory only - I don't modify code)
+- **Next Agents**: <recommended agents to implement design changes>
+- **Blockers**: <any architectural concerns that must be addressed, or "None">

@@ -188,3 +188,24 @@ When reviewing a new command, verify:
 - `cmd/*.go` - Existing command implementations
 - `README.md` - User-facing command documentation
 - `STANDARDS.md` - Coding and CLI standards
+
+---
+
+## Workflow Protocol
+
+### Pre-Invocation
+Before I start, I am advisory and consulted first:
+- None (advisory agent - consulted by orchestrator for CLI design)
+
+### Post-Completion
+After I complete my review, the orchestrator should invoke:
+- Back to orchestrator with CLI recommendations and kubectl pattern guidance
+
+### Output Protocol
+When completing a task, I will end my response with:
+
+#### Workflow Status
+- **Completed**: <what CLI patterns I reviewed and recommended>
+- **Files Changed**: None (advisory only - I don't modify code)
+- **Next Agents**: <recommended agents to implement CLI changes>
+- **Blockers**: <any CLI design concerns that must be addressed, or "None">

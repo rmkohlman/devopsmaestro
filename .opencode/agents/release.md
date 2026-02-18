@@ -221,3 +221,24 @@ Both binaries are released together with the same version number.
 - `MASTER_VISION.md` (in toolkit repo) - Version history
 - `docs/development/release-process.md` - Release documentation
 - `.goreleaser.yaml` - GoReleaser configuration
+
+---
+
+## Workflow Protocol
+
+### Pre-Invocation
+Before I start, the orchestrator should have consulted:
+- `test` - All tests must pass before release
+
+### Post-Completion
+After I complete my task, the orchestrator should invoke:
+- None (release is the final step)
+
+### Output Protocol
+When completing a task, I will end my response with:
+
+#### Workflow Status
+- **Completed**: <what release steps I completed (tagging, CI monitoring, verification)>
+- **Files Changed**: <release-related files like CHANGELOG.md>
+- **Next Agents**: None (release is the final workflow step)
+- **Blockers**: <any release issues that prevent completion, or "None">
