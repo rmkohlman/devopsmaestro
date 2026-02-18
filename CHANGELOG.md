@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.9.5] - 2026-02-18
+
+### 🐛 Fixed
+
+- **Container detached mode** - Fixed containers exiting immediately after start by using `/bin/sleep infinity` instead of `/bin/zsh -l` as the default command in detached mode. This ensures containers remain running when not attached to a terminal.
+
+---
+
 ## [0.9.4] - 2026-02-18
 
 ### 🐛 Fixed
