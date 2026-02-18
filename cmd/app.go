@@ -157,7 +157,8 @@ var getAppsCmd = &cobra.Command{
 Examples:
   dvm get apps                          # List apps in active domain
   dvm get apps --domain backend
-  dvm get apps --all                    # List all apps across all domains
+  dvm get apps -A                       # List all apps across all domains
+  dvm get apps --all                    # Same as -A
   dvm get apps -o yaml`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return getApps(cmd)
@@ -474,7 +475,7 @@ func init() {
 
 	// App get/delete flags
 	getAppsCmd.Flags().StringP("domain", "d", "", "Domain name (defaults to active domain)")
-	getAppsCmd.Flags().Bool("all", false, "List apps from all domains")
+	getAppsCmd.Flags().BoolP("all", "A", false, "List apps from all domains")
 	getAppCmd.Flags().StringP("domain", "d", "", "Domain name (defaults to active domain)")
 	deleteAppCmd.Flags().StringP("domain", "d", "", "Domain name (defaults to active domain)")
 }

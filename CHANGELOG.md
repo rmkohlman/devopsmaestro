@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.9.1] - 2026-02-17
+
+### 🚀 Added
+
+- **`dvm get workspaces -A`** - New flag to list ALL workspaces across all apps/domains/ecosystems
+- **`-A` shorthand** - Added `-A` shorthand to `get apps --all` and `get domains --all` for consistency
+
+### 🐛 Fixed
+
+- **Colima containerd mount error** - Fixed "failed to mount ... not implemented" error when using Colima with containerd runtime on macOS. Container creation now uses `nerdctl` via SSH which properly handles host path mounting through Colima's mount system.
+
+---
+
 ## [0.9.0] - 2026-02-17
 
 ### 🚀 Added

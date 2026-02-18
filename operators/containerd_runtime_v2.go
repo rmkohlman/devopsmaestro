@@ -85,6 +85,147 @@ func (r *ContainerdRuntimeV2) BuildImage(ctx context.Context, opts BuildOptions)
 
 // StartWorkspace creates and starts a workspace container
 func (r *ContainerdRuntimeV2) StartWorkspace(ctx context.Context, opts StartOptions) (string, error) {
+	// For Colima, use nerdctl via SSH to handle host path mounting correctly
+	// The containerd API cannot handle macOS host paths directly since containerd
+	// runs inside the Colima VM
+	if r.platform.Type == PlatformColima {
+		return r.startWorkspaceViaColima(ctx, opts)
+	}
+
+	// For other containerd platforms, use direct API (may need similar handling)
+	return r.startWorkspaceDirectAPI(ctx, opts)
+}
+
+// startWorkspaceViaColima starts a workspace using nerdctl via colima ssh
+// This handles the host path mounting correctly through Colima's mount system
+func (r *ContainerdRuntimeV2) startWorkspaceViaColima(ctx context.Context, opts StartOptions) (string, error) {
+	profile := r.platform.Profile
+	if profile == "" {
+		profile = "default"
+	}
+
+	// First check if container already exists and is running
+	checkCmd := fmt.Sprintf("sudo nerdctl --namespace %s inspect %s 2>/dev/null && echo EXISTS || echo NOTFOUND",
+		r.namespace, opts.WorkspaceName)
+	checkExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", checkCmd)
+	output, _ := checkExec.Output()
+	containerExists := string(output) != "" && string(output) != "NOTFOUND\n"
+
+	if containerExists {
+		// Check if it's running
+		statusCmd := fmt.Sprintf("sudo nerdctl --namespace %s inspect -f '{{.State.Status}}' %s 2>/dev/null || echo stopped",
+			r.namespace, opts.WorkspaceName)
+		statusExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", statusCmd)
+		statusOutput, _ := statusExec.Output()
+		status := string(statusOutput)
+
+		if status == "running\n" || status == "running" {
+			// Already running, return the container name as ID
+			return opts.WorkspaceName, nil
+		}
+
+		// Container exists but not running, remove it first
+		rmCmd := fmt.Sprintf("sudo nerdctl --namespace %s rm -f %s 2>/dev/null || true",
+			r.namespace, opts.WorkspaceName)
+		rmExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", rmCmd)
+		rmExec.Run()
+	}
+
+	// Build nerdctl run command
+	// Set default command
+	command := opts.Command
+	if len(command) == 0 {
+		command = []string{"/bin/zsh", "-l"}
+	}
+
+	// Set default working directory
+	workingDir := opts.WorkingDir
+	if workingDir == "" {
+		workingDir = "/workspace"
+	}
+
+	// Build the nerdctl run command parts
+	nerdctlArgs := []string{
+		"sudo", "nerdctl",
+		"--namespace", r.namespace,
+		"run", "-d",
+		"--name", opts.WorkspaceName,
+		"-w", workingDir,
+	}
+
+	// Add volume mounts
+	// nerdctl handles path translation for Colima's mounted volumes
+	nerdctlArgs = append(nerdctlArgs, "-v", fmt.Sprintf("%s:/workspace", opts.AppPath))
+
+	// Add SSH key mount if directory exists
+	homeDir, _ := os.UserHomeDir()
+	sshDir := filepath.Join(homeDir, ".ssh")
+	if _, err := os.Stat(sshDir); err == nil {
+		nerdctlArgs = append(nerdctlArgs, "-v", fmt.Sprintf("%s:/root/.ssh:ro", sshDir))
+	}
+
+	// Add environment variables
+	for k, v := range opts.Env {
+		nerdctlArgs = append(nerdctlArgs, "-e", fmt.Sprintf("%s=%s", k, v))
+	}
+
+	// Add labels for DVM management
+	nerdctlArgs = append(nerdctlArgs,
+		"--label", "io.devopsmaestro.managed=true",
+		"--label", fmt.Sprintf("io.devopsmaestro.app=%s", opts.AppName),
+		"--label", fmt.Sprintf("io.devopsmaestro.workspace=%s", opts.WorkspaceName),
+	)
+
+	// Add image and command
+	nerdctlArgs = append(nerdctlArgs, opts.ImageName)
+	nerdctlArgs = append(nerdctlArgs, command...)
+
+	// Build the full command string for SSH
+	cmdStr := ""
+	for i, arg := range nerdctlArgs {
+		if i > 0 {
+			cmdStr += " "
+		}
+		// Quote arguments that contain spaces or special characters
+		if needsQuoting(arg) {
+			cmdStr += fmt.Sprintf("'%s'", arg)
+		} else {
+			cmdStr += arg
+		}
+	}
+
+	// Execute via colima ssh
+	execCmd := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", cmdStr)
+	execCmd.Stderr = os.Stderr
+
+	output, err := execCmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to start workspace via nerdctl: %w", err)
+	}
+
+	// nerdctl run -d returns the container ID
+	containerID := string(output)
+	if len(containerID) > 12 {
+		containerID = containerID[:12]
+	}
+
+	// Return the workspace name as the ID (that's what we use to reference it)
+	return opts.WorkspaceName, nil
+}
+
+// needsQuoting returns true if a string needs shell quoting
+func needsQuoting(s string) bool {
+	for _, c := range s {
+		if c == ' ' || c == '\'' || c == '"' || c == '=' || c == '$' || c == '\\' || c == '!' || c == '*' {
+			return true
+		}
+	}
+	return false
+}
+
+// startWorkspaceDirectAPI starts a workspace using the containerd API directly
+// This is the original implementation, kept for non-Colima platforms
+func (r *ContainerdRuntimeV2) startWorkspaceDirectAPI(ctx context.Context, opts StartOptions) (string, error) {
 	ctx = namespaces.WithNamespace(ctx, r.namespace)
 
 	// Get the image

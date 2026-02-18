@@ -112,7 +112,8 @@ Examples:
   dvm get domains                       # List domains in active ecosystem
   dvm get dom                           # Short form
   dvm get domains --ecosystem my-platform
-  dvm get domains --all                 # List all domains across all ecosystems
+  dvm get domains -A                    # List all domains across all ecosystems
+  dvm get domains --all                 # Same as -A
   dvm get domains -o yaml`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return getDomains(cmd)
@@ -466,7 +467,7 @@ func init() {
 
 	// Domain get/delete flags
 	getDomainsCmd.Flags().StringP("ecosystem", "e", "", "Ecosystem name (defaults to active ecosystem)")
-	getDomainsCmd.Flags().Bool("all", false, "List domains from all ecosystems")
+	getDomainsCmd.Flags().BoolP("all", "A", false, "List domains from all ecosystems")
 	getDomainCmd.Flags().StringP("ecosystem", "e", "", "Ecosystem name (defaults to active ecosystem)")
 	deleteDomainCmd.Flags().StringP("ecosystem", "e", "", "Ecosystem name (defaults to active ecosystem)")
 }

@@ -61,6 +61,7 @@ var getWorkspacesCmd = &cobra.Command{
 	Long: `List all workspaces in an app.
 
 Flags:
+  -A, --all         List all workspaces across all apps/domains/ecosystems
   -e, --ecosystem   Filter by ecosystem name
   -d, --domain      Filter by domain name  
   -a, --app         Filter by app name
@@ -69,6 +70,7 @@ Flags:
 Examples:
   dvm get workspaces              # List workspaces in active app
   dvm get ws                      # Short form
+  dvm get workspaces -A           # List ALL workspaces across everything
   dvm get workspaces -a myapp     # List workspaces in specific app
   dvm get workspaces -e healthcare -a portal`,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -200,6 +202,9 @@ func init() {
 	// Add hierarchy flags for workspace commands
 	AddHierarchyFlags(getWorkspacesCmd, &getWorkspacesFlags)
 	AddHierarchyFlags(getWorkspaceCmd, &getWorkspaceFlags)
+
+	// Add --all flag to get workspaces (with -A shorthand for consistency)
+	getWorkspacesCmd.Flags().BoolP("all", "A", false, "List all workspaces across all apps/domains/ecosystems")
 }
 
 func getDataStore(cmd *cobra.Command) (db.DataStore, error) {
@@ -276,6 +281,64 @@ func getWorkspaces(cmd *cobra.Command) error {
 	sqlDS, err := getDataStore(cmd)
 	if err != nil {
 		return err
+	}
+
+	allFlag, _ := cmd.Flags().GetBool("all")
+
+	// If --all/-A flag is set, list all workspaces across everything
+	if allFlag {
+		workspaces, err := sqlDS.ListAllWorkspaces()
+		if err != nil {
+			return fmt.Errorf("failed to list all workspaces: %w", err)
+		}
+
+		if len(workspaces) == 0 {
+			return render.OutputWith(getOutputFormat, nil, render.Options{
+				Empty:        true,
+				EmptyMessage: "No workspaces found",
+				EmptyHints:   []string{"dvm create workspace <name>"},
+			})
+		}
+
+		// For JSON/YAML, output the model data directly
+		if getOutputFormat == "json" || getOutputFormat == "yaml" {
+			workspacesYAML := make([]models.WorkspaceYAML, len(workspaces))
+			for i, ws := range workspaces {
+				// Get app name for this workspace
+				app, _ := sqlDS.GetAppByID(ws.AppID)
+				appName := ""
+				if app != nil {
+					appName = app.Name
+				}
+				workspacesYAML[i] = ws.ToYAML(appName)
+			}
+			return render.OutputWith(getOutputFormat, workspacesYAML, render.Options{})
+		}
+
+		// For human output, build table data
+		// We need to look up app names for display
+		tableData := render.TableData{
+			Headers: []string{"NAME", "APP", "IMAGE", "STATUS"},
+			Rows:    make([][]string, len(workspaces)),
+		}
+
+		for i, ws := range workspaces {
+			app, _ := sqlDS.GetAppByID(ws.AppID)
+			appName := ""
+			if app != nil {
+				appName = app.Name
+			}
+			tableData.Rows[i] = []string{
+				ws.Name,
+				appName,
+				ws.ImageName,
+				ws.Status,
+			}
+		}
+
+		return render.OutputWith(getOutputFormat, tableData, render.Options{
+			Type: render.TypeTable,
+		})
 	}
 
 	// Check if hierarchy flags were provided
