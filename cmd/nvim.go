@@ -174,7 +174,8 @@ func init() {
 func registerNvimCompletions() {
 	// Complete template names for 'dvm nvim init'
 	nvimInitCmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		if len(args) > 0 {
+		// Only complete the first argument (template name)
+		if len(args) >= 1 {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
 		templates := []string{

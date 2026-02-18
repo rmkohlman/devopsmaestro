@@ -68,6 +68,56 @@ sudo mv dvm nvp /usr/local/bin/
 
 ---
 
+## Shell Completions
+
+Both `dvm` and `nvp` support shell completions for commands, flags, and resource names. Completions provide:
+
+- Tab completion for commands and subcommands
+- Dynamic completion for resource names (ecosystems, domains, apps, workspaces)
+- Flag value completion (e.g., `dvm attach -a <TAB>` shows available apps)
+- Descriptions alongside resource names
+
+### Installation Instructions
+
+#### Bash (Linux)
+
+```bash
+dvm completion bash > /etc/bash_completion.d/dvm
+nvp completion bash > /etc/bash_completion.d/nvp
+```
+
+#### Bash (macOS with Homebrew)
+
+```bash
+dvm completion bash > $(brew --prefix)/etc/bash_completion.d/dvm
+nvp completion bash > $(brew --prefix)/etc/bash_completion.d/nvp
+```
+
+#### Zsh (macOS with Homebrew)
+
+```bash
+dvm completion zsh > $(brew --prefix)/share/zsh/site-functions/_dvm
+nvp completion zsh > $(brew --prefix)/share/zsh/site-functions/_nvp
+```
+
+#### Zsh (Linux)
+
+```bash
+dvm completion zsh > "${fpath[1]}/_dvm"
+nvp completion zsh > "${fpath[1]}/_nvp"
+```
+
+#### Fish
+
+```bash
+dvm completion fish > ~/.config/fish/completions/dvm.fish
+nvp completion fish > ~/.config/fish/completions/nvp.fish
+```
+
+**Note:** After installing completions, restart your shell or source your shell configuration file.
+
+---
+
 ## Quick Start
 
 ### NvimOps (nvp) - Neovim Plugin Manager

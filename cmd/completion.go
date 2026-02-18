@@ -97,4 +97,33 @@ func registerDynamicCompletions() {
 	if nvimPushCmd != nil {
 		nvimPushCmd.ValidArgsFunction = workspaceCompletion
 	}
+
+	// Register hierarchy flag completions for commands that use them
+	registerHierarchyCompletionsForAllCommands()
+}
+
+// registerHierarchyCompletionsForAllCommands finds all commands with hierarchy flags and registers completions
+func registerHierarchyCompletionsForAllCommands() {
+	// We need to register these after all commands are initialized
+	// This function will be called from init() after all commands are set up
+
+	if attachCmd != nil {
+		registerHierarchyFlagCompletions(attachCmd)
+	}
+
+	if buildCmd != nil {
+		registerHierarchyFlagCompletions(buildCmd)
+	}
+
+	if detachCmd != nil {
+		registerHierarchyFlagCompletions(detachCmd)
+	}
+
+	if getWorkspacesCmd != nil {
+		registerHierarchyFlagCompletions(getWorkspacesCmd)
+	}
+
+	if getWorkspaceCmd != nil {
+		registerHierarchyFlagCompletions(getWorkspaceCmd)
+	}
 }

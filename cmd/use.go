@@ -235,4 +235,8 @@ func init() {
 	useCmd.AddCommand(useAppCmd)
 	useCmd.AddCommand(useWorkspaceCmd)
 	useCmd.Flags().Bool("clear", false, "Clear all context (app and workspace)")
+
+	// Register argument completions for subcommands
+	useAppCmd.ValidArgsFunction = completeApps
+	useWorkspaceCmd.ValidArgsFunction = completeWorkspaces
 }
