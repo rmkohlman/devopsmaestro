@@ -1,0 +1,21 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPackage
+metadata:
+  name: full
+  description: "Full plugin collection"
+  category: complete
+  tags: [full, everything]
+spec:
+  extends: core
+  plugins:
+    - gopher-nvim
+    - nvim-dap
+    - nvim-dap-go
+    - nvim-dap-python
+    - neotest
+    - neotest-go
+    - neotest-python
+    - venv-selector
+    - copilot
+    - markdown-preview
+    - todo-comments

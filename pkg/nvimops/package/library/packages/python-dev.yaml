@@ -1,0 +1,15 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPackage
+metadata:
+  name: python-dev
+  description: "Python development essentials"
+  category: language
+  tags: [python, lsp, dap]
+spec:
+  extends: core
+  plugins:
+    - nvim-dap
+    - nvim-dap-python
+    - neotest
+    - neotest-python
+    - venv-selector

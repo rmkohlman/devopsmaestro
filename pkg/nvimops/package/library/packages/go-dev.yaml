@@ -1,0 +1,15 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPackage
+metadata:
+  name: go-dev
+  description: "Go development essentials"
+  category: language
+  tags: [golang, lsp, dap]
+spec:
+  extends: core
+  plugins:
+    - gopher-nvim
+    - nvim-dap
+    - nvim-dap-go
+    - neotest
+    - neotest-go

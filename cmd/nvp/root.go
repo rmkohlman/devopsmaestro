@@ -93,6 +93,7 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(libraryCmd)
+	rootCmd.AddCommand(packageCmd)
 	rootCmd.AddCommand(applyCmd)
 	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(getCmd)
