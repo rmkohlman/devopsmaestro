@@ -34,7 +34,7 @@ func NewContainerRuntime() (ContainerRuntime, error) {
 	case RuntimeDocker:
 		return NewDockerRuntime(config.Platform)
 	case RuntimeContainerd:
-		return NewContainerdRuntimeV2()
+		return NewContainerdRuntimeV2WithPlatform(config.Platform)
 	case RuntimeKubernetes:
 		return nil, fmt.Errorf("kubernetes runtime not yet implemented (coming in Phase 3)")
 	default:
