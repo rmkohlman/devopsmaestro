@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.9.3] - 2026-02-18
+
+### 🐛 Fixed
+
+- **Container attach consistency** - Fixed "container not found" error in `dvm attach` command. Containers were being created with `WorkspaceName` but attach was looking for `ContainerName`. Now uses `ContainerName` consistently across all runtime implementations for reliable workspace attachment.
+
+---
+
 ## [0.9.1] - 2026-02-17
 
 ### 🚀 Added
