@@ -875,6 +875,55 @@ docs/
 
 ## [Unreleased]
 
+### Planned Features
+
+---
+
+## [0.9.2] - 2026-02-18
+
+### 🚀 Added
+
+#### ColorProvider Architecture
+- **`pkg/colors/` package** - Decoupled color/theme system with ColorProvider interface
+- **Command-level integration** - Commands can now access ColorProvider from context
+- **Render context support** - Theme integration through ColorProvider context
+
+#### Dynamic Shell Completions
+- **Resource-aware completions** - Dynamic completion for bash, zsh, and fish shells
+- **Smart resource suggestions** - Context-aware completion based on current hierarchy
+
+#### OpenCode Sub-agents
+- **11 specialized agents** - Distributed AI assistance for development workflow:
+  - `architecture` (advisory) - Design patterns and code review
+  - `cli-architect` (advisory) - kubectl-style command design
+  - `security` (advisory) - Security review and validation
+  - `database` - Database schema, migrations, DataStore interface
+  - `container-runtime` - Container operations and runtime management
+  - `builder` - Image building and Dockerfile optimization
+  - `render` - Output formatting, tables, and color rendering
+  - `nvimops` - Neovim plugin/theme management
+  - `theme` - Color systems, palettes, and ColorProvider
+  - `test` - Test writing and execution
+  - `document` - Documentation maintenance
+  - `release` - **ALL git operations**, CI/CD, and release management
+- **Workflow protocol** - Structured coordination between agents
+- **Microservice mindset** - Clear interfaces and responsibility boundaries
+
+#### Agent Coordination System
+- **Mandatory task start checklist** - Ensures proper agent delegation
+- **Workflow protocols** - Pre/post-invocation requirements for each agent
+- **Git operation routing** - All git commands now route through release agent
+
+### 🐛 Fixed
+
+- **Release workflow race condition** - Resolved parallel job conflicts in GitHub Actions
+
+### 📚 Documentation
+
+- **Enhanced sub-agent documentation** - Updated with actual codebase structure
+- **Workflow coordination guides** - Added protocols for agent coordination
+- **Git operation routing** - Documented that release agent owns ALL git operations
+
 ### Planned Features (v0.4.0 and beyond)
 
 #### Local Neovim Management (v0.4.0)
