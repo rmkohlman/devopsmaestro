@@ -89,13 +89,13 @@ jobs:
           shasum -a 256 devopsmaestro_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz > devopsmaestro_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz.sha256
 
       - name: Upload to release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            devopsmaestro_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz
-            devopsmaestro_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz.sha256
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ github.ref_name }} \
+            devopsmaestro_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz \
+            devopsmaestro_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz.sha256 \
+            --clobber
 
   # Update Homebrew tap after all builds complete
   update-homebrew:
