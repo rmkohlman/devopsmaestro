@@ -1,7 +1,7 @@
 ---
 description: Reviews CLI commands to ensure they follow kubectl patterns. Approves or advises on command structure, flags, help text, and output formats. Ensures the true kubectl feel in all CLI interactions.
 mode: subagent
-model: github-copilot/claude-haiku-4
+model: github-copilot/claude-sonnet-4
 temperature: 0.1
 tools:
   read: true

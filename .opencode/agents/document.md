@@ -1,7 +1,7 @@
 ---
 description: Owns all documentation - README, CHANGELOG, ARCHITECTURE, command references. Keeps docs up-to-date with code changes. Does not run commands, only updates markdown files.
 mode: subagent
-model: github-copilot/claude-haiku-4
+model: github-copilot/claude-sonnet-4
 temperature: 0.3
 tools:
   read: true

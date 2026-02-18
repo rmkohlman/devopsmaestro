@@ -1,7 +1,7 @@
 ---
 description: Owns the render package - all CLI output formatting. Manages JSON, YAML, Table, Colored, and Plain renderers. Ensures output consistency and respects -o flag across commands.
 mode: subagent
-model: github-copilot/claude-haiku-4
+model: github-copilot/claude-sonnet-4
 temperature: 0.1
 tools:
   read: true
