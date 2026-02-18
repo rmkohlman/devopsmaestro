@@ -382,9 +382,15 @@ func (r *ContainerdRuntimeV2) attachViaColima(ctx context.Context, containerID s
 	cmd := fmt.Sprintf("sudo nerdctl --namespace %s exec -it %s /bin/zsh -l", r.namespace, containerID)
 	execCmd := []string{"colima", "--profile", profile, "ssh", "-t", "--", "sh", "-c", cmd}
 
+	// Find colima in PATH
+	colimaPath, err := exec.LookPath("colima")
+	if err != nil {
+		return fmt.Errorf("colima not found in PATH: %w", err)
+	}
+
 	// Create exec command
 	execProc := &exec.Cmd{
-		Path:   "/usr/bin/colima",
+		Path:   colimaPath,
 		Args:   execCmd,
 		Stdin:  os.Stdin,
 		Stdout: os.Stdout,

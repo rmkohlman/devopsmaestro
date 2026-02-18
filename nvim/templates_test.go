@@ -2,6 +2,7 @@ package nvim
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -169,7 +170,7 @@ func TestCloneTemplateWithSubdir(t *testing.T) {
 	}
 
 	// Skip if git is not available
-	if _, err := os.Stat("/usr/bin/git"); os.IsNotExist(err) {
+	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not available")
 	}
 
