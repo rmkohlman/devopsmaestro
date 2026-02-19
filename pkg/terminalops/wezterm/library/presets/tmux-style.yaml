@@ -1,0 +1,127 @@
+apiVersion: devopsmaestro.dev/v1alpha1
+kind: WeztermConfig
+metadata:
+  name: tmux-style
+  description: "Tmux-like keybindings with Ctrl+a leader and CoolNight colors"
+  category: keybindings
+  tags: ["tmux", "productivity", "leader-key"]
+spec:
+  font:
+    family: "MesloLGS Nerd Font Mono"
+    size: 16
+  window:
+    opacity: 0.9
+    blur: 10
+    decorations: "RESIZE"
+  colors:
+    foreground: "#CBE0F0"
+    background: "#011423"
+    cursor_bg: "#47FF9C"
+    cursor_border: "#47FF9C"
+    cursor_fg: "#011423"
+    selection_bg: "#033259"
+    selection_fg: "#CBE0F0"
+    ansi: 
+      - "#214969"
+      - "#E52E2E"
+      - "#44FFB1"
+      - "#FFE073"
+      - "#0FC5ED"
+      - "#a277ff"
+      - "#24EAF7"
+      - "#24EAF7"
+    brights:
+      - "#214969"
+      - "#E52E2E"
+      - "#44FFB1"
+      - "#FFE073"
+      - "#A277FF"
+      - "#a277ff"
+      - "#24EAF7"
+      - "#24EAF7"
+  leader:
+    key: "a"
+    mods: "CTRL"
+    timeout: 1126
+  keys:
+    - key: "-"
+      mods: "LEADER"
+      action: "SplitVertical"
+      args: { domain: "CurrentPaneDomain" }
+    - key: "|"
+      mods: "LEADER|SHIFT"
+      action: "SplitHorizontal"
+      args: { domain: "CurrentPaneDomain" }
+    - key: "h"
+      mods: "LEADER"
+      action: "ActivatePaneDirection"
+      args: "Left"
+    - key: "j"
+      mods: "LEADER"
+      action: "ActivatePaneDirection"
+      args: "Down"
+    - key: "k"
+      mods: "LEADER"
+      action: "ActivatePaneDirection"
+      args: "Up"
+    - key: "l"
+      mods: "LEADER"
+      action: "ActivatePaneDirection"
+      args: "Right"
+    - key: "x"
+      mods: "LEADER"
+      action: "CloseCurrentPane"
+      args: { confirm: true }
+    - key: "z"
+      mods: "LEADER"
+      action: "TogglePaneZoomState"
+    - key: "c"
+      mods: "LEADER"
+      action: "SpawnTab"
+      args: "CurrentPaneDomain"
+    - key: "n"
+      mods: "LEADER"
+      action: "ActivateTabRelative"
+      args: 1
+    - key: "p"
+      mods: "LEADER"
+      action: "ActivateTabRelative"
+      args: -1
+    - key: "r"
+      mods: "LEADER"
+      action: "ActivateKeyTable"
+      args: { name: "resize_pane", one_shot: false }
+    - key: "["
+      mods: "LEADER"
+      action: "ActivateCopyMode"
+    - key: ":"
+      mods: "LEADER|SHIFT"
+      action: "ActivateCommandPalette"
+  keyTables:
+    resize_pane:
+      - key: "h"
+        action: "AdjustPaneSize"
+        args: ["Left", 1]
+      - key: "j"
+        action: "AdjustPaneSize"
+        args: ["Down", 1]
+      - key: "k"
+        action: "AdjustPaneSize"
+        args: ["Up", 1]
+      - key: "l"
+        action: "AdjustPaneSize"
+        args: ["Right", 1]
+      - key: "Escape"
+        action: "PopKeyTable"
+      - key: "Enter"
+        action: "PopKeyTable"
+  pane:
+    inactiveSaturation: 0.24
+    inactiveBrightness: 0.5
+  scrollback: 3000
+  workspace: "home"
+  tabBar:
+    enabled: true
+    position: "Top"
+    fancyTabBar: true
+    hideTabBarIfOnly: false

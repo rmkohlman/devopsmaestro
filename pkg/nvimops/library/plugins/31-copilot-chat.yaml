@@ -7,7 +7,7 @@ metadata:
   tags: ["ai", "copilot", "chat"]
 spec:
   repo: CopilotC-Nvim/CopilotChat.nvim
-  branch: canary
+  branch: main
   dependencies:
     - repo: zbirenbaum/copilot.lua
     - repo: nvim-lua/plenary.nvim

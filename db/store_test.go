@@ -41,6 +41,7 @@ func createTestSchema(driver Driver) error {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT NOT NULL UNIQUE,
 			description TEXT,
+			theme TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
@@ -49,6 +50,7 @@ func createTestSchema(driver Driver) error {
 			ecosystem_id INTEGER NOT NULL,
 			name TEXT NOT NULL,
 			description TEXT,
+			theme TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (ecosystem_id) REFERENCES ecosystems(id),
@@ -60,6 +62,7 @@ func createTestSchema(driver Driver) error {
 			name TEXT NOT NULL,
 			path TEXT NOT NULL,
 			description TEXT,
+			theme TEXT,
 			language TEXT,
 			build_config TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -2032,7 +2035,7 @@ func TestSQLDataStore_ImplementsDataStore(t *testing.T) {
 // =============================================================================
 
 // TestSQLDataStore_MigrationSchema_AppsTableHasLanguageAndBuildConfig verifies
-// that the apps table schema includes language and build_config columns.
+// that the apps table schema includes language, build_config, and theme columns.
 // This test was added to prevent regression of the v0.8.2 fix where these
 // columns were missing from the migration file 007_add_apps.up.sql.
 func TestSQLDataStore_MigrationSchema_AppsTableHasLanguageAndBuildConfig(t *testing.T) {
@@ -2055,6 +2058,7 @@ func TestSQLDataStore_MigrationSchema_AppsTableHasLanguageAndBuildConfig(t *test
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT NOT NULL UNIQUE,
 			description TEXT,
+			theme TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);
@@ -2064,6 +2068,7 @@ func TestSQLDataStore_MigrationSchema_AppsTableHasLanguageAndBuildConfig(t *test
 			ecosystem_id INTEGER NOT NULL,
 			name TEXT NOT NULL,
 			description TEXT,
+			theme TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (ecosystem_id) REFERENCES ecosystems(id),
@@ -2076,6 +2081,7 @@ func TestSQLDataStore_MigrationSchema_AppsTableHasLanguageAndBuildConfig(t *test
 			name TEXT NOT NULL,
 			path TEXT NOT NULL,
 			description TEXT,
+			theme TEXT,
 			language TEXT,
 			build_config TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

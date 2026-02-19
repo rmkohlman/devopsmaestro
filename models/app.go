@@ -17,6 +17,7 @@ type App struct {
 	Name        string         `db:"name" json:"name" yaml:"name"`
 	Path        string         `db:"path" json:"path" yaml:"path"`
 	Description sql.NullString `db:"description" json:"description,omitempty" yaml:"description,omitempty"`
+	Theme       sql.NullString `db:"theme" json:"theme,omitempty" yaml:"theme,omitempty"`
 	// Language and build config stored as JSON in database
 	Language    sql.NullString `db:"language" json:"language,omitempty" yaml:"-"`
 	BuildConfig sql.NullString `db:"build_config" json:"build_config,omitempty" yaml:"-"`

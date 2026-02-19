@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -19,6 +20,7 @@ import (
 	"devopsmaestro/pkg/nvimops/store"
 	"devopsmaestro/pkg/nvimops/theme"
 	themelibrary "devopsmaestro/pkg/nvimops/theme/library"
+	"devopsmaestro/pkg/nvimops/theme/parametric"
 	"devopsmaestro/pkg/resource"
 	"devopsmaestro/pkg/resource/handlers"
 	"devopsmaestro/pkg/source"
@@ -1234,6 +1236,122 @@ func centerText(s string, width int) string {
 	return strings.Repeat(" ", padding) + s + strings.Repeat(" ", width-len(s)-padding)
 }
 
+var themeCreateCmd = &cobra.Command{
+	Use:   "create",
+	Short: "Create a custom theme using parametric generation",
+	Long: `Create a new theme using parametric generation from a base color.
+	
+This command uses the CoolNight Ocean theme as a reference and generates
+a new theme by shifting the color hue while maintaining the same saturation
+and lightness relationships. Semantic colors (red, green, yellow) are kept
+fixed for consistency.
+
+The --from flag accepts:
+  - Hex colors: #FF5733, #3498db
+  - Hue values: 270 (degrees 0-360)
+  - Preset names: synthwave, matrix, arctic
+
+Examples:
+  nvp theme create --from "#8B00FF" --name my-purple-theme
+  nvp theme create --from "150" --name my-green-theme
+  nvp theme create --from "synthwave" --dry-run
+  nvp theme create --from "#FF6B35" --name sunset-coding -o json`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		fromValue, _ := cmd.Flags().GetString("from")
+		name, _ := cmd.Flags().GetString("name")
+		dryRun, _ := cmd.Flags().GetBool("dry-run")
+		output, _ := cmd.Flags().GetString("output")
+
+		if fromValue == "" {
+			return fmt.Errorf("--from flag is required (hex color, hue, or preset name)")
+		}
+
+		// Generate theme name if not provided and not dry run
+		if name == "" && !dryRun {
+			return fmt.Errorf("--name flag is required (or use --dry-run to preview)")
+		}
+
+		generator := parametric.NewGenerator()
+
+		var generatedTheme *theme.Theme
+		var err error
+
+		// Check if it's a preset name first
+		if preset, exists := parametric.GetPreset(fromValue); exists {
+			_ = preset // Use preset to avoid unused variable
+			generatedTheme, err = parametric.GeneratePreset(fromValue)
+			if err != nil {
+				return fmt.Errorf("failed to generate preset %s: %w", fromValue, err)
+			}
+		} else {
+			// Try parsing as hex color
+			if strings.HasPrefix(fromValue, "#") {
+				description := fmt.Sprintf("Custom theme generated from %s", fromValue)
+				if name != "" {
+					description = fmt.Sprintf("Custom %s theme", name)
+				}
+				generatedTheme, err = generator.GenerateFromHex(fromValue, name, description)
+				if err != nil {
+					return fmt.Errorf("invalid hex color %s: %w", fromValue, err)
+				}
+			} else {
+				// Try parsing as hue value
+				hue, parseErr := strconv.ParseFloat(fromValue, 64)
+				if parseErr != nil {
+					return fmt.Errorf("invalid input %s: expected hex color (#rrggbb), hue (0-360), or preset name", fromValue)
+				}
+
+				if hue < 0 || hue >= 360 {
+					return fmt.Errorf("hue must be between 0 and 360, got %.1f", hue)
+				}
+
+				description := fmt.Sprintf("Custom theme generated from hue %.1f°", hue)
+				if name != "" {
+					description = fmt.Sprintf("Custom %s theme (hue %.1f°)", name, hue)
+				}
+				generatedTheme = generator.GenerateFromHue(hue, name, description)
+			}
+		}
+
+		// Dry run - just output the theme
+		if dryRun {
+			fmt.Printf("Generated theme preview:\n")
+			return outputTheme(generatedTheme, output)
+		}
+
+		// Save theme to store
+		themeStore := getThemeStore()
+		if err := themeStore.Init(); err != nil {
+			return err
+		}
+
+		if err := themeStore.Save(generatedTheme); err != nil {
+			return fmt.Errorf("failed to save theme: %w", err)
+		}
+
+		fmt.Printf("✓ Created theme '%s'\n", generatedTheme.Name)
+
+		// Optionally set as active
+		setActive, _ := cmd.Flags().GetBool("use")
+		if setActive {
+			if err := themeStore.SetActive(generatedTheme.Name); err != nil {
+				return err
+			}
+			fmt.Printf("✓ Set '%s' as active theme\n", generatedTheme.Name)
+		}
+
+		// Show what to do next
+		fmt.Println("\nNext steps:")
+		if !setActive {
+			fmt.Printf("  nvp theme use %s      # Set as active theme\n", generatedTheme.Name)
+		}
+		fmt.Println("  nvp generate          # Generate Lua files")
+		fmt.Printf("  nvp theme preview %s  # Preview colors\n", generatedTheme.Name)
+
+		return nil
+	},
+}
+
 var themeGenerateCmd = &cobra.Command{
 	Use:   "generate",
 	Short: "Generate Lua files for the active theme",
@@ -1314,6 +1432,7 @@ func init() {
 	themeCmd.AddCommand(themeListCmd)
 	themeCmd.AddCommand(themeGetCmd)
 	themeCmd.AddCommand(themeApplyCmd)
+	themeCmd.AddCommand(themeCreateCmd)
 	themeCmd.AddCommand(themeDeleteCmd)
 	themeCmd.AddCommand(themeUseCmd)
 	themeCmd.AddCommand(themeLibraryCmd)
@@ -1330,6 +1449,11 @@ func init() {
 	themeListCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")
 	themeGetCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json")
 	themeApplyCmd.Flags().StringSliceP("filename", "f", nil, "Theme YAML file(s) or URL(s) to apply")
+	themeCreateCmd.Flags().String("from", "", "Base color (hex #rrggbb, hue 0-360, or preset name)")
+	themeCreateCmd.Flags().String("name", "", "Theme name (required unless --dry-run)")
+	themeCreateCmd.Flags().Bool("dry-run", false, "Preview without saving")
+	themeCreateCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json, table")
+	themeCreateCmd.Flags().Bool("use", false, "Set as active theme after creation")
 	themeDeleteCmd.Flags().BoolP("force", "f", false, "Skip confirmation")
 	themePreviewCmd.Flags().Bool("all", false, "Preview all library themes")
 	themeLibraryListCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")

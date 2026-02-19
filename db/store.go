@@ -56,10 +56,10 @@ func (ds *SQLDataStore) Ping() error {
 
 // CreateEcosystem inserts a new ecosystem into the database.
 func (ds *SQLDataStore) CreateEcosystem(ecosystem *models.Ecosystem) error {
-	query := fmt.Sprintf(`INSERT INTO ecosystems (name, description, created_at, updated_at) 
-		VALUES (?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
+	query := fmt.Sprintf(`INSERT INTO ecosystems (name, description, theme, created_at, updated_at) 
+		VALUES (?, ?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
 
-	result, err := ds.driver.Execute(query, ecosystem.Name, ecosystem.Description)
+	result, err := ds.driver.Execute(query, ecosystem.Name, ecosystem.Description, ecosystem.Theme)
 	if err != nil {
 		return fmt.Errorf("failed to create ecosystem: %w", err)
 	}
@@ -75,10 +75,10 @@ func (ds *SQLDataStore) CreateEcosystem(ecosystem *models.Ecosystem) error {
 // GetEcosystemByName retrieves an ecosystem by its name.
 func (ds *SQLDataStore) GetEcosystemByName(name string) (*models.Ecosystem, error) {
 	ecosystem := &models.Ecosystem{}
-	query := `SELECT id, name, description, created_at, updated_at FROM ecosystems WHERE name = ?`
+	query := `SELECT id, name, description, theme, created_at, updated_at FROM ecosystems WHERE name = ?`
 
 	row := ds.driver.QueryRow(query, name)
-	if err := row.Scan(&ecosystem.ID, &ecosystem.Name, &ecosystem.Description, &ecosystem.CreatedAt, &ecosystem.UpdatedAt); err != nil {
+	if err := row.Scan(&ecosystem.ID, &ecosystem.Name, &ecosystem.Description, &ecosystem.Theme, &ecosystem.CreatedAt, &ecosystem.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("ecosystem not found: %s", name)
 		}
@@ -91,10 +91,10 @@ func (ds *SQLDataStore) GetEcosystemByName(name string) (*models.Ecosystem, erro
 // GetEcosystemByID retrieves an ecosystem by its ID.
 func (ds *SQLDataStore) GetEcosystemByID(id int) (*models.Ecosystem, error) {
 	ecosystem := &models.Ecosystem{}
-	query := `SELECT id, name, description, created_at, updated_at FROM ecosystems WHERE id = ?`
+	query := `SELECT id, name, description, theme, created_at, updated_at FROM ecosystems WHERE id = ?`
 
 	row := ds.driver.QueryRow(query, id)
-	if err := row.Scan(&ecosystem.ID, &ecosystem.Name, &ecosystem.Description, &ecosystem.CreatedAt, &ecosystem.UpdatedAt); err != nil {
+	if err := row.Scan(&ecosystem.ID, &ecosystem.Name, &ecosystem.Description, &ecosystem.Theme, &ecosystem.CreatedAt, &ecosystem.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("ecosystem not found: %d", id)
 		}
@@ -106,10 +106,10 @@ func (ds *SQLDataStore) GetEcosystemByID(id int) (*models.Ecosystem, error) {
 
 // UpdateEcosystem updates an existing ecosystem.
 func (ds *SQLDataStore) UpdateEcosystem(ecosystem *models.Ecosystem) error {
-	query := fmt.Sprintf(`UPDATE ecosystems SET name = ?, description = ?, updated_at = %s WHERE id = ?`,
+	query := fmt.Sprintf(`UPDATE ecosystems SET name = ?, description = ?, theme = ?, updated_at = %s WHERE id = ?`,
 		ds.queryBuilder.Now())
 
-	_, err := ds.driver.Execute(query, ecosystem.Name, ecosystem.Description, ecosystem.ID)
+	_, err := ds.driver.Execute(query, ecosystem.Name, ecosystem.Description, ecosystem.Theme, ecosystem.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update ecosystem: %w", err)
 	}
@@ -128,7 +128,7 @@ func (ds *SQLDataStore) DeleteEcosystem(name string) error {
 
 // ListEcosystems retrieves all ecosystems.
 func (ds *SQLDataStore) ListEcosystems() ([]*models.Ecosystem, error) {
-	query := `SELECT id, name, description, created_at, updated_at FROM ecosystems ORDER BY name`
+	query := `SELECT id, name, description, theme, created_at, updated_at FROM ecosystems ORDER BY name`
 
 	rows, err := ds.driver.Query(query)
 	if err != nil {
@@ -139,7 +139,7 @@ func (ds *SQLDataStore) ListEcosystems() ([]*models.Ecosystem, error) {
 	var ecosystems []*models.Ecosystem
 	for rows.Next() {
 		ecosystem := &models.Ecosystem{}
-		if err := rows.Scan(&ecosystem.ID, &ecosystem.Name, &ecosystem.Description, &ecosystem.CreatedAt, &ecosystem.UpdatedAt); err != nil {
+		if err := rows.Scan(&ecosystem.ID, &ecosystem.Name, &ecosystem.Description, &ecosystem.Theme, &ecosystem.CreatedAt, &ecosystem.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan ecosystem: %w", err)
 		}
 		ecosystems = append(ecosystems, ecosystem)
@@ -158,10 +158,10 @@ func (ds *SQLDataStore) ListEcosystems() ([]*models.Ecosystem, error) {
 
 // CreateDomain inserts a new domain into the database.
 func (ds *SQLDataStore) CreateDomain(domain *models.Domain) error {
-	query := fmt.Sprintf(`INSERT INTO domains (ecosystem_id, name, description, created_at, updated_at) 
-		VALUES (?, ?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
+	query := fmt.Sprintf(`INSERT INTO domains (ecosystem_id, name, description, theme, created_at, updated_at) 
+		VALUES (?, ?, ?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
 
-	result, err := ds.driver.Execute(query, domain.EcosystemID, domain.Name, domain.Description)
+	result, err := ds.driver.Execute(query, domain.EcosystemID, domain.Name, domain.Description, domain.Theme)
 	if err != nil {
 		return fmt.Errorf("failed to create domain: %w", err)
 	}
@@ -177,10 +177,10 @@ func (ds *SQLDataStore) CreateDomain(domain *models.Domain) error {
 // GetDomainByName retrieves a domain by ecosystem ID and name.
 func (ds *SQLDataStore) GetDomainByName(ecosystemID int, name string) (*models.Domain, error) {
 	domain := &models.Domain{}
-	query := `SELECT id, ecosystem_id, name, description, created_at, updated_at FROM domains WHERE ecosystem_id = ? AND name = ?`
+	query := `SELECT id, ecosystem_id, name, description, theme, created_at, updated_at FROM domains WHERE ecosystem_id = ? AND name = ?`
 
 	row := ds.driver.QueryRow(query, ecosystemID, name)
-	if err := row.Scan(&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description, &domain.CreatedAt, &domain.UpdatedAt); err != nil {
+	if err := row.Scan(&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description, &domain.Theme, &domain.CreatedAt, &domain.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("domain not found: %s", name)
 		}
@@ -193,10 +193,10 @@ func (ds *SQLDataStore) GetDomainByName(ecosystemID int, name string) (*models.D
 // GetDomainByID retrieves a domain by its ID.
 func (ds *SQLDataStore) GetDomainByID(id int) (*models.Domain, error) {
 	domain := &models.Domain{}
-	query := `SELECT id, ecosystem_id, name, description, created_at, updated_at FROM domains WHERE id = ?`
+	query := `SELECT id, ecosystem_id, name, description, theme, created_at, updated_at FROM domains WHERE id = ?`
 
 	row := ds.driver.QueryRow(query, id)
-	if err := row.Scan(&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description, &domain.CreatedAt, &domain.UpdatedAt); err != nil {
+	if err := row.Scan(&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description, &domain.Theme, &domain.CreatedAt, &domain.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("domain not found: %d", id)
 		}
@@ -208,10 +208,10 @@ func (ds *SQLDataStore) GetDomainByID(id int) (*models.Domain, error) {
 
 // UpdateDomain updates an existing domain.
 func (ds *SQLDataStore) UpdateDomain(domain *models.Domain) error {
-	query := fmt.Sprintf(`UPDATE domains SET ecosystem_id = ?, name = ?, description = ?, updated_at = %s WHERE id = ?`,
+	query := fmt.Sprintf(`UPDATE domains SET ecosystem_id = ?, name = ?, description = ?, theme = ?, updated_at = %s WHERE id = ?`,
 		ds.queryBuilder.Now())
 
-	_, err := ds.driver.Execute(query, domain.EcosystemID, domain.Name, domain.Description, domain.ID)
+	_, err := ds.driver.Execute(query, domain.EcosystemID, domain.Name, domain.Description, domain.Theme, domain.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update domain: %w", err)
 	}
@@ -230,7 +230,7 @@ func (ds *SQLDataStore) DeleteDomain(id int) error {
 
 // ListDomainsByEcosystem retrieves all domains for an ecosystem.
 func (ds *SQLDataStore) ListDomainsByEcosystem(ecosystemID int) ([]*models.Domain, error) {
-	query := `SELECT id, ecosystem_id, name, description, created_at, updated_at FROM domains WHERE ecosystem_id = ? ORDER BY name`
+	query := `SELECT id, ecosystem_id, name, description, theme, created_at, updated_at FROM domains WHERE ecosystem_id = ? ORDER BY name`
 
 	rows, err := ds.driver.Query(query, ecosystemID)
 	if err != nil {
@@ -241,7 +241,7 @@ func (ds *SQLDataStore) ListDomainsByEcosystem(ecosystemID int) ([]*models.Domai
 	var domains []*models.Domain
 	for rows.Next() {
 		domain := &models.Domain{}
-		if err := rows.Scan(&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description, &domain.CreatedAt, &domain.UpdatedAt); err != nil {
+		if err := rows.Scan(&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description, &domain.Theme, &domain.CreatedAt, &domain.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan domain: %w", err)
 		}
 		domains = append(domains, domain)
@@ -256,7 +256,7 @@ func (ds *SQLDataStore) ListDomainsByEcosystem(ecosystemID int) ([]*models.Domai
 
 // ListAllDomains retrieves all domains across all ecosystems.
 func (ds *SQLDataStore) ListAllDomains() ([]*models.Domain, error) {
-	query := `SELECT id, ecosystem_id, name, description, created_at, updated_at FROM domains ORDER BY ecosystem_id, name`
+	query := `SELECT id, ecosystem_id, name, description, theme, created_at, updated_at FROM domains ORDER BY ecosystem_id, name`
 
 	rows, err := ds.driver.Query(query)
 	if err != nil {
@@ -267,7 +267,7 @@ func (ds *SQLDataStore) ListAllDomains() ([]*models.Domain, error) {
 	var domains []*models.Domain
 	for rows.Next() {
 		domain := &models.Domain{}
-		if err := rows.Scan(&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description, &domain.CreatedAt, &domain.UpdatedAt); err != nil {
+		if err := rows.Scan(&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description, &domain.Theme, &domain.CreatedAt, &domain.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan domain: %w", err)
 		}
 		domains = append(domains, domain)
@@ -286,10 +286,10 @@ func (ds *SQLDataStore) ListAllDomains() ([]*models.Domain, error) {
 
 // CreateApp inserts a new app into the database.
 func (ds *SQLDataStore) CreateApp(app *models.App) error {
-	query := fmt.Sprintf(`INSERT INTO apps (domain_id, name, path, description, language, build_config, created_at, updated_at) 
-		VALUES (?, ?, ?, ?, ?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
+	query := fmt.Sprintf(`INSERT INTO apps (domain_id, name, path, description, theme, language, build_config, created_at, updated_at) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
 
-	result, err := ds.driver.Execute(query, app.DomainID, app.Name, app.Path, app.Description, app.Language, app.BuildConfig)
+	result, err := ds.driver.Execute(query, app.DomainID, app.Name, app.Path, app.Description, app.Theme, app.Language, app.BuildConfig)
 	if err != nil {
 		return err
 	}
@@ -305,10 +305,10 @@ func (ds *SQLDataStore) CreateApp(app *models.App) error {
 // GetAppByName retrieves an app by domain ID and name.
 func (ds *SQLDataStore) GetAppByName(domainID int, name string) (*models.App, error) {
 	app := &models.App{}
-	query := `SELECT id, domain_id, name, path, description, language, build_config, created_at, updated_at FROM apps WHERE domain_id = ? AND name = ?`
+	query := `SELECT id, domain_id, name, path, description, theme, language, build_config, created_at, updated_at FROM apps WHERE domain_id = ? AND name = ?`
 
 	row := ds.driver.QueryRow(query, domainID, name)
-	if err := row.Scan(&app.ID, &app.DomainID, &app.Name, &app.Path, &app.Description, &app.Language, &app.BuildConfig, &app.CreatedAt, &app.UpdatedAt); err != nil {
+	if err := row.Scan(&app.ID, &app.DomainID, &app.Name, &app.Path, &app.Description, &app.Theme, &app.Language, &app.BuildConfig, &app.CreatedAt, &app.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("app not found: %s", name)
 		}
@@ -322,10 +322,10 @@ func (ds *SQLDataStore) GetAppByName(domainID int, name string) (*models.App, er
 // Returns the first match if multiple apps have the same name in different domains.
 func (ds *SQLDataStore) GetAppByNameGlobal(name string) (*models.App, error) {
 	app := &models.App{}
-	query := `SELECT id, domain_id, name, path, description, language, build_config, created_at, updated_at FROM apps WHERE name = ? LIMIT 1`
+	query := `SELECT id, domain_id, name, path, description, theme, language, build_config, created_at, updated_at FROM apps WHERE name = ? LIMIT 1`
 
 	row := ds.driver.QueryRow(query, name)
-	if err := row.Scan(&app.ID, &app.DomainID, &app.Name, &app.Path, &app.Description, &app.Language, &app.BuildConfig, &app.CreatedAt, &app.UpdatedAt); err != nil {
+	if err := row.Scan(&app.ID, &app.DomainID, &app.Name, &app.Path, &app.Description, &app.Theme, &app.Language, &app.BuildConfig, &app.CreatedAt, &app.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("app not found: %s", name)
 		}
@@ -338,10 +338,10 @@ func (ds *SQLDataStore) GetAppByNameGlobal(name string) (*models.App, error) {
 // GetAppByID retrieves an app by its ID.
 func (ds *SQLDataStore) GetAppByID(id int) (*models.App, error) {
 	app := &models.App{}
-	query := `SELECT id, domain_id, name, path, description, language, build_config, created_at, updated_at FROM apps WHERE id = ?`
+	query := `SELECT id, domain_id, name, path, description, theme, language, build_config, created_at, updated_at FROM apps WHERE id = ?`
 
 	row := ds.driver.QueryRow(query, id)
-	if err := row.Scan(&app.ID, &app.DomainID, &app.Name, &app.Path, &app.Description, &app.Language, &app.BuildConfig, &app.CreatedAt, &app.UpdatedAt); err != nil {
+	if err := row.Scan(&app.ID, &app.DomainID, &app.Name, &app.Path, &app.Description, &app.Theme, &app.Language, &app.BuildConfig, &app.CreatedAt, &app.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("app not found: %d", id)
 		}
@@ -353,10 +353,10 @@ func (ds *SQLDataStore) GetAppByID(id int) (*models.App, error) {
 
 // UpdateApp updates an existing app.
 func (ds *SQLDataStore) UpdateApp(app *models.App) error {
-	query := fmt.Sprintf(`UPDATE apps SET domain_id = ?, name = ?, path = ?, description = ?, language = ?, build_config = ?, updated_at = %s WHERE id = ?`,
+	query := fmt.Sprintf(`UPDATE apps SET domain_id = ?, name = ?, path = ?, description = ?, theme = ?, language = ?, build_config = ?, updated_at = %s WHERE id = ?`,
 		ds.queryBuilder.Now())
 
-	_, err := ds.driver.Execute(query, app.DomainID, app.Name, app.Path, app.Description, app.Language, app.BuildConfig, app.ID)
+	_, err := ds.driver.Execute(query, app.DomainID, app.Name, app.Path, app.Description, app.Theme, app.Language, app.BuildConfig, app.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update app: %w", err)
 	}
@@ -375,7 +375,7 @@ func (ds *SQLDataStore) DeleteApp(id int) error {
 
 // ListAppsByDomain retrieves all apps for a domain.
 func (ds *SQLDataStore) ListAppsByDomain(domainID int) ([]*models.App, error) {
-	query := `SELECT id, domain_id, name, path, description, language, build_config, created_at, updated_at FROM apps WHERE domain_id = ? ORDER BY name`
+	query := `SELECT id, domain_id, name, path, description, theme, language, build_config, created_at, updated_at FROM apps WHERE domain_id = ? ORDER BY name`
 
 	rows, err := ds.driver.Query(query, domainID)
 	if err != nil {
@@ -386,7 +386,7 @@ func (ds *SQLDataStore) ListAppsByDomain(domainID int) ([]*models.App, error) {
 	var apps []*models.App
 	for rows.Next() {
 		app := &models.App{}
-		if err := rows.Scan(&app.ID, &app.DomainID, &app.Name, &app.Path, &app.Description, &app.Language, &app.BuildConfig, &app.CreatedAt, &app.UpdatedAt); err != nil {
+		if err := rows.Scan(&app.ID, &app.DomainID, &app.Name, &app.Path, &app.Description, &app.Theme, &app.Language, &app.BuildConfig, &app.CreatedAt, &app.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan app: %w", err)
 		}
 		apps = append(apps, app)
@@ -401,7 +401,7 @@ func (ds *SQLDataStore) ListAppsByDomain(domainID int) ([]*models.App, error) {
 
 // ListAllApps retrieves all apps across all domains.
 func (ds *SQLDataStore) ListAllApps() ([]*models.App, error) {
-	query := `SELECT id, domain_id, name, path, description, language, build_config, created_at, updated_at FROM apps ORDER BY domain_id, name`
+	query := `SELECT id, domain_id, name, path, description, theme, language, build_config, created_at, updated_at FROM apps ORDER BY domain_id, name`
 
 	rows, err := ds.driver.Query(query)
 	if err != nil {
@@ -412,7 +412,7 @@ func (ds *SQLDataStore) ListAllApps() ([]*models.App, error) {
 	var apps []*models.App
 	for rows.Next() {
 		app := &models.App{}
-		if err := rows.Scan(&app.ID, &app.DomainID, &app.Name, &app.Path, &app.Description, &app.Language, &app.BuildConfig, &app.CreatedAt, &app.UpdatedAt); err != nil {
+		if err := rows.Scan(&app.ID, &app.DomainID, &app.Name, &app.Path, &app.Description, &app.Theme, &app.Language, &app.BuildConfig, &app.CreatedAt, &app.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan app: %w", err)
 		}
 		apps = append(apps, app)

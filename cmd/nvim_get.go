@@ -78,8 +78,11 @@ Examples:
 var nvimGetThemesCmd = &cobra.Command{
 	Use:     "themes",
 	Aliases: []string{"nt"},
-	Short:   "List all nvim themes",
-	Long: `List all nvim themes stored in the database.
+	Short:   "List all nvim themes (user + library)",
+	Long: `List all nvim themes from user store and embedded library.
+
+Shows combined list of user themes and 34+ library themes.
+User themes override library themes with the same name.
 
 Examples:
   dvm get nvim themes
@@ -95,12 +98,15 @@ Examples:
 var nvimGetThemeCmd = &cobra.Command{
 	Use:   "theme [name]",
 	Short: "Get a specific nvim theme",
-	Long: `Get a specific nvim theme by name.
+	Long: `Get a specific nvim theme by name from user store or library.
+
+Library themes are automatically available without installation.
+User themes with same name override library themes.
 
 Examples:
-  dvm get nvim theme tokyonight
-  dvm get nvim theme tokyonight -o yaml
-  dvm get nvim theme catppuccin -o json`,
+  dvm get nvim theme tokyonight-night     # Library theme (works instantly)
+  dvm get nvim theme coolnight-ocean      # CoolNight library theme
+  dvm get nvim theme my-custom -o yaml    # User theme`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return getTheme(cmd, args[0])

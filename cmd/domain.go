@@ -5,6 +5,7 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
+	themeresolver "devopsmaestro/pkg/colors/resolver"
 	"devopsmaestro/pkg/resource"
 	"devopsmaestro/pkg/resource/handlers"
 	"devopsmaestro/render"
@@ -276,9 +277,20 @@ func getDomains(cmd *cobra.Command) error {
 	}
 
 	// For human output, build table data
+	headers := []string{"NAME", "ECOSYSTEM", "DESCRIPTION", "CREATED"}
+	if showTheme {
+		headers = append(headers, "THEME", "THEME SOURCE")
+	}
+
 	tableData := render.TableData{
-		Headers: []string{"NAME", "ECOSYSTEM", "DESCRIPTION", "CREATED"},
+		Headers: headers,
 		Rows:    make([][]string, len(domains)),
+	}
+
+	// Create theme resolver if needed
+	var themeResolver themeresolver.ThemeResolver
+	if showTheme {
+		themeResolver, _ = themeresolver.NewThemeResolver(ds, nil)
 	}
 
 	for i, d := range domains {
@@ -302,12 +314,29 @@ func getDomains(cmd *cobra.Command) error {
 			}
 		}
 
-		tableData.Rows[i] = []string{
+		row := []string{
 			name,
 			ecoName,
 			desc,
 			d.CreatedAt.Format("2006-01-02 15:04"),
 		}
+
+		// Add theme information if requested
+		if showTheme && themeResolver != nil {
+			themeName := themeresolver.DefaultTheme
+			themeSource := "default"
+
+			if resolution, err := themeResolver.GetResolutionPath(cmd.Context(), themeresolver.LevelDomain, d.ID); err == nil {
+				if resolution.Source != themeresolver.LevelGlobal {
+					themeName = resolution.GetEffectiveThemeName()
+					themeSource = resolution.Source.String()
+				}
+			}
+
+			row = append(row, themeName, themeSource)
+		}
+
+		tableData.Rows[i] = row
 	}
 
 	return render.OutputWith(getOutputFormat, tableData, render.Options{
@@ -384,10 +413,20 @@ func getDomain(cmd *cobra.Command, name string) error {
 		render.KeyValue{Key: "Created", Value: domain.CreatedAt.Format("2006-01-02 15:04:05")},
 	)
 
-	return render.OutputWith(getOutputFormat, kvData, render.Options{
+	err = render.OutputWith(getOutputFormat, kvData, render.Options{
 		Type:  render.TypeKeyValue,
 		Title: "Domain Details",
 	})
+	if err != nil {
+		return err
+	}
+
+	// Show theme information if requested
+	if showTheme {
+		return showThemeResolution(cmd, ds, themeresolver.LevelDomain, domain.ID, domain.Name)
+	}
+
+	return nil
 }
 
 // deleteDomainCmd deletes a domain
@@ -468,7 +507,9 @@ func init() {
 	// Domain get/delete flags
 	getDomainsCmd.Flags().StringP("ecosystem", "e", "", "Ecosystem name (defaults to active ecosystem)")
 	getDomainsCmd.Flags().BoolP("all", "A", false, "List domains from all ecosystems")
+	getDomainsCmd.Flags().BoolVar(&showTheme, "show-theme", false, "Show theme resolution information")
 	getDomainCmd.Flags().StringP("ecosystem", "e", "", "Ecosystem name (defaults to active ecosystem)")
+	getDomainCmd.Flags().BoolVar(&showTheme, "show-theme", false, "Show theme resolution information")
 	deleteDomainCmd.Flags().StringP("ecosystem", "e", "", "Ecosystem name (defaults to active ecosystem)")
 }
 

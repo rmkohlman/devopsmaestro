@@ -108,8 +108,23 @@ func TestNvimThemeHandler_List(t *testing.T) {
 		t.Fatalf("List() error = %v", err)
 	}
 
-	if len(resources) != 2 {
-		t.Errorf("List() returned %d resources, want 2", len(resources))
+	// With library fallback, we should have user themes + library themes
+	// We know there are 2 user themes and ~34 library themes
+	if len(resources) < 30 {
+		t.Errorf("List() returned %d resources, expected at least 30 (2 user + library themes)", len(resources))
+	}
+
+	// Verify our user themes are present
+	names := make(map[string]bool)
+	for _, res := range resources {
+		names[res.GetName()] = true
+	}
+
+	expectedUserThemes := []string{"theme1", "theme2"}
+	for _, name := range expectedUserThemes {
+		if !names[name] {
+			t.Errorf("Expected user theme %q not found in list", name)
+		}
 	}
 }
 
@@ -159,6 +174,173 @@ func TestNvimThemeHandler_ToYAML(t *testing.T) {
 	}
 	if !contains(yamlStr, "name: test-theme") {
 		t.Error("ToYAML() missing 'name: test-theme'")
+	}
+}
+
+// Test library fallback functionality
+func TestNvimThemeHandler_LibraryFallback_Get(t *testing.T) {
+	h := NewNvimThemeHandler()
+	memStore := theme.NewMemoryStore()
+
+	ctx := resource.Context{
+		ThemeStore: memStore,
+	}
+
+	// Test getting a library theme that doesn't exist in user store
+	res, err := h.Get(ctx, "coolnight-ocean")
+	if err != nil {
+		t.Fatalf("Get(coolnight-ocean) error = %v", err)
+	}
+
+	if res.GetName() != "coolnight-ocean" {
+		t.Errorf("Get(coolnight-ocean) resource.Name = %v, want coolnight-ocean", res.GetName())
+	}
+
+	// Cast to access underlying theme
+	tr, ok := res.(*NvimThemeResource)
+	if !ok {
+		t.Fatalf("Get() result is not *NvimThemeResource")
+	}
+
+	// Verify it's actually from the library (should have specific plugin repo)
+	if tr.Theme().Plugin.Repo == "" {
+		t.Error("Library theme should have a plugin repo")
+	}
+}
+
+func TestNvimThemeHandler_LibraryFallback_UserOverride(t *testing.T) {
+	h := NewNvimThemeHandler()
+	memStore := theme.NewMemoryStore()
+
+	// Add a user theme with same name as library theme
+	memStore.Save(&theme.Theme{
+		Name:   "dracula",
+		Plugin: theme.ThemePlugin{Repo: "user/custom-dracula"},
+	})
+
+	ctx := resource.Context{
+		ThemeStore: memStore,
+	}
+
+	// Get should return user version, not library version
+	res, err := h.Get(ctx, "dracula")
+	if err != nil {
+		t.Fatalf("Get(dracula) error = %v", err)
+	}
+
+	tr, ok := res.(*NvimThemeResource)
+	if !ok {
+		t.Fatalf("Get() result is not *NvimThemeResource")
+	}
+
+	// Should be user theme, not library theme
+	if tr.Theme().Plugin.Repo != "user/custom-dracula" {
+		t.Errorf("User theme should override library theme, got repo: %v", tr.Theme().Plugin.Repo)
+	}
+}
+
+func TestNvimThemeHandler_LibraryFallback_NotFound(t *testing.T) {
+	h := NewNvimThemeHandler()
+	memStore := theme.NewMemoryStore()
+
+	ctx := resource.Context{
+		ThemeStore: memStore,
+	}
+
+	// Try to get a theme that doesn't exist in either user store or library
+	_, err := h.Get(ctx, "nonexistent-theme")
+	if err == nil {
+		t.Error("Get(nonexistent-theme) should return error")
+	}
+}
+
+func TestNvimThemeHandler_LibraryFallback_List(t *testing.T) {
+	h := NewNvimThemeHandler()
+	memStore := theme.NewMemoryStore()
+
+	// Add some user themes
+	memStore.Save(&theme.Theme{Name: "user-theme1", Plugin: theme.ThemePlugin{Repo: "user/theme1"}})
+	memStore.Save(&theme.Theme{Name: "user-theme2", Plugin: theme.ThemePlugin{Repo: "user/theme2"}})
+	// Add a user theme that overrides a library theme
+	memStore.Save(&theme.Theme{Name: "dracula", Plugin: theme.ThemePlugin{Repo: "user/custom-dracula"}})
+
+	ctx := resource.Context{
+		ThemeStore: memStore,
+	}
+
+	resources, err := h.List(ctx)
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+
+	// Should have user themes + library themes (minus duplicates)
+	// We expect at least 3 themes: 2 unique user themes + 1 overridden user theme + many library themes
+	if len(resources) < 30 { // We know there are ~34 library themes
+		t.Errorf("List() returned %d resources, expected at least 30 (library + user themes)", len(resources))
+	}
+
+	// Verify user themes are present
+	names := make(map[string]bool)
+	for _, res := range resources {
+		names[res.GetName()] = true
+	}
+
+	expectedUserThemes := []string{"user-theme1", "user-theme2", "dracula"}
+	for _, name := range expectedUserThemes {
+		if !names[name] {
+			t.Errorf("Expected user theme %q not found in list", name)
+		}
+	}
+
+	// Verify some known library themes are present
+	expectedLibraryThemes := []string{"coolnight-ocean", "catppuccin-mocha", "nord"}
+	for _, name := range expectedLibraryThemes {
+		if !names[name] {
+			t.Errorf("Expected library theme %q not found in list", name)
+		}
+	}
+
+	// Verify no duplicates
+	seenNames := make(map[string]int)
+	for _, res := range resources {
+		seenNames[res.GetName()]++
+	}
+	for name, count := range seenNames {
+		if count > 1 {
+			t.Errorf("Theme %q appears %d times in list (should be unique)", name, count)
+		}
+	}
+}
+
+func TestNvimThemeHandler_LibraryFallback_ListWithLibraryError(t *testing.T) {
+	// This test verifies that if library.List() fails, we still return user themes
+	// We can't easily simulate library failure, but we can test with an empty store
+	h := NewNvimThemeHandler()
+	memStore := theme.NewMemoryStore()
+
+	// Add user themes
+	memStore.Save(&theme.Theme{Name: "user-only", Plugin: theme.ThemePlugin{Repo: "user/theme"}})
+
+	ctx := resource.Context{
+		ThemeStore: memStore,
+	}
+
+	resources, err := h.List(ctx)
+	if err != nil {
+		t.Fatalf("List() should not error even if library unavailable: %v", err)
+	}
+
+	// Should have at least the user theme plus library themes
+	userFound := false
+	for _, res := range resources {
+		if res.GetName() == "user-only" {
+			userFound = true
+			break
+		}
+	}
+
+	if !userFound {
+		t.Error("User theme not found in list when library might be unavailable")
 	}
 }
 

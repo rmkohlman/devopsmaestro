@@ -1,0 +1,65 @@
+apiVersion: devopsmaestro.dev/v1alpha1
+kind: WeztermConfig
+metadata:
+  name: default
+  description: "Balanced default configuration with modern settings"
+  category: basic
+  tags: ["default", "modern", "balanced"]
+spec:
+  font:
+    family: "MesloLGS Nerd Font Mono"
+    size: 14
+  window:
+    opacity: 0.95
+    decorations: "RESIZE"
+    paddingLeft: 10
+    paddingRight: 10
+    paddingTop: 10
+    paddingBottom: 10
+  themeRef: "catppuccin-mocha"
+  keys:
+    - key: "t"
+      mods: "CMD"
+      action: "SpawnTab"
+      args: "CurrentPaneDomain"
+    - key: "w"
+      mods: "CMD"
+      action: "CloseCurrentTab"
+      args: { confirm: true }
+    - key: "n"
+      mods: "CMD"
+      action: "SpawnWindow"
+    - key: "d"
+      mods: "CMD"
+      action: "SplitHorizontal"
+      args: { domain: "CurrentPaneDomain" }
+    - key: "d"
+      mods: "CMD|SHIFT"
+      action: "SplitVertical"
+      args: { domain: "CurrentPaneDomain" }
+    - key: "["
+      mods: "CMD"
+      action: "ActivateTabRelative"
+      args: -1
+    - key: "]"
+      mods: "CMD"
+      action: "ActivateTabRelative"
+      args: 1
+    - key: "k"
+      mods: "CMD"
+      action: "ClearScrollback"
+      args: "ScrollbackAndViewport"
+    - key: "f"
+      mods: "CMD"
+      action: "Search"
+      args: { CaseSensitiveString: "" }
+  scrollback: 5000
+  workspace: "default"
+  tabBar:
+    enabled: true
+    position: "Top"
+    fancyTabBar: true
+    hideTabBarIfOnly: true
+  pane:
+    inactiveSaturation: 0.8
+    inactiveBrightness: 0.6

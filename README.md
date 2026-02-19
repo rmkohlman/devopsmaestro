@@ -134,6 +134,9 @@ nvp library install telescope treesitter lspconfig
 nvp theme library list
 nvp theme library install tokyonight-custom --use
 
+# Or use library themes directly (no installation needed)
+dvm get nvim theme coolnight-ocean    # Works out of the box
+
 # Generate Lua files for Neovim
 nvp generate
 
@@ -245,7 +248,8 @@ dvm status           # Full status overview
 
 - **YAML-based plugins** - Define plugins in YAML, generate Lua
 - **Built-in library** - 16+ curated plugins ready to install
-- **Theme system** - 8 pre-built themes with palette export
+- **Theme system** - 34+ embedded themes available instantly (no installation needed)
+- **Theme override** - User themes override library themes with same name
 - **URL support** - Install from GitHub repositories
 - **Standalone** - Works without containers
 
@@ -327,9 +331,13 @@ nvp apply -f -                # Apply from stdin
 
 # Themes
 nvp theme library list        # List available themes
+nvp theme library show <name> # View theme details  
 nvp theme library install <name> --use
-nvp theme use <name>          # Set active theme
 nvp theme apply -f theme.yaml # Apply theme from file
+
+# Note: Library themes are automatically available, no installation needed
+dvm get nvim themes           # Shows user + library themes
+dvm get nvim theme <name>     # Works with any library theme
 
 # Generate
 nvp generate                  # Generate Lua files

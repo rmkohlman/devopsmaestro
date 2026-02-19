@@ -13,6 +13,7 @@ type Ecosystem struct {
 	ID          int            `db:"id" json:"id" yaml:"-"`
 	Name        string         `db:"name" json:"name" yaml:"name"`
 	Description sql.NullString `db:"description" json:"description,omitempty" yaml:"description,omitempty"`
+	Theme       sql.NullString `db:"theme" json:"theme,omitempty" yaml:"theme,omitempty"`
 	CreatedAt   time.Time      `db:"created_at" json:"created_at" yaml:"-"`
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at" yaml:"-"`
 }

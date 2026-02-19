@@ -1,0 +1,16 @@
+apiVersion: devopsmaestro.dev/v1alpha1
+kind: WeztermConfig
+metadata:
+  name: minimal
+  description: "Minimal WezTerm configuration with basic functionality"
+  category: basic
+  tags: ["minimal", "simple", "default"]
+spec:
+  font:
+    family: "MesloLGS Nerd Font Mono"
+    size: 14
+  window:
+    opacity: 1.0
+    decorations: "RESIZE"
+  scrollback: 1000
+  workspace: "main"

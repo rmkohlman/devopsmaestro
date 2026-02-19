@@ -748,13 +748,19 @@ dvm get nvim plugins [flags]
 
 ### `dvm get nvim themes`
 
-List nvim themes.
+List nvim themes from user store and embedded library (34+ themes available instantly).
 
 ```bash
 dvm get nvim themes [flags]
 ```
 
 **Aliases:** `dvm get nt`
+
+**Examples:**
+```bash
+dvm get nvim themes                    # Shows user + library themes
+dvm get nvim theme coolnight-ocean     # Get specific library theme (no install needed)
+```
 
 **Flags:**
 

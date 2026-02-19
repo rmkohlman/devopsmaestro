@@ -40,6 +40,7 @@ func createTestSchema(driver db.Driver) error {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT NOT NULL UNIQUE,
 			description TEXT,
+			theme TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
@@ -48,6 +49,7 @@ func createTestSchema(driver db.Driver) error {
 			ecosystem_id INTEGER NOT NULL,
 			name TEXT NOT NULL,
 			description TEXT,
+			theme TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(ecosystem_id, name),
@@ -59,6 +61,7 @@ func createTestSchema(driver db.Driver) error {
 			name TEXT NOT NULL,
 			path TEXT NOT NULL,
 			description TEXT,
+			theme TEXT,
 			language TEXT,
 			build_config TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

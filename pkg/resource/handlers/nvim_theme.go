@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"devopsmaestro/pkg/nvimops/theme"
+	"devopsmaestro/pkg/nvimops/theme/library"
 	"devopsmaestro/pkg/resource"
 )
 
@@ -55,9 +56,16 @@ func (h *NvimThemeHandler) Get(ctx resource.Context, name string) (resource.Reso
 		return nil, err
 	}
 
+	// Try to get from user store first
 	t, err := themeStore.Get(name)
 	if err != nil {
-		return nil, err
+		// If not found in store, try the embedded library as fallback
+		libraryTheme, libraryErr := library.Get(name)
+		if libraryErr != nil {
+			// Return the original store error if library also doesn't have it
+			return nil, err
+		}
+		t = libraryTheme
 	}
 
 	return &NvimThemeResource{theme: t}, nil
@@ -70,15 +78,45 @@ func (h *NvimThemeHandler) List(ctx resource.Context) ([]resource.Resource, erro
 		return nil, err
 	}
 
-	themes, err := themeStore.List()
+	// Get user themes from store
+	userThemes, err := themeStore.List()
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]resource.Resource, len(themes))
-	for i, t := range themes {
+	// Get library themes
+	libraryInfo, err := library.List()
+	if err != nil {
+		// If library fails, just return user themes
+		result := make([]resource.Resource, len(userThemes))
+		for i, t := range userThemes {
+			result[i] = &NvimThemeResource{theme: t}
+		}
+		return result, nil
+	}
+
+	// Create a map of user theme names for deduplication
+	userThemeNames := make(map[string]bool)
+	for _, t := range userThemes {
+		userThemeNames[t.Name] = true
+	}
+
+	// Convert user themes to resources
+	result := make([]resource.Resource, len(userThemes))
+	for i, t := range userThemes {
 		result[i] = &NvimThemeResource{theme: t}
 	}
+
+	// Add library themes that aren't overridden by user themes
+	for _, info := range libraryInfo {
+		if !userThemeNames[info.Name] {
+			libraryTheme, err := library.Get(info.Name)
+			if err == nil {
+				result = append(result, &NvimThemeResource{theme: libraryTheme})
+			}
+		}
+	}
+
 	return result, nil
 }
 

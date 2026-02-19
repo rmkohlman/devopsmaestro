@@ -1,0 +1,71 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimTheme
+metadata:
+  name: coolnight-solarized
+  description: CoolNight Solarized - Inspired by Solarized Dark
+  author: DevOpsMaestro (parametric generator)
+  category: dark
+spec:
+  plugin:
+    repo: "rmkohlman/coolnight.nvim"
+  style: solarized
+  transparent: false
+  colors:
+    # Nvim colors (exact from parametric generator)
+    bg: "#001f28"           # Main background
+    bg_dark: "#001c23"      # Darker background  
+    bg_highlight: "#144552" # Selection highlight
+    bg_search: "#098cac"    # Search highlight
+    bg_visual: "#266778"    # Visual selection
+    fg: "#cbe9f0"           # Main foreground
+    fg_dark: "#b4dde8"      # Darker foreground
+    fg_gutter: "#628b97"    # Gutter text
+    border: "#538998"       # Border color
+    
+    # Syntax colors (derived from ANSI)
+    comment: "#628b97"      # Same as fg_gutter
+    red: "#E52E2E"          # ANSI red
+    green: "#44FFB1"        # ANSI green  
+    yellow: "#FFE073"       # ANSI yellow
+    blue: "#0feddd"         # ANSI blue
+    magenta: "#8077ff"      # ANSI magenta
+    cyan: "#23f7cf"         # ANSI cyan
+    orange: "#FFE073"       # Same as yellow
+    purple: "#8077ff"       # Same as magenta
+    
+    # Terminal ANSI colors (exact from parametric generator)
+    ansi_black: "#205a69"
+    ansi_red: "#E52E2E"
+    ansi_green: "#44FFB1"
+    ansi_yellow: "#FFE073"
+    ansi_blue: "#0feddd"
+    ansi_magenta: "#8077ff"
+    ansi_cyan: "#23f7cf"
+    ansi_white: "#23f7cf"
+    ansi_bright_black: "#205a69"
+    ansi_bright_red: "#E52E2E"
+    ansi_bright_green: "#44FFB1"
+    ansi_bright_yellow: "#FFE073"
+    ansi_bright_blue: "#8077ff"
+    ansi_bright_magenta: "#8077ff"
+    ansi_bright_cyan: "#23f7cf"
+    ansi_bright_white: "#23f7cf"
+    
+    # Terminal UI colors
+    cursor: "#47FF9C"       # Green cursor
+    cursor_text: "#001c23"  # Same as bg_dark
+    selection: "#034759"    # Darker than bg_visual
+    selection_text: "#cbe9f0" # Same as fg
+    
+    # Diagnostic colors
+    error: "#E52E2E"        # Same as red
+    warning: "#FFE073"      # Same as yellow
+    info: "#0feddd"         # Same as blue
+    hint: "#44FFB1"         # Same as green
+    success: "#44FFB1"      # Same as green
+  options:
+    styles:
+      comments: italic
+      keywords: bold
+      functions: NONE
+      variables: NONE

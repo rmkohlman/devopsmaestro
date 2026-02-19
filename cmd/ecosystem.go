@@ -5,6 +5,7 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
+	themeresolver "devopsmaestro/pkg/colors/resolver"
 	"devopsmaestro/pkg/resource"
 	"devopsmaestro/pkg/resource/handlers"
 	"devopsmaestro/render"
@@ -221,9 +222,23 @@ func getEcosystems(cmd *cobra.Command) error {
 	}
 
 	// For human output, build table data
+	headers := []string{"NAME", "DESCRIPTION", "CREATED"}
+	if showTheme {
+		headers = append(headers, "THEME", "THEME SOURCE")
+	}
+
 	tableData := render.TableData{
-		Headers: []string{"NAME", "DESCRIPTION", "CREATED"},
+		Headers: headers,
 		Rows:    make([][]string, len(ecosystems)),
+	}
+
+	// Create theme resolver if needed
+	var themeResolver themeresolver.ThemeResolver
+	if showTheme {
+		ds, _ := getDataStore(cmd)
+		if ds != nil {
+			themeResolver, _ = themeresolver.NewThemeResolver(ds, nil)
+		}
 	}
 
 	for i, e := range ecosystems {
@@ -240,11 +255,28 @@ func getEcosystems(cmd *cobra.Command) error {
 			}
 		}
 
-		tableData.Rows[i] = []string{
+		row := []string{
 			name,
 			desc,
 			e.CreatedAt.Format("2006-01-02 15:04"),
 		}
+
+		// Add theme information if requested
+		if showTheme && themeResolver != nil {
+			themeName := themeresolver.DefaultTheme
+			themeSource := "default"
+
+			if resolution, err := themeResolver.GetResolutionPath(cmd.Context(), themeresolver.LevelEcosystem, e.ID); err == nil {
+				if resolution.Source != themeresolver.LevelGlobal {
+					themeName = resolution.GetEffectiveThemeName()
+					themeSource = resolution.Source.String()
+				}
+			}
+
+			row = append(row, themeName, themeSource)
+		}
+
+		tableData.Rows[i] = row
 	}
 
 	return render.OutputWith(getOutputFormat, tableData, render.Options{
@@ -298,10 +330,20 @@ func getEcosystem(cmd *cobra.Command, name string) error {
 		render.KeyValue{Key: "Created", Value: ecosystem.CreatedAt.Format("2006-01-02 15:04:05")},
 	)
 
-	return render.OutputWith(getOutputFormat, kvData, render.Options{
+	err = render.OutputWith(getOutputFormat, kvData, render.Options{
 		Type:  render.TypeKeyValue,
 		Title: "Ecosystem Details",
 	})
+	if err != nil {
+		return err
+	}
+
+	// Show theme information if requested
+	if showTheme {
+		return showThemeResolution(cmd, ds, themeresolver.LevelEcosystem, ecosystem.ID, ecosystem.Name)
+	}
+
+	return nil
 }
 
 // deleteEcosystemCmd deletes an ecosystem
@@ -351,6 +393,10 @@ func init() {
 
 	// Ecosystem creation flags
 	createEcosystemCmd.Flags().StringVar(&ecosystemDescription, "description", "", "Ecosystem description")
+
+	// Ecosystem get flags
+	getEcosystemCmd.Flags().BoolVar(&showTheme, "show-theme", false, "Show theme resolution information")
+	getEcosystemsCmd.Flags().BoolVar(&showTheme, "show-theme", false, "Show theme resolution information")
 }
 
 // getActiveEcosystem returns the active ecosystem from the context

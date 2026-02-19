@@ -7,6 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.12.0] - 2026-02-19
+
+### 🚀 Added
+
+#### Hierarchical Theme System
+- **Multi-level theme configuration** - Themes now cascade through hierarchy: Workspace → App → Domain → Ecosystem → Global Default
+- **`dvm set theme` command** - Set themes at any level with `--workspace`, `--app`, `--domain`, or `--ecosystem` flags
+- **Theme resolver with Strategy pattern** - New `pkg/colors/resolver/` package handles theme inheritance and cascading
+- **Database migration 011** - Adds theme columns to ecosystems, domains, and apps tables for hierarchical theme storage
+
+#### 21 CoolNight Theme Variants
+- **Parametric theme generator** - Algorithmic theme generation with consistent color harmony
+- **Blue variants**: ocean (default), arctic, midnight
+- **Purple variants**: synthwave, violet, grape  
+- **Green variants**: matrix, forest, mint
+- **Warm variants**: sunset, ember, gold
+- **Red/Pink variants**: rose, crimson, sakura
+- **Monochrome variants**: charcoal, slate, warm
+- **Special variants**: nord, dracula, solarized
+
+#### kubectl-Style Theme IaC
+- **Apply themes from files** - `dvm apply -f theme.yaml` for declarative theme management
+- **Apply from URLs** - `dvm apply -f https://example.com/theme.yaml` for remote theme sharing
+- **Apply from GitHub** - `dvm apply -f github:user/repo/theme.yaml` for version-controlled themes
+- **Export themes** - `dvm get nvim theme <name> -o yaml` for sharing and backup
+
+#### Library Fallback System
+- **Embedded theme library** - NvimThemeHandler now falls back to 34+ embedded library themes
+- **User theme priority** - User-defined themes override library themes with the same name
+- **Instant availability** - Library themes available immediately without manual installation
+
+#### WezTerm Configuration Support
+- **Complete wezterm.lua generator** - Full configuration file generation for WezTerm terminal
+- **Type-safe configuration** - Structured types for all WezTerm settings
+- **Library presets** - Pre-built configurations (minimal, tmux-style, default)
+
+#### rkohlman-full Plugin Package
+- **Complete Neovim setup** - 39-plugin configuration with LSP, treesitter, telescope, and more
+- **Production-ready** - Fully configured development environment
+- **Modular architecture** - Clean plugin organization and configuration
+
+### 🔧 Enhanced
+
+#### Theme Management
+- **Improved theme resolution** - Smarter inheritance with proper fallback chains
+- **Better error handling** - Clear messages for missing themes and invalid configurations
+- **Performance optimizations** - Cached theme resolution for faster startup
+
+### 📦 Technical Changes
+
+#### New Files
+- `cmd/set_theme.go` - Theme setting command implementation
+- `migrations/sqlite/011_*` - Database migration for hierarchical themes
+- `pkg/colors/resolver/` - Theme resolution engine
+- `pkg/nvimops/theme/library/themes/coolnight-*.yaml` - 21 CoolNight variants
+- `pkg/terminalops/wezterm/` - WezTerm configuration support
+- `pkg/nvimops/package/library/packages/rkohlman-full.yaml` - Complete plugin package
+
+#### Modified Files
+- Enhanced theme handlers with library fallback
+- Updated CLI commands for hierarchical theme support
+- Improved database models with theme fields
+- Enhanced documentation for new features
+
+---
+
 ## [0.11.0] - 2026-02-19
 
 ### 🚀 Added
@@ -1023,6 +1089,16 @@ docs/
 ---
 
 ## [Unreleased]
+
+### 🚀 Added
+
+#### Nvim Theme Library Fallback
+- **Automatic library theme availability** - All 34+ embedded library themes are now automatically accessible without installation
+- **Library fallback in Get() method** - `dvm get nvim theme <name>` falls back to library if theme not found in user store
+- **Library merge in List() method** - `dvm get nvim themes` shows combined list of user + library themes
+- **User override behavior** - User themes with same name as library themes take precedence
+- **Out-of-the-box theme access** - Commands like `dvm get nvim theme coolnight-ocean` work immediately
+- **34+ embedded themes** - Includes all CoolNight variants, TokyoNight, Catppuccin, Dracula, Gruvbox, Nord, and more
 
 ### Planned Features
 

@@ -1,18 +1,63 @@
 # Themes
 
-Managing Neovim themes with nvp.
+Managing Neovim themes with nvp. **Library themes are automatically available** - no installation needed for 34+ embedded themes!
+
+---
+
+## Quick Start
+
+```bash
+# Library themes work out of the box
+dvm get nvim theme coolnight-ocean      # No installation needed
+dvm get nvim themes                     # Shows all user + library themes
+
+# Or install to user store (for customization)
+nvp theme library install tokyonight-custom --use
+```
+
+---
+
+## Theme Availability
+
+DevOpsMaestro now includes **34+ embedded library themes** that are automatically available without installation:
+
+- **Automatic access** - Use any library theme directly: `dvm get nvim theme <name>`
+- **No installation required** - Library themes work out of the box
+- **User override** - Save a theme with the same name to override library version
+- **Combined listing** - `dvm get nvim themes` shows both user and library themes
+
+### Library vs User Themes
+
+| Type | Location | Access | Customizable |
+|------|----------|--------|--------------|
+| **Library** | Embedded in binary | Automatic | No (read-only) |  
+| **User** | `~/.nvp/themes/` | Manual install | Yes (full control) |
+
+**Override behavior**: User themes with the same name take precedence over library themes.
 
 ---
 
 ## Installing Themes
 
-### From Library
+### From Library (Automatic)
+
+```bash
+# Library themes work immediately - no installation needed
+dvm get nvim theme coolnight-ocean
+dvm get nvim theme tokyonight-night
+dvm get nvim theme catppuccin-mocha
+
+# List all available themes (user + library)
+dvm get nvim themes
+```
+
+### From Library (Manual Install)
 
 ```bash
 # See available themes
 nvp theme library list
 
-# Install a theme
+# Install to user store (for customization)
 nvp theme library install tokyonight-custom
 
 # Install and set as active
@@ -53,23 +98,36 @@ nvp theme generate
 
 ## Theme Library
 
-8 pre-built themes:
+**34+ embedded themes** are automatically available without installation, including all CoolNight variants, TokyoNight, Catppuccin, Dracula, Gruvbox, Nord, and more.
+
+### Popular Library Themes
 
 | Theme | Style | Plugin |
 |-------|-------|--------|
-| `tokyonight-custom` | Dark blue | folke/tokyonight.nvim |
+| `coolnight-ocean` | Deep blue | CoolNight variant |
+| `coolnight-synthwave` | Neon purple | CoolNight variant |
 | `tokyonight-night` | Dark blue | folke/tokyonight.nvim |
+| `tokyonight-storm` | Stormy blue | folke/tokyonight.nvim |
 | `catppuccin-mocha` | Dark pastel | catppuccin/nvim |
 | `catppuccin-latte` | Light pastel | catppuccin/nvim |
+| `dracula` | Dark purple | Mofiqul/dracula.nvim |
 | `gruvbox-dark` | Warm retro | ellisonleao/gruvbox.nvim |
 | `nord` | Arctic blue | shaunsingh/nord.nvim |
-| `rose-pine` | Natural pine | rose-pine/neovim |
-| `kanagawa` | Japanese art | rebelot/kanagawa.nvim |
+
+**All themes work immediately** - no installation required!
+
+```bash
+# Use any theme directly
+dvm get nvim theme coolnight-ocean
+dvm get nvim theme dracula
+dvm get nvim theme catppuccin-mocha
+```
 
 View details:
 
 ```bash
-nvp theme library show tokyonight-custom
+nvp theme library show tokyonight-custom    # Library theme details
+dvm get nvim theme coolnight-ocean          # Works directly, no install needed
 ```
 
 ---

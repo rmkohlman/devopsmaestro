@@ -7,6 +7,7 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
+	themeresolver "devopsmaestro/pkg/colors/resolver"
 	"devopsmaestro/pkg/resource"
 	"devopsmaestro/pkg/resource/handlers"
 	"devopsmaestro/render"
@@ -264,9 +265,20 @@ func getApps(cmd *cobra.Command) error {
 	}
 
 	// For human output, build table data
+	headers := []string{"NAME", "DOMAIN", "PATH", "CREATED"}
+	if showTheme {
+		headers = append(headers, "THEME", "THEME SOURCE")
+	}
+
 	tableData := render.TableData{
-		Headers: []string{"NAME", "DOMAIN", "PATH", "CREATED"},
+		Headers: headers,
 		Rows:    make([][]string, len(apps)),
+	}
+
+	// Create theme resolver if needed
+	var themeResolver themeresolver.ThemeResolver
+	if showTheme {
+		themeResolver, _ = themeresolver.NewThemeResolver(ds, nil)
 	}
 
 	for i, a := range apps {
@@ -288,12 +300,29 @@ func getApps(cmd *cobra.Command) error {
 			pathDisplay = "..." + pathDisplay[len(pathDisplay)-37:]
 		}
 
-		tableData.Rows[i] = []string{
+		row := []string{
 			name,
 			domName,
 			pathDisplay,
 			a.CreatedAt.Format("2006-01-02 15:04"),
 		}
+
+		// Add theme information if requested
+		if showTheme && themeResolver != nil {
+			themeName := themeresolver.DefaultTheme
+			themeSource := "default"
+
+			if resolution, err := themeResolver.GetResolutionPath(cmd.Context(), themeresolver.LevelApp, a.ID); err == nil {
+				if resolution.Source != themeresolver.LevelGlobal {
+					themeName = resolution.GetEffectiveThemeName()
+					themeSource = resolution.Source.String()
+				}
+			}
+
+			row = append(row, themeName, themeSource)
+		}
+
+		tableData.Rows[i] = row
 	}
 
 	return render.OutputWith(getOutputFormat, tableData, render.Options{
@@ -386,10 +415,20 @@ func getApp(cmd *cobra.Command, name string) error {
 		render.KeyValue{Key: "Created", Value: app.CreatedAt.Format("2006-01-02 15:04:05")},
 	)
 
-	return render.OutputWith(getOutputFormat, kvData, render.Options{
+	err = render.OutputWith(getOutputFormat, kvData, render.Options{
 		Type:  render.TypeKeyValue,
 		Title: "App Details",
 	})
+	if err != nil {
+		return err
+	}
+
+	// Show theme information if requested
+	if showTheme {
+		return showThemeResolution(cmd, ds, themeresolver.LevelApp, app.ID, app.Name)
+	}
+
+	return nil
 }
 
 // deleteAppCmd deletes an app
@@ -476,7 +515,9 @@ func init() {
 	// App get/delete flags
 	getAppsCmd.Flags().StringP("domain", "d", "", "Domain name (defaults to active domain)")
 	getAppsCmd.Flags().BoolP("all", "A", false, "List apps from all domains")
+	getAppsCmd.Flags().BoolVar(&showTheme, "show-theme", false, "Show theme resolution information")
 	getAppCmd.Flags().StringP("domain", "d", "", "Domain name (defaults to active domain)")
+	getAppCmd.Flags().BoolVar(&showTheme, "show-theme", false, "Show theme resolution information")
 	deleteAppCmd.Flags().StringP("domain", "d", "", "Domain name (defaults to active domain)")
 }
 

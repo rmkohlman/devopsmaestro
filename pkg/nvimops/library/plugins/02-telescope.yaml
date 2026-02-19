@@ -2,9 +2,9 @@ apiVersion: devopsmaestro.io/v1
 kind: NvimPlugin
 metadata:
   name: telescope
-  description: "Fuzzy finder for files, grep, buffers"
+  description: "Enhanced fuzzy finder with custom icon-enhanced keymaps and improved UI"
   category: fuzzy-finder
-  tags: ["finder", "search"]
+  tags: ["finder", "search", "enhanced"]
 spec:
   repo: nvim-telescope/telescope.nvim
   branch: 0.1.x
@@ -13,17 +13,32 @@ spec:
     - repo: nvim-telescope/telescope-fzf-native.nvim
       build: make
     - repo: nvim-tree/nvim-web-devicons
+    - repo: folke/which-key.nvim
   config: |
     local telescope = require("telescope")
     local actions = require("telescope.actions")
+    local action_state = require("telescope.actions.state")
+    local pickers = require("telescope.pickers")
+    local finders = require("telescope.finders")
+    local conf = require("telescope.config").values
 
     telescope.setup({
     	defaults = {
     		path_display = { "smart" },
+    		layout_strategy = "horizontal",
+    		layout_config = {
+    			width = 0.85, -- 85% of screen width
+    			height = 0.85, -- 85% of screen height
+    			horizontal = {
+    				preview_width = 0.5,
+    			},
+    		},
+    		-- Border style matching modern aesthetic
+    		borderchars = { "─", "│", "─", "│", "╭", "╮", "╯", "╰" }, -- rounded corners
     		mappings = {
     			i = {
-    				["<C-k>"] = actions.move_selection_previous,
-    				["<C-j>"] = actions.move_selection_next,
+    				["<C-k>"] = actions.move_selection_previous, -- move to prev result
+    				["<C-j>"] = actions.move_selection_next, -- move to next result
     				["<C-q>"] = actions.send_selected_to_qflist + actions.open_qflist,
     			},
     		},

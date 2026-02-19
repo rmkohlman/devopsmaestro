@@ -6,6 +6,7 @@ import (
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/operators"
+	themeresolver "devopsmaestro/pkg/colors/resolver"
 	"devopsmaestro/pkg/nvimops/plugin"
 	"devopsmaestro/pkg/nvimops/theme"
 	"devopsmaestro/pkg/resolver"
@@ -20,6 +21,7 @@ var (
 	getOutputFormat    string
 	getWorkspacesFlags HierarchyFlags
 	getWorkspaceFlags  HierarchyFlags
+	showTheme          bool // Flag to show theme resolution information
 )
 
 // getCmd represents the get command
@@ -47,7 +49,8 @@ Examples:
   dvm get context
   dvm get ctx                     # Same as 'get context'
   dvm get np                      # Same as 'get nvim plugins'
-  dvm get nt                      # Same as 'get nvim themes'
+  dvm get nt                      # Same as 'get nvim themes' (34+ library themes)
+  dvm get nvim theme coolnight-ocean    # Library theme (no install needed)
   dvm get workspace main -o yaml
   dvm get app my-api -o json
 `,
@@ -171,9 +174,10 @@ Examples:
 var getNvimThemesShortCmd = &cobra.Command{
 	Use:   "nt",
 	Short: "List all nvim themes (shortcut for 'nvim themes')",
-	Long: `List all nvim themes stored in the database.
+	Long: `List all nvim themes from user store and embedded library.
 
 This is a shortcut for 'dvm get nvim themes'.
+Shows 34+ library themes automatically available without installation.
 
 Examples:
   dvm get nt
@@ -205,6 +209,10 @@ func init() {
 
 	// Add --all flag to get workspaces (with -A shorthand for consistency)
 	getWorkspacesCmd.Flags().BoolP("all", "A", false, "List all workspaces across all apps/domains/ecosystems")
+
+	// Add --show-theme flag to hierarchy commands
+	getWorkspacesCmd.Flags().BoolVar(&showTheme, "show-theme", false, "Show theme resolution information")
+	getWorkspaceCmd.Flags().BoolVar(&showTheme, "show-theme", false, "Show theme resolution information")
 }
 
 func getDataStore(cmd *cobra.Command) (db.DataStore, error) {
@@ -317,9 +325,20 @@ func getWorkspaces(cmd *cobra.Command) error {
 
 		// For human output, build table data
 		// We need to look up app names for display
+		headers := []string{"NAME", "APP", "IMAGE", "STATUS"}
+		if showTheme {
+			headers = append(headers, "THEME", "THEME SOURCE")
+		}
+
 		tableData := render.TableData{
-			Headers: []string{"NAME", "APP", "IMAGE", "STATUS"},
+			Headers: headers,
 			Rows:    make([][]string, len(workspaces)),
+		}
+
+		// Create theme resolver if needed
+		var themeResolver themeresolver.ThemeResolver
+		if showTheme {
+			themeResolver, _ = themeresolver.NewThemeResolver(sqlDS, nil)
 		}
 
 		for i, ws := range workspaces {
@@ -328,12 +347,30 @@ func getWorkspaces(cmd *cobra.Command) error {
 			if app != nil {
 				appName = app.Name
 			}
-			tableData.Rows[i] = []string{
+
+			row := []string{
 				ws.Name,
 				appName,
 				ws.ImageName,
 				ws.Status,
 			}
+
+			// Add theme information if requested
+			if showTheme && themeResolver != nil {
+				themeName := themeresolver.DefaultTheme
+				themeSource := "default"
+
+				if resolution, err := themeResolver.GetResolutionPath(cmd.Context(), themeresolver.LevelWorkspace, ws.ID); err == nil {
+					if resolution.Source != themeresolver.LevelGlobal {
+						themeName = resolution.GetEffectiveThemeName()
+						themeSource = resolution.Source.String()
+					}
+				}
+
+				row = append(row, themeName, themeSource)
+			}
+
+			tableData.Rows[i] = row
 		}
 
 		return render.OutputWith(getOutputFormat, tableData, render.Options{
@@ -375,18 +412,46 @@ func getWorkspaces(cmd *cobra.Command) error {
 		}
 
 		// For human output, build table data with full path
+		headers := []string{"NAME", "PATH", "IMAGE", "STATUS"}
+		if showTheme {
+			headers = append(headers, "THEME", "THEME SOURCE")
+		}
+
 		tableData := render.TableData{
-			Headers: []string{"NAME", "PATH", "IMAGE", "STATUS"},
+			Headers: headers,
 			Rows:    make([][]string, len(results)),
 		}
 
+		// Create theme resolver if needed
+		var themeResolver themeresolver.ThemeResolver
+		if showTheme {
+			themeResolver, _ = themeresolver.NewThemeResolver(sqlDS, nil)
+		}
+
 		for i, wh := range results {
-			tableData.Rows[i] = []string{
+			row := []string{
 				wh.Workspace.Name,
 				wh.FullPath(),
 				wh.Workspace.ImageName,
 				wh.Workspace.Status,
 			}
+
+			// Add theme information if requested
+			if showTheme && themeResolver != nil {
+				themeName := themeresolver.DefaultTheme
+				themeSource := "default"
+
+				if resolution, err := themeResolver.GetResolutionPath(cmd.Context(), themeresolver.LevelWorkspace, wh.Workspace.ID); err == nil {
+					if resolution.Source != themeresolver.LevelGlobal {
+						themeName = resolution.GetEffectiveThemeName()
+						themeSource = resolution.Source.String()
+					}
+				}
+
+				row = append(row, themeName, themeSource)
+			}
+
+			tableData.Rows[i] = row
 		}
 
 		return render.OutputWith(getOutputFormat, tableData, render.Options{
@@ -442,9 +507,20 @@ func getWorkspaces(cmd *cobra.Command) error {
 	}
 
 	// For human output, build table data
+	headers := []string{"NAME", "APP", "IMAGE", "STATUS", "CREATED"}
+	if showTheme {
+		headers = append(headers, "THEME", "THEME SOURCE")
+	}
+
 	tableData := render.TableData{
-		Headers: []string{"NAME", "APP", "IMAGE", "STATUS", "CREATED"},
+		Headers: headers,
 		Rows:    make([][]string, len(workspaces)),
+	}
+
+	// Create theme resolver if needed
+	var themeResolver themeresolver.ThemeResolver
+	if showTheme {
+		themeResolver, _ = themeresolver.NewThemeResolver(sqlDS, nil)
 	}
 
 	for i, ws := range workspaces {
@@ -452,13 +528,31 @@ func getWorkspaces(cmd *cobra.Command) error {
 		if ws.Name == activeWorkspace {
 			name = "● " + name
 		}
-		tableData.Rows[i] = []string{
+
+		row := []string{
 			name,
 			appName,
 			ws.ImageName,
 			ws.Status,
 			ws.CreatedAt.Format("2006-01-02 15:04"),
 		}
+
+		// Add theme information if requested
+		if showTheme && themeResolver != nil {
+			themeName := themeresolver.DefaultTheme
+			themeSource := "default"
+
+			if resolution, err := themeResolver.GetResolutionPath(cmd.Context(), themeresolver.LevelWorkspace, ws.ID); err == nil {
+				if resolution.Source != themeresolver.LevelGlobal {
+					themeName = resolution.GetEffectiveThemeName()
+					themeSource = resolution.Source.String()
+				}
+			}
+
+			row = append(row, themeName, themeSource)
+		}
+
+		tableData.Rows[i] = row
 	}
 
 	return render.OutputWith(getOutputFormat, tableData, render.Options{
@@ -559,10 +653,20 @@ func getWorkspace(cmd *cobra.Command, name string) error {
 		render.KeyValue{Key: "Created", Value: workspace.CreatedAt.Format("2006-01-02 15:04:05")},
 	)
 
-	return render.OutputWith(getOutputFormat, kvData, render.Options{
+	err = render.OutputWith(getOutputFormat, kvData, render.Options{
 		Type:  render.TypeKeyValue,
 		Title: "Workspace Details",
 	})
+	if err != nil {
+		return err
+	}
+
+	// Show theme information if requested
+	if showTheme {
+		return showThemeResolution(cmd, sqlDS, themeresolver.LevelWorkspace, workspace.ID, workspace.Name)
+	}
+
+	return nil
 }
 
 func getPlugins(cmd *cobra.Command) error {
@@ -694,8 +798,8 @@ func getThemes(cmd *cobra.Command) error {
 	if len(resources) == 0 {
 		return render.OutputWith(getOutputFormat, nil, render.Options{
 			Empty:        true,
-			EmptyMessage: "No themes found",
-			EmptyHints:   []string{"dvm apply -f theme.yaml"},
+			EmptyMessage: "No user themes found (34+ library themes available automatically)",
+			EmptyHints:   []string{"dvm get nvim theme coolnight-ocean", "dvm apply -f theme.yaml"},
 		})
 	}
 
@@ -921,4 +1025,54 @@ func getPlatforms(cmd *cobra.Command) error {
 	return render.OutputWith(getOutputFormat, tableData, render.Options{
 		Type: render.TypeTable,
 	})
+}
+
+// showThemeResolution displays theme resolution information for a given hierarchy level and object ID
+func showThemeResolution(cmd *cobra.Command, ds db.DataStore, level themeresolver.HierarchyLevel, objectID int, objectName string) error {
+	// Create theme resolver
+	themeResolver, err := themeresolver.NewThemeResolver(ds, nil) // nil theme store for now
+	if err != nil {
+		return fmt.Errorf("failed to create theme resolver: %w", err)
+	}
+
+	// Get theme resolution path
+	resolution, err := themeResolver.GetResolutionPath(cmd.Context(), level, objectID)
+	if err != nil {
+		return fmt.Errorf("failed to resolve theme: %w", err)
+	}
+
+	fmt.Println()
+	render.Info("Theme Resolution:")
+
+	if resolution.Source != themeresolver.LevelGlobal {
+		fmt.Printf("  Effective theme: %s\n", resolution.GetEffectiveThemeName())
+		fmt.Printf("  Source: %s\n", resolution.GetSourceDescription())
+	} else {
+		fmt.Printf("  Effective theme: %s (default)\n", themeresolver.DefaultTheme)
+		fmt.Printf("  Source: global default\n")
+	}
+
+	if len(resolution.Path) > 0 {
+		fmt.Println("  Resolution path:")
+		for _, step := range resolution.Path {
+			status := "○" // Empty circle
+			if step.Found && step.ThemeName != "" {
+				status = "●" // Filled circle
+			}
+
+			fmt.Printf("    %s %s '%s'", status, step.Level.String(), step.Name)
+			if step.ThemeName != "" {
+				fmt.Printf(" → %s", step.ThemeName)
+			}
+			if step.Error != "" {
+				fmt.Printf(" (error: %s)", step.Error)
+			}
+			fmt.Println()
+		}
+	}
+
+	fmt.Println()
+	render.Info("Legend: ● theme set, ○ no theme (inherits from parent)")
+
+	return nil
 }

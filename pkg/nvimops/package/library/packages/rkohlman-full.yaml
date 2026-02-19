@@ -1,0 +1,114 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPackage
+metadata:
+  name: rkohlman-full
+  description: "Complete Neovim IDE setup with enhanced plugins and comprehensive features"
+  category: complete
+  tags: ["complete", "ide", "enhanced"]
+spec:
+  plugins:
+    # Theme
+    - tokyonight
+    
+    # Core/Essential
+    - telescope       # Enhanced fuzzy finder with icon-enhanced keymaps
+    - treesitter      # Syntax highlighting and parsing
+    - nvim-cmp        # Completion with Copilot integration
+    - which-key       # Keymap discovery with comprehensive icons
+    - lualine         # Status line
+    
+    # LSP
+    - mason           # LSP server installation (comprehensive language support)
+    - lspconfig       # LSP configuration with keymaps
+    
+    # Git
+    - gitsigns        # Git signs in gutter
+    - lazygit         # LazyGit integration
+    
+    # Navigation
+    - harpoon         # File marks and quick navigation
+    - nvim-tree       # File explorer
+    - bufferline      # Buffer tabs
+    
+    # UI Enhancements
+    - alpha           # Dashboard
+    - dressing        # UI improvements
+    - indent-blankline # Indentation guides
+    
+    # Editing
+    - autopairs       # Auto close pairs
+    - comment         # Smart commenting
+    - surround        # Surround text operations
+    - substitute      # Substitute motions
+    - vim-maximizer   # Window maximizer
+    - toggleterm      # Terminal integration
+    
+    # AI/Copilot
+    - copilot         # GitHub Copilot
+    - copilot-chat    # Enhanced Copilot Chat with glob support
+    - copilot-cmp     # Copilot completion source
+    
+    # Tools
+    - formatting      # Code formatting
+    - linting         # Code linting
+    - trouble         # Diagnostics and quickfix
+    - todo-comments   # TODO highlighting and navigation
+    - auto-session    # Session management
+    
+    # Markdown/Notes
+    - render-markdown # Enhanced markdown rendering
+    - markdown-preview # Markdown preview
+    - obsidian        # Obsidian.nvim integration
+    
+    # Database
+    - dadbod          # Database client
+    - dadbod-ui       # Database UI
+    - dadbod-completion # Database completion
+    - dbee            # Advanced database explorer
+
+  description: |
+    This is a complete Neovim IDE setup that includes:
+    
+    **Core Features:**
+    - Enhanced telescope with custom keymap picker and improved UI
+    - Comprehensive LSP support with 20+ language servers
+    - Advanced completion with Copilot integration
+    - Icon-enhanced which-key with organized groups
+    
+    **AI-Powered Development:**
+    - GitHub Copilot with enhanced chat interface
+    - Glob pattern support for batch code analysis
+    - Visual selection prompts for code explanation and fixes
+    
+    **Professional Git Workflow:**
+    - GitSigns for inline diff visualization
+    - LazyGit integration for full git operations
+    - Comprehensive hunk management
+    
+    **Advanced Navigation:**
+    - Harpoon for project file bookmarking
+    - Enhanced telescope with fuzzy finding
+    - Buffer tabs with close management
+    
+    **Database Development:**
+    - Complete database client with UI
+    - Support for multiple database types
+    - Query execution and result visualization
+    
+    **Note-Taking & Documentation:**
+    - Obsidian integration for knowledge management
+    - Enhanced markdown rendering and preview
+    - TODO comment tracking across projects
+    
+    **Developer Experience:**
+    - Automatic session management
+    - Comprehensive formatting and linting
+    - Terminal integration
+    - Window management
+    
+    This setup provides a complete IDE experience suitable for:
+    - Full-stack development (Go, Python, JavaScript/TypeScript, Rust)
+    - Database administration and development
+    - Technical writing and documentation
+    - Knowledge management with Obsidian
+    - AI-assisted coding with Copilot
