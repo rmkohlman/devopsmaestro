@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.12.3] - 2026-02-19
+
+### 📖 Documentation
+- **Comprehensive YAML Reference Documentation** - Added 9 detailed reference pages covering all resource types:
+  - Complete workspace.yaml specification with all fields and examples
+  - App.yaml configuration guide with language-specific templates
+  - Domain, ecosystem, and project YAML schemas
+  - Plugin and theme YAML reference documentation
+  - Package configuration and inheritance examples
+  - Comprehensive field descriptions and validation rules
+
+---
+
 ## [0.12.2] - 2026-02-19
 
 ### 🚀 Added
