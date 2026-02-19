@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.13.1] - 2026-02-19
+
+### ✨ Features
+- **`dvm get defaults`**: New command to display all default configuration values
+  - Shows theme, shell, nvim, and container defaults
+  - Supports `-o yaml` and `-o json` output formats
+
+---
+
 ## [0.13.0] - 2026-02-19
 
 ### 🐳 Container Build

@@ -3,15 +3,18 @@ package cmd
 import (
 	"fmt"
 
+	"devopsmaestro/builders"
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/operators"
 	themeresolver "devopsmaestro/pkg/colors/resolver"
+	"devopsmaestro/pkg/nvimops"
 	"devopsmaestro/pkg/nvimops/plugin"
 	"devopsmaestro/pkg/nvimops/theme"
 	"devopsmaestro/pkg/resolver"
 	"devopsmaestro/pkg/resource"
 	"devopsmaestro/pkg/resource/handlers"
+	"devopsmaestro/pkg/terminalops/shell"
 	"devopsmaestro/render"
 
 	"github.com/spf13/cobra"
@@ -188,12 +191,31 @@ Examples:
 	},
 }
 
+// getDefaultsCmd displays default configuration values
+var getDefaultsCmd = &cobra.Command{
+	Use:   "defaults",
+	Short: "Display default configuration values",
+	Long: `Display default configuration values for containers and shells.
+
+Shows the default values used when creating new workspaces if no explicit 
+configuration is provided.
+
+Examples:
+  dvm get defaults
+  dvm get defaults -o yaml
+  dvm get defaults -o json`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return getDefaults(cmd)
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(getCmd)
 	getCmd.AddCommand(getWorkspacesCmd)
 	getCmd.AddCommand(getWorkspaceCmd)
 	getCmd.AddCommand(getPlatformsCmd)
 	getCmd.AddCommand(getContextCmd)
+	getCmd.AddCommand(getDefaultsCmd)
 
 	// Add top-level shortcuts for nvim resources
 	getCmd.AddCommand(getNvimPluginsShortCmd)
@@ -1073,6 +1095,62 @@ func showThemeResolution(cmd *cobra.Command, ds db.DataStore, level themeresolve
 
 	fmt.Println()
 	render.Info("Legend: ● theme set, ○ no theme (inherits from parent)")
+
+	return nil
+}
+
+// DefaultsOutput represents default configuration values for output
+type DefaultsOutput struct {
+	Theme     map[string]interface{} `yaml:"theme" json:"theme"`
+	Shell     map[string]interface{} `yaml:"shell" json:"shell"`
+	Nvim      map[string]interface{} `yaml:"nvim" json:"nvim"`
+	Container map[string]interface{} `yaml:"container" json:"container"`
+}
+
+func getDefaults(cmd *cobra.Command) error {
+	// Get defaults from all packages
+	themeDefaults := themeresolver.GetDefaults()
+	shellDefaults := shell.GetDefaults()
+	nvimDefaults := nvimops.GetDefaults()
+	containerDefaults := builders.GetContainerDefaults()
+
+	// Build structured data
+	data := DefaultsOutput{
+		Theme:     themeDefaults,
+		Shell:     shellDefaults,
+		Nvim:      nvimDefaults,
+		Container: containerDefaults,
+	}
+
+	// For JSON/YAML, output the data structure directly
+	if getOutputFormat == "json" || getOutputFormat == "yaml" {
+		return render.OutputWith(getOutputFormat, data, render.Options{})
+	}
+
+	// For human-readable output, show organized key-value display
+	fmt.Println()
+	render.Info("Theme Defaults:")
+	for key, value := range themeDefaults {
+		fmt.Printf("  %s: %v\n", key, value)
+	}
+
+	fmt.Println()
+	render.Info("Shell Defaults:")
+	for key, value := range shellDefaults {
+		fmt.Printf("  %s: %v\n", key, value)
+	}
+
+	fmt.Println()
+	render.Info("Neovim Defaults:")
+	for key, value := range nvimDefaults {
+		fmt.Printf("  %s: %v\n", key, value)
+	}
+
+	fmt.Println()
+	render.Info("Container Defaults:")
+	for key, value := range containerDefaults {
+		fmt.Printf("  %s: %v\n", key, value)
+	}
 
 	return nil
 }

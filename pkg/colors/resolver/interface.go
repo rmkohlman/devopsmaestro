@@ -115,3 +115,11 @@ func (r *ThemeResolution) GetSourceDescription() string {
 	}
 	return r.Source.String() + " '" + r.SourceName + "'"
 }
+
+// GetDefaults returns the default theme configuration settings
+func GetDefaults() map[string]interface{} {
+	return map[string]interface{}{
+		"global":     DefaultTheme,
+		"resolution": "workspace → app → domain → ecosystem → global",
+	}
+}

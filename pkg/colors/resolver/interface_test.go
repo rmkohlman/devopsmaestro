@@ -299,3 +299,23 @@ func TestDefaultTheme(t *testing.T) {
 	// Verify the default theme constant
 	assert.Equal(t, "coolnight-ocean", DefaultTheme)
 }
+
+func TestGetDefaults(t *testing.T) {
+	// Test the GetDefaults function
+	defaults := GetDefaults()
+
+	// Verify the structure and values
+	require.NotNil(t, defaults)
+	assert.Len(t, defaults, 2)
+
+	// Check global theme
+	global, ok := defaults["global"]
+	require.True(t, ok, "defaults should contain 'global' key")
+	assert.Equal(t, DefaultTheme, global)
+	assert.Equal(t, "coolnight-ocean", global)
+
+	// Check resolution order
+	resolution, ok := defaults["resolution"]
+	require.True(t, ok, "defaults should contain 'resolution' key")
+	assert.Equal(t, "workspace → app → domain → ecosystem → global", resolution)
+}
