@@ -1,5 +1,15 @@
 # DevOpsMaestro Plugin System
 
+!!! warning "Deprecated Documentation Location"
+    
+    **This file has been moved to the proper location.**
+    
+    **New location:** [Configuration/Plugin System](configuration/plugin-system.md)
+    
+    This file is kept for backward compatibility but may contain outdated terminology (e.g., "project" instead of "app"). Please use the configuration version for the most current documentation.
+
+---
+
 The plugin system is designed like Kubernetes - plugins are **first-class objects** stored in the database, and workspace YAMLs **reference** them by name.
 
 ## Architecture

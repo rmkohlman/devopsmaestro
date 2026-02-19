@@ -1,6 +1,6 @@
 # Plugins
 
-Managing Neovim plugins with nvp.
+Managing Neovim plugins with nvp. Use the curated library of 38+ plugins or plugin packages for complete setups.
 
 ---
 
@@ -8,17 +8,18 @@ Managing Neovim plugins with nvp.
 
 ### From Library
 
-The easiest way - use the built-in library:
+The easiest way - use the built-in library of 38+ curated plugins:
 
 ```bash
 # See available plugins
-nvp library list
+nvp plugin list
 
-# Install one
-nvp library install telescope
+# Install complete plugin package (39 plugins)
+nvp apply -f package:rkohlman-full
 
-# Install multiple
-nvp library install telescope treesitter lspconfig nvim-cmp
+# Install individual plugins
+nvp apply -f plugin:telescope
+nvp apply -f plugin:treesitter
 ```
 
 ### From File
@@ -99,89 +100,139 @@ spec:
 ### List Installed Plugins
 
 ```bash
-nvp list
+nvp plugin list
 ```
 
 ### Get Plugin Details
 
 ```bash
-nvp get telescope
-nvp get telescope -o yaml
+nvp plugin get telescope
+nvp plugin get telescope -o yaml
 ```
 
 ### Delete a Plugin
 
 ```bash
-nvp delete telescope
+nvp plugin delete telescope
 ```
 
 ---
 
 ## Library Plugins
 
-nvp includes these pre-configured plugins:
+nvp includes 38+ curated plugins with a plugin package system for complete setups:
 
-### Core
+### Plugin Packages
+
+Complete plugin configurations for specific use cases:
+
+| Package | Plugins | Description |
+|---------|---------|-------------|
+| `rkohlman-full` | 39 plugins | Complete development environment with LSP, fuzzy finding, Git, AI, and more |
+
+Install a complete package:
+
+```bash
+nvp apply -f package:rkohlman-full
+```
+
+### Individual Plugins
+
+Choose from 38+ curated plugins:
+
+#### Core Dependencies
 
 | Plugin | Description |
 |--------|-------------|
 | `plenary` | Lua utility functions (dependency for many plugins) |
 | `nvim-web-devicons` | File icons |
 
-### Fuzzy Finding
+#### Fuzzy Finding & Navigation
 
 | Plugin | Description |
 |--------|-------------|
 | `telescope` | Fuzzy finder for everything |
+| `harpoon` | Quick file navigation |
 
-### Syntax & Parsing
+#### Syntax & Parsing
 
 | Plugin | Description |
 |--------|-------------|
 | `treesitter` | Advanced syntax highlighting |
+| `treesitter-textobjects` | Text objects based on syntax |
 
-### LSP & Completion
+#### LSP & Completion
 
 | Plugin | Description |
 |--------|-------------|
 | `lspconfig` | LSP configuration |
 | `mason` | LSP/DAP/Linter installer |
 | `nvim-cmp` | Autocompletion |
+| `cmp-nvim-lsp` | LSP completion source |
+| `cmp-buffer` | Buffer completion source |
+| `cmp-path` | Path completion source |
+| `luasnip` | Snippet engine |
 
-### Git
+#### Git Integration
 
 | Plugin | Description |
 |--------|-------------|
 | `gitsigns` | Git decorations and hunks |
+| `fugitive` | Git commands |
+| `diffview` | Git diff viewer |
 
-### UI
+#### UI & Interface
 
 | Plugin | Description |
 |--------|-------------|
 | `lualine` | Status line |
+| `bufferline` | Buffer/tab line |
 | `which-key` | Keybinding hints |
-| `alpha` | Dashboard |
+| `alpha-nvim` | Dashboard |
 | `neo-tree` | File tree |
+| `dressing` | Better UI for inputs/selects |
+| `notify` | Better notifications |
 
-### Editing
+#### Editing & Text Manipulation
 
 | Plugin | Description |
 |--------|-------------|
 | `comment` | Easy commenting |
+| `surround` | Surround text with pairs |
+| `autopairs` | Auto-close brackets |
 | `conform` | Formatting |
 | `nvim-lint` | Linting |
 
-### Terminal
+#### Terminal & System
 
 | Plugin | Description |
 |--------|-------------|
 | `toggleterm` | Terminal management |
 
-### AI
+#### AI & Assistance
 
 | Plugin | Description |
 |--------|-------------|
 | `copilot` | GitHub Copilot |
+| `copilot-cmp` | Copilot completion source |
+
+#### Language-Specific
+
+| Plugin | Description |
+|--------|-------------|
+| `rust-tools` | Rust development |
+| `go` | Go development |
+| `typescript-tools` | TypeScript/JavaScript |
+
+#### And More...
+
+Plus additional plugins for debugging, testing, note-taking, and more specialized workflows.
+
+See full list:
+
+```bash
+nvp plugin list
+```
 
 ---
 

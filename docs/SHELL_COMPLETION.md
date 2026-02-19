@@ -1,5 +1,15 @@
 # Shell Completion for DevOpsMaestro
 
+!!! warning "Deprecated Documentation Location"
+    
+    **This file has been moved to the proper location.**
+    
+    **New location:** [Configuration/Shell Completion](configuration/shell-completion.md)
+    
+    This file is kept for backward compatibility. Please use the configuration version for consistency with other configuration-related documentation.
+
+---
+
 This guide covers shell completion for both tools:
 - **dvm** - DevOpsMaestro workspace/container management
 - **nvp** - NvimOps Neovim plugin & theme manager

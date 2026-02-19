@@ -36,7 +36,140 @@ spec:
 
 ## Resource Types
 
-### 1. App
+### 1. NvimTheme (NEW in v0.12.0)
+
+Represents a Neovim theme that can be applied and shared via Infrastructure as Code.
+
+```yaml
+apiVersion: devopsmaestro.io/v1
+kind: NvimTheme
+metadata:
+  name: my-custom-theme
+  description: "My beautiful custom theme"
+  author: "john-doe"
+  category: "dark"  # dark, light, monochrome
+spec:
+  # Plugin that provides the colorscheme
+  plugin:
+    repo: "user/awesome-theme.nvim"          # GitHub repository
+    branch: "main"                           # Optional: git branch
+    tag: "v1.2.0"                           # Optional: git tag/version
+  
+  # Theme style/variant (plugin-specific)
+  style: "custom"                            # e.g., "storm", "night", "day"
+  
+  # Transparency support
+  transparent: false                         # Enable transparent background
+  
+  # Custom color overrides
+  colors:
+    bg: "#1a1b26"                           # Background color
+    fg: "#c0caf5"                           # Foreground color  
+    accent: "#7aa2f7"                        # Accent color
+    error: "#f7768e"                         # Error color
+    warning: "#e0af68"                       # Warning color
+    info: "#7dcfff"                          # Info color
+    hint: "#1abc9c"                          # Hint color
+    
+  # Plugin-specific options
+  options:
+    italic_comments: true
+    bold_keywords: false
+    underline_errors: true
+    custom_highlights:
+      - group: "Comment"
+        style: "italic"
+        fg: "#565f89"
+```
+
+### 2. NvimPlugin (NEW in v0.12.0)
+
+Represents a Neovim plugin configuration that can be shared and applied.
+
+```yaml
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: telescope
+  description: "Fuzzy finder over lists"
+  category: "navigation"
+  tags: ["fuzzy-finder", "telescope", "navigation"]
+spec:
+  # Plugin repository
+  repo: "nvim-telescope/telescope.nvim"
+  branch: "master"                          # Optional
+  version: "0.1.4"                         # Optional git tag
+  
+  # Lazy loading configuration
+  lazy: true
+  priority: 1000                            # Load priority (higher = earlier)
+  
+  # Lazy loading triggers
+  event: ["VeryLazy"]                       # Load on events
+  ft: ["lua", "vim"]                        # Load on filetypes
+  cmd: ["Telescope", "Tele"]                # Load on commands
+  keys:                                     # Load on key mappings
+    - key: "<leader>ff"
+      mode: "n"
+      action: "<cmd>Telescope find_files<cr>"
+      desc: "Find files"
+    - key: "<leader>fg"
+      mode: "n"  
+      action: "<cmd>Telescope live_grep<cr>"
+      desc: "Live grep"
+  
+  # Dependencies
+  dependencies:
+    - "nvim-lua/plenary.nvim"               # Simple string
+    - repo: "nvim-tree/nvim-web-devicons"   # Detailed dependency
+      build: ""
+      config: false
+  
+  # Build command (if needed)
+  build: "make"
+  
+  # Configuration (Lua code)
+  config: |
+    require('telescope').setup({
+      defaults = {
+        file_ignore_patterns = {"node_modules"},
+        layout_strategy = 'horizontal',
+        layout_config = {
+          width = 0.95,
+          height = 0.85,
+        },
+      }
+    })
+  
+  # Init code (runs before plugin loads)
+  init: |
+    vim.g.telescope_theme = 'dropdown'
+  
+  # Options passed to plugin setup
+  opts:
+    defaults:
+      prompt_prefix: "🔍 "
+      selection_caret: "👉 "
+      multi_icon: "📌"
+    extensions:
+      fzf:
+        fuzzy: true
+        override_generic_sorter: true
+        override_file_sorter: true
+  
+  # Additional keymaps
+  keymaps:
+    - key: "<leader>fb"
+      mode: ["n", "v"]
+      action: "<cmd>Telescope buffers<cr>"
+      desc: "Find buffers"
+    - key: "<leader>fh"
+      mode: "n"
+      action: "<cmd>Telescope help_tags<cr>"
+      desc: "Find help"
+```
+
+### 3. App
 
 Represents a codebase/application within a domain. App configuration focuses on **what the code needs to build and run**.
 
@@ -60,6 +193,11 @@ spec:
     name: go          # go, python, node, rust, java, etc.
     version: "1.22"   # Language version
   
+  # Repository information (NEW in v0.12.0)
+  repo:
+    url: "https://github.com/user/my-api"
+    branch: "main"
+    
   # Build configuration (how to build the app)
   build:
     dockerfile: ./Dockerfile      # Path to Dockerfile (if exists)
@@ -99,6 +237,9 @@ spec:
     DATABASE_URL: postgres://localhost:5432/myapp
     REDIS_URL: redis://localhost:6379
     LOG_LEVEL: debug
+    
+  # Theme configuration (NEW in v0.12.0) - inherits to workspaces
+  theme: coolnight-synthwave      # Optional: theme name
   
   # Associated workspaces
   workspaces:
@@ -106,7 +247,7 @@ spec:
     - debug
 ```
 
-### 2. Workspace
+### 4. Workspace
 
 Represents a development environment for an app. Workspace configuration focuses on **developer experience**.
 
@@ -168,9 +309,10 @@ spec:
     configPath: ~/.tmux.conf      # Mount this config
     autostart: true               # Start on attach
       
-  # Neovim configuration
+  # Neovim configuration (ENHANCED in v0.12.0)
   nvim:
     structure: lazyvim            # lazyvim, custom, nvchad, astronvim, none
+    theme: coolnight-synthwave    # Override app/domain/ecosystem theme
     plugins:
       - neovim/nvim-lspconfig
       - nvim-treesitter/nvim-treesitter
@@ -418,44 +560,93 @@ spec:
 
 ## Usage Examples
 
-### Export workspace to YAML
+### Export resources to YAML
 
 ```bash
+# Export theme
+dvm get nvim theme coolnight-synthwave -o yaml > my-theme.yaml
+
+# Export plugin
+dvm get nvim plugin telescope -o yaml > telescope-plugin.yaml
+
+# Export workspace
 dvm get workspace main -o yaml > workspace.yaml
+
+# Export app  
+dvm get app my-api -o yaml > my-api.yaml
 ```
 
-### Import workspace from YAML
+### Import resources from YAML
 
 ```bash
+# Apply theme
+dvm apply -f my-theme.yaml
+
+# Apply plugin
+dvm apply -f telescope-plugin.yaml
+
+# Apply workspace
 dvm apply -f workspace.yaml
+
+# Apply from remote sources
+dvm apply -f https://themes.example.com/coolnight-variants.yaml
+dvm apply -f github:user/nvim-configs/plugins/telescope.yaml
 ```
 
-### Create app from YAML
+### Create comprehensive configurations
 
 ```bash
-cat > app.yaml <<EOF
+# Multi-document YAML file
+cat > full-config.yaml <<EOF
+---
 apiVersion: devopsmaestro.io/v1
-kind: App
+kind: NvimTheme
 metadata:
-  name: my-new-api
-  domain: backend
+  name: my-custom-theme
 spec:
-  path: /Users/dev/projects/my-new-api
-  language:
-    name: go
-    version: "1.22"
+  plugin:
+    repo: "user/my-theme.nvim"
+  colors:
+    bg: "#1a1b26"
+    fg: "#c0caf5"
+---
+apiVersion: devopsmaestro.io/v1  
+kind: NvimPlugin
+metadata:
+  name: my-telescope
+spec:
+  repo: "nvim-telescope/telescope.nvim"
+  config: |
+    require('telescope').setup({})
+---
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: dev-environment
+spec:
+  nvim:
+    theme: my-custom-theme
+    plugins: ["my-telescope"]
 EOF
 
-dvm apply -f app.yaml
+dvm apply -f full-config.yaml
 ```
 
-### Backup entire configuration
+### Theme IaC Examples
 
 ```bash
-dvm admin backup --output backup.yaml
-```
+# Apply CoolNight theme variant
+dvm apply -f https://library.devopsmaestro.io/themes/coolnight-synthwave.yaml
 
-This creates a multi-document YAML file with all ecosystems, domains, apps, and workspaces.
+# Apply custom team theme
+dvm apply -f github:myteam/themes/company-theme.yaml
+
+# Set theme at different hierarchy levels
+dvm set theme company-theme --ecosystem production
+dvm set theme coolnight-ocean --domain backend  
+dvm set theme gruvbox-dark --app my-api
+dvm set theme "" --workspace dev  # Clear, inherit from app
+```
 
 ---
 
@@ -463,10 +654,127 @@ This creates a multi-document YAML file with all ecosystems, domains, apps, and 
 
 DevOpsMaestro validates YAML against the schema on import:
 
+**General validation:**
 - Required fields (`apiVersion`, `kind`, `metadata.name`)
+- Valid resource kinds (`NvimTheme`, `NvimPlugin`, `App`, `Workspace`)
+- API version compatibility
+
+**NvimTheme validation:**
+- Valid GitHub repository format for `spec.plugin.repo`
+- Color values in hex format (`#rrggbb`)
+- Category enum values (`dark`, `light`, `monochrome`)
+
+**NvimPlugin validation:**
+- Valid repository format
+- Lua syntax validation for `config` and `init` fields
+- Keymap structure validation
+- Dependency format validation
+
+**Workspace/App validation:**
+- Path existence checks for local resources
 - Valid enum values (shell.type, nvim.structure, terminal.type)
-- Path existence checks
-- Image name format
+- Image name format validation
+- Theme name existence (against library + user themes)
+
+**Example validation errors:**
+
+```bash
+$ dvm apply -f invalid-theme.yaml
+Error: validation failed for NvimTheme/my-theme:
+  - spec.plugin.repo: must be a valid GitHub repository (format: owner/repo)
+  - spec.colors.bg: must be a valid hex color (format: #rrggbb)
+  - metadata.category: must be one of: dark, light, monochrome
+```
+
+---
+
+## Theme Cascade System (v0.12.0)
+
+DevOpsMaestro now supports hierarchical theme inheritance:
+
+```
+Ecosystem → Domain → App → Workspace
+   (org)    (context) (code)  (dev env)
+```
+
+### Theme Resolution Order
+
+1. **Workspace theme** - Highest priority, overrides everything
+2. **App theme** - Applies to all workspaces unless overridden  
+3. **Domain theme** - Applies to all apps/workspaces unless overridden
+4. **Ecosystem theme** - Global theme for organization
+5. **System default** - `coolnight-ocean` (fallback)
+
+### Theme Configuration Examples
+
+```yaml
+# Set ecosystem-wide theme
+apiVersion: devopsmaestro.io/v1
+kind: Ecosystem  
+metadata:
+  name: my-platform
+spec:
+  theme: catppuccin-mocha  # All apps inherit this
+
+---
+# Override for specific domain
+apiVersion: devopsmaestro.io/v1
+kind: Domain
+metadata:
+  name: backend
+  ecosystem: my-platform
+spec:
+  theme: gruvbox-dark  # Backend apps use gruvbox
+
+---
+# Override for specific app
+apiVersion: devopsmaestro.io/v1
+kind: App
+metadata:
+  name: my-api
+  domain: backend
+spec:
+  theme: tokyonight-night  # This app uses tokyonight
+
+---
+# Override for specific workspace
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: dev
+  app: my-api
+spec:
+  nvim:
+    theme: coolnight-synthwave  # Dev workspace uses coolnight
+```
+
+### Built-in Theme Library (v0.12.0)
+
+DevOpsMaestro includes 34+ themes that are instantly available:
+
+**CoolNight Variants (21 themes):**
+- `coolnight-ocean` (default)
+- `coolnight-arctic`, `coolnight-midnight`
+- `coolnight-synthwave`, `coolnight-violet`, `coolnight-grape`
+- `coolnight-matrix`, `coolnight-forest`, `coolnight-mint`
+- `coolnight-sunset`, `coolnight-ember`, `coolnight-gold`
+- `coolnight-rose`, `coolnight-crimson`, `coolnight-sakura`
+- `coolnight-charcoal`, `coolnight-slate`, `coolnight-warm`
+- `coolnight-nord`, `coolnight-dracula`, `coolnight-solarized`
+
+**Popular Themes:**
+- `tokyonight-night`, `tokyonight-storm`, `tokyonight-day`
+- `catppuccin-mocha`, `catppuccin-macchiato`, `catppuccin-frappe`
+- `gruvbox-dark`, `gruvbox-light`
+- `nord`, `dracula`, `onedark`
+
+All library themes work immediately without installation:
+
+```bash
+dvm set theme coolnight-synthwave --workspace dev
+dvm set theme tokyonight-storm --app my-api
+dvm get nvim themes  # See all 34+ available themes
+```
 
 ---
 
@@ -475,15 +783,53 @@ DevOpsMaestro validates YAML against the schema on import:
 The `dvm get` command can export any resource to YAML format:
 
 ```bash
+# Export themes
+dvm get nvim theme coolnight-ocean -o yaml
+dvm get nvim themes -o yaml  # All themes
+
+# Export plugins  
+dvm get nvim plugin telescope -o yaml
+dvm get nvim plugins -o yaml  # All plugins
+
 # Export single workspace
 dvm get workspace main -o yaml
 
 # Export all workspaces in an app
-dvm get workspaces -o yaml
+dvm get workspaces --app my-api -o yaml
 
-# Export entire app with all workspaces
-dvm get app my-api --include-workspaces -o yaml
+# Export app with metadata
+dvm get app my-api -o yaml
 
-# Export everything (multi-document YAML)
+# Export domain structure
+dvm get domains --ecosystem my-platform -o yaml
+
+# Export entire ecosystem
+dvm get ecosystem my-platform -o yaml
+
+# Backup everything (multi-document YAML)
 dvm admin backup -o yaml
+```
+
+### Complete Backup Example
+
+```bash
+# Create comprehensive backup
+dvm admin backup -o yaml > devopsmaestro-backup-$(date +%Y%m%d).yaml
+
+# The backup includes:
+# - All ecosystems, domains, apps, workspaces
+# - All custom themes and plugins
+# - Theme assignments at all hierarchy levels
+# - Complete configuration state
+```
+
+### Restore Example
+
+```bash
+# Restore from backup
+dvm apply -f devopsmaestro-backup-20260219.yaml
+
+# Selectively restore themes
+grep -A 20 "kind: NvimTheme" backup.yaml > themes-only.yaml
+dvm apply -f themes-only.yaml
 ```

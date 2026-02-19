@@ -1,6 +1,6 @@
 # nvp Commands Reference
 
-Complete reference for all `nvp` commands.
+Complete reference for all `nvp` commands in v0.12.0.
 
 ---
 
@@ -30,50 +30,17 @@ Creates `~/.nvp/` directory structure.
 
 ## Plugin Library
 
-### `nvp library list`
+### `nvp plugin list`
 
-List available plugins in the library.
-
-```bash
-nvp library list
-```
-
-### `nvp library get`
-
-Show details of a library plugin.
+List available plugins and packages.
 
 ```bash
-nvp library get <name>
+nvp plugin list
 ```
-
-**Example:**
-
-```bash
-nvp library get telescope
-```
-
-### `nvp library install`
-
-Install plugin(s) from library.
-
-```bash
-nvp library install <name> [name...]
-```
-
-**Examples:**
-
-```bash
-nvp library install telescope
-nvp library install telescope treesitter lspconfig
-```
-
----
-
-## Plugin Management
 
 ### `nvp apply`
 
-Apply plugin from file, URL, or stdin.
+Apply plugin or package from various sources.
 
 ```bash
 nvp apply -f <source>
@@ -83,34 +50,45 @@ nvp apply -f <source>
 
 | Type | Example |
 |------|---------|
-| File | `-f plugin.yaml` |
-| URL | `-f https://example.com/plugin.yaml` |
-| GitHub | `-f github:user/repo/plugin.yaml` |
-| Stdin | `-f -` |
+| Package | `package:rkohlman-full` |
+| Plugin | `plugin:telescope` |
+| File | `plugin.yaml` |
+| URL | `https://example.com/plugin.yaml` |
+| GitHub | `github:user/repo/plugin.yaml` |
+| Stdin | `-` |
 
 **Examples:**
 
 ```bash
+# Install complete plugin package
+nvp apply -f package:rkohlman-full
+
+# Install individual plugin
+nvp apply -f plugin:telescope
+
+# Install from file/URL
 nvp apply -f my-plugin.yaml
 nvp apply -f https://example.com/plugin.yaml
 nvp apply -f github:rmkohlman/nvim-yaml-plugins/plugins/telescope.yaml
 cat plugin.yaml | nvp apply -f -
 ```
 
-### `nvp list`
+## Plugin Management
+
+### `nvp plugin list`
 
 List installed plugins.
 
 ```bash
-nvp list
+nvp plugin list
 ```
 
-### `nvp get`
+### `nvp plugin get`
 
 Get details of an installed plugin.
 
 ```bash
-nvp get <name> [flags]
+nvp plugin get <name> [flags]
 ```
 
 **Flags:**
@@ -122,86 +100,87 @@ nvp get <name> [flags]
 **Examples:**
 
 ```bash
-nvp get telescope
-nvp get telescope -o yaml
+nvp plugin get telescope
+nvp plugin get telescope -o yaml
 ```
 
-### `nvp delete`
+### `nvp plugin delete`
 
 Delete an installed plugin.
 
 ```bash
-nvp delete <name>
+nvp plugin delete <name>
 ```
 
 **Example:**
 
 ```bash
-nvp delete telescope
+nvp plugin delete telescope
 ```
 
 ---
 
 ## Theme Library
 
-### `nvp theme library list`
+### `nvp theme list`
 
-List available themes.
-
-```bash
-nvp theme library list
-```
-
-### `nvp theme library show`
-
-Show theme details.
+List all available themes (library + user).
 
 ```bash
-nvp theme library show <name>
+nvp theme list
 ```
 
-### `nvp theme library install`
+### `nvp theme create`
 
-Install theme from library.
+Create a custom CoolNight theme variant using the parametric generator.
 
 ```bash
-nvp theme library install <name> [flags]
+nvp theme create --hue <degrees> --name <name>
 ```
-
-**Flags:**
-
-| Flag | Description |
-|------|-------------|
-| `--use` | Set as active theme after install |
 
 **Examples:**
 
 ```bash
-nvp theme library install tokyonight-custom
-nvp theme library install catppuccin-mocha --use
+nvp theme create --hue 210 --name my-blue-theme
+nvp theme create --hue 280 --name synthwave-purple
+nvp theme create --hue 120 --name matrix-green
+```
+
+### `nvp theme use`
+
+Set active theme.
+
+```bash
+nvp theme use <name>
+```
+
+**Example:**
+
+```bash
+nvp theme use coolnight-ocean
 ```
 
 ---
 
 ## Theme Management
 
-### `nvp theme apply`
+### `nvp apply`
 
 Apply theme from file.
 
 ```bash
-nvp theme apply -f <file>
+nvp apply -f <file>
 ```
 
 **Example:**
 
 ```bash
-nvp theme apply -f my-theme.yaml
+nvp apply -f my-theme.yaml
 ```
 
 ### `nvp theme list`
 
-List installed themes.
+List all available themes (library + user).
 
 ```bash
 nvp theme list
@@ -221,7 +200,7 @@ If no name provided, shows active theme.
 
 ```bash
 nvp theme get
-nvp theme get tokyonight-custom
+nvp theme get coolnight-ocean
 nvp theme get -o yaml
 ```
 
@@ -236,7 +215,7 @@ nvp theme use <name>
 **Example:**
 
 ```bash
-nvp theme use catppuccin-mocha
+nvp theme use coolnight-ocean
 ```
 
 ### `nvp theme delete`
@@ -323,18 +302,32 @@ nvp version
 
 ## Common Workflows
 
-### Install and Generate
+### Install Complete Setup
 
 ```bash
-nvp library install telescope treesitter lspconfig
-nvp theme library install tokyonight-custom --use
+# Install complete plugin package
+nvp apply -f package:rkohlman-full
+
+# Set theme
+nvp theme use coolnight-ocean
+
+# Generate Lua files
 nvp generate
 ```
 
-### Update a Plugin
+### Install Individual Plugins
 
 ```bash
-nvp apply -f github:rmkohlman/nvim-yaml-plugins/plugins/telescope.yaml
+nvp apply -f plugin:telescope
+nvp apply -f plugin:treesitter
+nvp generate
+```
+
+### Create Custom Theme
+
+```bash
+nvp theme create --hue 280 --name my-synthwave
+nvp theme use my-synthwave
 nvp generate
 ```
 

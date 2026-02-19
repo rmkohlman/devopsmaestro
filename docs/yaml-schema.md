@@ -1,5 +1,15 @@
 # DevOpsMaestro YAML Schema Documentation
 
+!!! warning "Deprecated Documentation Location"
+    
+    **This file has been moved to the proper location.**
+    
+    **New location:** [Configuration/YAML Schema](configuration/yaml-schema.md)
+    
+    This file is kept for backward compatibility but may be outdated. Please use the configuration version which contains the most up-to-date schema documentation including NvimTheme, NvimPlugin resources, and the complete theme cascade system.
+
+---
+
 ## Overview
 
 DevOpsMaestro uses YAML for configuration import/export, following Kubernetes-style patterns with `apiVersion`, `kind`, and `metadata`/`spec` structure.

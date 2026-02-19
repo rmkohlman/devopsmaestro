@@ -9,8 +9,8 @@
 nvp lets you:
 
 - **Define plugins in YAML** instead of Lua
-- **Use a curated library** of 16+ pre-configured plugins
-- **Manage themes** with exported color palettes
+- **Use a curated library** of 38+ pre-configured plugins
+- **Manage themes** with 34+ embedded themes and parametric generator
 - **Generate Lua files** for lazy.nvim
 
 ---
@@ -18,8 +18,8 @@ nvp lets you:
 ## Key Features
 
 - :material-file-code: **YAML-based** - Write plugins in familiar YAML format
-- :material-library: **Built-in library** - Telescope, Treesitter, LSP, and more
-- :material-palette: **Theme system** - 8 themes with palette export
+- :material-library: **Built-in library** - 38+ curated plugins and plugin packages
+- :material-palette: **Theme system** - 34+ themes with parametric generator
 - :material-link: **URL support** - Install from GitHub
 - :material-package-variant: **Standalone** - No containers required
 
@@ -32,11 +32,12 @@ nvp lets you:
 nvp init
 
 # Install plugins from library
-nvp library list
-nvp library install telescope treesitter lspconfig
+nvp plugin list
+nvp apply -f package:rkohlman-full
 
-# Install a theme
-nvp theme library install tokyonight-custom --use
+# List and use themes
+nvp theme list
+nvp theme create --hue 210 --name my-blue-theme
 
 # Generate Lua files
 nvp generate
@@ -64,7 +65,15 @@ Files are created in `~/.config/nvim/lua/plugins/nvp/`.
 
 ## Plugin Library
 
-nvp includes 16+ curated plugins:
+nvp includes 38+ curated plugins with plugin package system:
+
+### Plugin Packages
+
+| Package | Plugins | Description |
+|---------|---------|-------------|
+| `rkohlman-full` | 39 plugins | Complete development environment |
+
+### Core Plugins
 
 | Plugin | Category | Description |
 |--------|----------|-------------|
@@ -78,35 +87,60 @@ nvp includes 16+ curated plugins:
 | which-key | ui | Keybinding hints |
 | neo-tree | file-explorer | File tree |
 | toggleterm | terminal | Terminal management |
-| and more... | | |
+| and 28+ more... | | |
 
 See full list:
 
 ```bash
-nvp library list
+nvp plugin list
 ```
 
 ---
 
 ## Theme Library
 
-8 pre-built themes:
+34+ embedded themes with parametric generator:
+
+### CoolNight Variants (21 themes)
+
+| Theme | Hue | Description |
+|-------|-----|-------------|
+| coolnight-ocean | 210° | Deep blue (default) |
+| coolnight-synthwave | 280° | Neon purple |
+| coolnight-matrix | 120° | Matrix green |
+| coolnight-sunset | 30° | Warm orange |
+| coolnight-rose | 350° | Pink/rose |
+| coolnight-nord | Nord | Arctic bluish |
+| coolnight-dracula | Dracula | Purple variant |
+| and 14 more... | | |
+
+### Popular Themes (13+ others)
 
 | Theme | Style | Description |
 |-------|-------|-------------|
-| tokyonight-custom | dark | Custom deep blue variant |
 | tokyonight-night | dark | Standard Tokyo Night |
+| tokyonight-storm | dark | Stormy blue variant |
+| tokyonight-day | light | Light Tokyo Night |
 | catppuccin-mocha | dark | Soothing pastel |
 | catppuccin-latte | light | Warm light pastel |
 | gruvbox-dark | dark | Retro warm |
 | nord | dark | Arctic bluish |
-| rose-pine | dark | Natural pine |
-| kanagawa | dark | Japanese painting inspired |
+| dracula | dark | Purple theme |
+| and more... | | |
+
+### Parametric Generator
+
+Create custom CoolNight variants:
+
+```bash
+nvp theme create --hue 210 --name my-blue-theme
+nvp theme create --hue 350 --name my-rose-theme
+```
 
 See full list:
 
 ```bash
-nvp theme library list
+nvp theme list
 ```
 
 ---

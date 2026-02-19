@@ -5,7 +5,7 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/rmkohlman/devopsmaestro)](https://golang.org/)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 
-**kubectl-style CLI toolkit for containerized development environments.**
+**kubectl-style CLI toolkit for containerized development environments with hierarchical theme management.**
 
 DevOpsMaestro provides two tools:
 
@@ -43,7 +43,7 @@ brew install devopsmaestro
 brew install nvimops
 
 # Verify installation
-dvm version   # Should show v0.7.1
+dvm version   # Should show v0.12.0
 nvp version
 ```
 
@@ -127,15 +127,19 @@ nvp completion fish > ~/.config/fish/completions/nvp.fish
 nvp init
 
 # Browse and install plugins from library
-nvp library list
+nvp library list                    # 38+ curated plugins available
 nvp library install telescope treesitter lspconfig
 
 # Install a theme
-nvp theme library list
+nvp theme library list              # 34+ themes including 21 CoolNight variants
 nvp theme library install tokyonight-custom --use
 
 # Or use library themes directly (no installation needed)
-dvm get nvim theme coolnight-ocean    # Works out of the box
+dvm get nvim theme coolnight-ocean  # Works out of the box
+
+# Set hierarchical themes
+dvm set theme coolnight-ocean --workspace dev    # Set at workspace level
+dvm set theme coolnight-synthwave --app myapp    # Set at app level
 
 # Generate Lua files for Neovim
 nvp generate
@@ -239,16 +243,22 @@ dvm status           # Full status overview
 ### dvm - Workspace Management
 
 - **kubectl-style commands** - Familiar `get`, `create`, `delete`, `apply` patterns
+- **Object hierarchy** - Ecosystem → Domain → App → Workspace for organized development
 - **Multi-platform** - OrbStack, Docker Desktop, Podman, Colima
 - **Container-native** - Isolated dev environments with Neovim pre-configured
 - **Database-backed** - SQLite storage for apps, workspaces, plugins
 - **YAML configuration** - Declarative workspace definitions
+- **Hierarchical theme system** - Themes cascade through the object hierarchy
 
 ### nvp - Neovim Plugin Manager
 
 - **YAML-based plugins** - Define plugins in YAML, generate Lua
-- **Built-in library** - 16+ curated plugins ready to install
+- **Built-in library** - 38+ curated plugins ready to install
 - **Theme system** - 34+ embedded themes available instantly (no installation needed)
+  - **21 CoolNight variants** - blue, purple, green, warm, red/pink, monochrome, special
+  - **13+ additional themes** - Catppuccin, Dracula, Everforest, Gruvbox, and more
+- **Theme hierarchy** - Themes cascade Workspace → App → Domain → Ecosystem → Global
+- **kubectl-style IaC** - `dvm apply -f theme.yaml`, URL support, GitHub shorthand
 - **Theme override** - User themes override library themes with same name
 - **URL support** - Install from GitHub repositories
 - **Standalone** - Works without containers
@@ -308,6 +318,18 @@ dvm use workspace <name>      # Set active workspace
 # Context
 dvm get context               # Show active ecosystem/domain/app/workspace
 
+# Theme Management (v0.12.0+)
+dvm get nvim themes           # List all 34+ available themes
+dvm get nvim theme <name>     # Show theme details
+dvm get nvim theme <name> -o yaml  # Export theme as YAML
+dvm set theme <name>          # Set theme for current workspace
+dvm set theme <name> --app    # Set theme for current app
+dvm set theme <name> --domain # Set theme for current domain
+dvm set theme <name> --ecosystem # Set theme for current ecosystem
+dvm apply -f theme.yaml       # Apply theme from file
+dvm apply -f https://example.com/theme.yaml  # Apply from URL
+dvm apply -f github:user/repo/theme.yaml     # Apply from GitHub
+
 # Build & Runtime
 dvm build                     # Build workspace container
 dvm attach                    # Attach to workspace
@@ -322,7 +344,7 @@ dvm get platforms             # List detected container platforms
 
 ```bash
 # Plugins
-nvp library list              # List available plugins
+nvp library list              # List available plugins (38+ curated plugins)
 nvp library install <name>    # Install from library
 nvp apply -f plugin.yaml      # Apply plugin from file
 nvp apply -f https://example.com/plugin.yaml  # Apply from URL (auto-detected)
@@ -330,14 +352,37 @@ nvp apply -f github:user/repo/plugin.yaml     # GitHub shorthand
 nvp apply -f -                # Apply from stdin
 
 # Themes
-nvp theme library list        # List available themes
+nvp theme library list        # List available themes (34+ themes)
 nvp theme library show <name> # View theme details  
 nvp theme library install <name> --use
 nvp theme apply -f theme.yaml # Apply theme from file
 
 # Note: Library themes are automatically available, no installation needed
-dvm get nvim themes           # Shows user + library themes
+dvm get nvim themes           # Shows user + library themes (34+ total)
 dvm get nvim theme <name>     # Works with any library theme
+
+# CoolNight Theme Variants (21 variants available)
+dvm get nvim theme coolnight-ocean      # Blue: default ocean theme
+dvm get nvim theme coolnight-arctic     # Blue: ice-cold variant
+dvm get nvim theme coolnight-midnight   # Blue: deep night variant
+dvm get nvim theme coolnight-synthwave  # Purple: cyberpunk aesthetic
+dvm get nvim theme coolnight-violet     # Purple: soft violet
+dvm get nvim theme coolnight-grape      # Purple: rich grape
+dvm get nvim theme coolnight-matrix     # Green: Matrix-inspired
+dvm get nvim theme coolnight-forest     # Green: forest theme
+dvm get nvim theme coolnight-mint       # Green: fresh mint
+dvm get nvim theme coolnight-sunset     # Warm: golden sunset
+dvm get nvim theme coolnight-ember      # Warm: burning ember
+dvm get nvim theme coolnight-gold       # Warm: golden theme
+dvm get nvim theme coolnight-rose       # Red/Pink: soft rose
+dvm get nvim theme coolnight-crimson    # Red/Pink: bold crimson
+dvm get nvim theme coolnight-sakura     # Red/Pink: cherry blossom
+dvm get nvim theme coolnight-mono-charcoal  # Monochrome: dark charcoal
+dvm get nvim theme coolnight-mono-slate     # Monochrome: blue-gray
+dvm get nvim theme coolnight-mono-warm      # Monochrome: warm gray
+dvm get nvim theme coolnight-nord       # Special: Nord-inspired
+dvm get nvim theme coolnight-dracula    # Special: Dracula-inspired
+dvm get nvim theme coolnight-solarized  # Special: Solarized-inspired
 
 # Generate
 nvp generate                  # Generate Lua files

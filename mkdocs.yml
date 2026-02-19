@@ -80,16 +80,21 @@ nav:
   - nvp (NvimOps):
     - Overview: nvp/overview.md
     - Plugins: nvp/plugins.md
+    - Plugin Packages: nvp/packages.md
     - Themes: nvp/themes.md
+    - CoolNight Collection: nvp/coolnight.md
     - Commands Reference: nvp/commands.md
   - Configuration:
     - YAML Schema: configuration/yaml-schema.md
     - Plugin System: configuration/plugin-system.md
     - Shell Completion: configuration/shell-completion.md
+    - WezTerm Integration: configuration/wezterm.md
   - Vision & Roadmap:
     - Architecture Vision: vision/architecture.md
   - Advanced:
     - Current Architecture: advanced/architecture.md
+    - Theme Hierarchy: advanced/theme-hierarchy.md
+    - Theme Infrastructure as Code: advanced/theme-iac.md
     - Source Types: advanced/source-types.md
     - Private Repos: advanced/private-repos.md
   - Development:

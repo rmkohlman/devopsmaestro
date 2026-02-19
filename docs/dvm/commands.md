@@ -43,11 +43,61 @@ dvm init
 
 Creates `~/.devopsmaestro/devopsmaestro.db`.
 
----
+### `dvm delete ecosystem`
 
-## Ecosystems
+Delete an ecosystem and all its contents.
 
-An ecosystem is the top-level grouping in the hierarchy.
+```bash
+dvm delete ecosystem <name>
+```
+
+**Examples:**
+
+```bash
+dvm delete ecosystem my-platform
+```
+
+### `dvm delete domain`
+
+Delete a domain and all its apps/workspaces.
+
+```bash
+dvm delete domain <ecosystem>/<domain>
+```
+
+**Examples:**
+
+```bash
+dvm delete domain my-platform/backend
+```
+
+### `dvm delete app`
+
+Delete an app and all its workspaces.
+
+```bash
+dvm delete app <ecosystem>/<domain>/<app>
+```
+
+**Examples:**
+
+```bash
+dvm delete app my-platform/backend/my-api
+```
+
+### `dvm delete workspace`
+
+Delete a workspace.
+
+```bash
+dvm delete workspace <ecosystem>/<domain>/<app>/<workspace>
+```
+
+**Examples:**
+
+```bash
+dvm delete workspace my-platform/backend/my-api/dev
+```
 
 ### `dvm create ecosystem`
 
@@ -57,20 +107,87 @@ Create a new ecosystem.
 dvm create ecosystem <name> [flags]
 ```
 
-**Aliases:** `eco`
+**Examples:**
+
+```bash
+dvm create ecosystem my-platform
+dvm create ecosystem my-platform --description "Main development platform"
+
+# Full path format also supported
+dvm create ecosystem my-platform/backend/my-api/dev  # Creates full hierarchy
+```
+
+### `dvm create domain`
+
+Create a new domain within an ecosystem.
+
+```bash
+dvm create domain <ecosystem>/<domain> [flags]
+```
+
+**Examples:**
+
+```bash
+dvm create domain my-platform/backend
+dvm create domain my-platform/frontend --description "Frontend services"
+
+# Context-aware (if ecosystem is set)
+dvm use ecosystem my-platform
+dvm create domain backend  # Creates my-platform/backend
+```
+
+### `dvm create app`
+
+Create a new app within a domain.
+
+```bash
+dvm create app <ecosystem>/<domain>/<app> [flags]
+```
 
 **Flags:**
 
 | Flag | Description |
 |------|-------------|
-| `--description <text>` | Ecosystem description |
+| `--from-cwd` | Use current working directory as app path |
+| `--path <path>` | Specific path for the app |
+| `--repo <url>` | Git repository URL |
+| `--language <name>` | Programming language (go, python, node, etc.) |
+| `--description <text>` | App description |
 
 **Examples:**
 
 ```bash
-dvm create ecosystem my-platform
-dvm create eco my-platform                    # Short form
-dvm create ecosystem my-platform --description "Main development platform"
+# Full path format
+dvm create app my-platform/backend/my-api --from-cwd
+dvm create app my-platform/backend/my-api --path ~/code/my-api
+dvm create app my-platform/backend/my-api --repo https://github.com/user/my-api
+
+# Context-aware (if ecosystem and domain are set)
+dvm use ecosystem my-platform
+dvm use domain backend
+dvm create app my-api --from-cwd --language go
+```
+
+### `dvm create workspace`
+
+Create a new workspace for an app.
+
+```bash
+dvm create workspace <ecosystem>/<domain>/<app>/<workspace> [flags]
+```
+
+**Examples:**
+
+```bash
+# Full path format
+dvm create workspace my-platform/backend/my-api/dev
+dvm create workspace my-platform/backend/my-api/feature-x
+
+# Context-aware (if app is set)
+dvm use ecosystem my-platform
+dvm use domain backend  
+dvm use app my-api
+dvm create workspace dev --description "Development environment"
 ```
 
 ### `dvm get ecosystems`
@@ -81,108 +198,11 @@ List all ecosystems.
 dvm get ecosystems [flags]
 ```
 
-**Aliases:** `eco`
-
-**Flags:**
-
-| Flag | Description |
-|------|-------------|
-| `-o, --output <format>` | Output format: `json`, `yaml`, `plain`, `table` |
-
 **Examples:**
 
 ```bash
 dvm get ecosystems
-dvm get eco                    # Short form
-dvm get eco -o yaml
-```
-
-### `dvm get ecosystem`
-
-Get a specific ecosystem.
-
-```bash
-dvm get ecosystem <name> [flags]
-```
-
-**Aliases:** `eco`
-
-**Examples:**
-
-```bash
-dvm get ecosystem my-platform
-dvm get eco my-platform -o yaml
-```
-
-### `dvm delete ecosystem`
-
-Delete an ecosystem.
-
-```bash
-dvm delete ecosystem <name> [flags]
-```
-
-**Aliases:** `eco`
-
-> **Warning:** This will also delete all domains and apps within the ecosystem.
-
-**Examples:**
-
-```bash
-dvm delete ecosystem my-platform
-dvm delete eco my-platform      # Short form
-```
-
-### `dvm use ecosystem`
-
-Set the active ecosystem.
-
-```bash
-dvm use ecosystem <name>
-```
-
-**Aliases:** `eco`
-
-Use `none` as the name to clear the ecosystem context (also clears domain and app).
-
-**Examples:**
-
-```bash
-dvm use ecosystem my-platform
-dvm use eco my-platform         # Short form
-dvm use ecosystem none          # Clear ecosystem context
-```
-
----
-
-## Domains
-
-A domain represents a bounded context within an ecosystem, grouping related applications.
-
-### `dvm create domain`
-
-Create a new domain within an ecosystem.
-
-```bash
-dvm create domain <name> [flags]
-```
-
-**Aliases:** `dom`
-
-**Flags:**
-
-| Flag | Description |
-|------|-------------|
-| `--ecosystem <name>` | Ecosystem name (defaults to active ecosystem) |
-| `--description <text>` | Domain description |
-
-**Examples:**
-
-```bash
-dvm create domain backend
-dvm create dom backend                        # Short form
-dvm create domain backend --ecosystem my-platform
-dvm create domain backend --description "Backend services"
+dvm get ecosystems -o yaml
 ```
 
 ### `dvm get domains`
@@ -193,135 +213,18 @@ List domains in an ecosystem.
 dvm get domains [flags]
 ```
 
-**Aliases:** `dom`
-
 **Flags:**
 
 | Flag | Description |
 |------|-------------|
-| `-e, --ecosystem <name>` | Ecosystem name (defaults to active ecosystem) |
-| `--all` | List domains from all ecosystems |
+| `--ecosystem <name>` | Ecosystem name (required) |
 | `-o, --output <format>` | Output format: `json`, `yaml`, `plain`, `table` |
 
 **Examples:**
 
 ```bash
-dvm get domains                              # List in active ecosystem
-dvm get dom                                  # Short form
-dvm get domains --ecosystem my-platform      # List in specific ecosystem
-dvm get domains --all                        # List all domains
-dvm get dom -o yaml
-```
-
-### `dvm get domain`
-
-Get a specific domain.
-
-```bash
-dvm get domain <name> [flags]
-```
-
-**Aliases:** `dom`
-
-**Flags:**
-
-| Flag | Description |
-|------|-------------|
-| `-e, --ecosystem <name>` | Ecosystem name (defaults to active ecosystem) |
-
-**Examples:**
-
-```bash
-dvm get domain backend
-dvm get dom backend -o yaml
-dvm get domain backend --ecosystem my-platform
-```
-
-### `dvm delete domain`
-
-Delete a domain.
-
-```bash
-dvm delete domain <name> [flags]
-```
-
-**Aliases:** `dom`
-
-**Flags:**
-
-| Flag | Description |
-|------|-------------|
-| `-e, --ecosystem <name>` | Ecosystem name (defaults to active ecosystem) |
-
-> **Warning:** This will also delete all apps within the domain.
-
-**Examples:**
-
-```bash
-dvm delete domain backend
-dvm delete dom backend          # Short form
-dvm delete domain backend --ecosystem my-platform
-```
-
-### `dvm use domain`
-
-Set the active domain.
-
-```bash
-dvm use domain <name>
-```
-
-**Aliases:** `dom`
-
-Requires an active ecosystem to be set first. Use `none` as the name to clear the domain context (also clears app).
-
-**Examples:**
-
-```bash
-dvm use domain backend
-dvm use dom backend             # Short form
-dvm use domain none             # Clear domain context
-```
-
----
-
-## Apps
-
-An app represents a codebase/application within a domain.
-
-### `dvm create app`
-
-Create a new app within a domain.
-
-```bash
-dvm create app <name> [flags]
-```
-
-**Aliases:** `application`
-
-**Flags:**
-
-| Flag | Description |
-|------|-------------|
-| `--from-cwd` | Use current working directory as app path |
-| `--path <path>` | Specific path for the app |
-| `--domain <name>` | Domain name (defaults to active domain) |
-| `--description <text>` | App description |
-
-**Examples:**
-
-```bash
-# Create from current directory
-dvm create app my-api --from-cwd
-
-# Create with explicit path
-dvm create app my-api --path ~/Developer/my-api
-
-# Create in a specific domain
-dvm create app my-api --from-cwd --domain backend
-
-# Create with description
-dvm create app my-api --from-cwd --description "REST API service"
+dvm get domains --ecosystem my-platform
+dvm get domains --ecosystem my-platform -o yaml
 ```
 
 ### `dvm get apps`
@@ -332,218 +235,42 @@ List apps in a domain.
 dvm get apps [flags]
 ```
 
-**Aliases:** `app`, `application`, `applications`
-
 **Flags:**
 
 | Flag | Description |
 |------|-------------|
-| `-d, --domain <name>` | Domain name (defaults to active domain) |
-| `--all` | List apps from all domains |
+| `--domain <name>` | Domain name (required) |
 | `-o, --output <format>` | Output format: `json`, `yaml`, `plain`, `table` |
 
 **Examples:**
 
 ```bash
-dvm get apps                    # List in active domain
-dvm get apps --domain backend   # List in specific domain
-dvm get apps --all              # List all apps
-dvm get apps -o yaml
-```
-
-### `dvm get app`
-
-Get a specific app.
-
-```bash
-dvm get app <name> [flags]
-```
-
-**Aliases:** `application`
-
-**Flags:**
-
-| Flag | Description |
-|------|-------------|
-| `-d, --domain <name>` | Domain name (defaults to active domain) |
-
-**Examples:**
-
-```bash
-dvm get app my-api
-dvm get app my-api -o yaml
-dvm get app my-api --domain backend
-```
-
-### `dvm delete app`
-
-Delete an app.
-
-```bash
-dvm delete app <name> [flags]
-```
-
-**Aliases:** `application`
-
-**Flags:**
-
-| Flag | Description |
-|------|-------------|
-| `-d, --domain <name>` | Domain name (defaults to active domain) |
-
-**Examples:**
-
-```bash
-dvm delete app my-api
-dvm delete app my-api --domain backend
-```
-
-### `dvm use app`
-
-Set the active app.
-
-```bash
-dvm use app <name>
-```
-
-**Aliases:** `a`
-
-Use `none` as the name to clear the app context (also clears workspace).
-
-**Examples:**
-
-```bash
-dvm use app my-api
-dvm use a my-api               # Short form
-dvm use app none               # Clear app context
-```
-
----
-
-## Workspaces
-
-A workspace is an isolated development environment within an app.
-
-### `dvm create workspace`
-
-Create a new workspace.
-
-```bash
-dvm create workspace <name> [flags]
-```
-
-**Aliases:** `ws`
-
-**Flags:**
-
-| Flag | Description |
-|------|-------------|
-| `-a, --app <name>` | App name (defaults to active app) |
-| `--description <text>` | Workspace description |
-| `--image <name>` | Custom image name |
-
-**Examples:**
-
-```bash
-dvm create workspace dev
-dvm create ws dev                             # Short form
-dvm create ws dev -a my-api                   # Specific app
-dvm create ws staging --description "Staging environment"
+dvm get apps --domain backend
+dvm get apps --domain my-platform/backend  # Full path format
+dvm get apps --domain backend -o yaml
 ```
 
 ### `dvm get workspaces`
 
-List workspaces in an app.
+List workspaces for an app.
 
 ```bash
 dvm get workspaces [flags]
 ```
 
-**Aliases:** `ws`
-
 **Flags:**
 
 | Flag | Description |
 |------|-------------|
-| `-a, --app <name>` | App name (defaults to active app) |
+| `--app <name>` | App name (required) |
 | `-o, --output <format>` | Output format: `json`, `yaml`, `plain`, `table` |
 
 **Examples:**
 
 ```bash
-dvm get workspaces
-dvm get ws                      # Short form
-dvm get ws -a my-api
-dvm get ws -o yaml
-```
-
-### `dvm get workspace`
-
-Get a specific workspace.
-
-```bash
-dvm get workspace <name> [flags]
-```
-
-**Aliases:** `ws`
-
-**Flags:**
-
-| Flag | Description |
-|------|-------------|
-| `-a, --app <name>` | App name (defaults to active app) |
-
-**Examples:**
-
-```bash
-dvm get workspace dev
-dvm get ws dev -o yaml
-dvm get ws dev -a my-api
-```
-
-### `dvm delete workspace`
-
-Delete a workspace.
-
-```bash
-dvm delete workspace <name> [flags]
-```
-
-**Aliases:** `ws`
-
-**Flags:**
-
-| Flag | Description |
-|------|-------------|
-| `-a, --app <name>` | App name (defaults to active app) |
-| `-f, --force` | Skip confirmation prompt |
-
-**Examples:**
-
-```bash
-dvm delete workspace dev
-dvm delete ws dev --force
-dvm delete ws dev -a my-api
-```
-
-### `dvm use workspace`
-
-Set the active workspace.
-
-```bash
-dvm use workspace <name>
-```
-
-**Aliases:** `ws`
-
-Requires an active app to be set first. Use `none` as the name to clear the workspace context (keeps app).
-
-**Examples:**
-
-```bash
-dvm use workspace dev
-dvm use ws dev                  # Short form
-dvm use ws none                 # Clear workspace context
+dvm get workspaces --app my-api
+dvm get workspaces --app my-platform/backend/my-api  # Full path format
+dvm get workspaces --app my-api -o yaml
 ```
 
 ---
@@ -597,53 +324,53 @@ dvm use --clear
 Build workspace container image.
 
 ```bash
-dvm build [flags]
+dvm build [workspace-path] [flags]
 ```
-
-**Flags:**
-
-| Flag | Description |
-|------|-------------|
-| `--force` | Force rebuild even if image exists |
-| `--no-cache` | Build without using cache |
-| `--target <stage>` | Build target stage (default: `dev`) |
 
 **Examples:**
 
 ```bash
+# Build active workspace
 dvm build
-dvm build --force
-dvm build --no-cache
+
+# Build specific workspace
+dvm build my-platform/backend/my-api/dev
 ```
 
 ### `dvm attach`
 
-Attach to workspace container.
+Attach to workspace container (starts if not running).
 
 ```bash
-dvm attach [workspace] [flags]
+dvm attach [workspace-path] [flags]
 ```
 
 **Examples:**
 
 ```bash
-dvm attach        # Attach to active workspace
-dvm attach dev    # Attach to specific workspace
+# Attach to active workspace
+dvm attach
+
+# Attach to specific workspace
+dvm attach my-platform/backend/my-api/dev
 ```
 
-### `dvm detach`
+### `dvm enter`
 
-Stop and detach from workspace container.
+Enter workspace container (attach alias).
 
 ```bash
-dvm detach [workspace] [flags]
+dvm enter [workspace-path] [flags]
 ```
 
 **Examples:**
 
 ```bash
-dvm detach        # Detach from active workspace
-dvm detach dev    # Detach specific workspace
+# Enter active workspace
+dvm enter
+
+# Enter specific workspace  
+dvm enter my-platform/backend/my-api/dev
 ```
 
 ---
@@ -692,39 +419,120 @@ dvm get plat -o yaml
 
 ---
 
-## Configuration
+---
+
+## Configuration & IaC
 
 ### `dvm apply`
 
-Apply configuration from file.
+Apply configuration from file using Infrastructure as Code.
 
 ```bash
 dvm apply -f <file> [flags]
 ```
 
-**Flags:**
-
-| Flag | Description |
-|------|-------------|
-| `-f, --file <path>` | Path to YAML file (or URL, or `-` for stdin) |
-
 **Source types:**
 
-| Type | Example |
-|------|---------|
-| File | `-f workspace.yaml` |
-| URL | `-f https://example.com/config.yaml` |
-| GitHub | `-f github:user/repo/path.yaml` |
-| Stdin | `-f -` |
+| Type | Example | Description |
+|------|---------|-------------|
+| File | `-f workspace.yaml` | Local file |
+| URL | `-f https://example.com/config.yaml` | Remote HTTP/HTTPS |
+| GitHub | `-f github:user/repo/path.yaml` | GitHub repository |
+| Stdin | `-f -` | Standard input |
 
 **Examples:**
 
 ```bash
+# Apply local file
 dvm apply -f workspace.yaml
+dvm apply -f theme.yaml
+
+# Apply from URL
 dvm apply -f https://example.com/workspace.yaml
+
+# Apply from GitHub
 dvm apply -f github:rmkohlman/configs/workspace.yaml
+
+# Apply from stdin
 cat workspace.yaml | dvm apply -f -
+
+# Apply theme IaC
+dvm apply -f https://themes.devopsmaestro.io/coolnight-synthwave.yaml
+dvm apply -f github:user/themes/my-custom-theme.yaml
 ```
+
+**Resource Types Supported:**
+- `NvimTheme` - Custom theme definitions
+- `NvimPlugin` - Plugin configurations  
+- `Workspace` - Workspace configurations
+- `App` - Application definitions
+
+---
+
+## Themes (NEW in v0.12.0)
+
+### `dvm set theme`
+
+Set Neovim theme at any hierarchy level with cascading inheritance.
+
+```bash
+dvm set theme <theme-name> [flags]
+```
+
+**Hierarchy levels (one required):**
+
+| Flag | Description |
+|------|-------------|
+| `--workspace <name>` | Set theme at workspace level |
+| `--app <name>` | Set theme at app level |
+| `--domain <name>` | Set theme at domain level |
+| `--ecosystem <name>` | Set theme at ecosystem level |
+
+**Other flags:**
+
+| Flag | Description |
+|------|-------------|
+| `-o, --output <format>` | Output format: `json`, `yaml`, `plain`, `table`, `colored` |
+| `--dry-run` | Preview changes without applying |
+| `--show-cascade` | Show theme cascade effect |
+
+**Theme Cascade:**
+Themes inherit down the hierarchy unless overridden:
+```
+Ecosystem → Domain → App → Workspace
+```
+
+**Examples:**
+
+```bash
+# Set workspace theme (highest priority)
+dvm set theme coolnight-synthwave --workspace dev
+
+# Set app theme (applies to all workspaces in app unless overridden)
+dvm set theme tokyonight-night --app my-api
+
+# Set domain theme (applies to all apps/workspaces in domain)
+dvm set theme gruvbox-dark --domain backend
+
+# Set ecosystem theme (applies globally unless overridden)
+dvm set theme catppuccin-mocha --ecosystem my-platform
+
+# Clear theme to inherit from parent level
+dvm set theme "" --workspace dev
+
+# Preview changes
+dvm set theme coolnight-ocean --workspace dev --dry-run
+
+# Show cascade effect
+dvm set theme gruvbox-dark --app my-api --show-cascade
+```
+
+**Available Themes:**
+- **Library themes**: 34+ instantly available (coolnight-ocean, tokyonight-night, catppuccin-mocha, etc.)
+- **CoolNight variants**: 21 algorithmic variants (ocean, synthwave, matrix, sunset, etc.)
+- **User themes**: Custom themes via `dvm apply -f theme.yaml`
+
+Use `dvm get nvim themes` to see all available themes.
 
 ---
 
@@ -732,7 +540,7 @@ cat workspace.yaml | dvm apply -f -
 
 ### `dvm get nvim plugins`
 
-List nvim plugins.
+List nvim plugins from global library or workspace-specific.
 
 ```bash
 dvm get nvim plugins [flags]
@@ -744,7 +552,34 @@ dvm get nvim plugins [flags]
 
 | Flag | Description |
 |------|-------------|
+| `-w, --workspace <name>` | Filter by workspace |
+| `-a, --app <name>` | App for workspace |
 | `-o, --output <format>` | Output format: `json`, `yaml`, `plain`, `table` |
+
+**Examples:**
+
+```bash
+dvm get nvim plugins                  # List all global plugins
+dvm get nvim plugins -w dev           # List plugins for workspace 'dev'
+dvm get nvim plugins -a myapp -w dev  # Explicit app and workspace
+dvm get nvim plugins -o yaml          # Output as YAML
+```
+
+### `dvm get nvim plugin`
+
+Get a specific nvim plugin by name.
+
+```bash
+dvm get nvim plugin <name> [flags]
+```
+
+**Examples:**
+
+```bash
+dvm get nvim plugin telescope
+dvm get nvim plugin telescope -o yaml
+dvm get nvim plugin lspconfig -o json
+```
 
 ### `dvm get nvim themes`
 
@@ -756,17 +591,33 @@ dvm get nvim themes [flags]
 
 **Aliases:** `dvm get nt`
 
-**Examples:**
-```bash
-dvm get nvim themes                    # Shows user + library themes
-dvm get nvim theme coolnight-ocean     # Get specific library theme (no install needed)
-```
-
 **Flags:**
 
 | Flag | Description |
 |------|-------------|
 | `-o, --output <format>` | Output format: `json`, `yaml`, `plain`, `table` |
+
+**Examples:**
+
+```bash
+dvm get nvim themes                    # Shows user + library themes
+dvm get nvim themes -o yaml            # YAML format
+```
+
+### `dvm get nvim theme`
+
+Get a specific nvim theme by name.
+
+```bash
+dvm get nvim theme <name> [flags]
+```
+
+**Examples:**
+
+```bash
+dvm get nvim theme coolnight-ocean     # Get specific library theme
+dvm get nvim theme coolnight-ocean -o yaml  # Export as YAML for sharing
+```
 
 ### `dvm delete nvim plugin`
 
@@ -854,16 +705,26 @@ dvm version
 # 1. Initialize
 dvm init
 
-# 2. Set up hierarchy
+# 2. Set up hierarchy (new path-based approach)
 dvm create ecosystem my-platform
-dvm create domain backend
-dvm create app my-api --from-cwd
-dvm create workspace dev
+dvm create domain my-platform/backend
+dvm create app my-platform/backend/my-api --from-cwd
+dvm create workspace my-platform/backend/my-api/dev
 
-# 3. Build and attach
-dvm build && dvm attach
+# 3. Set theme at any level
+dvm set theme coolnight-synthwave --workspace my-platform/backend/my-api/dev
+# OR set at app level (affects all workspaces)
+dvm set theme tokyonight-night --app my-platform/backend/my-api
 
-# 4. Check status
+# 4. Build and attach
+dvm build my-platform/backend/my-api/dev
+dvm attach my-platform/backend/my-api/dev
+
+# 5. Apply IaC themes and configs
+dvm apply -f https://themes.example.com/custom-theme.yaml
+dvm apply -f workspace-config.yaml
+
+# 6. Check status
 dvm status
 dvm get context
 ```

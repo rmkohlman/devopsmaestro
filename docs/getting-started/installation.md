@@ -2,12 +2,15 @@
 
 ## Requirements
 
-- **Docker** (for dvm) - One of the following:
-    - [OrbStack](https://orbstack.dev/) (Recommended for macOS)
+- **Container Runtime** (for dvm workspaces) - One of the following:
+    - [OrbStack](https://orbstack.dev/) (⭐ Recommended for macOS)
     - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
     - [Podman](https://podman.io/)
     - [Colima](https://github.com/abiosoft/colima)
 - **Go 1.25+** (only if building from source)
+
+!!! note "NvimOps works without containers"
+    If you only want to use `nvp` (Neovim plugin manager), you don't need Docker. Install just `nvimops` via Homebrew.
 
 ---
 
@@ -26,8 +29,8 @@ brew install devopsmaestro
 brew install nvimops
 
 # Verify installation
-dvm version
-nvp version
+dvm version  # Should show v0.12.0+
+nvp version  # Should show v0.12.0+
 ```
 
 ---
@@ -59,14 +62,37 @@ nvp version
 
 Download pre-built binaries from the [Releases page](https://github.com/rmkohlman/devopsmaestro/releases):
 
-1. Download the archive for your platform (e.g., `devopsmaestro_0.7.1_darwin_arm64.tar.gz`)
-2. Extract the archive
-3. Move binaries to your PATH
+### macOS/Linux (Quick Install)
 
 ```bash
-# Example for macOS ARM64
-curl -LO https://github.com/rmkohlman/devopsmaestro/releases/latest/download/devopsmaestro_0.7.1_darwin_arm64.tar.gz
-tar xzf devopsmaestro_0.7.1_darwin_arm64.tar.gz
+# Download latest release (replace with actual version)
+curl -LO https://github.com/rmkohlman/devopsmaestro/releases/latest/download/devopsmaestro_0.12.0_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/').tar.gz
+
+# Extract and install
+tar xzf devopsmaestro_*.tar.gz
+sudo mv dvm nvp /usr/local/bin/
+
+# Clean up
+rm devopsmaestro_*.tar.gz
+
+# Verify
+dvm version
+nvp version
+```
+
+### Manual Download
+
+1. Go to [Releases page](https://github.com/rmkohlman/devopsmaestro/releases/latest)
+2. Download the archive for your platform:
+   - `devopsmaestro_0.12.0_darwin_amd64.tar.gz` (macOS Intel)
+   - `devopsmaestro_0.12.0_darwin_arm64.tar.gz` (macOS Apple Silicon)
+   - `devopsmaestro_0.12.0_linux_amd64.tar.gz` (Linux x64)
+   - `devopsmaestro_0.12.0_linux_arm64.tar.gz` (Linux ARM64)
+3. Extract and move binaries to your PATH
+
+```bash
+# Example for macOS Apple Silicon
+tar xzf devopsmaestro_0.12.0_darwin_arm64.tar.gz
 sudo mv dvm nvp /usr/local/bin/
 ```
 
@@ -110,15 +136,71 @@ After installation, verify everything is working:
 
 ```bash
 # Check versions
-dvm version
-nvp version
+dvm version  # Should show v0.12.0+
+nvp version  # Should show v0.12.0+
 
 # Check detected container platforms
 dvm get platforms
 
-# Initialize (creates database)
+# Expected output:
+# PLATFORM    STATUS    VERSION        CONTEXT
+# orbstack    ready     v1.5.1         orbstack-vm  
+# docker      ready     v25.0.3        default
+# colima      stopped   v0.6.8         colima
+
+# Initialize (creates database and config)
 dvm init
 nvp init
+```
+
+!!! success "Installation Complete!"
+    If all commands run without errors, you're ready to start using DevOpsMaestro!
+
+### Troubleshooting
+
+#### Container Platform Issues
+
+If `dvm get platforms` shows all platforms as "unavailable":
+
+```bash
+# Check if Docker/OrbStack is running
+docker ps
+# or
+orbctl status
+
+# Start your preferred platform
+# OrbStack: Open OrbStack app
+# Docker Desktop: Open Docker Desktop app  
+# Colima: colima start
+```
+
+#### Permission Issues (Linux/macOS)
+
+If you get permission errors:
+
+```bash
+# Option 1: Install to user directory
+mkdir -p ~/bin
+mv dvm nvp ~/bin/
+echo 'export PATH="$HOME/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+
+# Option 2: Use sudo for /usr/local/bin (shown above)
+sudo mv dvm nvp /usr/local/bin/
+```
+
+#### Binary Not Found
+
+If `dvm: command not found`:
+
+```bash
+# Check if binary is in PATH
+which dvm
+echo $PATH
+
+# Add to PATH if needed (replace with your install location)
+echo 'export PATH="/usr/local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
 ```
 
 ---

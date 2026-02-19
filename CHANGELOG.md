@@ -48,6 +48,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Production-ready** - Fully configured development environment
 - **Modular architecture** - Clean plugin organization and configuration
 
+#### Enhanced Documentation
+- **Comprehensive theme documentation** - New dedicated pages for advanced theme features
+- **CoolNight Collection guide** - Complete documentation for all 21 CoolNight variants with usage recommendations
+- **Plugin Packages documentation** - Detailed guide for using and creating plugin packages
+- **WezTerm Integration guide** - Step-by-step terminal configuration documentation
+- **Theme Infrastructure as Code guide** - Complete IaC workflow documentation with team sharing examples
+- **Hierarchical Theme System guide** - In-depth explanation of theme cascade and resolution
+
 ### 🔧 Enhanced
 
 #### Theme Management

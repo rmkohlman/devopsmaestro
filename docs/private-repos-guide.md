@@ -1,5 +1,15 @@
 # Private Repository Support Guide
 
+!!! warning "Deprecated Documentation Location"
+    
+    **This file has been moved to the proper location.**
+    
+    **New location:** [Advanced/Private Repos](advanced/private-repos.md)
+    
+    This file is kept for backward compatibility but may contain outdated terminology (e.g., "app" vs "project"). Please use the advanced version for the most current documentation.
+
+---
+
 DevOpsMaestro provides comprehensive support for building apps that depend on private repositories across all major programming languages.
 
 ## Supported Authentication Methods
