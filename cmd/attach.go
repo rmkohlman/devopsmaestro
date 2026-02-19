@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"context"
+	"devopsmaestro/config"
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/operators"
+	"devopsmaestro/pkg/nvimops/theme/library"
 	"devopsmaestro/pkg/resolver"
 	"devopsmaestro/render"
 	"fmt"
@@ -185,7 +187,36 @@ func runAttach(cmd *cobra.Command) error {
 	render.Progress("Attaching to workspace...")
 	slog.Info("attaching to container", "name", containerName)
 
-	if err := runtime.AttachToWorkspace(context.Background(), containerName); err != nil {
+	// Build base environment variables
+	envVars := map[string]string{
+		"TERM":          "xterm-256color",
+		"DVM_WORKSPACE": workspaceName,
+		"DVM_APP":       appName,
+	}
+
+	// Load theme colors and add to environment
+	themeName := getThemeName(workspace)
+	if themeName != "" {
+		if themeEnvVars, err := loadThemeEnvVars(themeName); err == nil {
+			// Merge theme env vars
+			for k, v := range themeEnvVars {
+				envVars[k] = v
+			}
+			slog.Info("loaded theme colors", "theme", themeName, "colors", len(themeEnvVars))
+		} else {
+			slog.Warn("failed to load theme colors", "theme", themeName, "error", err)
+		}
+	}
+
+	// Build AttachOptions with environment variables for proper terminal and workspace context
+	attachOpts := operators.AttachOptions{
+		WorkspaceID: containerName,
+		Env:         envVars,
+		Shell:       "/bin/zsh",
+		LoginShell:  true,
+	}
+
+	if err := runtime.AttachToWorkspace(context.Background(), attachOpts); err != nil {
 		return fmt.Errorf("failed to attach: %w", err)
 	}
 
@@ -210,6 +241,44 @@ func updateContextFromHierarchy(ds db.DataStore, wh *models.WorkspaceWithHierarc
 		return err
 	}
 	return nil
+}
+
+// getThemeName determines which theme to use for terminal colors.
+// Priority: workspace spec > DVM config > default
+func getThemeName(workspace *models.Workspace) string {
+	// TODO: In future, we could parse workspace YAML and get spec.nvim.theme
+	// For now, use DVM config theme
+	themeName := config.GetTheme()
+
+	// Convert UI theme names to library theme names if needed
+	// The config uses names like "tokyo-night" but library uses "tokyonight-night"
+	themeMapping := map[string]string{
+		"tokyo-night":   "tokyonight-night",
+		"gruvbox-dark":  "gruvbox-dark",
+		"gruvbox-light": "gruvbox-light",
+		// Most names match directly
+	}
+
+	if mapped, ok := themeMapping[themeName]; ok {
+		return mapped
+	}
+
+	// If "auto", default to a sensible theme
+	if themeName == "auto" || themeName == "" {
+		return "tokyonight-night"
+	}
+
+	return themeName
+}
+
+// loadThemeEnvVars loads a theme from the library and returns terminal color env vars.
+func loadThemeEnvVars(themeName string) (map[string]string, error) {
+	theme, err := library.Get(themeName)
+	if err != nil {
+		return nil, fmt.Errorf("theme %q not found in library: %w", themeName, err)
+	}
+
+	return theme.TerminalEnvVars(), nil
 }
 
 // Initializes the attach command

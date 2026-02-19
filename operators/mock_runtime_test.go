@@ -103,7 +103,7 @@ func TestMockContainerRuntime_AttachToWorkspace(t *testing.T) {
 	mock := NewMockContainerRuntime()
 	mock.SetWorkspaceStatus("test-ws", "running")
 
-	err := mock.AttachToWorkspace(context.Background(), "test-ws")
+	err := mock.AttachToWorkspace(context.Background(), AttachOptions{WorkspaceID: "test-ws"})
 	if err != nil {
 		t.Fatalf("AttachToWorkspace() error = %v", err)
 	}
@@ -117,7 +117,7 @@ func TestMockContainerRuntime_AttachToWorkspace_NotRunning(t *testing.T) {
 	mock := NewMockContainerRuntime()
 	mock.SetWorkspaceStatus("test-ws", "stopped")
 
-	err := mock.AttachToWorkspace(context.Background(), "test-ws")
+	err := mock.AttachToWorkspace(context.Background(), AttachOptions{WorkspaceID: "test-ws"})
 	if err == nil {
 		t.Error("AttachToWorkspace() expected error for stopped workspace")
 	}
@@ -126,7 +126,7 @@ func TestMockContainerRuntime_AttachToWorkspace_NotRunning(t *testing.T) {
 func TestMockContainerRuntime_AttachToWorkspace_NotFound(t *testing.T) {
 	mock := NewMockContainerRuntime()
 
-	err := mock.AttachToWorkspace(context.Background(), "nonexistent")
+	err := mock.AttachToWorkspace(context.Background(), AttachOptions{WorkspaceID: "nonexistent"})
 	if err == nil {
 		t.Error("AttachToWorkspace() expected error for nonexistent workspace")
 	}
@@ -294,7 +294,7 @@ func TestContainerRuntime_Interface_Mock(t *testing.T) {
 	}
 
 	// AttachToWorkspace
-	err = runtime.AttachToWorkspace(ctx, "my-workspace")
+	err = runtime.AttachToWorkspace(ctx, AttachOptions{WorkspaceID: "my-workspace"})
 	if err != nil {
 		t.Errorf("Interface.AttachToWorkspace() error = %v", err)
 	}
@@ -391,7 +391,7 @@ func TestMockContainerRuntime_ErrorInjection(t *testing.T) {
 				m.AttachToWorkspaceError = errors.New("tty allocation failed")
 			},
 			operation: func(m *MockContainerRuntime) error {
-				return m.AttachToWorkspace(context.Background(), "test")
+				return m.AttachToWorkspace(context.Background(), AttachOptions{WorkspaceID: "test"})
 			},
 			wantErr:     true,
 			errContains: "tty allocation failed",

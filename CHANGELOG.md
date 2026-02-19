@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.11.0] - 2026-02-19
+
+### 🚀 Added
+
+#### Terminal Theme Integration
+- **Terminal theme integration** - Theme colors are now passed to container shell sessions for consistent visual experience
+- **`AttachOptions` struct** - Enhanced container attach with environment variables, shell configuration, and login shell support
+- **`Theme` field in `NvimConfig`** - Workspace-level theme configuration support for future workspace-specific themes
+- **Terminal color environment variable generator** - New `pkg/nvimops/theme/terminal.go` converts theme colors to shell environment variables
+- **Enhanced environment variables on attach** - Containers now receive comprehensive context:
+  - `TERM=xterm-256color` - Proper terminal capabilities for backspace, autocomplete, and colors
+  - `DVM_WORKSPACE` - Current workspace name for shell prompt integration
+  - `DVM_APP` - Current app name for context awareness  
+  - `DVM_THEME` - Active theme name for terminal theme matching
+  - `DVM_COLOR_*` - Complete theme color palette as environment variables
+
+### 🐛 Fixed
+
+#### Terminal Experience
+- **Terminal issues in `dvm attach`** - Fixed backspace and autocomplete functionality by setting `TERM=xterm-256color`
+- **Container shell environment** - Shell sessions now have proper terminal capabilities and workspace context
+
+### 🔧 Enhanced
+
+#### Container Attachment
+- **All container runtimes updated** - Docker, Containerd, and Colima now support `AttachOptions` with environment variables
+- **Shell configuration** - Support for custom shell (`/bin/zsh` default) and login shell mode
+- **Theme color mapping** - Automatic mapping from DVM config theme names to library theme names
+
+### 📦 Files Changed
+
+```
+models/workspace.go                          # Added Theme field to NvimConfig
+pkg/nvimops/theme/terminal.go               # NEW: Terminal env var generator  
+pkg/nvimops/theme/terminal_test.go          # NEW: Terminal integration tests
+cmd/attach.go                               # Enhanced with theme loading and env vars
+operators/runtime_interface.go             # Added AttachOptions struct
+operators/containerd_runtime.go            # Updated AttachToWorkspace signature
+operators/containerd_runtime_v2.go         # Updated AttachToWorkspace with env support
+operators/docker_runtime.go                # Updated AttachToWorkspace with env support
+operators/mock_runtime.go                  # Updated for AttachOptions compatibility
+operators/mock_runtime_test.go             # Updated tests for new interface
+```
+
+---
+
 ## [0.10.0] - 2026-02-19
 
 ### 🚀 Added

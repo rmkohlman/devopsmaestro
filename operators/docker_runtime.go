@@ -231,19 +231,37 @@ func (d *DockerRuntime) StartWorkspace(ctx context.Context, opts StartOptions) (
 }
 
 // AttachToWorkspace attaches an interactive terminal to a running workspace
-func (d *DockerRuntime) AttachToWorkspace(ctx context.Context, workspaceID string) error {
+func (d *DockerRuntime) AttachToWorkspace(ctx context.Context, opts AttachOptions) error {
 	fmt.Printf("Attaching to workspace (press Ctrl+D to exit)...\n")
 
-	// Execute zsh in the container with interactive TTY
+	// Build shell command with options
+	shell := opts.Shell
+	if shell == "" {
+		shell = "/bin/zsh"
+	}
+
+	cmd := []string{shell}
+	if opts.LoginShell {
+		cmd = append(cmd, "-l")
+	}
+
+	// Build environment variables
+	var env []string
+	for key, value := range opts.Env {
+		env = append(env, fmt.Sprintf("%s=%s", key, value))
+	}
+
+	// Execute shell in the container with interactive TTY
 	execConfig := container.ExecOptions{
 		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,
 		Tty:          true,
-		Cmd:          []string{"/bin/zsh"},
+		Cmd:          cmd,
+		Env:          env,
 	}
 
-	execResp, err := d.client.ContainerExecCreate(ctx, workspaceID, execConfig)
+	execResp, err := d.client.ContainerExecCreate(ctx, opts.WorkspaceID, execConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create exec: %w", err)
 	}

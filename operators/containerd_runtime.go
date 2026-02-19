@@ -327,16 +327,16 @@ func (c *ContainerdRuntime) StartWorkspace(ctx context.Context, opts StartOption
 }
 
 // AttachToWorkspace attaches an interactive terminal to a running workspace
-func (c *ContainerdRuntime) AttachToWorkspace(ctx context.Context, workspaceID string) error {
+func (c *ContainerdRuntime) AttachToWorkspace(ctx context.Context, opts AttachOptions) error {
 	fmt.Printf("Attaching to workspace (press Ctrl+D to exit)...\n")
 
 	// Use namespace context
 	ctx = namespaces.WithNamespace(ctx, c.namespace)
 
 	// Load container
-	container, err := c.client.LoadContainer(ctx, workspaceID)
+	container, err := c.client.LoadContainer(ctx, opts.WorkspaceID)
 	if err != nil {
-		return fmt.Errorf("failed to load container '%s': %w", workspaceID, err)
+		return fmt.Errorf("failed to load container '%s': %w", opts.WorkspaceID, err)
 	}
 
 	// Get task
@@ -359,11 +359,28 @@ func (c *ContainerdRuntime) AttachToWorkspace(ctx context.Context, workspaceID s
 	}
 
 	// Create exec process
-	execID := fmt.Sprintf("%s-exec", workspaceID)
+	execID := fmt.Sprintf("%s-exec", opts.WorkspaceID)
+	// Build shell args
+	shell := opts.Shell
+	if shell == "" {
+		shell = "/bin/zsh"
+	}
+
+	shellArgs := []string{shell}
+	if opts.LoginShell {
+		shellArgs = append(shellArgs, "-l")
+	}
+
+	// Merge environment variables
+	env := spec.Process.Env
+	for key, value := range opts.Env {
+		env = append(env, fmt.Sprintf("%s=%s", key, value))
+	}
+
 	execSpec := &specs.Process{
-		Args:     []string{"/bin/zsh"},
+		Args:     shellArgs,
 		Cwd:      spec.Process.Cwd,
-		Env:      spec.Process.Env,
+		Env:      env,
 		Terminal: true,
 	}
 	if ws != nil {

@@ -105,13 +105,13 @@ func (m *MockContainerRuntime) StartWorkspace(ctx context.Context, opts StartOpt
 }
 
 // AttachToWorkspace simulates attaching to a workspace
-func (m *MockContainerRuntime) AttachToWorkspace(ctx context.Context, workspaceID string) error {
+func (m *MockContainerRuntime) AttachToWorkspace(ctx context.Context, opts AttachOptions) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	m.Calls = append(m.Calls, MockRuntimeCall{
 		Method: "AttachToWorkspace",
-		Args:   []interface{}{workspaceID},
+		Args:   []interface{}{opts},
 	})
 
 	if m.AttachToWorkspaceError != nil {
@@ -119,12 +119,12 @@ func (m *MockContainerRuntime) AttachToWorkspace(ctx context.Context, workspaceI
 	}
 
 	// Check workspace exists and is running
-	status, exists := m.Workspaces[workspaceID]
+	status, exists := m.Workspaces[opts.WorkspaceID]
 	if !exists {
-		return fmt.Errorf("workspace not found: %s", workspaceID)
+		return fmt.Errorf("workspace not found: %s", opts.WorkspaceID)
 	}
 	if status != "running" {
-		return fmt.Errorf("workspace not running: %s (status: %s)", workspaceID, status)
+		return fmt.Errorf("workspace not running: %s (status: %s)", opts.WorkspaceID, status)
 	}
 
 	return nil

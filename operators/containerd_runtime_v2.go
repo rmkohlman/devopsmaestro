@@ -343,18 +343,18 @@ func (r *ContainerdRuntimeV2) startWorkspaceDirectAPI(ctx context.Context, opts 
 
 // AttachToWorkspace attaches to a running workspace container
 // For Colima, we use nerdctl via SSH since direct FIFO-based IO doesn't work across host/VM boundary
-func (r *ContainerdRuntimeV2) AttachToWorkspace(ctx context.Context, containerID string) error {
+func (r *ContainerdRuntimeV2) AttachToWorkspace(ctx context.Context, opts AttachOptions) error {
 	// For Colima, use nerdctl via SSH (containerd API doesn't work well across VM boundary)
 	if r.platform.Type == PlatformColima {
-		return r.attachViaColima(ctx, containerID)
+		return r.attachViaColima(ctx, opts)
 	}
 
 	// For other platforms, use containerd API directly
-	return r.attachDirectAPI(ctx, containerID)
+	return r.attachDirectAPI(ctx, opts)
 }
 
 // attachViaColima attaches to a container using nerdctl via SSH for Colima
-func (r *ContainerdRuntimeV2) attachViaColima(ctx context.Context, containerID string) error {
+func (r *ContainerdRuntimeV2) attachViaColima(ctx context.Context, opts AttachOptions) error {
 	profile := r.platform.Profile
 	if profile == "" {
 		profile = "default"
@@ -362,7 +362,7 @@ func (r *ContainerdRuntimeV2) attachViaColima(ctx context.Context, containerID s
 
 	// Check if container exists and is running via nerdctl
 	statusCmd := fmt.Sprintf("sudo nerdctl --namespace %s inspect -f '{{.State.Status}}' %s 2>/dev/null || echo not_found",
-		r.namespace, containerID)
+		r.namespace, opts.WorkspaceID)
 	statusExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", statusCmd)
 	statusOutput, err := statusExec.Output()
 	if err != nil {
@@ -371,16 +371,39 @@ func (r *ContainerdRuntimeV2) attachViaColima(ctx context.Context, containerID s
 
 	status := strings.TrimSpace(string(statusOutput))
 	if status == "not_found" {
-		return fmt.Errorf("container not found: %s", containerID)
+		return fmt.Errorf("container not found: %s", opts.WorkspaceID)
 	}
 
 	if status != "running" {
 		return fmt.Errorf("container is not running (status: %s)", status)
 	}
 
-	// Attach via nerdctl exec
-	// Note: colima ssh doesn't have a -t flag like regular ssh - TTY is automatic
-	cmd := fmt.Sprintf("sudo nerdctl --namespace %s exec -it %s /bin/zsh -l", r.namespace, containerID)
+	// Build shell command with options
+	shell := opts.Shell
+	if shell == "" {
+		shell = "/bin/zsh"
+	}
+
+	// Start building the nerdctl exec command
+	var cmdParts []string
+	cmdParts = append(cmdParts, "sudo", "nerdctl", "--namespace", r.namespace, "exec", "-it")
+
+	// Add environment variables
+	for key, value := range opts.Env {
+		cmdParts = append(cmdParts, "-e", fmt.Sprintf("%s=%s", key, value))
+	}
+
+	// Add container name
+	cmdParts = append(cmdParts, opts.WorkspaceID)
+
+	// Add shell and login flag
+	cmdParts = append(cmdParts, shell)
+	if opts.LoginShell {
+		cmdParts = append(cmdParts, "-l")
+	}
+
+	// Convert to command string for SSH execution
+	cmd := strings.Join(cmdParts, " ")
 	execCmd := []string{"colima", "--profile", profile, "ssh", "--", "sh", "-c", cmd}
 
 	// Find colima in PATH
@@ -407,11 +430,11 @@ func (r *ContainerdRuntimeV2) attachViaColima(ctx context.Context, containerID s
 }
 
 // attachDirectAPI attaches to a container using containerd API directly
-func (r *ContainerdRuntimeV2) attachDirectAPI(ctx context.Context, containerID string) error {
+func (r *ContainerdRuntimeV2) attachDirectAPI(ctx context.Context, opts AttachOptions) error {
 	ctx = namespaces.WithNamespace(ctx, r.namespace)
 
 	// Load the container
-	container, err := r.client.LoadContainer(ctx, containerID)
+	container, err := r.client.LoadContainer(ctx, opts.WorkspaceID)
 	if err != nil {
 		return fmt.Errorf("container not found: %w", err)
 	}

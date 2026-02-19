@@ -18,7 +18,7 @@ type ContainerRuntime interface {
 	StartWorkspace(ctx context.Context, opts StartOptions) (string, error)
 
 	// AttachToWorkspace attaches an interactive terminal to a running workspace
-	AttachToWorkspace(ctx context.Context, workspaceID string) error
+	AttachToWorkspace(ctx context.Context, opts AttachOptions) error
 
 	// StopWorkspace stops a running workspace
 	StopWorkspace(ctx context.Context, workspaceID string) error
@@ -40,6 +40,14 @@ type ContainerRuntime interface {
 
 	// StopAllWorkspaces stops all DVM-managed workspaces
 	StopAllWorkspaces(ctx context.Context) (int, error)
+}
+
+// AttachOptions contains options for attaching to a workspace
+type AttachOptions struct {
+	WorkspaceID string            // Container ID or name to attach to
+	Env         map[string]string // Environment variables for the shell session
+	Shell       string            // Shell to use (default: /bin/zsh)
+	LoginShell  bool              // Use login shell (default: true)
 }
 
 // WorkspaceInfo contains information about a running workspace
