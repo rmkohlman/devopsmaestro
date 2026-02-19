@@ -274,3 +274,70 @@ spec:
 		})
 	}
 }
+
+func TestGenerateLuaWithKeymaps(t *testing.T) {
+	// Test that the 'keymaps' field generates vim.keymap.set() calls in config
+	p := &Plugin{
+		Name: "test-plugin",
+		Repo: "test/test-plugin",
+		Keymaps: []Keymap{
+			{Key: "<leader>tf", Action: "<cmd>TestFile<cr>", Desc: "Test current file", Mode: []string{"n"}},
+			{Key: "<leader>tn", Action: "<cmd>TestNearest<cr>", Desc: "Test nearest", Mode: []string{"n", "v"}},
+		},
+	}
+
+	g := NewGenerator()
+	lua, err := g.GenerateLua(p)
+	if err != nil {
+		t.Fatalf("GenerateLua failed: %v", err)
+	}
+
+	// Check that output contains vim.keymap.set calls
+	checks := []string{
+		`config = function()`,
+		`vim.keymap.set("n", "<leader>tf"`,
+		`"<cmd>TestFile<cr>"`,
+		`desc = "Test current file"`,
+		`vim.keymap.set({ "n", "v" }, "<leader>tn"`,
+		`"<cmd>TestNearest<cr>"`,
+		`desc = "Test nearest"`,
+	}
+
+	for _, check := range checks {
+		if !strings.Contains(lua, check) {
+			t.Errorf("Generated Lua missing: %q\n\nGenerated:\n%s", check, lua)
+		}
+	}
+}
+
+func TestGenerateLuaWithConfigAndKeymaps(t *testing.T) {
+	// Test that keymaps are appended to existing config
+	p := &Plugin{
+		Name:   "test-plugin",
+		Repo:   "test/test-plugin",
+		Config: `require("test").setup({})`,
+		Keymaps: []Keymap{
+			{Key: "<leader>t", Action: "<cmd>Test<cr>", Desc: "Run test", Mode: []string{"n"}},
+		},
+	}
+
+	g := NewGenerator()
+	lua, err := g.GenerateLua(p)
+	if err != nil {
+		t.Fatalf("GenerateLua failed: %v", err)
+	}
+
+	// Check that both config and keymaps are present
+	checks := []string{
+		`config = function()`,
+		`require("test").setup({})`,
+		`-- Keymaps`,
+		`vim.keymap.set("n", "<leader>t"`,
+	}
+
+	for _, check := range checks {
+		if !strings.Contains(lua, check) {
+			t.Errorf("Generated Lua missing: %q\n\nGenerated:\n%s", check, lua)
+		}
+	}
+}

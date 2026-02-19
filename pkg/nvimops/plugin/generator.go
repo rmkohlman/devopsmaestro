@@ -82,12 +82,23 @@ func (g *Generator) GenerateLua(p *Plugin) (string, error) {
 	}
 
 	// Config function (runs after plugin loads)
-	if p.Config != "" {
+	// If there are keymaps, we need to generate a config function that sets them up
+	if p.Config != "" || len(p.Keymaps) > 0 {
 		// Handle "true" as Lua boolean (config = true means use default setup)
-		if p.Config == "true" {
+		if p.Config == "true" && len(p.Keymaps) == 0 {
 			lua.WriteString(fmt.Sprintf("%sconfig = true,\n", indent))
 		} else {
-			g.writeFunction(&lua, indent, "config", p.Config)
+			// Build the config code combining existing config and keymaps
+			configCode := p.Config
+			if len(p.Keymaps) > 0 {
+				keymapCode := g.generateKeymapCode(p.Keymaps)
+				if configCode != "" {
+					configCode = configCode + "\n\n" + keymapCode
+				} else {
+					configCode = keymapCode
+				}
+			}
+			g.writeFunction(&lua, indent, "config", configCode)
 		}
 	}
 
@@ -317,6 +328,53 @@ func (g *Generator) writeOptsValue(lua *strings.Builder, indent, key string, val
 		// Fallback: convert to string
 		lua.WriteString(fmt.Sprintf("%s%s = \"%v\",\n", indent, key, value))
 	}
+}
+
+// generateKeymapCode generates vim.keymap.set() calls for keymaps.
+// This is used for additional keymaps that should be set up in the config function.
+func (g *Generator) generateKeymapCode(keymaps []Keymap) string {
+	var lines []string
+	lines = append(lines, "-- Keymaps")
+
+	for _, km := range keymaps {
+		// Determine mode(s)
+		mode := "n" // Default to normal mode
+		if len(km.Mode) == 1 {
+			mode = fmt.Sprintf("\"%s\"", km.Mode[0])
+		} else if len(km.Mode) > 1 {
+			modes := make([]string, len(km.Mode))
+			for i, m := range km.Mode {
+				modes[i] = fmt.Sprintf("\"%s\"", m)
+			}
+			mode = "{ " + strings.Join(modes, ", ") + " }"
+		} else {
+			mode = "\"n\""
+		}
+
+		// Build the action
+		action := km.Action
+		if action == "" {
+			continue // Skip keymaps without actions
+		}
+
+		// Check if action is a Lua expression
+		if !isLuaExpression(action) {
+			action = fmt.Sprintf("\"%s\"", escapeString(action))
+		}
+
+		// Build the opts table
+		opts := "{ "
+		if km.Desc != "" {
+			opts += fmt.Sprintf("desc = \"%s\", ", escapeString(km.Desc))
+		}
+		opts += "silent = true, noremap = true }"
+
+		line := fmt.Sprintf("vim.keymap.set(%s, \"%s\", %s, %s)",
+			mode, escapeString(km.Key), action, opts)
+		lines = append(lines, line)
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 // escapeString escapes special characters in a Lua string.
