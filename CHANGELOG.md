@@ -7,6 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.10.0] - 2026-02-19
+
+### 🚀 Added
+
+#### Plugin Packages System
+- **Plugin Packages** - Group plugins into reusable packages with inheritance support
+  - `nvp package list` - List all available packages
+  - `nvp package get <name>` - Show package details with resolved plugins
+  - `nvp package install <name>` - Install all plugins from a package
+  - **Default packages**: `core`, `go-dev`, `python-dev`, `full`
+  - **Package inheritance** - Packages can extend other packages (e.g., `go-dev` extends `core`)
+  - **Workspace integration** - Support via `pluginPackage` and `mergeMode` fields in workspace YAML
+
+#### Package Library System
+- **Embedded package definitions** - Pre-built packages ready to use
+- **Inheritance resolution** - Automatically resolves all plugins from package hierarchy
+- **Category and tag support** - Organize packages by development context
+- **YAML-based definitions** - Following kubectl pattern with apiVersion/kind/metadata/spec
+
+#### Workspace Configuration Enhancement
+- **`pluginPackage` field** - Reference a plugin package by name in workspace config
+- **`mergeMode` field** - Control how package plugins merge with individual plugins ("append" or "replace")
+
+### 🐛 Fixed
+
+#### Keymap Generation
+- **Fixed keymap generation** - The `keymaps` field now properly generates `vim.keymap.set()` calls
+- **Combined config support** - Keymaps are now appended to existing plugin config functions
+- **Multi-mode support** - Properly handles single mode strings and multi-mode arrays
+
+### 📦 Package Structure
+
+```
+pkg/nvimops/package/
+├── types.go               # Package, PackageYAML types
+├── parser.go              # YAML parsing and validation
+├── package_test.go        # Package type tests
+└── library/
+    ├── library.go         # Embedded package library
+    ├── library_test.go    # Library tests
+    └── packages/          # Default package definitions
+        ├── core.yaml      # Essential plugins for any development
+        ├── go-dev.yaml    # Go development essentials (extends core)
+        ├── python-dev.yaml # Python development essentials (extends core)
+        └── full.yaml      # Complete plugin collection (extends core)
+
+cmd/nvp/
+└── package.go             # Package CLI commands
+```
+
+### 🧪 Testing
+
+- **Comprehensive package tests** - Full test coverage for package parsing, library operations, and inheritance
+- **Generator tests** - Verified keymap generation produces correct vim.keymap.set() calls
+- **Integration tests** - Package installation and plugin resolution workflows
+
+---
+
 ## [0.9.7] - 2026-02-18
 
 ### 🐛 Fixed
