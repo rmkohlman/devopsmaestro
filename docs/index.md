@@ -180,6 +180,14 @@ nvp generate                          # Generate Lua files
 
     [:octicons-arrow-right-24: Configuration](configuration/yaml-schema.md)
 
+-   :material-book:{ .lg .middle } **YAML Reference**
+
+    ---
+
+    Complete YAML schemas for all resource types
+
+    [:octicons-arrow-right-24: Reference](reference/index.md)
+
 -   :material-github:{ .lg .middle } **Contributing**
 
     ---

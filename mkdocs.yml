@@ -89,6 +89,16 @@ nav:
     - Plugin System: configuration/plugin-system.md
     - Shell Completion: configuration/shell-completion.md
     - WezTerm Integration: configuration/wezterm.md
+  - Reference:
+    - Overview: reference/index.md
+    - Ecosystem: reference/ecosystem.md
+    - Domain: reference/domain.md
+    - App: reference/app.md
+    - Workspace: reference/workspace.md
+    - NvimTheme: reference/nvim-theme.md
+    - NvimPlugin: reference/nvim-plugin.md
+    - NvimPackage: reference/nvim-package.md
+    - WeztermConfig: reference/wezterm-config.md
   - Vision & Roadmap:
     - Architecture Vision: vision/architecture.md
   - Advanced:
