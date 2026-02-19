@@ -277,12 +277,11 @@ func (g *DockerfileGenerator) generateDevStage(dockerfile *strings.Builder) {
 		g.installLanguageTools(dockerfile, languageTools)
 	}
 
-	// Install Starship prompt
-	// TODO: Starship fails on ARM64 Ubuntu, need to fix or use alternative
-	// if g.workspaceYAML.Shell.Theme == "starship" || g.workspaceYAML.Shell.Theme == "" {
-	// 	dockerfile.WriteString("# Install Starship prompt\n")
-	// 	dockerfile.WriteString("RUN curl -fsSL https://starship.rs/install.sh | sh -s -- -y\n\n")
-	// }
+	// Install Starship prompt (ARM64 compatible)
+	if g.workspaceYAML.Shell.Theme == "starship" || g.workspaceYAML.Shell.Theme == "" {
+		dockerfile.WriteString("# Install Starship prompt\n")
+		dockerfile.WriteString("RUN curl -sS https://starship.rs/install.sh | sh -s -- --yes\n\n")
+	}
 
 	// Install Neovim dependencies (but don't copy config yet - user doesn't exist)
 	g.installNvimDependencies(dockerfile)
@@ -315,6 +314,12 @@ func (g *DockerfileGenerator) generateDevUser(dockerfile *strings.Builder) {
 	dockerfile.WriteString("# Create dev user\n")
 	dockerfile.WriteString(fmt.Sprintf("RUN groupadd -g %d %s || true\n", gid, user))
 	dockerfile.WriteString(fmt.Sprintf("RUN useradd -m -u %d -g %d -s /bin/zsh %s || true\n\n", uid, gid, user))
+
+	// Copy shell configuration files from staging area
+	dockerfile.WriteString("# Copy shell configuration\n")
+	dockerfile.WriteString("COPY .zshrc /home/dev/.zshrc\n")
+	dockerfile.WriteString("COPY .config/starship.toml /home/dev/.config/starship.toml\n")
+	dockerfile.WriteString("RUN chown -R dev:dev /home/dev/.zshrc /home/dev/.config\n\n")
 }
 
 func (g *DockerfileGenerator) getDefaultPackages() []string {
@@ -418,25 +423,28 @@ func (g *DockerfileGenerator) generateNvimSection(dockerfile *strings.Builder) {
 		return
 	}
 
-	// Check if nvim config directory exists in the build context
-	// If not, skip the nvim section to avoid build failures
-	nvimConfigPath := filepath.Join(g.appPath, ".config", "nvim")
+	// Check if staging nvim config directory exists
+	// The copyNvimConfig function now creates config in staging directory
+	homeDir, _ := os.UserHomeDir()
+	stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", filepath.Base(g.appPath))
+	nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
 	if _, err := os.Stat(nvimConfigPath); os.IsNotExist(err) {
 		// Nvim config doesn't exist - skip this section
-		dockerfile.WriteString("# Skipping Neovim configuration (no .config/nvim in build context)\n")
+		dockerfile.WriteString("# Skipping Neovim configuration (no config generated)\n")
 		dockerfile.WriteString("# Run 'dvm build' after setting up nvim plugins to enable nvim config\n\n")
 		return
 	}
 
-	// Copy nvim configuration
+	// Copy nvim configuration from staging directory
 	dockerfile.WriteString("# Copy Neovim configuration\n")
 	dockerfile.WriteString("COPY .config/nvim /home/dev/.config/nvim\n")
 	dockerfile.WriteString("RUN chown -R dev:dev /home/dev/.config\n\n")
 
-	// Install lazy.nvim and plugins as dev user
+	// Install lazy.nvim and plugins as dev user with proper error handling
 	dockerfile.WriteString("USER dev\n")
 	dockerfile.WriteString("# Bootstrap lazy.nvim and install plugins\n")
-	dockerfile.WriteString("RUN nvim --headless \"+Lazy! sync\" +qa || true\n\n")
+	dockerfile.WriteString("RUN nvim --headless \"+Lazy! sync\" +qa 2>&1 | tee /tmp/nvim-install.log || \\\n")
+	dockerfile.WriteString("    (cat /tmp/nvim-install.log && exit 1)\n\n")
 	dockerfile.WriteString("USER root\n\n")
 }
 

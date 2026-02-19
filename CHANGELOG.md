@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.13.0] - 2026-02-19
+
+### 🐳 Container Build
+- **Staging directory**: Build artifacts now use `~/.devopsmaestro/build-staging/` instead of polluting app source directory
+- **Shell configuration**: Generate proper `.zshrc` to prevent Zsh new-user wizard
+- **Starship prompt**: Install starship and generate `starship.toml` with app name in prompt
+- **Plugin errors**: Remove error masking (`|| true`) from nvim plugin installation
+- **ARM64 support**: Fixed starship installation for ARM64 architecture
+
+---
+
 ## [0.12.3] - 2026-02-19
 
 ### 📖 Documentation

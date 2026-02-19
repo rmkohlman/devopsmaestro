@@ -15,10 +15,12 @@ import (
 	"devopsmaestro/render"
 	"devopsmaestro/utils"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -286,10 +288,20 @@ func buildWorkspace(cmd *cobra.Command) error {
 	slog.Info("building image", "image", imageName, "dockerfile", dvmDockerfile)
 
 	// Create image builder using the factory (decoupled from platform specifics)
+	// Use staging directory as build context (contains app source + generated configs)
+	stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", filepath.Base(app.Path))
+	buildContext := stagingDir // Use staging directory as build context
+
+	// If staging directory doesn't exist, fall back to app path
+	if _, err := os.Stat(stagingDir); os.IsNotExist(err) {
+		buildContext = app.Path
+		slog.Warn("staging directory not found, using app path as build context", "staging", stagingDir, "fallback", app.Path)
+	}
+
 	builder, err := builders.NewImageBuilder(builders.BuilderConfig{
 		Platform:   platform,
 		Namespace:  "devopsmaestro",
-		AppPath:    app.Path,
+		AppPath:    buildContext,
 		ImageName:  imageName,
 		Dockerfile: dvmDockerfile,
 	})
@@ -417,9 +429,27 @@ func getPlatformInstallHint() string {
 // It filters plugins based on the workspace's configured plugin list
 // Reads plugin data from the database (source of truth)
 func copyNvimConfig(workspacePlugins []string, appPath, homeDir string, ds db.DataStore) error {
-	render.Progress("Generating Neovim configuration for container...")
+	render.Progress("Preparing build staging directory...")
 
-	nvimConfigPath := filepath.Join(appPath, ".config", "nvim")
+	// Create staging directory for build artifacts instead of placing in app directory
+	stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", filepath.Base(appPath))
+
+	// Clean and recreate staging directory
+	if err := os.RemoveAll(stagingDir); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to clean staging directory: %w", err)
+	}
+
+	if err := os.MkdirAll(stagingDir, 0755); err != nil {
+		return fmt.Errorf("failed to create staging directory: %w", err)
+	}
+
+	// Copy app source to staging directory (for Dockerfile COPY commands)
+	render.Progress("Copying application source...")
+	if err := copyAppSource(appPath, stagingDir); err != nil {
+		return fmt.Errorf("failed to copy app source: %w", err)
+	}
+
+	nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
 	if err := os.MkdirAll(nvimConfigPath, 0755); err != nil {
 		return fmt.Errorf("failed to create nvim config directory: %w", err)
 	}
@@ -523,6 +553,11 @@ func copyNvimConfig(workspacePlugins []string, appPath, homeDir string, ds db.Da
 				slog.Debug("generated theme", "name", activeTheme.Name)
 			}
 		}
+	}
+
+	// Generate shell configuration files (.zshrc and starship.toml)
+	if err := generateShellConfig(stagingDir, filepath.Base(appPath)); err != nil {
+		return fmt.Errorf("failed to generate shell config: %w", err)
 	}
 
 	render.Success(fmt.Sprintf("Neovim configuration generated (%d plugins)", len(enabledPlugins)))
@@ -667,4 +702,145 @@ func loadBuildCredentials(ds db.DataStore, app *models.App, workspace *models.Wo
 	}
 
 	return resolved
+}
+
+// copyAppSource copies application source code to staging directory, excluding generated files
+func copyAppSource(srcDir, dstDir string) error {
+	return filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Get relative path
+		relPath, err := filepath.Rel(srcDir, path)
+		if err != nil {
+			return err
+		}
+
+		// Skip certain directories and files
+		if shouldSkipPath(relPath) {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		dstPath := filepath.Join(dstDir, relPath)
+
+		if info.IsDir() {
+			return os.MkdirAll(dstPath, info.Mode())
+		}
+
+		return copyFile(path, dstPath, info.Mode())
+	})
+}
+
+// shouldSkipPath determines if a path should be skipped during app source copy
+func shouldSkipPath(path string) bool {
+	skipDirs := []string{".git", ".devopsmaestro", "node_modules", "vendor", "__pycache__", ".venv", "venv"}
+	skipFiles := []string{".DS_Store", "Thumbs.db", "*.log", "Dockerfile.dvm"}
+
+	for _, skip := range skipDirs {
+		if strings.HasPrefix(path, skip+"/") || path == skip {
+			return true
+		}
+	}
+
+	for _, skip := range skipFiles {
+		if matched, _ := filepath.Match(skip, filepath.Base(path)); matched {
+			return true
+		}
+	}
+
+	return false
+}
+
+// copyFile copies a single file
+func copyFile(src, dst string, mode os.FileMode) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	// Create destination directory if needed
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+
+	dstFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	if _, err := io.Copy(dstFile, srcFile); err != nil {
+		return err
+	}
+
+	return os.Chmod(dst, mode)
+}
+
+// generateShellConfig creates .zshrc and starship.toml files in staging directory
+func generateShellConfig(stagingDir, appName string) error {
+	// Create .config directory for starship.toml
+	configDir := filepath.Join(stagingDir, ".config")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	// Generate .zshrc
+	zshrc := `# DevOpsMaestro Container Shell
+export TERM=xterm-256color
+export EDITOR=nvim
+export DVM_APP=` + appName + `
+
+# Starship prompt
+eval "$(starship init zsh)"
+
+# Aliases
+alias vim=nvim
+alias ll='ls -la'
+alias la='ls -la'
+alias l='ls -l'
+
+# Set up completion system
+autoload -U compinit
+compinit
+`
+
+	zshrcPath := filepath.Join(stagingDir, ".zshrc")
+	if err := os.WriteFile(zshrcPath, []byte(zshrc), 0644); err != nil {
+		return fmt.Errorf("failed to write .zshrc: %w", err)
+	}
+
+	// Generate starship.toml
+	starshipConfig := `# DevOpsMaestro Container Prompt
+format = """
+$custom\
+$directory\
+$git_branch\
+$git_status\
+$character"""
+
+[custom.dvm]
+command = 'echo "[` + appName + `]"'
+when = 'test -n "$DVM_APP"'
+format = "[$output](bold cyan) "
+shell = ["bash", "--noprofile", "--norc"]
+
+[directory]
+truncation_length = 3
+
+[character]
+success_symbol = "[➜](bold green)"
+error_symbol = "[✗](bold red)"
+`
+
+	starshipPath := filepath.Join(configDir, "starship.toml")
+	if err := os.WriteFile(starshipPath, []byte(starshipConfig), 0644); err != nil {
+		return fmt.Errorf("failed to write starship.toml: %w", err)
+	}
+
+	return nil
 }
