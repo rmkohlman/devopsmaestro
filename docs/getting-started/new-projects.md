@@ -76,14 +76,19 @@ dvm attach
 # Inside container:
 # go run main.go &
 # curl http://localhost:8080/users
-# nvim main.go  # Full Go LSP with gopls!
+# nvim main.go  # Fully configured with LSP, syntax highlighting, and more!
 ```
 
 **What you get:**
 - Go 1.25+ with all standard tools
 - `gopls` LSP server for autocompletion, error detection  
 - `dlv` debugger pre-configured
-- Neovim with Go syntax highlighting and plugins
+- **Pre-configured Neovim** with lazyvim structure and "core" plugin package:
+  - Syntax highlighting (treesitter)
+  - Fuzzy file finder (telescope)
+  - LSP support with autocompletion
+  - Git integration
+  - Keybinding help system
 - Air for hot reloading (if you add it to go.mod)
 
 ### Python FastAPI Project  
@@ -152,14 +157,18 @@ dvm attach
 # pip install -r requirements.txt
 # python main.py &
 # curl http://localhost:8000/users
-# nvim main.py  # Full Python LSP with pylsp!
+# nvim main.py  # Fully configured IDE experience!
 ```
 
 **What you get:**
 - Python 3.12+ with pip and venv
 - `pylsp` (Python LSP Server) for autocompletion
 - `black` formatter and `flake8` linter
-- Neovim with Python syntax and autocompletion
+- **Pre-configured Neovim** with essential IDE features:
+  - Python syntax highlighting and treesitter
+  - LSP autocompletion and error detection
+  - Fuzzy file/content search
+  - Git integration and status
 - FastAPI development server with auto-reload
 
 ### Node.js/TypeScript Project
@@ -254,14 +263,18 @@ dvm attach
 # Inside container:
 # npm run dev &
 # curl http://localhost:3000/users  
-# nvim src/app.ts  # Full TypeScript LSP!
+# nvim src/app.ts  # Complete TypeScript development environment!
 ```
 
 **What you get:**
 - Node.js 20+ with npm
 - TypeScript compiler and `typescript-language-server`
 - ESLint and Prettier pre-configured
-- Neovim with TypeScript autocompletion and error detection
+- **Complete Neovim IDE** with default configuration:
+  - TypeScript syntax highlighting and intelligence
+  - LSP autocompletion and error detection
+  - File navigation and fuzzy finding
+  - Git integration and blame
 - Hot reloading with nodemon
 
 ### Rust CLI Project
@@ -358,14 +371,18 @@ dvm attach
 # Inside container:
 # cargo run -- info
 # cargo run -- config --format json
-# nvim src/main.rs  # Full Rust LSP with rust-analyzer!
+# nvim src/main.rs  # Professional Rust development setup!
 ```
 
 **What you get:**
 - Rust stable with Cargo
 - `rust-analyzer` LSP server for autocompletion and error detection
 - `rustfmt` formatter and Clippy linter
-- Neovim with Rust syntax highlighting and intelligent code completion
+- **Professional Neovim setup** with IDE-quality features:
+  - Rust syntax highlighting with treesitter
+  - LSP autocompletion and inline diagnostics
+  - Project-wide fuzzy search and navigation
+  - Git integration and change tracking
 - Debug symbols enabled for `gdb`/`lldb` debugging
 
 ---

@@ -2,17 +2,14 @@ apiVersion: devopsmaestro.io/v1
 kind: NvimPackage
 metadata:
   name: core
-  description: "Essential Neovim plugins for any development"
+  description: "Essential Neovim plugins for any development - minimal but useful base package"
   category: core
-  tags: [essential, base]
+  tags: [essential, base, minimal]
 spec:
   plugins:
-    - lspconfig
-    - treesitter
-    - telescope
-    - nvim-cmp
-    - which-key
-    - nvim-tree
-    - lualine
-    - gitsigns
-    - trouble
+    - treesitter      # Syntax highlighting and parsing
+    - telescope       # Fuzzy finder
+    - which-key       # Key discovery
+    - lspconfig       # LSP support
+    - nvim-cmp        # Completion
+    - gitsigns        # Git integration

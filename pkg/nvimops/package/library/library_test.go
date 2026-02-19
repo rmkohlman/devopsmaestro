@@ -31,7 +31,7 @@ func TestLibraryGet(t *testing.T) {
 	assert.True(t, ok)
 	assert.NotNil(t, pkg)
 	assert.Equal(t, "core", pkg.Name)
-	assert.Equal(t, "Essential Neovim plugins for any development", pkg.Description)
+	assert.Equal(t, "Essential Neovim plugins for any development - minimal but useful base package", pkg.Description)
 	assert.Equal(t, "core", pkg.Category)
 	assert.Contains(t, pkg.Tags, "essential")
 	assert.Contains(t, pkg.Tags, "base")
@@ -157,7 +157,7 @@ func TestLibraryInfo(t *testing.T) {
 	}
 	require.NotNil(t, coreInfo)
 	assert.Equal(t, "core", coreInfo.Name)
-	assert.Equal(t, "Essential Neovim plugins for any development", coreInfo.Description)
+	assert.Equal(t, "Essential Neovim plugins for any development - minimal but useful base package", coreInfo.Description)
 	assert.Equal(t, "core", coreInfo.Category)
 	assert.Contains(t, coreInfo.Tags, "essential")
 	assert.Equal(t, "", coreInfo.Extends) // core doesn't extend anything

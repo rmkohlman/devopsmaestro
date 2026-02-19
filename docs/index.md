@@ -34,6 +34,7 @@ DevOpsMaestro organizes your development environments using a clear hierarchy th
 - :material-sitemap: **Object hierarchy** - Ecosystem → Domain → App → Workspace for organized development
 - :material-docker: **Multi-platform** - OrbStack, Docker Desktop, Podman, Colima
 - :material-cube-outline: **Container-native** - Isolated dev environments with Neovim pre-configured
+- :material-cog-outline: **Default Nvim setup** - New workspaces auto-configured with lazyvim + "core" plugin package
 - :material-database: **Database-backed** - SQLite storage for apps, workspaces, plugins
 - :material-file-document: **YAML configuration** - Declarative workspace definitions
 - :material-palette: **Hierarchical theme system** - Themes cascade through the object hierarchy

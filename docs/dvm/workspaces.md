@@ -48,6 +48,22 @@ dvm create ws dev --description "Main development environment"
 dvm create ws dev --image my-custom-image:latest
 ```
 
+### Default Neovim Configuration
+
+**New workspaces automatically get a pre-configured Neovim setup** including:
+
+- **Structure**: `lazyvim` framework for modern Neovim
+- **Plugin Package**: `core` with 6 essential IDE plugins:
+  - **nvim-treesitter** - Syntax highlighting
+  - **telescope.nvim** - Fuzzy finder
+  - **which-key.nvim** - Keybinding help
+  - **nvim-lspconfig** - Language server support  
+  - **nvim-cmp** - Autocompletion
+  - **gitsigns.nvim** - Git integration
+- **Theme**: Inherits from the theme cascade system
+
+This means you get a fully functional IDE experience immediately—no manual configuration needed.
+
 ---
 
 ## Managing Workspaces

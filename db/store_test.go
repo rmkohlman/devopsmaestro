@@ -1313,6 +1313,76 @@ func TestSQLDataStore_CreateWorkspace(t *testing.T) {
 	}
 }
 
+func TestSQLDataStore_CreateWorkspace_AppliesDefaultNvimConfig(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	// Create a project first
+	project := &models.Project{Name: "nvim-test-project", Path: "/nvim/path"}
+	if err := ds.CreateProject(project); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	// Test 1: Create workspace without nvim config - should apply defaults
+	workspace := &models.Workspace{
+		AppID:     project.ID,
+		Name:      "default-nvim-workspace",
+		ImageName: "test:latest",
+		Status:    "stopped",
+		// NvimStructure intentionally not set
+	}
+
+	err := ds.CreateWorkspace(workspace)
+	if err != nil {
+		t.Fatalf("CreateWorkspace() error = %v", err)
+	}
+
+	// Verify default was applied
+	if !workspace.NvimStructure.Valid {
+		t.Errorf("CreateWorkspace() should have set NvimStructure.Valid to true")
+	}
+	if workspace.NvimStructure.String != "lazyvim" {
+		t.Errorf("CreateWorkspace() NvimStructure = %s, want 'lazyvim'", workspace.NvimStructure.String)
+	}
+
+	// Retrieve and verify persistence
+	retrieved, err := ds.GetWorkspaceByName(project.ID, "default-nvim-workspace")
+	if err != nil {
+		t.Fatalf("GetWorkspaceByName() error = %v", err)
+	}
+	if retrieved.NvimStructure.String != "lazyvim" {
+		t.Errorf("Retrieved workspace NvimStructure = %s, want 'lazyvim'", retrieved.NvimStructure.String)
+	}
+
+	// Test 2: Create workspace with explicit nvim config - should preserve it
+	workspace2 := &models.Workspace{
+		AppID:         project.ID,
+		Name:          "custom-nvim-workspace",
+		ImageName:     "test:latest",
+		Status:        "stopped",
+		NvimStructure: sql.NullString{String: "custom", Valid: true},
+	}
+
+	err = ds.CreateWorkspace(workspace2)
+	if err != nil {
+		t.Fatalf("CreateWorkspace() error = %v", err)
+	}
+
+	// Verify custom config was preserved
+	if workspace2.NvimStructure.String != "custom" {
+		t.Errorf("CreateWorkspace() should have preserved custom NvimStructure")
+	}
+
+	// Retrieve and verify persistence
+	retrieved2, err := ds.GetWorkspaceByName(project.ID, "custom-nvim-workspace")
+	if err != nil {
+		t.Fatalf("GetWorkspaceByName() error = %v", err)
+	}
+	if retrieved2.NvimStructure.String != "custom" {
+		t.Errorf("Retrieved workspace NvimStructure = %s, want 'custom'", retrieved2.NvimStructure.String)
+	}
+}
+
 func TestSQLDataStore_GetWorkspaceByName(t *testing.T) {
 	ds := createTestDataStore(t)
 	defer ds.Close()

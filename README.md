@@ -246,6 +246,7 @@ dvm status           # Full status overview
 - **Object hierarchy** - Ecosystem → Domain → App → Workspace for organized development
 - **Multi-platform** - OrbStack, Docker Desktop, Podman, Colima
 - **Container-native** - Isolated dev environments with Neovim pre-configured
+- **Default Nvim setup** - New workspaces auto-configured with lazyvim + "core" plugin package
 - **Database-backed** - SQLite storage for apps, workspaces, plugins
 - **YAML configuration** - Declarative workspace definitions
 - **Hierarchical theme system** - Themes cascade through the object hierarchy

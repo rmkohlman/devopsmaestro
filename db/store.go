@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"devopsmaestro/models"
+	"devopsmaestro/pkg/nvimops"
 	"fmt"
 )
 
@@ -533,10 +534,16 @@ func (ds *SQLDataStore) ListProjects() ([]*models.Project, error) {
 
 // CreateWorkspace inserts a new workspace.
 func (ds *SQLDataStore) CreateWorkspace(workspace *models.Workspace) error {
-	query := fmt.Sprintf(`INSERT INTO workspaces (app_id, name, description, image_name, status, created_at, updated_at) 
-		VALUES (?, ?, ?, ?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
+	// Apply default nvim config if not specified
+	if !workspace.NvimStructure.Valid || workspace.NvimStructure.String == "" {
+		defaultConfig := nvimops.DefaultNvimConfig()
+		workspace.NvimStructure = sql.NullString{String: defaultConfig.Structure, Valid: true}
+	}
 
-	result, err := ds.driver.Execute(query, workspace.AppID, workspace.Name, workspace.Description, workspace.ImageName, workspace.Status)
+	query := fmt.Sprintf(`INSERT INTO workspaces (app_id, name, description, image_name, status, nvim_structure, nvim_plugins, created_at, updated_at) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
+
+	result, err := ds.driver.Execute(query, workspace.AppID, workspace.Name, workspace.Description, workspace.ImageName, workspace.Status, workspace.NvimStructure, workspace.NvimPlugins)
 	if err != nil {
 		return fmt.Errorf("failed to create workspace: %w", err)
 	}

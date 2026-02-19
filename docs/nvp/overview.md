@@ -12,6 +12,16 @@ nvp lets you:
 - **Use a curated library** of 38+ pre-configured plugins
 - **Manage themes** with 34+ embedded themes and parametric generator
 - **Generate Lua files** for lazy.nvim
+- **Get default configurations** - new workspaces automatically include the "core" package
+
+### Default Configuration
+
+**New workspaces in dvm automatically get a pre-configured nvim setup** with:
+- **Structure**: `lazyvim` framework 
+- **Package**: `core` (6 essential plugins)
+- **Theme**: Inherits from dvm's theme cascade system
+
+This means you can start coding immediately without manual nvim configuration.
 
 ---
 
@@ -73,7 +83,20 @@ nvp includes 38+ curated plugins with plugin package system:
 |---------|---------|-------------|
 | `rkohlman-full` | 39 plugins | Complete development environment |
 
-### Core Plugins
+### Core Plugins (Default Package)
+
+The `core` package (automatically installed for new dvm workspaces):
+
+| Plugin | Category | Description |
+|--------|----------|-------------|
+| treesitter | syntax | Modern syntax highlighting and code understanding |
+| telescope | fuzzy-finder | Fuzzy finder for files, grep, buffers, etc. |
+| which-key | ui | Keybinding discovery and help system |
+| lspconfig | lsp | Language Server Protocol configuration |
+| nvim-cmp | completion | Intelligent autocompletion |
+| gitsigns | git | Git integration with inline status |
+
+### Complete Plugin Library (rkohlman-full)
 
 | Plugin | Category | Description |
 |--------|----------|-------------|

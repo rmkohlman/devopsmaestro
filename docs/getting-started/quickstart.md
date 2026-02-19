@@ -243,8 +243,26 @@ dvm attach # Enter this specific environment
 dvm get workspaces
 ```
 
+### Default Nvim Configuration
+
+**New workspaces automatically get a pre-configured Neovim setup** with:
+
+- **Structure**: `lazyvim` (popular Neovim configuration framework)
+- **Plugin Package**: `core` (6 essential plugins for IDE-like functionality)
+- **Theme**: Inherits from the theme cascade system
+
+The "core" package includes these 6 essential plugins:
+1. **nvim-treesitter** - Modern syntax highlighting
+2. **telescope.nvim** - Fuzzy finder for files and content
+3. **which-key.nvim** - Keybinding discovery and help
+4. **nvim-lspconfig** - Language Server Protocol support
+5. **nvim-cmp** - Intelligent autocompletion
+6. **gitsigns.nvim** - Git integration and decorations
+
+This means you get a fully functional development environment immediately—no manual nvim configuration needed.
+
 Each workspace can have:
-- Different Neovim configurations
+- Different Neovim configurations (you can override the defaults)
 - Different installed tools  
 - Different themes
 - Different environment variables

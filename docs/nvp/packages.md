@@ -17,6 +17,26 @@ Plugin packages are pre-configured collections of plugins that work well togethe
 
 ## Available Packages
 
+### core (Default Package)
+
+**The default package automatically installed for new workspaces.** Provides essential IDE functionality with minimal overhead:
+
+```bash
+# This package is automatically applied to new workspaces
+# You can also install it manually:
+nvp apply -f package:core
+```
+
+**Included plugins (6 essential tools):**
+- **nvim-treesitter** - Modern syntax highlighting and code understanding
+- **telescope.nvim** - Fuzzy finder for files, grep, buffers, and more
+- **which-key.nvim** - Keybinding discovery and help system
+- **nvim-lspconfig** - Language Server Protocol configuration
+- **nvim-cmp** - Intelligent autocompletion with multiple sources
+- **gitsigns.nvim** - Git integration with inline status and blame
+
+This minimal but powerful set gives you a complete development environment while keeping startup time fast and resource usage low.
+
 ### rkohlman-full
 
 The flagship package with 39 carefully curated plugins for a complete development environment:
@@ -40,7 +60,17 @@ nvp apply -f package:rkohlman-full
 
 ## Package Contents
 
-### Core Development Tools
+### Default Core Package
+
+The `core` package (automatically applied to new workspaces) includes:
+
+| Category | Plugins | Description |
+|----------|---------|-------------|
+| **Syntax & Navigation** | treesitter, telescope | Modern syntax highlighting and fuzzy finding |
+| **LSP & Completion** | lspconfig, nvim-cmp | Language server support and autocompletion |
+| **UI & Git** | which-key, gitsigns | Keybinding help and git integration |
+
+### Complete Development Tools (rkohlman-full)
 
 | Category | Plugins | Description |
 |----------|---------|-------------|
@@ -99,6 +129,22 @@ nvp generate
 
 # Start using your fully configured Neovim
 nvim
+```
+
+### Override Default Package
+
+If you want to replace the default `core` package:
+
+```bash
+# Remove default core package
+nvp package remove core
+
+# Install different package
+nvp apply -f package:rkohlman-full
+
+# Or install individual plugins
+nvp apply -f plugin:neo-tree
+nvp apply -f plugin:copilot
 ```
 
 ### Package Installation Process

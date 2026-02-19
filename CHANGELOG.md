@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.12.1] - 2026-02-19
+
+### 🚀 Added
+
+#### Default Nvim Configuration for New Workspaces
+- **Automatic workspace setup** - New workspaces now get lazyvim structure with core plugin package by default
+- **Core plugin package** - 6 essential plugins: treesitter, telescope, which-key, lspconfig, nvim-cmp, gitsigns
+- **DefaultNvimConfig() function** - Programmatic API in `pkg/nvimops/defaults.go` for consistent configuration
+- **Seamless integration** - `dvm create workspace` automatically applies defaults during workspace creation
+
+### 📖 Documentation
+- **Updated quickstart guide** - Reflects new default behavior for workspace creation
+- **Enhanced workspace documentation** - Details about automatic nvim configuration
+- **NvimOps documentation updates** - Core package and default configuration coverage
+
+---
+
 ## [0.12.0] - 2026-02-19
 
 ### 🚀 Added
