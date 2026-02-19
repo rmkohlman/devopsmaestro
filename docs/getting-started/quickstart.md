@@ -15,6 +15,107 @@ Get up and running with DevOpsMaestro in 5 minutes.
 
 ---
 
+## Complete Setup Workflow
+
+After installing DevOpsMaestro via Homebrew, here's the complete workflow to get your terminal and editor fully configured with a consistent theme:
+
+### Step 1: Initialize DevOpsMaestro
+
+Run this **once** to set up the database:
+
+```bash
+dvm admin init
+```
+
+This creates `~/.devopsmaestro/devopsmaestro.db` and initializes the system.
+
+### Step 2: Create Workspace Structure
+
+```bash
+# Navigate to your project directory
+cd ~/Developer/my-project
+
+# Create the hierarchy (gets default nvim config automatically)
+dvm create app my-project --from-cwd
+dvm create workspace main
+```
+
+This automatically configures Neovim with:
+- **Structure**: `lazyvim` configuration framework
+- **Plugin Package**: `core` (6 essential plugins)
+- **Theme**: Inherits from theme cascade system
+
+### Step 3: Generate Neovim Configuration
+
+```bash
+# Generate ~/.config/nvim/ with plugins and theme
+nvp config generate
+
+# Generate theme Lua files
+nvp theme generate
+```
+
+### Step 4: Generate Terminal Configuration
+
+```bash
+# Generate WezTerm config with matching theme colors
+dvt wezterm apply default   # Creates ~/.wezterm.lua
+
+# Available presets: default, minimal, tmux-style
+dvt wezterm apply minimal   # For distraction-free terminal
+```
+
+**Key Benefits:**
+- **Automatic theme colors**: Colors are automatically resolved from the theme library (e.g., catppuccin-mocha)
+- **Preset options**: Choose from `default`, `minimal`, or `tmux-style` configurations
+- **Theme consistency**: Same theme colors apply to both Neovim AND WezTerm
+
+### Step 5: Generate Shell Profile
+
+```bash
+# Generate shell prompt configuration
+dvt profile generate myprofile --output ~/.config
+
+# Add to your shell configuration
+echo 'source ~/.config/.zshrc.dvt' >> ~/.zshrc
+```
+
+### Complete Example
+
+Here's a complete setup from start to finish:
+
+```bash
+# 1. Install via Homebrew
+brew tap rmkohlman/tap
+brew install devopsmaestro
+
+# 2. Initialize system
+dvm admin init
+
+# 3. Navigate to your project
+cd ~/Developer/my-awesome-app
+
+# 4. Create workspace structure
+dvm create app my-awesome-app --from-cwd
+dvm create workspace main
+
+# 5. Generate all configurations
+nvp config generate          # Neovim config
+nvp theme generate           # Theme files  
+dvt wezterm apply minimal    # Terminal config
+dvt profile generate myprofile --output ~/.config
+
+# 6. Configure shell
+echo 'source ~/.config/.zshrc.dvt' >> ~/.zshrc
+
+# 7. Restart terminal and start coding!
+nvim .
+```
+
+Now your terminal and editor are fully configured with consistent theming and optimized development workflows.
+
+---
+
 ## Understanding the Hierarchy
 
 DevOpsMaestro organizes your development environments in a 4-level hierarchy:

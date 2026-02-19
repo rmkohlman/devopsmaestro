@@ -74,6 +74,7 @@ func init() {
 	rootCmd.AddCommand(pluginCmd)
 	rootCmd.AddCommand(shellCmd)
 	rootCmd.AddCommand(profileCmd)
+	rootCmd.AddCommand(weztermCmd)
 	rootCmd.AddCommand(completionCmd)
 }
 

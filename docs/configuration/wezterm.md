@@ -1,6 +1,6 @@
 # WezTerm Integration
 
-DevOpsMaestro supports generating WezTerm configuration files that integrate with your Neovim theme system.
+DevOpsMaestro supports generating WezTerm configuration files that integrate with your Neovim theme system through the new `dvt` (DevOps Terminal) command suite.
 
 ---
 
@@ -8,10 +8,59 @@ DevOpsMaestro supports generating WezTerm configuration files that integrate wit
 
 WezTerm integration allows you to:
 
-- Generate `wezterm.lua` configuration files
-- Apply theme colors from your Neovim theme to WezTerm
+- Generate `wezterm.lua` configuration files with automatic theme integration
+- Apply theme colors from your Neovim theme to WezTerm automatically
 - Choose from predefined presets for different workflows
-- Keep terminal and editor styling consistent
+- Keep terminal and editor styling perfectly consistent
+- Use simple CLI commands for quick setup
+
+---
+
+## Quick Commands
+
+### dvt wezterm Commands
+
+| Command | Description |
+|---------|-------------|
+| `dvt wezterm list` | List all available presets |
+| `dvt wezterm show <preset>` | Display preset configuration details |
+| `dvt wezterm generate <preset>` | Generate config file (preview mode) |
+| `dvt wezterm apply <preset>` | Generate and save to `~/.wezterm.lua` |
+
+### Basic Usage
+
+```bash
+# List available presets
+dvt wezterm list
+
+# View preset details
+dvt wezterm show minimal
+dvt wezterm show tmux-style
+
+# Apply configuration directly
+dvt wezterm apply default    # Creates ~/.wezterm.lua
+dvt wezterm apply minimal    # Overwrites with minimal preset
+
+# Generate to custom location
+dvt wezterm generate minimal --output ~/.config/wezterm/wezterm.lua
+
+# Preview configuration before applying
+dvt wezterm generate default  # Shows config without saving
+```
+
+### Automatic Theme Integration
+
+**The key benefit:** Colors are automatically resolved from the theme library and current workspace theme settings.
+
+```bash
+# Set workspace theme
+dvm set theme coolnight-synthwave --workspace main
+
+# Apply WezTerm config - automatically uses coolnight-synthwave colors
+dvt wezterm apply minimal
+
+# Terminal now matches your Neovim theme perfectly!
+```
 
 ---
 
@@ -22,11 +71,11 @@ Clean, distraction-free terminal with basic functionality:
 
 ```lua
 -- Minimal preset features:
--- - Hide title bar
+-- - Hide title bar and decorations
 -- - No tabs visible
--- - Simple status line
--- - Theme colors applied
--- - Basic key bindings
+-- - Clean appearance with minimal padding
+-- - Theme colors applied automatically
+-- - Essential key bindings only
 ```
 
 ### tmux-style
@@ -35,10 +84,10 @@ Terminal multiplexer-style configuration similar to tmux:
 ```lua
 -- tmux-style preset features:
 -- - Bottom status bar with session info
--- - Tab bar visible
+-- - Tab bar visible with tmux-style navigation
 -- - tmux-like key bindings (Ctrl-b prefix)
--- - Pane management
--- - Theme colors applied
+-- - Pane splitting and management
+-- - Theme colors applied automatically
 ```
 
 ### default
@@ -47,33 +96,22 @@ Standard WezTerm configuration with DevOpsMaestro theme integration:
 ```lua
 -- Default preset features:
 -- - Standard WezTerm behavior
--- - Tab bar visible
--- - Window decorations
--- - Theme colors applied
--- - Standard key bindings
+-- - Tab bar visible at top
+-- - Window decorations enabled
+-- - Theme colors applied automatically
+-- - Full standard key binding set
 ```
 
 ---
 
-## Generating WezTerm Configuration
+## Legacy Commands (Still Supported)
 
-### Basic Usage
+For backward compatibility, the original `nvp wezterm` commands still work:
 
 ```bash
-# Generate wezterm.lua with current theme and default preset
-nvp wezterm generate
-
-# Generate with specific preset
+# Legacy commands (still functional)
 nvp wezterm generate --preset minimal
-nvp wezterm generate --preset tmux-style
-nvp wezterm generate --preset default
-
-# Generate with specific theme
-nvp wezterm generate --theme coolnight-ocean
-nvp wezterm generate --theme gruvbox-dark --preset minimal
-
-# Generate to specific location
-nvp wezterm generate --output ~/.config/wezterm/wezterm.lua
+nvp wezterm generate --theme coolnight-ocean --preset default
 ```
 
 ### Integration with Theme Hierarchy
@@ -86,9 +124,20 @@ dvm set theme coolnight-synthwave --app my-project
 
 # Generate WezTerm config using the hierarchical theme
 cd ~/projects/my-project/workspace
-nvp wezterm generate --preset minimal
+dvt wezterm apply minimal
 
-# The generated config will use coolnight-synthwave colors
+# The generated config automatically uses coolnight-synthwave colors
+```
+
+### Custom Output Locations
+
+```bash
+# Save to custom location
+dvt wezterm apply default --output ~/.config/wezterm/wezterm.lua
+
+# Preview before saving
+dvt wezterm generate minimal  # Shows config without saving
+dvt wezterm apply minimal     # Saves to ~/.wezterm.lua
 ```
 
 ---
@@ -242,9 +291,20 @@ WezTerm configuration automatically updates when you change themes:
 dvm set theme coolnight-matrix --app
 
 # Regenerate WezTerm config with new theme
-nvp wezterm generate --preset minimal
+dvt wezterm apply minimal
 
 # WezTerm will automatically reload the configuration
+```
+
+### Batch Updates
+
+```bash
+# Update all configurations at once after theme change
+nvp config generate       # Update Neovim
+nvp theme generate        # Update theme files
+dvt wezterm apply minimal # Update terminal
+
+# Everything stays in sync automatically
 ```
 
 ---
@@ -256,7 +316,7 @@ nvp wezterm generate --preset minimal
 You can extend the generated configuration:
 
 ```lua
--- ~/.config/wezterm/wezterm.lua
+-- ~/.wezterm.lua (generated with dvt wezterm apply)
 local wezterm = require 'wezterm'
 local config = {}
 
@@ -283,9 +343,9 @@ Override specific theme colors:
 
 ```bash
 # Generate base config
-nvp wezterm generate --preset minimal
+dvt wezterm apply minimal
 
-# Then manually edit wezterm.lua to override colors
+# Then manually edit ~/.wezterm.lua to override colors
 ```
 
 ```lua
@@ -302,42 +362,59 @@ local theme = {
 
 ## Usage Workflows
 
-### Development Setup
+### Complete Development Setup
 
 ```bash
-# 1. Set up your development hierarchy
-dvm create ecosystem my-platform
-dvm create domain backend --ecosystem my-platform
-dvm create app user-service --domain backend
+# 1. Initialize and create workspace
+dvm admin init
+cd ~/projects/user-service
+dvm create app user-service --from-cwd
+dvm create workspace main
 
 # 2. Set theme at app level
 dvm set theme coolnight-ocean --app user-service
 
-# 3. Generate consistent terminal config
-cd ~/projects/user-service/workspace
-nvp wezterm generate --preset minimal
+# 3. Generate all configurations with consistent theme
+nvp config generate      # Neovim config
+nvp theme generate       # Theme files
+dvt wezterm apply minimal # Terminal config
 
-# 4. Generate Neovim config
-nvp generate
+# 4. Generate shell profile
+dvt profile generate myprofile --output ~/.config
 
-# Now terminal and editor use matching colors
+# Now terminal and editor use perfectly matching colors
 ```
 
 ### Team Consistency
 
 ```bash
 # 1. Set team theme at domain level
+dvm create ecosystem company
+dvm create domain platform-team
 dvm set theme company-theme --domain platform-team
 
 # 2. Generate team WezTerm config
-nvp wezterm generate --preset tmux-style --output ~/team-config/wezterm.lua
+dvt wezterm generate tmux-style --output ~/team-config/wezterm.lua
 
 # 3. Share the generated config file
 git add ~/team-config/wezterm.lua
-git commit -m "Add team WezTerm config"
+git commit -m "Add team WezTerm config with company theme"
 
-# Team members can copy the config file
-cp ~/team-config/wezterm.lua ~/.config/wezterm/
+# Team members can apply the config
+cp ~/team-config/wezterm.lua ~/.wezterm.lua
+```
+
+### Quick Theme Changes
+
+```bash
+# Change theme across your entire setup
+dvm set theme coolnight-matrix --app
+
+# Update all configurations
+nvp theme generate              # Update Neovim theme
+dvt wezterm apply minimal       # Update terminal theme
+
+# Everything now uses the new theme consistently
 ```
 
 ---
@@ -348,13 +425,13 @@ cp ~/team-config/wezterm.lua ~/.config/wezterm/
 
 1. **Check file location:**
    ```bash
-   ls -la ~/.config/wezterm/wezterm.lua
+   ls -la ~/.wezterm.lua
    ```
 
 2. **Verify syntax:**
    ```bash
    # Test the configuration
-   wezterm start --config ~/.config/wezterm/wezterm.lua
+   wezterm start --config ~/.wezterm.lua
    ```
 
 3. **Check WezTerm logs:**
@@ -364,20 +441,36 @@ cp ~/team-config/wezterm.lua ~/.config/wezterm/
 
 ### Colors Not Matching Neovim
 
-1. **Verify theme is active in nvp:**
+1. **Verify theme is active:**
    ```bash
-   nvp theme get
+   dvm get context --show-theme
    ```
 
-2. **Regenerate with specific theme:**
+2. **Regenerate with current theme:**
    ```bash
-   nvp wezterm generate --theme $(nvp theme get --name-only)
+   dvt wezterm apply minimal
    ```
 
-3. **Check theme color values:**
+3. **Check available presets:**
    ```bash
-   nvp theme get coolnight-ocean -o yaml | grep colors: -A 20
+   dvt wezterm list
+   dvt wezterm show minimal
    ```
+
+### Command Not Found: dvt
+
+If `dvt` command is not available, you may be using an older version:
+
+```bash
+# Check version
+dvm version
+
+# Update to latest
+brew upgrade devopsmaestro
+
+# Use legacy commands as fallback
+nvp wezterm generate --preset minimal --output ~/.wezterm.lua
+```
 
 ---
 

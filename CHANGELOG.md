@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.12.2] - 2026-02-19
+
+### 🚀 Added
+
+#### WezTerm CLI Commands with Theme Integration
+- **`dvt wezterm list`** - List available WezTerm presets
+- **`dvt wezterm show <name>`** - Show preset details  
+- **`dvt wezterm generate <name>`** - Generate wezterm.lua with theme colors
+- **`dvt wezterm apply <name>`** - Apply configuration to ~/.wezterm.lua
+- **Automatic theme color resolution** - Theme colors from library embedded into generated configurations
+
+### 📖 Documentation
+- **Complete setup workflow** - Added to quickstart guide for seamless onboarding
+- **Updated WezTerm documentation** - New CLI commands and usage examples
+
+### 🧹 Fixed  
+- **Removed temporary test files** - Cleaned up root directory
+
+---
+
 ## [0.12.1] - 2026-02-19
 
 ### 🚀 Added
