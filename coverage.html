@@ -1,0 +1,745 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>resolver: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">devopsmaestro/pkg/colors/resolver/factory.go (100.0%)</option>
+				
+				<option value="file1">devopsmaestro/pkg/colors/resolver/hierarchy.go (86.3%)</option>
+				
+				<option value="file2">devopsmaestro/pkg/colors/resolver/interface.go (100.0%)</option>
+				
+				<option value="file3">devopsmaestro/pkg/colors/resolver/mock.go (100.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">// Package resolver provides factories for creating theme resolvers
+package resolver
+
+import (
+        "devopsmaestro/db"
+        "devopsmaestro/pkg/nvimops/theme"
+)
+
+// ResolverConfig contains configuration for theme resolvers
+type ResolverConfig struct {
+        DefaultTheme string `mapstructure:"default_theme"`
+        CacheEnabled bool   `mapstructure:"cache_enabled"`
+        CacheTTL     int    `mapstructure:"cache_ttl_seconds"` // seconds
+}
+
+// DefaultResolverConfig returns the default configuration
+func DefaultResolverConfig() ResolverConfig <span class="cov8" title="1">{
+        return ResolverConfig{
+                DefaultTheme: DefaultTheme,
+                CacheEnabled: false, // Start without caching
+                CacheTTL:     300,   // 5 minutes
+        }
+}</span>
+
+// ThemeResolverFactory creates theme resolvers
+type ThemeResolverFactory interface {
+        Create(dataStore db.DataStore, themeStore theme.Store, config ResolverConfig) (ThemeResolver, error)
+}
+
+// DefaultThemeResolverFactory implements the factory interface
+type DefaultThemeResolverFactory struct{}
+
+// NewThemeResolverFactory returns a new factory instance
+func NewThemeResolverFactory() ThemeResolverFactory <span class="cov8" title="1">{
+        return &amp;DefaultThemeResolverFactory{}
+}</span>
+
+// Create creates a new theme resolver with the given dependencies
+func (f *DefaultThemeResolverFactory) Create(dataStore db.DataStore, themeStore theme.Store, config ResolverConfig) (ThemeResolver, error) <span class="cov8" title="1">{
+        resolver := &amp;HierarchyThemeResolver{
+                dataStore:    dataStore,
+                themeStore:   themeStore,
+                defaultTheme: config.DefaultTheme,
+        }
+
+        // TODO: Add caching layer if config.CacheEnabled is true
+        // if config.CacheEnabled {
+        //     resolver = &amp;CachedThemeResolver{
+        //         resolver: resolver,
+        //         ttl:      time.Duration(config.CacheTTL) * time.Second,
+        //     }
+        // }
+
+        return resolver, nil
+}</span>
+
+// NewThemeResolver creates a theme resolver with default configuration
+// This is a convenience function for common use cases
+func NewThemeResolver(dataStore db.DataStore, themeStore theme.Store) (ThemeResolver, error) <span class="cov8" title="1">{
+        factory := NewThemeResolverFactory()
+        config := DefaultResolverConfig()
+        return factory.Create(dataStore, themeStore, config)
+}</span>
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">// Package resolver provides hierarchical theme resolution implementation
+package resolver
+
+import (
+        "context"
+        "fmt"
+        "time"
+
+        "devopsmaestro/db"
+        "devopsmaestro/pkg/nvimops/theme"
+        "devopsmaestro/pkg/nvimops/theme/library"
+)
+
+// HierarchyThemeResolver implements ThemeResolver with database access
+type HierarchyThemeResolver struct {
+        dataStore    db.DataStore
+        themeStore   theme.Store
+        defaultTheme string
+}
+
+// NewHierarchyThemeResolver creates a new hierarchy theme resolver
+func NewHierarchyThemeResolver(dataStore db.DataStore, themeStore theme.Store) *HierarchyThemeResolver <span class="cov8" title="1">{
+        return &amp;HierarchyThemeResolver{
+                dataStore:    dataStore,
+                themeStore:   themeStore,
+                defaultTheme: DefaultTheme,
+        }
+}</span>
+
+// Resolve walks the hierarchy from the starting level upward
+func (r *HierarchyThemeResolver) Resolve(ctx context.Context, level HierarchyLevel, objectID int) (*ThemeResolution, error) <span class="cov8" title="1">{
+        resolution := &amp;ThemeResolution{
+                Path:       []ThemeStep{},
+                ResolvedAt: time.Now(),
+        }
+
+        walker := &amp;hierarchyWalker{
+                level:      level,
+                objectID:   objectID,
+                resolution: resolution,
+                dataStore:  r.dataStore,
+        }
+
+        return r.walkHierarchy(ctx, walker)
+}</span>
+
+// ResolveDefault returns the global default theme
+func (r *HierarchyThemeResolver) ResolveDefault() (*ThemeResolution, error) <span class="cov8" title="1">{
+        resolution := &amp;ThemeResolution{
+                Source:     LevelGlobal,
+                SourceName: "global default",
+                SourceID:   0,
+                Path: []ThemeStep{
+                        {
+                                Level:     LevelGlobal,
+                                Name:      "global default",
+                                ThemeName: r.defaultTheme,
+                                Found:     true,
+                        },
+                },
+                ResolvedAt: time.Now(),
+        }
+
+        // Load the default theme
+        theme, err := r.loadTheme(r.defaultTheme)
+        if err != nil </span><span class="cov8" title="1">{
+                resolution.Path[0].Error = fmt.Sprintf("failed to load default theme: %v", err)
+                return resolution, err
+        }</span>
+
+        <span class="cov8" title="1">resolution.Theme = theme
+        return resolution, nil</span>
+}
+
+// GetResolutionPath returns the complete resolution trace without loading themes
+func (r *HierarchyThemeResolver) GetResolutionPath(ctx context.Context, level HierarchyLevel, objectID int) (*ThemeResolution, error) <span class="cov8" title="1">{
+        resolution := &amp;ThemeResolution{
+                Path:       []ThemeStep{},
+                ResolvedAt: time.Now(),
+        }
+
+        walker := &amp;hierarchyWalker{
+                level:      level,
+                objectID:   objectID,
+                resolution: resolution,
+                dataStore:  r.dataStore,
+        }
+
+        // Walk hierarchy but don't load themes, just trace the path
+        return r.walkHierarchyTrace(ctx, walker)
+}</span>
+
+// hierarchyWalker manages the state during hierarchy traversal
+type hierarchyWalker struct {
+        level      HierarchyLevel
+        objectID   int
+        resolution *ThemeResolution
+        dataStore  db.DataStore
+}
+
+// walkHierarchy implements the template method pattern for hierarchy walking
+func (r *HierarchyThemeResolver) walkHierarchy(ctx context.Context, walker *hierarchyWalker) (*ThemeResolution, error) <span class="cov8" title="1">{
+        for walker.level &lt;= LevelGlobal </span><span class="cov8" title="1">{
+                step := r.resolveAtLevel(ctx, walker.level, walker.objectID)
+                walker.resolution.Path = append(walker.resolution.Path, step)
+
+                // If we found a theme at this level, try to load it
+                if step.Found &amp;&amp; step.ThemeName != "" </span><span class="cov8" title="1">{
+                        theme, err := r.loadTheme(step.ThemeName)
+                        if err == nil </span><span class="cov8" title="1">{
+                                // Successfully loaded theme
+                                return r.buildResolution(theme, walker, step), nil
+                        }</span>
+                        // Theme loading failed, update step and continue
+                        <span class="cov8" title="1">step.Error = fmt.Sprintf("theme loading failed: %v", err)
+                        walker.resolution.Path[len(walker.resolution.Path)-1] = step</span>
+                }
+
+                // Move up hierarchy
+                <span class="cov8" title="1">parentID, parentLevel := r.getParent(ctx, walker.level, walker.objectID)
+                walker.objectID = parentID
+                walker.level = parentLevel
+
+                if walker.level &gt; LevelGlobal </span><span class="cov0" title="0">{
+                        break</span>
+                }
+        }
+
+        // No theme found in hierarchy, use default
+        <span class="cov0" title="0">return r.ResolveDefault()</span>
+}
+
+// walkHierarchyTrace walks hierarchy for tracing only (no theme loading)
+func (r *HierarchyThemeResolver) walkHierarchyTrace(ctx context.Context, walker *hierarchyWalker) (*ThemeResolution, error) <span class="cov8" title="1">{
+        for walker.level &lt;= LevelGlobal </span><span class="cov8" title="1">{
+                step := r.resolveAtLevel(ctx, walker.level, walker.objectID)
+                walker.resolution.Path = append(walker.resolution.Path, step)
+
+                // If we found a theme at this level, mark it as the effective source
+                if step.Found &amp;&amp; step.ThemeName != "" </span><span class="cov8" title="1">{
+                        walker.resolution.Source = walker.level
+                        walker.resolution.SourceName = step.Name
+                        walker.resolution.SourceID = step.ObjectID
+                        // Don't load theme, just return the path
+                        return walker.resolution, nil
+                }</span>
+
+                // Move up hierarchy
+                <span class="cov8" title="1">parentID, parentLevel := r.getParent(ctx, walker.level, walker.objectID)
+                walker.objectID = parentID
+                walker.level = parentLevel
+
+                if walker.level &gt; LevelGlobal </span><span class="cov0" title="0">{
+                        break</span>
+                }
+        }
+
+        // No theme found in hierarchy, mark default as source
+        <span class="cov0" title="0">walker.resolution.Source = LevelGlobal
+        walker.resolution.SourceName = "global default"
+        walker.resolution.SourceID = 0
+        walker.resolution.Path = append(walker.resolution.Path, ThemeStep{
+                Level:     LevelGlobal,
+                Name:      "global default",
+                ThemeName: r.defaultTheme,
+                Found:     true,
+        })
+
+        return walker.resolution, nil</span>
+}
+
+// resolveAtLevel checks for a theme at the specified hierarchy level
+func (r *HierarchyThemeResolver) resolveAtLevel(ctx context.Context, level HierarchyLevel, objectID int) ThemeStep <span class="cov8" title="1">{
+        step := ThemeStep{
+                Level:    level,
+                ObjectID: objectID,
+        }
+
+        switch level </span>{
+        case LevelWorkspace:<span class="cov8" title="1">
+                return r.resolveWorkspaceTheme(ctx, objectID, step)</span>
+        case LevelApp:<span class="cov8" title="1">
+                return r.resolveAppTheme(ctx, objectID, step)</span>
+        case LevelDomain:<span class="cov8" title="1">
+                return r.resolveDomainTheme(ctx, objectID, step)</span>
+        case LevelEcosystem:<span class="cov8" title="1">
+                return r.resolveEcosystemTheme(ctx, objectID, step)</span>
+        case LevelGlobal:<span class="cov8" title="1">
+                step.Name = "global default"
+                step.ThemeName = r.defaultTheme
+                step.Found = true
+                return step</span>
+        default:<span class="cov8" title="1">
+                step.Error = "unknown hierarchy level"
+                return step</span>
+        }
+}
+
+// resolveWorkspaceTheme resolves theme from workspace NvimConfig
+func (r *HierarchyThemeResolver) resolveWorkspaceTheme(ctx context.Context, workspaceID int, step ThemeStep) ThemeStep <span class="cov8" title="1">{
+        workspace, err := r.dataStore.GetWorkspaceByID(workspaceID)
+        if err != nil </span><span class="cov0" title="0">{
+                step.Error = fmt.Sprintf("workspace not found: %v", err)
+                return step
+        }</span>
+
+        <span class="cov8" title="1">step.Name = workspace.Name
+
+        // Parse workspace's NvimStructure to get theme configuration
+        // In the current implementation, we need to check if there's theme info
+        // This is a simplified approach - in a full implementation, we'd parse the NvimConfig YAML
+        if workspace.NvimStructure.Valid &amp;&amp; workspace.NvimStructure.String != "" </span><span class="cov0" title="0">{
+                // TODO: Parse NvimConfig YAML to extract theme
+                // For now, we'll assume no workspace-level theme override
+                step.Found = false
+                return step
+        }</span>
+
+        <span class="cov8" title="1">step.Found = false
+        return step</span>
+}
+
+// resolveAppTheme resolves theme from app
+func (r *HierarchyThemeResolver) resolveAppTheme(ctx context.Context, appID int, step ThemeStep) ThemeStep <span class="cov8" title="1">{
+        app, err := r.dataStore.GetAppByID(appID)
+        if err != nil </span><span class="cov8" title="1">{
+                step.Error = fmt.Sprintf("app not found: %v", err)
+                return step
+        }</span>
+
+        <span class="cov8" title="1">step.Name = app.Name
+
+        if app.Theme.Valid &amp;&amp; app.Theme.String != "" </span><span class="cov8" title="1">{
+                step.ThemeName = app.Theme.String
+                step.Found = true
+        }</span> else<span class="cov8" title="1"> {
+                step.Found = false
+        }</span>
+
+        <span class="cov8" title="1">return step</span>
+}
+
+// resolveDomainTheme resolves theme from domain
+func (r *HierarchyThemeResolver) resolveDomainTheme(ctx context.Context, domainID int, step ThemeStep) ThemeStep <span class="cov8" title="1">{
+        domain, err := r.dataStore.GetDomainByID(domainID)
+        if err != nil </span><span class="cov0" title="0">{
+                step.Error = fmt.Sprintf("domain not found: %v", err)
+                return step
+        }</span>
+
+        <span class="cov8" title="1">step.Name = domain.Name
+
+        if domain.Theme.Valid &amp;&amp; domain.Theme.String != "" </span><span class="cov8" title="1">{
+                step.ThemeName = domain.Theme.String
+                step.Found = true
+        }</span> else<span class="cov8" title="1"> {
+                step.Found = false
+        }</span>
+
+        <span class="cov8" title="1">return step</span>
+}
+
+// resolveEcosystemTheme resolves theme from ecosystem
+func (r *HierarchyThemeResolver) resolveEcosystemTheme(ctx context.Context, ecosystemID int, step ThemeStep) ThemeStep <span class="cov8" title="1">{
+        ecosystem, err := r.dataStore.GetEcosystemByID(ecosystemID)
+        if err != nil </span><span class="cov0" title="0">{
+                step.Error = fmt.Sprintf("ecosystem not found: %v", err)
+                return step
+        }</span>
+
+        <span class="cov8" title="1">step.Name = ecosystem.Name
+
+        if ecosystem.Theme.Valid &amp;&amp; ecosystem.Theme.String != "" </span><span class="cov8" title="1">{
+                step.ThemeName = ecosystem.Theme.String
+                step.Found = true
+        }</span> else<span class="cov8" title="1"> {
+                step.Found = false
+        }</span>
+
+        <span class="cov8" title="1">return step</span>
+}
+
+// getParent returns the parent object ID and level for the given hierarchy level
+func (r *HierarchyThemeResolver) getParent(ctx context.Context, level HierarchyLevel, objectID int) (int, HierarchyLevel) <span class="cov8" title="1">{
+        switch level </span>{
+        case LevelWorkspace:<span class="cov8" title="1">
+                // Get workspace's app ID
+                if workspace, err := r.dataStore.GetWorkspaceByID(objectID); err == nil </span><span class="cov8" title="1">{
+                        return workspace.AppID, LevelApp
+                }</span>
+                <span class="cov8" title="1">return 0, LevelGlobal</span>
+        case LevelApp:<span class="cov8" title="1">
+                // Get app's domain ID
+                if app, err := r.dataStore.GetAppByID(objectID); err == nil </span><span class="cov8" title="1">{
+                        return app.DomainID, LevelDomain
+                }</span>
+                <span class="cov8" title="1">return 0, LevelGlobal</span>
+        case LevelDomain:<span class="cov8" title="1">
+                // Get domain's ecosystem ID
+                if domain, err := r.dataStore.GetDomainByID(objectID); err == nil </span><span class="cov8" title="1">{
+                        return domain.EcosystemID, LevelEcosystem
+                }</span>
+                <span class="cov8" title="1">return 0, LevelGlobal</span>
+        case LevelEcosystem:<span class="cov8" title="1">
+                return 0, LevelGlobal</span>
+        default:<span class="cov8" title="1">
+                return 0, LevelGlobal</span>
+        }
+}
+
+// loadTheme loads a theme from the theme store or library
+func (r *HierarchyThemeResolver) loadTheme(name string) (*theme.Theme, error) <span class="cov8" title="1">{
+        // Try theme store first (custom themes)
+        if r.themeStore != nil </span><span class="cov8" title="1">{
+                theme, err := r.themeStore.Get(name)
+                if err == nil </span><span class="cov8" title="1">{
+                        return theme, nil
+                }</span>
+        }
+
+        // Try library as fallback (built-in themes)
+        <span class="cov8" title="1">theme, err := library.Get(name)
+        if err != nil </span><span class="cov8" title="1">{
+                return nil, fmt.Errorf("theme %q not found in store or library: %v", name, err)
+        }</span>
+
+        <span class="cov0" title="0">return theme, nil</span>
+}
+
+// buildResolution creates the final resolution result
+func (r *HierarchyThemeResolver) buildResolution(theme *theme.Theme, walker *hierarchyWalker, step ThemeStep) *ThemeResolution <span class="cov8" title="1">{
+        walker.resolution.Theme = theme
+        walker.resolution.Source = walker.level
+        walker.resolution.SourceName = step.Name
+        walker.resolution.SourceID = step.ObjectID
+        return walker.resolution
+}</span>
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">// Package resolver provides hierarchical theme resolution across the object hierarchy.
+// It implements the Strategy pattern to resolve effective themes by walking up:
+// Workspace → App → Domain → Ecosystem → Global Default
+package resolver
+
+import (
+        "context"
+        "time"
+
+        "devopsmaestro/pkg/nvimops/theme"
+)
+
+// DefaultTheme is the global fallback theme
+const DefaultTheme = "coolnight-ocean"
+
+// HierarchyLevel defines where to start theme resolution
+type HierarchyLevel int
+
+const (
+        LevelWorkspace HierarchyLevel = iota
+        LevelApp
+        LevelDomain
+        LevelEcosystem
+        LevelGlobal
+)
+
+// String returns the string representation of the hierarchy level
+func (h HierarchyLevel) String() string <span class="cov8" title="1">{
+        switch h </span>{
+        case LevelWorkspace:<span class="cov8" title="1">
+                return "workspace"</span>
+        case LevelApp:<span class="cov8" title="1">
+                return "app"</span>
+        case LevelDomain:<span class="cov8" title="1">
+                return "domain"</span>
+        case LevelEcosystem:<span class="cov8" title="1">
+                return "ecosystem"</span>
+        case LevelGlobal:<span class="cov8" title="1">
+                return "global"</span>
+        default:<span class="cov8" title="1">
+                return "unknown"</span>
+        }
+}
+
+// ThemeResolver resolves effective themes using hierarchy walking
+type ThemeResolver interface {
+        // Resolve walks the hierarchy from the starting level upward
+        // Returns the first theme found or the global default
+        Resolve(ctx context.Context, level HierarchyLevel, objectID int) (*ThemeResolution, error)
+
+        // ResolveDefault returns the global default theme
+        ResolveDefault() (*ThemeResolution, error)
+
+        // GetResolutionPath returns the complete resolution trace without loading themes
+        // Useful for debugging and display purposes
+        GetResolutionPath(ctx context.Context, level HierarchyLevel, objectID int) (*ThemeResolution, error)
+}
+
+// ThemeResolution contains complete resolution information
+type ThemeResolution struct {
+        // Effective result
+        Theme      *theme.Theme   `json:"theme"`
+        Source     HierarchyLevel `json:"source"`
+        SourceName string         `json:"source_name"`
+        SourceID   int            `json:"source_id"`
+
+        // Full resolution path (for debugging/transparency)
+        Path []ThemeStep `json:"path"`
+
+        // Performance metadata
+        CacheHit   bool      `json:"cache_hit,omitempty"`
+        ResolvedAt time.Time `json:"resolved_at"`
+}
+
+// ThemeStep represents one step in the hierarchy walk
+type ThemeStep struct {
+        Level     HierarchyLevel `json:"level"`
+        ObjectID  int            `json:"object_id,omitempty"`
+        Name      string         `json:"name"`
+        ThemeName string         `json:"theme_name,omitempty"`
+        Found     bool           `json:"found"`
+        Error     string         `json:"error,omitempty"`
+}
+
+// IsLight returns whether the effective theme is a light theme
+func (r *ThemeResolution) IsLight() bool <span class="cov8" title="1">{
+        if r.Theme == nil </span><span class="cov8" title="1">{
+                return false
+        }</span>
+        <span class="cov8" title="1">return r.Theme.Category == "light"</span>
+}
+
+// GetEffectiveThemeName returns the name of the effective theme
+func (r *ThemeResolution) GetEffectiveThemeName() string <span class="cov8" title="1">{
+        if r.Theme == nil </span><span class="cov8" title="1">{
+                return DefaultTheme
+        }</span>
+        <span class="cov8" title="1">return r.Theme.Name</span>
+}
+
+// GetSourceDescription returns a human-readable description of where the theme came from
+func (r *ThemeResolution) GetSourceDescription() string <span class="cov8" title="1">{
+        if r.SourceName == "" </span><span class="cov8" title="1">{
+                return r.Source.String()
+        }</span>
+        <span class="cov8" title="1">return r.Source.String() + " '" + r.SourceName + "'"</span>
+}
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">// Package resolver provides mock implementations for testing
+package resolver
+
+import (
+        "context"
+        "time"
+
+        "devopsmaestro/pkg/nvimops/theme"
+)
+
+// MockThemeResolver provides a mock implementation for testing
+type MockThemeResolver struct {
+        themes      map[string]*theme.Theme
+        defaultName string
+        resolutions map[string]*ThemeResolution // key: "level:objectID"
+}
+
+// NewMockThemeResolver creates a mock resolver with default themes
+func NewMockThemeResolver() *MockThemeResolver <span class="cov8" title="1">{
+        return &amp;MockThemeResolver{
+                themes:      make(map[string]*theme.Theme),
+                defaultName: DefaultTheme,
+                resolutions: make(map[string]*ThemeResolution),
+        }
+}</span>
+
+// SetTheme adds a theme to the mock resolver
+func (m *MockThemeResolver) SetTheme(name string, theme *theme.Theme) <span class="cov8" title="1">{
+        m.themes[name] = theme
+}</span>
+
+// SetResolution sets a predetermined resolution for a specific level and object ID
+func (m *MockThemeResolver) SetResolution(level HierarchyLevel, objectID int, resolution *ThemeResolution) <span class="cov8" title="1">{
+        key := m.makeKey(level, objectID)
+        m.resolutions[key] = resolution
+}</span>
+
+// SetDefaultTheme sets the default theme name
+func (m *MockThemeResolver) SetDefaultTheme(name string) <span class="cov8" title="1">{
+        m.defaultName = name
+}</span>
+
+// Resolve implements ThemeResolver interface
+func (m *MockThemeResolver) Resolve(ctx context.Context, level HierarchyLevel, objectID int) (*ThemeResolution, error) <span class="cov8" title="1">{
+        key := m.makeKey(level, objectID)
+        if resolution, ok := m.resolutions[key]; ok </span><span class="cov8" title="1">{
+                return resolution, nil
+        }</span>
+
+        // Return default resolution
+        <span class="cov8" title="1">return m.ResolveDefault()</span>
+}
+
+// ResolveDefault implements ThemeResolver interface
+func (m *MockThemeResolver) ResolveDefault() (*ThemeResolution, error) <span class="cov8" title="1">{
+        defaultTheme := m.themes[m.defaultName]
+        if defaultTheme == nil </span><span class="cov8" title="1">{
+                // Create a minimal theme if not found
+                defaultTheme = &amp;theme.Theme{
+                        Name:     m.defaultName,
+                        Category: "dark",
+                        Plugin:   theme.ThemePlugin{Repo: "test/mock"},
+                        Colors: map[string]string{
+                                "bg": "#1a1b26",
+                                "fg": "#c0caf5",
+                        },
+                }
+        }</span>
+
+        <span class="cov8" title="1">return &amp;ThemeResolution{
+                Theme:      defaultTheme,
+                Source:     LevelGlobal,
+                SourceName: "global default",
+                SourceID:   0,
+                Path: []ThemeStep{
+                        {
+                                Level:     LevelGlobal,
+                                Name:      "global default",
+                                ThemeName: m.defaultName,
+                                Found:     true,
+                        },
+                },
+                ResolvedAt: time.Now(),
+        }, nil</span>
+}
+
+// GetResolutionPath implements ThemeResolver interface
+func (m *MockThemeResolver) GetResolutionPath(ctx context.Context, level HierarchyLevel, objectID int) (*ThemeResolution, error) <span class="cov8" title="1">{
+        key := m.makeKey(level, objectID)
+        if resolution, ok := m.resolutions[key]; ok </span><span class="cov8" title="1">{
+                // Return copy without theme loaded
+                pathOnlyResolution := &amp;ThemeResolution{
+                        Source:     resolution.Source,
+                        SourceName: resolution.SourceName,
+                        SourceID:   resolution.SourceID,
+                        Path:       make([]ThemeStep, len(resolution.Path)),
+                        ResolvedAt: time.Now(),
+                }
+                copy(pathOnlyResolution.Path, resolution.Path)
+                return pathOnlyResolution, nil
+        }</span>
+
+        // Return default path
+        <span class="cov8" title="1">return &amp;ThemeResolution{
+                Source:     LevelGlobal,
+                SourceName: "global default",
+                SourceID:   0,
+                Path: []ThemeStep{
+                        {
+                                Level:     LevelGlobal,
+                                Name:      "global default",
+                                ThemeName: m.defaultName,
+                                Found:     true,
+                        },
+                },
+                ResolvedAt: time.Now(),
+        }, nil</span>
+}
+
+// makeKey creates a unique key for level and object ID combinations
+func (m *MockThemeResolver) makeKey(level HierarchyLevel, objectID int) string <span class="cov8" title="1">{
+        return level.String() + ":" + string(rune('0'+objectID))
+}</span>
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>

@@ -44,7 +44,7 @@ brew install devopsmaestro
 brew install nvimops
 
 # Verify installation
-dvm version   # Should show v0.14.0
+dvm version   # Should show v0.15.0
 nvp version
 ```
 
@@ -245,6 +245,8 @@ dvm status           # Full status overview
 
 - **kubectl-style commands** - Familiar `get`, `create`, `delete`, `apply` patterns
 - **Object hierarchy** - Ecosystem → Domain → App → Workspace for organized development
+- **GitHub directory URL support** - Apply entire directories of YAML files with `dvm apply -f github:user/repo/directory/`
+- **Secret provider system** - Pluggable secret resolution (Keychain, environment variables)
 - **Multi-platform** - OrbStack, Docker Desktop, Podman, Colima
 - **Container-native** - Isolated dev environments with Neovim pre-configured
 - **Default Nvim setup** - New workspaces auto-configured with lazyvim + "core" plugin package
@@ -412,6 +414,62 @@ dvt wezterm apply <name>      # Apply configuration to ~/.wezterm.lua
 
 ---
 
+## Secrets
+
+DevOpsMaestro supports pluggable secret providers for secure credential management.
+
+### Supported Providers
+
+| Provider | Backend | Platform | Priority |
+|----------|---------|----------|----------|
+| `keychain` | macOS Keychain | macOS | Default on macOS |
+| `env` | Environment variables | All | Fallback |
+
+### Usage
+
+Secrets can be referenced in YAML using inline syntax:
+
+```yaml
+config: |
+  api_key = "${secret:my-api-key}"           # Uses default provider
+  token = "${secret:github-token:keychain}"  # Explicit provider
+```
+
+### Adding Secrets to Keychain
+
+```bash
+# Add a secret to macOS Keychain for dvm
+security add-generic-password -s devopsmaestro -a github-token -w "your-token-here"
+```
+
+### Environment Variables
+
+Secrets can also be set via environment variables:
+- `DVM_SECRET_GITHUB_TOKEN` - GitHub API token
+- `DVM_SECRET_<NAME>` - Any secret (uppercase, underscores for dashes)
+
+For backward compatibility, `GITHUB_TOKEN` is also checked.
+
+---
+
+## Applying Resources
+
+```bash
+# Apply single file
+dvm apply -f plugin.yaml
+
+# Apply from GitHub
+dvm apply -f github:user/repo/plugins/telescope.yaml
+
+# Apply entire directory from GitHub
+dvm apply -f github:user/repo/plugins/
+
+# Apply from your personal config repo
+dvm apply -f github:rmkohlman/dvm-config/plugins/
+```
+
+---
+
 ## Configuration
 
 ### Workspace YAML
@@ -473,6 +531,7 @@ The `-f` flag accepts multiple source types, auto-detected from the path:
 | **File** | `-f plugin.yaml` | Local file path |
 | **URL** | `-f https://example.com/plugin.yaml` | HTTP/HTTPS URL |
 | **GitHub** | `-f github:user/repo/path.yaml` | GitHub shorthand |
+| **GitHub Directory** | `-f github:user/repo/plugins/` | Entire GitHub directory |
 | **Stdin** | `-f -` | Read from stdin |
 
 ```bash
@@ -485,6 +544,10 @@ nvp apply -f https://raw.githubusercontent.com/user/repo/main/plugin.yaml
 
 # Apply from GitHub (shorthand)
 nvp apply -f github:rmkohlman/nvim-yaml-plugins/plugins/telescope.yaml
+
+# Apply entire directory from GitHub
+dvm apply -f github:rmkohlman/nvim-yaml-plugins/plugins/
+dvm apply -f github:rmkohlman/dvm-config/themes/
 
 # Apply from stdin
 cat plugin.yaml | nvp apply -f -

@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.15.0] - 2026-02-19
+
+### Added
+
+- **GitHub Directory URL Support**: Apply all YAML files from a GitHub directory with a single command
+  - `dvm apply -f github:user/repo/plugins/` applies all .yaml files in directory
+  - Supports trailing slash or no extension to indicate directory
+  - Shows progress: "Applying 1/34: telescope.yaml..."
+  - Continues on individual failures and reports summary
+  
+- **Secret Provider System**: Pluggable secret resolution for YAML resources
+  - New `pkg/secrets/` package with interface-based design
+  - **Keychain Provider** (macOS): Reads secrets from macOS Keychain
+  - **Environment Provider**: Reads from `DVM_SECRET_<NAME>` or fallback env vars
+  - Inline syntax: `${secret:name}` or `${secret:name:provider}`
+  - GITHUB_TOKEN now resolved via secret providers (Keychain first, then env)
+  
+- **DirectorySource Interface**: Extensible interface for directory-based sources
+  - `DirectorySource` interface in `pkg/source/`
+  - `GitHubDirectorySource` implementation
+  - Foundation for future local directory and other VCS support
+
+### Changed
+
+- `dvm apply` help text updated with directory and secret examples
+- `dvm apply nvim plugin` and `dvm apply nvim theme` help updated
+- `GitHubDirectorySource.ListFiles()` now returns `[]Source` for proper abstraction
+
+### Fixed
+
+- Architecture compliance: Proper Interface → Implementation → Factory pattern for sources
+
+---
+
 ## [0.13.1] - 2026-02-19
 
 ### ✨ Features

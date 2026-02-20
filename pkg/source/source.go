@@ -37,6 +37,41 @@ type Source interface {
 	Type() string
 }
 
+// DirectorySource represents a source that can list multiple files.
+// This interface allows for different directory source implementations
+// (GitHub, local filesystem, etc.) to be used interchangeably.
+type DirectorySource interface {
+	// ListFiles returns all Source objects for files in this directory.
+	ListFiles() ([]Source, error)
+
+	// Type returns the directory source type for logging/debugging.
+	Type() string
+}
+
+// IsDirectorySource checks if a Source is also a DirectorySource.
+// Returns the DirectorySource and true if the source implements DirectorySource,
+// otherwise returns nil and false.
+func IsDirectorySource(s Source) (DirectorySource, bool) {
+	ds, ok := s.(DirectorySource)
+	return ds, ok
+}
+
+// NamedSource is an optional interface for sources that provide a display name.
+type NamedSource interface {
+	// Name returns a short display name for the source (e.g., filename).
+	Name() string
+}
+
+// GetSourceName returns a display name for a source.
+// If the source implements NamedSource, returns that name.
+// Otherwise, returns the source type as a fallback.
+func GetSourceName(s Source) string {
+	if named, ok := s.(NamedSource); ok {
+		return named.Name()
+	}
+	return s.Type()
+}
+
 // Resolve determines the source type from a string and returns the appropriate Source.
 // Supported formats:
 //   - "-" → StdinSource
@@ -61,6 +96,48 @@ func IsURL(s string) bool {
 	return strings.HasPrefix(s, "http://") ||
 		strings.HasPrefix(s, "https://") ||
 		strings.HasPrefix(s, "github:")
+}
+
+// IsDirectory returns true if the source string looks like a directory path
+// (has trailing slash, or is a URL path with no .yaml/.yml extension)
+func IsDirectory(s string) bool {
+	// Stdin is not a directory
+	if s == "-" {
+		return false
+	}
+
+	// Trailing slash indicates directory
+	if strings.HasSuffix(s, "/") {
+		return true
+	}
+
+	// For URLs, check if there's no .yaml/.yml extension
+	if IsURL(s) {
+		// Extract the path portion
+		path := s
+		if strings.HasPrefix(s, "github:") {
+			path = strings.TrimPrefix(s, "github:")
+		} else if strings.Contains(s, "://") {
+			// For http(s):// URLs, extract path after domain
+			parts := strings.SplitN(s, "://", 2)
+			if len(parts) == 2 {
+				// Find the path after the domain
+				domainPath := parts[1]
+				slashIdx := strings.Index(domainPath, "/")
+				if slashIdx >= 0 {
+					path = domainPath[slashIdx:]
+				} else {
+					path = ""
+				}
+			}
+		}
+
+		// Check if path has no YAML extension
+		lowerPath := strings.ToLower(path)
+		return !strings.HasSuffix(lowerPath, ".yaml") && !strings.HasSuffix(lowerPath, ".yml")
+	}
+
+	return false
 }
 
 // FileSource reads data from a local file.

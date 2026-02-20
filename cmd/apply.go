@@ -20,19 +20,48 @@ func init() {
 var applyCmd = &cobra.Command{
 	Use:   "apply",
 	Short: "Apply a configuration from file",
-	Long: `Apply a configuration to a resource from a YAML file, URL, or stdin.
+	Long: `Apply a configuration to a resource from a YAML file, URL, directory, or stdin.
 
-The -f flag accepts local files, URLs, or stdin (use '-' for stdin).
-URLs starting with http://, https://, or github: are fetched automatically.
+The -f flag accepts:
+  - Local files: plugin.yaml, ./configs/theme.yaml
+  - URLs: https://example.com/plugin.yaml
+  - GitHub shorthand: github:user/repo/path/file.yaml
+  - GitHub directories: github:user/repo/plugins/ (applies all YAML files)
+  - Stdin: use '-' to read from stdin
+
+Directory URLs (ending with / or no .yaml extension) will apply all YAML files
+in that directory. Files are applied in alphabetical order.
 
 The resource type is auto-detected from the 'kind' field in the YAML.
-Supported kinds: NvimPlugin, NvimTheme
+Supported kinds: NvimPlugin, NvimTheme, Workspace, Project, TerminalPrompt
+
+Secrets in YAML can be resolved from various providers:
+  - macOS Keychain (default on macOS)
+  - Environment variables (DVM_SECRET_<NAME> or GITHUB_TOKEN)
+  
+Use inline syntax: ${secret:name} or ${secret:name:provider}
 
 Examples:
-  dvm apply -f plugin.yaml                    # Apply any resource (auto-detect kind)
-  dvm apply -f plugin.yaml -f theme.yaml      # Apply multiple resources
-  dvm apply -f github:user/repo/plugin.yaml   # Apply from GitHub
-  dvm apply nvim plugin -f plugin.yaml        # Explicit kind (backward compat)`,
+  # Apply single file
+  dvm apply -f plugin.yaml
+  
+  # Apply multiple files
+  dvm apply -f plugin.yaml -f theme.yaml
+  
+  # Apply from GitHub file
+  dvm apply -f github:user/repo/plugins/telescope.yaml
+  
+  # Apply all plugins from GitHub directory
+  dvm apply -f github:user/repo/plugins/
+  
+  # Apply from URL
+  dvm apply -f https://example.com/workspace.yaml
+  
+  # Apply from stdin
+  cat plugin.yaml | dvm apply -f -
+  
+  # Using secrets (token from keychain for private repos)
+  dvm apply -f github:user/private-repo/config.yaml`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		files, _ := cmd.Flags().GetStringSlice("filename")
 
@@ -54,11 +83,94 @@ func applyResources(cmd *cobra.Command, sources []string) error {
 	}
 
 	for _, src := range sources {
-		if err := applyResource(ctx, src); err != nil {
-			return err
+		// Check if this is a directory source
+		if source.IsDirectory(src) && source.IsURL(src) {
+			if err := applyDirectorySource(ctx, src); err != nil {
+				return err
+			}
+		} else {
+			// Single file apply (existing behavior)
+			if err := applyResource(ctx, src); err != nil {
+				return err
+			}
 		}
 	}
 
+	return nil
+}
+
+// applyDirectorySource handles applying all YAML files from a directory source.
+func applyDirectorySource(ctx resource.Context, src string) error {
+	// Create the directory source (currently only GitHub directories are supported)
+	dirSource := source.NewGitHubDirectorySource(src)
+
+	// List files using the DirectorySource interface
+	files, err := dirSource.ListFiles()
+	if err != nil {
+		return fmt.Errorf("failed to list files from %s: %w", src, err)
+	}
+
+	if len(files) == 0 {
+		render.Warning(fmt.Sprintf("No YAML files found in %s", src))
+		return nil
+	}
+
+	render.Info(fmt.Sprintf("Found %d YAML files in %s", len(files), src))
+
+	// Apply each file, showing progress
+	var errors []error
+	successCount := 0
+
+	for i, file := range files {
+		// Get source name for display
+		sourceName := source.GetSourceName(file)
+		render.Info(fmt.Sprintf("Applying %d/%d: %s...", i+1, len(files), sourceName))
+
+		if err := applySourceFile(ctx, file, sourceName); err != nil {
+			errors = append(errors, fmt.Errorf("%s: %w", sourceName, err))
+			render.Warning(fmt.Sprintf("  Failed: %v", err))
+		} else {
+			successCount++
+		}
+	}
+
+	// Report summary
+	if len(errors) > 0 {
+		render.Warning(fmt.Sprintf("Applied %d/%d files successfully", successCount, len(files)))
+		return fmt.Errorf("%d of %d files failed to apply", len(errors), len(files))
+	}
+
+	render.Success(fmt.Sprintf("Successfully applied all %d files from %s", len(files), src))
+	return nil
+}
+
+// applySourceFile applies a single resource from a Source interface.
+func applySourceFile(ctx resource.Context, src source.Source, sourceName string) error {
+	// 1. Read data
+	data, displayName, err := src.Read()
+	if err != nil {
+		return fmt.Errorf("failed to read %s: %w", sourceName, err)
+	}
+
+	// 2. Detect kind from YAML
+	kind, err := resource.DetectKind(data)
+	if err != nil {
+		return fmt.Errorf("failed to detect resource kind from %s: %w", displayName, err)
+	}
+
+	// 3. Get handler for this kind
+	handler, err := resource.MustGetHandler(kind)
+	if err != nil {
+		return fmt.Errorf("unsupported resource kind '%s' in %s", kind, displayName)
+	}
+
+	// 4. Apply the resource
+	res, err := handler.Apply(ctx, data)
+	if err != nil {
+		return fmt.Errorf("failed to apply %s from %s: %w", kind, displayName, err)
+	}
+
+	render.Success(fmt.Sprintf("  %s '%s' applied", kind, res.GetName()))
 	return nil
 }
 
@@ -122,17 +234,17 @@ Examples:
 var applyNvimPluginCmd = &cobra.Command{
 	Use:   "plugin",
 	Short: "Apply a nvim plugin from file or URL",
-	Long: `Apply a nvim plugin definition from a YAML file or URL to the database.
+	Long: `Apply nvim plugin definition(s) from a YAML file, URL, or directory.
 If the plugin already exists, it will be updated.
 
-The -f flag accepts local files, URLs, or stdin (use '-' for stdin).
-URLs starting with http://, https://, or github: are fetched automatically.
+The -f flag accepts local files, URLs, GitHub shorthand, or directories.
+Directory URLs apply all .yaml files in that directory.
 
 Examples:
   dvm apply nvim plugin -f telescope.yaml
   dvm apply nvim plugin -f plugin1.yaml -f plugin2.yaml
+  dvm apply nvim plugin -f github:rmkohlman/nvim-yaml-plugins/plugins/
   dvm apply nvim plugin -f https://raw.githubusercontent.com/user/repo/main/plugin.yaml
-  dvm apply nvim plugin -f github:rmkohlman/nvim-yaml-plugins/plugins/telescope.yaml
   cat plugin.yaml | dvm apply nvim plugin -f -`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		files, _ := cmd.Flags().GetStringSlice("filename")
@@ -151,17 +263,17 @@ Examples:
 var applyNvimThemeCmd = &cobra.Command{
 	Use:   "theme",
 	Short: "Apply a nvim theme from file or URL",
-	Long: `Apply a nvim theme definition from a YAML file or URL to the database.
+	Long: `Apply nvim theme definition(s) from a YAML file, URL, or directory.
 If the theme already exists, it will be updated.
 
-The -f flag accepts local files, URLs, or stdin (use '-' for stdin).
-URLs starting with http://, https://, or github: are fetched automatically.
+The -f flag accepts local files, URLs, GitHub shorthand, or directories.
+Directory URLs apply all .yaml files in that directory.
 
 Examples:
   dvm apply nvim theme -f tokyonight.yaml
   dvm apply nvim theme -f theme1.yaml -f theme2.yaml
+  dvm apply nvim theme -f github:rmkohlman/nvim-yaml-plugins/themes/
   dvm apply nvim theme -f https://raw.githubusercontent.com/user/repo/main/theme.yaml
-  dvm apply nvim theme -f github:rmkohlman/nvim-yaml-plugins/themes/catppuccin-mocha.yaml
   cat theme.yaml | dvm apply nvim theme -f -`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		files, _ := cmd.Flags().GetStringSlice("filename")
