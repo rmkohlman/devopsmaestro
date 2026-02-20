@@ -44,7 +44,7 @@ brew install devopsmaestro
 brew install nvimops
 
 # Verify installation
-dvm version   # Should show v0.6.0
+dvm version   # Should show v0.16.0
 nvp version
 ```
 
@@ -131,12 +131,12 @@ nvp init
 nvp library list                    # 38+ curated plugins available
 nvp library install telescope treesitter lspconfig
 
-# Or sync from external sources (NEW in v0.6.0)
+# Or sync from external sources (NEW in v0.16.0)
 nvp source list                     # Show available sources
 nvp source sync lazyvim             # Import LazyVim plugins
 nvp source sync lazyvim --dry-run   # Preview first
 
-# Package Management (NEW in v0.6.0)
+# Package Management (NEW in v0.16.0)
 dvm get nvim packages               # List available packages
 dvm get nvim package core           # Show package details
 dvm use nvim package my-package     # Set default for new workspaces
@@ -337,14 +337,14 @@ dvm use workspace <name>      # Set active workspace
 # Context
 dvm get context               # Show active ecosystem/domain/app/workspace
 
-# Package Management (v0.6.0+)
+# Package Management (v0.16.0+)
 dvm get nvim packages         # List all available packages
 dvm get nvim package <name>   # Show package details
 dvm apply -f package.yaml     # Apply package from YAML file
 dvm edit nvim package <name>  # Edit package in default editor
 dvm delete nvim package <name> # Remove a package
 
-# Defaults Management (v0.6.0+)
+# Defaults Management (v0.16.0+)
 dvm use nvim package <name>   # Set default package for new workspaces
 dvm use nvim package none     # Clear default package
 dvm get nvim defaults         # Show current defaults
@@ -382,7 +382,7 @@ nvp apply -f https://example.com/plugin.yaml  # Apply from URL (auto-detected)
 nvp apply -f github:user/repo/plugin.yaml     # GitHub shorthand
 nvp apply -f -                # Apply from stdin
 
-# External Sources (v0.6.0+)
+# External Sources (v0.16.0+)
 nvp source list               # List available external sources
 nvp source show <name>        # Show source details
 nvp source sync <name>        # Sync plugins from external source
