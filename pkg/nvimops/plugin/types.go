@@ -30,10 +30,10 @@ type Plugin struct {
 	Dependencies []Dependency `json:"dependencies,omitempty" yaml:"dependencies,omitempty"`
 
 	// Build and configuration
-	Build  string                 `json:"build,omitempty" yaml:"build,omitempty"`
-	Config string                 `json:"config,omitempty" yaml:"config,omitempty"` // Lua code
-	Init   string                 `json:"init,omitempty" yaml:"init,omitempty"`     // Lua code
-	Opts   map[string]interface{} `json:"opts,omitempty" yaml:"opts,omitempty"`
+	Build  string      `json:"build,omitempty" yaml:"build,omitempty"`
+	Config string      `json:"config,omitempty" yaml:"config,omitempty"` // Lua code
+	Init   string      `json:"init,omitempty" yaml:"init,omitempty"`     // Lua code
+	Opts   interface{} `json:"opts,omitempty" yaml:"opts,omitempty"`
 
 	// Additional keymaps (separate from lazy keys)
 	Keymaps []Keymap `json:"keymaps,omitempty" yaml:"keymaps,omitempty"`
@@ -86,22 +86,22 @@ type PluginMetadata struct {
 
 // PluginSpec contains the plugin specification in the YAML format.
 type PluginSpec struct {
-	Repo         string                 `yaml:"repo"`
-	Branch       string                 `yaml:"branch,omitempty"`
-	Version      string                 `yaml:"version,omitempty"`
-	Priority     int                    `yaml:"priority,omitempty"`
-	Lazy         bool                   `yaml:"lazy,omitempty"`
-	Enabled      *bool                  `yaml:"enabled,omitempty"` // Pointer to distinguish unset from false
-	Event        StringOrSlice          `yaml:"event,omitempty"`
-	Ft           StringOrSlice          `yaml:"ft,omitempty"`
-	Cmd          StringOrSlice          `yaml:"cmd,omitempty"`
-	Keys         []KeymapYAML           `yaml:"keys,omitempty"`
-	Dependencies []DependencyYAML       `yaml:"dependencies,omitempty"`
-	Build        string                 `yaml:"build,omitempty"`
-	Config       string                 `yaml:"config,omitempty"`
-	Init         string                 `yaml:"init,omitempty"`
-	Opts         map[string]interface{} `yaml:"opts,omitempty"`
-	Keymaps      []KeymapYAML           `yaml:"keymaps,omitempty"`
+	Repo         string           `yaml:"repo"`
+	Branch       string           `yaml:"branch,omitempty"`
+	Version      string           `yaml:"version,omitempty"`
+	Priority     int              `yaml:"priority,omitempty"`
+	Lazy         bool             `yaml:"lazy,omitempty"`
+	Enabled      *bool            `yaml:"enabled,omitempty"` // Pointer to distinguish unset from false
+	Event        StringOrSlice    `yaml:"event,omitempty"`
+	Ft           StringOrSlice    `yaml:"ft,omitempty"`
+	Cmd          StringOrSlice    `yaml:"cmd,omitempty"`
+	Keys         []KeymapYAML     `yaml:"keys,omitempty"`
+	Dependencies []DependencyYAML `yaml:"dependencies,omitempty"`
+	Build        string           `yaml:"build,omitempty"`
+	Config       string           `yaml:"config,omitempty"`
+	Init         string           `yaml:"init,omitempty"`
+	Opts         interface{}      `yaml:"opts,omitempty"`
+	Keymaps      []KeymapYAML     `yaml:"keymaps,omitempty"`
 }
 
 // KeymapYAML represents a keymap in YAML format (flexible mode field).

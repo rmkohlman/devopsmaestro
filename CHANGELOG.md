@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.15.1] - 2026-02-19
+
+### Fixed
+
+- **NvimPlugin Opts Field**: Support both map format (`{key: value}`) and raw Lua string format for `opts` field in NvimPlugin YAML
+  - Previously `opts` was typed as `map[string]interface{}`, causing YAML parsing errors with raw Lua code
+  - Now accepts both formats: `opts: {key: value}` and `opts: | raw lua code`
+  - Fixed issue where 19 of 34 plugins from `github:rmkohlman/dvm-config/plugins/` failed to apply
+  - Updated types in `pkg/nvimops/plugin/types.go`, `models/nvim_plugin.go`, and related files
+
+---
+
 ## [0.15.0] - 2026-02-19
 
 ### Added

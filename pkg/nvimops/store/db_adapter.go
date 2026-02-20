@@ -326,10 +326,23 @@ func pluginToDBModel(p *plugin.Plugin) *models.NvimPluginDB {
 		}
 	}
 
-	// Opts (map)
-	if len(p.Opts) > 0 {
-		if data, err := json.Marshal(p.Opts); err == nil {
-			db.Opts = sql.NullString{String: string(data), Valid: true}
+	// Opts (map or string)
+	if p.Opts != nil {
+		// Handle both map and string types
+		var shouldStore bool
+		switch v := p.Opts.(type) {
+		case map[string]interface{}:
+			shouldStore = len(v) > 0
+		case string:
+			shouldStore = strings.TrimSpace(v) != ""
+		default:
+			shouldStore = true // For any other type, try to store it
+		}
+
+		if shouldStore {
+			if data, err := json.Marshal(p.Opts); err == nil {
+				db.Opts = sql.NullString{String: string(data), Valid: true}
+			}
 		}
 	}
 

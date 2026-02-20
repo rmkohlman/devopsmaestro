@@ -3,6 +3,7 @@ package models
 import (
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -53,21 +54,21 @@ type PluginMetadata struct {
 
 // PluginSpec contains the plugin specification
 type PluginSpec struct {
-	Repo         string                 `yaml:"repo"`
-	Branch       string                 `yaml:"branch,omitempty"`
-	Version      string                 `yaml:"version,omitempty"`
-	Priority     int                    `yaml:"priority,omitempty"`
-	Lazy         bool                   `yaml:"lazy,omitempty"`
-	Event        interface{}            `yaml:"event,omitempty"` // string or []string
-	Ft           interface{}            `yaml:"ft,omitempty"`    // string or []string
-	Keys         []PluginKeymap         `yaml:"keys,omitempty"`
-	Cmd          interface{}            `yaml:"cmd,omitempty"`          // string or []string
-	Dependencies []interface{}          `yaml:"dependencies,omitempty"` // string or PluginDependency
-	Build        string                 `yaml:"build,omitempty"`
-	Config       string                 `yaml:"config,omitempty"`
-	Init         string                 `yaml:"init,omitempty"`
-	Opts         map[string]interface{} `yaml:"opts,omitempty"`
-	Keymaps      []PluginKeymap         `yaml:"keymaps,omitempty"`
+	Repo         string         `yaml:"repo"`
+	Branch       string         `yaml:"branch,omitempty"`
+	Version      string         `yaml:"version,omitempty"`
+	Priority     int            `yaml:"priority,omitempty"`
+	Lazy         bool           `yaml:"lazy,omitempty"`
+	Event        interface{}    `yaml:"event,omitempty"` // string or []string
+	Ft           interface{}    `yaml:"ft,omitempty"`    // string or []string
+	Keys         []PluginKeymap `yaml:"keys,omitempty"`
+	Cmd          interface{}    `yaml:"cmd,omitempty"`          // string or []string
+	Dependencies []interface{}  `yaml:"dependencies,omitempty"` // string or PluginDependency
+	Build        string         `yaml:"build,omitempty"`
+	Config       string         `yaml:"config,omitempty"`
+	Init         string         `yaml:"init,omitempty"`
+	Opts         interface{}    `yaml:"opts,omitempty"`
+	Keymaps      []PluginKeymap `yaml:"keymaps,omitempty"`
 }
 
 // PluginDependency represents a plugin dependency
@@ -267,9 +268,22 @@ func (p *NvimPluginDB) FromYAML(yaml NvimPluginYAML) error {
 		p.Init = sql.NullString{String: yaml.Spec.Init, Valid: true}
 	}
 
-	if len(yaml.Spec.Opts) > 0 {
-		if optsJSON, err := json.Marshal(yaml.Spec.Opts); err == nil {
-			p.Opts = sql.NullString{String: string(optsJSON), Valid: true}
+	if yaml.Spec.Opts != nil {
+		// Handle both map and string types
+		var shouldStore bool
+		switch v := yaml.Spec.Opts.(type) {
+		case map[string]interface{}:
+			shouldStore = len(v) > 0
+		case string:
+			shouldStore = strings.TrimSpace(v) != ""
+		default:
+			shouldStore = true // For any other type, try to store it
+		}
+
+		if shouldStore {
+			if optsJSON, err := json.Marshal(yaml.Spec.Opts); err == nil {
+				p.Opts = sql.NullString{String: string(optsJSON), Valid: true}
+			}
 		}
 	}
 

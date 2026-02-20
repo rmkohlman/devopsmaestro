@@ -103,8 +103,21 @@ func (g *Generator) GenerateLua(p *Plugin) (string, error) {
 	}
 
 	// Opts (passed to plugin.setup())
-	if len(p.Opts) > 0 {
-		g.writeOpts(&lua, indent, p.Opts)
+	if p.Opts != nil {
+		// Handle both map and string formats
+		var hasOpts bool
+		switch v := p.Opts.(type) {
+		case map[string]interface{}:
+			hasOpts = len(v) > 0
+		case string:
+			hasOpts = strings.TrimSpace(v) != ""
+		default:
+			hasOpts = true // For any other type, assume it has content
+		}
+
+		if hasOpts {
+			g.writeOpts(&lua, indent, p.Opts)
+		}
 	}
 
 	lua.WriteString("}\n")
@@ -243,16 +256,38 @@ func (g *Generator) writeFunction(lua *strings.Builder, indent, funcName, code s
 	lua.WriteString(fmt.Sprintf("%send,\n", indent))
 }
 
-// writeOpts writes the opts table.
-func (g *Generator) writeOpts(lua *strings.Builder, indent string, opts map[string]interface{}) {
-	lua.WriteString(fmt.Sprintf("%sopts = {\n", indent))
-	indent2 := indent + strings.Repeat(" ", g.IndentSize)
+// writeOpts writes the opts configuration.
+func (g *Generator) writeOpts(lua *strings.Builder, indent string, opts interface{}) {
+	switch v := opts.(type) {
+	case map[string]interface{}:
+		// Traditional map format - generate opts table
+		lua.WriteString(fmt.Sprintf("%sopts = {\n", indent))
+		indent2 := indent + strings.Repeat(" ", g.IndentSize)
 
-	for key, value := range opts {
-		g.writeOptsValue(lua, indent2, key, value)
+		for key, value := range v {
+			g.writeOptsValue(lua, indent2, key, value)
+		}
+
+		lua.WriteString(fmt.Sprintf("%s},\n", indent))
+
+	case string:
+		// Raw Lua code format
+		luaCode := strings.TrimSpace(v)
+		if luaCode != "" {
+			// Check if it's already wrapped in opts assignment
+			if strings.HasPrefix(luaCode, "opts =") || strings.Contains(luaCode, "\nopts =") {
+				// Already has opts assignment, use as-is
+				lua.WriteString(fmt.Sprintf("%s%s\n", indent, luaCode))
+			} else {
+				// Wrap in opts assignment
+				lua.WriteString(fmt.Sprintf("%sopts = %s,\n", indent, luaCode))
+			}
+		}
+
+	default:
+		// For any other type, try to format as a simple value
+		lua.WriteString(fmt.Sprintf("%sopts = %v,\n", indent, v))
 	}
-
-	lua.WriteString(fmt.Sprintf("%s},\n", indent))
 }
 
 // writeOptsValue writes a single opts key-value pair.
