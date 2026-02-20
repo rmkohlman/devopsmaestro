@@ -8,6 +8,8 @@ import (
 	"devopsmaestro/models"
 	"devopsmaestro/operators"
 	nvimconfig "devopsmaestro/pkg/nvimops/config"
+	nvimpackage "devopsmaestro/pkg/nvimops/package"
+	packagelibrary "devopsmaestro/pkg/nvimops/package/library"
 	"devopsmaestro/pkg/nvimops/plugin"
 	"devopsmaestro/pkg/nvimops/store"
 	"devopsmaestro/pkg/nvimops/theme"
@@ -507,13 +509,37 @@ func copyNvimConfig(workspacePlugins []string, appPath, homeDir string, ds db.Da
 		}
 		slog.Debug("using workspace-specific plugins", "count", len(enabledPlugins), "requested", len(workspacePlugins))
 	} else {
-		// No plugins configured for workspace - use all enabled plugins
-		for _, p := range allPlugins {
-			if p.Enabled {
-				enabledPlugins = append(enabledPlugins, p)
+		// No plugins configured for workspace - check for default package
+		defaultPkg, err := ds.GetDefault("nvim-package")
+		if err == nil && defaultPkg != "" {
+			// Try to resolve the default package
+			packagePlugins, err := resolveDefaultPackagePlugins(defaultPkg, ds)
+			if err != nil {
+				slog.Warn("failed to resolve default package, falling back to all enabled plugins", "package", defaultPkg, "error", err)
+				render.Warning(fmt.Sprintf("Failed to resolve default package '%s', using all enabled plugins", defaultPkg))
+			} else {
+				// Use plugins from the resolved package
+				for _, pluginName := range packagePlugins {
+					if p, ok := pluginMap[pluginName]; ok {
+						enabledPlugins = append(enabledPlugins, p)
+					} else {
+						slog.Warn("default package references unknown plugin", "plugin", pluginName, "package", defaultPkg)
+						render.Warning(fmt.Sprintf("Plugin '%s' from package '%s' not found in database (skipping)", pluginName, defaultPkg))
+					}
+				}
+				slog.Debug("using plugins from default package", "package", defaultPkg, "count", len(enabledPlugins), "resolved_plugins", len(packagePlugins))
 			}
 		}
-		slog.Debug("no workspace plugins configured, using all enabled", "count", len(enabledPlugins))
+
+		// If no default package or resolution failed, fall back to all enabled plugins
+		if len(enabledPlugins) == 0 {
+			for _, p := range allPlugins {
+				if p.Enabled {
+					enabledPlugins = append(enabledPlugins, p)
+				}
+			}
+			slog.Debug("no default package or resolution failed, using all enabled plugins", "count", len(enabledPlugins))
+		}
 	}
 
 	slog.Debug("loaded nvp config", "plugins", len(enabledPlugins), "core_config", coreConfigPath)
@@ -906,7 +932,7 @@ $character`
 		"custom.dvm": {
 			Format: "[$output](bold ${theme.cyan}) ",
 			Options: map[string]any{
-				"command": fmt.Sprintf(`echo "[%s]"`, appName),
+				"command": fmt.Sprintf(`echo '[%s]'`, appName),
 				"when":    `test -n "$DVM_APP"`,
 				"shell":   []string{"bash", "--noprofile", "--norc"},
 			},
@@ -984,4 +1010,139 @@ func createDefaultPalette() *palette.Palette {
 			palette.ColorAccent:    "#7dcfff",
 		},
 	}
+}
+
+// resolveDefaultPackagePlugins resolves plugins from a default package name.
+// It first checks the embedded library, then falls back to database packages.
+func resolveDefaultPackagePlugins(packageName string, ds db.DataStore) ([]string, error) {
+	// First, try to load from embedded library
+	lib, err := packagelibrary.NewLibrary()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create package library: %w", err)
+	}
+
+	if pkg, ok := lib.Get(packageName); ok {
+		// Package found in library - resolve plugins including inheritance
+		return resolvePackagePlugins(pkg, lib)
+	}
+
+	// Package not in library - try database
+	dbPkg, err := ds.GetPackage(packageName)
+	if err != nil {
+		return nil, fmt.Errorf("package '%s' not found in library or database: %w", packageName, err)
+	}
+
+	// Convert database model to package model
+	pkg := &nvimpackage.Package{
+		Name:        dbPkg.Name,
+		Description: dbPkg.Description.String,
+		Category:    dbPkg.Category.String,
+		Tags:        []string{}, // Database packages don't have tags in current schema
+		Extends:     dbPkg.Extends.String,
+		Plugins:     dbPkg.GetPlugins(),
+		Enabled:     true, // Database packages are enabled by default
+	}
+
+	// Clean up plugins (they come from JSON so should already be clean, but just in case)
+	var cleanPlugins []string
+	for _, plugin := range pkg.Plugins {
+		plugin = strings.TrimSpace(plugin)
+		if plugin != "" {
+			cleanPlugins = append(cleanPlugins, plugin)
+		}
+	}
+	pkg.Plugins = cleanPlugins
+
+	// For database packages, we need to handle inheritance manually
+	// since we can't use the library's resolution logic
+	if pkg.Extends != "" {
+		// Try to resolve parent from library first
+		if parentPkg, ok := lib.Get(pkg.Extends); ok {
+			parentPlugins, err := resolvePackagePlugins(parentPkg, lib)
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve parent package '%s' from library: %w", pkg.Extends, err)
+			}
+			// Combine parent plugins with current package plugins
+			allPlugins := append(parentPlugins, pkg.Plugins...)
+			return removeDuplicates(allPlugins), nil
+		}
+
+		// Parent not in library - try database
+		parentDBPkg, err := ds.GetPackage(pkg.Extends)
+		if err != nil {
+			return nil, fmt.Errorf("parent package '%s' not found in library or database: %w", pkg.Extends, err)
+		}
+
+		// Simple inheritance for database packages (no deep recursion to avoid complexity)
+		parentPlugins := parentDBPkg.GetPlugins()
+
+		// Combine parent and current plugins
+		allPlugins := append(parentPlugins, pkg.Plugins...)
+		return removeDuplicates(allPlugins), nil
+	}
+
+	// No inheritance - return current package plugins
+	return pkg.Plugins, nil
+}
+
+// resolvePackagePlugins resolves all plugins from a package including inheritance.
+// This is based on the same function in cmd/nvp/package.go.
+func resolvePackagePlugins(pkg *nvimpackage.Package, lib *packagelibrary.Library) ([]string, error) {
+	var result []string
+	visited := make(map[string]bool)
+
+	var resolve func(p *nvimpackage.Package) error
+	resolve = func(p *nvimpackage.Package) error {
+		if visited[p.Name] {
+			return fmt.Errorf("circular dependency detected: %s", p.Name)
+		}
+		visited[p.Name] = true
+		defer func() { visited[p.Name] = false }()
+
+		// If this package extends another, resolve parent first
+		if p.Extends != "" {
+			parent, ok := lib.Get(p.Extends)
+			if !ok {
+				return fmt.Errorf("package %s extends %s, but %s not found in library", p.Name, p.Extends, p.Extends)
+			}
+			if err := resolve(parent); err != nil {
+				return err
+			}
+		}
+
+		// Add this package's plugins
+		for _, pluginName := range p.Plugins {
+			if !contains(result, pluginName) {
+				result = append(result, pluginName)
+			}
+		}
+
+		return nil
+	}
+
+	err := resolve(pkg)
+	return result, err
+}
+
+// contains checks if a slice contains a string
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
+}
+
+// removeDuplicates removes duplicate strings from a slice while preserving order
+func removeDuplicates(slice []string) []string {
+	seen := make(map[string]bool)
+	var result []string
+	for _, item := range slice {
+		if !seen[item] {
+			seen[item] = true
+			result = append(result, item)
+		}
+	}
+	return result
 }
