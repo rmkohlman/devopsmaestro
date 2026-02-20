@@ -8,12 +8,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 
 	"devopsmaestro/pkg/nvimops/plugin"
 	"devopsmaestro/pkg/nvimops/sync"
+	"gopkg.in/yaml.v3"
 )
 
 // LazyVimHandler implements SourceHandler for the LazyVim configuration framework.
@@ -155,19 +158,54 @@ func (h *LazyVimHandler) Sync(ctx context.Context, options sync.SyncOptions) (*s
 	}
 
 	// Convert each plugin to YAML and write to files (if not dry run)
+	var syncedPluginNames []string
 	for _, availablePlugin := range filteredPlugins {
 		pluginYAML := h.convertToPluginYAML(availablePlugin)
 
 		if !options.DryRun {
-			// TODO: Write the YAML file to options.TargetDir
-			// For now, just track that we would create/update it
+			// Write the YAML file to options.TargetDir
+			if options.TargetDir != "" {
+				filename := filepath.Join(options.TargetDir, availablePlugin.Name+".yaml")
+
+				// Create directory if it doesn't exist
+				if err := os.MkdirAll(options.TargetDir, 0755); err != nil {
+					result.AddError(fmt.Errorf("failed to create target directory: %w", err))
+					continue
+				}
+
+				// Convert to YAML bytes
+				yamlData, err := yaml.Marshal(pluginYAML)
+				if err != nil {
+					result.AddError(fmt.Errorf("failed to serialize plugin %s: %w", availablePlugin.Name, err))
+					continue
+				}
+
+				// Write file
+				if err := os.WriteFile(filename, yamlData, 0644); err != nil {
+					result.AddError(fmt.Errorf("failed to write plugin %s: %w", availablePlugin.Name, err))
+					continue
+				}
+			}
+
 			result.AddPluginCreated(availablePlugin.Name)
+			syncedPluginNames = append(syncedPluginNames, availablePlugin.Name)
 		} else {
 			result.AddPluginCreated(availablePlugin.Name)
+			syncedPluginNames = append(syncedPluginNames, availablePlugin.Name)
 		}
+	}
 
-		// Store the YAML for inspection (in a real implementation, you'd write to file)
-		_ = pluginYAML
+	// Create package if PackageCreator is available and we have synced plugins
+	if options.PackageCreator != nil && len(syncedPluginNames) > 0 {
+		if !options.DryRun {
+			if err := options.PackageCreator.CreatePackage(h.Name(), syncedPluginNames); err != nil {
+				result.AddError(fmt.Errorf("failed to create package: %w", err))
+			} else {
+				result.AddPackageCreated(h.Name())
+			}
+		} else {
+			result.AddPackageCreated(h.Name())
+		}
 	}
 
 	return result, nil

@@ -4,6 +4,16 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.17.0 (2026-02-20)
+
+**DVT Binary Release & TerminalPackages**
+
+- DVT (TerminalOps) binary now included in releases alongside dvm and nvp
+- New TerminalPackage resource type for terminal configuration bundles
+- Terminal defaults management: `dvm use terminal package` and `dvm get terminal` commands  
+- Auto-create NvimPackage after `nvp source sync` operations
+- Mandatory test gate requirement for all releases (100% test success)
+
 ### v0.16.0 (2026-02-20)
 
 **Package Management System**
@@ -46,6 +56,7 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **0.17.0** | 2026-02-20 | DVT binary release, TerminalPackages, test gate requirement |
 | **0.16.0** | 2026-02-20 | Package management system, auto-migration |
 | **0.15.1** | 2026-02-19 | NvimPlugin opts field support fix |
 | **0.15.0** | 2026-02-19 | GitHub directory support, secret providers |

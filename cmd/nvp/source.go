@@ -6,6 +6,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	nvimpackage "devopsmaestro/pkg/nvimops/package"
 	"devopsmaestro/pkg/nvimops/sync"
 	"devopsmaestro/render"
 
@@ -195,6 +196,11 @@ Examples:
 		if tag != "" {
 			optionsBuilder.WithFilter("tag", tag)
 		}
+
+		// Create package creator for auto-generating packages
+		packagesDir := getConfigDir() + "/packages"
+		packageCreator := nvimpackage.NewFilePackageCreator(packagesDir)
+		optionsBuilder.WithPackageCreator(packageCreator)
 
 		options := optionsBuilder.Build()
 

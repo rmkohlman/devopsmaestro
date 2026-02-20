@@ -325,6 +325,95 @@ func validatePackageExists(packageName string, ds db.DataStore) error {
 	return fmt.Errorf("package not found in database or library")
 }
 
+// useTerminalCmd manages terminal-related use subcommands
+var useTerminalCmd = &cobra.Command{
+	Use:   "terminal",
+	Short: "Manage Terminal defaults",
+	Long: `Manage Terminal defaults (kubectl-style).
+
+Use these commands to set default Terminal configurations.
+
+Examples:
+  dvm use terminal package developer-essentials    # Set default package to 'developer-essentials'
+  dvm use terminal package none                    # Clear default package`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return cmd.Help()
+	},
+}
+
+// useTerminalPackageCmd sets the default terminal package
+var useTerminalPackageCmd = &cobra.Command{
+	Use:   "package <name>",
+	Short: "Set default terminal package",
+	Long: `Set the default Terminal package for new workspaces.
+
+The default package will be used when creating new workspaces that don't 
+specify a custom package. Packages group related plugins, prompts, and 
+configurations into reusable bundles.
+
+Use 'none' to clear the default package.
+
+Available packages can be found via the terminal package list command.
+
+Examples:
+  dvm use terminal package developer-essentials   # Set default to 'developer-essentials' package
+  dvm use terminal package poweruser              # Set default to 'poweruser' package  
+  dvm use terminal package none                   # Clear default package`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		packageName := args[0]
+
+		// Get datastore from context
+		ctx := cmd.Context()
+		dataStore := ctx.Value("dataStore").(*db.DataStore)
+		if dataStore == nil {
+			return fmt.Errorf("dataStore not initialized")
+		}
+
+		ds := *dataStore
+
+		// Handle "none" to clear default
+		if packageName == "none" {
+			if err := ds.DeleteDefault("terminal-package"); err != nil {
+				return fmt.Errorf("failed to clear default terminal package: %v", err)
+			}
+
+			render.Success("Default terminal package cleared")
+			return nil
+		}
+
+		// Validate package exists
+		if err := validateTerminalPackageExists(packageName, ds); err != nil {
+			render.Error(fmt.Sprintf("Package '%s' not found: %v", packageName, err))
+			render.Info("Hint: List available packages with the terminal package list command")
+			return nil
+		}
+
+		// Set the default package
+		if err := ds.SetDefault("terminal-package", packageName); err != nil {
+			return fmt.Errorf("failed to set default terminal package: %v", err)
+		}
+
+		render.Success(fmt.Sprintf("Default terminal package set to '%s'", packageName))
+		render.Info("This package will be used for new workspaces that don't specify a custom package")
+		return nil
+	},
+}
+
+// validateTerminalPackageExists checks if a terminal package exists in database
+func validateTerminalPackageExists(packageName string, ds db.DataStore) error {
+	// Check if package exists in database (user packages)
+	_, err := ds.GetTerminalPackage(packageName)
+	if err == nil {
+		return nil // Found in database
+	}
+
+	// Note: Terminal package library system may be added in the future
+	// For now, only check database packages
+
+	return fmt.Errorf("package not found in database")
+}
+
 // Initializes the 'use' command and links subcommands
 func init() {
 	rootCmd.AddCommand(useCmd)
@@ -332,6 +421,8 @@ func init() {
 	useCmd.AddCommand(useWorkspaceCmd)
 	useCmd.AddCommand(useNvimCmd)
 	useNvimCmd.AddCommand(useNvimPackageCmd)
+	useCmd.AddCommand(useTerminalCmd)
+	useTerminalCmd.AddCommand(useTerminalPackageCmd)
 	useCmd.Flags().Bool("clear", false, "Clear all context (app and workspace)")
 
 	// Register argument completions for subcommands

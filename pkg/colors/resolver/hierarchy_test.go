@@ -283,6 +283,19 @@ func (m *MockDataStore) ListPackagesByLabel(key, value string) ([]*models.NvimPa
 	return nil, nil
 }
 
+// Terminal Package Operations (added to satisfy interface)
+func (m *MockDataStore) CreateTerminalPackage(pkg *models.TerminalPackageDB) error { return nil }
+func (m *MockDataStore) UpdateTerminalPackage(pkg *models.TerminalPackageDB) error { return nil }
+func (m *MockDataStore) UpsertTerminalPackage(pkg *models.TerminalPackageDB) error { return nil }
+func (m *MockDataStore) DeleteTerminalPackage(name string) error                   { return nil }
+func (m *MockDataStore) GetTerminalPackage(name string) (*models.TerminalPackageDB, error) {
+	return nil, nil
+}
+func (m *MockDataStore) ListTerminalPackages() ([]*models.TerminalPackageDB, error) { return nil, nil }
+func (m *MockDataStore) ListTerminalPackagesByLabel(key, value string) ([]*models.TerminalPackageDB, error) {
+	return nil, nil
+}
+
 // MockThemeStore implements theme.Store for testing
 type MockThemeStore struct {
 	themes   map[string]*theme.Theme

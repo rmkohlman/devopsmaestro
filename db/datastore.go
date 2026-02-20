@@ -304,6 +304,29 @@ type DataStore interface {
 	// ListPackagesByLabel retrieves packages that have a specific label key-value pair.
 	ListPackagesByLabel(key, value string) ([]*models.NvimPackageDB, error)
 
+	// Terminal Package Operations
+
+	// CreateTerminalPackage inserts a new terminal package.
+	CreateTerminalPackage(pkg *models.TerminalPackageDB) error
+
+	// UpdateTerminalPackage updates an existing terminal package.
+	UpdateTerminalPackage(pkg *models.TerminalPackageDB) error
+
+	// UpsertTerminalPackage creates or updates a terminal package (by name).
+	UpsertTerminalPackage(pkg *models.TerminalPackageDB) error
+
+	// DeleteTerminalPackage removes a terminal package by name.
+	DeleteTerminalPackage(name string) error
+
+	// GetTerminalPackage retrieves a terminal package by its name.
+	GetTerminalPackage(name string) (*models.TerminalPackageDB, error)
+
+	// ListTerminalPackages retrieves all terminal packages.
+	ListTerminalPackages() ([]*models.TerminalPackageDB, error)
+
+	// ListTerminalPackagesByLabel retrieves terminal packages that have a specific label key-value pair.
+	ListTerminalPackagesByLabel(key, value string) ([]*models.TerminalPackageDB, error)
+
 	// Driver Access
 
 	// Driver returns the underlying database driver.

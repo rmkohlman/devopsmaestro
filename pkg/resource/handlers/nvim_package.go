@@ -7,6 +7,7 @@ import (
 
 	"devopsmaestro/models"
 	nvimpkg "devopsmaestro/pkg/nvimops/package"
+	"devopsmaestro/pkg/nvimops/package/library"
 	"devopsmaestro/pkg/resource"
 
 	"gopkg.in/yaml.v3"
@@ -72,17 +73,30 @@ func (h *NvimPackageHandler) Get(ctx resource.Context, name string) (resource.Re
 		return nil, err
 	}
 
+	// Try to get from database first
 	dbPkg, err := dataStore.GetPackage(name)
-	if err != nil {
+	if err == nil {
+		pkg, err := h.fromDBModel(dbPkg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert DB model to pkg: %w", err)
+		}
+		return &NvimPackageResource{pkg: pkg}, nil
+	}
+
+	// If not found in database, try the embedded library as fallback
+	lib, libErr := library.NewLibrary()
+	if libErr != nil {
+		// Return the original database error if library also fails to load
 		return nil, err
 	}
 
-	pkg, err := h.fromDBModel(dbPkg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert DB model to pkg: %w", err)
+	libraryPkg, found := lib.Get(name)
+	if !found {
+		// Return the original database error if not in library either
+		return nil, err
 	}
 
-	return &NvimPackageResource{pkg: pkg}, nil
+	return &NvimPackageResource{pkg: libraryPkg}, nil
 }
 
 // List returns all pkgs.
@@ -92,19 +106,56 @@ func (h *NvimPackageHandler) List(ctx resource.Context) ([]resource.Resource, er
 		return nil, err
 	}
 
+	// Get user packages from database
 	dbPackages, err := dataStore.ListPackages()
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]resource.Resource, len(dbPackages))
+	userPackages := make([]*nvimpkg.Package, len(dbPackages))
 	for i, dbPkg := range dbPackages {
 		pkg, err := h.fromDBModel(dbPkg)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert DB model to pkg: %w", err)
 		}
-		result[i] = &NvimPackageResource{pkg: pkg}
+		userPackages[i] = pkg
 	}
+
+	// Get library packages
+	lib, err := library.NewLibrary()
+	if err != nil {
+		// If library fails to load, just return user packages
+		result := make([]resource.Resource, len(userPackages))
+		for i, p := range userPackages {
+			result[i] = &NvimPackageResource{pkg: p}
+		}
+		return result, nil
+	}
+
+	libraryPackages := lib.List()
+
+	// Create a map of user package names for deduplication
+	userPackageNames := make(map[string]bool)
+	for _, p := range userPackages {
+		userPackageNames[p.Name] = true
+	}
+
+	// Combine user and library packages (user packages take precedence)
+	allPackages := make([]*nvimpkg.Package, len(userPackages))
+	copy(allPackages, userPackages)
+
+	for _, p := range libraryPackages {
+		if !userPackageNames[p.Name] {
+			allPackages = append(allPackages, p)
+		}
+	}
+
+	// Convert to resources
+	result := make([]resource.Resource, len(allPackages))
+	for i, p := range allPackages {
+		result[i] = &NvimPackageResource{pkg: p}
+	}
+
 	return result, nil
 }
 

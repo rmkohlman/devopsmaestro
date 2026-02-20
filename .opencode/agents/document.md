@@ -223,7 +223,9 @@ When updating docs, check these for accuracy:
 
 ### Pre-Invocation
 Before I start, the orchestrator should have consulted:
-- None (document can start immediately to update existing documentation)
+- `test` - **MANDATORY GATE: All tests must pass with 100% success rate before any release-related documentation updates**
+
+**Note:** For release documentation updates (CHANGELOG, docs/changelog.md), the test gate must be verified first. For non-release documentation (typos, clarifications, README improvements), the gate does not apply.
 
 ### Post-Completion
 After I complete my task, the orchestrator should invoke:

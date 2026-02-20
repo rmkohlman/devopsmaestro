@@ -13,19 +13,33 @@ type MockDataStore struct {
 	mu sync.Mutex
 
 	// In-memory storage
-	Ecosystems      map[string]*models.Ecosystem
-	Domains         map[int]*models.Domain // keyed by ID for easier lookup
-	Apps            map[int]*models.App    // keyed by ID for easier lookup
-	Projects        map[string]*models.Project
-	Workspaces      map[int]*models.Workspace
-	Plugins         map[string]*models.NvimPluginDB
-	Packages        map[string]*models.NvimPackageDB // keyed by name
-	Themes          map[string]*models.NvimThemeDB
-	TerminalPrompts map[string]*models.TerminalPromptDB
-	Credentials     map[string]*models.CredentialDB // keyed by "scopeType:scopeID:name"
-	Defaults        map[string]string               // keyed by default key
-	ActiveTheme     string
-	Context         *models.Context
+	Ecosystems       map[string]*models.Ecosystem
+	Domains          map[int]*models.Domain // keyed by ID for easier lookup
+	Apps             map[int]*models.App    // keyed by ID for easier lookup
+	Projects         map[string]*models.Project
+	Workspaces       map[int]*models.Workspace
+	Plugins          map[string]*models.NvimPluginDB
+	Packages         map[string]*models.NvimPackageDB     // keyed by name
+	TerminalPackages map[string]*models.TerminalPackageDB // keyed by name
+	Themes           map[string]*models.NvimThemeDB
+	TerminalPrompts  map[string]*models.TerminalPromptDB
+	Credentials      map[string]*models.CredentialDB // keyed by "scopeType:scopeID:name"
+	Defaults         map[string]string               // keyed by default key
+	ActiveTheme      string
+	Context          *models.Context
+
+	// ID counters for auto-increment simulation
+	NextEcosystemID       int
+	NextDomainID          int
+	NextAppID             int
+	NextProjectID         int
+	NextWorkspaceID       int
+	NextPluginID          int
+	NextPackageID         int
+	NextTerminalPackageID int
+	NextThemeID           int
+	NextTerminalPromptID  int
+	NextCredentialID      int64
 
 	// WorkspacePlugins maps workspaceID -> pluginIDs
 	WorkspacePlugins map[int]map[int]bool
@@ -114,6 +128,13 @@ type MockDataStore struct {
 	GetPackageErr                    error
 	ListPackagesErr                  error
 	ListPackagesByLabelErr           error
+	CreateTerminalPackageErr         error
+	UpdateTerminalPackageErr         error
+	UpsertTerminalPackageErr         error
+	DeleteTerminalPackageErr         error
+	GetTerminalPackageErr            error
+	ListTerminalPackagesErr          error
+	ListTerminalPackagesByLabelErr   error
 	CloseErr                         error
 	PingErr                          error
 
@@ -141,27 +162,29 @@ type MockDataStoreCall struct {
 // NewMockDataStore creates a new mock data store with initialized storage
 func NewMockDataStore() *MockDataStore {
 	return &MockDataStore{
-		Ecosystems:           make(map[string]*models.Ecosystem),
-		Domains:              make(map[int]*models.Domain),
-		Apps:                 make(map[int]*models.App),
-		Projects:             make(map[string]*models.Project),
-		Workspaces:           make(map[int]*models.Workspace),
-		Plugins:              make(map[string]*models.NvimPluginDB),
-		Packages:             make(map[string]*models.NvimPackageDB),
-		Themes:               make(map[string]*models.NvimThemeDB),
-		TerminalPrompts:      make(map[string]*models.TerminalPromptDB),
-		WorkspacePlugins:     make(map[int]map[int]bool),
-		Context:              &models.Context{ID: 1},
-		MockDriver:           NewMockDriver(),
-		nextEcosystemID:      1,
-		nextDomainID:         1,
-		nextAppID:            1,
-		nextProjectID:        1,
-		nextWorkspaceID:      1,
-		nextPluginID:         1,
-		nextPackageID:        1,
-		nextThemeID:          1,
-		nextTerminalPromptID: 1,
+		Ecosystems:            make(map[string]*models.Ecosystem),
+		Domains:               make(map[int]*models.Domain),
+		Apps:                  make(map[int]*models.App),
+		Projects:              make(map[string]*models.Project),
+		Workspaces:            make(map[int]*models.Workspace),
+		Plugins:               make(map[string]*models.NvimPluginDB),
+		Packages:              make(map[string]*models.NvimPackageDB),
+		TerminalPackages:      make(map[string]*models.TerminalPackageDB),
+		Themes:                make(map[string]*models.NvimThemeDB),
+		TerminalPrompts:       make(map[string]*models.TerminalPromptDB),
+		WorkspacePlugins:      make(map[int]map[int]bool),
+		Context:               &models.Context{ID: 1},
+		MockDriver:            NewMockDriver(),
+		nextEcosystemID:       1,
+		nextDomainID:          1,
+		nextAppID:             1,
+		nextProjectID:         1,
+		nextWorkspaceID:       1,
+		nextPluginID:          1,
+		nextPackageID:         1,
+		nextThemeID:           1,
+		nextTerminalPromptID:  1,
+		NextTerminalPackageID: 1,
 	}
 }
 
@@ -1499,6 +1522,156 @@ func (m *MockDataStore) ListPackagesByLabel(key, value string) ([]*models.NvimPa
 
 	var packages []*models.NvimPackageDB
 	for _, pkg := range m.Packages {
+		labels := pkg.GetLabels()
+		if labels[key] == value {
+			// Return copy to avoid data races
+			pkgCopy := *pkg
+			packages = append(packages, &pkgCopy)
+		}
+	}
+
+	return packages, nil
+}
+
+// =============================================================================
+// Terminal Package Operations
+// =============================================================================
+
+func (m *MockDataStore) CreateTerminalPackage(pkg *models.TerminalPackageDB) error {
+	m.recordCall("CreateTerminalPackage", pkg.Name)
+	if m.CreateTerminalPackageErr != nil {
+		return m.CreateTerminalPackageErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Simulate auto-increment ID
+	m.NextTerminalPackageID++
+	pkg.ID = m.NextTerminalPackageID
+
+	// Store a copy to avoid data races
+	pkgCopy := *pkg
+	if m.TerminalPackages == nil {
+		m.TerminalPackages = make(map[string]*models.TerminalPackageDB)
+	}
+	m.TerminalPackages[pkg.Name] = &pkgCopy
+
+	return nil
+}
+
+func (m *MockDataStore) UpdateTerminalPackage(pkg *models.TerminalPackageDB) error {
+	m.recordCall("UpdateTerminalPackage", pkg.Name)
+	if m.UpdateTerminalPackageErr != nil {
+		return m.UpdateTerminalPackageErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, exists := m.TerminalPackages[pkg.Name]; !exists {
+		return fmt.Errorf("terminal package not found: %s", pkg.Name)
+	}
+
+	// Store a copy to avoid data races
+	pkgCopy := *pkg
+	m.TerminalPackages[pkg.Name] = &pkgCopy
+
+	return nil
+}
+
+func (m *MockDataStore) UpsertTerminalPackage(pkg *models.TerminalPackageDB) error {
+	m.recordCall("UpsertTerminalPackage", pkg.Name)
+	if m.UpsertTerminalPackageErr != nil {
+		return m.UpsertTerminalPackageErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if existing, exists := m.TerminalPackages[pkg.Name]; exists {
+		pkg.ID = existing.ID
+	} else {
+		m.NextTerminalPackageID++
+		pkg.ID = m.NextTerminalPackageID
+		if m.TerminalPackages == nil {
+			m.TerminalPackages = make(map[string]*models.TerminalPackageDB)
+		}
+	}
+
+	// Store a copy to avoid data races
+	pkgCopy := *pkg
+	m.TerminalPackages[pkg.Name] = &pkgCopy
+
+	return nil
+}
+
+func (m *MockDataStore) DeleteTerminalPackage(name string) error {
+	m.recordCall("DeleteTerminalPackage", name)
+	if m.DeleteTerminalPackageErr != nil {
+		return m.DeleteTerminalPackageErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, exists := m.TerminalPackages[name]; !exists {
+		return fmt.Errorf("terminal package not found: %s", name)
+	}
+
+	delete(m.TerminalPackages, name)
+	return nil
+}
+
+func (m *MockDataStore) GetTerminalPackage(name string) (*models.TerminalPackageDB, error) {
+	m.recordCall("GetTerminalPackage", name)
+	if m.GetTerminalPackageErr != nil {
+		return nil, m.GetTerminalPackageErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	pkg, exists := m.TerminalPackages[name]
+	if !exists {
+		return nil, fmt.Errorf("terminal package not found: %s", name)
+	}
+
+	// Return a copy to avoid data races
+	result := *pkg
+	return &result, nil
+}
+
+func (m *MockDataStore) ListTerminalPackages() ([]*models.TerminalPackageDB, error) {
+	m.recordCall("ListTerminalPackages")
+	if m.ListTerminalPackagesErr != nil {
+		return nil, m.ListTerminalPackagesErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var packages []*models.TerminalPackageDB
+	for _, pkg := range m.TerminalPackages {
+		// Return copies to avoid data races
+		pkgCopy := *pkg
+		packages = append(packages, &pkgCopy)
+	}
+
+	return packages, nil
+}
+
+func (m *MockDataStore) ListTerminalPackagesByLabel(key, value string) ([]*models.TerminalPackageDB, error) {
+	m.recordCall("ListTerminalPackagesByLabel", key, value)
+	if m.ListTerminalPackagesByLabelErr != nil {
+		return nil, m.ListTerminalPackagesByLabelErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var packages []*models.TerminalPackageDB
+	for _, pkg := range m.TerminalPackages {
 		labels := pkg.GetLabels()
 		if labels[key] == value {
 			// Return copy to avoid data races

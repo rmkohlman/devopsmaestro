@@ -189,17 +189,25 @@ func TestNvimPackageHandler_List(t *testing.T) {
 		t.Fatalf("List() error = %v", err)
 	}
 
-	if len(resources) != 2 {
-		t.Errorf("List() returned %d resources, want 2", len(resources))
+	// List now includes both database packages AND library packages
+	// Library has 5 packages (core, full, go-dev, python-dev, rkohlman-full)
+	// Database has 2 packages (package1, package2)
+	// Total should be at least 7 (could be more if library grows)
+	if len(resources) < 7 {
+		t.Errorf("List() returned %d resources, want at least 7 (2 db + 5 library)", len(resources))
 	}
 
-	// Verify resource names
+	// Verify our database packages are included
 	names := make(map[string]bool)
 	for _, res := range resources {
 		names[res.GetName()] = true
 	}
 	if !names["package1"] || !names["package2"] {
-		t.Error("List() did not return expected package names")
+		t.Error("List() did not return expected database package names")
+	}
+	// Also verify library packages are included
+	if !names["core"] {
+		t.Error("List() did not return library package 'core'")
 	}
 }
 

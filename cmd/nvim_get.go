@@ -7,7 +7,10 @@ import (
 
 	"devopsmaestro/models"
 	"devopsmaestro/operators"
+	nvimpkg "devopsmaestro/pkg/nvimops/package"
 	"devopsmaestro/pkg/nvimops/plugin"
+	"devopsmaestro/pkg/resource"
+	"devopsmaestro/pkg/resource/handlers"
 	"devopsmaestro/render"
 
 	"github.com/spf13/cobra"
@@ -135,6 +138,40 @@ Examples:
 	},
 }
 
+// nvimGetPackagesCmd lists all nvim packages
+// Usage: dvm get nvim packages
+var nvimGetPackagesCmd = &cobra.Command{
+	Use:     "packages",
+	Aliases: []string{"pkg", "pkgs"},
+	Short:   "List all nvim packages",
+	Long: `List all nvim packages stored in the database.
+
+Examples:
+  dvm get nvim packages
+  dvm get nvim packages -o yaml
+  dvm get nvim packages -o json`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return getPackages(cmd)
+	},
+}
+
+// nvimGetPackageCmd gets a specific nvim package
+// Usage: dvm get nvim package <name>
+var nvimGetPackageCmd = &cobra.Command{
+	Use:   "package [name]",
+	Short: "Get a specific nvim package",
+	Long: `Get a specific nvim package by name.
+
+Examples:
+  dvm get nvim package core
+  dvm get nvim package core -o yaml
+  dvm get nvim package minimal -o json`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return getPackage(cmd, args[0])
+	},
+}
+
 func init() {
 	// Add nvim subcommand to get
 	getCmd.AddCommand(nvimGetCmd)
@@ -142,6 +179,8 @@ func init() {
 	// Add resource types under nvim
 	nvimGetCmd.AddCommand(nvimGetPluginsCmd)
 	nvimGetCmd.AddCommand(nvimGetPluginCmd)
+	nvimGetCmd.AddCommand(nvimGetPackagesCmd)
+	nvimGetCmd.AddCommand(nvimGetPackageCmd)
 	nvimGetCmd.AddCommand(nvimGetThemesCmd)
 	nvimGetCmd.AddCommand(nvimGetThemeCmd)
 	nvimGetCmd.AddCommand(nvimGetDefaultsCmd)
@@ -355,6 +394,123 @@ func getWorkspacePluginNames(workspace *models.Workspace) []string {
 		return nil
 	}
 	return strings.Split(workspace.NvimPlugins.String, ",")
+}
+
+func getPackages(cmd *cobra.Command) error {
+	// Build resource context and use unified handler
+	ctx, err := buildResourceContext(cmd)
+	if err != nil {
+		return err
+	}
+
+	resources, err := resource.List(ctx, handlers.KindNvimPackage)
+	if err != nil {
+		return fmt.Errorf("failed to list packages: %w", err)
+	}
+
+	if len(resources) == 0 {
+		return render.OutputWith(getOutputFormat, nil, render.Options{
+			Empty:        true,
+			EmptyMessage: "No packages found",
+			EmptyHints:   []string{"dvm apply -f package.yaml"},
+		})
+	}
+
+	// Extract underlying packages from resources
+	packages := make([]*nvimpkg.Package, len(resources))
+	for i, res := range resources {
+		pr := res.(*handlers.NvimPackageResource)
+		packages[i] = pr.Package()
+	}
+
+	// For JSON/YAML, output the model data directly
+	if getOutputFormat == "json" || getOutputFormat == "yaml" {
+		packagesYAML := make([]*nvimpkg.PackageYAML, len(packages))
+		for i, p := range packages {
+			packagesYAML[i] = p.ToYAML()
+		}
+		return render.OutputWith(getOutputFormat, packagesYAML, render.Options{})
+	}
+
+	// For human output, build table data
+	tableData := render.TableData{
+		Headers: []string{"NAME", "CATEGORY", "PLUGINS", "ENABLED"},
+		Rows:    make([][]string, len(packages)),
+	}
+
+	for i, p := range packages {
+		category := p.Category
+		if category == "" {
+			category = "-"
+		}
+
+		pluginCount := fmt.Sprintf("%d", len(p.Plugins))
+
+		enabledMark := "✓"
+		if !p.Enabled {
+			enabledMark = "✗"
+		}
+
+		tableData.Rows[i] = []string{
+			p.Name,
+			category,
+			pluginCount,
+			enabledMark,
+		}
+	}
+
+	return render.OutputWith(getOutputFormat, tableData, render.Options{
+		Type: render.TypeTable,
+	})
+}
+
+func getPackage(cmd *cobra.Command, name string) error {
+	// Build resource context and use unified handler
+	ctx, err := buildResourceContext(cmd)
+	if err != nil {
+		return err
+	}
+
+	res, err := resource.Get(ctx, handlers.KindNvimPackage, name)
+	if err != nil {
+		return fmt.Errorf("failed to get package '%s': %w", name, err)
+	}
+
+	p := res.(*handlers.NvimPackageResource).Package()
+
+	// For JSON/YAML, output the model data directly
+	if getOutputFormat == "json" || getOutputFormat == "yaml" {
+		return render.OutputWith(getOutputFormat, p.ToYAML(), render.Options{})
+	}
+
+	// For human output, show detail view
+	category := p.Category
+	if category == "" {
+		category = "-"
+	}
+
+	enabledStr := "yes"
+	if !p.Enabled {
+		enabledStr = "no"
+	}
+
+	pluginsList := "-"
+	if len(p.Plugins) > 0 {
+		pluginsList = strings.Join(p.Plugins, ", ")
+	}
+
+	kvData := render.NewOrderedKeyValueData(
+		render.KeyValue{Key: "Name", Value: p.Name},
+		render.KeyValue{Key: "Category", Value: category},
+		render.KeyValue{Key: "Description", Value: p.Description},
+		render.KeyValue{Key: "Plugins", Value: pluginsList},
+		render.KeyValue{Key: "Enabled", Value: enabledStr},
+	)
+
+	return render.OutputWith(getOutputFormat, kvData, render.Options{
+		Type:  render.TypeKeyValue,
+		Title: "Package Details",
+	})
 }
 
 // getNvimDefaults shows current nvim defaults

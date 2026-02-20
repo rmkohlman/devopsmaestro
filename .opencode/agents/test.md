@@ -64,6 +64,16 @@ go test ./db/... -run TestSQLDataStore_CreateWorkspace -v
 - No flaky tests (tests must be deterministic)
 - Tests must clean up after themselves
 
+### Release Gate Requirement
+**CRITICAL: 100% test success is required before any release or documentation updates.**
+
+Before the release agent or document agent can proceed:
+1. Run full test suite: `go test ./... -race`
+2. Verify 100% pass rate (no failures, no skipped tests without valid reason)
+3. Build must succeed: `go build -o dvm . && go build -o nvp ./cmd/nvp/`
+
+If any tests fail, the release process is BLOCKED until tests are fixed.
+
 ## Writing Tests
 
 ### Table-Driven Tests (Preferred Pattern)

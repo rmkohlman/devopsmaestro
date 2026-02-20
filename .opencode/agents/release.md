@@ -452,7 +452,14 @@ Both binaries are released together with the same version number.
 
 ### Pre-Invocation
 Before I start, the orchestrator should have consulted:
-- `test` - All tests must pass before release
+- `test` - **MANDATORY GATE: All tests must pass with 100% success rate before ANY release or documentation updates**
+
+### ⚠️ TEST GATE REQUIREMENT
+**This is a hard gate - no exceptions:**
+1. The `test` agent must run `go test ./... -race` and verify 100% pass rate
+2. The build must succeed: `go build -o dvm . && go build -o nvp ./cmd/nvp/`
+3. Only after test agent confirms 100% success can release proceed
+4. If any tests fail, the release is BLOCKED until tests are fixed
 
 ### Post-Completion
 After I complete my task, the orchestrator should invoke:

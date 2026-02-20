@@ -11,6 +11,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.17.0] - 2026-02-20
+
+### 🚀 Added
+
+#### DVT (TerminalOps) Binary Release
+- **DVT binary now included in releases** - All three binaries (dvm, nvp, dvt) are now built and released together
+- **TerminalOps Homebrew formula** - `brew install rmkohlman/tap/terminalops` now available
+- **Enhanced release workflow** - CI/CD builds and releases all three binaries with proper versioning
+
+#### TerminalPackage Resource Type
+- **New TerminalPackage resource** - Group terminal configuration into packages like NvimPackages
+- **YAML format support** - Define terminal packages with `kind: TerminalPackage` in YAML
+- **Database integration** - TerminalPackages stored in database with proper migrations
+- **Supports plugins, prompts, profiles, wezterm configs** - Complete terminal environment bundling
+
+#### Terminal Defaults Management
+- **`dvm use terminal package <name>`** - Set default terminal package for new workspaces
+- **`dvm use terminal package none`** - Clear default terminal package
+- **Database persistence** - Terminal package defaults stored and retrieved consistently
+- **Parallel to NvimPackage defaults** - Same pattern as `dvm use nvim package`
+
+#### Terminal Resource Commands
+- **`dvm get terminal packages`** - List all available terminal packages
+- **`dvm get terminal package <name>`** - Show specific terminal package details
+- **`dvm get terminal defaults`** - Show current terminal defaults alongside other defaults
+- **Multiple output formats** - Supports `-o json`, `-o yaml`, `-o table` for all terminal commands
+
+#### NvimOps Auto-Package Creation
+- **Auto-create packages after sync** - `nvp source sync lazyvim` now automatically creates "lazyvim" package
+- **Package contains all synced plugins** - All plugins from the source sync are bundled into the package
+- **Metadata labels** - Auto-generated packages include source, auto-generated, and sync-time labels
+- **Seamless workflow** - Sync from source, get package automatically for easy reuse
+
+#### Test Gate Requirement
+- **Mandatory 100% test success** - All tests must pass before any release-related documentation updates
+- **Updated agent policies** - Test, release, and document agents now enforce the test gate
+- **Quality assurance** - Ensures releases only happen with verified, working code
+
+### 🔧 Enhanced
+
+#### Release Process
+- **Multi-binary support** - Release workflow now handles dvm, nvp, and dvt binaries
+- **Version consistency** - All binaries use the same version tag for releases
+- **Improved CI verification** - DVT build is now verified in CI workflow alongside dvm and nvp
+
+---
+
 ## [0.16.0] - 2026-02-20
 
 ### 🚀 Added

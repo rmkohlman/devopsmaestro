@@ -3,7 +3,18 @@
 // Neovim configuration frameworks.
 package sync
 
-import "fmt"
+import (
+	"fmt"
+)
+
+// PackageCreator defines an interface for creating packages during sync operations.
+// This allows different implementations (file-based, database-based, etc.).
+type PackageCreator interface {
+	// CreatePackage creates or updates a package with the given plugins.
+	// sourceName is the name of the sync source (e.g., "lazyvim").
+	// plugins is a list of plugin names that should be included in the package.
+	CreatePackage(sourceName string, plugins []string) error
+}
 
 // SyncOptions contains configuration for syncing plugins from external sources.
 // Use the Builder pattern via NewSyncOptions() to create instances.
@@ -21,6 +32,10 @@ type SyncOptions struct {
 
 	// Overwrite indicates whether to replace existing plugin definitions
 	Overwrite bool
+
+	// PackageCreator is an optional interface for creating packages during sync.
+	// If nil, no packages will be created.
+	PackageCreator PackageCreator
 }
 
 // SyncResult contains the results of a sync operation from an external source.
@@ -136,6 +151,13 @@ func (b *SyncOptionsBuilder) Overwrite(overwrite bool) *SyncOptionsBuilder {
 	return b
 }
 
+// WithDataStore sets the DataStore for package operations.
+// Optional - if not set, package creation will be skipped.
+func (b *SyncOptionsBuilder) WithPackageCreator(creator PackageCreator) *SyncOptionsBuilder {
+	b.options.PackageCreator = creator
+	return b
+}
+
 // Build returns the configured SyncOptions.
 func (b *SyncOptionsBuilder) Build() SyncOptions {
 	return b.options
@@ -214,6 +236,22 @@ func (r *SyncResult) AddPluginUpdated(name string) {
 	}
 	r.PluginsUpdated = append(r.PluginsUpdated, name)
 	r.TotalSynced++
+}
+
+// AddPackageCreated adds a package to the created list.
+func (r *SyncResult) AddPackageCreated(name string) {
+	if r.PackagesCreated == nil {
+		r.PackagesCreated = make([]string, 0)
+	}
+	r.PackagesCreated = append(r.PackagesCreated, name)
+}
+
+// AddPackageUpdated adds a package to the updated list.
+func (r *SyncResult) AddPackageUpdated(name string) {
+	if r.PackagesUpdated == nil {
+		r.PackagesUpdated = make([]string, 0)
+	}
+	r.PackagesUpdated = append(r.PackagesUpdated, name)
 }
 
 // Summary returns a human-readable summary of the sync result.
