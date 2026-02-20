@@ -89,16 +89,21 @@ jobs:
       - name: Create archives
         run: |
           # Create dvm (DevOpsMaestro) archive
+          # Note: Include all completion files explicitly (glob dvm.* doesn't match _dvm)
           tar -czvf devopsmaestro_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz \
             dvm \
-            completions/dvm.* \
+            completions/dvm.bash \
+            completions/_dvm \
+            completions/dvm.fish \
             README.md \
             LICENSE
           
           # Create dvt (TerminalOps) archive
           tar -czvf terminalops_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz \
             dvt \
-            completions/dvt.* \
+            completions/dvt.bash \
+            completions/_dvt \
+            completions/dvt.fish \
             README.md \
             LICENSE
 
