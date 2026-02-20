@@ -3,6 +3,7 @@ package cmd
 import (
 	"devopsmaestro/db"
 	"devopsmaestro/operators"
+	"devopsmaestro/pkg/nvimops/package/library"
 	"devopsmaestro/render"
 	"fmt"
 
@@ -229,11 +230,108 @@ Examples:
 	},
 }
 
+// useNvimCmd manages nvim-related use subcommands
+var useNvimCmd = &cobra.Command{
+	Use:   "nvim",
+	Short: "Manage Neovim defaults",
+	Long: `Manage Neovim defaults (kubectl-style).
+
+Use these commands to set default Neovim configurations.
+
+Examples:
+  dvm use nvim package core     # Set default package to 'core'
+  dvm use nvim package none     # Clear default package`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return cmd.Help()
+	},
+}
+
+// useNvimPackageCmd sets the default nvim package
+var useNvimPackageCmd = &cobra.Command{
+	Use:   "package <name>",
+	Short: "Set default nvim package",
+	Long: `Set the default Neovim package for new workspaces.
+
+The default package will be used when creating new workspaces that don't 
+specify a custom package. Packages group related plugins into reusable bundles.
+
+Use 'none' to clear the default package.
+
+Available packages can be found via: nvp package list
+
+Examples:
+  dvm use nvim package core     # Set default to 'core' package
+  dvm use nvim package go-dev   # Set default to 'go-dev' package  
+  dvm use nvim package none     # Clear default package`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		packageName := args[0]
+
+		// Get datastore from context
+		ctx := cmd.Context()
+		dataStore := ctx.Value("dataStore").(*db.DataStore)
+		if dataStore == nil {
+			return fmt.Errorf("dataStore not initialized")
+		}
+
+		ds := *dataStore
+
+		// Handle "none" to clear default
+		if packageName == "none" {
+			if err := ds.DeleteDefault("nvim-package"); err != nil {
+				return fmt.Errorf("failed to clear default nvim package: %v", err)
+			}
+
+			render.Success("Default nvim package cleared")
+			return nil
+		}
+
+		// Validate package exists
+		if err := validatePackageExists(packageName, ds); err != nil {
+			render.Error(fmt.Sprintf("Package '%s' not found: %v", packageName, err))
+			render.Info("Hint: List available packages with: nvp package list")
+			return nil
+		}
+
+		// Set the default package
+		if err := ds.SetDefault("nvim-package", packageName); err != nil {
+			return fmt.Errorf("failed to set default nvim package: %v", err)
+		}
+
+		render.Success(fmt.Sprintf("Default nvim package set to '%s'", packageName))
+		render.Info("This package will be used for new workspaces that don't specify a custom package")
+		return nil
+	},
+}
+
+// validatePackageExists checks if a package exists in database or library
+func validatePackageExists(packageName string, ds db.DataStore) error {
+	// First check if package exists in database (user packages)
+	_, err := ds.GetPackage(packageName)
+	if err == nil {
+		return nil // Found in database
+	}
+
+	// If not in database, check library packages
+	lib, err := library.NewLibrary()
+	if err != nil {
+		return fmt.Errorf("failed to load package library: %w", err)
+	}
+
+	if _, ok := lib.Get(packageName); ok {
+		return nil // Found in library
+	}
+
+	return fmt.Errorf("package not found in database or library")
+}
+
 // Initializes the 'use' command and links subcommands
 func init() {
 	rootCmd.AddCommand(useCmd)
 	useCmd.AddCommand(useAppCmd)
 	useCmd.AddCommand(useWorkspaceCmd)
+	useCmd.AddCommand(useNvimCmd)
+	useNvimCmd.AddCommand(useNvimPackageCmd)
 	useCmd.Flags().Bool("clear", false, "Clear all context (app and workspace)")
 
 	// Register argument completions for subcommands

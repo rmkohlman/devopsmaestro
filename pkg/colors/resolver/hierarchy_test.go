@@ -266,6 +266,23 @@ func (m *MockDataStore) Driver() db.Driver { return nil }
 // Connection methods
 func (m *MockDataStore) Ping() error { return nil }
 
+// Defaults methods
+func (m *MockDataStore) GetDefault(key string) (string, error)    { return "", nil }
+func (m *MockDataStore) SetDefault(key, value string) error       { return nil }
+func (m *MockDataStore) DeleteDefault(key string) error           { return nil }
+func (m *MockDataStore) ListDefaults() (map[string]string, error) { return nil, nil }
+
+// Package Operations (added to satisfy interface)
+func (m *MockDataStore) CreatePackage(pkg *models.NvimPackageDB) error         { return nil }
+func (m *MockDataStore) UpdatePackage(pkg *models.NvimPackageDB) error         { return nil }
+func (m *MockDataStore) UpsertPackage(pkg *models.NvimPackageDB) error         { return nil }
+func (m *MockDataStore) DeletePackage(name string) error                       { return nil }
+func (m *MockDataStore) GetPackage(name string) (*models.NvimPackageDB, error) { return nil, nil }
+func (m *MockDataStore) ListPackages() ([]*models.NvimPackageDB, error)        { return nil, nil }
+func (m *MockDataStore) ListPackagesByLabel(key, value string) ([]*models.NvimPackageDB, error) {
+	return nil, nil
+}
+
 // MockThemeStore implements theme.Store for testing
 type MockThemeStore struct {
 	themes   map[string]*theme.Theme

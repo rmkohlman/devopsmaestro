@@ -50,12 +50,53 @@ func Execute(database *db.Database, dataStore *db.DataStore, executor *Executor,
 		ctx = context.WithValue(ctx, "executor", executor)
 		ctx = context.WithValue(ctx, "migrationsFS", migrationsFS)
 		cmd.SetContext(ctx)
+
+		// Auto-migrate database if needed (skip for commands that don't need DB)
+		if shouldSkipAutoMigration(cmd) {
+			return
+		}
+
+		if dataStore != nil && *dataStore != nil {
+			driver := (*dataStore).Driver()
+			if driver != nil {
+				if err := db.AutoMigrate(driver, migrationsFS); err != nil {
+					// Migration failure is critical - exit
+					slog.Error("auto-migration failed", "error", err)
+					fmt.Printf("Error: Failed to apply database migrations: %v\n", err)
+					fmt.Println("Please run 'dvm admin migrate' to fix migration issues.")
+					os.Exit(1)
+				}
+			}
+		}
 	}
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+}
+
+// shouldSkipAutoMigration determines if auto-migration should be skipped for this command.
+// Skip for commands that don't need the database or handle migrations themselves.
+func shouldSkipAutoMigration(cmd *cobra.Command) bool {
+	cmdPath := cmd.CommandPath()
+
+	// Skip for commands that don't need database
+	skipCommands := []string{
+		"dvm completion",
+		"dvm version",
+		"dvm help",
+		"dvm admin init",    // init handles its own migrations
+		"dvm admin migrate", // migrate command handles migrations explicitly
+	}
+
+	for _, skipCmd := range skipCommands {
+		if cmdPath == skipCmd {
+			return true
+		}
+	}
+
+	return false
 }
 
 func init() {

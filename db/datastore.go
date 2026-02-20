@@ -264,6 +264,46 @@ type DataStore interface {
 	// ListAllCredentials retrieves all credentials across all scopes.
 	ListAllCredentials() ([]*models.CredentialDB, error)
 
+	// Default Operations
+
+	// GetDefault retrieves a default value by key.
+	// Returns empty string if key is not found (not an error).
+	GetDefault(key string) (string, error)
+
+	// SetDefault sets a default value for the given key.
+	// Uses upsert behavior (INSERT OR REPLACE).
+	SetDefault(key, value string) error
+
+	// DeleteDefault removes a default value by key.
+	// No error if key doesn't exist.
+	DeleteDefault(key string) error
+
+	// ListDefaults retrieves all default values as a key-value map.
+	ListDefaults() (map[string]string, error)
+
+	// Package Operations
+
+	// CreatePackage inserts a new nvim package.
+	CreatePackage(pkg *models.NvimPackageDB) error
+
+	// UpdatePackage updates an existing nvim package.
+	UpdatePackage(pkg *models.NvimPackageDB) error
+
+	// UpsertPackage creates or updates an nvim package (by name).
+	UpsertPackage(pkg *models.NvimPackageDB) error
+
+	// DeletePackage removes a package by name.
+	DeletePackage(name string) error
+
+	// GetPackage retrieves a package by its name.
+	GetPackage(name string) (*models.NvimPackageDB, error)
+
+	// ListPackages retrieves all packages.
+	ListPackages() ([]*models.NvimPackageDB, error)
+
+	// ListPackagesByLabel retrieves packages that have a specific label key-value pair.
+	ListPackagesByLabel(key, value string) ([]*models.NvimPackageDB, error)
+
 	// Driver Access
 
 	// Driver returns the underlying database driver.

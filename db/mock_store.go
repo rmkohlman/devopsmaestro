@@ -19,9 +19,11 @@ type MockDataStore struct {
 	Projects        map[string]*models.Project
 	Workspaces      map[int]*models.Workspace
 	Plugins         map[string]*models.NvimPluginDB
+	Packages        map[string]*models.NvimPackageDB // keyed by name
 	Themes          map[string]*models.NvimThemeDB
 	TerminalPrompts map[string]*models.TerminalPromptDB
 	Credentials     map[string]*models.CredentialDB // keyed by "scopeType:scopeID:name"
+	Defaults        map[string]string               // keyed by default key
 	ActiveTheme     string
 	Context         *models.Context
 
@@ -101,6 +103,17 @@ type MockDataStore struct {
 	ListTerminalPromptsErr           error
 	ListTerminalPromptsByTypeErr     error
 	ListTerminalPromptsByCategoryErr error
+	GetDefaultErr                    error
+	SetDefaultErr                    error
+	DeleteDefaultErr                 error
+	ListDefaultsErr                  error
+	CreatePackageErr                 error
+	UpdatePackageErr                 error
+	UpsertPackageErr                 error
+	DeletePackageErr                 error
+	GetPackageErr                    error
+	ListPackagesErr                  error
+	ListPackagesByLabelErr           error
 	CloseErr                         error
 	PingErr                          error
 
@@ -114,6 +127,7 @@ type MockDataStore struct {
 	nextProjectID        int
 	nextWorkspaceID      int
 	nextPluginID         int
+	nextPackageID        int
 	nextThemeID          int
 	nextTerminalPromptID int
 }
@@ -133,6 +147,7 @@ func NewMockDataStore() *MockDataStore {
 		Projects:             make(map[string]*models.Project),
 		Workspaces:           make(map[int]*models.Workspace),
 		Plugins:              make(map[string]*models.NvimPluginDB),
+		Packages:             make(map[string]*models.NvimPackageDB),
 		Themes:               make(map[string]*models.NvimThemeDB),
 		TerminalPrompts:      make(map[string]*models.TerminalPromptDB),
 		WorkspacePlugins:     make(map[int]map[int]bool),
@@ -144,6 +159,7 @@ func NewMockDataStore() *MockDataStore {
 		nextProjectID:        1,
 		nextWorkspaceID:      1,
 		nextPluginID:         1,
+		nextPackageID:        1,
 		nextThemeID:          1,
 		nextTerminalPromptID: 1,
 	}
@@ -1275,6 +1291,226 @@ func (m *MockDataStore) ListTerminalPromptsByCategory(category string) ([]*model
 }
 
 // =============================================================================
+// Default Operations
+// =============================================================================
+
+func (m *MockDataStore) GetDefault(key string) (string, error) {
+	m.recordCall("GetDefault", key)
+	if m.GetDefaultErr != nil {
+		return "", m.GetDefaultErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.Defaults == nil {
+		return "", nil // Key not found, return empty string
+	}
+	value, exists := m.Defaults[key]
+	if !exists {
+		return "", nil // Key not found, return empty string
+	}
+	return value, nil
+}
+
+func (m *MockDataStore) SetDefault(key, value string) error {
+	m.recordCall("SetDefault", key, value)
+	if m.SetDefaultErr != nil {
+		return m.SetDefaultErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.Defaults == nil {
+		m.Defaults = make(map[string]string)
+	}
+	m.Defaults[key] = value
+	return nil
+}
+
+func (m *MockDataStore) DeleteDefault(key string) error {
+	m.recordCall("DeleteDefault", key)
+	if m.DeleteDefaultErr != nil {
+		return m.DeleteDefaultErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.Defaults == nil {
+		return nil // Key doesn't exist, no error
+	}
+	delete(m.Defaults, key)
+	return nil
+}
+
+func (m *MockDataStore) ListDefaults() (map[string]string, error) {
+	m.recordCall("ListDefaults")
+	if m.ListDefaultsErr != nil {
+		return nil, m.ListDefaultsErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	result := make(map[string]string)
+	for k, v := range m.Defaults {
+		result[k] = v
+	}
+	return result, nil
+}
+
+// =============================================================================
+// Package Operations
+// =============================================================================
+
+func (m *MockDataStore) CreatePackage(pkg *models.NvimPackageDB) error {
+	m.recordCall("CreatePackage", pkg)
+	if m.CreatePackageErr != nil {
+		return m.CreatePackageErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Check if package already exists
+	if _, exists := m.Packages[pkg.Name]; exists {
+		return fmt.Errorf("package already exists: %s", pkg.Name)
+	}
+
+	// Create copy with assigned ID
+	newPkg := *pkg
+	newPkg.ID = m.nextPackageID
+	m.nextPackageID++
+
+	m.Packages[pkg.Name] = &newPkg
+	pkg.ID = newPkg.ID // Set ID in original struct
+
+	return nil
+}
+
+func (m *MockDataStore) UpdatePackage(pkg *models.NvimPackageDB) error {
+	m.recordCall("UpdatePackage", pkg)
+	if m.UpdatePackageErr != nil {
+		return m.UpdatePackageErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Check if package exists
+	existing, exists := m.Packages[pkg.Name]
+	if !exists {
+		return fmt.Errorf("package not found: %s", pkg.Name)
+	}
+
+	// Update with preserved ID
+	updatedPkg := *pkg
+	updatedPkg.ID = existing.ID
+	m.Packages[pkg.Name] = &updatedPkg
+
+	return nil
+}
+
+func (m *MockDataStore) UpsertPackage(pkg *models.NvimPackageDB) error {
+	m.recordCall("UpsertPackage", pkg)
+	if m.UpsertPackageErr != nil {
+		return m.UpsertPackageErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Check if package exists
+	if existing, exists := m.Packages[pkg.Name]; exists {
+		// Update existing
+		updatedPkg := *pkg
+		updatedPkg.ID = existing.ID
+		m.Packages[pkg.Name] = &updatedPkg
+		pkg.ID = updatedPkg.ID
+	} else {
+		// Create new
+		newPkg := *pkg
+		newPkg.ID = m.nextPackageID
+		m.nextPackageID++
+		m.Packages[pkg.Name] = &newPkg
+		pkg.ID = newPkg.ID
+	}
+
+	return nil
+}
+
+func (m *MockDataStore) DeletePackage(name string) error {
+	m.recordCall("DeletePackage", name)
+	if m.DeletePackageErr != nil {
+		return m.DeletePackageErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, exists := m.Packages[name]; !exists {
+		return fmt.Errorf("package not found: %s", name)
+	}
+
+	delete(m.Packages, name)
+	return nil
+}
+
+func (m *MockDataStore) GetPackage(name string) (*models.NvimPackageDB, error) {
+	m.recordCall("GetPackage", name)
+	if m.GetPackageErr != nil {
+		return nil, m.GetPackageErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	pkg, exists := m.Packages[name]
+	if !exists {
+		return nil, fmt.Errorf("package not found: %s", name)
+	}
+
+	// Return a copy to avoid data races
+	result := *pkg
+	return &result, nil
+}
+
+func (m *MockDataStore) ListPackages() ([]*models.NvimPackageDB, error) {
+	m.recordCall("ListPackages")
+	if m.ListPackagesErr != nil {
+		return nil, m.ListPackagesErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var packages []*models.NvimPackageDB
+	for _, pkg := range m.Packages {
+		// Return copies to avoid data races
+		pkgCopy := *pkg
+		packages = append(packages, &pkgCopy)
+	}
+
+	return packages, nil
+}
+
+func (m *MockDataStore) ListPackagesByLabel(key, value string) ([]*models.NvimPackageDB, error) {
+	m.recordCall("ListPackagesByLabel", key, value)
+	if m.ListPackagesByLabelErr != nil {
+		return nil, m.ListPackagesByLabelErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var packages []*models.NvimPackageDB
+	for _, pkg := range m.Packages {
+		labels := pkg.GetLabels()
+		if labels[key] == value {
+			// Return copy to avoid data races
+			pkgCopy := *pkg
+			packages = append(packages, &pkgCopy)
+		}
+	}
+
+	return packages, nil
+}
+
+// =============================================================================
 // Driver Access & Health
 // =============================================================================
 
@@ -1329,6 +1565,7 @@ func (m *MockDataStore) Reset() {
 	m.Themes = make(map[string]*models.NvimThemeDB)
 	m.TerminalPrompts = make(map[string]*models.TerminalPromptDB)
 	m.Credentials = make(map[string]*models.CredentialDB)
+	m.Defaults = make(map[string]string)
 	m.WorkspacePlugins = make(map[int]map[int]bool)
 	m.ActiveTheme = ""
 	m.Context = &models.Context{ID: 1}

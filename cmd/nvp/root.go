@@ -18,6 +18,8 @@ import (
 	"devopsmaestro/pkg/nvimops/library"
 	"devopsmaestro/pkg/nvimops/plugin"
 	"devopsmaestro/pkg/nvimops/store"
+	"devopsmaestro/pkg/nvimops/sync"
+	"devopsmaestro/pkg/nvimops/sync/sources"
 	"devopsmaestro/pkg/nvimops/theme"
 	themelibrary "devopsmaestro/pkg/nvimops/theme/library"
 	"devopsmaestro/pkg/nvimops/theme/parametric"
@@ -90,6 +92,18 @@ func init() {
 
 	// Register resource handlers for unified pipeline
 	handlers.RegisterAll()
+
+	// Initialize sync sources registry with builtin sources
+	if err := sync.InitializeGlobalRegistry(); err != nil {
+		// Log warning but don't fail - sync functionality will be limited
+		slog.Warn("failed to initialize sync sources", "error", err)
+	}
+
+	// Register actual source handlers (replaces placeholder handlers)
+	if err := sources.RegisterAllGlobalHandlers(); err != nil {
+		// Log warning but don't fail - some sources will use placeholder handlers
+		slog.Warn("failed to register source handlers", "error", err)
+	}
 
 	// Add all commands
 	rootCmd.AddCommand(versionCmd)

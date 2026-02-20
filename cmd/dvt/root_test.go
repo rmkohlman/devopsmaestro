@@ -41,12 +41,13 @@ func TestProfilePresetListCommand(t *testing.T) {
 	}
 }
 
-func TestPromptGenerateCommand(t *testing.T) {
-	rootCmd.SetArgs([]string{"prompt", "generate", "starship-default"})
+func TestPromptLibraryShowStarshipDefaultCommand(t *testing.T) {
+	// Test the library show command instead of generate for a library item
+	rootCmd.SetArgs([]string{"prompt", "library", "show", "starship-default"})
 
 	err := rootCmd.Execute()
 	if err != nil {
-		t.Fatalf("prompt generate command failed: %v", err)
+		t.Fatalf("prompt library show command failed: %v", err)
 	}
 }
 

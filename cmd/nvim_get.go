@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -113,6 +114,27 @@ Examples:
 	},
 }
 
+// nvimGetDefaultsCmd lists nvim defaults (namespaced version)
+// Usage: dvm get nvim defaults
+var nvimGetDefaultsCmd = &cobra.Command{
+	Use:   "defaults",
+	Short: "Show current nvim defaults",
+	Long: `Show current nvim default configuration values.
+
+Displays nvim-related defaults including:
+- nvim-package: Default nvim package for workspaces
+- theme: Default theme for workspaces
+- plugins: Default plugins for workspaces
+
+Examples:
+  dvm get nvim defaults                   # Show table format
+  dvm get nvim defaults -o yaml          # Show as YAML
+  dvm get nvim defaults -o json          # Show as JSON`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return getNvimDefaults(cmd)
+	},
+}
+
 func init() {
 	// Add nvim subcommand to get
 	getCmd.AddCommand(nvimGetCmd)
@@ -122,6 +144,7 @@ func init() {
 	nvimGetCmd.AddCommand(nvimGetPluginCmd)
 	nvimGetCmd.AddCommand(nvimGetThemesCmd)
 	nvimGetCmd.AddCommand(nvimGetThemeCmd)
+	nvimGetCmd.AddCommand(nvimGetDefaultsCmd)
 
 	// Add workspace/app flags to plugins command
 	nvimGetPluginsCmd.Flags().StringVarP(&nvimWorkspaceFlag, "workspace", "w", "", "Filter by workspace")
@@ -332,4 +355,85 @@ func getWorkspacePluginNames(workspace *models.Workspace) []string {
 		return nil
 	}
 	return strings.Split(workspace.NvimPlugins.String, ",")
+}
+
+// getNvimDefaults shows current nvim defaults
+func getNvimDefaults(cmd *cobra.Command) error {
+	ds, err := getDataStore(cmd)
+	if err != nil {
+		return err
+	}
+
+	// Get all defaults from database
+	allDefaults, err := ds.ListDefaults()
+	if err != nil {
+		return fmt.Errorf("failed to list defaults: %w", err)
+	}
+
+	// Filter to nvim-related keys
+	nvimKeys := []string{"nvim-package", "theme", "plugins"}
+	nvimDefaults := make(map[string]interface{})
+
+	for _, key := range nvimKeys {
+		if value, exists := allDefaults[key]; exists {
+			// Handle plugins array specially - parse JSON if it's valid
+			if key == "plugins" && value != "" {
+				var plugins []string
+				if err := json.Unmarshal([]byte(value), &plugins); err == nil {
+					nvimDefaults[key] = plugins
+				} else {
+					// If JSON parsing fails, store as raw string
+					nvimDefaults[key] = value
+				}
+			} else {
+				nvimDefaults[key] = value
+			}
+		} else {
+			// Show empty value for missing keys
+			if key == "plugins" {
+				nvimDefaults[key] = []string{}
+			} else {
+				nvimDefaults[key] = ""
+			}
+		}
+	}
+
+	// For structured output (JSON/YAML)
+	if getOutputFormat == "json" || getOutputFormat == "yaml" {
+		return render.OutputWith(getOutputFormat, nvimDefaults, render.Options{})
+	}
+
+	// For table output
+	tableData := render.TableData{
+		Headers: []string{"KEY", "VALUE"},
+		Rows:    make([][]string, 0, len(nvimKeys)),
+	}
+
+	for _, key := range nvimKeys {
+		value := nvimDefaults[key]
+		var displayValue string
+
+		switch v := value.(type) {
+		case []string:
+			if len(v) == 0 {
+				displayValue = "(none)"
+			} else {
+				displayValue = "[" + strings.Join(v, ", ") + "]"
+			}
+		case string:
+			if v == "" {
+				displayValue = "(none)"
+			} else {
+				displayValue = v
+			}
+		default:
+			displayValue = fmt.Sprintf("%v", v)
+		}
+
+		tableData.Rows = append(tableData.Rows, []string{key, displayValue})
+	}
+
+	return render.OutputWith(getOutputFormat, tableData, render.Options{
+		Type: render.TypeTable,
+	})
 }

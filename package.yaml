@@ -1,0 +1,14 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPackage
+metadata:
+  name: core
+  description: "Essential plugins for any development environment"
+  category: core
+  labels:
+    source: library
+spec:
+  plugins:
+    - telescope
+    - treesitter
+    - lspconfig
+  enabled: true

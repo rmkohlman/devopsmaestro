@@ -44,7 +44,7 @@ brew install devopsmaestro
 brew install nvimops
 
 # Verify installation
-dvm version   # Should show v0.15.0
+dvm version   # Should show v0.6.0
 nvp version
 ```
 
@@ -131,6 +131,17 @@ nvp init
 nvp library list                    # 38+ curated plugins available
 nvp library install telescope treesitter lspconfig
 
+# Or sync from external sources (NEW in v0.6.0)
+nvp source list                     # Show available sources
+nvp source sync lazyvim             # Import LazyVim plugins
+nvp source sync lazyvim --dry-run   # Preview first
+
+# Package Management (NEW in v0.6.0)
+dvm get nvim packages               # List available packages
+dvm get nvim package core           # Show package details
+dvm use nvim package my-package     # Set default for new workspaces
+dvm get nvim defaults               # Show current defaults
+
 # Install a theme
 nvp theme library list              # 34+ themes including 21 CoolNight variants
 nvp theme library install tokyonight-custom --use
@@ -156,7 +167,7 @@ Already have a codebase on your laptop? Add it to dvm:
 
 ```bash
 # Initialize dvm (one-time setup)
-dvm init
+dvm init    # Auto-migrates database to latest schema
 
 # Set up the hierarchy (one-time or when starting new projects)
 dvm create ecosystem my-platform    # Top-level grouping
@@ -188,7 +199,7 @@ Starting fresh? Create a new directory for your app:
 
 ```bash
 # Initialize dvm (one-time setup)
-dvm init
+dvm init    # Auto-migrates database to latest schema
 
 # Set up the hierarchy (one-time or when starting new projects)
 dvm create ecosystem my-platform    # Top-level grouping
@@ -218,7 +229,7 @@ dvm attach
 
 ```bash
 cd ~/Developer/my-app
-dvm init                                # One-time setup
+dvm init                                # One-time setup (auto-migrates database)
 dvm create eco my-platform              # Create ecosystem (one-time)
 dvm create dom backend                  # Create domain (one-time)
 dvm create app myapp --from-cwd         # Create app
@@ -245,6 +256,9 @@ dvm status           # Full status overview
 
 - **kubectl-style commands** - Familiar `get`, `create`, `delete`, `apply` patterns
 - **Object hierarchy** - Ecosystem → Domain → App → Workspace for organized development
+- **Package management** - kubectl-style CRUD operations for NvimPackage resources
+- **Defaults management** - Set default nvim packages for new workspaces
+- **Auto-migration** - Database migrations run automatically on startup
 - **GitHub directory URL support** - Apply entire directories of YAML files with `dvm apply -f github:user/repo/directory/`
 - **Secret provider system** - Pluggable secret resolution (Keychain, environment variables)
 - **Multi-platform** - OrbStack, Docker Desktop, Podman, Colima
@@ -258,6 +272,7 @@ dvm status           # Full status overview
 
 - **YAML-based plugins** - Define plugins in YAML, generate Lua
 - **Built-in library** - 38+ curated plugins ready to install
+- **External source sync** - Import plugins from external sources like LazyVim
 - **Theme system** - 34+ embedded themes available instantly (no installation needed)
   - **21 CoolNight variants** - blue, purple, green, warm, red/pink, monochrome, special
   - **13+ additional themes** - Catppuccin, Dracula, Everforest, Gruvbox, and more
@@ -322,6 +337,18 @@ dvm use workspace <name>      # Set active workspace
 # Context
 dvm get context               # Show active ecosystem/domain/app/workspace
 
+# Package Management (v0.6.0+)
+dvm get nvim packages         # List all available packages
+dvm get nvim package <name>   # Show package details
+dvm apply -f package.yaml     # Apply package from YAML file
+dvm edit nvim package <name>  # Edit package in default editor
+dvm delete nvim package <name> # Remove a package
+
+# Defaults Management (v0.6.0+)
+dvm use nvim package <name>   # Set default package for new workspaces
+dvm use nvim package none     # Clear default package
+dvm get nvim defaults         # Show current defaults
+
 # Theme Management (v0.12.0+)
 dvm get nvim themes           # List all 34+ available themes
 dvm get nvim theme <name>     # Show theme details
@@ -354,6 +381,14 @@ nvp apply -f plugin.yaml      # Apply plugin from file
 nvp apply -f https://example.com/plugin.yaml  # Apply from URL (auto-detected)
 nvp apply -f github:user/repo/plugin.yaml     # GitHub shorthand
 nvp apply -f -                # Apply from stdin
+
+# External Sources (v0.6.0+)
+nvp source list               # List available external sources
+nvp source show <name>        # Show source details
+nvp source sync <name>        # Sync plugins from external source
+nvp source sync <name> --dry-run  # Preview sync without changes
+nvp source sync <name> -l category=lang  # Filter by labels
+nvp source sync <name> --tag v15.0.0     # Sync specific version
 
 # Themes
 nvp theme library list        # List available themes (34+ themes)
@@ -457,12 +492,15 @@ For backward compatibility, `GITHUB_TOKEN` is also checked.
 ```bash
 # Apply single file
 dvm apply -f plugin.yaml
+dvm apply -f package.yaml        # NEW: Apply NvimPackage
 
 # Apply from GitHub
 dvm apply -f github:user/repo/plugins/telescope.yaml
+dvm apply -f github:user/repo/packages/my-package.yaml  # NEW: Apply package
 
 # Apply entire directory from GitHub
 dvm apply -f github:user/repo/plugins/
+dvm apply -f github:user/repo/packages/   # NEW: Apply all packages in directory
 
 # Apply from your personal config repo
 dvm apply -f github:rmkohlman/dvm-config/plugins/
@@ -504,6 +542,25 @@ spec:
     - nvim-lua/plenary.nvim
   config: |
     require("telescope").setup({})
+```
+
+### Package YAML
+
+```yaml
+apiVersion: devopsmaestro.io/v1
+kind: NvimPackage
+metadata:
+  name: my-package
+  description: "My custom package"
+  category: custom
+  labels:
+    source: user
+spec:
+  plugins:
+    - telescope
+    - treesitter
+    - lspconfig
+  extends: core  # optional - inherit from another package
 ```
 
 ### Theme YAML

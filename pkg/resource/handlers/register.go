@@ -33,6 +33,7 @@ func RegisterAll() {
 		// Nvim resources
 		resource.Register(NewNvimPluginHandler())
 		resource.Register(NewNvimThemeHandler())
+		resource.Register(NewNvimPackageHandler())
 
 		// Object hierarchy resources (Ecosystem -> Domain -> App -> Workspace)
 		resource.Register(NewEcosystemHandler())

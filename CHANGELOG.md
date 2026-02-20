@@ -7,6 +7,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+---
+
+## [0.6.0] - 2026-02-20
+
+### 🚀 Added
+
+#### Package Management (NvimPackage) - kubectl-style CRUD Operations
+- **NvimPackage resource type** - Collections of plugin names with kubectl-style operations
+- **`dvm get nvim packages`** - List all available packages
+- **`dvm get nvim package <name>`** - Show specific package details
+- **`dvm apply -f package.yaml`** - Apply package from YAML file
+- **`dvm edit nvim package <name>`** - Edit package in default editor
+- **`dvm delete nvim package <name>`** - Remove a package
+- **Package YAML format** with apiVersion/kind/metadata/spec structure:
+  ```yaml
+  apiVersion: devopsmaestro.io/v1
+  kind: NvimPackage
+  metadata:
+    name: my-package
+    description: "My custom package"
+    category: custom
+    labels:
+      source: user
+  spec:
+    plugins:
+      - telescope
+      - treesitter
+      - lspconfig
+    extends: core  # optional package inheritance
+  ```
+
+#### Defaults Management - Set Default Packages for New Workspaces
+- **`dvm use nvim package <name>`** - Set default nvim package for new workspaces
+- **`dvm use nvim package none`** - Clear default package setting
+- **`dvm get nvim defaults`** - Show current default package and other defaults
+- **Validates packages** exist in database or library before setting as default
+- **Helpful error messages** with hints when packages don't exist
+
+#### External Source Sync - Import Plugins from External Sources
+- **`nvp source list`** - List all available external sources (LazyVim, etc.)
+- **`nvp source show <name>`** - Show detailed source information
+- **`nvp source sync <name>`** - Sync plugins from external source to local store
+- **`nvp source sync <name> --dry-run`** - Preview sync without making changes
+- **`nvp source sync <name> -l category=lang`** - Filter plugins by labels during sync
+- **`nvp source sync <name> --tag v15.0.0`** - Sync from specific version/tag
+- **LazyVim integration** - Built-in support for syncing plugins from LazyVim configs
+
+#### Auto-Migration on Startup
+- **Database migrations run automatically** on dvm startup
+- **No manual migration required** after upgrades
+- **Seamless version upgrades** without user intervention
+- **Backward compatibility** maintained for all existing data
+
+### 🔧 Enhanced
+
+#### Package System
+- **Package inheritance** via `extends` field in YAML spec
+- **Plugin resolution** automatically includes inherited plugins
+- **Category and labeling** support for better package organization
+- **Validation** ensures all referenced plugins exist
+
+#### Error Handling
+- **Better error messages** for package operations with actionable hints
+- **Validation feedback** when setting defaults with non-existent packages
+- **Clear success messages** for package and defaults operations
+
+### 🧪 Testing
+
+- **Package CRUD operations** - All kubectl-style operations tested
+- **Defaults management** - Setting and clearing defaults verified
+- **Auto-migration** - Database migration automation tested
+- **External source sync** - Plugin syncing from external sources validated
+
+---
+
 ## [0.15.1] - 2026-02-19
 
 ### Fixed

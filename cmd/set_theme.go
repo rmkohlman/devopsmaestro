@@ -23,6 +23,7 @@ var (
 	setThemeDomain      string
 	setThemeApp         string
 	setThemeWorkspace   string
+	setThemeGlobal      bool
 	setThemeOutput      string
 	setThemeDryRun      bool
 	setThemeShowCascade bool
@@ -69,6 +70,8 @@ Examples:
   dvm set theme tokyonight-night --app my-api  
   dvm set theme "" --workspace dev  # clear, inherit from app
   dvm set theme gruvbox-dark --domain auth --ecosystem platform
+  dvm set theme tokyonight-night --global              # Set global default
+  dvm set theme "" --global                            # Clear global default
 
 Available themes:
   Library themes (34+ available instantly): coolnight-ocean, tokyonight-night, catppuccin-mocha, etc.
@@ -85,6 +88,7 @@ func init() {
 	setThemeCmd.Flags().StringVar(&setThemeDomain, "domain", "", "Set theme at domain level")
 	setThemeCmd.Flags().StringVar(&setThemeApp, "app", "", "Set theme at app level")
 	setThemeCmd.Flags().StringVar(&setThemeWorkspace, "workspace", "", "Set theme at workspace level")
+	setThemeCmd.Flags().BoolVar(&setThemeGlobal, "global", false, "Set as global default theme")
 
 	// Add kubectl-style flags
 	setThemeCmd.Flags().StringVarP(&setThemeOutput, "output", "o", "", "Output format (json, yaml, plain, table, colored)")
@@ -92,8 +96,8 @@ func init() {
 	setThemeCmd.Flags().BoolVar(&setThemeShowCascade, "show-cascade", false, "Show theme cascade effect")
 
 	// Ensure exactly one level flag is specified
-	setThemeCmd.MarkFlagsOneRequired("ecosystem", "domain", "app", "workspace")
-	setThemeCmd.MarkFlagsMutuallyExclusive("ecosystem", "domain", "app", "workspace")
+	setThemeCmd.MarkFlagsOneRequired("ecosystem", "domain", "app", "workspace", "global")
+	setThemeCmd.MarkFlagsMutuallyExclusive("ecosystem", "domain", "app", "workspace", "global")
 }
 
 func runSetTheme(cmd *cobra.Command, args []string) error {
@@ -122,6 +126,8 @@ func runSetTheme(cmd *cobra.Command, args []string) error {
 		result, err = setAppTheme(cmd, ctx, setThemeApp, themeName)
 	} else if setThemeWorkspace != "" {
 		result, err = setWorkspaceTheme(cmd, ctx, setThemeWorkspace, themeName)
+	} else if setThemeGlobal {
+		result, err = setGlobalDefaultTheme(cmd, ctx, themeName)
 	} else {
 		return fmt.Errorf("no hierarchy level specified")
 	}
@@ -441,6 +447,49 @@ func setWorkspaceTheme(cmd *cobra.Command, ctx resource.Context, workspaceName, 
 	return &ThemeSetResult{
 		Level:          "workspace",
 		ObjectName:     workspaceName,
+		Theme:          themeName,
+		PreviousTheme:  previousTheme,
+		EffectiveTheme: getEffectiveTheme(themeName, previousTheme),
+	}, nil
+}
+
+// setGlobalDefaultTheme sets or clears the global default theme using the defaults table
+func setGlobalDefaultTheme(cmd *cobra.Command, ctx resource.Context, themeName string) (*ThemeSetResult, error) {
+	ds := ctx.DataStore.(db.DataStore)
+
+	// Get previous global default theme
+	previousTheme, err := ds.GetDefault("theme")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get previous global default theme: %w", err)
+	}
+
+	// Handle dry run
+	if setThemeDryRun {
+		return &ThemeSetResult{
+			Level:          "global",
+			ObjectName:     "global-defaults",
+			Theme:          themeName,
+			PreviousTheme:  previousTheme,
+			EffectiveTheme: getEffectiveTheme(themeName, previousTheme),
+		}, nil
+	}
+
+	// Set, clear, or delete the global default
+	if themeName == "" {
+		// Clear the global default by deleting the key
+		if err := ds.DeleteDefault("theme"); err != nil {
+			return nil, fmt.Errorf("failed to clear global default theme: %w", err)
+		}
+	} else {
+		// Set the new global default theme
+		if err := ds.SetDefault("theme", themeName); err != nil {
+			return nil, fmt.Errorf("failed to set global default theme: %w", err)
+		}
+	}
+
+	return &ThemeSetResult{
+		Level:          "global",
+		ObjectName:     "global-defaults",
 		Theme:          themeName,
 		PreviousTheme:  previousTheme,
 		EffectiveTheme: getEffectiveTheme(themeName, previousTheme),

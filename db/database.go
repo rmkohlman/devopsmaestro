@@ -54,6 +54,110 @@ func InitializeDriver() (Driver, error) {
 	return driver, nil
 }
 
+// CheckPendingMigrations checks if there are pending migrations without applying them.
+// Returns true if migrations are pending, false if database is current.
+// If database doesn't exist, returns false (let init command handle first-time setup).
+func CheckPendingMigrations(driver Driver, migrationsFS fs.FS) (bool, error) {
+	if driver == nil {
+		return false, fmt.Errorf("driver is nil")
+	}
+
+	// Get the subdirectory for this database type
+	dbType := string(driver.Type())
+	if dbType == string(DriverMemory) {
+		dbType = "sqlite" // Memory driver uses sqlite migrations
+	}
+
+	subFS, err := fs.Sub(migrationsFS, dbType)
+	if err != nil {
+		return false, fmt.Errorf("failed to get migrations subdirectory for %s: %w", dbType, err)
+	}
+
+	// Create iofs source driver
+	sourceDriver, err := iofs.New(subFS, ".")
+	if err != nil {
+		return false, fmt.Errorf("failed to create migration source: %w", err)
+	}
+
+	// Get the Migration DSN from the driver
+	migrationDSN := driver.MigrationDSN()
+
+	// Initialize the migrations
+	m, err := migrate.NewWithSourceInstance("iofs", sourceDriver, migrationDSN)
+	if err != nil {
+		// If migration initialization fails, might be because database doesn't exist yet
+		// This is OK - let init command handle first-time setup
+		return false, nil
+	}
+	defer m.Close()
+
+	// Get current version and check if we have migrations to apply
+	_, dirty, err := m.Version()
+	if err != nil {
+		if err == migrate.ErrNilVersion {
+			// No migrations have been applied yet - database is new
+			return true, nil
+		}
+		// Database might not exist yet
+		return false, nil
+	}
+
+	if dirty {
+		return false, fmt.Errorf("database is in dirty state - please run 'dvm admin migrate' to fix")
+	}
+
+	// Check if we have newer migrations available
+	// We'll try to step up once to see if there are pending migrations
+	tempM, err := migrate.NewWithSourceInstance("iofs", sourceDriver, migrationDSN)
+	if err != nil {
+		return false, nil
+	}
+	defer tempM.Close()
+
+	// Try to get the next version by attempting to step up
+	err = tempM.Steps(1)
+	if err == migrate.ErrNoChange {
+		// No pending migrations
+		return false, nil
+	} else if err != nil {
+		// Some other error occurred, assume no migrations needed
+		return false, nil
+	} else {
+		// Migration would succeed, so we have pending migrations
+		// Step back down to restore original state
+		_ = tempM.Steps(-1)
+		return true, nil
+	}
+}
+
+// AutoMigrate checks for pending migrations and applies them if needed.
+// Shows user feedback when migrations are applied.
+func AutoMigrate(driver Driver, migrationsFS fs.FS) error {
+	if driver == nil {
+		return fmt.Errorf("driver is nil")
+	}
+
+	// Check if migrations are pending
+	pending, err := CheckPendingMigrations(driver, migrationsFS)
+	if err != nil {
+		return fmt.Errorf("failed to check pending migrations: %w", err)
+	}
+
+	if !pending {
+		// No migrations needed
+		return nil
+	}
+
+	// Apply migrations with user feedback
+	fmt.Println("Applying database migrations...")
+	err = RunMigrations(driver, migrationsFS)
+	if err != nil {
+		return fmt.Errorf("failed to apply migrations: %w", err)
+	}
+
+	return nil
+}
+
 // RunMigrations runs database migrations using the provided driver.
 func RunMigrations(driver Driver, migrationsFS fs.FS) error {
 	if driver == nil {
