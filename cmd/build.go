@@ -11,7 +11,11 @@ import (
 	"devopsmaestro/pkg/nvimops/plugin"
 	"devopsmaestro/pkg/nvimops/store"
 	"devopsmaestro/pkg/nvimops/theme"
+	"devopsmaestro/pkg/palette"
 	"devopsmaestro/pkg/resolver"
+	"devopsmaestro/pkg/resource"
+	"devopsmaestro/pkg/resource/handlers"
+	"devopsmaestro/pkg/terminalops/prompt"
 	"devopsmaestro/render"
 	"devopsmaestro/utils"
 	"fmt"
@@ -24,6 +28,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -247,7 +252,7 @@ func buildWorkspace(cmd *cobra.Command) error {
 
 	// Step 5: Generate nvim config BEFORE Dockerfile (so Dockerfile generator can see .config/nvim/)
 	if workspaceYAML.Spec.Nvim.Structure != "" && workspaceYAML.Spec.Nvim.Structure != "none" {
-		if err := copyNvimConfig(workspaceYAML.Spec.Nvim.Plugins, app.Path, homeDir, sqlDS); err != nil {
+		if err := copyNvimConfig(workspaceYAML.Spec.Nvim.Plugins, app.Path, homeDir, sqlDS, app, workspace, appName, workspaceName); err != nil {
 			return err
 		}
 	}
@@ -428,7 +433,7 @@ func getPlatformInstallHint() string {
 // copyNvimConfig generates nvim configuration using nvp and copies to build context
 // It filters plugins based on the workspace's configured plugin list
 // Reads plugin data from the database (source of truth)
-func copyNvimConfig(workspacePlugins []string, appPath, homeDir string, ds db.DataStore) error {
+func copyNvimConfig(workspacePlugins []string, appPath, homeDir string, ds db.DataStore, app *models.App, workspace *models.Workspace, appName, workspaceName string) error {
 	render.Progress("Preparing build staging directory...")
 
 	// Create staging directory for build artifacts instead of placing in app directory
@@ -556,7 +561,7 @@ func copyNvimConfig(workspacePlugins []string, appPath, homeDir string, ds db.Da
 	}
 
 	// Generate shell configuration files (.zshrc and starship.toml)
-	if err := generateShellConfig(stagingDir, filepath.Base(appPath)); err != nil {
+	if err := generateShellConfig(stagingDir, appName, workspaceName, ds); err != nil {
 		return fmt.Errorf("failed to generate shell config: %w", err)
 	}
 
@@ -782,7 +787,7 @@ func copyFile(src, dst string, mode os.FileMode) error {
 }
 
 // generateShellConfig creates .zshrc and starship.toml files in staging directory
-func generateShellConfig(stagingDir, appName string) error {
+func generateShellConfig(stagingDir, appName, workspaceName string, ds db.DataStore) error {
 	// Create .config directory for starship.toml
 	configDir := filepath.Join(stagingDir, ".config")
 	if err := os.MkdirAll(configDir, 0755); err != nil {
@@ -814,33 +819,169 @@ compinit
 		return fmt.Errorf("failed to write .zshrc: %w", err)
 	}
 
-	// Generate starship.toml
-	starshipConfig := `# DevOpsMaestro Container Prompt
-format = """
-$custom\
-$directory\
-$git_branch\
-$git_status\
-$character"""
+	// Ensure handlers are registered (idempotent)
+	handlers.RegisterAll()
 
-[custom.dvm]
-command = 'echo "[` + appName + `]"'
-when = 'test -n "$DVM_APP"'
-format = "[$output](bold cyan) "
-shell = ["bash", "--noprofile", "--norc"]
+	// Use Resource/Handler pattern to get or create default prompt
+	ctx := resource.Context{DataStore: ds}
+	defaultPromptName := fmt.Sprintf("dvm-default-%s-%s", appName, workspaceName)
 
-[directory]
-truncation_length = 3
+	// Declare promptYAML variable
+	var promptYAML *prompt.PromptYAML
 
-[character]
-success_symbol = "[➜](bold green)"
-error_symbol = "[✗](bold red)"
-`
+	// Try to get existing prompt first
+	res, err := resource.Get(ctx, prompt.KindTerminalPrompt, defaultPromptName)
+	if err != nil {
+		// Prompt doesn't exist, create default and apply it
+		slog.Debug("creating default terminal prompt", "name", defaultPromptName, "app", appName, "workspace", workspaceName)
 
+		promptYAML = createDefaultTerminalPrompt(appName, workspaceName)
+		yamlData, err := yaml.Marshal(promptYAML)
+		if err != nil {
+			// If YAML marshaling fails, fall back to hardcoded config
+			slog.Warn("failed to marshal default prompt, using direct creation", "error", err)
+			promptYAML = createDefaultTerminalPrompt(appName, workspaceName)
+		} else {
+			// Apply to database
+			res, err = resource.Apply(ctx, yamlData, "build-default")
+			if err != nil {
+				// If database fails, fall back to direct creation
+				slog.Warn("failed to apply default prompt to database, using direct creation", "error", err)
+				promptYAML = createDefaultTerminalPrompt(appName, workspaceName)
+			} else {
+				// Successfully applied to database, extract the prompt
+				promptRes, ok := res.(*handlers.TerminalPromptResource)
+				if !ok {
+					slog.Warn("unexpected resource type from handler, using direct creation")
+					promptYAML = createDefaultTerminalPrompt(appName, workspaceName)
+				} else {
+					actualPrompt := promptRes.Prompt()
+					promptYAML = actualPrompt.ToYAML()
+					slog.Debug("applied default prompt to database", "name", defaultPromptName)
+				}
+			}
+		}
+	} else {
+		// Prompt exists in database, use it
+		promptRes, ok := res.(*handlers.TerminalPromptResource)
+		if !ok {
+			slog.Warn("unexpected resource type from database, using direct creation")
+			promptYAML = createDefaultTerminalPrompt(appName, workspaceName)
+		} else {
+			actualPrompt := promptRes.Prompt()
+			promptYAML = actualPrompt.ToYAML()
+			slog.Debug("using existing prompt from database", "name", defaultPromptName)
+		}
+	}
+
+	// Create a default palette for now (future: get from theme system)
+	defaultPalette := createDefaultPalette()
+
+	// Use the new renderer to generate starship.toml
+	renderer := prompt.NewRenderer()
 	starshipPath := filepath.Join(configDir, "starship.toml")
-	if err := os.WriteFile(starshipPath, []byte(starshipConfig), 0644); err != nil {
-		return fmt.Errorf("failed to write starship.toml: %w", err)
+	if err := renderer.RenderToFile(promptYAML, defaultPalette, starshipPath); err != nil {
+		return fmt.Errorf("failed to render starship.toml: %w", err)
 	}
 
 	return nil
+}
+
+// createDefaultTerminalPrompt creates a default TerminalPrompt configuration
+// that matches the previous hardcoded behavior.
+func createDefaultTerminalPrompt(appName, workspaceName string) *prompt.PromptYAML {
+	defaultPromptName := fmt.Sprintf("dvm-default-%s-%s", appName, workspaceName)
+	py := prompt.NewTerminalPrompt(defaultPromptName)
+	py.Metadata.Description = fmt.Sprintf("Default DevOpsMaestro prompt for %s/%s", appName, workspaceName)
+
+	// Set format matching the original hardcoded config
+	py.Spec.Format = `$custom\
+$directory\
+$git_branch\
+$git_status\
+$character`
+
+	// Configure custom module for app name
+	py.Spec.Modules = map[string]prompt.ModuleConfig{
+		"custom.dvm": {
+			Format: "[$output](bold ${theme.cyan}) ",
+			Options: map[string]any{
+				"command": fmt.Sprintf(`echo "[%s]"`, appName),
+				"when":    `test -n "$DVM_APP"`,
+				"shell":   []string{"bash", "--noprofile", "--norc"},
+			},
+		},
+		"directory": {
+			Options: map[string]any{
+				"truncation_length": 3,
+			},
+		},
+		"character": {
+			Options: map[string]any{
+				"success_symbol": "[➜](bold ${theme.green})",
+				"error_symbol":   "[✗](bold ${theme.red})",
+			},
+		},
+	}
+
+	return py
+}
+
+// createDefaultPalette creates a default palette for starship prompt rendering.
+// This provides basic colors that work well in most terminal environments.
+func createDefaultPalette() *palette.Palette {
+	return &palette.Palette{
+		Name:        "default",
+		Description: "Default DevOpsMaestro colors",
+		Category:    palette.CategoryDark,
+		Colors: map[string]string{
+			// Basic background/foreground
+			palette.ColorBg: "#1a1b26",
+			palette.ColorFg: "#c0caf5",
+
+			// Standard terminal colors
+			palette.TermRed:     "#f7768e",
+			palette.TermGreen:   "#9ece6a",
+			palette.TermYellow:  "#e0af68",
+			palette.TermBlue:    "#7aa2f7",
+			palette.TermMagenta: "#bb9af7",
+			palette.TermCyan:    "#7dcfff",
+			palette.TermWhite:   "#c0caf5",
+			palette.TermBlack:   "#15161e",
+
+			// Bright variants
+			palette.TermBrightRed:     "#f7768e",
+			palette.TermBrightGreen:   "#9ece6a",
+			palette.TermBrightYellow:  "#e0af68",
+			palette.TermBrightBlue:    "#7aa2f7",
+			palette.TermBrightMagenta: "#bb9af7",
+			palette.TermBrightCyan:    "#7dcfff",
+			palette.TermBrightWhite:   "#c0caf5",
+			palette.TermBrightBlack:   "#414868",
+
+			// Standard theme color names (needed for ToTerminalColors mapping)
+			"red":     "#f7768e",
+			"green":   "#9ece6a",
+			"yellow":  "#e0af68",
+			"blue":    "#7aa2f7",
+			"magenta": "#bb9af7",
+			"cyan":    "#7dcfff",
+			"white":   "#c0caf5",
+			"black":   "#15161e",
+
+			// Semantic colors
+			palette.ColorError:   "#f7768e",
+			palette.ColorWarning: "#e0af68",
+			palette.ColorInfo:    "#7aa2f7",
+			palette.ColorHint:    "#1abc9c",
+			palette.ColorSuccess: "#9ece6a",
+			palette.ColorComment: "#565f89",
+			palette.ColorBorder:  "#27a1b9",
+
+			// Accent colors
+			palette.ColorPrimary:   "#7aa2f7",
+			palette.ColorSecondary: "#bb9af7",
+			palette.ColorAccent:    "#7dcfff",
+		},
+	}
 }

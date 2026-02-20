@@ -13,16 +13,17 @@ type MockDataStore struct {
 	mu sync.Mutex
 
 	// In-memory storage
-	Ecosystems  map[string]*models.Ecosystem
-	Domains     map[int]*models.Domain // keyed by ID for easier lookup
-	Apps        map[int]*models.App    // keyed by ID for easier lookup
-	Projects    map[string]*models.Project
-	Workspaces  map[int]*models.Workspace
-	Plugins     map[string]*models.NvimPluginDB
-	Themes      map[string]*models.NvimThemeDB
-	Credentials map[string]*models.CredentialDB // keyed by "scopeType:scopeID:name"
-	ActiveTheme string
-	Context     *models.Context
+	Ecosystems      map[string]*models.Ecosystem
+	Domains         map[int]*models.Domain // keyed by ID for easier lookup
+	Apps            map[int]*models.App    // keyed by ID for easier lookup
+	Projects        map[string]*models.Project
+	Workspaces      map[int]*models.Workspace
+	Plugins         map[string]*models.NvimPluginDB
+	Themes          map[string]*models.NvimThemeDB
+	TerminalPrompts map[string]*models.TerminalPromptDB
+	Credentials     map[string]*models.CredentialDB // keyed by "scopeType:scopeID:name"
+	ActiveTheme     string
+	Context         *models.Context
 
 	// WorkspacePlugins maps workspaceID -> pluginIDs
 	WorkspacePlugins map[int]map[int]bool
@@ -31,82 +32,90 @@ type MockDataStore struct {
 	MockDriver *MockDriver
 
 	// Error injection for testing error paths
-	CreateEcosystemErr           error
-	GetEcosystemByNameErr        error
-	GetEcosystemByIDErr          error
-	UpdateEcosystemErr           error
-	DeleteEcosystemErr           error
-	ListEcosystemsErr            error
-	CreateDomainErr              error
-	GetDomainByNameErr           error
-	GetDomainByIDErr             error
-	UpdateDomainErr              error
-	DeleteDomainErr              error
-	ListDomainsByEcosystemErr    error
-	ListAllDomainsErr            error
-	CreateAppErr                 error
-	GetAppByNameErr              error
-	GetAppByIDErr                error
-	UpdateAppErr                 error
-	DeleteAppErr                 error
-	ListAppsByDomainErr          error
-	ListAllAppsErr               error
-	CreateProjectErr             error
-	GetProjectByNameErr          error
-	GetProjectByIDErr            error
-	UpdateProjectErr             error
-	DeleteProjectErr             error
-	ListProjectsErr              error
-	CreateWorkspaceErr           error
-	GetWorkspaceByNameErr        error
-	GetWorkspaceByIDErr          error
-	UpdateWorkspaceErr           error
-	DeleteWorkspaceErr           error
-	ListWorkspacesByAppErr       error
-	ListAllWorkspacesErr         error
-	FindWorkspacesErr            error
-	GetContextErr                error
-	SetActiveEcosystemErr        error
-	SetActiveDomainErr           error
-	SetActiveAppErr              error
-	SetActiveWorkspaceErr        error
-	SetActiveProjectErr          error
-	CreatePluginErr              error
-	GetPluginByNameErr           error
-	GetPluginByIDErr             error
-	UpdatePluginErr              error
-	DeletePluginErr              error
-	ListPluginsErr               error
-	ListPluginsByCategoryErr     error
-	ListPluginsByTagsErr         error
-	AddPluginToWorkspaceErr      error
-	RemovePluginFromWorkspaceErr error
-	GetWorkspacePluginsErr       error
-	SetWorkspacePluginEnabledErr error
-	CreateThemeErr               error
-	GetThemeByNameErr            error
-	GetThemeByIDErr              error
-	UpdateThemeErr               error
-	DeleteThemeErr               error
-	ListThemesErr                error
-	ListThemesByCategoryErr      error
-	GetActiveThemeErr            error
-	SetActiveThemeErr            error
-	ClearActiveThemeErr          error
-	CloseErr                     error
-	PingErr                      error
+	CreateEcosystemErr               error
+	GetEcosystemByNameErr            error
+	GetEcosystemByIDErr              error
+	UpdateEcosystemErr               error
+	DeleteEcosystemErr               error
+	ListEcosystemsErr                error
+	CreateDomainErr                  error
+	GetDomainByNameErr               error
+	GetDomainByIDErr                 error
+	UpdateDomainErr                  error
+	DeleteDomainErr                  error
+	ListDomainsByEcosystemErr        error
+	ListAllDomainsErr                error
+	CreateAppErr                     error
+	GetAppByNameErr                  error
+	GetAppByIDErr                    error
+	UpdateAppErr                     error
+	DeleteAppErr                     error
+	ListAppsByDomainErr              error
+	ListAllAppsErr                   error
+	CreateProjectErr                 error
+	GetProjectByNameErr              error
+	GetProjectByIDErr                error
+	UpdateProjectErr                 error
+	DeleteProjectErr                 error
+	ListProjectsErr                  error
+	CreateWorkspaceErr               error
+	GetWorkspaceByNameErr            error
+	GetWorkspaceByIDErr              error
+	UpdateWorkspaceErr               error
+	DeleteWorkspaceErr               error
+	ListWorkspacesByAppErr           error
+	ListAllWorkspacesErr             error
+	FindWorkspacesErr                error
+	GetContextErr                    error
+	SetActiveEcosystemErr            error
+	SetActiveDomainErr               error
+	SetActiveAppErr                  error
+	SetActiveWorkspaceErr            error
+	SetActiveProjectErr              error
+	CreatePluginErr                  error
+	GetPluginByNameErr               error
+	GetPluginByIDErr                 error
+	UpdatePluginErr                  error
+	DeletePluginErr                  error
+	ListPluginsErr                   error
+	ListPluginsByCategoryErr         error
+	ListPluginsByTagsErr             error
+	AddPluginToWorkspaceErr          error
+	RemovePluginFromWorkspaceErr     error
+	GetWorkspacePluginsErr           error
+	SetWorkspacePluginEnabledErr     error
+	CreateThemeErr                   error
+	GetThemeByNameErr                error
+	GetThemeByIDErr                  error
+	UpdateThemeErr                   error
+	DeleteThemeErr                   error
+	ListThemesErr                    error
+	ListThemesByCategoryErr          error
+	GetActiveThemeErr                error
+	SetActiveThemeErr                error
+	ClearActiveThemeErr              error
+	CreateTerminalPromptErr          error
+	GetTerminalPromptByNameErr       error
+	UpdateTerminalPromptErr          error
+	DeleteTerminalPromptErr          error
+	ListTerminalPromptsErr           error
+	ListTerminalPromptsByTypeErr     error
+	ListTerminalPromptsByCategoryErr error
+	CloseErr                         error
+	PingErr                          error
 
 	// Call tracking
 	Calls []MockDataStoreCall
 
 	// Auto-increment IDs
-	nextEcosystemID int
-	nextDomainID    int
-	nextAppID       int
-	nextProjectID   int
-	nextWorkspaceID int
-	nextPluginID    int
-	nextThemeID     int
+	nextEcosystemID      int
+	nextDomainID         int
+	nextAppID            int
+	nextProjectID        int
+	nextWorkspaceID      int
+	nextPluginID         int
+	nextThemeID          int
+	nextTerminalPromptID int
 }
 
 // MockDataStoreCall represents a recorded method call
@@ -118,23 +127,25 @@ type MockDataStoreCall struct {
 // NewMockDataStore creates a new mock data store with initialized storage
 func NewMockDataStore() *MockDataStore {
 	return &MockDataStore{
-		Ecosystems:       make(map[string]*models.Ecosystem),
-		Domains:          make(map[int]*models.Domain),
-		Apps:             make(map[int]*models.App),
-		Projects:         make(map[string]*models.Project),
-		Workspaces:       make(map[int]*models.Workspace),
-		Plugins:          make(map[string]*models.NvimPluginDB),
-		Themes:           make(map[string]*models.NvimThemeDB),
-		WorkspacePlugins: make(map[int]map[int]bool),
-		Context:          &models.Context{ID: 1},
-		MockDriver:       NewMockDriver(),
-		nextEcosystemID:  1,
-		nextDomainID:     1,
-		nextAppID:        1,
-		nextProjectID:    1,
-		nextWorkspaceID:  1,
-		nextPluginID:     1,
-		nextThemeID:      1,
+		Ecosystems:           make(map[string]*models.Ecosystem),
+		Domains:              make(map[int]*models.Domain),
+		Apps:                 make(map[int]*models.App),
+		Projects:             make(map[string]*models.Project),
+		Workspaces:           make(map[int]*models.Workspace),
+		Plugins:              make(map[string]*models.NvimPluginDB),
+		Themes:               make(map[string]*models.NvimThemeDB),
+		TerminalPrompts:      make(map[string]*models.TerminalPromptDB),
+		WorkspacePlugins:     make(map[int]map[int]bool),
+		Context:              &models.Context{ID: 1},
+		MockDriver:           NewMockDriver(),
+		nextEcosystemID:      1,
+		nextDomainID:         1,
+		nextAppID:            1,
+		nextProjectID:        1,
+		nextWorkspaceID:      1,
+		nextPluginID:         1,
+		nextThemeID:          1,
+		nextTerminalPromptID: 1,
 	}
 }
 
@@ -1159,6 +1170,111 @@ func (m *MockDataStore) ListAllCredentials() ([]*models.CredentialDB, error) {
 }
 
 // =============================================================================
+// Terminal Prompt Operations
+// =============================================================================
+
+func (m *MockDataStore) CreateTerminalPrompt(prompt *models.TerminalPromptDB) error {
+	m.recordCall("CreateTerminalPrompt", prompt)
+	if m.CreateTerminalPromptErr != nil {
+		return m.CreateTerminalPromptErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	prompt.ID = m.nextTerminalPromptID
+	m.nextTerminalPromptID++
+	m.TerminalPrompts[prompt.Name] = prompt
+	return nil
+}
+
+func (m *MockDataStore) GetTerminalPromptByName(name string) (*models.TerminalPromptDB, error) {
+	m.recordCall("GetTerminalPromptByName", name)
+	if m.GetTerminalPromptByNameErr != nil {
+		return nil, m.GetTerminalPromptByNameErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	prompt, exists := m.TerminalPrompts[name]
+	if !exists {
+		return nil, fmt.Errorf("terminal prompt not found: %s", name)
+	}
+	return prompt, nil
+}
+
+func (m *MockDataStore) UpdateTerminalPrompt(prompt *models.TerminalPromptDB) error {
+	m.recordCall("UpdateTerminalPrompt", prompt)
+	if m.UpdateTerminalPromptErr != nil {
+		return m.UpdateTerminalPromptErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, exists := m.TerminalPrompts[prompt.Name]; !exists {
+		return fmt.Errorf("terminal prompt not found: %s", prompt.Name)
+	}
+	m.TerminalPrompts[prompt.Name] = prompt
+	return nil
+}
+
+func (m *MockDataStore) DeleteTerminalPrompt(name string) error {
+	m.recordCall("DeleteTerminalPrompt", name)
+	if m.DeleteTerminalPromptErr != nil {
+		return m.DeleteTerminalPromptErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, exists := m.TerminalPrompts[name]; !exists {
+		return fmt.Errorf("terminal prompt not found: %s", name)
+	}
+	delete(m.TerminalPrompts, name)
+	return nil
+}
+
+func (m *MockDataStore) ListTerminalPrompts() ([]*models.TerminalPromptDB, error) {
+	m.recordCall("ListTerminalPrompts")
+	if m.ListTerminalPromptsErr != nil {
+		return nil, m.ListTerminalPromptsErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var result []*models.TerminalPromptDB
+	for _, prompt := range m.TerminalPrompts {
+		result = append(result, prompt)
+	}
+	return result, nil
+}
+
+func (m *MockDataStore) ListTerminalPromptsByType(promptType string) ([]*models.TerminalPromptDB, error) {
+	m.recordCall("ListTerminalPromptsByType", promptType)
+	if m.ListTerminalPromptsByTypeErr != nil {
+		return nil, m.ListTerminalPromptsByTypeErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var result []*models.TerminalPromptDB
+	for _, prompt := range m.TerminalPrompts {
+		if prompt.Type == promptType {
+			result = append(result, prompt)
+		}
+	}
+	return result, nil
+}
+
+func (m *MockDataStore) ListTerminalPromptsByCategory(category string) ([]*models.TerminalPromptDB, error) {
+	m.recordCall("ListTerminalPromptsByCategory", category)
+	if m.ListTerminalPromptsByCategoryErr != nil {
+		return nil, m.ListTerminalPromptsByCategoryErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var result []*models.TerminalPromptDB
+	for _, prompt := range m.TerminalPrompts {
+		if prompt.Category.Valid && prompt.Category.String == category {
+			result = append(result, prompt)
+		}
+	}
+	return result, nil
+}
+
+// =============================================================================
 // Driver Access & Health
 // =============================================================================
 
@@ -1211,6 +1327,7 @@ func (m *MockDataStore) Reset() {
 	m.Workspaces = make(map[int]*models.Workspace)
 	m.Plugins = make(map[string]*models.NvimPluginDB)
 	m.Themes = make(map[string]*models.NvimThemeDB)
+	m.TerminalPrompts = make(map[string]*models.TerminalPromptDB)
 	m.Credentials = make(map[string]*models.CredentialDB)
 	m.WorkspacePlugins = make(map[int]map[int]bool)
 	m.ActiveTheme = ""
@@ -1223,6 +1340,7 @@ func (m *MockDataStore) Reset() {
 	m.nextWorkspaceID = 1
 	m.nextPluginID = 1
 	m.nextThemeID = 1
+	m.nextTerminalPromptID = 1
 }
 
 // Helper function

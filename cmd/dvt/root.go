@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"devopsmaestro/db"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -18,7 +20,9 @@ import (
 	promptlibrary "devopsmaestro/pkg/terminalops/prompt/library"
 	"devopsmaestro/pkg/terminalops/shell"
 
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 )
 
@@ -51,6 +55,39 @@ Quick Start:
 Configuration is stored in ~/.dvt/ by default.`,
 }
 
+// setupDatabaseConfig configures database settings for dvt
+func setupDatabaseConfig() {
+	// Get home directory
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		slog.Error("Failed to get home directory", "error", err)
+		os.Exit(1)
+	}
+
+	// Set config path to ~/.devopsmaestro (same as dvm for shared database)
+	configPath := filepath.Join(homeDir, ".devopsmaestro")
+	viper.SetConfigName("config")
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath(configPath)
+	viper.AutomaticEnv()
+
+	// Try to read config, but don't fail if it doesn't exist
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			slog.Error("Failed to read config", "error", err)
+			os.Exit(1)
+		}
+		// Config not found is OK - use defaults
+	}
+
+	// Set default values if config is not found (use same database as dvm)
+	if viper.GetString("database.type") == "" {
+		viper.Set("database.type", "sqlite")
+		viper.Set("database.path", "~/.devopsmaestro/devopsmaestro.db")
+		viper.Set("store", "sql")
+	}
+}
+
 // Execute runs the root command
 func Execute() error {
 	return rootCmd.Execute()
@@ -62,14 +99,46 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable debug logging")
 	rootCmd.PersistentFlags().StringVar(&logFile, "log-file", "", "Write logs to file (JSON format)")
 
-	// Initialize logging before any command runs
+	// Initialize logging and database before any command runs
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
 		initLogging()
+
+		// Check if this is a command that doesn't need database
+		skipDB := false
+		commandName := cmd.Name()
+		switch commandName {
+		case "completion", "version", "help":
+			skipDB = true
+		}
+
+		if !skipDB {
+			// Setup database configuration
+			setupDatabaseConfig()
+
+			// Initialize database connection
+			dbInstance, err := db.InitializeDBConnection()
+			if err != nil {
+				slog.Error("Failed to initialize database", "error", err)
+				os.Exit(1)
+			}
+
+			// Create DataStore instance
+			dataStore, err := db.StoreFactory(dbInstance)
+			if err != nil {
+				slog.Error("Failed to create DataStore", "error", err)
+				os.Exit(1)
+			}
+
+			// Set the dataStore in context for resource operations
+			ctx := context.WithValue(cmd.Context(), "dataStore", &dataStore)
+			cmd.SetContext(ctx)
+		}
 	}
 
 	// Add all commands
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(initCmd)
+	rootCmd.AddCommand(getCmd)
 	rootCmd.AddCommand(promptCmd)
 	rootCmd.AddCommand(pluginCmd)
 	rootCmd.AddCommand(shellCmd)
@@ -329,149 +398,60 @@ var promptListCmd = &cobra.Command{
 
 var promptGetCmd = &cobra.Command{
 	Use:   "get <name>",
-	Short: "Get a prompt definition",
-	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		name := args[0]
-		store := getPromptStore()
+	Short: "Get a prompt definition (kubectl-style)",
+	Long: `Get a terminal prompt stored in the database.
 
-		p, err := store.Get(name)
-		if err != nil {
-			return fmt.Errorf("prompt not found: %s", name)
-		}
+Uses Resource/Handler pattern with database storage.
 
-		format, _ := cmd.Flags().GetString("output")
-		return outputPrompt(p, format)
-	},
+Examples:
+  dvt prompt get coolnight           # Get prompt as YAML
+  dvt prompt get coolnight -o json   # Get prompt as JSON
+  dvt prompt get coolnight -o table  # Get prompt as table`,
+	Args: cobra.ExactArgs(1),
+	RunE: promptResourceGet,
 }
 
 var promptApplyCmd = &cobra.Command{
 	Use:   "apply",
-	Short: "Apply a prompt definition from file",
-	Long: `Apply a prompt definition from a YAML file.
+	Short: "Apply a prompt definition from file (kubectl-style)",
+	Long: `Apply a terminal prompt configuration from a YAML file using Resource/Handler pattern.
+
+Uses database storage and supports theme variable resolution.
 
 Examples:
   dvt prompt apply -f my-prompt.yaml
-  cat prompt.yaml | dvt prompt apply -f -`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		files, _ := cmd.Flags().GetStringSlice("filename")
-
-		if len(files) == 0 {
-			return fmt.Errorf("must specify at least one file with -f flag")
-		}
-
-		store := getPromptStore()
-
-		for _, file := range files {
-			var data []byte
-			var err error
-			var source string
-
-			if file == "-" {
-				data, err = io.ReadAll(os.Stdin)
-				source = "stdin"
-			} else {
-				data, err = os.ReadFile(file)
-				source = file
-			}
-			if err != nil {
-				return fmt.Errorf("failed to read %s: %w", source, err)
-			}
-
-			p, err := prompt.Parse(data)
-			if err != nil {
-				return fmt.Errorf("failed to parse %s: %w", source, err)
-			}
-
-			existing, _ := store.Get(p.Name)
-			action := "created"
-			if existing != nil {
-				action = "updated"
-			}
-
-			if err := store.Save(p); err != nil {
-				return fmt.Errorf("failed to save prompt: %w", err)
-			}
-
-			fmt.Printf("Prompt '%s' %s (from %s)\n", p.Name, action, source)
-		}
-
-		return nil
-	},
+  dvt prompt apply -f -               # Read from stdin
+  dvt prompt apply -f prompt1.yaml -f prompt2.yaml  # Apply multiple`,
+	RunE: promptResourceApply,
 }
 
 var promptDeleteCmd = &cobra.Command{
 	Use:   "delete <name>",
-	Short: "Delete an installed prompt",
-	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		name := args[0]
-		store := getPromptStore()
+	Short: "Delete a prompt (kubectl-style)",
+	Long: `Delete a terminal prompt from the database using Resource/Handler pattern.
 
-		if _, err := store.Get(name); err != nil {
-			return fmt.Errorf("prompt not found: %s", name)
-		}
+Requires confirmation unless --force is used.
 
-		force, _ := cmd.Flags().GetBool("force")
-		if !force {
-			fmt.Printf("Delete prompt '%s'? (y/N): ", name)
-			var response string
-			fmt.Scanln(&response)
-			if response != "y" && response != "Y" {
-				fmt.Println("Aborted")
-				return nil
-			}
-		}
-
-		if err := store.Delete(name); err != nil {
-			return fmt.Errorf("failed to delete prompt: %w", err)
-		}
-
-		fmt.Printf("Prompt '%s' deleted\n", name)
-		return nil
-	},
+Examples:
+  dvt prompt delete coolnight        # Delete with confirmation
+  dvt prompt delete coolnight --force  # Delete without confirmation`,
+	Args: cobra.ExactArgs(1),
+	RunE: promptResourceDelete,
 }
 
 var promptGenerateCmd = &cobra.Command{
 	Use:   "generate <name>",
-	Short: "Generate config file for a prompt (stdout)",
-	Long: `Generate the actual configuration file for a prompt.
+	Short: "Generate config file for a prompt (kubectl-style)",
+	Long: `Generate the configuration file for a terminal prompt stored in the database.
 
+Uses Resource/Handler pattern with theme variable resolution.
 For Starship prompts, this outputs starship.toml content.
-For P10k prompts, this outputs .p10k.zsh content.
 
 Examples:
-  dvt prompt generate starship-default
-  dvt prompt generate starship-default > ~/.config/starship.toml`,
+  dvt prompt generate coolnight                    # Output to stdout
+  dvt prompt generate coolnight > ~/.config/starship.toml  # Save to file`,
 	Args: cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		name := args[0]
-		store := getPromptStore()
-
-		// Try installed first
-		p, err := store.Get(name)
-		if err != nil {
-			// Try library
-			lib, libErr := promptlibrary.NewPromptLibrary()
-			if libErr == nil {
-				if libPrompt, libGetErr := lib.Get(name); libGetErr == nil {
-					p = libPrompt
-				}
-			}
-			if p == nil {
-				return fmt.Errorf("prompt not found: %s", name)
-			}
-		}
-
-		gen := prompt.NewStarshipGenerator()
-		output, err := gen.Generate(p)
-		if err != nil {
-			return fmt.Errorf("failed to generate config: %w", err)
-		}
-
-		fmt.Print(output)
-		return nil
-	},
+	RunE: promptResourceGenerate,
 }
 
 func init() {
@@ -482,6 +462,7 @@ func init() {
 	promptCmd.AddCommand(promptApplyCmd)
 	promptCmd.AddCommand(promptDeleteCmd)
 	promptCmd.AddCommand(promptGenerateCmd)
+	promptCmd.AddCommand(promptSetCmd)
 
 	// Prompt library subcommands
 	promptLibraryCmd.AddCommand(promptLibraryListCmd)

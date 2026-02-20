@@ -39,5 +39,8 @@ func RegisterAll() {
 		resource.Register(NewDomainHandler())
 		resource.Register(NewAppHandler())
 		resource.Register(NewWorkspaceHandler())
+
+		// Terminal resources
+		resource.Register(NewTerminalPromptHandler())
 	})
 }

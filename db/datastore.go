@@ -221,6 +221,29 @@ type DataStore interface {
 	// ClearActiveTheme deactivates all themes.
 	ClearActiveTheme() error
 
+	// Terminal Prompt Operations
+
+	// CreateTerminalPrompt inserts a new terminal prompt.
+	CreateTerminalPrompt(prompt *models.TerminalPromptDB) error
+
+	// GetTerminalPromptByName retrieves a terminal prompt by its name.
+	GetTerminalPromptByName(name string) (*models.TerminalPromptDB, error)
+
+	// UpdateTerminalPrompt updates an existing terminal prompt.
+	UpdateTerminalPrompt(prompt *models.TerminalPromptDB) error
+
+	// DeleteTerminalPrompt removes a terminal prompt by name.
+	DeleteTerminalPrompt(name string) error
+
+	// ListTerminalPrompts retrieves all terminal prompts.
+	ListTerminalPrompts() ([]*models.TerminalPromptDB, error)
+
+	// ListTerminalPromptsByType retrieves terminal prompts filtered by type.
+	ListTerminalPromptsByType(promptType string) ([]*models.TerminalPromptDB, error)
+
+	// ListTerminalPromptsByCategory retrieves terminal prompts filtered by category.
+	ListTerminalPromptsByCategory(category string) ([]*models.TerminalPromptDB, error)
+
 	// Credential Operations
 
 	// CreateCredential inserts a new credential configuration.

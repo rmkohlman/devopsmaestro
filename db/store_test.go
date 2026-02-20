@@ -141,6 +141,25 @@ func createTestSchema(driver Driver) error {
 			FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
 			FOREIGN KEY (plugin_id) REFERENCES nvim_plugins(id) ON DELETE CASCADE
 		)`,
+		`CREATE TABLE IF NOT EXISTS terminal_prompts (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL UNIQUE,
+			description TEXT,
+			type TEXT NOT NULL, -- 'starship', 'powerlevel10k', 'oh-my-posh'
+			add_newline BOOLEAN DEFAULT TRUE,
+			palette TEXT,
+			format TEXT,
+			modules TEXT,       -- JSON object: map[string]ModuleConfig
+			character TEXT,     -- JSON object: CharacterConfig
+			palette_ref TEXT,
+			colors TEXT,        -- JSON object: map[string]string
+			raw_config TEXT,    -- Raw config for advanced users
+			category TEXT,
+			tags TEXT,          -- JSON array: []string
+			enabled BOOLEAN DEFAULT TRUE,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
 		// Initialize context with a single row
 		`INSERT OR IGNORE INTO context (id) VALUES (1)`,
 	}
@@ -2281,5 +2300,550 @@ func TestSQLDataStore_CreateApp_ErrorNotDuplicated(t *testing.T) {
 	// Verify it's still a meaningful error
 	if !strings.Contains(errMsg, "UNIQUE") {
 		t.Errorf("CreateApp() error should mention UNIQUE constraint: %q", errMsg)
+	}
+}
+
+// =============================================================================
+// TerminalPrompt CRUD Integration Tests
+// =============================================================================
+
+func TestSQLDataStore_CreateTerminalPrompt(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	prompt := &models.TerminalPromptDB{
+		Name:        "test-starship",
+		Description: sql.NullString{String: "Test Starship prompt", Valid: true},
+		Type:        "starship",
+		AddNewline:  true,
+		Palette:     sql.NullString{String: "catppuccin", Valid: true},
+		Format:      sql.NullString{String: "$character", Valid: true},
+		Modules:     sql.NullString{String: `{"character":{"symbol":"❯"}}`, Valid: true},
+		Character:   sql.NullString{String: `{"success_symbol":"❯","error_symbol":"❯"}`, Valid: true},
+		PaletteRef:  sql.NullString{String: "catppuccin-mocha", Valid: true},
+		Colors:      sql.NullString{String: `{"primary":"#89b4fa","secondary":"#a6e3a1"}`, Valid: true},
+		RawConfig:   sql.NullString{String: `format = "$character"`, Valid: true},
+		Category:    sql.NullString{String: "minimal", Valid: true},
+		Tags:        sql.NullString{String: `["fast","simple"]`, Valid: true},
+		Enabled:     true,
+	}
+
+	err := ds.CreateTerminalPrompt(prompt)
+	if err != nil {
+		t.Fatalf("CreateTerminalPrompt() error = %v", err)
+	}
+
+	if prompt.ID == 0 {
+		t.Errorf("CreateTerminalPrompt() did not set prompt.ID")
+	}
+
+	// Note: CreatedAt and UpdatedAt are set by the database but not returned
+	// to the struct for performance reasons. They will be available when
+	// the prompt is retrieved.
+}
+
+func TestSQLDataStore_GetTerminalPromptByName(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	// Create a prompt first
+	original := &models.TerminalPromptDB{
+		Name:        "findme-prompt",
+		Description: sql.NullString{String: "Test prompt for finding", Valid: true},
+		Type:        "oh-my-posh",
+		AddNewline:  false,
+		Palette:     sql.NullString{String: "nord", Valid: true},
+		Category:    sql.NullString{String: "powerline", Valid: true},
+		Tags:        sql.NullString{String: `["git","icons"]`, Valid: true},
+		Colors:      sql.NullString{String: `{"bg":"#2e3440","fg":"#d8dee9"}`, Valid: true},
+		Enabled:     true,
+	}
+	if err := ds.CreateTerminalPrompt(original); err != nil {
+		t.Fatalf("Setup CreateTerminalPrompt() error = %v", err)
+	}
+
+	// Retrieve by name
+	retrieved, err := ds.GetTerminalPromptByName("findme-prompt")
+	if err != nil {
+		t.Fatalf("GetTerminalPromptByName() error = %v", err)
+	}
+
+	// Verify all fields
+	if retrieved.Name != "findme-prompt" {
+		t.Errorf("GetTerminalPromptByName() Name = %q, want %q", retrieved.Name, "findme-prompt")
+	}
+	if retrieved.Type != "oh-my-posh" {
+		t.Errorf("GetTerminalPromptByName() Type = %q, want %q", retrieved.Type, "oh-my-posh")
+	}
+	if retrieved.AddNewline != false {
+		t.Errorf("GetTerminalPromptByName() AddNewline = %v, want %v", retrieved.AddNewline, false)
+	}
+	if retrieved.Description.String != "Test prompt for finding" {
+		t.Errorf("GetTerminalPromptByName() Description = %q, want %q", retrieved.Description.String, "Test prompt for finding")
+	}
+	if retrieved.Palette.String != "nord" {
+		t.Errorf("GetTerminalPromptByName() Palette = %q, want %q", retrieved.Palette.String, "nord")
+	}
+	if retrieved.Category.String != "powerline" {
+		t.Errorf("GetTerminalPromptByName() Category = %q, want %q", retrieved.Category.String, "powerline")
+	}
+	if retrieved.Tags.String != `["git","icons"]` {
+		t.Errorf("GetTerminalPromptByName() Tags = %q, want %q", retrieved.Tags.String, `["git","icons"]`)
+	}
+	if retrieved.Colors.String != `{"bg":"#2e3440","fg":"#d8dee9"}` {
+		t.Errorf("GetTerminalPromptByName() Colors = %q, want %q", retrieved.Colors.String, `{"bg":"#2e3440","fg":"#d8dee9"}`)
+	}
+	if !retrieved.Enabled {
+		t.Errorf("GetTerminalPromptByName() Enabled = %v, want %v", retrieved.Enabled, true)
+	}
+}
+
+func TestSQLDataStore_GetTerminalPromptByName_NotFound(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	_, err := ds.GetTerminalPromptByName("nonexistent-prompt")
+	if err == nil {
+		t.Errorf("GetTerminalPromptByName() expected error for nonexistent prompt")
+	}
+
+	// Verify error message contains the prompt name
+	if !strings.Contains(err.Error(), "nonexistent-prompt") {
+		t.Errorf("GetTerminalPromptByName() error should mention prompt name: %v", err)
+	}
+}
+
+func TestSQLDataStore_UpdateTerminalPrompt(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	// Create a prompt first
+	original := &models.TerminalPromptDB{
+		Name:        "update-prompt",
+		Description: sql.NullString{String: "Original description", Valid: true},
+		Type:        "starship",
+		AddNewline:  true,
+		Category:    sql.NullString{String: "original", Valid: true},
+		Enabled:     true,
+	}
+	if err := ds.CreateTerminalPrompt(original); err != nil {
+		t.Fatalf("Setup CreateTerminalPrompt() error = %v", err)
+	}
+
+	// Update the prompt
+	original.Description = sql.NullString{String: "Updated description", Valid: true}
+	original.AddNewline = false
+	original.Category = sql.NullString{String: "updated", Valid: true}
+	original.Colors = sql.NullString{String: `{"updated":"#ff0000"}`, Valid: true}
+	original.Enabled = false
+
+	err := ds.UpdateTerminalPrompt(original)
+	if err != nil {
+		t.Fatalf("UpdateTerminalPrompt() error = %v", err)
+	}
+
+	// Retrieve and verify updates
+	updated, err := ds.GetTerminalPromptByName("update-prompt")
+	if err != nil {
+		t.Fatalf("GetTerminalPromptByName() after update error = %v", err)
+	}
+
+	if updated.Description.String != "Updated description" {
+		t.Errorf("UpdateTerminalPrompt() Description = %q, want %q", updated.Description.String, "Updated description")
+	}
+	if updated.AddNewline != false {
+		t.Errorf("UpdateTerminalPrompt() AddNewline = %v, want %v", updated.AddNewline, false)
+	}
+	if updated.Category.String != "updated" {
+		t.Errorf("UpdateTerminalPrompt() Category = %q, want %q", updated.Category.String, "updated")
+	}
+	if updated.Colors.String != `{"updated":"#ff0000"}` {
+		t.Errorf("UpdateTerminalPrompt() Colors = %q, want %q", updated.Colors.String, `{"updated":"#ff0000"}`)
+	}
+	if updated.Enabled != false {
+		t.Errorf("UpdateTerminalPrompt() Enabled = %v, want %v", updated.Enabled, false)
+	}
+}
+
+func TestSQLDataStore_DeleteTerminalPrompt(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	// Create a prompt first
+	prompt := &models.TerminalPromptDB{
+		Name: "delete-me-prompt",
+		Type: "powerlevel10k",
+	}
+	if err := ds.CreateTerminalPrompt(prompt); err != nil {
+		t.Fatalf("Setup CreateTerminalPrompt() error = %v", err)
+	}
+
+	// Verify it exists
+	_, err := ds.GetTerminalPromptByName("delete-me-prompt")
+	if err != nil {
+		t.Fatalf("Setup verification error = %v", err)
+	}
+
+	// Delete it
+	err = ds.DeleteTerminalPrompt("delete-me-prompt")
+	if err != nil {
+		t.Fatalf("DeleteTerminalPrompt() error = %v", err)
+	}
+
+	// Verify it's gone
+	_, err = ds.GetTerminalPromptByName("delete-me-prompt")
+	if err == nil {
+		t.Errorf("DeleteTerminalPrompt() did not delete the prompt")
+	}
+}
+
+func TestSQLDataStore_ListTerminalPrompts(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	// Create multiple prompts
+	prompts := []*models.TerminalPromptDB{
+		{Name: "alpha-prompt", Type: "starship", Category: sql.NullString{String: "minimal", Valid: true}},
+		{Name: "beta-prompt", Type: "oh-my-posh", Category: sql.NullString{String: "powerline", Valid: true}},
+		{Name: "gamma-prompt", Type: "powerlevel10k", Category: sql.NullString{String: "advanced", Valid: true}},
+	}
+
+	for _, p := range prompts {
+		if err := ds.CreateTerminalPrompt(p); err != nil {
+			t.Fatalf("Setup CreateTerminalPrompt() error = %v", err)
+		}
+	}
+
+	// List all prompts
+	retrieved, err := ds.ListTerminalPrompts()
+	if err != nil {
+		t.Fatalf("ListTerminalPrompts() error = %v", err)
+	}
+
+	// Should be ordered by name (alpha, beta, gamma)
+	if len(retrieved) != 3 {
+		t.Fatalf("ListTerminalPrompts() returned %d prompts, want 3", len(retrieved))
+	}
+
+	expectedNames := []string{"alpha-prompt", "beta-prompt", "gamma-prompt"}
+	for i, prompt := range retrieved {
+		if prompt.Name != expectedNames[i] {
+			t.Errorf("ListTerminalPrompts() prompt[%d].Name = %q, want %q", i, prompt.Name, expectedNames[i])
+		}
+	}
+}
+
+func TestSQLDataStore_ListTerminalPromptsByType(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	// Create prompts of different types
+	prompts := []*models.TerminalPromptDB{
+		{Name: "starship-1", Type: "starship"},
+		{Name: "starship-2", Type: "starship"},
+		{Name: "posh-1", Type: "oh-my-posh"},
+		{Name: "p10k-1", Type: "powerlevel10k"},
+	}
+
+	for _, p := range prompts {
+		if err := ds.CreateTerminalPrompt(p); err != nil {
+			t.Fatalf("Setup CreateTerminalPrompt() error = %v", err)
+		}
+	}
+
+	// List starship prompts
+	starshipPrompts, err := ds.ListTerminalPromptsByType("starship")
+	if err != nil {
+		t.Fatalf("ListTerminalPromptsByType() error = %v", err)
+	}
+
+	if len(starshipPrompts) != 2 {
+		t.Fatalf("ListTerminalPromptsByType('starship') returned %d prompts, want 2", len(starshipPrompts))
+	}
+
+	// Should be ordered by name
+	expectedNames := []string{"starship-1", "starship-2"}
+	for i, prompt := range starshipPrompts {
+		if prompt.Name != expectedNames[i] {
+			t.Errorf("ListTerminalPromptsByType() prompt[%d].Name = %q, want %q", i, prompt.Name, expectedNames[i])
+		}
+		if prompt.Type != "starship" {
+			t.Errorf("ListTerminalPromptsByType() prompt[%d].Type = %q, want %q", i, prompt.Type, "starship")
+		}
+	}
+
+	// List oh-my-posh prompts
+	poshPrompts, err := ds.ListTerminalPromptsByType("oh-my-posh")
+	if err != nil {
+		t.Fatalf("ListTerminalPromptsByType('oh-my-posh') error = %v", err)
+	}
+
+	if len(poshPrompts) != 1 {
+		t.Fatalf("ListTerminalPromptsByType('oh-my-posh') returned %d prompts, want 1", len(poshPrompts))
+	}
+	if poshPrompts[0].Name != "posh-1" {
+		t.Errorf("ListTerminalPromptsByType() Name = %q, want %q", poshPrompts[0].Name, "posh-1")
+	}
+
+	// List nonexistent type
+	emptyList, err := ds.ListTerminalPromptsByType("nonexistent")
+	if err != nil {
+		t.Fatalf("ListTerminalPromptsByType('nonexistent') error = %v", err)
+	}
+	if len(emptyList) != 0 {
+		t.Errorf("ListTerminalPromptsByType('nonexistent') returned %d prompts, want 0", len(emptyList))
+	}
+}
+
+func TestSQLDataStore_ListTerminalPromptsByCategory(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	// Create prompts with different categories
+	prompts := []*models.TerminalPromptDB{
+		{Name: "minimal-1", Type: "starship", Category: sql.NullString{String: "minimal", Valid: true}},
+		{Name: "minimal-2", Type: "oh-my-posh", Category: sql.NullString{String: "minimal", Valid: true}},
+		{Name: "powerline-1", Type: "powerlevel10k", Category: sql.NullString{String: "powerline", Valid: true}},
+		{Name: "no-category", Type: "starship"}, // No category
+	}
+
+	for _, p := range prompts {
+		if err := ds.CreateTerminalPrompt(p); err != nil {
+			t.Fatalf("Setup CreateTerminalPrompt() error = %v", err)
+		}
+	}
+
+	// List minimal prompts
+	minimalPrompts, err := ds.ListTerminalPromptsByCategory("minimal")
+	if err != nil {
+		t.Fatalf("ListTerminalPromptsByCategory() error = %v", err)
+	}
+
+	if len(minimalPrompts) != 2 {
+		t.Fatalf("ListTerminalPromptsByCategory('minimal') returned %d prompts, want 2", len(minimalPrompts))
+	}
+
+	// Should be ordered by name
+	expectedNames := []string{"minimal-1", "minimal-2"}
+	for i, prompt := range minimalPrompts {
+		if prompt.Name != expectedNames[i] {
+			t.Errorf("ListTerminalPromptsByCategory() prompt[%d].Name = %q, want %q", i, prompt.Name, expectedNames[i])
+		}
+		if prompt.Category.String != "minimal" {
+			t.Errorf("ListTerminalPromptsByCategory() prompt[%d].Category = %q, want %q", i, prompt.Category.String, "minimal")
+		}
+	}
+
+	// List powerline prompts
+	powerlinePrompts, err := ds.ListTerminalPromptsByCategory("powerline")
+	if err != nil {
+		t.Fatalf("ListTerminalPromptsByCategory('powerline') error = %v", err)
+	}
+
+	if len(powerlinePrompts) != 1 {
+		t.Fatalf("ListTerminalPromptsByCategory('powerline') returned %d prompts, want 1", len(powerlinePrompts))
+	}
+	if powerlinePrompts[0].Name != "powerline-1" {
+		t.Errorf("ListTerminalPromptsByCategory() Name = %q, want %q", powerlinePrompts[0].Name, "powerline-1")
+	}
+
+	// List nonexistent category
+	emptyList, err := ds.ListTerminalPromptsByCategory("nonexistent")
+	if err != nil {
+		t.Fatalf("ListTerminalPromptsByCategory('nonexistent') error = %v", err)
+	}
+	if len(emptyList) != 0 {
+		t.Errorf("ListTerminalPromptsByCategory('nonexistent') returned %d prompts, want 0", len(emptyList))
+	}
+}
+
+func TestSQLDataStore_TerminalPrompt_UniqueConstraint(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	// Create a prompt
+	prompt1 := &models.TerminalPromptDB{
+		Name: "unique-prompt",
+		Type: "starship",
+	}
+	if err := ds.CreateTerminalPrompt(prompt1); err != nil {
+		t.Fatalf("Setup CreateTerminalPrompt() error = %v", err)
+	}
+
+	// Try to create another prompt with the same name
+	prompt2 := &models.TerminalPromptDB{
+		Name: "unique-prompt", // Same name
+		Type: "oh-my-posh",    // Different type
+	}
+
+	err := ds.CreateTerminalPrompt(prompt2)
+	if err == nil {
+		t.Fatal("CreateTerminalPrompt() with duplicate name should fail")
+	}
+
+	// Verify it's a meaningful error
+	if !strings.Contains(err.Error(), "UNIQUE") {
+		t.Errorf("CreateTerminalPrompt() error should mention UNIQUE constraint: %q", err.Error())
+	}
+}
+
+// =============================================================================
+// TerminalPrompt Integration Test - Full Workflow
+// =============================================================================
+
+func TestIntegration_TerminalPrompt_FullWorkflow(t *testing.T) {
+	// This test exercises the full stack for terminal prompts:
+	// DataStore interface -> SQLDataStore -> Driver interface -> SQLiteDriver -> SQLite
+
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	// --- Create TerminalPrompt (DataStore -> Driver -> DB) ---
+	prompt := &models.TerminalPromptDB{
+		Name:        "integration-starship",
+		Description: sql.NullString{String: "Integration test Starship prompt", Valid: true},
+		Type:        "starship",
+		AddNewline:  true,
+		Palette:     sql.NullString{String: "catppuccin", Valid: true},
+		Format:      sql.NullString{String: "$all$character", Valid: true},
+		Modules: sql.NullString{
+			String: `{"character":{"success_symbol":"[❯](bold green)","error_symbol":"[❯](bold red)"},"directory":{"style":"bold cyan","disabled":false}}`,
+			Valid:  true,
+		},
+		Character: sql.NullString{
+			String: `{"success_symbol":"❯","error_symbol":"✗","vicmd_symbol":"❮"}`,
+			Valid:  true,
+		},
+		PaletteRef: sql.NullString{String: "catppuccin-mocha", Valid: true},
+		Colors: sql.NullString{
+			String: `{"primary":"#89b4fa","secondary":"#a6e3a1","accent":"#f38ba8"}`,
+			Valid:  true,
+		},
+		RawConfig: sql.NullString{
+			String: `format = "$all$character"
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"`,
+			Valid: true,
+		},
+		Category: sql.NullString{String: "powerline", Valid: true},
+		Tags:     sql.NullString{String: `["git","docker","performance"]`, Valid: true},
+		Enabled:  true,
+	}
+
+	err := ds.CreateTerminalPrompt(prompt)
+	if err != nil {
+		t.Fatalf("CreateTerminalPrompt() through interface error = %v", err)
+	}
+
+	if prompt.ID == 0 {
+		t.Error("CreateTerminalPrompt() should set ID through all layers")
+	}
+
+	// --- Retrieve TerminalPrompt (validates data went through all layers) ---
+	retrieved, err := ds.GetTerminalPromptByName("integration-starship")
+	if err != nil {
+		t.Fatalf("GetTerminalPromptByName() through interface error = %v", err)
+	}
+
+	// Verify all complex data survived the round trip
+	if retrieved.Name != prompt.Name {
+		t.Errorf("Data integrity: Name = %q, want %q", retrieved.Name, prompt.Name)
+	}
+	if retrieved.Type != prompt.Type {
+		t.Errorf("Data integrity: Type = %q, want %q", retrieved.Type, prompt.Type)
+	}
+	if retrieved.Description.String != prompt.Description.String {
+		t.Errorf("Data integrity: Description = %q, want %q", retrieved.Description.String, prompt.Description.String)
+	}
+	if retrieved.AddNewline != prompt.AddNewline {
+		t.Errorf("Data integrity: AddNewline = %v, want %v", retrieved.AddNewline, prompt.AddNewline)
+	}
+	if retrieved.Modules.String != prompt.Modules.String {
+		t.Errorf("Data integrity: Modules = %q, want %q", retrieved.Modules.String, prompt.Modules.String)
+	}
+	if retrieved.Character.String != prompt.Character.String {
+		t.Errorf("Data integrity: Character = %q, want %q", retrieved.Character.String, prompt.Character.String)
+	}
+	if retrieved.Colors.String != prompt.Colors.String {
+		t.Errorf("Data integrity: Colors = %q, want %q", retrieved.Colors.String, prompt.Colors.String)
+	}
+	if retrieved.Tags.String != prompt.Tags.String {
+		t.Errorf("Data integrity: Tags = %q, want %q", retrieved.Tags.String, prompt.Tags.String)
+	}
+
+	// --- Update TerminalPrompt ---
+	retrieved.Description = sql.NullString{String: "Updated integration prompt", Valid: true}
+	retrieved.AddNewline = false
+	retrieved.Colors = sql.NullString{String: `{"primary":"#f38ba8","secondary":"#94e2d5"}`, Valid: true}
+	retrieved.Enabled = false
+
+	if err := ds.UpdateTerminalPrompt(retrieved); err != nil {
+		t.Fatalf("UpdateTerminalPrompt() through interface error = %v", err)
+	}
+
+	updated, _ := ds.GetTerminalPromptByName("integration-starship")
+	if updated.Description.String != "Updated integration prompt" {
+		t.Errorf("Update did not propagate: Description = %q, want %q", updated.Description.String, "Updated integration prompt")
+	}
+	if updated.AddNewline != false {
+		t.Errorf("Update did not propagate: AddNewline = %v, want %v", updated.AddNewline, false)
+	}
+	if updated.Colors.String != `{"primary":"#f38ba8","secondary":"#94e2d5"}` {
+		t.Errorf("Update did not propagate: Colors = %q, want %q", updated.Colors.String, `{"primary":"#f38ba8","secondary":"#94e2d5"}`)
+	}
+	if updated.Enabled != false {
+		t.Errorf("Update did not propagate: Enabled = %v, want %v", updated.Enabled, false)
+	}
+
+	// --- List TerminalPrompts (verify filtering works) ---
+	allPrompts, err := ds.ListTerminalPrompts()
+	if err != nil {
+		t.Fatalf("ListTerminalPrompts() through interface error = %v", err)
+	}
+	if len(allPrompts) < 1 {
+		t.Errorf("ListTerminalPrompts() returned %d prompts, expected at least 1", len(allPrompts))
+	}
+
+	// Test type filtering
+	starshipPrompts, err := ds.ListTerminalPromptsByType("starship")
+	if err != nil {
+		t.Fatalf("ListTerminalPromptsByType() through interface error = %v", err)
+	}
+	found := false
+	for _, p := range starshipPrompts {
+		if p.Name == "integration-starship" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("ListTerminalPromptsByType() did not return our created prompt")
+	}
+
+	// Test category filtering
+	powerlinePrompts, err := ds.ListTerminalPromptsByCategory("powerline")
+	if err != nil {
+		t.Fatalf("ListTerminalPromptsByCategory() through interface error = %v", err)
+	}
+	found = false
+	for _, p := range powerlinePrompts {
+		if p.Name == "integration-starship" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("ListTerminalPromptsByCategory() did not return our created prompt")
+	}
+
+	// --- Delete TerminalPrompt ---
+	if err := ds.DeleteTerminalPrompt("integration-starship"); err != nil {
+		t.Fatalf("DeleteTerminalPrompt() through interface error = %v", err)
+	}
+
+	_, err = ds.GetTerminalPromptByName("integration-starship")
+	if err == nil {
+		t.Error("Delete did not propagate through layers")
 	}
 }

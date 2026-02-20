@@ -3,8 +3,12 @@
 package prompt
 
 import (
+	"fmt"
 	"time"
 )
+
+// Kind constant for TerminalPrompt resource.
+const KindTerminalPrompt = "TerminalPrompt"
 
 // PromptType identifies the type of terminal prompt system.
 type PromptType string
@@ -25,6 +29,10 @@ type Prompt struct {
 	Name        string     `json:"name" yaml:"name"`
 	Description string     `json:"description,omitempty" yaml:"description,omitempty"`
 	Type        PromptType `json:"type" yaml:"type"`
+
+	// Starship-specific fields
+	AddNewline bool   `json:"add_newline,omitempty" yaml:"add_newline,omitempty"`
+	Palette    string `json:"palette,omitempty" yaml:"palette,omitempty"`
 
 	// Prompt format string (Starship/Oh-My-Posh format)
 	Format string `json:"format,omitempty" yaml:"format,omitempty"`
@@ -107,6 +115,8 @@ type PromptMetadata struct {
 // PromptSpec contains the prompt specification in the YAML format.
 type PromptSpec struct {
 	Type       PromptType              `yaml:"type"`
+	AddNewline bool                    `yaml:"addNewline,omitempty"`
+	Palette    string                  `yaml:"palette,omitempty"`
 	Format     string                  `yaml:"format,omitempty"`
 	Modules    map[string]ModuleConfig `yaml:"modules,omitempty"`
 	Character  *CharacterConfig        `yaml:"character,omitempty"`
@@ -129,7 +139,7 @@ func NewPrompt(name string, promptType PromptType) *Prompt {
 func NewPromptYAML(name string, promptType PromptType) *PromptYAML {
 	return &PromptYAML{
 		APIVersion: "devopsmaestro.io/v1",
-		Kind:       "TerminalPrompt",
+		Kind:       KindTerminalPrompt,
 		Metadata: PromptMetadata{
 			Name: name,
 		},
@@ -137,6 +147,15 @@ func NewPromptYAML(name string, promptType PromptType) *PromptYAML {
 			Type: promptType,
 		},
 	}
+}
+
+// NewTerminalPrompt creates a new PromptYAML for starship prompts with proper defaults.
+// This is an alias for NewPromptYAML(name, PromptTypeStarship) for backward compatibility.
+func NewTerminalPrompt(name string) *PromptYAML {
+	py := NewPromptYAML(name, PromptTypeStarship)
+	py.Spec.AddNewline = true
+	py.Spec.Palette = "theme"
+	return py
 }
 
 // ToPrompt converts PromptYAML to the canonical Prompt type.
@@ -153,6 +172,8 @@ func (py *PromptYAML) ToPrompt() *Prompt {
 		Category:    py.Metadata.Category,
 		Tags:        py.Metadata.Tags,
 		Type:        py.Spec.Type,
+		AddNewline:  py.Spec.AddNewline,
+		Palette:     py.Spec.Palette,
 		Format:      py.Spec.Format,
 		Modules:     py.Spec.Modules,
 		Character:   py.Spec.Character,
@@ -175,7 +196,7 @@ func (p *Prompt) ToYAML() *PromptYAML {
 
 	py := &PromptYAML{
 		APIVersion: "devopsmaestro.io/v1",
-		Kind:       "TerminalPrompt",
+		Kind:       KindTerminalPrompt,
 		Metadata: PromptMetadata{
 			Name:        p.Name,
 			Description: p.Description,
@@ -184,6 +205,8 @@ func (p *Prompt) ToYAML() *PromptYAML {
 		},
 		Spec: PromptSpec{
 			Type:       p.Type,
+			AddNewline: p.AddNewline,
+			Palette:    p.Palette,
 			Format:     p.Format,
 			Modules:    p.Modules,
 			Character:  p.Character,
@@ -210,4 +233,42 @@ func (p *Prompt) IsPowerlevel10k() bool {
 // IsOhMyPosh returns true if this is an Oh My Posh prompt.
 func (p *Prompt) IsOhMyPosh() bool {
 	return p.Type == PromptTypeOhMyPosh
+}
+
+// Resource interface methods for PromptYAML
+
+// GetKind returns the resource kind.
+func (py *PromptYAML) GetKind() string {
+	return KindTerminalPrompt
+}
+
+// GetName returns the resource name.
+func (py *PromptYAML) GetName() string {
+	return py.Metadata.Name
+}
+
+// GetAPIVersion returns the API version.
+func (py *PromptYAML) GetAPIVersion() string {
+	return py.APIVersion
+}
+
+// Validate checks if the PromptYAML resource is valid.
+// This implements the resource.Resource interface.
+func (py *PromptYAML) Validate() error {
+	if py.Metadata.Name == "" {
+		return fmt.Errorf("metadata.name is required")
+	}
+	if py.Spec.Type == "" {
+		return fmt.Errorf("spec.type is required")
+	}
+
+	// Validate prompt type
+	switch py.Spec.Type {
+	case PromptTypeStarship, PromptTypePowerlevel10k, PromptTypeOhMyPosh:
+		// Valid types
+	default:
+		return fmt.Errorf("invalid prompt type: %s (must be starship, powerlevel10k, or oh-my-posh)", py.Spec.Type)
+	}
+
+	return nil
 }
