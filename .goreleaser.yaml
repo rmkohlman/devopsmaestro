@@ -92,6 +92,7 @@ release:
     
     This release includes:
     - **dvm** (DevOpsMaestro) - Workspace management CLI (macOS)
+    - **dvt** (TerminalOps) - Terminal configuration management CLI (macOS)
     - **nvp** (NvimOps) - Neovim plugin manager (cross-platform)
   footer: |
     ---
@@ -102,6 +103,7 @@ release:
     ```bash
     brew tap rmkohlman/tap
     brew install devopsmaestro  # Installs dvm
+    brew install terminalops    # Installs dvt
     brew install nvimops        # Installs nvp (standalone)
     ```
     
@@ -114,6 +116,14 @@ release:
     dvm create app myapp --from-cwd
     dvm build
     dvm attach
+    ```
+    
+    **Quick start with dvt:**
+    ```bash
+    dvt init
+    dvt prompt library install starship-default
+    dvt plugin library install zsh-autosuggestions
+    dvt profile generate
     ```
     
     **Quick start with nvp:**

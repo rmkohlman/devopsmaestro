@@ -34,8 +34,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
 
-  # Build dvm (requires CGO for SQLite) natively on macOS
-  build-dvm-darwin:
+  # Build dvm and dvt (both require CGO for SQLite) natively on macOS
+  build-cgo-binaries-darwin:
     needs: [goreleaser-nvp]
     runs-on: ${{ matrix.runner }}
     strategy:
@@ -62,32 +62,51 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Build dvm
+      - name: Build dvm and dvt
         env:
           CGO_ENABLED: 1
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
         run: |
+          # Build dvm (DevOpsMaestro)
           go build -ldflags "-s -w -X main.Version=${{ steps.version.outputs.VERSION }} -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ) -X main.Commit=$(git rev-parse --short HEAD)" -o dvm .
+          
+          # Build dvt (TerminalOps) 
+          go build -ldflags "-s -w -X main.Version=${{ steps.version.outputs.VERSION }} -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ) -X main.Commit=$(git rev-parse --short HEAD)" -o dvt ./cmd/dvt/
 
       - name: Generate completions
         run: |
           mkdir -p completions
+          # DVM completions
           ./dvm completion bash > completions/dvm.bash
           ./dvm completion zsh > completions/_dvm
           ./dvm completion fish > completions/dvm.fish
+          # DVT completions
+          ./dvt completion bash > completions/dvt.bash
+          ./dvt completion zsh > completions/_dvt
+          ./dvt completion fish > completions/dvt.fish
 
-      - name: Create archive
+      - name: Create archives
         run: |
+          # Create dvm (DevOpsMaestro) archive
           tar -czvf devopsmaestro_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz \
             dvm \
-            completions/ \
+            completions/dvm.* \
+            README.md \
+            LICENSE
+          
+          # Create dvt (TerminalOps) archive
+          tar -czvf terminalops_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz \
+            dvt \
+            completions/dvt.* \
             README.md \
             LICENSE
 
-      - name: Generate checksum
+      - name: Generate checksums
         run: |
+          # Generate checksums for both archives
           shasum -a 256 devopsmaestro_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz > devopsmaestro_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz.sha256
+          shasum -a 256 terminalops_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz > terminalops_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz.sha256
 
       - name: Wait for release to be ready
         env:
@@ -107,14 +126,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Upload both dvm and dvt archives with checksums
           gh release upload ${{ github.ref_name }} \
             devopsmaestro_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz \
             devopsmaestro_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz.sha256 \
+            terminalops_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz \
+            terminalops_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz.sha256 \
             --clobber
 
   # Update Homebrew tap after all builds complete
   update-homebrew:
-    needs: [goreleaser-nvp, build-dvm-darwin]
+    needs: [goreleaser-nvp, build-cgo-binaries-darwin]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout homebrew-tap
@@ -143,6 +165,12 @@ jobs:
             --pattern "devopsmaestro_${VERSION}_darwin_*.tar.gz" \
             --dir /tmp/assets || true
           
+          # Download dvt archives
+          gh release download v${VERSION} \
+            --repo rmkohlman/devopsmaestro \
+            --pattern "terminalops_${VERSION}_darwin_*.tar.gz" \
+            --dir /tmp/assets || true
+          
           # Download nvp archives
           gh release download v${VERSION} \
             --repo rmkohlman/devopsmaestro \
@@ -158,6 +186,8 @@ jobs:
           # Export checksums as env vars
           echo "DVM_DARWIN_ARM64_SHA256=$(cat devopsmaestro_${VERSION}_darwin_arm64.tar.gz.sha256sum 2>/dev/null || echo '')" >> $GITHUB_ENV
           echo "DVM_DARWIN_AMD64_SHA256=$(cat devopsmaestro_${VERSION}_darwin_amd64.tar.gz.sha256sum 2>/dev/null || echo '')" >> $GITHUB_ENV
+          echo "DVT_DARWIN_ARM64_SHA256=$(cat terminalops_${VERSION}_darwin_arm64.tar.gz.sha256sum 2>/dev/null || echo '')" >> $GITHUB_ENV
+          echo "DVT_DARWIN_AMD64_SHA256=$(cat terminalops_${VERSION}_darwin_amd64.tar.gz.sha256sum 2>/dev/null || echo '')" >> $GITHUB_ENV
           echo "NVP_DARWIN_ARM64_SHA256=$(cat nvp_${VERSION}_darwin_arm64.tar.gz.sha256sum 2>/dev/null || echo '')" >> $GITHUB_ENV
           echo "NVP_DARWIN_AMD64_SHA256=$(cat nvp_${VERSION}_darwin_amd64.tar.gz.sha256sum 2>/dev/null || echo '')" >> $GITHUB_ENV
           echo "NVP_LINUX_ARM64_SHA256=$(cat nvp_${VERSION}_linux_arm64.tar.gz.sha256sum 2>/dev/null || echo '')" >> $GITHUB_ENV
@@ -321,11 +351,89 @@ jobs:
           sed -i "s/NVP_LINUX_ARM64_SHA256_PLACEHOLDER/${NVP_LINUX_ARM64_SHA256}/g" homebrew-tap/Formula/nvimops.rb
           sed -i "s/NVP_LINUX_AMD64_SHA256_PLACEHOLDER/${NVP_LINUX_AMD64_SHA256}/g" homebrew-tap/Formula/nvimops.rb
 
+      - name: Update terminalops formula
+        run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          cat > homebrew-tap/Formula/terminalops.rb << 'FORMULA_EOF'
+          # typed: false
+          # frozen_string_literal: true
+
+          class Terminalops < Formula
+            desc "TerminalOps (dvt) - DevOps-style terminal configuration management"
+            homepage "https://github.com/rmkohlman/devopsmaestro"
+            version "VERSION_PLACEHOLDER"
+            license "GPL-3.0"
+
+            on_macos do
+              on_arm do
+                url "https://github.com/rmkohlman/devopsmaestro/releases/download/vVERSION_PLACEHOLDER/terminalops_VERSION_PLACEHOLDER_darwin_arm64.tar.gz"
+                sha256 "DVT_DARWIN_ARM64_SHA256_PLACEHOLDER"
+              end
+              on_intel do
+                url "https://github.com/rmkohlman/devopsmaestro/releases/download/vVERSION_PLACEHOLDER/terminalops_VERSION_PLACEHOLDER_darwin_amd64.tar.gz"
+                sha256 "DVT_DARWIN_AMD64_SHA256_PLACEHOLDER"
+              end
+            end
+
+            head "https://github.com/rmkohlman/devopsmaestro.git", branch: "main"
+
+            depends_on "go" => :build if build.head?
+
+            def install
+              if build.head?
+                system "go", "build",
+                       "-ldflags", "-s -w -X main.Version=HEAD -X main.Commit=#{`git rev-parse --short HEAD`.strip} -X main.BuildTime=#{Time.now.utc.iso8601}",
+                       "-o", bin/"dvt",
+                       "./cmd/dvt/"
+                generate_completions_from_executable(bin/"dvt", "completion")
+              else
+                bin.install "dvt"
+                bash_completion.install "completions/dvt.bash" => "dvt"
+                zsh_completion.install "completions/_dvt"
+                fish_completion.install "completions/dvt.fish"
+              end
+            end
+
+            def caveats
+              <<~EOS
+                TerminalOps (dvt) - DevOps-style terminal configuration management
+
+                Quick Start:
+                  dvt init                        # Initialize configuration directory
+                  dvt prompt library list         # Browse available prompts
+                  dvt prompt library install starship-default
+                  dvt plugin library list         # Browse available plugins
+                  dvt plugin library install zsh-autosuggestions zsh-syntax-highlighting
+                  dvt profile preset install default  # Install complete profile
+                  dvt profile generate default    # Generate config files
+
+                Configuration stored in: ~/.dvt/
+                Generated files written to stdout by default
+
+                Documentation: https://github.com/rmkohlman/devopsmaestro#terminalops
+
+                Shell completions have been installed for bash, zsh, and fish.
+                Restart your shell or source your profile to enable them.
+              EOS
+            end
+
+            test do
+              assert_match "dvt", shell_output("#{bin}/dvt --help")
+              assert_match version.to_s, shell_output("#{bin}/dvt version")
+            end
+          end
+          FORMULA_EOF
+          
+          # Replace placeholders
+          sed -i "s/VERSION_PLACEHOLDER/${VERSION}/g" homebrew-tap/Formula/terminalops.rb
+          sed -i "s/DVT_DARWIN_ARM64_SHA256_PLACEHOLDER/${DVT_DARWIN_ARM64_SHA256}/g" homebrew-tap/Formula/terminalops.rb
+          sed -i "s/DVT_DARWIN_AMD64_SHA256_PLACEHOLDER/${DVT_DARWIN_AMD64_SHA256}/g" homebrew-tap/Formula/terminalops.rb
+
       - name: Commit and push formula updates
         run: |
           cd homebrew-tap
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Formula/devopsmaestro.rb Formula/nvimops.rb
+          git add Formula/devopsmaestro.rb Formula/nvimops.rb Formula/terminalops.rb
           git diff --staged --quiet || git commit -m "Update formulas to v${{ steps.version.outputs.VERSION }}"
           git push

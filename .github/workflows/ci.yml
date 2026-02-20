@@ -77,12 +77,16 @@ jobs:
       - name: Build dvm
         run: go build -o dvm .
 
+      - name: Build dvt  
+        run: go build -o dvt ./cmd/dvt/
+
       - name: Build nvp
         run: go build -o nvp ./cmd/nvp/
 
       - name: Verify binaries
         run: |
           ./dvm version
+          ./dvt version
           ./nvp version
 
   # Docs deployment - only on push to main (not PRs)
