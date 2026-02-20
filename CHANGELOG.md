@@ -11,6 +11,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.18.0] - 2026-02-20
+
+### 🚀 Added
+
+#### DVT Package Management - Terminal Package Library
+- **`dvt package list`** - List all available terminal packages from embedded library
+- **`dvt package get <name>`** - Show detailed package information with inheritance resolution
+- **`dvt package install <name>`** - Install plugins/prompts/profiles from a package with `--dry-run` support
+- **Embedded terminal package library** - Built-in packages: core, developer, rmkohlman
+- **Package inheritance support** - Packages can extend other packages (e.g., developer extends core)
+- **Parity with NvimPackage system** - Consistent package management across nvp and dvt tools
+
+#### Terminal Package Library Structure
+- **Core package** - Essential terminal tools and configurations
+- **Developer package** - Extended development tools (extends core)
+- **RMKohlman package** - Personal terminal environment (extends developer)
+- **YAML-based definitions** - Standard package format with metadata and specifications
+- **Automatic inheritance resolution** - Packages automatically include inherited content
+
+### 🔧 Enhanced
+
+#### Command Consistency
+- **DVT package commands** now follow the same patterns as `nvp package` commands
+- **Unified package management** across both Neovim and terminal environments
+- **Consistent flag support** including `--dry-run` for safe preview operations
+
+---
+
 ## [0.17.0] - 2026-02-20
 
 ### 🚀 Added

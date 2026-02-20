@@ -4,6 +4,16 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.18.0 (2026-02-20)
+
+**DVT Package Management**
+
+- `dvt package list/get/install` commands for terminal package management
+- Embedded terminal package library (core, developer, rmkohlman packages)
+- Package inheritance support with automatic resolution
+- Dry-run installation support for safe previews
+- Parity with NvimPackage system for consistent package management
+
 ### v0.17.0 (2026-02-20)
 
 **DVT Binary Release & TerminalPackages**
