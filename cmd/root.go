@@ -59,12 +59,18 @@ func Execute(database *db.Database, dataStore *db.DataStore, executor *Executor,
 		if dataStore != nil && *dataStore != nil {
 			driver := (*dataStore).Driver()
 			if driver != nil {
-				if err := db.AutoMigrate(driver, migrationsFS); err != nil {
+				// Use version-based auto-migration for better performance
+				migrationsApplied, err := db.CheckVersionBasedAutoMigration(driver, migrationsFS, Version, verbose)
+				if err != nil {
 					// Migration failure is critical - exit
 					slog.Error("auto-migration failed", "error", err)
 					fmt.Printf("Error: Failed to apply database migrations: %v\n", err)
 					fmt.Println("Please run 'dvm admin migrate' to fix migration issues.")
 					os.Exit(1)
+				}
+
+				if migrationsApplied && verbose {
+					slog.Info("database migrations applied successfully")
 				}
 			}
 		}

@@ -3,6 +3,10 @@ package db
 import (
 	"fmt"
 	"io/fs"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -132,6 +136,8 @@ func CheckPendingMigrations(driver Driver, migrationsFS fs.FS) (bool, error) {
 
 // AutoMigrate checks for pending migrations and applies them if needed.
 // Shows user feedback when migrations are applied.
+// This function is used by the manual 'dvm admin migrate' command.
+// For automatic migrations on startup, use CheckVersionBasedAutoMigration instead.
 func AutoMigrate(driver Driver, migrationsFS fs.FS) error {
 	if driver == nil {
 		return fmt.Errorf("driver is nil")
@@ -153,6 +159,130 @@ func AutoMigrate(driver Driver, migrationsFS fs.FS) error {
 	err = RunMigrations(driver, migrationsFS)
 	if err != nil {
 		return fmt.Errorf("failed to apply migrations: %w", err)
+	}
+
+	return nil
+}
+
+// CheckVersionBasedAutoMigration checks if auto-migration should run based on version changes.
+// This provides a fast path by avoiding database migration checks when the binary version hasn't changed.
+// Returns true if migrations were applied, false if skipped.
+func CheckVersionBasedAutoMigration(driver Driver, migrationsFS fs.FS, currentVersion string, verbose bool) (bool, error) {
+	if driver == nil {
+		return false, fmt.Errorf("driver is nil")
+	}
+
+	// Get stored version from file
+	storedVersion, err := GetStoredVersion()
+	if err != nil {
+		// If we can't read stored version, log and proceed with normal migration check
+		if verbose {
+			slog.Warn("failed to read stored version, proceeding with migration check", "error", err)
+		}
+		return runMigrationsIfNeeded(driver, migrationsFS, currentVersion, verbose)
+	}
+
+	// If versions match, skip migration check entirely (fast path)
+	if storedVersion == currentVersion {
+		if verbose {
+			slog.Debug("version unchanged, skipping migration check", "version", currentVersion)
+		}
+		return false, nil
+	}
+
+	// Version changed or first run - check and apply migrations if needed
+	if verbose {
+		if storedVersion == "" {
+			slog.Info("first run detected, checking for migrations", "version", currentVersion)
+		} else {
+			slog.Info("version change detected, checking for migrations",
+				"old", storedVersion, "new", currentVersion)
+		}
+	}
+
+	return runMigrationsIfNeeded(driver, migrationsFS, currentVersion, verbose)
+}
+
+// runMigrationsIfNeeded checks for and applies migrations, then updates stored version on success.
+func runMigrationsIfNeeded(driver Driver, migrationsFS fs.FS, currentVersion string, verbose bool) (bool, error) {
+	// Check if migrations are pending
+	pending, err := CheckPendingMigrations(driver, migrationsFS)
+	if err != nil {
+		return false, fmt.Errorf("failed to check pending migrations: %w", err)
+	}
+
+	if !pending {
+		// No migrations needed, but update version since it changed
+		if err := SaveCurrentVersion(currentVersion); err != nil {
+			if verbose {
+				slog.Warn("failed to save current version", "error", err)
+			}
+		}
+		return false, nil
+	}
+
+	// Apply migrations
+	if !verbose {
+		// Only show message if not in verbose mode (verbose mode uses slog)
+		fmt.Println("Applying database migrations...")
+	}
+	err = RunMigrations(driver, migrationsFS)
+	if err != nil {
+		return false, fmt.Errorf("failed to apply migrations: %w", err)
+	}
+
+	// Save current version only after successful migration
+	if err := SaveCurrentVersion(currentVersion); err != nil {
+		if verbose {
+			slog.Warn("migrations applied successfully but failed to save version", "error", err)
+		}
+	}
+
+	return true, nil
+}
+
+// GetStoredVersion reads the last-run binary version from ~/.devopsmaestro/.version
+func GetStoredVersion() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	versionFile := filepath.Join(homeDir, ".devopsmaestro", ".version")
+
+	// If file doesn't exist, return empty string (first run)
+	if _, err := os.Stat(versionFile); os.IsNotExist(err) {
+		return "", nil
+	}
+
+	content, err := os.ReadFile(versionFile)
+	if err != nil {
+		return "", fmt.Errorf("failed to read version file: %w", err)
+	}
+
+	return strings.TrimSpace(string(content)), nil
+}
+
+// SaveCurrentVersion writes the current binary version to ~/.devopsmaestro/.version
+func SaveCurrentVersion(version string) error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	configDir := filepath.Join(homeDir, ".devopsmaestro")
+
+	// Ensure config directory exists
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	versionFile := filepath.Join(configDir, ".version")
+
+	// Write version to file
+	err = os.WriteFile(versionFile, []byte(version), 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write version file: %w", err)
 	}
 
 	return nil
