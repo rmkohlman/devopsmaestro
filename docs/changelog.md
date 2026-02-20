@@ -4,50 +4,41 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
-### v0.7.1 (2026-02-04)
+### v0.16.0 (2026-02-20)
 
-**Unified Resource Pipeline**
+**Package Management System**
 
-- Added `pkg/resource/` package with unified resource interface following kubectl patterns
-- Added `pkg/source/` package for source resolution (file, URL, stdin, GitHub)
-- Refactored `apply`, `get`, `delete` commands to use unified handlers
-- Consistent architecture across all nvim resource operations
+- New NvimPackage resource type with kubectl-style CRUD operations
+- Package defaults management for new workspaces
+- External source sync (LazyVim integration)
+- Auto-migration on startup for seamless upgrades
 
-### v0.7.0 (2026-02-03)
+### v0.15.0 (2026-02-19)
 
-**Terminal Resize + Image Versioning**
+**GitHub Directory & Secret Providers**
 
-- Full terminal window on attach with dynamic resize handling
-- Timestamp-based image tags (`YYYYMMDD-HHMMSS`) instead of `:latest`
-- Auto-recreate containers when image changes
-- kubectl-style workspace plugin commands (`dvm apply nvim plugin -f file.yaml`)
+- Apply all YAML files from GitHub directories: `dvm apply -f github:user/repo/plugins/`
+- Secret provider system with Keychain and environment support
+- Inline secret syntax: `${secret:name}` in YAML resources
+- DirectorySource interface for extensible directory-based sources
 
-### v0.6.0 (2026-02-03)
+### v0.12.0 (2026-02-19)
 
-**Status Command + Aliases**
+**Hierarchical Theme System**
 
-- New `dvm status` command showing context, runtime, and containers
-- kubectl-style aliases: `proj`, `ws`, `ctx`, `plat`
-- `dvm detach` command to stop workspace containers
-- `dvm get context` command
+- Multi-level theme configuration: Workspace → App → Domain → Ecosystem → Global
+- `dvm set theme` command with hierarchy flags
+- 21 CoolNight theme variants with parametric generation
+- kubectl-style theme IaC with file/URL/GitHub support
 
-### v0.5.0 (2026-01-30)
+### v0.10.0 (2026-02-19)
 
-**Theme System**
+**Plugin Packages & Enhanced Features**
 
-- YAML-based NvimTheme resource type
-- 8 pre-defined themes (tokyonight, catppuccin, gruvbox, nord, etc.)
-- Theme palette exported for plugin integration
-- Full theme CLI commands
-
-### v0.4.0 (2026-01-29)
-
-**NvimOps Standalone CLI**
-
-- New `nvp` binary for managing Neovim plugins
-- 16+ pre-configured plugins in library
-- Decoupled architecture with swappable stores
-- Lua generation for lazy.nvim
+- Plugin packages system with inheritance support
+- Enhanced keymap generation for vim.keymap.set() calls
+- Terminal theme integration with workspace context
+- Smart workspace resolution with hierarchy flags
 
 ---
 
@@ -55,6 +46,27 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **0.16.0** | 2026-02-20 | Package management system, auto-migration |
+| **0.15.1** | 2026-02-19 | NvimPlugin opts field support fix |
+| **0.15.0** | 2026-02-19 | GitHub directory support, secret providers |
+| **0.14.0** | 2026-02-19 | TerminalPrompt resources, dvt prompt CLI |
+| **0.13.1** | 2026-02-19 | `dvm get defaults` command |
+| **0.13.0** | 2026-02-19 | Container build improvements, staging directory |
+| **0.12.3** | 2026-02-19 | Comprehensive YAML reference documentation |
+| **0.12.2** | 2026-02-19 | WezTerm CLI commands with theme integration |
+| **0.12.1** | 2026-02-19 | Default nvim configuration for new workspaces |
+| **0.12.0** | 2026-02-19 | Hierarchical theme system, 21 CoolNight variants |
+| **0.11.0** | 2026-02-19 | Terminal theme integration, environment variables |
+| **0.10.0** | 2026-02-19 | Plugin packages system, keymap generation fixes |
+| **0.9.7** | 2026-02-18 | Colima SSH command fix |
+| **0.9.6** | 2026-02-18 | Colima path lookup fix |
+| **0.9.5** | 2026-02-18 | Container detached mode fix |
+| **0.9.4** | 2026-02-18 | Colima containerd SSH operations fix |
+| **0.9.3** | 2026-02-18 | Container attach consistency fix |
+| **0.9.2** | 2026-02-18 | ColorProvider architecture, dynamic completions |
+| **0.9.1** | 2026-02-17 | `dvm get workspaces -A` flag, Colima mount fix |
+| **0.9.0** | 2026-02-17 | Smart workspace resolution with hierarchy flags |
+| **0.8.0** | 2025-01-06 | New object hierarchy (Ecosystem/Domain/App/Workspace) |
 | **0.7.1** | 2026-02-04 | Unified resource pipeline |
 | **0.7.0** | 2026-02-03 | Terminal resize, timestamp tags |
 | **0.6.0** | 2026-02-03 | Status command, aliases |

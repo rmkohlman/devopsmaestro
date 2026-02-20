@@ -22,18 +22,21 @@ You are the Document Agent for DevOpsMaestro. You own all documentation and ensu
 ### Files You Own
 ```
 README.md                           # User-facing documentation
-CHANGELOG.md                        # Version history
+CHANGELOG.md                        # Version history (detailed)
 ARCHITECTURE.md                     # Quick architecture reference
 STANDARDS.md                        # Coding standards
 MANUAL_TEST_PLAN.md                 # Manual testing procedures
 CLAUDE.md                           # AI assistant context
 docs/
+├── changelog.md                    # Version history (summary for docs site)
 ├── vision/
 │   └── architecture.md             # Complete architecture vision
 ├── development/
 │   └── release-process.md          # Release workflow
 └── commands/                       # Command reference (future)
 ```
+
+**NOTE:** The `docs/` folder is deployed to GitHub Pages via MkDocs. Changes to docs require the docs.yml workflow to run.
 
 ### Toolkit Repo Docs (Reference Only)
 ```
@@ -144,9 +147,10 @@ dvm get workspaces -o yaml
 4. Update ARCHITECTURE.md if structure changes
 
 ### When Releases Are Made
-1. Move [Unreleased] items to new version section
+1. Move [Unreleased] items to new version section in CHANGELOG.md
 2. Add release date
 3. Update version badges in README
+4. **Update docs/changelog.md** with new version summary (this is deployed to GitHub Pages)
 
 ### When Bugs Are Fixed
 1. Add CHANGELOG.md entry under Fixed
