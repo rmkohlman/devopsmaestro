@@ -7,12 +7,13 @@
 
 **kubectl-style CLI toolkit for containerized development environments with hierarchical theme management.**
 
-DevOpsMaestro provides two tools:
+DevOpsMaestro provides three tools:
 
 | Tool | Binary | Description |
 |------|--------|-------------|
 | **DevOpsMaestro** | `dvm` | App and workspace management with container-native dev environments |
 | **NvimOps** | `nvp` | Standalone Neovim plugin & theme manager using YAML |
+| **Terminal Operations** | `dvt` | Terminal prompt and configuration management |
 
 ### Object Hierarchy (v0.8.0+)
 
@@ -43,7 +44,7 @@ brew install devopsmaestro
 brew install nvimops
 
 # Verify installation
-dvm version   # Should show v0.12.0
+dvm version   # Should show v0.14.0
 nvp version
 ```
 
@@ -387,6 +388,26 @@ dvm get nvim theme coolnight-solarized  # Special: Solarized-inspired
 
 # Generate
 nvp generate                  # Generate Lua files
+```
+
+### dvt Commands (Terminal Operations)
+
+```bash
+# Terminal Prompt Management
+dvt get prompts               # List all terminal prompts
+dvt get prompts --type starship # Filter by prompt type
+dvt get prompt <name>         # Show specific prompt details
+dvt prompt apply -f prompt.yaml  # Apply prompt from file
+dvt prompt apply -f github:user/repo/prompt.yaml  # Apply from GitHub
+dvt prompt generate <name>    # Generate starship.toml config
+dvt prompt set <name>         # Set active prompt for workspace
+dvt prompt delete <name>      # Delete a prompt
+
+# WezTerm Configuration (v0.12.2+)
+dvt wezterm list              # List available WezTerm presets
+dvt wezterm show <name>       # Show preset details
+dvt wezterm generate <name>   # Generate wezterm.lua with theme colors
+dvt wezterm apply <name>      # Apply configuration to ~/.wezterm.lua
 ```
 
 ---

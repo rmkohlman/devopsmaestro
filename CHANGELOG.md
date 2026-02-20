@@ -1166,17 +1166,45 @@ docs/
 
 ---
 
+## [0.14.0] - 2026-02-19
+
+### ✨ Features
+
+#### TerminalPrompt Resource System
+- **New Resource Kind**: `TerminalPrompt` for managing shell prompt configurations
+- **Multi-prompt support**: Starship, Powerlevel10k, Oh-My-Posh
+- **Theme integration**: Theme variable resolution (`${theme.red}`, `${theme.sky}`, etc.)
+- **Database persistence**: Prompts stored in database for workspace sharing
+- **Workspace-qualified naming**: Prompts named per app/workspace for isolation
+
+#### dvt prompt CLI Commands
+- **`dvt get prompts`** - List all terminal prompts with optional type filtering (`--type starship`)
+- **`dvt get prompt <name>`** - Get specific prompt details and configuration
+- **`dvt prompt apply -f <file>`** - Apply prompt from YAML file or URL
+- **`dvt prompt delete <name>`** - Delete a terminal prompt
+- **`dvt prompt generate <name>`** - Generate starship.toml configuration file
+- **`dvt prompt set <name>`** - Set active prompt for current workspace
+
+#### Personal Config Repository
+- **rmkohlman/dvm-config repository** - User configuration storage and sharing
+- **GitHub integration**: Apply configs with `dvm apply -f github:rmkohlman/dvm-config/...`
+- **Version-controlled configurations**: Track and share personal setups across environments
+
+### 🏗️ Architecture
+
+#### Resource/Handler Integration
+- **Unified CRUD system**: TerminalPrompt uses standardized Resource/Handler pattern
+- **build.go refactored**: Now uses Resource/Handler pattern for prompt operations
+- **Proper dependency injection**: Consistent with other resource types
+
+#### Database Schema
+- **`terminal_prompts` table**: Complete persistence layer for prompt configurations
+- **Migration support**: Database schema versioning for prompt storage
+- **Workspace relationships**: Prompts linked to workspace context
+
+---
+
 ## [Unreleased]
-
-### 🚀 Added
-
-#### Nvim Theme Library Fallback
-- **Automatic library theme availability** - All 34+ embedded library themes are now automatically accessible without installation
-- **Library fallback in Get() method** - `dvm get nvim theme <name>` falls back to library if theme not found in user store
-- **Library merge in List() method** - `dvm get nvim themes` shows combined list of user + library themes
-- **User override behavior** - User themes with same name as library themes take precedence
-- **Out-of-the-box theme access** - Commands like `dvm get nvim theme coolnight-ocean` work immediately
-- **34+ embedded themes** - Includes all CoolNight variants, TokyoNight, Catppuccin, Dracula, Gruvbox, Nord, and more
 
 ### Planned Features
 

@@ -27,6 +27,7 @@ DevOpsMaestro supports the following resource types with kubectl-style YAML conf
 
 | Resource | APIVersion | Description |
 |----------|------------|-------------|
+| [TerminalPrompt](terminal-prompt.md) | `devopsmaestro.io/v1` | Shell prompt configuration (Starship, Powerlevel10k, Oh-My-Posh) |
 | [WeztermConfig](wezterm-config.md) | `devopsmaestro.dev/v1alpha1` | WezTerm terminal configuration |
 
 ## Object Hierarchy

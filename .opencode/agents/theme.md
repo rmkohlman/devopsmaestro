@@ -795,6 +795,7 @@ func (tt *TerminalTheme) Apply() error
 
 - **@architecture** - Interface design and new patterns
 - **@nvimops** - nvp CLI integration for theme commands
+- **@terminal** - Terminal prompt theming (starship, wezterm colors)
 - **@test** - Test coverage for theme functionality
 - **@document** - Theme documentation updates
 
@@ -817,6 +818,7 @@ Before I start, the orchestrator should have consulted:
 After I complete my task, the orchestrator should invoke:
 - `test` - Write/run tests for theme changes
 - `nvimops` - If nvp CLI needs theme command updates
+- `terminal` - If palette format changes affect prompt theming
 - `document` - If theme documentation needs updates
 
 ### Output Protocol

@@ -259,6 +259,8 @@ WORKDIR /home/devuser/workspace
 - **@architecture** - Interface design decisions
 - **@security** - Security review of Dockerfiles
 - **@container-runtime** - Build execution coordination
+- **@terminal** - Shell config and prompt generation (starship.toml, .zshrc)
+- **@theme** - Color palette for terminal/prompt theming
 
 ## Testing
 
@@ -310,6 +312,8 @@ Before I start, the orchestrator should have consulted:
 ### Post-Completion
 After I complete my task, the orchestrator should invoke:
 - `test` - To write/run tests for the builder changes
+- `terminal` - If shell/prompt config generation was affected
+- `document` - If public API or Dockerfile patterns changed
 
 ### Output Protocol
 When completing a task, I will end my response with:

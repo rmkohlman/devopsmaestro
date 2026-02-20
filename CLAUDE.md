@@ -35,6 +35,7 @@ Ask yourself: "Which agents does this task need?"
 | Output formatting, tables, colors | `render` |
 | Neovim plugins, themes, nvp | `nvimops` |
 | Theme colors, palettes, ColorProvider | `theme` |
+| Terminal prompts, shell config, wezterm | `terminal` |
 | Writing or running tests | `test` |
 | Documentation updates | `document` |
 | Git operations (commit, push, pull, branch) | `release` |

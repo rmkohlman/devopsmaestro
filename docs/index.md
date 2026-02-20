@@ -10,12 +10,13 @@
 
 ## What is DevOpsMaestro?
 
-DevOpsMaestro provides two powerful CLI tools for modern development workflows:
+DevOpsMaestro provides three powerful CLI tools for modern development workflows:
 
 | Tool | Binary | Description |
 |------|--------|-------------|
 | **DevOpsMaestro** | `dvm` | Workspace and app management with container-native dev environments and hierarchical theme system |
 | **NvimOps** | `nvp` | Standalone Neovim plugin & theme manager with 38+ curated plugins and 34+ themes |
+| **Terminal Operations** | `dvt` | Terminal prompt and configuration management with theme integration |
 
 ## Object Hierarchy
 

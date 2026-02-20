@@ -228,6 +228,21 @@ func (m *MockDataStore) SetActiveTheme(name string) error             { return n
 func (m *MockDataStore) GetActiveTheme() (*models.NvimThemeDB, error) { return nil, nil }
 func (m *MockDataStore) ClearActiveTheme() error                      { return nil }
 
+// Terminal prompt operations
+func (m *MockDataStore) CreateTerminalPrompt(prompt *models.TerminalPromptDB) error { return nil }
+func (m *MockDataStore) GetTerminalPromptByName(name string) (*models.TerminalPromptDB, error) {
+	return nil, nil
+}
+func (m *MockDataStore) UpdateTerminalPrompt(prompt *models.TerminalPromptDB) error { return nil }
+func (m *MockDataStore) DeleteTerminalPrompt(name string) error                     { return nil }
+func (m *MockDataStore) ListTerminalPrompts() ([]*models.TerminalPromptDB, error)   { return nil, nil }
+func (m *MockDataStore) ListTerminalPromptsByType(promptType string) ([]*models.TerminalPromptDB, error) {
+	return nil, nil
+}
+func (m *MockDataStore) ListTerminalPromptsByCategory(category string) ([]*models.TerminalPromptDB, error) {
+	return nil, nil
+}
+
 // Close method for DataStore interface
 func (m *MockDataStore) Close() error { return nil }
 
