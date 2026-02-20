@@ -41,9 +41,11 @@ All git operations must go through you:
 ## Files You Own
 
 ```
-CHANGELOG.md                       # Version history and release notes
+CHANGELOG.md                       # Version history and release notes (detailed)
+docs/changelog.md                  # Version history (summary for docs site) - MUST SYNC!
 .github/workflows/release.yml      # Release workflow
 .github/workflows/ci.yml           # CI workflow (test/build)
+.github/workflows/docs.yml         # Documentation deployment workflow
 .goreleaser.yaml                   # GoReleaser config for nvp releases
 docs/development/release-process.md  # Release documentation
 ```
@@ -129,6 +131,22 @@ cat .github/workflows/release.yml
 |----------|------|---------|------|
 | CI | `.github/workflows/ci.yml` | Push/PR to main | Test, Build |
 | Release | `.github/workflows/release.yml` | Tag push (v*) | GoReleaser, Homebrew |
+| Docs | `.github/workflows/docs.yml` | Push to main (docs/**), Release published | Build, Deploy to GitHub Pages |
+
+### Documentation Deployment
+
+The docs site (https://rmkohlman.github.io/devopsmaestro/) is automatically deployed via GitHub Pages Actions:
+
+**Triggers:**
+- Push to `main` branch affecting `docs/**`, `mkdocs.yml`, or `.github/workflows/docs.yml`
+- Release published (after release workflow completes)
+- Manual trigger via `workflow_dispatch`
+
+**Process:**
+1. `build` job: Runs `mkdocs build` to generate static site in `site/` directory
+2. `deploy` job: Uses `actions/deploy-pages@v4` to deploy to GitHub Pages
+
+**Important:** When making releases, the `docs/changelog.md` MUST be updated to include the new version summary before or during release. The docs workflow will deploy automatically on release publish.
 
 ### CI Jobs
 
@@ -168,6 +186,7 @@ gh run watch <RUN_ID>          # Watch live
 - [ ] Verify build succeeds for both `dvm` and `nvp`
 - [ ] Check for uncommitted changes
 - [ ] Review CHANGELOG.md is updated with release notes
+- [ ] **Sync docs/changelog.md** with new version summary (for docs site)
 - [ ] Verify CI is green on main branch
 
 ### 3. Version Management
@@ -187,6 +206,7 @@ gh run watch <RUN_ID>          # Watch live
 - Verify Homebrew tap is updated (rmkohlman/homebrew-tap)
 - Check formula checksums match release assets
 - Confirm `brew info devopsmaestro` shows new version
+- **Verify docs site deployed** (https://rmkohlman.github.io/devopsmaestro/changelog/)
 
 ## Common Git Operations
 
@@ -266,27 +286,37 @@ go build -o nvp ./cmd/nvp/
 # Move [Unreleased] items to new version section
 # Add date: ## [X.Y.Z] - YYYY-MM-DD
 
-# 3. Commit release prep
-git add CHANGELOG.md
+# 3. Update docs/changelog.md (summary for docs site)
+# Add new version to "Latest Releases" section
+# Update "Version History" table with new version
+# Keep it concise - just highlights, not full details
+
+# 4. Commit release prep
+git add CHANGELOG.md docs/changelog.md
 git commit -m "chore: prepare release vX.Y.Z"
 
-# 4. Create and push tag
+# 5. Create and push tag
 git tag -a vX.Y.Z -m "Release vX.Y.Z"
 git push origin main
 git push origin vX.Y.Z
 
-# 5. Monitor release workflow
+# 6. Monitor release workflow
 gh run list --limit 1
 gh run view <run-id> --log
 
-# 6. Verify release
+# 7. Verify release
 gh release view vX.Y.Z
 gh release download vX.Y.Z --dir /tmp/verify
 
-# 7. Verify Homebrew
+# 8. Verify Homebrew
 brew update
 brew info devopsmaestro  # Should show new version
 brew info nvimops        # Should show new version
+
+# 9. Verify docs site deployed
+# Check https://rmkohlman.github.io/devopsmaestro/changelog/
+# Confirm new version appears in the changelog
+gh run list --workflow=docs.yml --limit 1
 ```
 
 ## Known Issues and Solutions
