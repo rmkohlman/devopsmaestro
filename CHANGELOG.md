@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.18.1] - 2026-02-20
+
+### 🔧 Fixed
+
+#### Neovim Installation
+- **Fixed `dvm build` failures on slim Docker images** - Install Neovim directly from GitHub releases instead of apt-get
+- **Works on all base images** - Supports Debian, Ubuntu, Alpine, and slim variants
+- **Multi-architecture support** - Automatically detects and installs correct binary for amd64 and arm64
+- **Enhanced Alpine Linux support** - Added proper Alpine package manager commands for Neovim dependencies
+
+---
+
 ## [0.18.0] - 2026-02-20
 
 ### 🚀 Added

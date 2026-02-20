@@ -4,6 +4,15 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.18.1 (2026-02-20)
+
+**Neovim Installation Fix**
+
+- Fixed `dvm build` failures on slim Docker images (python:3.11-slim, etc.)
+- Neovim now installed from GitHub releases instead of apt-get
+- Works on all base images: Debian, Ubuntu, Alpine, and slim variants
+- Multi-architecture support (amd64/arm64) with automatic detection
+
 ### v0.18.0 (2026-02-20)
 
 **DVT Package Management**
