@@ -1,0 +1,27 @@
+apiVersion: devopsmaestro.io/v1
+kind: TerminalPackage
+metadata:
+  name: rmkohlman
+  description: "Robert's personal terminal configuration with CoolNight Ocean theme"
+  category: personal
+  tags:
+    - personal
+    - zsh
+    - starship
+    - wezterm
+    - coolnight
+  labels:
+    theme: coolnight-ocean
+spec:
+  plugins:
+    - zsh-autosuggestions
+    - zsh-syntax-highlighting
+    - zsh-completions
+    - fzf
+  prompts:
+    - starship-default
+  profiles:
+    - tmux-style
+  wezterm:
+    fontSize: 14
+    fontFamily: "Cascadia Code PL"

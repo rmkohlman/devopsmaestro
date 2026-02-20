@@ -1,0 +1,14 @@
+apiVersion: devopsmaestro.io/v1
+kind: TerminalPackage
+metadata:
+  name: core
+  description: Essential shell plugins and prompt
+  category: base
+  tags: [essentials, productivity]
+spec:
+  plugins:
+    - zsh-autosuggestions
+    - zsh-syntax-highlighting
+    - zsh-completions
+  prompts: []
+  profiles: []

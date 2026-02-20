@@ -141,6 +141,7 @@ func init() {
 	rootCmd.AddCommand(getCmd)
 	rootCmd.AddCommand(promptCmd)
 	rootCmd.AddCommand(pluginCmd)
+	rootCmd.AddCommand(packageCmd)
 	rootCmd.AddCommand(shellCmd)
 	rootCmd.AddCommand(profileCmd)
 	rootCmd.AddCommand(weztermCmd)

@@ -1,0 +1,15 @@
+apiVersion: devopsmaestro.io/v1
+kind: TerminalPackage
+metadata:
+  name: developer
+  description: Full developer terminal setup
+  category: development
+  tags: [dev, productivity, tools]
+spec:
+  extends: core
+  plugins:
+    - fzf
+    - zoxide
+    - eza
+  prompts: []
+  profiles: []
