@@ -4,6 +4,16 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.18.2 (2026-02-20)
+
+**ARM64/Apple Silicon Stability**
+
+- Fixed `dvm build` failing on ARM64 (Apple Silicon) with dpkg errors  
+- Replaced gcc + python3-dev with build-essential for better ARM64 compatibility
+- Added --fix-broken flag to apt-get commands for robust package installation
+- Pinned Python base images to bookworm variant for reproducible builds
+- Enhanced Docker cleanup process for better ARM64 system stability
+
 ### v0.18.1 (2026-02-20)
 
 **Neovim Installation Fix**

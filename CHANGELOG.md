@@ -11,6 +11,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.18.2] - 2026-02-20
+
+### 🔧 Fixed
+
+#### ARM64/Apple Silicon Stability
+- **Fixed `dvm build` failing on ARM64 with dpkg errors** - Replaced gcc + python3-dev with build-essential for better ARM64 compatibility
+- **Added `--fix-broken` flag to all apt-get install commands** - Prevents package conflicts on ARM64 systems
+- **Enhanced Docker image cleanup** - Added `apt-get clean` before removing package cache
+- **Pinned Python base images to `bookworm` variant** - Ensures reproducible builds across architectures (python:X.XX-slim-bookworm)
+- **Improved package installation stability** - More robust dependency resolution for Apple Silicon M3 Max and other ARM64 systems
+
+---
+
 ## [0.18.1] - 2026-02-20
 
 ### 🔧 Fixed
