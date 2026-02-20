@@ -7,26 +7,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestRkohlmanFullPackage tests the complete rkohlman-full package
-func TestRkohlmanFullPackage(t *testing.T) {
+// TestRmkohlmanPackage tests the complete rmkohlman package
+func TestRmkohlmanPackage(t *testing.T) {
 	lib, err := NewLibrary()
 	require.NoError(t, err)
 
 	// Test package exists
-	assert.True(t, lib.Has("rkohlman-full"))
+	assert.True(t, lib.Has("rmkohlman"))
 
 	// Test package can be retrieved
-	pkg, ok := lib.Get("rkohlman-full")
+	pkg, ok := lib.Get("rmkohlman")
 	require.True(t, ok)
 	require.NotNil(t, pkg)
 
 	// Test basic metadata
-	assert.Equal(t, "rkohlman-full", pkg.Name)
+	assert.Equal(t, "rmkohlman", pkg.Name)
 	assert.Equal(t, "complete", pkg.Category)
 	assert.Contains(t, pkg.Tags, "complete")
 	assert.Contains(t, pkg.Tags, "ide")
 	assert.Contains(t, pkg.Tags, "enhanced")
-	assert.Contains(t, pkg.Description, "Complete Neovim IDE setup")
+	assert.Contains(t, pkg.Description, "Robert's complete Neovim IDE setup")
 
 	// Test plugin count (should be 37 plugins)
 	assert.Len(t, pkg.Plugins, 37)
@@ -74,8 +74,8 @@ func TestRkohlmanFullPackage(t *testing.T) {
 	assert.Contains(t, pluginNames, "obsidian")
 }
 
-// TestRkohlmanPackageInLibraryList tests that the package appears in library listings
-func TestRkohlmanPackageInLibraryList(t *testing.T) {
+// TestRmkohlmanPackageInLibraryList tests that the package appears in library listings
+func TestRmkohlmanPackageInLibraryList(t *testing.T) {
 	lib, err := NewLibrary()
 	require.NoError(t, err)
 
@@ -83,62 +83,62 @@ func TestRkohlmanPackageInLibraryList(t *testing.T) {
 	packages := lib.List()
 	var found bool
 	for _, pkg := range packages {
-		if pkg.Name == "rkohlman-full" {
+		if pkg.Name == "rmkohlman" {
 			found = true
 			assert.Equal(t, "complete", pkg.Category)
 			break
 		}
 	}
-	assert.True(t, found, "rkohlman-full should be in package list")
+	assert.True(t, found, "rmkohlman should be in package list")
 
 	// Test package appears in complete category
 	completePackages := lib.ListByCategory("complete")
 	found = false
 	for _, pkg := range completePackages {
-		if pkg.Name == "rkohlman-full" {
+		if pkg.Name == "rmkohlman" {
 			found = true
 			break
 		}
 	}
-	assert.True(t, found, "rkohlman-full should be in complete category")
+	assert.True(t, found, "rmkohlman should be in complete category")
 
 	// Test package appears when searching by tags
 	idePackages := lib.ListByTag("ide")
 	found = false
 	for _, pkg := range idePackages {
-		if pkg.Name == "rkohlman-full" {
+		if pkg.Name == "rmkohlman" {
 			found = true
 			break
 		}
 	}
-	assert.True(t, found, "rkohlman-full should be found by 'ide' tag")
+	assert.True(t, found, "rmkohlman should be found by 'ide' tag")
 
-	// Test library count includes rkohlman-full
+	// Test library count includes rmkohlman
 	count := lib.Count()
-	assert.Equal(t, 5, count) // core, go-dev, python-dev, full, rkohlman-full
+	assert.Equal(t, 5, count) // core, go-dev, python-dev, full, rmkohlman
 }
 
-// TestRkohlmanPackageInfo tests package info functionality
-func TestRkohlmanPackageInfo(t *testing.T) {
+// TestRmkohlmanPackageInfo tests package info functionality
+func TestRmkohlmanPackageInfo(t *testing.T) {
 	lib, err := NewLibrary()
 	require.NoError(t, err)
 
 	// Test package info
 	info := lib.Info()
 
-	var rkohlmanInfo *PackageInfo
+	var rmkohlmanInfo *PackageInfo
 	for _, pkg := range info {
-		if pkg.Name == "rkohlman-full" {
-			rkohlmanInfo = &pkg
+		if pkg.Name == "rmkohlman" {
+			rmkohlmanInfo = &pkg
 			break
 		}
 	}
 
-	require.NotNil(t, rkohlmanInfo, "rkohlman-full should appear in package info")
-	assert.Equal(t, "rkohlman-full", rkohlmanInfo.Name)
-	assert.Equal(t, "complete", rkohlmanInfo.Category)
-	assert.Equal(t, 37, rkohlmanInfo.PluginCount)
-	assert.Contains(t, rkohlmanInfo.Tags, "complete")
-	assert.Contains(t, rkohlmanInfo.Tags, "ide")
-	assert.Contains(t, rkohlmanInfo.Tags, "enhanced")
+	require.NotNil(t, rmkohlmanInfo, "rmkohlman should appear in package info")
+	assert.Equal(t, "rmkohlman", rmkohlmanInfo.Name)
+	assert.Equal(t, "complete", rmkohlmanInfo.Category)
+	assert.Equal(t, 37, rmkohlmanInfo.PluginCount)
+	assert.Contains(t, rmkohlmanInfo.Tags, "complete")
+	assert.Contains(t, rmkohlmanInfo.Tags, "ide")
+	assert.Contains(t, rmkohlmanInfo.Tags, "enhanced")
 }

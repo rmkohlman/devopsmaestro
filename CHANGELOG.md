@@ -11,6 +11,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.18.3] - 2026-02-20
+
+### 🔧 Fixed
+
+#### Build and Configuration Issues
+- **Fixed Starship config TOML parsing error** - Changed `echo "[app]"` to `echo '[app]'` in generated starship config to fix TOML quoting issue that caused parsing errors inside containers
+- **Fixed `dvm build` to use default nvim package** - Now respects the user's default nvim package (set via `dvm use nvim package <name>`) when a workspace has no explicit plugins configured
+- **Fixed `dvm get defaults` display** - Now shows user-set defaults from database instead of hardcoded values for nvim-package, terminal-package, and theme
+
+### 🔄 Changed
+
+#### Package Naming Consistency
+- **Renamed nvp package `rkohlman-full` → `rmkohlman`** - Updated package name for consistency with GitHub username and terminal package naming conventions
+
+---
+
 ## [0.18.2] - 2026-02-20
 
 ### 🔧 Fixed
@@ -336,7 +352,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Type-safe configuration** - Structured types for all WezTerm settings
 - **Library presets** - Pre-built configurations (minimal, tmux-style, default)
 
-#### rkohlman-full Plugin Package
+#### rmkohlman Plugin Package
 - **Complete Neovim setup** - 39-plugin configuration with LSP, treesitter, telescope, and more
 - **Production-ready** - Fully configured development environment
 - **Modular architecture** - Clean plugin organization and configuration
@@ -364,7 +380,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `pkg/colors/resolver/` - Theme resolution engine
 - `pkg/nvimops/theme/library/themes/coolnight-*.yaml` - 21 CoolNight variants
 - `pkg/terminalops/wezterm/` - WezTerm configuration support
-- `pkg/nvimops/package/library/packages/rkohlman-full.yaml` - Complete plugin package
+- `pkg/nvimops/package/library/packages/rmkohlman.yaml` - Complete plugin package
 
 #### Modified Files
 - Enhanced theme handlers with library fallback

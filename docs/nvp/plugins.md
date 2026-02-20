@@ -15,7 +15,7 @@ The easiest way - use the built-in library of 38+ curated plugins:
 nvp plugin list
 
 # Install complete plugin package (39 plugins)
-nvp apply -f package:rkohlman-full
+nvp apply -f package:rmkohlman
 
 # Install individual plugins
 nvp apply -f plugin:telescope
@@ -128,12 +128,12 @@ Complete plugin configurations for specific use cases:
 
 | Package | Plugins | Description |
 |---------|---------|-------------|
-| `rkohlman-full` | 39 plugins | Complete development environment with LSP, fuzzy finding, Git, AI, and more |
+| `rmkohlman` | 39 plugins | Complete development environment with LSP, fuzzy finding, Git, AI, and more |
 
 Install a complete package:
 
 ```bash
-nvp apply -f package:rkohlman-full
+nvp apply -f package:rmkohlman
 ```
 
 ### Individual Plugins

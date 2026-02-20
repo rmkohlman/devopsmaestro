@@ -1,8 +1,8 @@
 apiVersion: devopsmaestro.io/v1
 kind: NvimPackage
 metadata:
-  name: rkohlman-full
-  description: "Complete Neovim IDE setup with enhanced plugins and comprehensive features"
+  name: rmkohlman
+  description: "Robert's complete Neovim IDE setup with enhanced plugins and comprehensive features"
   category: complete
   tags: ["complete", "ide", "enhanced"]
 spec:

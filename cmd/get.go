@@ -1108,11 +1108,28 @@ type DefaultsOutput struct {
 }
 
 func getDefaults(cmd *cobra.Command) error {
-	// Get defaults from all packages
+	// Get defaults from all packages (hardcoded defaults)
 	themeDefaults := themeresolver.GetDefaults()
 	shellDefaults := shell.GetDefaults()
 	nvimDefaults := nvimops.GetDefaults()
 	containerDefaults := builders.GetContainerDefaults()
+
+	// Override with user-set defaults from database
+	ds, err := getDataStore(cmd)
+	if err == nil {
+		// Check for user-set nvim package
+		if userPkg, err := ds.GetDefault("nvim-package"); err == nil && userPkg != "" {
+			nvimDefaults["pluginPackage"] = userPkg
+		}
+		// Check for user-set terminal package
+		if userTermPkg, err := ds.GetDefault("terminal-package"); err == nil && userTermPkg != "" {
+			shellDefaults["terminalPackage"] = userTermPkg
+		}
+		// Check for user-set global theme
+		if userTheme, err := ds.GetDefault("theme"); err == nil && userTheme != "" {
+			themeDefaults["global"] = userTheme
+		}
+	}
 
 	// Build structured data
 	data := DefaultsOutput{

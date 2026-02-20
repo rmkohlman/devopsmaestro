@@ -37,13 +37,13 @@ nvp apply -f package:core
 
 This minimal but powerful set gives you a complete development environment while keeping startup time fast and resource usage low.
 
-### rkohlman-full
+### rmkohlman
 
 The flagship package with 39 carefully curated plugins for a complete development environment:
 
 ```bash
 # Install the complete development environment
-nvp apply -f package:rkohlman-full
+nvp apply -f package:rmkohlman
 ```
 
 **Included categories:**
@@ -70,7 +70,7 @@ The `core` package (automatically applied to new workspaces) includes:
 | **LSP & Completion** | lspconfig, nvim-cmp | Language server support and autocompletion |
 | **UI & Git** | which-key, gitsigns | Keybinding help and git integration |
 
-### Complete Development Tools (rkohlman-full)
+### Complete Development Tools (rmkohlman)
 
 | Category | Plugins | Description |
 |----------|---------|-------------|
@@ -121,8 +121,8 @@ The `core` package (automatically applied to new workspaces) includes:
 ### Install Complete Package
 
 ```bash
-# Install the full rkohlman-full package
-nvp apply -f package:rkohlman-full
+# Install the full rmkohlman package
+nvp apply -f package:rmkohlman
 
 # Generate Neovim configuration
 nvp generate
@@ -140,7 +140,7 @@ If you want to replace the default `core` package:
 nvp package remove core
 
 # Install different package
-nvp apply -f package:rkohlman-full
+nvp apply -f package:rmkohlman
 
 # Or install individual plugins
 nvp apply -f plugin:neo-tree
@@ -175,7 +175,7 @@ nvp plugin get copilot
 
 ### Pre-configured Features
 
-The rkohlman-full package comes with these pre-configured features:
+The rmkohlman package comes with these pre-configured features:
 
 #### LSP (Language Server Protocol)
 - **Automatic installation** of language servers via Mason
@@ -225,7 +225,7 @@ You can override specific plugins from a package:
 
 ```bash
 # Install the full package
-nvp apply -f package:rkohlman-full
+nvp apply -f package:rmkohlman
 
 # Override telescope configuration
 cat > my-telescope.yaml << 'EOF'
@@ -351,7 +351,7 @@ spec:
 
 ```bash
 # Update to latest version of package
-nvp apply -f package:rkohlman-full --update
+nvp apply -f package:rmkohlman --update
 
 # This will:
 # - Update plugin versions
@@ -363,20 +363,20 @@ nvp apply -f package:rkohlman-full --update
 
 ```bash
 # Show package details
-nvp package get rkohlman-full
+nvp package get rmkohlman
 
 # List all available packages
 nvp package list
 
 # Show what's installed from a package
-nvp plugin list --package rkohlman-full
+nvp plugin list --package rmkohlman
 ```
 
 ### Remove Package
 
 ```bash
 # Remove all plugins from a package
-nvp package remove rkohlman-full
+nvp package remove rmkohlman
 
 # Or remove individual plugins
 nvp plugin delete telescope
@@ -401,7 +401,7 @@ dvm set theme coolnight-ocean --app user-service
 
 # 3. Install complete plugin package
 cd ~/projects/user-service/workspace
-nvp apply -f package:rkohlman-full
+nvp apply -f package:rmkohlman
 
 # 4. Generate unified configuration
 nvp generate
@@ -415,7 +415,7 @@ Some packages can adapt to your current theme:
 
 ```bash
 # Package will use colors from current theme
-nvp apply -f package:rkohlman-full
+nvp apply -f package:rmkohlman
 
 # Lualine, telescope, and other UI plugins
 # will automatically use theme colors
@@ -427,7 +427,7 @@ nvp apply -f package:rkohlman-full
 
 ### Lazy Loading
 
-The rkohlman-full package is optimized for performance:
+The rmkohlman package is optimized for performance:
 
 - **Most plugins lazy load** - Only load when needed
 - **Event-based triggers** - Load on file types, commands, or events
@@ -476,7 +476,7 @@ Plugins only consume memory when active:
    ```bash
    # Package installation should handle this automatically
    # But if there are issues:
-   nvp apply -f package:rkohlman-full --fix-dependencies
+   nvp apply -f package:rmkohlman --fix-dependencies
    ```
 
 3. **Configuration errors:**
@@ -496,7 +496,7 @@ Plugins only consume memory when active:
 nvp plugin status
 
 # Validate package installation
-nvp package validate rkohlman-full
+nvp package validate rmkohlman
 
 # Show generated configuration
 cat ~/.config/nvim/lua/plugins/nvp/init.lua

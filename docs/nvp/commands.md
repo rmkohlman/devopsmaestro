@@ -50,7 +50,7 @@ nvp apply -f <source>
 
 | Type | Example |
 |------|---------|
-| Package | `package:rkohlman-full` |
+| Package | `package:rmkohlman` |
 | Plugin | `plugin:telescope` |
 | File | `plugin.yaml` |
 | URL | `https://example.com/plugin.yaml` |
@@ -61,7 +61,7 @@ nvp apply -f <source>
 
 ```bash
 # Install complete plugin package
-nvp apply -f package:rkohlman-full
+nvp apply -f package:rmkohlman
 
 # Install individual plugin
 nvp apply -f plugin:telescope
@@ -306,7 +306,7 @@ nvp version
 
 ```bash
 # Install complete plugin package
-nvp apply -f package:rkohlman-full
+nvp apply -f package:rmkohlman
 
 # Set theme
 nvp theme use coolnight-ocean

@@ -4,6 +4,15 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.18.3 (2026-02-20)
+
+**Build & Configuration Fixes**
+
+- Fixed Starship TOML parsing error in containerized environments
+- Fixed `dvm build` to respect user's default nvim package when workspace has no explicit plugins
+- Fixed `dvm get defaults` to show actual user-configured values instead of hardcoded defaults
+- Renamed nvp package `rkohlman-full` → `rmkohlman` for consistent naming
+
 ### v0.18.2 (2026-02-20)
 
 **ARM64/Apple Silicon Stability**

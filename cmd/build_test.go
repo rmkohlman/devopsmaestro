@@ -41,7 +41,7 @@ func TestCreateDefaultTerminalPrompt(t *testing.T) {
 
 	// Verify custom.dvm module has the app name command
 	customDvm := prompt.Spec.Modules["custom.dvm"]
-	expectedCommand := `echo "[test-app]"`
+	expectedCommand := `echo '[test-app]'`
 	if command, ok := customDvm.Options["command"].(string); !ok || command != expectedCommand {
 		t.Errorf("Expected command %q, got %q", expectedCommand, command)
 	}

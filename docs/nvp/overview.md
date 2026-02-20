@@ -43,7 +43,7 @@ nvp init
 
 # Install plugins from library
 nvp plugin list
-nvp apply -f package:rkohlman-full
+nvp apply -f package:rmkohlman
 
 # List and use themes
 nvp theme list
@@ -81,7 +81,7 @@ nvp includes 38+ curated plugins with plugin package system:
 
 | Package | Plugins | Description |
 |---------|---------|-------------|
-| `rkohlman-full` | 39 plugins | Complete development environment |
+| `rmkohlman` | 39 plugins | Complete development environment |
 
 ### Core Plugins (Default Package)
 
@@ -96,7 +96,7 @@ The `core` package (automatically installed for new dvm workspaces):
 | nvim-cmp | completion | Intelligent autocompletion |
 | gitsigns | git | Git integration with inline status |
 
-### Complete Plugin Library (rkohlman-full)
+### Complete Plugin Library (rmkohlman)
 
 | Plugin | Category | Description |
 |--------|----------|-------------|

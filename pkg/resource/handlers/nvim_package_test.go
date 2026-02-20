@@ -190,7 +190,7 @@ func TestNvimPackageHandler_List(t *testing.T) {
 	}
 
 	// List now includes both database packages AND library packages
-	// Library has 5 packages (core, full, go-dev, python-dev, rkohlman-full)
+	// Library has 5 packages (core, full, go-dev, python-dev, rmkohlman)
 	// Database has 2 packages (package1, package2)
 	// Total should be at least 7 (could be more if library grows)
 	if len(resources) < 7 {
