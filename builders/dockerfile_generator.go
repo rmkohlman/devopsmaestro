@@ -272,6 +272,9 @@ func (g *DockerfileGenerator) generateDevStage(dockerfile *strings.Builder) {
 		dockerfile.WriteString("\n\n")
 	}
 
+	// Install Neovim from GitHub releases before other tools
+	g.installNeovim(dockerfile)
+
 	// Install language-specific tools
 	if len(languageTools) > 0 {
 		g.installLanguageTools(dockerfile, languageTools)
@@ -328,7 +331,6 @@ func (g *DockerfileGenerator) getDefaultPackages() []string {
 		"curl",
 		"wget",
 		"zsh",
-		"neovim",
 	}
 
 	// Add language-specific base packages
@@ -342,6 +344,42 @@ func (g *DockerfileGenerator) getDefaultPackages() []string {
 	}
 
 	return base
+}
+
+// installNeovim installs Neovim from GitHub releases (works on all base images)
+func (g *DockerfileGenerator) installNeovim(dockerfile *strings.Builder) {
+	dockerfile.WriteString("# Install Neovim from GitHub releases\n")
+
+	// Detect if this is an Alpine-based image
+	isAlpine := g.language == "golang" || strings.Contains(g.workspace.ImageName, "alpine")
+
+	if isAlpine {
+		// Alpine uses uname -m for architecture detection
+		dockerfile.WriteString("RUN ARCH=$(uname -m) && \\\n")
+		dockerfile.WriteString("    if [ \"$ARCH\" = \"aarch64\" ]; then \\\n")
+		dockerfile.WriteString("        NVIM_ARCH=\"nvim-linux-arm64\"; \\\n")
+		dockerfile.WriteString("    elif [ \"$ARCH\" = \"x86_64\" ]; then \\\n")
+		dockerfile.WriteString("        NVIM_ARCH=\"nvim-linux-x86_64\"; \\\n")
+		dockerfile.WriteString("    else \\\n")
+		dockerfile.WriteString("        NVIM_ARCH=\"nvim-linux-x86_64\"; \\\n")
+		dockerfile.WriteString("    fi && \\\n")
+	} else {
+		// Debian/Ubuntu uses dpkg architecture detection with fallback to uname
+		dockerfile.WriteString("RUN ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m) && \\\n")
+		dockerfile.WriteString("    if [ \"$ARCH\" = \"arm64\" ] || [ \"$ARCH\" = \"aarch64\" ]; then \\\n")
+		dockerfile.WriteString("        NVIM_ARCH=\"nvim-linux-arm64\"; \\\n")
+		dockerfile.WriteString("    elif [ \"$ARCH\" = \"amd64\" ] || [ \"$ARCH\" = \"x86_64\" ]; then \\\n")
+		dockerfile.WriteString("        NVIM_ARCH=\"nvim-linux-x86_64\"; \\\n")
+		dockerfile.WriteString("    else \\\n")
+		dockerfile.WriteString("        NVIM_ARCH=\"nvim-linux-x86_64\"; \\\n")
+		dockerfile.WriteString("    fi && \\\n")
+	}
+
+	// Download and install Neovim
+	dockerfile.WriteString("    curl -LO \"https://github.com/neovim/neovim/releases/latest/download/${NVIM_ARCH}.tar.gz\" && \\\n")
+	dockerfile.WriteString("    tar -C /opt -xzf \"${NVIM_ARCH}.tar.gz\" && \\\n")
+	dockerfile.WriteString("    ln -sf \"/opt/${NVIM_ARCH}/bin/nvim\" /usr/local/bin/nvim && \\\n")
+	dockerfile.WriteString("    rm \"${NVIM_ARCH}.tar.gz\"\n\n")
 }
 
 func (g *DockerfileGenerator) getDefaultLanguageTools() []string {
@@ -408,12 +446,24 @@ func (g *DockerfileGenerator) installNvimDependencies(dockerfile *strings.Builde
 	}
 
 	dockerfile.WriteString("# Install Neovim dependencies\n")
-	dockerfile.WriteString("RUN apt-get update && apt-get install -y --no-install-recommends \\\n")
-	dockerfile.WriteString("    unzip \\\n")
-	dockerfile.WriteString("    build-essential \\\n")
-	dockerfile.WriteString("    ripgrep \\\n")
-	dockerfile.WriteString("    fd-find \\\n")
-	dockerfile.WriteString("    && rm -rf /var/lib/apt/lists/*\n\n")
+
+	// Detect if this is an Alpine-based image
+	isAlpine := g.language == "golang" || strings.Contains(g.workspace.ImageName, "alpine")
+
+	if isAlpine {
+		dockerfile.WriteString("RUN apk add --no-cache \\\n")
+		dockerfile.WriteString("    unzip \\\n")
+		dockerfile.WriteString("    build-base \\\n")
+		dockerfile.WriteString("    ripgrep \\\n")
+		dockerfile.WriteString("    fd\n\n")
+	} else {
+		dockerfile.WriteString("RUN apt-get update && apt-get install -y --no-install-recommends \\\n")
+		dockerfile.WriteString("    unzip \\\n")
+		dockerfile.WriteString("    build-essential \\\n")
+		dockerfile.WriteString("    ripgrep \\\n")
+		dockerfile.WriteString("    fd-find \\\n")
+		dockerfile.WriteString("    && rm -rf /var/lib/apt/lists/*\n\n")
+	}
 }
 
 // generateNvimSection copies nvim config and installs plugins (called after user creation)
