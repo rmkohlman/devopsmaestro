@@ -17,24 +17,23 @@ func TestDockerfileGenerator_GenerateBaseStage_Python(t *testing.T) {
 			name:    "python default version",
 			version: "",
 			wantContain: []string{
-				"FROM python:3.11-slim AS base",
+				"FROM python:3.11-slim-bookworm AS base",
 				"apt-get update",
-				"gcc",
-				"python3-dev",
+				"build-essential",
 			},
 		},
 		{
 			name:    "python specific version",
 			version: "3.10",
 			wantContain: []string{
-				"FROM python:3.10-slim AS base",
+				"FROM python:3.10-slim-bookworm AS base",
 			},
 		},
 		{
 			name:    "python 3.12",
 			version: "3.12",
 			wantContain: []string{
-				"FROM python:3.12-slim AS base",
+				"FROM python:3.12-slim-bookworm AS base",
 			},
 		},
 	}
@@ -445,11 +444,11 @@ func TestDockerfileGenerator_LanguageVersionTable(t *testing.T) {
 		want     string
 	}{
 		// Python versions
-		{"python", "", "python:3.11-slim"},
-		{"python", "3.9", "python:3.9-slim"},
-		{"python", "3.10", "python:3.10-slim"},
-		{"python", "3.11", "python:3.11-slim"},
-		{"python", "3.12", "python:3.12-slim"},
+		{"python", "", "python:3.11-slim-bookworm"},
+		{"python", "3.9", "python:3.9-slim-bookworm"},
+		{"python", "3.10", "python:3.10-slim-bookworm"},
+		{"python", "3.11", "python:3.11-slim-bookworm"},
+		{"python", "3.12", "python:3.12-slim-bookworm"},
 
 		// Go versions
 		{"golang", "", "golang:1.22-alpine"},

@@ -103,17 +103,17 @@ func (g *DockerfileGenerator) generateBaseStage(dockerfile *strings.Builder, pri
 		if version == "" {
 			version = "3.11"
 		}
-		dockerfile.WriteString(fmt.Sprintf("FROM python:%s-slim AS base\n\n", version))
+		dockerfile.WriteString(fmt.Sprintf("FROM python:%s-slim-bookworm AS base\n\n", version))
 
 		// Install git if needed for private repos
 		if privateRepoInfo.NeedsGit {
-			packages := []string{"git", "gcc", "python3-dev"}
+			packages := []string{"git", "build-essential"}
 			if privateRepoInfo.NeedsSSH {
 				packages = append(packages, "openssh-client")
 			}
 
 			dockerfile.WriteString("# Install git for private repositories\n")
-			dockerfile.WriteString("RUN apt-get update && apt-get install -y --no-install-recommends \\\n")
+			dockerfile.WriteString("RUN apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
 			for i, pkg := range packages {
 				if i < len(packages)-1 {
 					dockerfile.WriteString(fmt.Sprintf("    %s \\\n", pkg))
@@ -121,6 +121,7 @@ func (g *DockerfileGenerator) generateBaseStage(dockerfile *strings.Builder, pri
 					dockerfile.WriteString(fmt.Sprintf("    %s \\\n", pkg))
 				}
 			}
+			dockerfile.WriteString("    && apt-get clean \\\n")
 			dockerfile.WriteString("    && rm -rf /var/lib/apt/lists/*\n\n")
 
 			// Setup SSH for git if needed
@@ -134,10 +135,11 @@ func (g *DockerfileGenerator) generateBaseStage(dockerfile *strings.Builder, pri
 				dockerfile.WriteString("    ssh-keyscan gitlab.com >> /root/.ssh/known_hosts\n\n")
 			}
 		} else {
-			dockerfile.WriteString("# Install basic dependencies\n")
-			dockerfile.WriteString("RUN apt-get update && apt-get install -y --no-install-recommends \\\n")
-			dockerfile.WriteString("    gcc \\\n")
-			dockerfile.WriteString("    python3-dev \\\n")
+			dockerfile.WriteString("# Install build dependencies\n")
+			dockerfile.WriteString("RUN apt-get update && \\\n")
+			dockerfile.WriteString("    apt-get install -y --no-install-recommends --fix-broken \\\n")
+			dockerfile.WriteString("    build-essential \\\n")
+			dockerfile.WriteString("    && apt-get clean \\\n")
 			dockerfile.WriteString("    && rm -rf /var/lib/apt/lists/*\n\n")
 		}
 
@@ -218,7 +220,7 @@ func (g *DockerfileGenerator) generateBaseStage(dockerfile *strings.Builder, pri
 			packages = append(packages, "git")
 		}
 
-		dockerfile.WriteString("RUN apt-get update && apt-get install -y --no-install-recommends \\\n")
+		dockerfile.WriteString("RUN apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
 		for i, pkg := range packages {
 			if i < len(packages)-1 {
 				dockerfile.WriteString(fmt.Sprintf("    %s \\\n", pkg))
@@ -226,6 +228,7 @@ func (g *DockerfileGenerator) generateBaseStage(dockerfile *strings.Builder, pri
 				dockerfile.WriteString(fmt.Sprintf("    %s \\\n", pkg))
 			}
 		}
+		dockerfile.WriteString("    && apt-get clean \\\n")
 		dockerfile.WriteString("    && rm -rf /var/lib/apt/lists/*\n\n")
 	}
 }
@@ -251,7 +254,7 @@ func (g *DockerfileGenerator) generateDevStage(dockerfile *strings.Builder) {
 	} else {
 		pkgManager = "apt"
 		updateCmd = "apt-get update"
-		installCmd = "apt-get install -y --no-install-recommends"
+		installCmd = "apt-get install -y --no-install-recommends --fix-broken"
 	}
 
 	// Install dev packages
@@ -267,7 +270,7 @@ func (g *DockerfileGenerator) generateDevStage(dockerfile *strings.Builder) {
 	}
 
 	if pkgManager == "apt" {
-		dockerfile.WriteString(" \\\n    && rm -rf /var/lib/apt/lists/*\n\n")
+		dockerfile.WriteString(" \\\n    && apt-get clean \\\n    && rm -rf /var/lib/apt/lists/*\n\n")
 	} else {
 		dockerfile.WriteString("\n\n")
 	}
@@ -457,11 +460,12 @@ func (g *DockerfileGenerator) installNvimDependencies(dockerfile *strings.Builde
 		dockerfile.WriteString("    ripgrep \\\n")
 		dockerfile.WriteString("    fd\n\n")
 	} else {
-		dockerfile.WriteString("RUN apt-get update && apt-get install -y --no-install-recommends \\\n")
+		dockerfile.WriteString("RUN apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
 		dockerfile.WriteString("    unzip \\\n")
 		dockerfile.WriteString("    build-essential \\\n")
 		dockerfile.WriteString("    ripgrep \\\n")
 		dockerfile.WriteString("    fd-find \\\n")
+		dockerfile.WriteString("    && apt-get clean \\\n")
 		dockerfile.WriteString("    && rm -rf /var/lib/apt/lists/*\n\n")
 	}
 }
@@ -513,11 +517,12 @@ func (g *DockerfileGenerator) installNvimConfig(dockerfile *strings.Builder) {
 	}
 
 	dockerfile.WriteString("# Install Neovim dependencies\n")
-	dockerfile.WriteString("RUN apt-get update && apt-get install -y --no-install-recommends \\\n")
+	dockerfile.WriteString("RUN apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
 	dockerfile.WriteString("    unzip \\\n")
 	dockerfile.WriteString("    build-essential \\\n")
 	dockerfile.WriteString("    ripgrep \\\n")
 	dockerfile.WriteString("    fd-find \\\n")
+	dockerfile.WriteString("    && apt-get clean \\\n")
 	dockerfile.WriteString("    && rm -rf /var/lib/apt/lists/*\n\n")
 
 	// Copy nvim configuration
