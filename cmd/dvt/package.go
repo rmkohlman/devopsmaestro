@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"text/tabwriter"
 
 	"devopsmaestro/db"
+	"devopsmaestro/models"
 	terminalpackage "devopsmaestro/pkg/terminalops/package"
 	packagelibrary "devopsmaestro/pkg/terminalops/package/library"
 	pluginlibrary "devopsmaestro/pkg/terminalops/plugin/library"
@@ -303,7 +305,31 @@ Examples:
 			}
 		}
 
-		// TODO: Store package in terminal_packages table when that's implemented
+		// Store the package itself in terminal_packages table
+		pkgDB := &models.TerminalPackageDB{
+			Name: pkg.Name,
+			Description: sql.NullString{
+				String: pkg.Description,
+				Valid:  pkg.Description != "",
+			},
+			Category: sql.NullString{
+				String: pkg.Category,
+				Valid:  pkg.Category != "",
+			},
+			Extends: sql.NullString{
+				String: pkg.Extends,
+				Valid:  pkg.Extends != "",
+			},
+		}
+		// Set the resolved components (what was actually installed)
+		pkgDB.SetPlugins(components.Plugins)
+		pkgDB.SetPrompts(components.Prompts)
+		pkgDB.SetProfiles(components.Profiles)
+
+		if err := (*dataStore).UpsertTerminalPackage(pkgDB); err != nil {
+			// Log warning but don't fail - components were installed
+			fmt.Printf("⚠ Warning: Failed to save package record: %v\n", err)
+		}
 
 		// Print summary
 		fmt.Printf("\nPackage '%s' installation complete:\n", name)
