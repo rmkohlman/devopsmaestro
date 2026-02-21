@@ -1,0 +1,23 @@
+apiVersion: devopsmaestro.io/v1
+kind: TerminalEmulator
+metadata:
+  name: minimal
+  description: Minimal WezTerm starter configuration
+  category: starter
+  labels:
+    style: minimal
+    complexity: low
+spec:
+  type: wezterm
+  config:
+    font:
+      family: "JetBrains Mono"
+      size: 12
+    window:
+      opacity: 1.0
+      decorations: "RESIZE"
+      initialRows: 24
+      initialCols: 80
+    tabBar:
+      enabled: false
+    scrollback: 1000

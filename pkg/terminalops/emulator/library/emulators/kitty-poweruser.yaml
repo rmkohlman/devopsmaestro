@@ -1,0 +1,30 @@
+apiVersion: devopsmaestro.io/v1
+kind: TerminalEmulator
+metadata:
+  name: kitty-poweruser
+  description: Kitty configuration for power users
+  category: developer
+  labels:
+    style: poweruser
+    emulator: kitty
+    productivity: high
+spec:
+  type: kitty
+  config:
+    font_family: "Fira Code"
+    font_size: 13
+    window_padding_width: 10
+    background_opacity: 0.95
+    tab_bar_style: "powerline"
+    tab_powerline_style: "slanted"
+    scrollback_lines: 50000
+    enable_audio_bell: false
+    visual_bell_duration: 0.0
+    url_style: "curly"
+    open_url_with: "default"
+    copy_on_select: true
+    strip_trailing_spaces: "smart"
+    map:
+      - "ctrl+shift+t new_tab"
+      - "ctrl+shift+w close_tab"
+      - "ctrl+shift+n new_window"

@@ -3,12 +3,14 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"sort"
 	"text/tabwriter"
 
 	"devopsmaestro/db"
 	"devopsmaestro/pkg/terminalops/emulator"
+	"devopsmaestro/pkg/terminalops/emulator/library"
 	"devopsmaestro/pkg/terminalops/store"
 
 	"github.com/spf13/cobra"
@@ -199,6 +201,191 @@ Examples:
 	},
 }
 
+// emulatorInstallCmd installs an emulator from the library
+var emulatorInstallCmd = &cobra.Command{
+	Use:   "install <name>",
+	Short: "Install a terminal emulator from the library",
+	Long: `Install a terminal emulator configuration from the built-in library.
+
+Examples:
+  dvt emulator install rmkohlman          # Install rmkohlman emulator
+  dvt emulator install minimal --force    # Overwrite if exists
+  dvt emulator install developer --dry-run # Preview installation`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		name := args[0]
+
+		force, _ := cmd.Flags().GetBool("force")
+		dryRun, _ := cmd.Flags().GetBool("dry-run")
+
+		// Get emulator from library
+		lib := library.Default()
+		libEmulator, err := lib.Get(name)
+		if err != nil {
+			return fmt.Errorf("emulator not found in library: %s", name)
+		}
+
+		if dryRun {
+			fmt.Printf("Would install emulator: %s\n", name)
+			fmt.Printf("Type: %s\n", libEmulator.Type)
+			fmt.Printf("Description: %s\n", libEmulator.Description)
+			fmt.Printf("Category: %s\n", libEmulator.Category)
+			return nil
+		}
+
+		store, err := getEmulatorStore(cmd)
+		if err != nil {
+			return err
+		}
+		defer store.Close()
+
+		// Check if emulator already exists
+		_, err = store.Get(name)
+		if err == nil && !force {
+			return fmt.Errorf("emulator '%s' already exists (use --force to overwrite)", name)
+		}
+
+		// Install emulator
+		if err := store.Upsert(libEmulator); err != nil {
+			return fmt.Errorf("failed to install emulator: %w", err)
+		}
+
+		fmt.Printf("Emulator '%s' installed successfully\n", name)
+		return nil
+	},
+}
+
+// emulatorApplyCmd applies an emulator configuration from a YAML file
+var emulatorApplyCmd = &cobra.Command{
+	Use:   "apply -f <file>",
+	Short: "Apply an emulator configuration from a YAML file",
+	Long: `Apply a terminal emulator configuration from a YAML file.
+
+Examples:
+  dvt emulator apply -f my-emulator.yaml  # Apply from file
+  dvt emulator apply -f -                 # Apply from stdin
+  dvt emulator apply -f config.yaml --dry-run # Preview changes`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		filename, _ := cmd.Flags().GetString("filename")
+		if filename == "" {
+			return fmt.Errorf("filename is required (use -f)")
+		}
+
+		dryRun, _ := cmd.Flags().GetBool("dry-run")
+
+		// Read YAML content
+		var data []byte
+		var err error
+
+		if filename == "-" {
+			data, err = io.ReadAll(os.Stdin)
+		} else {
+			data, err = os.ReadFile(filename)
+		}
+		if err != nil {
+			return fmt.Errorf("failed to read file: %w", err)
+		}
+
+		// Parse emulator YAML
+		emu, err := emulator.Parse(data)
+		if err != nil {
+			return fmt.Errorf("failed to parse emulator YAML: %w", err)
+		}
+
+		if dryRun {
+			fmt.Printf("Would apply emulator: %s\n", emu.Name)
+			fmt.Printf("Type: %s\n", emu.Type)
+			fmt.Printf("Description: %s\n", emu.Description)
+			fmt.Printf("Category: %s\n", emu.Category)
+			return nil
+		}
+
+		store, err := getEmulatorStore(cmd)
+		if err != nil {
+			return err
+		}
+		defer store.Close()
+
+		// Apply emulator (upsert)
+		if err := store.Upsert(emu); err != nil {
+			return fmt.Errorf("failed to apply emulator: %w", err)
+		}
+
+		fmt.Printf("Emulator '%s' applied successfully\n", emu.Name)
+		return nil
+	},
+}
+
+// emulatorLibraryCmd manages library operations
+var emulatorLibraryCmd = &cobra.Command{
+	Use:     "library",
+	Aliases: []string{"lib"},
+	Short:   "Manage emulator library",
+	Long: `Access the built-in library of curated terminal emulator configurations.
+
+Examples:
+  dvt emulator library list                  # List all library emulators
+  dvt emulator library list --type wezterm   # Filter by emulator type
+  dvt emulator library show rmkohlman        # Show library emulator details`,
+}
+
+// emulatorLibraryListCmd lists library emulators
+var emulatorLibraryListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List available library emulators",
+	Long: `List terminal emulator configurations from the built-in library.
+
+Examples:
+  dvt emulator library list                  # List all library emulators
+  dvt emulator library list --type wezterm   # Filter by emulator type
+  dvt emulator library list -o yaml          # YAML output`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		lib := library.Default()
+
+		// Filter by type if specified
+		emulatorType, _ := cmd.Flags().GetString("type")
+		var emulators []*emulator.Emulator
+
+		if emulatorType != "" {
+			emulators = lib.ListByType(emulatorType)
+		} else {
+			emulators = lib.All()
+		}
+
+		if len(emulators) == 0 {
+			fmt.Println("No library emulators found")
+			return nil
+		}
+
+		format, _ := cmd.Flags().GetString("output")
+		return outputEmulators(emulators, format)
+	},
+}
+
+// emulatorLibraryShowCmd shows library emulator details
+var emulatorLibraryShowCmd = &cobra.Command{
+	Use:   "show <name>",
+	Short: "Show library emulator details",
+	Long: `Show details of a specific emulator from the built-in library.
+
+Examples:
+  dvt emulator library show rmkohlman
+  dvt emulator library show minimal -o yaml`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		name := args[0]
+
+		lib := library.Default()
+		emu, err := lib.Get(name)
+		if err != nil {
+			return fmt.Errorf("library emulator not found: %s", name)
+		}
+
+		format, _ := cmd.Flags().GetString("output")
+		return outputEmulator(emu, format)
+	},
+}
+
 // getEmulatorStore extracts DataStore from command context and returns database-backed emulator store
 func getEmulatorStore(cmd *cobra.Command) (emulator.EmulatorStore, error) {
 	// Extract DataStore from context (following established dvt pattern)
@@ -295,6 +482,13 @@ func init() {
 	emulatorCmd.AddCommand(emulatorGetCmd)
 	emulatorCmd.AddCommand(emulatorEnableCmd)
 	emulatorCmd.AddCommand(emulatorDisableCmd)
+	emulatorCmd.AddCommand(emulatorInstallCmd)
+	emulatorCmd.AddCommand(emulatorApplyCmd)
+	emulatorCmd.AddCommand(emulatorLibraryCmd)
+
+	// Library subcommands
+	emulatorLibraryCmd.AddCommand(emulatorLibraryListCmd)
+	emulatorLibraryCmd.AddCommand(emulatorLibraryShowCmd)
 
 	// Emulator list flags
 	emulatorListCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")
@@ -303,4 +497,20 @@ func init() {
 
 	// Emulator get flags
 	emulatorGetCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json")
+
+	// Emulator install flags
+	emulatorInstallCmd.Flags().Bool("force", false, "Overwrite if emulator already exists")
+	emulatorInstallCmd.Flags().Bool("dry-run", false, "Show what would be installed without installing")
+
+	// Emulator apply flags
+	emulatorApplyCmd.Flags().StringP("filename", "f", "", "YAML file to apply (required)")
+	emulatorApplyCmd.Flags().Bool("dry-run", false, "Show what would be applied without applying")
+	emulatorApplyCmd.MarkFlagRequired("filename")
+
+	// Library list flags
+	emulatorLibraryListCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")
+	emulatorLibraryListCmd.Flags().String("type", "", "Filter by emulator type (wezterm, alacritty, kitty, iterm2)")
+
+	// Library show flags
+	emulatorLibraryShowCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json")
 }

@@ -1,0 +1,40 @@
+apiVersion: devopsmaestro.io/v1
+kind: TerminalEmulator
+metadata:
+  name: rmkohlman
+  description: Robert's personal WezTerm configuration
+  category: personal
+  labels:
+    author: rmkohlman
+    style: developer
+spec:
+  type: wezterm
+  config:
+    font:
+      family: "MesloLGS Nerd Font Mono"
+      size: 14
+    window:
+      opacity: 0.95
+      blur: 10
+      decorations: "RESIZE"
+      initialRows: 40
+      initialCols: 120
+    colors:
+      foreground: "#c0caf5"
+      background: "#1a1b26"
+      cursorBg: "#c0caf5"
+      cursorFg: "#1a1b26"
+      selectionBg: "#283457"
+      selectionFg: "#c0caf5"
+    tabBar:
+      enabled: true
+      position: "Top"
+      hideTabBarIfOnly: true
+    scrollback: 10000
+    keys:
+      - key: "c"
+        mods: "CTRL"
+        action: "Copy"
+      - key: "v"
+        mods: "CTRL"
+        action: "Paste"

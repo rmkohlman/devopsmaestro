@@ -8,6 +8,16 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.18.6 (2026-02-20)
+
+**Terminal Emulator Management (Phase 3 - Build Integration)**
+
+- Added embedded emulator library with 6 curated configurations (rmkohlman, minimal, developer, alacritty-minimal, kitty-poweruser, iterm2-macos)
+- New CLI commands: `dvt emulator install <name>`, `dvt emulator apply -f <file>`, `dvt emulator library list/show`
+- Build integration: `dvm build` now generates WezTerm config and loads terminal plugins automatically
+- Complete WezTerm configuration mapping from database (fonts, colors, keybindings, etc.)
+- Terminal plugin loading in `.zshrc` with support for manual, oh-my-zsh, and zinit managers
+
 ### v0.18.5 (2026-02-20)
 
 **Terminal Emulator Management (Phase 2)**

@@ -1,0 +1,29 @@
+apiVersion: devopsmaestro.io/v1
+kind: TerminalEmulator
+metadata:
+  name: alacritty-minimal
+  description: Minimal Alacritty configuration
+  category: starter
+  labels:
+    style: minimal
+    emulator: alacritty
+spec:
+  type: alacritty
+  config:
+    font:
+      normal:
+        family: "Source Code Pro"
+        style: "Regular"
+      size: 12
+    window:
+      opacity: 1.0
+      startup_mode: "Windowed"
+      dimensions:
+        columns: 80
+        lines: 24
+    colors:
+      primary:
+        background: "#1e1e1e"
+        foreground: "#d4d4d4"
+    scrolling:
+      history: 1000

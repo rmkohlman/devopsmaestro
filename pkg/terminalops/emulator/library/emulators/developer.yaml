@@ -1,0 +1,43 @@
+apiVersion: devopsmaestro.io/v1
+kind: TerminalEmulator
+metadata:
+  name: developer
+  description: Developer-focused WezTerm with productivity features
+  category: developer
+  labels:
+    style: developer
+    complexity: medium
+    productivity: high
+spec:
+  type: wezterm
+  themeRef: tokyonight
+  config:
+    font:
+      family: "MesloLGS Nerd Font Mono"
+      size: 13
+    window:
+      opacity: 0.98
+      blur: 5
+      decorations: "RESIZE"
+      initialRows: 50
+      initialCols: 150
+    tabBar:
+      enabled: true
+      position: "Top"
+      fancyTabBar: true
+      hideTabBarIfOnly: false
+    scrollback: 50000
+    keys:
+      - key: "t"
+        mods: "CTRL|SHIFT"
+        action: "SpawnTab"
+      - key: "w"
+        mods: "CTRL|SHIFT"
+        action: "CloseCurrentTab"
+      - key: "n"
+        mods: "CTRL|SHIFT"
+        action: "SpawnWindow"
+    hyperlinks:
+      rules:
+        - regex: "\\b\\w+://[\\w.-]+\\S*\\b"
+          format: "$0"

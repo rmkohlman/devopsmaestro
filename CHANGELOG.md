@@ -11,6 +11,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.18.6] - 2026-02-20
+
+### ➕ Added
+
+#### Terminal Emulator Management (Phase 3 - Build Integration)
+
+##### Emulator Library System
+- **Embedded emulator library** - Created library with 6 curated emulator configurations (wezterm, alacritty, kitty, iterm2)
+- **Emulator library types** - Includes rmkohlman, minimal, developer, alacritty-minimal, kitty-poweruser, and iterm2-macos configurations
+- **Library interface** - Added List, Get, ListByType, and Categories methods for library access
+- **Library CLI commands** - Added `dvt emulator library list` and `dvt emulator library show <name>` commands
+
+##### Emulator Management CLI
+- **Emulator installation** - `dvt emulator install <name>` command to install emulators from library with `--force` and `--dry-run` flags
+- **YAML configuration support** - `dvt emulator apply -f <file>` command to apply emulator from YAML file (supports stdin with `-f -`)
+- **Library filtering** - `dvt emulator library list --type <type>` to filter library emulators by type
+
+##### Build Integration
+- **WezTerm config generation** - Added WezTerm configuration generation to `dvm build` command
+  - Generates `.wezterm.lua` from database emulator configurations
+  - Supports workspace-specific and default emulator configurations
+  - Complete config mapping (font, window, colors, keybindings, tabs, etc.)
+- **Terminal plugin loading** - Added terminal plugin loading to `.zshrc` generation
+  - Automatically loads enabled terminal plugins during build
+  - Supports manual, oh-my-zsh, and zinit plugin managers
+  - Includes install scripts and source commands for plugin setup
+
+### 🔧 Technical Improvements
+
+#### Emulator Library Infrastructure
+- **Embedded library files** - Created `pkg/terminalops/emulator/library/emulators/` with 6 YAML configurations
+- **Library package** - Added `pkg/terminalops/emulator/library/` package with comprehensive library interface
+- **Config parser** - Added `pkg/terminalops/emulator/parser.go` for emulator configuration parsing
+- **Library tests** - Comprehensive test coverage for library functionality and config parsing
+
+#### Build System Enhancements
+- **WezTerm config mapping** - Added complete config transformation from database models to WezTerm Lua syntax
+- **Plugin manager detection** - Smart detection and integration of terminal plugin managers
+- **Error handling** - Robust error handling for missing configurations and invalid states
+
+#### Testing
+- **Library unit tests** - Full test coverage for emulator library operations
+- **Parser tests** - Validation tests for configuration parsing and transformation
+- **Build integration tests** - Tests for WezTerm generation and plugin loading functionality
+
+---
+
 ## [0.18.5] - 2026-02-20
 
 ### ➕ Added

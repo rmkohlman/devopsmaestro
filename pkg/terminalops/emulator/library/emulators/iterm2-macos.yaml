@@ -1,0 +1,33 @@
+apiVersion: devopsmaestro.io/v1
+kind: TerminalEmulator
+metadata:
+  name: iterm2-macos
+  description: iTerm2 configuration optimized for macOS
+  category: platform
+  labels:
+    platform: macos
+    emulator: iterm2
+    style: native
+spec:
+  type: iterm2
+  config:
+    profiles:
+      default:
+        name: "Default"
+        font:
+          family: "SF Mono"
+          size: 13
+        colors:
+          background: "#1E1E1E"
+          foreground: "#D4D4D4"
+          cursor: "#AEAFAD"
+          selection: "#264F78"
+        window:
+          transparency: 0.05
+          blur: true
+        scrollback:
+          lines: 10000
+        shortcuts:
+          newTab: "cmd+t"
+          newWindow: "cmd+n"
+          closeTab: "cmd+w"
