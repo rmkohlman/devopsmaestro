@@ -117,7 +117,7 @@ func main() {
 	}
 
 	// Get migrations subdirectory from embedded filesystem
-	migrationsSubFS, err := fs.Sub(MigrationsFS, "migrations")
+	migrationsSubFS, err := fs.Sub(MigrationsFS, "db/migrations")
 	if err != nil {
 		fmt.Printf("Failed to access embedded migrations: %v\n", err)
 		os.Exit(1)

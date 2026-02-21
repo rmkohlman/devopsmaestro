@@ -4,5 +4,5 @@ import (
 	"embed"
 )
 
-//go:embed migrations/*
+//go:embed db/migrations/*
 var MigrationsFS embed.FS

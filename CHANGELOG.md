@@ -11,6 +11,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.18.7] - 2026-02-20
+
+### 🐛 Fixed
+
+#### Critical Auto-Migration Bug
+- **Auto-migration for dvt and nvp** - Fixed critical bug where users upgrading via Homebrew and running `dvt` or `nvp` first (before `dvm`) would encounter database errors
+  - Error: `failed to create terminal plugin: no such table: terminal_plugins`
+  - **Root cause**: dvm had auto-migration logic but dvt and nvp did not
+  - **Solution**: All three binaries (dvm, dvt, nvp) now auto-migrate the database on startup
+
+### 🔧 Technical Improvements
+
+#### Database Integration
+- **dvt auto-migration** - Added comprehensive auto-migration logic to `cmd/dvt/root.go`
+  - Searches for migrations in multiple possible locations (development and installation)
+  - Uses version-based auto-migration with proper error handling
+  - Skips migration for commands that don't need database (completion, version, help)
+- **nvp auto-migration** - Added complete database setup and auto-migration to `cmd/nvp/root.go`
+  - Configures shared database settings with dvm (~/.devopsmaestro/devopsmaestro.db)
+  - Implements graceful fallback to file-based storage if database unavailable
+  - Uses version-based auto-migration with migration discovery
+
+#### Migration System Fixes
+- **Embed path correction** - Fixed embed.go to correctly reference `db/migrations/*` instead of `migrations/*`
+- **Filesystem path fix** - Fixed fs.Sub() path in main.go to use correct "db/migrations" path
+- **Migration discovery** - Enhanced migration filesystem detection for all three binaries
+
+---
+
 ## [0.18.6] - 2026-02-20
 
 ### ➕ Added

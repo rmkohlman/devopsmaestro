@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -12,6 +14,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"devopsmaestro/db"
 	"devopsmaestro/pkg/colors"
 	"devopsmaestro/pkg/nvimops"
 	nvimconfig "devopsmaestro/pkg/nvimops/config"
@@ -28,6 +31,7 @@ import (
 	"devopsmaestro/pkg/source"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 )
 
@@ -39,6 +43,77 @@ var (
 	logFile   string
 	noColor   bool
 )
+
+// getMigrationsFS creates a filesystem for migrations.
+// Since nvp can't easily access the main package's embedded FS,
+// we'll look for migrations in the filesystem relative to the executable.
+func getMigrationsFS() fs.FS {
+	// Find the migrations directory relative to where the executable is located
+	// This handles both development and installation scenarios
+
+	// Try several possible locations for migrations
+	possiblePaths := []string{
+		"db/migrations",       // Development: from repo root
+		"./db/migrations",     // Current directory
+		"../db/migrations",    // One level up
+		"../../db/migrations", // Two levels up (from cmd/nvp)
+	}
+
+	for _, path := range possiblePaths {
+		if info, err := os.Stat(path); err == nil && info.IsDir() {
+			// Check if it has sqlite subdirectory (validating it's the right path)
+			sqlitePath := filepath.Join(path, "sqlite")
+			if sqliteInfo, err := os.Stat(sqlitePath); err == nil && sqliteInfo.IsDir() {
+				return os.DirFS(path)
+			}
+		}
+	}
+
+	return nil
+}
+
+// shouldSkipAutoMigration determines if auto-migration should be skipped for this command.
+func shouldSkipAutoMigration(cmd *cobra.Command) bool {
+	commandName := cmd.Name()
+	switch commandName {
+	case "completion", "version", "help":
+		return true
+	}
+	return false
+}
+
+// setupDatabaseConfig configures database settings for nvp
+func setupDatabaseConfig() {
+	// Get home directory
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		slog.Error("Failed to get home directory", "error", err)
+		os.Exit(1)
+	}
+
+	// Set config path to ~/.devopsmaestro (same as dvm for shared database)
+	configPath := filepath.Join(homeDir, ".devopsmaestro")
+	viper.SetConfigName("config")
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath(configPath)
+	viper.AutomaticEnv()
+
+	// Try to read config, but don't fail if it doesn't exist
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			slog.Error("Failed to read config", "error", err)
+			os.Exit(1)
+		}
+		// Config not found is OK - use defaults
+	}
+
+	// Set default values if config is not found (use same database as dvm)
+	if viper.GetString("database.type") == "" {
+		viper.Set("database.type", "sqlite")
+		viper.Set("database.path", "~/.devopsmaestro/devopsmaestro.db")
+		viper.Set("store", "sql")
+	}
+}
 
 // rootCmd is the base command
 var rootCmd = &cobra.Command{
@@ -88,6 +163,72 @@ func init() {
 			slog.Warn("using default colors", "error", err)
 		}
 		cmd.SetContext(ctx)
+
+		// Check if this is a command that doesn't need database
+		skipDB := false
+		commandName := cmd.Name()
+		switch commandName {
+		case "completion", "version", "help":
+			skipDB = true
+		}
+
+		// Initialize database connection for commands that need it
+		// (nvp uses file-based storage by default, but some features like packages use the database)
+		if !skipDB {
+			// Setup database configuration
+			setupDatabaseConfig()
+
+			// Initialize database connection
+			dbInstance, err := db.InitializeDBConnection()
+			if err != nil {
+				slog.Warn("Failed to initialize database (using file-based storage)", "error", err)
+				return // Continue without database - nvp can work with file-based storage
+			}
+
+			// Create DataStore instance
+			dataStore, err := db.StoreFactory(dbInstance)
+			if err != nil {
+				slog.Warn("Failed to create DataStore (using file-based storage)", "error", err)
+				return // Continue without database
+			}
+
+			// Set the dataStore in context for resource operations
+			ctx := context.WithValue(cmd.Context(), "dataStore", &dataStore)
+			cmd.SetContext(ctx)
+
+			// Auto-migrate database if needed (skip for commands that don't need DB)
+			if shouldSkipAutoMigration(cmd) {
+				return
+			}
+
+			// Auto-migrate database if needed
+			driver := dataStore.Driver()
+			if driver != nil {
+				// Get migrations FS - for nvp we try to find migrations on disk
+				migrationsFS := getMigrationsFS()
+				if migrationsFS == nil {
+					// If migrations not found, warn but continue
+					// This allows nvp to work even when migrations are not available
+					if verbose {
+						slog.Warn("migrations not available for auto-migration in nvp")
+						fmt.Printf("Warning: Migrations not found, skipping auto-migration\n")
+					}
+					return
+				}
+
+				// Use version-based auto-migration
+				migrationsApplied, err := db.CheckVersionBasedAutoMigration(driver, migrationsFS, Version, verbose)
+				if err != nil {
+					slog.Error("auto-migration failed", "error", err)
+					fmt.Printf("Error: Failed to apply database migrations: %v\n", err)
+					fmt.Println("Please run 'dvm admin migrate' to fix migration issues.")
+					os.Exit(1)
+				}
+				if migrationsApplied && verbose {
+					slog.Info("database migrations applied successfully")
+				}
+			}
+		}
 	}
 
 	// Register resource handlers for unified pipeline

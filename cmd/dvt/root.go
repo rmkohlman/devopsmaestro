@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -34,6 +35,44 @@ var (
 	verbose   bool
 	logFile   string
 )
+
+// getMigrationsFS creates a filesystem for migrations.
+// Since dvt can't easily access the main package's embedded FS,
+// we'll look for migrations in the filesystem relative to the executable.
+func getMigrationsFS() (fs.FS, error) {
+	// Find the migrations directory relative to where the executable is located
+	// This handles both development and installation scenarios
+
+	// Try several possible locations for migrations
+	possiblePaths := []string{
+		"db/migrations",       // Development: from repo root
+		"./db/migrations",     // Current directory
+		"../db/migrations",    // One level up
+		"../../db/migrations", // Two levels up (from cmd/dvt)
+	}
+
+	for _, path := range possiblePaths {
+		if info, err := os.Stat(path); err == nil && info.IsDir() {
+			// Check if it has sqlite subdirectory (validating it's the right path)
+			sqlitePath := filepath.Join(path, "sqlite")
+			if sqliteInfo, err := os.Stat(sqlitePath); err == nil && sqliteInfo.IsDir() {
+				return os.DirFS(path), nil
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("migrations directory not found in any of the expected locations")
+}
+
+// shouldSkipAutoMigration determines if auto-migration should be skipped for this command.
+func shouldSkipAutoMigration(cmd *cobra.Command) bool {
+	commandName := cmd.Name()
+	switch commandName {
+	case "completion", "version", "help":
+		return true
+	}
+	return false
+}
 
 // rootCmd is the base command
 var rootCmd = &cobra.Command{
@@ -133,6 +172,39 @@ func init() {
 			// Set the dataStore in context for resource operations
 			ctx := context.WithValue(cmd.Context(), "dataStore", &dataStore)
 			cmd.SetContext(ctx)
+
+			// Auto-migrate database if needed (skip for commands that don't need DB)
+			if shouldSkipAutoMigration(cmd) {
+				return
+			}
+
+			// Auto-migrate database if needed
+			driver := dataStore.Driver()
+			if driver != nil {
+				// Get migrations FS - for dvt we try to find migrations on disk
+				migrationsFS, err := getMigrationsFS()
+				if err != nil {
+					// If migrations not found, warn but continue
+					// This allows dvt to work even when migrations are not available
+					if verbose {
+						slog.Warn("migrations not available for auto-migration in dvt", "error", err)
+						fmt.Printf("Warning: Migrations not found, skipping auto-migration: %v\n", err)
+					}
+					return
+				}
+
+				// Use version-based auto-migration
+				migrationsApplied, err := db.CheckVersionBasedAutoMigration(driver, migrationsFS, Version, verbose)
+				if err != nil {
+					slog.Error("auto-migration failed", "error", err)
+					fmt.Printf("Error: Failed to apply database migrations: %v\n", err)
+					fmt.Println("Please run 'dvm admin migrate' to fix migration issues.")
+					os.Exit(1)
+				}
+				if migrationsApplied && verbose {
+					slog.Info("database migrations applied successfully")
+				}
+			}
 		}
 	}
 
