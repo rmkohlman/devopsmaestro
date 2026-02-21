@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.18.13] - 2026-02-20
+
+### 🐛 Fixed
+
+#### TOML Generation for Starship Prompts
+- **dvt starship TOML escaping** - Fixed bug where commands with special characters caused malformed TOML output
+  - **Root cause**: Commands containing brackets, quotes, or backslashes weren't being properly escaped for TOML format
+  - **Example failure**: `echo '[runbook-api]'` would generate invalid TOML and cause parse errors
+  - **Solution**: Added `escapeTOMLString()` function to properly escape backslashes and double quotes
+  - **pkg/terminalops/prompt/renderer.go**: Added TOML string escaping for all string values and arrays
+  - **pkg/terminalops/prompt/renderer_test.go**: Added comprehensive unit tests for TOML escaping edge cases
+
+---
+
 ## [0.18.8] - 2026-02-20
 
 ### 🐛 Fixed
