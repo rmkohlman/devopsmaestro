@@ -927,15 +927,25 @@ compinit
 			}
 		}
 	} else {
-		// Prompt exists in database, use it
-		promptRes, ok := res.(*handlers.TerminalPromptResource)
-		if !ok {
-			slog.Warn("unexpected resource type from database, using direct creation")
-			promptYAML = createDefaultTerminalPrompt(appName, workspaceName)
+		// Always regenerate default prompt to ensure latest template changes
+		// This fixes issue with stale prompts that have old double-quote format
+		slog.Debug("regenerating default prompt to ensure latest template", "name", defaultPromptName)
+		promptYAML = createDefaultTerminalPrompt(appName, workspaceName)
+
+		// Update the database with the fresh prompt
+		yamlData, err := yaml.Marshal(promptYAML)
+		if err != nil {
+			slog.Warn("failed to marshal updated prompt", "error", err)
+			// Continue with the fresh prompt anyway
 		} else {
-			actualPrompt := promptRes.Prompt()
-			promptYAML = actualPrompt.ToYAML()
-			slog.Debug("using existing prompt from database", "name", defaultPromptName)
+			// Apply updated prompt to database
+			_, err = resource.Apply(ctx, yamlData, "build-refresh")
+			if err != nil {
+				slog.Warn("failed to update prompt in database", "error", err)
+				// Continue anyway - we have the fresh prompt to use
+			} else {
+				slog.Debug("updated prompt in database with latest template", "name", defaultPromptName)
+			}
 		}
 	}
 
