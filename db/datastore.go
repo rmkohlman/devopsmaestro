@@ -327,6 +327,35 @@ type DataStore interface {
 	// ListTerminalPackagesByLabel retrieves terminal packages that have a specific label key-value pair.
 	ListTerminalPackagesByLabel(key, value string) ([]*models.TerminalPackageDB, error)
 
+	// Terminal Plugin Operations
+
+	// CreateTerminalPlugin inserts a new terminal plugin.
+	CreateTerminalPlugin(plugin *models.TerminalPluginDB) error
+
+	// UpdateTerminalPlugin updates an existing terminal plugin.
+	UpdateTerminalPlugin(plugin *models.TerminalPluginDB) error
+
+	// UpsertTerminalPlugin creates or updates a terminal plugin (by name).
+	UpsertTerminalPlugin(plugin *models.TerminalPluginDB) error
+
+	// DeleteTerminalPlugin removes a terminal plugin by name.
+	DeleteTerminalPlugin(name string) error
+
+	// GetTerminalPlugin retrieves a terminal plugin by its name.
+	GetTerminalPlugin(name string) (*models.TerminalPluginDB, error)
+
+	// ListTerminalPlugins retrieves all terminal plugins.
+	ListTerminalPlugins() ([]*models.TerminalPluginDB, error)
+
+	// ListTerminalPluginsByCategory retrieves terminal plugins filtered by category.
+	ListTerminalPluginsByCategory(category string) ([]*models.TerminalPluginDB, error)
+
+	// ListTerminalPluginsByShell retrieves terminal plugins filtered by shell.
+	ListTerminalPluginsByShell(shell string) ([]*models.TerminalPluginDB, error)
+
+	// ListTerminalPluginsByManager retrieves terminal plugins filtered by manager.
+	ListTerminalPluginsByManager(manager string) ([]*models.TerminalPluginDB, error)
+
 	// Driver Access
 
 	// Driver returns the underlying database driver.

@@ -296,6 +296,25 @@ func (m *MockDataStore) ListTerminalPackagesByLabel(key, value string) ([]*model
 	return nil, nil
 }
 
+// Terminal Plugin methods
+func (m *MockDataStore) CreateTerminalPlugin(plugin *models.TerminalPluginDB) error { return nil }
+func (m *MockDataStore) GetTerminalPlugin(name string) (*models.TerminalPluginDB, error) {
+	return nil, nil
+}
+func (m *MockDataStore) UpdateTerminalPlugin(plugin *models.TerminalPluginDB) error { return nil }
+func (m *MockDataStore) UpsertTerminalPlugin(plugin *models.TerminalPluginDB) error { return nil }
+func (m *MockDataStore) DeleteTerminalPlugin(name string) error                     { return nil }
+func (m *MockDataStore) ListTerminalPlugins() ([]*models.TerminalPluginDB, error)   { return nil, nil }
+func (m *MockDataStore) ListTerminalPluginsByCategory(category string) ([]*models.TerminalPluginDB, error) {
+	return nil, nil
+}
+func (m *MockDataStore) ListTerminalPluginsByShell(shell string) ([]*models.TerminalPluginDB, error) {
+	return nil, nil
+}
+func (m *MockDataStore) ListTerminalPluginsByManager(manager string) ([]*models.TerminalPluginDB, error) {
+	return nil, nil
+}
+
 // MockThemeStore implements theme.Store for testing
 type MockThemeStore struct {
 	themes   map[string]*theme.Theme

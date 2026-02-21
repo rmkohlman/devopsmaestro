@@ -160,6 +160,23 @@ func createTestSchema(driver Driver) error {
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
+		`CREATE TABLE IF NOT EXISTS terminal_plugins (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL UNIQUE,
+			description TEXT,
+			repo TEXT NOT NULL,
+			category TEXT,
+			shell TEXT NOT NULL DEFAULT 'zsh',
+			manager TEXT NOT NULL DEFAULT 'manual',
+			load_command TEXT,
+			source_file TEXT,
+			dependencies TEXT NOT NULL DEFAULT '[]',  -- Always valid JSON
+			env_vars TEXT NOT NULL DEFAULT '{}',      -- Always valid JSON
+			labels TEXT NOT NULL DEFAULT '{}',        -- Always valid JSON
+			enabled BOOLEAN NOT NULL DEFAULT 1,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
 		// Initialize context with a single row
 		`INSERT OR IGNORE INTO context (id) VALUES (1)`,
 	}

@@ -1,6 +1,7 @@
 package db
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync"
 
@@ -21,6 +22,7 @@ type MockDataStore struct {
 	Plugins          map[string]*models.NvimPluginDB
 	Packages         map[string]*models.NvimPackageDB     // keyed by name
 	TerminalPackages map[string]*models.TerminalPackageDB // keyed by name
+	TerminalPlugins  map[string]*models.TerminalPluginDB  // keyed by name
 	Themes           map[string]*models.NvimThemeDB
 	TerminalPrompts  map[string]*models.TerminalPromptDB
 	Credentials      map[string]*models.CredentialDB // keyed by "scopeType:scopeID:name"
@@ -37,6 +39,7 @@ type MockDataStore struct {
 	NextPluginID          int
 	NextPackageID         int
 	NextTerminalPackageID int
+	NextTerminalPluginID  int
 	NextThemeID           int
 	NextTerminalPromptID  int
 	NextCredentialID      int64
@@ -135,6 +138,15 @@ type MockDataStore struct {
 	GetTerminalPackageErr            error
 	ListTerminalPackagesErr          error
 	ListTerminalPackagesByLabelErr   error
+	CreateTerminalPluginErr          error
+	UpdateTerminalPluginErr          error
+	UpsertTerminalPluginErr          error
+	DeleteTerminalPluginErr          error
+	GetTerminalPluginErr             error
+	ListTerminalPluginsErr           error
+	ListTerminalPluginsByCategoryErr error
+	ListTerminalPluginsByShellErr    error
+	ListTerminalPluginsByManagerErr  error
 	CloseErr                         error
 	PingErr                          error
 
@@ -170,6 +182,7 @@ func NewMockDataStore() *MockDataStore {
 		Plugins:               make(map[string]*models.NvimPluginDB),
 		Packages:              make(map[string]*models.NvimPackageDB),
 		TerminalPackages:      make(map[string]*models.TerminalPackageDB),
+		TerminalPlugins:       make(map[string]*models.TerminalPluginDB),
 		Themes:                make(map[string]*models.NvimThemeDB),
 		TerminalPrompts:       make(map[string]*models.TerminalPromptDB),
 		WorkspacePlugins:      make(map[int]map[int]bool),
@@ -1513,6 +1526,7 @@ func (m *MockDataStore) ListPackages() ([]*models.NvimPackageDB, error) {
 
 func (m *MockDataStore) ListPackagesByLabel(key, value string) ([]*models.NvimPackageDB, error) {
 	m.recordCall("ListPackagesByLabel", key, value)
+
 	if m.ListPackagesByLabelErr != nil {
 		return nil, m.ListPackagesByLabelErr
 	}
@@ -1522,15 +1536,218 @@ func (m *MockDataStore) ListPackagesByLabel(key, value string) ([]*models.NvimPa
 
 	var packages []*models.NvimPackageDB
 	for _, pkg := range m.Packages {
-		labels := pkg.GetLabels()
-		if labels[key] == value {
-			// Return copy to avoid data races
-			pkgCopy := *pkg
-			packages = append(packages, &pkgCopy)
+		// Parse labels JSON and check for key-value pair
+		var labels map[string]string
+		if pkg.Labels.Valid && pkg.Labels.String != "" && pkg.Labels.String != "{}" {
+			if err := json.Unmarshal([]byte(pkg.Labels.String), &labels); err == nil {
+				if labelValue, exists := labels[key]; exists && labelValue == value {
+					pkgCopy := *pkg
+					packages = append(packages, &pkgCopy)
+				}
+			}
 		}
 	}
 
 	return packages, nil
+}
+
+// =============================================================================
+// Terminal Plugin Operations
+// =============================================================================
+
+func (m *MockDataStore) CreateTerminalPlugin(plugin *models.TerminalPluginDB) error {
+	m.recordCall("CreateTerminalPlugin", plugin.Name)
+
+	if m.CreateTerminalPluginErr != nil {
+		return m.CreateTerminalPluginErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.TerminalPlugins == nil {
+		m.TerminalPlugins = make(map[string]*models.TerminalPluginDB)
+	}
+
+	// Check for duplicate
+	if _, exists := m.TerminalPlugins[plugin.Name]; exists {
+		return fmt.Errorf("terminal plugin already exists: %s", plugin.Name)
+	}
+
+	// Set ID and timestamps
+	m.NextTerminalPluginID++
+	plugin.ID = m.NextTerminalPluginID
+
+	// Store copy
+	pluginCopy := *plugin
+	m.TerminalPlugins[plugin.Name] = &pluginCopy
+	return nil
+}
+
+func (m *MockDataStore) GetTerminalPlugin(name string) (*models.TerminalPluginDB, error) {
+	m.recordCall("GetTerminalPlugin", name)
+
+	if m.GetTerminalPluginErr != nil {
+		return nil, m.GetTerminalPluginErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	plugin, exists := m.TerminalPlugins[name]
+	if !exists {
+		return nil, fmt.Errorf("terminal plugin not found: %s", name)
+	}
+
+	// Return copy
+	pluginCopy := *plugin
+	return &pluginCopy, nil
+}
+
+func (m *MockDataStore) UpdateTerminalPlugin(plugin *models.TerminalPluginDB) error {
+	m.recordCall("UpdateTerminalPlugin", plugin.Name)
+
+	if m.UpdateTerminalPluginErr != nil {
+		return m.UpdateTerminalPluginErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.TerminalPlugins == nil {
+		return fmt.Errorf("terminal plugin not found: %s", plugin.Name)
+	}
+
+	existing, exists := m.TerminalPlugins[plugin.Name]
+	if !exists {
+		return fmt.Errorf("terminal plugin not found: %s", plugin.Name)
+	}
+
+	// Keep original ID and created time
+	plugin.ID = existing.ID
+	plugin.CreatedAt = existing.CreatedAt
+
+	// Store copy
+	pluginCopy := *plugin
+	m.TerminalPlugins[plugin.Name] = &pluginCopy
+	return nil
+}
+
+func (m *MockDataStore) UpsertTerminalPlugin(plugin *models.TerminalPluginDB) error {
+	m.recordCall("UpsertTerminalPlugin", plugin.Name)
+
+	if m.UpsertTerminalPluginErr != nil {
+		return m.UpsertTerminalPluginErr
+	}
+
+	// Try update first
+	err := m.UpdateTerminalPlugin(plugin)
+	if err == nil {
+		return nil
+	}
+
+	// If not found, create
+	return m.CreateTerminalPlugin(plugin)
+}
+
+func (m *MockDataStore) DeleteTerminalPlugin(name string) error {
+	m.recordCall("DeleteTerminalPlugin", name)
+
+	if m.DeleteTerminalPluginErr != nil {
+		return m.DeleteTerminalPluginErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.TerminalPlugins == nil {
+		return nil
+	}
+
+	delete(m.TerminalPlugins, name)
+	return nil
+}
+
+func (m *MockDataStore) ListTerminalPlugins() ([]*models.TerminalPluginDB, error) {
+	m.recordCall("ListTerminalPlugins")
+
+	if m.ListTerminalPluginsErr != nil {
+		return nil, m.ListTerminalPluginsErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var plugins []*models.TerminalPluginDB
+	for _, plugin := range m.TerminalPlugins {
+		pluginCopy := *plugin
+		plugins = append(plugins, &pluginCopy)
+	}
+
+	return plugins, nil
+}
+
+func (m *MockDataStore) ListTerminalPluginsByCategory(category string) ([]*models.TerminalPluginDB, error) {
+	m.recordCall("ListTerminalPluginsByCategory", category)
+
+	if m.ListTerminalPluginsByCategoryErr != nil {
+		return nil, m.ListTerminalPluginsByCategoryErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var plugins []*models.TerminalPluginDB
+	for _, plugin := range m.TerminalPlugins {
+		if plugin.Category.Valid && plugin.Category.String == category {
+			pluginCopy := *plugin
+			plugins = append(plugins, &pluginCopy)
+		}
+	}
+
+	return plugins, nil
+}
+
+func (m *MockDataStore) ListTerminalPluginsByShell(shell string) ([]*models.TerminalPluginDB, error) {
+	m.recordCall("ListTerminalPluginsByShell", shell)
+
+	if m.ListTerminalPluginsByShellErr != nil {
+		return nil, m.ListTerminalPluginsByShellErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var plugins []*models.TerminalPluginDB
+	for _, plugin := range m.TerminalPlugins {
+		if plugin.Shell == shell {
+			pluginCopy := *plugin
+			plugins = append(plugins, &pluginCopy)
+		}
+	}
+
+	return plugins, nil
+}
+
+func (m *MockDataStore) ListTerminalPluginsByManager(manager string) ([]*models.TerminalPluginDB, error) {
+	m.recordCall("ListTerminalPluginsByManager", manager)
+
+	if m.ListTerminalPluginsByManagerErr != nil {
+		return nil, m.ListTerminalPluginsByManagerErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var plugins []*models.TerminalPluginDB
+	for _, plugin := range m.TerminalPlugins {
+		if plugin.Manager == manager {
+			pluginCopy := *plugin
+			plugins = append(plugins, &pluginCopy)
+		}
+	}
+
+	return plugins, nil
 }
 
 // =============================================================================
