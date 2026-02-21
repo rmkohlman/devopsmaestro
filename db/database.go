@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -96,42 +97,100 @@ func CheckPendingMigrations(driver Driver, migrationsFS fs.FS) (bool, error) {
 	defer m.Close()
 
 	// Get current version and check if we have migrations to apply
-	_, dirty, err := m.Version()
+	currentVersion, dirty, err := m.Version()
 	if err != nil {
 		if err == migrate.ErrNilVersion {
-			// No migrations have been applied yet - database is new
-			return true, nil
+			// No migrations have been applied yet - check if any migrations exist
+			_, hasVersion, fileErr := getLatestMigrationVersion(subFS)
+			if fileErr != nil {
+				return false, fmt.Errorf("failed to check available migrations: %w", fileErr)
+			}
+			// If we have migration files, then migrations are pending
+			return hasVersion, nil
 		}
-		// Database might not exist yet
-		return false, nil
+		// Other errors should be reported, not swallowed
+		return false, fmt.Errorf("failed to get current database version: %w", err)
 	}
 
 	if dirty {
 		return false, fmt.Errorf("database is in dirty state - please run 'dvm admin migrate' to fix")
 	}
 
-	// Check if we have newer migrations available
-	// We'll try to step up once to see if there are pending migrations
-	tempM, err := migrate.NewWithSourceInstance("iofs", sourceDriver, migrationDSN)
+	// Get the latest available migration version from filesystem
+	latestVersion, hasVersion, err := getLatestMigrationVersion(subFS)
 	if err != nil {
-		return false, nil
+		return false, fmt.Errorf("failed to read available migrations: %w", err)
 	}
-	defer tempM.Close()
 
-	// Try to get the next version by attempting to step up
-	err = tempM.Steps(1)
-	if err == migrate.ErrNoChange {
-		// No pending migrations
+	if !hasVersion {
+		// No migration files found - no migrations pending
 		return false, nil
-	} else if err != nil {
-		// Some other error occurred, assume no migrations needed
-		return false, nil
-	} else {
-		// Migration would succeed, so we have pending migrations
-		// Step back down to restore original state
-		_ = tempM.Steps(-1)
-		return true, nil
 	}
+
+	// Compare versions: if latest available version > current version, migrations are pending
+	return latestVersion > currentVersion, nil
+}
+
+// getLatestMigrationVersion reads migration files and returns the highest version number.
+// Returns (version, hasVersion, error) where hasVersion indicates if any migration files were found.
+func getLatestMigrationVersion(migrationsFS fs.FS) (uint, bool, error) {
+	entries, err := fs.ReadDir(migrationsFS, ".")
+	if err != nil {
+		return 0, false, fmt.Errorf("failed to read migrations directory: %w", err)
+	}
+
+	var latestVersion uint = 0
+	hasVersion := false
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		filename := entry.Name()
+
+		// Only process .up.sql files
+		if !strings.HasSuffix(filename, ".up.sql") {
+			continue
+		}
+
+		// Parse version number from filename (e.g., "005_description.up.sql" -> 5)
+		parts := strings.Split(filename, "_")
+		if len(parts) < 2 {
+			continue
+		}
+
+		versionStr := parts[0]
+		version, err := parseVersionNumber(versionStr)
+		if err != nil {
+			// Skip files with invalid version numbers
+			continue
+		}
+
+		hasVersion = true
+		if version > latestVersion {
+			latestVersion = version
+		}
+	}
+
+	return latestVersion, hasVersion, nil
+}
+
+// parseVersionNumber parses a version string (e.g., "005", "15") into a uint.
+// Handles both zero-padded and non-padded version numbers.
+func parseVersionNumber(versionStr string) (uint, error) {
+	// Remove leading zeros for parsing
+	versionStr = strings.TrimLeft(versionStr, "0")
+	if versionStr == "" {
+		versionStr = "0"
+	}
+
+	version64, err := strconv.ParseUint(versionStr, 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("invalid version number: %s", versionStr)
+	}
+
+	return uint(version64), nil
 }
 
 // AutoMigrate checks for pending migrations and applies them if needed.
