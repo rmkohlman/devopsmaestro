@@ -232,6 +232,9 @@ type DataStore interface {
 	// UpdateTerminalPrompt updates an existing terminal prompt.
 	UpdateTerminalPrompt(prompt *models.TerminalPromptDB) error
 
+	// UpsertTerminalPrompt creates or updates a terminal prompt (by name).
+	UpsertTerminalPrompt(prompt *models.TerminalPromptDB) error
+
 	// DeleteTerminalPrompt removes a terminal prompt by name.
 	DeleteTerminalPrompt(name string) error
 
@@ -243,6 +246,29 @@ type DataStore interface {
 
 	// ListTerminalPromptsByCategory retrieves terminal prompts filtered by category.
 	ListTerminalPromptsByCategory(category string) ([]*models.TerminalPromptDB, error)
+
+	// Terminal Profile Operations
+
+	// CreateTerminalProfile inserts a new terminal profile.
+	CreateTerminalProfile(profile *models.TerminalProfileDB) error
+
+	// GetTerminalProfileByName retrieves a terminal profile by its name.
+	GetTerminalProfileByName(name string) (*models.TerminalProfileDB, error)
+
+	// UpdateTerminalProfile updates an existing terminal profile.
+	UpdateTerminalProfile(profile *models.TerminalProfileDB) error
+
+	// UpsertTerminalProfile creates or updates a terminal profile (by name).
+	UpsertTerminalProfile(profile *models.TerminalProfileDB) error
+
+	// DeleteTerminalProfile removes a terminal profile by name.
+	DeleteTerminalProfile(name string) error
+
+	// ListTerminalProfiles retrieves all terminal profiles.
+	ListTerminalProfiles() ([]*models.TerminalProfileDB, error)
+
+	// ListTerminalProfilesByCategory retrieves terminal profiles filtered by category.
+	ListTerminalProfilesByCategory(category string) ([]*models.TerminalProfileDB, error)
 
 	// Credential Operations
 

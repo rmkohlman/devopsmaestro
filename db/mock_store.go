@@ -26,6 +26,7 @@ type MockDataStore struct {
 	TerminalEmulators map[string]*models.TerminalEmulatorDB // keyed by name
 	Themes            map[string]*models.NvimThemeDB
 	TerminalPrompts   map[string]*models.TerminalPromptDB
+	TerminalProfiles  map[string]*models.TerminalProfileDB
 	Credentials       map[string]*models.CredentialDB // keyed by "scopeType:scopeID:name"
 	Defaults          map[string]string               // keyed by default key
 	ActiveTheme       string
@@ -118,10 +119,18 @@ type MockDataStore struct {
 	CreateTerminalPromptErr             error
 	GetTerminalPromptByNameErr          error
 	UpdateTerminalPromptErr             error
+	UpsertTerminalPromptErr             error
 	DeleteTerminalPromptErr             error
 	ListTerminalPromptsErr              error
 	ListTerminalPromptsByTypeErr        error
 	ListTerminalPromptsByCategoryErr    error
+	CreateTerminalProfileErr            error
+	GetTerminalProfileByNameErr         error
+	UpdateTerminalProfileErr            error
+	UpsertTerminalProfileErr            error
+	DeleteTerminalProfileErr            error
+	ListTerminalProfilesErr             error
+	ListTerminalProfilesByCategoryErr   error
 	GetDefaultErr                       error
 	SetDefaultErr                       error
 	DeleteDefaultErr                    error
@@ -164,15 +173,16 @@ type MockDataStore struct {
 	Calls []MockDataStoreCall
 
 	// Auto-increment IDs
-	nextEcosystemID      int
-	nextDomainID         int
-	nextAppID            int
-	nextProjectID        int
-	nextWorkspaceID      int
-	nextPluginID         int
-	nextPackageID        int
-	nextThemeID          int
-	nextTerminalPromptID int
+	nextEcosystemID       int
+	nextDomainID          int
+	nextAppID             int
+	nextProjectID         int
+	nextWorkspaceID       int
+	nextPluginID          int
+	nextPackageID         int
+	nextThemeID           int
+	nextTerminalPromptID  int
+	nextTerminalProfileID int
 }
 
 // MockDataStoreCall represents a recorded method call
@@ -196,6 +206,7 @@ func NewMockDataStore() *MockDataStore {
 		TerminalEmulators:     make(map[string]*models.TerminalEmulatorDB),
 		Themes:                make(map[string]*models.NvimThemeDB),
 		TerminalPrompts:       make(map[string]*models.TerminalPromptDB),
+		TerminalProfiles:      make(map[string]*models.TerminalProfileDB),
 		WorkspacePlugins:      make(map[int]map[int]bool),
 		Context:               &models.Context{ID: 1},
 		MockDriver:            NewMockDriver(),
@@ -208,6 +219,7 @@ func NewMockDataStore() *MockDataStore {
 		nextPackageID:         1,
 		nextThemeID:           1,
 		nextTerminalPromptID:  1,
+		nextTerminalProfileID: 1,
 		NextTerminalPackageID: 1,
 	}
 }
@@ -1233,6 +1245,115 @@ func (m *MockDataStore) ListAllCredentials() ([]*models.CredentialDB, error) {
 }
 
 // =============================================================================
+// Terminal Profile Operations
+// =============================================================================
+
+func (m *MockDataStore) CreateTerminalProfile(profile *models.TerminalProfileDB) error {
+	m.recordCall("CreateTerminalProfile", profile)
+	if m.CreateTerminalProfileErr != nil {
+		return m.CreateTerminalProfileErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	profile.ID = m.nextTerminalProfileID
+	m.nextTerminalProfileID++
+	m.TerminalProfiles[profile.Name] = profile
+	return nil
+}
+
+func (m *MockDataStore) GetTerminalProfileByName(name string) (*models.TerminalProfileDB, error) {
+	m.recordCall("GetTerminalProfileByName", name)
+	if m.GetTerminalProfileByNameErr != nil {
+		return nil, m.GetTerminalProfileByNameErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	profile, exists := m.TerminalProfiles[name]
+	if !exists {
+		return nil, fmt.Errorf("terminal profile not found: %s", name)
+	}
+	return profile, nil
+}
+
+func (m *MockDataStore) UpdateTerminalProfile(profile *models.TerminalProfileDB) error {
+	m.recordCall("UpdateTerminalProfile", profile)
+	if m.UpdateTerminalProfileErr != nil {
+		return m.UpdateTerminalProfileErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, exists := m.TerminalProfiles[profile.Name]; !exists {
+		return fmt.Errorf("terminal profile not found: %s", profile.Name)
+	}
+	m.TerminalProfiles[profile.Name] = profile
+	return nil
+}
+
+func (m *MockDataStore) UpsertTerminalProfile(profile *models.TerminalProfileDB) error {
+	m.recordCall("UpsertTerminalProfile", profile)
+	if m.UpsertTerminalProfileErr != nil {
+		return m.UpsertTerminalProfileErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// If exists, update; otherwise create
+	if existing, exists := m.TerminalProfiles[profile.Name]; exists {
+		profile.ID = existing.ID // Keep the same ID
+	} else {
+		profile.ID = m.nextTerminalProfileID
+		m.nextTerminalProfileID++
+	}
+
+	m.TerminalProfiles[profile.Name] = profile
+	return nil
+}
+
+func (m *MockDataStore) DeleteTerminalProfile(name string) error {
+	m.recordCall("DeleteTerminalProfile", name)
+	if m.DeleteTerminalProfileErr != nil {
+		return m.DeleteTerminalProfileErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, exists := m.TerminalProfiles[name]; !exists {
+		return fmt.Errorf("terminal profile not found: %s", name)
+	}
+	delete(m.TerminalProfiles, name)
+	return nil
+}
+
+func (m *MockDataStore) ListTerminalProfiles() ([]*models.TerminalProfileDB, error) {
+	m.recordCall("ListTerminalProfiles")
+	if m.ListTerminalProfilesErr != nil {
+		return nil, m.ListTerminalProfilesErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var result []*models.TerminalProfileDB
+	for _, profile := range m.TerminalProfiles {
+		result = append(result, profile)
+	}
+	return result, nil
+}
+
+func (m *MockDataStore) ListTerminalProfilesByCategory(category string) ([]*models.TerminalProfileDB, error) {
+	m.recordCall("ListTerminalProfilesByCategory", category)
+	if m.ListTerminalProfilesByCategoryErr != nil {
+		return nil, m.ListTerminalProfilesByCategoryErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var result []*models.TerminalProfileDB
+	for _, profile := range m.TerminalProfiles {
+		if profile.Category.Valid && profile.Category.String == category {
+			result = append(result, profile)
+		}
+	}
+	return result, nil
+}
+
+// =============================================================================
 // Terminal Prompt Operations
 // =============================================================================
 
@@ -1273,6 +1394,26 @@ func (m *MockDataStore) UpdateTerminalPrompt(prompt *models.TerminalPromptDB) er
 	if _, exists := m.TerminalPrompts[prompt.Name]; !exists {
 		return fmt.Errorf("terminal prompt not found: %s", prompt.Name)
 	}
+	m.TerminalPrompts[prompt.Name] = prompt
+	return nil
+}
+
+func (m *MockDataStore) UpsertTerminalPrompt(prompt *models.TerminalPromptDB) error {
+	m.recordCall("UpsertTerminalPrompt", prompt)
+	if m.UpsertTerminalPromptErr != nil {
+		return m.UpsertTerminalPromptErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// If exists, update; otherwise create
+	if existing, exists := m.TerminalPrompts[prompt.Name]; exists {
+		prompt.ID = existing.ID // Keep the same ID
+	} else {
+		prompt.ID = m.nextTerminalPromptID
+		m.nextTerminalPromptID++
+	}
+
 	m.TerminalPrompts[prompt.Name] = prompt
 	return nil
 }
@@ -2134,6 +2275,7 @@ func (m *MockDataStore) Reset() {
 	m.Plugins = make(map[string]*models.NvimPluginDB)
 	m.Themes = make(map[string]*models.NvimThemeDB)
 	m.TerminalPrompts = make(map[string]*models.TerminalPromptDB)
+	m.TerminalProfiles = make(map[string]*models.TerminalProfileDB)
 	m.Credentials = make(map[string]*models.CredentialDB)
 	m.Defaults = make(map[string]string)
 	m.WorkspacePlugins = make(map[int]map[int]bool)
@@ -2148,6 +2290,7 @@ func (m *MockDataStore) Reset() {
 	m.nextPluginID = 1
 	m.nextThemeID = 1
 	m.nextTerminalPromptID = 1
+	m.nextTerminalProfileID = 1
 }
 
 // Helper function

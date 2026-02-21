@@ -242,6 +242,7 @@ func (m *MockDataStore) ListTerminalPromptsByType(promptType string) ([]*models.
 func (m *MockDataStore) ListTerminalPromptsByCategory(category string) ([]*models.TerminalPromptDB, error) {
 	return nil, nil
 }
+func (m *MockDataStore) UpsertTerminalPrompt(prompt *models.TerminalPromptDB) error { return nil }
 
 // Close method for DataStore interface
 func (m *MockDataStore) Close() error { return nil }
@@ -338,6 +339,19 @@ func (m *MockDataStore) ListTerminalEmulatorsByType(emulatorType string) ([]*mod
 	return nil, nil
 }
 func (m *MockDataStore) ListTerminalEmulatorsByWorkspace(workspace string) ([]*models.TerminalEmulatorDB, error) {
+	return nil, nil
+}
+
+// Terminal Profile Operations
+func (m *MockDataStore) CreateTerminalProfile(profile *models.TerminalProfileDB) error { return nil }
+func (m *MockDataStore) GetTerminalProfileByName(name string) (*models.TerminalProfileDB, error) {
+	return nil, nil
+}
+func (m *MockDataStore) UpdateTerminalProfile(profile *models.TerminalProfileDB) error { return nil }
+func (m *MockDataStore) UpsertTerminalProfile(profile *models.TerminalProfileDB) error { return nil }
+func (m *MockDataStore) DeleteTerminalProfile(name string) error                       { return nil }
+func (m *MockDataStore) ListTerminalProfiles() ([]*models.TerminalProfileDB, error)    { return nil, nil }
+func (m *MockDataStore) ListTerminalProfilesByCategory(category string) ([]*models.TerminalProfileDB, error) {
 	return nil, nil
 }
 

@@ -12,6 +12,7 @@ import (
 	terminalpackage "devopsmaestro/pkg/terminalops/package"
 	packagelibrary "devopsmaestro/pkg/terminalops/package/library"
 	pluginlibrary "devopsmaestro/pkg/terminalops/plugin/library"
+	promptlibrary "devopsmaestro/pkg/terminalops/prompt/library"
 	"devopsmaestro/pkg/terminalops/store"
 
 	"github.com/spf13/cobra"
@@ -208,17 +209,32 @@ Examples:
 			return fmt.Errorf("database not initialized")
 		}
 		dataStore := dataStoreInterface.(*db.DataStore)
+
+		// Create stores
 		pluginStore := store.NewDBPluginStore(*dataStore)
 		defer pluginStore.Close()
 
-		// Load plugin library
+		promptStore := store.NewDBPromptStore(*dataStore)
+		defer promptStore.Close()
+
+		profileStore := store.NewDBProfileStore(*dataStore)
+		defer profileStore.Close()
+
+		// Load libraries
 		pluginLib, err := pluginlibrary.NewPluginLibrary()
 		if err != nil {
 			return fmt.Errorf("failed to load plugin library: %w", err)
 		}
 
+		promptLib, err := promptlibrary.NewPromptLibrary()
+		if err != nil {
+			return fmt.Errorf("failed to load prompt library: %w", err)
+		}
+
 		// Install components
 		var installed, skipped, failed []string
+		var promptsInstalled, promptsSkipped, promptsFailed []string
+		var profilesFailed []string
 
 		if len(components.Plugins) > 0 {
 			fmt.Printf("Installing %d plugins...\n", len(components.Plugins))
@@ -249,19 +265,41 @@ Examples:
 			}
 		}
 
-		// TODO: Handle prompts and profiles similarly when their DB adapters exist
-		// For now, just report what would be installed for those
+		// Install prompts
 		if len(components.Prompts) > 0 {
-			fmt.Printf("\nPrompts to install (%d) - not yet implemented:\n", len(components.Prompts))
+			fmt.Printf("\nInstalling %d prompts...\n", len(components.Prompts))
 			for _, promptName := range components.Prompts {
-				fmt.Printf("  - %s (pending prompt DB adapter)\n", promptName)
+				prompt, err := promptLib.Get(promptName)
+				if err != nil {
+					fmt.Printf("⚠ Prompt '%s' not found in library, skipping\n", promptName)
+					promptsFailed = append(promptsFailed, promptName)
+					continue
+				}
+
+				// Check if already exists
+				if exists, _ := promptStore.Exists(promptName); exists {
+					fmt.Printf("• Prompt '%s' already installed\n", promptName)
+					promptsSkipped = append(promptsSkipped, promptName)
+					continue
+				}
+
+				// Install prompt using Upsert (safe for create/update)
+				if err := promptStore.Upsert(prompt); err != nil {
+					fmt.Printf("✗ Failed to install '%s': %v\n", promptName, err)
+					promptsFailed = append(promptsFailed, promptName)
+				} else {
+					fmt.Printf("✓ Installed '%s'\n", promptName)
+					promptsInstalled = append(promptsInstalled, promptName)
+				}
 			}
 		}
 
+		// Install profiles (note: profiles typically reference prompts/plugins, so no inline library yet)
 		if len(components.Profiles) > 0 {
-			fmt.Printf("\nProfiles to install (%d) - not yet implemented:\n", len(components.Profiles))
+			fmt.Printf("\nProfiles to install (%d) - profile library not yet implemented:\n", len(components.Profiles))
 			for _, profileName := range components.Profiles {
-				fmt.Printf("  - %s (pending profile DB adapter)\n", profileName)
+				fmt.Printf("  - %s (pending profile library)\n", profileName)
+				profilesFailed = append(profilesFailed, profileName)
 			}
 		}
 
@@ -270,19 +308,35 @@ Examples:
 		// Print summary
 		fmt.Printf("\nPackage '%s' installation complete:\n", name)
 		fmt.Printf("  Plugins installed: %d\n", len(installed))
+		if len(promptsInstalled) > 0 {
+			fmt.Printf("  Prompts installed: %d\n", len(promptsInstalled))
+		}
 		if len(skipped) > 0 {
 			fmt.Printf("  Plugins skipped:   %d (already installed)\n", len(skipped))
+		}
+		if len(promptsSkipped) > 0 {
+			fmt.Printf("  Prompts skipped:   %d (already installed)\n", len(promptsSkipped))
 		}
 		if len(failed) > 0 {
 			fmt.Printf("  Plugins failed:    %d (not found in library)\n", len(failed))
 		}
+		if len(promptsFailed) > 0 {
+			fmt.Printf("  Prompts failed:    %d (not found in library)\n", len(promptsFailed))
+		}
+		if len(profilesFailed) > 0 {
+			fmt.Printf("  Profiles failed:   %d (library not implemented)\n", len(profilesFailed))
+		}
 
 		// Only fail if nothing was installed and there were failures, but no skipped items
-		if len(installed) == 0 && len(failed) > 0 && len(skipped) == 0 {
+		totalInstalled := len(installed) + len(promptsInstalled)
+		totalSkipped := len(skipped) + len(promptsSkipped)
+		totalFailed := len(failed) + len(promptsFailed) + len(profilesFailed)
+
+		if totalInstalled == 0 && totalFailed > 0 && totalSkipped == 0 {
 			return fmt.Errorf("no components could be installed")
 		}
 
-		fmt.Println("\nUse 'dvt plugin list' to see installed plugins")
+		fmt.Println("\nUse 'dvt plugin list' and 'dvt get prompts' to see installed components")
 
 		return nil
 	},
