@@ -2,7 +2,22 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## Upcoming Changes
+
+*No upcoming changes at this time*
+
 ## Latest Releases
+
+### v0.18.4 (2026-02-20)
+
+**Terminal Plugin Database Support**
+
+- Added terminal plugin database support with `terminal_plugins` table for persistent storage
+- Created database adapter for terminal plugins following nvimops pattern (`pkg/terminalops/store/db_adapter.go`)
+- `dvt package install` now persists plugins to database for consistency with nvp
+- `dvt plugin list` and `dvt plugin get` commands now read from database instead of file storage
+- Enhanced cross-command integration - all terminal plugin operations use shared DevOpsMaestro database
+- **Migration**: Plugin data moved from files to database; existing users may need to reinstall plugins from library
 
 ### v0.18.3 (2026-02-20)
 

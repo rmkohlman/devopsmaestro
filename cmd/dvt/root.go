@@ -19,6 +19,7 @@ import (
 	"devopsmaestro/pkg/terminalops/prompt"
 	promptlibrary "devopsmaestro/pkg/terminalops/prompt/library"
 	"devopsmaestro/pkg/terminalops/shell"
+	"devopsmaestro/pkg/terminalops/store"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/cobra"
@@ -570,7 +571,10 @@ Examples:
 			return fmt.Errorf("failed to load library: %w", err)
 		}
 
-		store := getPluginStore()
+		store, err := getPluginStore(cmd)
+		if err != nil {
+			return err
+		}
 
 		var plugins []*plugin.Plugin
 		if all {
@@ -587,7 +591,7 @@ Examples:
 		}
 
 		for _, p := range plugins {
-			if err := store.Save(p); err != nil {
+			if err := store.Upsert(p); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to install %s: %v\n", p.Name, err)
 				continue
 			}
@@ -621,7 +625,10 @@ var pluginListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List installed plugins",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		store := getPluginStore()
+		store, err := getPluginStore(cmd)
+		if err != nil {
+			return err
+		}
 		plugins, err := store.List()
 		if err != nil {
 			return fmt.Errorf("failed to list plugins: %w", err)
@@ -644,7 +651,10 @@ var pluginGetCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
-		store := getPluginStore()
+		store, err := getPluginStore(cmd)
+		if err != nil {
+			return err
+		}
 
 		p, err := store.Get(name)
 		if err != nil {
@@ -669,11 +679,13 @@ Examples:
   dvt plugin generate zsh-autosuggestions      # Specific plugin
   dvt plugin generate --manager zinit          # Use zinit format`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		store := getPluginStore()
+		store, err := getPluginStore(cmd)
+		if err != nil {
+			return err
+		}
 		_ = cmd.Flags().Lookup("manager") // manager flag not used with current API
 
 		var plugins []*plugin.Plugin
-		var err error
 
 		if len(args) > 0 {
 			// Specific plugins
@@ -1337,10 +1349,18 @@ type PluginFileStore struct {
 	dir string
 }
 
-func getPluginStore() *PluginFileStore {
-	dir := filepath.Join(getConfigDir(), "plugins")
-	os.MkdirAll(dir, 0755)
-	return &PluginFileStore{dir: dir}
+// getPluginStore extracts DataStore from command context and returns database-backed plugin store
+func getPluginStore(cmd *cobra.Command) (plugin.PluginStore, error) {
+	// Extract DataStore from context (following established dvt pattern)
+	dataStoreInterface := cmd.Context().Value("dataStore")
+	if dataStoreInterface == nil {
+		return nil, fmt.Errorf("database not initialized - run 'dvt init' or check configuration")
+	}
+
+	dataStore := dataStoreInterface.(*db.DataStore)
+
+	// Return database-backed plugin store via factory
+	return store.NewDBPluginStore(*dataStore), nil
 }
 
 func (s *PluginFileStore) Save(p *plugin.Plugin) error {

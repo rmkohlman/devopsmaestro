@@ -13,7 +13,7 @@ DevOpsMaestro provides three tools:
 |------|--------|-------------|
 | **DevOpsMaestro** | `dvm` | App and workspace management with container-native dev environments |
 | **NvimOps** | `nvp` | Standalone Neovim plugin & theme manager using YAML |
-| **Terminal Operations** | `dvt` | Terminal prompt and configuration management |
+| **Terminal Operations** | `dvt` | Terminal prompt and configuration management with database-backed plugin system |
 
 ### Object Hierarchy (v0.8.0+)
 
@@ -157,6 +157,27 @@ dvm set theme coolnight-synthwave --app myapp    # Set at app level
 nvp generate
 
 # Files created in ~/.config/nvim/lua/plugins/nvp/
+```
+
+### Terminal Operations (dvt) - Terminal Plugin Manager
+
+```bash
+# Initialize database (required for plugin commands)
+dvt init
+
+# Install plugins from packages (updates plugin database)
+dvt package install core               # Install core terminal package
+dvt package install developer          # Install developer package (extends core)
+
+# View installed plugins (now database-backed)
+dvt plugin list                        # List all plugins from database
+dvt plugin get starship                # Show specific plugin details
+
+# Generate terminal configuration files
+dvt plugin generate                    # Generate configs from database
+
+# Note: dvt commands now use consistent database storage
+#       Package install immediately updates plugin commands
 ```
 
 ### DevOpsMaestro (dvm) - Workspace Manager
@@ -430,6 +451,17 @@ nvp generate                  # Generate Lua files
 ### dvt Commands (Terminal Operations)
 
 ```bash
+# Plugin Management (Database-backed)
+dvt init                      # Initialize database (required for plugin commands)
+dvt plugin list               # List terminal plugins from database
+dvt plugin get <name>         # Show specific plugin details
+dvt plugin generate           # Generate terminal configuration files
+
+# Package Management  
+dvt package list              # List available terminal packages
+dvt package get <name>        # Show package details
+dvt package install <name>    # Install plugins/prompts from package (updates plugin commands)
+
 # Terminal Prompt Management
 dvt get prompts               # List all terminal prompts
 dvt get prompts --type starship # Filter by prompt type

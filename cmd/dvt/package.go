@@ -8,8 +8,11 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"devopsmaestro/db"
 	terminalpackage "devopsmaestro/pkg/terminalops/package"
 	packagelibrary "devopsmaestro/pkg/terminalops/package/library"
+	pluginlibrary "devopsmaestro/pkg/terminalops/plugin/library"
+	"devopsmaestro/pkg/terminalops/store"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -115,9 +118,9 @@ Examples:
 // packageInstallCmd installs a package
 var packageInstallCmd = &cobra.Command{
 	Use:   "install <name>",
-	Short: "Install a package (shows all its components)",
-	Long: `Install a package by showing all its components from inheritance resolution.
-This resolves inheritance, so installing 'developer' will also show all 'core' components.
+	Short: "Install a package and its components to the database",
+	Long: `Install a package by resolving inheritance and storing components in the database.
+This resolves inheritance, so installing 'developer' will also install all 'core' components.
 
 Examples:
   dvt package install core
@@ -149,61 +152,137 @@ Examples:
 
 		fmt.Printf("Installing package: %s\n\n", name)
 
-		if len(components.Plugins) > 0 {
-			fmt.Printf("Plugins to install (%d):\n", len(components.Plugins))
-			for _, pluginName := range components.Plugins {
-				// Get source package for this plugin
-				source := getComponentSource(pluginName, pkg, lib, "plugin")
-				if source != "" {
-					fmt.Printf("  - %s (from %s)\n", pluginName, source)
-				} else {
-					fmt.Printf("  - %s\n", pluginName)
-				}
-			}
-			fmt.Println()
-		}
-
-		if len(components.Prompts) > 0 {
-			fmt.Printf("Prompts to install (%d):\n", len(components.Prompts))
-			for _, promptName := range components.Prompts {
-				source := getComponentSource(promptName, pkg, lib, "prompt")
-				if source != "" {
-					fmt.Printf("  - %s (from %s)\n", promptName, source)
-				} else {
-					fmt.Printf("  - %s\n", promptName)
-				}
-			}
-			fmt.Println()
-		}
-
-		if len(components.Profiles) > 0 {
-			fmt.Printf("Profiles to install (%d):\n", len(components.Profiles))
-			for _, profileName := range components.Profiles {
-				source := getComponentSource(profileName, pkg, lib, "profile")
-				if source != "" {
-					fmt.Printf("  - %s (from %s)\n", profileName, source)
-				} else {
-					fmt.Printf("  - %s\n", profileName)
-				}
-			}
-			fmt.Println()
-		}
-
 		if totalComponents == 0 {
 			fmt.Println("No components to install.")
 			return nil
 		}
 
 		if dryRun {
+			// Show preview for dry run
+			if len(components.Plugins) > 0 {
+				fmt.Printf("Plugins to install (%d):\n", len(components.Plugins))
+				for _, pluginName := range components.Plugins {
+					source := getComponentSource(pluginName, pkg, lib, "plugin")
+					if source != "" {
+						fmt.Printf("  - %s (from %s)\n", pluginName, source)
+					} else {
+						fmt.Printf("  - %s\n", pluginName)
+					}
+				}
+				fmt.Println()
+			}
+
+			if len(components.Prompts) > 0 {
+				fmt.Printf("Prompts to install (%d):\n", len(components.Prompts))
+				for _, promptName := range components.Prompts {
+					source := getComponentSource(promptName, pkg, lib, "prompt")
+					if source != "" {
+						fmt.Printf("  - %s (from %s)\n", promptName, source)
+					} else {
+						fmt.Printf("  - %s\n", promptName)
+					}
+				}
+				fmt.Println()
+			}
+
+			if len(components.Profiles) > 0 {
+				fmt.Printf("Profiles to install (%d):\n", len(components.Profiles))
+				for _, profileName := range components.Profiles {
+					source := getComponentSource(profileName, pkg, lib, "profile")
+					if source != "" {
+						fmt.Printf("  - %s (from %s)\n", profileName, source)
+					} else {
+						fmt.Printf("  - %s\n", profileName)
+					}
+				}
+				fmt.Println()
+			}
+
 			fmt.Printf("Use 'dvt package install %s' without --dry-run to install.\n", name)
 			return nil
 		}
 
-		// For now, just show what would be installed
-		// In the future, we can add actual installation logic here
-		fmt.Printf("Package '%s' installation complete - %d components shown.\n", name, totalComponents)
-		fmt.Println("\nNote: Actual installation of individual components not yet implemented.")
-		fmt.Println("Use individual 'dvt plugin', 'dvt prompt', 'dvt profile' commands to install specific components.")
+		// Get DataStore from context (follows dvt pattern)
+		dataStoreInterface := cmd.Context().Value("dataStore")
+		if dataStoreInterface == nil {
+			return fmt.Errorf("database not initialized")
+		}
+		dataStore := dataStoreInterface.(*db.DataStore)
+		pluginStore := store.NewDBPluginStore(*dataStore)
+		defer pluginStore.Close()
+
+		// Load plugin library
+		pluginLib, err := pluginlibrary.NewPluginLibrary()
+		if err != nil {
+			return fmt.Errorf("failed to load plugin library: %w", err)
+		}
+
+		// Install components
+		var installed, skipped, failed []string
+
+		if len(components.Plugins) > 0 {
+			fmt.Printf("Installing %d plugins...\n", len(components.Plugins))
+			for _, pluginName := range components.Plugins {
+				// Get plugin from library
+				plugin, err := pluginLib.Get(pluginName)
+				if err != nil {
+					fmt.Printf("⚠ Plugin '%s' not found in library, skipping\n", pluginName)
+					failed = append(failed, pluginName)
+					continue
+				}
+
+				// Check if already exists
+				if exists, _ := pluginStore.Exists(pluginName); exists {
+					fmt.Printf("• Plugin '%s' already installed\n", pluginName)
+					skipped = append(skipped, pluginName)
+					continue
+				}
+
+				// Install plugin using Upsert (safe for create/update)
+				if err := pluginStore.Upsert(plugin); err != nil {
+					fmt.Printf("✗ Failed to install '%s': %v\n", pluginName, err)
+					failed = append(failed, pluginName)
+				} else {
+					fmt.Printf("✓ Installed '%s'\n", pluginName)
+					installed = append(installed, pluginName)
+				}
+			}
+		}
+
+		// TODO: Handle prompts and profiles similarly when their DB adapters exist
+		// For now, just report what would be installed for those
+		if len(components.Prompts) > 0 {
+			fmt.Printf("\nPrompts to install (%d) - not yet implemented:\n", len(components.Prompts))
+			for _, promptName := range components.Prompts {
+				fmt.Printf("  - %s (pending prompt DB adapter)\n", promptName)
+			}
+		}
+
+		if len(components.Profiles) > 0 {
+			fmt.Printf("\nProfiles to install (%d) - not yet implemented:\n", len(components.Profiles))
+			for _, profileName := range components.Profiles {
+				fmt.Printf("  - %s (pending profile DB adapter)\n", profileName)
+			}
+		}
+
+		// TODO: Store package in terminal_packages table when that's implemented
+
+		// Print summary
+		fmt.Printf("\nPackage '%s' installation complete:\n", name)
+		fmt.Printf("  Plugins installed: %d\n", len(installed))
+		if len(skipped) > 0 {
+			fmt.Printf("  Plugins skipped:   %d (already installed)\n", len(skipped))
+		}
+		if len(failed) > 0 {
+			fmt.Printf("  Plugins failed:    %d (not found in library)\n", len(failed))
+		}
+
+		// Only fail if nothing was installed and there were failures, but no skipped items
+		if len(installed) == 0 && len(failed) > 0 && len(skipped) == 0 {
+			return fmt.Errorf("no components could be installed")
+		}
+
+		fmt.Println("\nUse 'dvt plugin list' to see installed plugins")
 
 		return nil
 	},

@@ -11,6 +11,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.18.4] - 2026-02-20
+
+### ➕ Added
+
+#### Terminal Plugin Database Support
+- **Terminal plugin database support** - Added `terminal_plugins` table for persistent storage of terminal plugins
+- **Database adapter for terminal plugins** - Created `pkg/terminalops/store/db_adapter.go` following the nvimops pattern
+- **`dvt package install` now persists to database** - Installing a package stores plugins in the database (like nvp)
+
+### 🔄 Changed
+
+#### Plugin Storage Consistency
+- **`dvt plugin list/get` now reads from database** - Plugin commands use the database as source of truth instead of file storage
+- **Consistent data storage** - All dvt plugin operations now use the same database as dvm and nvp
+- **Enhanced cross-command integration** - Installing packages via `dvt package install` now immediately updates plugin commands without requiring file system synchronization
+
+### ⚠️ Migration
+
+#### Plugin Storage Migration
+- **Plugin storage location changed** - Plugin data moved from files (`~/.dvt/plugins/`) to database (`~/.dvt/dvt.db`)
+- **Database initialization required** - Plugin commands now require database initialization via `dvt init`
+- **Existing file-based plugins** - Users with existing file-based plugin installations may need to reinstall plugins from the library using `dvt plugin library install <name>` or `dvt package install <package>`
+
+---
+
 ## [0.18.3] - 2026-02-20
 
 ### 🔧 Fixed
