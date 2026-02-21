@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.18.17] - 2026-02-21
+
+### 🐛 Fixed
+
+#### Docker Build Context Issue
+- **dvm build Dockerfile placement** - Fixed critical bug where `Dockerfile.dvm` was saved to original app directory while build context was staging directory
+  - **Root cause**: `SaveDockerfile(dockerfileContent, app.Path)` saved Dockerfile to `app.Path` but Docker build used staging directory (`~/.devopsmaestro/build-staging/<app>/`)
+  - **Impact**: Docker COPY commands failed to find generated config files like `.config/starship.toml`, resulting in containers with stale/incorrect configurations
+  - **Solution**: Changed to `SaveDockerfile(dockerfileContent, stagingDir)` to ensure Dockerfile and build context are in same location
+  - **cmd/build.go**: Updated Dockerfile save location from `app.Path` to `stagingDir` with explanatory comments
+  - **Result**: Docker COPY commands now successfully find generated config files, ensuring containers have correct configurations
+
+---
+
 ## [0.18.16] - 2026-02-21
 
 ### 🐛 Fixed

@@ -8,6 +8,14 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.18.17 (2026-02-21)
+
+**Docker Build Context Fix**
+
+- Fixed critical bug where `Dockerfile.dvm` was saved to the original app directory but Docker build used staging directory
+- Docker COPY commands now work correctly with generated config files like `.config/starship.toml`
+- Eliminates container configuration issues where generated files weren't found during build
+
 ### v0.18.16 (2026-02-21)
 
 **Shell Configuration Fix**
@@ -147,6 +155,7 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **0.18.17** | 2026-02-21 | Docker build context fix for generated config files |
 | **0.17.0** | 2026-02-20 | DVT binary release, TerminalPackages, test gate requirement |
 | **0.16.0** | 2026-02-20 | Package management system, auto-migration |
 | **0.15.1** | 2026-02-19 | NvimPlugin opts field support fix |
