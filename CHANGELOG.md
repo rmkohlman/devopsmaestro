@@ -11,6 +11,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.18.15] - 2026-02-20
+
+### 🐛 Fixed
+
+#### Build Command Prompt Handling
+- **dvm build prompt regeneration** - Fixed issue where stale prompts from database (pre-v0.18.13) with old double-quote format caused TOML parse errors
+  - **Root cause**: `dvm build` was using cached prompts from database that may have been created before v0.18.13 TOML escaping fixes
+  - **Solution**: `dvm build` now always regenerates default prompts using the latest template instead of using potentially stale cached versions
+  - **cmd/build.go**: Modified default prompt logic to always regenerate and update database with fresh template
+  - **Benefit**: Ensures all prompts use current TOML escaping and eliminates parse errors from legacy cached prompts
+
+---
+
 ## [0.18.14] - 2026-02-20
 
 ### 🐛 Fixed
