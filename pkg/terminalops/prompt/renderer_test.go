@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"devopsmaestro/pkg/palette"
+	"github.com/pelletier/go-toml/v2"
 )
 
 func TestStarshipRenderer_Render(t *testing.T) {
@@ -237,5 +238,261 @@ func TestPromptYAML_ResourceInterface(t *testing.T) {
 
 	if prompt.GetAPIVersion() != "devopsmaestro.io/v1" {
 		t.Errorf("GetAPIVersion() = %q, want %q", prompt.GetAPIVersion(), "devopsmaestro.io/v1")
+	}
+}
+
+// TestEscapeTOMLString tests the escapeTOMLString function directly
+func TestEscapeTOMLString(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "string with double quotes",
+			input: `echo "hello"`,
+			want:  `echo \"hello\"`,
+		},
+		{
+			name:  "string with brackets (should remain unchanged)",
+			input: `echo '[api]'`,
+			want:  `echo '[api]'`,
+		},
+		{
+			name:  "string with backslashes",
+			input: `path\to\file`,
+			want:  `path\\to\\file`,
+		},
+		{
+			name:  "string with both quotes and backslashes",
+			input: `echo "c:\path"`,
+			want:  `echo \"c:\\path\"`,
+		},
+		{
+			name:  "empty string",
+			input: "",
+			want:  "",
+		},
+		{
+			name:  "string with no special chars",
+			input: "hello world",
+			want:  "hello world",
+		},
+		{
+			name:  "complex case with runbook brackets",
+			input: `echo '[runbook-api]'`,
+			want:  `echo '[runbook-api]'`,
+		},
+		{
+			name:  "mixed quotes and brackets",
+			input: `echo "[runbook-api]"`,
+			want:  `echo \"[runbook-api]\"`,
+		},
+		{
+			name:  "backslash before quote",
+			input: `path\"quoted`,
+			want:  `path\\\"quoted`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := escapeTOMLString(tt.input)
+			if got != tt.want {
+				t.Errorf("escapeTOMLString(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestTOMLStringEscapingInGeneration tests that generated TOML is valid and parseable
+func TestTOMLStringEscapingInGeneration(t *testing.T) {
+	tests := []struct {
+		name          string
+		command       string
+		wantParseable bool
+		wantValue     string
+	}{
+		{
+			name:          "command with brackets",
+			command:       `echo '[runbook-api]'`,
+			wantParseable: true,
+			wantValue:     `echo '[runbook-api]'`,
+		},
+		{
+			name:          "command with double quotes",
+			command:       `echo "hello world"`,
+			wantParseable: true,
+			wantValue:     `echo "hello world"`,
+		},
+		{
+			name:          "command with backslashes",
+			command:       `C:\path\to\file.exe`,
+			wantParseable: true,
+			wantValue:     `C:\path\to\file.exe`,
+		},
+		{
+			name:          "command with both quotes and backslashes",
+			command:       `echo "C:\Program Files\app"`,
+			wantParseable: true,
+			wantValue:     `echo "C:\Program Files\app"`,
+		},
+		{
+			name:          "complex command with multiple special chars",
+			command:       `bash -c "grep '[api]' /path/to/file"`,
+			wantParseable: true,
+			wantValue:     `bash -c "grep '[api]' /path/to/file"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a TerminalPrompt with a custom_command module
+			prompt := &PromptYAML{
+				APIVersion: "devopsmaestro.io/v1",
+				Kind:       KindTerminalPrompt,
+				Metadata: PromptMetadata{
+					Name: "test-escaping",
+				},
+				Spec: PromptSpec{
+					Type:       PromptTypeStarship,
+					AddNewline: true,
+					Modules: map[string]ModuleConfig{
+						"custom": {
+							Options: map[string]any{
+								"command": tt.command,
+							},
+						},
+					},
+				},
+			}
+
+			// Create a simple palette
+			pal := &palette.Palette{
+				Name: "test",
+				Colors: map[string]string{
+					"bg": "#000000",
+					"fg": "#ffffff",
+				},
+			}
+
+			// Render the TOML
+			renderer := NewRenderer()
+			tomlContent, err := renderer.Render(prompt, pal)
+			if err != nil {
+				t.Fatalf("Failed to render TOML: %v", err)
+			}
+
+			// Try to parse the generated TOML
+			var parsed map[string]any
+			err = toml.Unmarshal([]byte(tomlContent), &parsed)
+
+			if tt.wantParseable {
+				if err != nil {
+					t.Errorf("Generated TOML should be parseable but got error: %v\nGenerated TOML:\n%s", err, tomlContent)
+					return
+				}
+
+				// Verify the parsed value matches the original
+				customSection, ok := parsed["custom"].(map[string]any)
+				if !ok {
+					t.Errorf("Expected custom section in parsed TOML, got: %+v", parsed)
+					return
+				}
+
+				if command, ok := customSection["command"].(string); ok {
+					if command != tt.wantValue {
+						t.Errorf("Parsed command value = %q, want %q", command, tt.wantValue)
+					}
+				} else {
+					t.Errorf("Expected command field in custom section, got: %+v", customSection)
+				}
+			} else {
+				if err == nil {
+					t.Errorf("Expected TOML parsing to fail but it succeeded")
+				}
+			}
+		})
+	}
+}
+
+// TestTOMLStringEscapingInArrays tests escaping in array values
+func TestTOMLStringEscapingInArrays(t *testing.T) {
+	prompt := &PromptYAML{
+		APIVersion: "devopsmaestro.io/v1",
+		Kind:       KindTerminalPrompt,
+		Metadata: PromptMetadata{
+			Name: "test-array-escaping",
+		},
+		Spec: PromptSpec{
+			Type:       PromptTypeStarship,
+			AddNewline: true,
+			Modules: map[string]ModuleConfig{
+				"custom": {
+					Options: map[string]any{
+						"commands": []string{
+							`echo '[api-1]'`,
+							`echo "hello"`,
+							`path\to\file`,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	pal := &palette.Palette{
+		Name: "test",
+		Colors: map[string]string{
+			"bg": "#000000",
+		},
+	}
+
+	renderer := NewRenderer()
+	tomlContent, err := renderer.Render(prompt, pal)
+	if err != nil {
+		t.Fatalf("Failed to render TOML: %v", err)
+	}
+
+	// Parse the generated TOML
+	var parsed map[string]any
+	err = toml.Unmarshal([]byte(tomlContent), &parsed)
+	if err != nil {
+		t.Errorf("Generated TOML should be parseable but got error: %v\nGenerated TOML:\n%s", err, tomlContent)
+		return
+	}
+
+	// Verify the parsed array values match the originals
+	customSection, ok := parsed["custom"].(map[string]any)
+	if !ok {
+		t.Errorf("Expected custom section in parsed TOML")
+		return
+	}
+
+	commands, ok := customSection["commands"].([]any)
+	if !ok {
+		t.Errorf("Expected commands array in custom section")
+		return
+	}
+
+	expectedCommands := []string{
+		`echo '[api-1]'`,
+		`echo "hello"`,
+		`path\to\file`,
+	}
+
+	if len(commands) != len(expectedCommands) {
+		t.Errorf("Expected %d commands, got %d", len(expectedCommands), len(commands))
+		return
+	}
+
+	for i, expected := range expectedCommands {
+		if actual, ok := commands[i].(string); ok {
+			if actual != expected {
+				t.Errorf("Command[%d] = %q, want %q", i, actual, expected)
+			}
+		} else {
+			t.Errorf("Command[%d] is not a string: %v", i, commands[i])
+		}
 	}
 }

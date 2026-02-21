@@ -276,13 +276,25 @@ func (r *StarshipRenderer) writeModuleSection(toml *strings.Builder, name string
 	toml.WriteString("\n")
 }
 
+// escapeTOMLString escapes a string for use in a TOML double-quoted string.
+// This handles special characters like quotes, backslashes, and brackets.
+func escapeTOMLString(s string) string {
+	// Replace backslashes first (before adding new ones)
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	// Escape double quotes
+	s = strings.ReplaceAll(s, `"`, `\"`)
+	return s
+}
+
 // writeValue writes a single TOML key-value pair.
 func (r *StarshipRenderer) writeValue(toml *strings.Builder, key string, value any, moduleName string, pal *palette.Palette) {
 	switch v := value.(type) {
 	case string:
 		// Resolve theme variables in string values
 		resolved := r.resolveThemeVars(v, pal)
-		toml.WriteString(fmt.Sprintf("%s = \"%s\"\n", key, resolved))
+		// Escape special TOML characters
+		escaped := escapeTOMLString(resolved)
+		toml.WriteString(fmt.Sprintf("%s = \"%s\"\n", key, escaped))
 	case bool:
 		toml.WriteString(fmt.Sprintf("%s = %t\n", key, v))
 	case int:
@@ -303,7 +315,7 @@ func (r *StarshipRenderer) writeValue(toml *strings.Builder, key string, value a
 				toml.WriteString(", ")
 			}
 			if str, ok := item.(string); ok {
-				toml.WriteString(fmt.Sprintf("\"%s\"", str))
+				toml.WriteString(fmt.Sprintf("\"%s\"", escapeTOMLString(str)))
 			} else {
 				toml.WriteString(fmt.Sprintf("%v", item))
 			}
@@ -315,7 +327,7 @@ func (r *StarshipRenderer) writeValue(toml *strings.Builder, key string, value a
 			if i > 0 {
 				toml.WriteString(", ")
 			}
-			toml.WriteString(fmt.Sprintf("\"%s\"", item))
+			toml.WriteString(fmt.Sprintf("\"%s\"", escapeTOMLString(item)))
 		}
 		toml.WriteString("]\n")
 	case map[string]any:
