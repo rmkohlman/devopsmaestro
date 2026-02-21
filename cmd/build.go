@@ -256,9 +256,16 @@ func buildWorkspace(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	// Step 5: Generate nvim config BEFORE Dockerfile (so Dockerfile generator can see .config/nvim/)
+	// Step 5: Prepare staging directory and generate shell config (ALWAYS)
+	// This must happen before Dockerfile generation so configs are available
+	stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", filepath.Base(app.Path))
+	if err := prepareStagingDirectory(stagingDir, app.Path, appName, workspaceName, sqlDS); err != nil {
+		return err
+	}
+
+	// Step 5b: Generate nvim config BEFORE Dockerfile (so Dockerfile generator can see .config/nvim/)
 	if workspaceYAML.Spec.Nvim.Structure != "" && workspaceYAML.Spec.Nvim.Structure != "none" {
-		if err := copyNvimConfig(workspaceYAML.Spec.Nvim.Plugins, app.Path, homeDir, sqlDS, app, workspace, appName, workspaceName); err != nil {
+		if err := generateNvimConfig(workspaceYAML.Spec.Nvim.Plugins, stagingDir, homeDir, sqlDS, app, workspace, appName, workspaceName); err != nil {
 			return err
 		}
 	}
@@ -300,7 +307,6 @@ func buildWorkspace(cmd *cobra.Command) error {
 
 	// Create image builder using the factory (decoupled from platform specifics)
 	// Use staging directory as build context (contains app source + generated configs)
-	stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", filepath.Base(app.Path))
 	buildContext := stagingDir // Use staging directory as build context
 
 	// If staging directory doesn't exist, fall back to app path
@@ -436,14 +442,11 @@ func getPlatformInstallHint() string {
   - Podman: brew install podman && podman machine init && podman machine start`
 }
 
-// copyNvimConfig generates nvim configuration using nvp and copies to build context
-// It filters plugins based on the workspace's configured plugin list
-// Reads plugin data from the database (source of truth)
-func copyNvimConfig(workspacePlugins []string, appPath, homeDir string, ds db.DataStore, app *models.App, workspace *models.Workspace, appName, workspaceName string) error {
+// prepareStagingDirectory creates and populates the staging directory for container builds.
+// This includes copying app source and generating shell configuration (starship.toml, .zshrc).
+// This function is ALWAYS called during build, regardless of nvim configuration.
+func prepareStagingDirectory(stagingDir, appPath, appName, workspaceName string, ds db.DataStore) error {
 	render.Progress("Preparing build staging directory...")
-
-	// Create staging directory for build artifacts instead of placing in app directory
-	stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", filepath.Base(appPath))
 
 	// Clean and recreate staging directory
 	if err := os.RemoveAll(stagingDir); err != nil && !os.IsNotExist(err) {
@@ -459,6 +462,22 @@ func copyNvimConfig(workspacePlugins []string, appPath, homeDir string, ds db.Da
 	if err := copyAppSource(appPath, stagingDir); err != nil {
 		return fmt.Errorf("failed to copy app source: %w", err)
 	}
+
+	// Generate shell configuration files (.zshrc and starship.toml)
+	// This is done here to ensure shell config is ALWAYS generated, even without nvim
+	if err := generateShellConfig(stagingDir, appName, workspaceName, ds); err != nil {
+		return fmt.Errorf("failed to generate shell config: %w", err)
+	}
+
+	render.Success("Staging directory prepared")
+	return nil
+}
+
+// generateNvimConfig generates nvim configuration and copies to staging directory.
+// It filters plugins based on the workspace's configured plugin list.
+// Reads plugin data from the database (source of truth).
+func generateNvimConfig(workspacePlugins []string, stagingDir, homeDir string, ds db.DataStore, app *models.App, workspace *models.Workspace, appName, workspaceName string) error {
+	render.Progress("Generating Neovim configuration...")
 
 	nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
 	if err := os.MkdirAll(nvimConfigPath, 0755); err != nil {
@@ -617,11 +636,6 @@ func copyNvimConfig(workspacePlugins []string, appPath, homeDir string, ds db.Da
 				slog.Debug("generated theme", "name", activeTheme.Name)
 			}
 		}
-	}
-
-	// Generate shell configuration files (.zshrc and starship.toml)
-	if err := generateShellConfig(stagingDir, appName, workspaceName, ds); err != nil {
-		return fmt.Errorf("failed to generate shell config: %w", err)
 	}
 
 	render.Success(fmt.Sprintf("Neovim configuration generated (%d plugins)", len(enabledPlugins)))

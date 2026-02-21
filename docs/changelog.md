@@ -8,6 +8,14 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.18.16 (2026-02-21)
+
+**Shell Configuration Fix**
+
+- Fixed critical bug where shell configuration (starship.toml, .zshrc) was only generated when nvim was configured
+- `dvm build` now always generates shell config regardless of nvim configuration, eliminating TOML parse errors in containers
+- Refactored build flow to separate shell config generation from nvim config for better reliability
+
 ### v0.18.14 (2026-02-20)
 
 **Plugin Storage Compatibility Fix**

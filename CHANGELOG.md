@@ -11,6 +11,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.18.16] - 2026-02-21
+
+### 🐛 Fixed
+
+#### Build Command Shell Config Generation  
+- **dvm build shell configuration** - Fixed critical bug where shell configuration (starship.toml, .zshrc) was only generated when nvim was configured
+  - **Root cause**: `generateShellConfig` was only called inside nvim configuration flow, causing workspaces without nvim to never get shell config regenerated during `dvm build`
+  - **Impact**: Workspaces without nvim configuration would have stale starship.toml files, causing TOML parse errors in containers
+  - **Solution**: Refactored build flow to separate shell config generation from nvim config generation
+  - **cmd/build.go**: Split `copyNvimConfig` into `prepareStagingDirectory` (always runs) and `generateNvimConfig` (nvim only)
+  - **prepareStagingDirectory**: Always generates shell config regardless of nvim configuration status
+  - **generateNvimConfig**: Only handles nvim-specific configuration generation
+  - **Result**: All workspaces now have properly regenerated shell configuration during build, eliminating TOML parse errors
+
+---
+
 ## [0.18.15] - 2026-02-20
 
 ### 🐛 Fixed
