@@ -289,8 +289,10 @@ func buildWorkspace(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to generate Dockerfile: %w", err)
 	}
 
-	// Save Dockerfile
-	dvmDockerfile, err := builders.SaveDockerfile(dockerfileContent, app.Path)
+	// Save Dockerfile to STAGING directory (not app directory)
+	// This ensures the Dockerfile is in the same directory as the build context
+	// so COPY commands can find .config/starship.toml and other generated files
+	dvmDockerfile, err := builders.SaveDockerfile(dockerfileContent, stagingDir)
 	if err != nil {
 		slog.Error("failed to save Dockerfile", "error", err)
 		return err
