@@ -8,6 +8,7 @@ import (
 	"devopsmaestro/models"
 	"devopsmaestro/operators"
 	nvimconfig "devopsmaestro/pkg/nvimops/config"
+	"devopsmaestro/pkg/nvimops/library"
 	nvimpackage "devopsmaestro/pkg/nvimops/package"
 	packagelibrary "devopsmaestro/pkg/nvimops/package/library"
 	"devopsmaestro/pkg/nvimops/plugin"
@@ -490,6 +491,13 @@ func copyNvimConfig(workspacePlugins []string, appPath, homeDir string, ds db.Da
 		allPlugins = []*plugin.Plugin{}
 	}
 
+	// Initialize plugin library for fallback
+	pluginLibrary, err := library.NewLibrary()
+	if err != nil {
+		slog.Warn("failed to initialize plugin library", "error", err)
+		pluginLibrary = nil
+	}
+
 	// Build a map of plugin names for quick lookup
 	pluginMap := make(map[string]*plugin.Plugin)
 	for _, p := range allPlugins {
@@ -506,8 +514,19 @@ func copyNvimConfig(workspacePlugins []string, appPath, homeDir string, ds db.Da
 			if p, ok := pluginMap[name]; ok {
 				enabledPlugins = append(enabledPlugins, p)
 			} else {
-				slog.Warn("workspace references unknown plugin", "plugin", name)
-				render.Warning(fmt.Sprintf("Plugin '%s' not found in database (skipping)", name))
+				// Try loading from library as fallback
+				if pluginLibrary != nil {
+					if libPlugin, found := pluginLibrary.Get(name); found {
+						enabledPlugins = append(enabledPlugins, libPlugin)
+						slog.Debug("loaded workspace plugin from library", "plugin", name)
+					} else {
+						slog.Warn("workspace references unknown plugin", "plugin", name)
+						render.Warning(fmt.Sprintf("Plugin '%s' not found in database or library (skipping)", name))
+					}
+				} else {
+					slog.Warn("workspace references unknown plugin", "plugin", name)
+					render.Warning(fmt.Sprintf("Plugin '%s' not found in database (skipping)", name))
+				}
 			}
 		}
 		slog.Debug("using workspace-specific plugins", "count", len(enabledPlugins), "requested", len(workspacePlugins))
@@ -526,8 +545,19 @@ func copyNvimConfig(workspacePlugins []string, appPath, homeDir string, ds db.Da
 					if p, ok := pluginMap[pluginName]; ok {
 						enabledPlugins = append(enabledPlugins, p)
 					} else {
-						slog.Warn("default package references unknown plugin", "plugin", pluginName, "package", defaultPkg)
-						render.Warning(fmt.Sprintf("Plugin '%s' from package '%s' not found in database (skipping)", pluginName, defaultPkg))
+						// Try loading from library as fallback
+						if pluginLibrary != nil {
+							if libPlugin, found := pluginLibrary.Get(pluginName); found {
+								enabledPlugins = append(enabledPlugins, libPlugin)
+								slog.Debug("loaded package plugin from library", "plugin", pluginName, "package", defaultPkg)
+							} else {
+								slog.Warn("default package references unknown plugin", "plugin", pluginName, "package", defaultPkg)
+								render.Warning(fmt.Sprintf("Plugin '%s' from package '%s' not found in database or library (skipping)", pluginName, defaultPkg))
+							}
+						} else {
+							slog.Warn("default package references unknown plugin", "plugin", pluginName, "package", defaultPkg)
+							render.Warning(fmt.Sprintf("Plugin '%s' from package '%s' not found in database (skipping)", pluginName, defaultPkg))
+						}
 					}
 				}
 				slog.Debug("using plugins from default package", "package", defaultPkg, "count", len(enabledPlugins), "resolved_plugins", len(packagePlugins))

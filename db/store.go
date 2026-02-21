@@ -945,6 +945,20 @@ func (ds *SQLDataStore) DeletePlugin(name string) error {
 	return nil
 }
 
+// UpsertPlugin creates or updates a plugin (by name).
+func (ds *SQLDataStore) UpsertPlugin(plugin *models.NvimPluginDB) error {
+	// First try to get the existing plugin
+	existing, err := ds.GetPluginByName(plugin.Name)
+	if err == nil {
+		// Plugin exists, update it
+		plugin.ID = existing.ID
+		return ds.UpdatePlugin(plugin)
+	}
+
+	// Plugin doesn't exist, create it
+	return ds.CreatePlugin(plugin)
+}
+
 // ListPlugins retrieves all plugins.
 func (ds *SQLDataStore) ListPlugins() ([]*models.NvimPluginDB, error) {
 	query := `SELECT id, name, description, repo, branch, version, priority, lazy, event, ft, keys, cmd,

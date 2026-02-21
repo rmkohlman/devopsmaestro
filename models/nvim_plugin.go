@@ -3,6 +3,7 @@ package models
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -290,6 +291,112 @@ func (p *NvimPluginDB) FromYAML(yaml NvimPluginYAML) error {
 	if len(yaml.Spec.Keymaps) > 0 {
 		if keymapsJSON, err := json.Marshal(yaml.Spec.Keymaps); err == nil {
 			p.Keymaps = sql.NullString{String: string(keymapsJSON), Valid: true}
+		}
+	}
+
+	return nil
+}
+
+// FromNvimOpsPlugin converts a nvimops Plugin to NvimPluginDB for database storage
+func (p *NvimPluginDB) FromNvimOpsPlugin(plugin interface{}) error {
+	// Use JSON to convert between types since plugin package imports nvimops
+	jsonBytes, err := json.Marshal(plugin)
+	if err != nil {
+		return fmt.Errorf("failed to marshal plugin: %w", err)
+	}
+
+	var pluginData map[string]interface{}
+	if err := json.Unmarshal(jsonBytes, &pluginData); err != nil {
+		return fmt.Errorf("failed to unmarshal plugin: %w", err)
+	}
+
+	// Core fields
+	p.Name = pluginData["name"].(string)
+	p.Repo = pluginData["repo"].(string)
+	p.Lazy = pluginData["lazy"].(bool)
+	p.Enabled = pluginData["enabled"].(bool)
+
+	// Optional string fields
+	if desc, ok := pluginData["description"].(string); ok && desc != "" {
+		p.Description = sql.NullString{String: desc, Valid: true}
+	}
+
+	if branch, ok := pluginData["branch"].(string); ok && branch != "" {
+		p.Branch = sql.NullString{String: branch, Valid: true}
+	}
+
+	if version, ok := pluginData["version"].(string); ok && version != "" {
+		p.Version = sql.NullString{String: version, Valid: true}
+	}
+
+	if category, ok := pluginData["category"].(string); ok && category != "" {
+		p.Category = sql.NullString{String: category, Valid: true}
+	}
+
+	if build, ok := pluginData["build"].(string); ok && build != "" {
+		p.Build = sql.NullString{String: build, Valid: true}
+	}
+
+	if config, ok := pluginData["config"].(string); ok && config != "" {
+		p.Config = sql.NullString{String: config, Valid: true}
+	}
+
+	if init, ok := pluginData["init"].(string); ok && init != "" {
+		p.Init = sql.NullString{String: init, Valid: true}
+	}
+
+	// Priority (int)
+	if priority, ok := pluginData["priority"].(float64); ok && priority != 0 {
+		p.Priority = sql.NullInt64{Int64: int64(priority), Valid: true}
+	}
+
+	// Array fields - serialize to JSON
+	if event, ok := pluginData["event"].([]interface{}); ok && len(event) > 0 {
+		if eventJSON, err := json.Marshal(event); err == nil {
+			p.Event = sql.NullString{String: string(eventJSON), Valid: true}
+		}
+	}
+
+	if ft, ok := pluginData["ft"].([]interface{}); ok && len(ft) > 0 {
+		if ftJSON, err := json.Marshal(ft); err == nil {
+			p.Ft = sql.NullString{String: string(ftJSON), Valid: true}
+		}
+	}
+
+	if cmd, ok := pluginData["cmd"].([]interface{}); ok && len(cmd) > 0 {
+		if cmdJSON, err := json.Marshal(cmd); err == nil {
+			p.Cmd = sql.NullString{String: string(cmdJSON), Valid: true}
+		}
+	}
+
+	if keys, ok := pluginData["keys"].([]interface{}); ok && len(keys) > 0 {
+		if keysJSON, err := json.Marshal(keys); err == nil {
+			p.Keys = sql.NullString{String: string(keysJSON), Valid: true}
+		}
+	}
+
+	if dependencies, ok := pluginData["dependencies"].([]interface{}); ok && len(dependencies) > 0 {
+		if depsJSON, err := json.Marshal(dependencies); err == nil {
+			p.Dependencies = sql.NullString{String: string(depsJSON), Valid: true}
+		}
+	}
+
+	if keymaps, ok := pluginData["keymaps"].([]interface{}); ok && len(keymaps) > 0 {
+		if keymapsJSON, err := json.Marshal(keymaps); err == nil {
+			p.Keymaps = sql.NullString{String: string(keymapsJSON), Valid: true}
+		}
+	}
+
+	if tags, ok := pluginData["tags"].([]interface{}); ok && len(tags) > 0 {
+		if tagsJSON, err := json.Marshal(tags); err == nil {
+			p.Tags = sql.NullString{String: string(tagsJSON), Valid: true}
+		}
+	}
+
+	// Opts - handle interface{} field
+	if opts, ok := pluginData["opts"]; ok && opts != nil {
+		if optsJSON, err := json.Marshal(opts); err == nil {
+			p.Opts = sql.NullString{String: string(optsJSON), Valid: true}
 		}
 	}
 

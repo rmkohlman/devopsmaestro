@@ -98,6 +98,7 @@ type MockDataStore struct {
 	GetPluginByNameErr                  error
 	GetPluginByIDErr                    error
 	UpdatePluginErr                     error
+	UpsertPluginErr                     error
 	DeletePluginErr                     error
 	ListPluginsErr                      error
 	ListPluginsByCategoryErr            error
@@ -879,6 +880,23 @@ func (m *MockDataStore) UpdatePlugin(plugin *models.NvimPluginDB) error {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.Plugins[plugin.Name] = plugin
+	return nil
+}
+
+func (m *MockDataStore) UpsertPlugin(plugin *models.NvimPluginDB) error {
+	m.recordCall("UpsertPlugin", plugin)
+	if m.UpsertPluginErr != nil {
+		return m.UpsertPluginErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if existing, exists := m.Plugins[plugin.Name]; exists {
+		plugin.ID = existing.ID
+	} else {
+		m.NextPluginID++
+		plugin.ID = m.NextPluginID
+	}
 	m.Plugins[plugin.Name] = plugin
 	return nil
 }

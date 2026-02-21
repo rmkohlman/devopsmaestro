@@ -163,6 +163,9 @@ type DataStore interface {
 	// UpdatePlugin updates an existing plugin.
 	UpdatePlugin(plugin *models.NvimPluginDB) error
 
+	// UpsertPlugin creates or updates a plugin (by name).
+	UpsertPlugin(plugin *models.NvimPluginDB) error
+
 	// DeletePlugin removes a plugin by name.
 	DeletePlugin(name string) error
 

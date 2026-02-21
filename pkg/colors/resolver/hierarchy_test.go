@@ -195,6 +195,7 @@ func (m *MockDataStore) CreatePlugin(plugin *models.NvimPluginDB) error         
 func (m *MockDataStore) GetPluginByName(name string) (*models.NvimPluginDB, error) { return nil, nil }
 func (m *MockDataStore) GetPluginByID(id int) (*models.NvimPluginDB, error)        { return nil, nil }
 func (m *MockDataStore) UpdatePlugin(plugin *models.NvimPluginDB) error            { return nil }
+func (m *MockDataStore) UpsertPlugin(plugin *models.NvimPluginDB) error            { return nil }
 func (m *MockDataStore) DeletePlugin(name string) error                            { return nil }
 func (m *MockDataStore) ListPlugins() ([]*models.NvimPluginDB, error)              { return nil, nil }
 func (m *MockDataStore) ListPluginsByCategory(category string) ([]*models.NvimPluginDB, error) {

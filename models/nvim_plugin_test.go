@@ -352,3 +352,60 @@ func TestPluginWithLazyLoading_FromYAML(t *testing.T) {
 	assert.True(t, plugin.Cmd.Valid)
 	assert.Contains(t, plugin.Cmd.String, "Telescope")
 }
+
+func TestPluginFromNvimOpsPlugin(t *testing.T) {
+	// Create a mock plugin using the structure that would come from nvimops
+	mockPlugin := map[string]interface{}{
+		"name":        "telescope",
+		"description": "Fuzzy finder for neovim",
+		"repo":        "nvim-telescope/telescope.nvim",
+		"category":    "navigation",
+		"enabled":     true,
+		"lazy":        true,
+		"priority":    float64(100), // JSON numbers are float64
+		"event":       []interface{}{"VeryLazy"},
+		"ft":          []interface{}{"lua", "vim"},
+		"tags":        []interface{}{"telescope", "fuzzy-finder"},
+		"config":      "require('telescope').setup({})",
+		"keymaps": []interface{}{
+			map[string]interface{}{
+				"key":    "<leader>ff",
+				"action": "<cmd>Telescope find_files<cr>",
+				"desc":   "Find files",
+			},
+		},
+	}
+
+	plugin := &NvimPluginDB{}
+	err := plugin.FromNvimOpsPlugin(mockPlugin)
+	require.NoError(t, err)
+
+	assert.Equal(t, "telescope", plugin.Name)
+	assert.Equal(t, "nvim-telescope/telescope.nvim", plugin.Repo)
+	assert.True(t, plugin.Enabled)
+	assert.True(t, plugin.Lazy)
+
+	assert.True(t, plugin.Description.Valid)
+	assert.Equal(t, "Fuzzy finder for neovim", plugin.Description.String)
+
+	assert.True(t, plugin.Category.Valid)
+	assert.Equal(t, "navigation", plugin.Category.String)
+
+	assert.True(t, plugin.Priority.Valid)
+	assert.Equal(t, int64(100), plugin.Priority.Int64)
+
+	assert.True(t, plugin.Event.Valid)
+	assert.Contains(t, plugin.Event.String, "VeryLazy")
+
+	assert.True(t, plugin.Ft.Valid)
+	assert.Contains(t, plugin.Ft.String, "lua")
+
+	assert.True(t, plugin.Tags.Valid)
+	assert.Contains(t, plugin.Tags.String, "telescope")
+
+	assert.True(t, plugin.Config.Valid)
+	assert.Equal(t, "require('telescope').setup({})", plugin.Config.String)
+
+	assert.True(t, plugin.Keymaps.Valid)
+	assert.Contains(t, plugin.Keymaps.String, "leader")
+}

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"devopsmaestro/db"
+	"devopsmaestro/models"
 	"devopsmaestro/pkg/nvimops/library"
 	nvimpackage "devopsmaestro/pkg/nvimops/package"
 	packagelibrary "devopsmaestro/pkg/nvimops/package/library"
@@ -154,6 +156,13 @@ Examples:
 		}
 		defer mgr.Close()
 
+		// Get dataStore from context like dvt does
+		dataStoreInterface := cmd.Context().Value("dataStore")
+		if dataStoreInterface == nil {
+			return fmt.Errorf("dataStore not found in context")
+		}
+		dataStore := dataStoreInterface.(*db.DataStore)
+
 		// Install each plugin
 		var installed, failed []string
 		for _, pluginName := range pluginNames {
@@ -171,13 +180,21 @@ Examples:
 				continue
 			}
 
-			// Install plugin
+			// Install plugin to file store
 			if err := mgr.Apply(plugin); err != nil {
 				fmt.Printf("✗ Failed to install '%s': %v\n", pluginName, err)
 				failed = append(failed, pluginName)
 			} else {
 				fmt.Printf("✓ Installed '%s'\n", pluginName)
 				installed = append(installed, pluginName)
+
+				// Also save to database for dvm compatibility
+				pluginDB := &models.NvimPluginDB{}
+				if err := pluginDB.FromNvimOpsPlugin(plugin); err != nil {
+					fmt.Printf("⚠ Warning: Failed to convert plugin '%s' for database: %v\n", pluginName, err)
+				} else if err := (*dataStore).UpsertPlugin(pluginDB); err != nil {
+					fmt.Printf("⚠ Warning: Failed to save plugin '%s' to database: %v\n", pluginName, err)
+				}
 			}
 		}
 

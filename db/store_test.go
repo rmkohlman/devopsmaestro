@@ -2025,6 +2025,57 @@ func TestSQLDataStore_ListPluginsByCategory(t *testing.T) {
 	}
 }
 
+func TestSQLDataStore_UpsertPlugin(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	// Test create (upsert when plugin doesn't exist)
+	plugin := &models.NvimPluginDB{
+		Name:        "test-upsert-plugin",
+		Repo:        "user/test-upsert-plugin",
+		Category:    sql.NullString{String: "editor", Valid: true},
+		Description: sql.NullString{String: "Test plugin", Valid: true},
+		Enabled:     true,
+	}
+
+	err := ds.UpsertPlugin(plugin)
+	if err != nil {
+		t.Fatalf("UpsertPlugin() (create) error = %v", err)
+	}
+
+	if plugin.ID == 0 {
+		t.Errorf("UpsertPlugin() (create) did not set plugin.ID")
+	}
+
+	// Test update (upsert when plugin exists)
+	originalID := plugin.ID
+	plugin.Description = sql.NullString{String: "Updated description", Valid: true}
+	plugin.Category = sql.NullString{String: "lsp", Valid: true}
+
+	err = ds.UpsertPlugin(plugin)
+	if err != nil {
+		t.Fatalf("UpsertPlugin() (update) error = %v", err)
+	}
+
+	if plugin.ID != originalID {
+		t.Errorf("UpsertPlugin() (update) changed ID from %d to %d", originalID, plugin.ID)
+	}
+
+	// Verify the update worked
+	retrieved, err := ds.GetPluginByName("test-upsert-plugin")
+	if err != nil {
+		t.Fatalf("GetPluginByName() after upsert error = %v", err)
+	}
+
+	if retrieved.Description.String != "Updated description" {
+		t.Errorf("UpsertPlugin() update failed, description = %q, want %q", retrieved.Description.String, "Updated description")
+	}
+
+	if retrieved.Category.String != "lsp" {
+		t.Errorf("UpsertPlugin() update failed, category = %q, want %q", retrieved.Category.String, "lsp")
+	}
+}
+
 // =============================================================================
 // Workspace-Plugin Association Tests
 // =============================================================================
