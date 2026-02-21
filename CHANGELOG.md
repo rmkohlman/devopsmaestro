@@ -11,6 +11,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.18.5] - 2026-02-20
+
+### ➕ Added
+
+#### Terminal Emulator Management (Phase 2)
+- **Terminal emulator database support** - Added `terminal_emulators` table with proper indexes for storing emulator configurations
+- **Multi-emulator type support** - Support for wezterm, alacritty, kitty, and iterm2 terminal emulator types
+- **Emulator domain layer** - Created `pkg/terminalops/emulator/` package with types and store interface following established patterns
+- **Database adapter for terminal emulators** - `DBEmulatorStore` adapter implementing EmulatorStore interface with proper JSON serialization
+- **Terminal emulator CLI commands** - Added complete `dvt emulator` command suite:
+  - `dvt emulator list` - List installed emulators with filtering by type and category
+  - `dvt emulator get <name>` - Get detailed emulator configuration
+  - `dvt emulator enable <name>` - Enable emulator for workspace use
+  - `dvt emulator disable <name>` - Disable emulator
+- **JSON config storage** - Store emulator-specific configuration as JSON for flexibility
+- **Theme and workspace associations** - Link emulators to themes and workspaces for coordinated styling
+
+### 🔧 Technical Improvements
+
+#### Database Infrastructure
+- **Migration 0005** - Added terminal_emulators table with proper foreign key constraints and indexes
+- **Domain error mapping** - Proper error handling with domain-specific error types
+- **Type-safe emulator types** - Enum-like constants for emulator type validation
+
+#### Testing
+- **Integration tests** - Database integration tests for emulator operations
+- **Migration tests** - Verify database migration correctness
+- **Mock implementations** - Updated mock store with emulator interface methods
+
+---
+
 ## [0.18.4] - 2026-02-20
 
 ### ➕ Added

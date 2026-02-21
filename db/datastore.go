@@ -356,6 +356,32 @@ type DataStore interface {
 	// ListTerminalPluginsByManager retrieves terminal plugins filtered by manager.
 	ListTerminalPluginsByManager(manager string) ([]*models.TerminalPluginDB, error)
 
+	// Terminal Emulator Operations
+
+	// CreateTerminalEmulator inserts a new terminal emulator config.
+	CreateTerminalEmulator(emulator *models.TerminalEmulatorDB) error
+
+	// UpdateTerminalEmulator updates an existing terminal emulator config.
+	UpdateTerminalEmulator(emulator *models.TerminalEmulatorDB) error
+
+	// UpsertTerminalEmulator creates or updates a terminal emulator (by name).
+	UpsertTerminalEmulator(emulator *models.TerminalEmulatorDB) error
+
+	// DeleteTerminalEmulator removes a terminal emulator by name.
+	DeleteTerminalEmulator(name string) error
+
+	// GetTerminalEmulator retrieves a terminal emulator by its name.
+	GetTerminalEmulator(name string) (*models.TerminalEmulatorDB, error)
+
+	// ListTerminalEmulators retrieves all terminal emulators.
+	ListTerminalEmulators() ([]*models.TerminalEmulatorDB, error)
+
+	// ListTerminalEmulatorsByType retrieves terminal emulators filtered by type.
+	ListTerminalEmulatorsByType(emulatorType string) ([]*models.TerminalEmulatorDB, error)
+
+	// ListTerminalEmulatorsByWorkspace retrieves terminal emulators for a workspace.
+	ListTerminalEmulatorsByWorkspace(workspace string) ([]*models.TerminalEmulatorDB, error)
+
 	// Driver Access
 
 	// Driver returns the underlying database driver.

@@ -315,6 +315,32 @@ func (m *MockDataStore) ListTerminalPluginsByManager(manager string) ([]*models.
 	return nil, nil
 }
 
+// Terminal Emulator Operations
+func (m *MockDataStore) CreateTerminalEmulator(emulator *models.TerminalEmulatorDB) error {
+	return nil
+}
+func (m *MockDataStore) UpdateTerminalEmulator(emulator *models.TerminalEmulatorDB) error {
+	return nil
+}
+func (m *MockDataStore) UpsertTerminalEmulator(emulator *models.TerminalEmulatorDB) error {
+	return nil
+}
+func (m *MockDataStore) DeleteTerminalEmulator(name string) error {
+	return nil
+}
+func (m *MockDataStore) GetTerminalEmulator(name string) (*models.TerminalEmulatorDB, error) {
+	return nil, nil
+}
+func (m *MockDataStore) ListTerminalEmulators() ([]*models.TerminalEmulatorDB, error) {
+	return nil, nil
+}
+func (m *MockDataStore) ListTerminalEmulatorsByType(emulatorType string) ([]*models.TerminalEmulatorDB, error) {
+	return nil, nil
+}
+func (m *MockDataStore) ListTerminalEmulatorsByWorkspace(workspace string) ([]*models.TerminalEmulatorDB, error) {
+	return nil, nil
+}
+
 // MockThemeStore implements theme.Store for testing
 type MockThemeStore struct {
 	themes   map[string]*theme.Theme

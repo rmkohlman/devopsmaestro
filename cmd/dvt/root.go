@@ -145,6 +145,7 @@ func init() {
 	rootCmd.AddCommand(packageCmd)
 	rootCmd.AddCommand(shellCmd)
 	rootCmd.AddCommand(profileCmd)
+	rootCmd.AddCommand(emulatorCmd)
 	rootCmd.AddCommand(weztermCmd)
 	rootCmd.AddCommand(completionCmd)
 }

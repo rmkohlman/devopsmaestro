@@ -8,6 +8,17 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.18.5 (2026-02-20)
+
+**Terminal Emulator Management (Phase 2)**
+
+- Added complete terminal emulator database infrastructure with `terminal_emulators` table
+- Support for wezterm, alacritty, kitty, and iterm2 emulator types with JSON configuration storage
+- New `dvt emulator` CLI commands: `list`, `get`, `enable`, `disable` with filtering and formatting options
+- Created `pkg/terminalops/emulator/` domain layer with proper interfaces and error handling
+- Database adapter `DBEmulatorStore` following established DevOpsMaestro patterns
+- Theme and workspace association support for coordinated terminal styling
+
 ### v0.18.4 (2026-02-20)
 
 **Terminal Plugin Database Support**

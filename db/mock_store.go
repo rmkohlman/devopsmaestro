@@ -14,35 +14,37 @@ type MockDataStore struct {
 	mu sync.Mutex
 
 	// In-memory storage
-	Ecosystems       map[string]*models.Ecosystem
-	Domains          map[int]*models.Domain // keyed by ID for easier lookup
-	Apps             map[int]*models.App    // keyed by ID for easier lookup
-	Projects         map[string]*models.Project
-	Workspaces       map[int]*models.Workspace
-	Plugins          map[string]*models.NvimPluginDB
-	Packages         map[string]*models.NvimPackageDB     // keyed by name
-	TerminalPackages map[string]*models.TerminalPackageDB // keyed by name
-	TerminalPlugins  map[string]*models.TerminalPluginDB  // keyed by name
-	Themes           map[string]*models.NvimThemeDB
-	TerminalPrompts  map[string]*models.TerminalPromptDB
-	Credentials      map[string]*models.CredentialDB // keyed by "scopeType:scopeID:name"
-	Defaults         map[string]string               // keyed by default key
-	ActiveTheme      string
-	Context          *models.Context
+	Ecosystems        map[string]*models.Ecosystem
+	Domains           map[int]*models.Domain // keyed by ID for easier lookup
+	Apps              map[int]*models.App    // keyed by ID for easier lookup
+	Projects          map[string]*models.Project
+	Workspaces        map[int]*models.Workspace
+	Plugins           map[string]*models.NvimPluginDB
+	Packages          map[string]*models.NvimPackageDB      // keyed by name
+	TerminalPackages  map[string]*models.TerminalPackageDB  // keyed by name
+	TerminalPlugins   map[string]*models.TerminalPluginDB   // keyed by name
+	TerminalEmulators map[string]*models.TerminalEmulatorDB // keyed by name
+	Themes            map[string]*models.NvimThemeDB
+	TerminalPrompts   map[string]*models.TerminalPromptDB
+	Credentials       map[string]*models.CredentialDB // keyed by "scopeType:scopeID:name"
+	Defaults          map[string]string               // keyed by default key
+	ActiveTheme       string
+	Context           *models.Context
 
 	// ID counters for auto-increment simulation
-	NextEcosystemID       int
-	NextDomainID          int
-	NextAppID             int
-	NextProjectID         int
-	NextWorkspaceID       int
-	NextPluginID          int
-	NextPackageID         int
-	NextTerminalPackageID int
-	NextTerminalPluginID  int
-	NextThemeID           int
-	NextTerminalPromptID  int
-	NextCredentialID      int64
+	NextEcosystemID        int
+	NextDomainID           int
+	NextAppID              int
+	NextProjectID          int
+	NextWorkspaceID        int
+	NextPluginID           int
+	NextPackageID          int
+	NextTerminalPackageID  int
+	NextTerminalPluginID   int
+	NextTerminalEmulatorID int
+	NextThemeID            int
+	NextTerminalPromptID   int
+	NextCredentialID       int64
 
 	// WorkspacePlugins maps workspaceID -> pluginIDs
 	WorkspacePlugins map[int]map[int]bool
@@ -51,104 +53,112 @@ type MockDataStore struct {
 	MockDriver *MockDriver
 
 	// Error injection for testing error paths
-	CreateEcosystemErr               error
-	GetEcosystemByNameErr            error
-	GetEcosystemByIDErr              error
-	UpdateEcosystemErr               error
-	DeleteEcosystemErr               error
-	ListEcosystemsErr                error
-	CreateDomainErr                  error
-	GetDomainByNameErr               error
-	GetDomainByIDErr                 error
-	UpdateDomainErr                  error
-	DeleteDomainErr                  error
-	ListDomainsByEcosystemErr        error
-	ListAllDomainsErr                error
-	CreateAppErr                     error
-	GetAppByNameErr                  error
-	GetAppByIDErr                    error
-	UpdateAppErr                     error
-	DeleteAppErr                     error
-	ListAppsByDomainErr              error
-	ListAllAppsErr                   error
-	CreateProjectErr                 error
-	GetProjectByNameErr              error
-	GetProjectByIDErr                error
-	UpdateProjectErr                 error
-	DeleteProjectErr                 error
-	ListProjectsErr                  error
-	CreateWorkspaceErr               error
-	GetWorkspaceByNameErr            error
-	GetWorkspaceByIDErr              error
-	UpdateWorkspaceErr               error
-	DeleteWorkspaceErr               error
-	ListWorkspacesByAppErr           error
-	ListAllWorkspacesErr             error
-	FindWorkspacesErr                error
-	GetContextErr                    error
-	SetActiveEcosystemErr            error
-	SetActiveDomainErr               error
-	SetActiveAppErr                  error
-	SetActiveWorkspaceErr            error
-	SetActiveProjectErr              error
-	CreatePluginErr                  error
-	GetPluginByNameErr               error
-	GetPluginByIDErr                 error
-	UpdatePluginErr                  error
-	DeletePluginErr                  error
-	ListPluginsErr                   error
-	ListPluginsByCategoryErr         error
-	ListPluginsByTagsErr             error
-	AddPluginToWorkspaceErr          error
-	RemovePluginFromWorkspaceErr     error
-	GetWorkspacePluginsErr           error
-	SetWorkspacePluginEnabledErr     error
-	CreateThemeErr                   error
-	GetThemeByNameErr                error
-	GetThemeByIDErr                  error
-	UpdateThemeErr                   error
-	DeleteThemeErr                   error
-	ListThemesErr                    error
-	ListThemesByCategoryErr          error
-	GetActiveThemeErr                error
-	SetActiveThemeErr                error
-	ClearActiveThemeErr              error
-	CreateTerminalPromptErr          error
-	GetTerminalPromptByNameErr       error
-	UpdateTerminalPromptErr          error
-	DeleteTerminalPromptErr          error
-	ListTerminalPromptsErr           error
-	ListTerminalPromptsByTypeErr     error
-	ListTerminalPromptsByCategoryErr error
-	GetDefaultErr                    error
-	SetDefaultErr                    error
-	DeleteDefaultErr                 error
-	ListDefaultsErr                  error
-	CreatePackageErr                 error
-	UpdatePackageErr                 error
-	UpsertPackageErr                 error
-	DeletePackageErr                 error
-	GetPackageErr                    error
-	ListPackagesErr                  error
-	ListPackagesByLabelErr           error
-	CreateTerminalPackageErr         error
-	UpdateTerminalPackageErr         error
-	UpsertTerminalPackageErr         error
-	DeleteTerminalPackageErr         error
-	GetTerminalPackageErr            error
-	ListTerminalPackagesErr          error
-	ListTerminalPackagesByLabelErr   error
-	CreateTerminalPluginErr          error
-	UpdateTerminalPluginErr          error
-	UpsertTerminalPluginErr          error
-	DeleteTerminalPluginErr          error
-	GetTerminalPluginErr             error
-	ListTerminalPluginsErr           error
-	ListTerminalPluginsByCategoryErr error
-	ListTerminalPluginsByShellErr    error
-	ListTerminalPluginsByManagerErr  error
-	CloseErr                         error
-	PingErr                          error
+	CreateEcosystemErr                  error
+	GetEcosystemByNameErr               error
+	GetEcosystemByIDErr                 error
+	UpdateEcosystemErr                  error
+	DeleteEcosystemErr                  error
+	ListEcosystemsErr                   error
+	CreateDomainErr                     error
+	GetDomainByNameErr                  error
+	GetDomainByIDErr                    error
+	UpdateDomainErr                     error
+	DeleteDomainErr                     error
+	ListDomainsByEcosystemErr           error
+	ListAllDomainsErr                   error
+	CreateAppErr                        error
+	GetAppByNameErr                     error
+	GetAppByIDErr                       error
+	UpdateAppErr                        error
+	DeleteAppErr                        error
+	ListAppsByDomainErr                 error
+	ListAllAppsErr                      error
+	CreateProjectErr                    error
+	GetProjectByNameErr                 error
+	GetProjectByIDErr                   error
+	UpdateProjectErr                    error
+	DeleteProjectErr                    error
+	ListProjectsErr                     error
+	CreateWorkspaceErr                  error
+	GetWorkspaceByNameErr               error
+	GetWorkspaceByIDErr                 error
+	UpdateWorkspaceErr                  error
+	DeleteWorkspaceErr                  error
+	ListWorkspacesByAppErr              error
+	ListAllWorkspacesErr                error
+	FindWorkspacesErr                   error
+	GetContextErr                       error
+	SetActiveEcosystemErr               error
+	SetActiveDomainErr                  error
+	SetActiveAppErr                     error
+	SetActiveWorkspaceErr               error
+	SetActiveProjectErr                 error
+	CreatePluginErr                     error
+	GetPluginByNameErr                  error
+	GetPluginByIDErr                    error
+	UpdatePluginErr                     error
+	DeletePluginErr                     error
+	ListPluginsErr                      error
+	ListPluginsByCategoryErr            error
+	ListPluginsByTagsErr                error
+	AddPluginToWorkspaceErr             error
+	RemovePluginFromWorkspaceErr        error
+	GetWorkspacePluginsErr              error
+	SetWorkspacePluginEnabledErr        error
+	CreateThemeErr                      error
+	GetThemeByNameErr                   error
+	GetThemeByIDErr                     error
+	UpdateThemeErr                      error
+	DeleteThemeErr                      error
+	ListThemesErr                       error
+	ListThemesByCategoryErr             error
+	GetActiveThemeErr                   error
+	SetActiveThemeErr                   error
+	ClearActiveThemeErr                 error
+	CreateTerminalPromptErr             error
+	GetTerminalPromptByNameErr          error
+	UpdateTerminalPromptErr             error
+	DeleteTerminalPromptErr             error
+	ListTerminalPromptsErr              error
+	ListTerminalPromptsByTypeErr        error
+	ListTerminalPromptsByCategoryErr    error
+	GetDefaultErr                       error
+	SetDefaultErr                       error
+	DeleteDefaultErr                    error
+	ListDefaultsErr                     error
+	CreatePackageErr                    error
+	UpdatePackageErr                    error
+	UpsertPackageErr                    error
+	DeletePackageErr                    error
+	GetPackageErr                       error
+	ListPackagesErr                     error
+	ListPackagesByLabelErr              error
+	CreateTerminalPackageErr            error
+	UpdateTerminalPackageErr            error
+	UpsertTerminalPackageErr            error
+	DeleteTerminalPackageErr            error
+	GetTerminalPackageErr               error
+	ListTerminalPackagesErr             error
+	ListTerminalPackagesByLabelErr      error
+	CreateTerminalPluginErr             error
+	UpdateTerminalPluginErr             error
+	UpsertTerminalPluginErr             error
+	DeleteTerminalPluginErr             error
+	GetTerminalPluginErr                error
+	ListTerminalPluginsErr              error
+	ListTerminalPluginsByCategoryErr    error
+	ListTerminalPluginsByShellErr       error
+	ListTerminalPluginsByManagerErr     error
+	CreateTerminalEmulatorErr           error
+	UpdateTerminalEmulatorErr           error
+	UpsertTerminalEmulatorErr           error
+	DeleteTerminalEmulatorErr           error
+	GetTerminalEmulatorErr              error
+	ListTerminalEmulatorsErr            error
+	ListTerminalEmulatorsByTypeErr      error
+	ListTerminalEmulatorsByWorkspaceErr error
+	CloseErr                            error
+	PingErr                             error
 
 	// Call tracking
 	Calls []MockDataStoreCall
@@ -183,6 +193,7 @@ func NewMockDataStore() *MockDataStore {
 		Packages:              make(map[string]*models.NvimPackageDB),
 		TerminalPackages:      make(map[string]*models.TerminalPackageDB),
 		TerminalPlugins:       make(map[string]*models.TerminalPluginDB),
+		TerminalEmulators:     make(map[string]*models.TerminalEmulatorDB),
 		Themes:                make(map[string]*models.NvimThemeDB),
 		TerminalPrompts:       make(map[string]*models.TerminalPromptDB),
 		WorkspacePlugins:      make(map[int]map[int]bool),
@@ -1748,6 +1759,175 @@ func (m *MockDataStore) ListTerminalPluginsByManager(manager string) ([]*models.
 	}
 
 	return plugins, nil
+}
+
+// =============================================================================
+// Terminal Emulator Operations
+// =============================================================================
+
+func (m *MockDataStore) CreateTerminalEmulator(emulator *models.TerminalEmulatorDB) error {
+	m.recordCall("CreateTerminalEmulator", emulator.Name)
+
+	if m.CreateTerminalEmulatorErr != nil {
+		return m.CreateTerminalEmulatorErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, exists := m.TerminalEmulators[emulator.Name]; exists {
+		return fmt.Errorf("terminal emulator %s already exists", emulator.Name)
+	}
+
+	// Copy emulator and assign ID
+	emulatorCopy := *emulator
+	m.NextTerminalEmulatorID++
+	emulatorCopy.ID = m.NextTerminalEmulatorID
+	m.TerminalEmulators[emulator.Name] = &emulatorCopy
+
+	// Update original with assigned ID
+	emulator.ID = emulatorCopy.ID
+
+	return nil
+}
+
+func (m *MockDataStore) GetTerminalEmulator(name string) (*models.TerminalEmulatorDB, error) {
+	m.recordCall("GetTerminalEmulator", name)
+
+	if m.GetTerminalEmulatorErr != nil {
+		return nil, m.GetTerminalEmulatorErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	emulator, exists := m.TerminalEmulators[name]
+	if !exists {
+		return nil, fmt.Errorf("terminal emulator not found: %s", name)
+	}
+
+	// Return a copy to prevent external modifications
+	emulatorCopy := *emulator
+	return &emulatorCopy, nil
+}
+
+func (m *MockDataStore) UpdateTerminalEmulator(emulator *models.TerminalEmulatorDB) error {
+	m.recordCall("UpdateTerminalEmulator", emulator.Name)
+
+	if m.UpdateTerminalEmulatorErr != nil {
+		return m.UpdateTerminalEmulatorErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, exists := m.TerminalEmulators[emulator.Name]; !exists {
+		return fmt.Errorf("terminal emulator not found: %s", emulator.Name)
+	}
+
+	// Update the stored emulator
+	emulatorCopy := *emulator
+	m.TerminalEmulators[emulator.Name] = &emulatorCopy
+
+	return nil
+}
+
+func (m *MockDataStore) UpsertTerminalEmulator(emulator *models.TerminalEmulatorDB) error {
+	m.recordCall("UpsertTerminalEmulator", emulator.Name)
+
+	if m.UpsertTerminalEmulatorErr != nil {
+		return m.UpsertTerminalEmulatorErr
+	}
+
+	// Try to get existing emulator
+	existing, err := m.GetTerminalEmulator(emulator.Name)
+	if err == nil {
+		// Emulator exists, update it
+		emulator.ID = existing.ID
+		return m.UpdateTerminalEmulator(emulator)
+	}
+
+	// Emulator doesn't exist, create it
+	return m.CreateTerminalEmulator(emulator)
+}
+
+func (m *MockDataStore) DeleteTerminalEmulator(name string) error {
+	m.recordCall("DeleteTerminalEmulator", name)
+
+	if m.DeleteTerminalEmulatorErr != nil {
+		return m.DeleteTerminalEmulatorErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, exists := m.TerminalEmulators[name]; !exists {
+		return fmt.Errorf("terminal emulator not found: %s", name)
+	}
+
+	delete(m.TerminalEmulators, name)
+	return nil
+}
+
+func (m *MockDataStore) ListTerminalEmulators() ([]*models.TerminalEmulatorDB, error) {
+	m.recordCall("ListTerminalEmulators")
+
+	if m.ListTerminalEmulatorsErr != nil {
+		return nil, m.ListTerminalEmulatorsErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var emulators []*models.TerminalEmulatorDB
+	for _, emulator := range m.TerminalEmulators {
+		emulatorCopy := *emulator
+		emulators = append(emulators, &emulatorCopy)
+	}
+
+	return emulators, nil
+}
+
+func (m *MockDataStore) ListTerminalEmulatorsByType(emulatorType string) ([]*models.TerminalEmulatorDB, error) {
+	m.recordCall("ListTerminalEmulatorsByType", emulatorType)
+
+	if m.ListTerminalEmulatorsByTypeErr != nil {
+		return nil, m.ListTerminalEmulatorsByTypeErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var emulators []*models.TerminalEmulatorDB
+	for _, emulator := range m.TerminalEmulators {
+		if emulator.Type == emulatorType {
+			emulatorCopy := *emulator
+			emulators = append(emulators, &emulatorCopy)
+		}
+	}
+
+	return emulators, nil
+}
+
+func (m *MockDataStore) ListTerminalEmulatorsByWorkspace(workspace string) ([]*models.TerminalEmulatorDB, error) {
+	m.recordCall("ListTerminalEmulatorsByWorkspace", workspace)
+
+	if m.ListTerminalEmulatorsByWorkspaceErr != nil {
+		return nil, m.ListTerminalEmulatorsByWorkspaceErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var emulators []*models.TerminalEmulatorDB
+	for _, emulator := range m.TerminalEmulators {
+		if emulator.Workspace.Valid && emulator.Workspace.String == workspace {
+			emulatorCopy := *emulator
+			emulators = append(emulators, &emulatorCopy)
+		}
+	}
+
+	return emulators, nil
 }
 
 // =============================================================================
