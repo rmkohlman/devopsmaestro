@@ -11,6 +11,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.18.14] - 2026-02-20
+
+### 🐛 Fixed
+
+#### Plugin Storage Compatibility
+- **nvp package install database storage** - Fixed critical bug where `nvp package install` saved plugins only to FileStore, but `dvm build` reads from database
+  - **Root cause**: `nvp package install` only saved plugins to `~/.nvp/plugins/` (FileStore) but `dvm build` reads plugins from SQLite database, causing "plugin not found" errors
+  - **Solution**: `nvp package install` now saves plugins to BOTH FileStore and database for full compatibility
+  - **cmd/nvp/package.go**: Added database upsert after successful FileStore installation
+  - **db/datastore.go**: Added `UpsertPlugin` method to interface
+  - **db/store.go**: Implemented `UpsertPlugin` for SQLDataStore (create or update by name)
+  - **models/nvim_plugin.go**: Added `FromNvimOpsPlugin` conversion function for nvimops → database format
+  - **Result**: Plugins installed via `nvp package install` are now immediately available to `dvm build`
+
+#### Plugin Resolution Fallback
+- **dvm build library fallback** - Added plugin library fallback when plugins not found in database
+  - **Enhancement**: If a workspace references a plugin not in the database, `dvm build` now attempts to load it from the plugin library
+  - **cmd/build.go**: Added plugin library initialization and fallback lookup for missing plugins
+  - **Benefit**: Improved resilience when plugin database is incomplete or out of sync
+
+---
+
 ## [0.18.13] - 2026-02-20
 
 ### 🐛 Fixed

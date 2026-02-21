@@ -8,6 +8,15 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.18.14 (2026-02-20)
+
+**Plugin Storage Compatibility Fix**
+
+- Fixed critical bug where `nvp package install` only saved to FileStore but `dvm build` reads from database
+- `nvp package install` now saves plugins to BOTH FileStore and database for full compatibility
+- Added plugin library fallback in `dvm build` when plugins not found in database
+- Plugins installed via `nvp` are now immediately available to `dvm build`
+
 ### v0.18.6 (2026-02-20)
 
 **Terminal Emulator Management (Phase 3 - Build Integration)**
