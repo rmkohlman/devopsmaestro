@@ -37,31 +37,9 @@ var (
 )
 
 // getMigrationsFS creates a filesystem for migrations.
-// Since dvt can't easily access the main package's embedded FS,
-// we'll look for migrations in the filesystem relative to the executable.
+// Uses embedded migrations that are built into the dvt binary at compile time.
 func getMigrationsFS() (fs.FS, error) {
-	// Find the migrations directory relative to where the executable is located
-	// This handles both development and installation scenarios
-
-	// Try several possible locations for migrations
-	possiblePaths := []string{
-		"db/migrations",       // Development: from repo root
-		"./db/migrations",     // Current directory
-		"../db/migrations",    // One level up
-		"../../db/migrations", // Two levels up (from cmd/dvt)
-	}
-
-	for _, path := range possiblePaths {
-		if info, err := os.Stat(path); err == nil && info.IsDir() {
-			// Check if it has sqlite subdirectory (validating it's the right path)
-			sqlitePath := filepath.Join(path, "sqlite")
-			if sqliteInfo, err := os.Stat(sqlitePath); err == nil && sqliteInfo.IsDir() {
-				return os.DirFS(path), nil
-			}
-		}
-	}
-
-	return nil, fmt.Errorf("migrations directory not found in any of the expected locations")
+	return GetEmbeddedMigrationsFS()
 }
 
 // shouldSkipAutoMigration determines if auto-migration should be skipped for this command.

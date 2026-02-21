@@ -11,6 +11,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.18.8] - 2026-02-20
+
+### 🐛 Fixed
+
+#### Migration Embedding for Homebrew Installs
+- **dvt and nvp migration embedding** - Fixed critical bug where Homebrew installs couldn't run database migrations
+  - **Root cause**: v0.18.7 tried to find migrations on filesystem (not available in Homebrew installs)
+  - **Solution**: Migrations are now embedded directly into dvt and nvp binaries at build time
+  - **cmd/dvt/embed.go** (NEW): Embed migrations using `//go:embed` directive
+  - **cmd/nvp/embed.go** (NEW): Embed migrations using `//go:embed` directive
+  - **cmd/dvt/root.go**: Use embedded migrations instead of filesystem search
+  - **cmd/nvp/root.go**: Use embedded migrations instead of filesystem search
+
+### 🔧 Build System Improvements
+- **Makefile migration sync** - Added `sync-migrations` target to copy migrations for embedding
+- **CI/CD migration sync** - Updated release workflow to sync migrations before building
+- **Gitignore updates** - Exclude generated migration directories from version control
+
+---
+
 ## [0.18.7] - 2026-02-20
 
 ### 🐛 Fixed

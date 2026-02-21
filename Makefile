@@ -3,10 +3,14 @@
 
 # Build variables
 BINARY_NAME=dvm
+DVT_BINARY_NAME=dvt
+NVP_BINARY_NAME=nvp
 VERSION?=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
 COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 LDFLAGS=-ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.Commit=$(COMMIT)"
+DVT_LDFLAGS=-ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.Commit=$(COMMIT)"
+NVP_LDFLAGS=-ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.Commit=$(COMMIT)"
 
 # Installation paths (standard for Homebrew compatibility)
 PREFIX?=/usr/local
@@ -21,10 +25,10 @@ GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
 
-.PHONY: all build clean test install uninstall dev help
+.PHONY: all build clean test install uninstall dev help sync-migrations build-dvt build-nvp
 
 # Default target
-all: test build
+all: test build build-dvt build-nvp
 
 ## help: Show this help message
 help:
@@ -35,15 +39,37 @@ help:
 	@sed -n 's/^##//p' ${MAKEFILE_LIST} | column -t -s ':' | sed -e 's/^/ /'
 
 ## build: Build the binary
-build:
+build: sync-migrations
 	@echo "Building $(BINARY_NAME) $(VERSION)..."
 	$(GOBUILD) $(LDFLAGS) -o $(BINARY_NAME) -v
+
+## sync-migrations: Sync migrations to cmd/dvt and cmd/nvp for embedding
+sync-migrations:
+	@echo "Syncing migrations for dvt and nvp embedding..."
+	@if [ -d cmd/dvt/migrations ]; then rm -rf cmd/dvt/migrations; fi
+	@cp -r db/migrations cmd/dvt/migrations
+	@if [ -d cmd/nvp/migrations ]; then rm -rf cmd/nvp/migrations; fi
+	@cp -r db/migrations cmd/nvp/migrations
+
+## build-dvt: Build the dvt binary
+build-dvt: sync-migrations
+	@echo "Building $(DVT_BINARY_NAME) $(VERSION)..."
+	$(GOBUILD) $(DVT_LDFLAGS) -o $(DVT_BINARY_NAME) -v ./cmd/dvt/
+
+## build-nvp: Build the nvp binary
+build-nvp: sync-migrations
+	@echo "Building $(NVP_BINARY_NAME) $(VERSION)..."
+	$(GOBUILD) $(NVP_LDFLAGS) -o $(NVP_BINARY_NAME) -v ./cmd/nvp/
 
 ## clean: Remove build artifacts
 clean:
 	@echo "Cleaning..."
 	$(GOCLEAN)
 	rm -f $(BINARY_NAME)
+	rm -f $(DVT_BINARY_NAME)
+	rm -f $(NVP_BINARY_NAME)
+	rm -rf cmd/dvt/migrations
+	rm -rf cmd/nvp/migrations
 
 ## test: Run tests
 test:

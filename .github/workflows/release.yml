@@ -68,6 +68,12 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
         run: |
+          # Sync migrations for dvt and nvp embedding (required for Homebrew installs)
+          if [ -d cmd/dvt/migrations ]; then rm -rf cmd/dvt/migrations; fi
+          cp -r db/migrations cmd/dvt/migrations
+          if [ -d cmd/nvp/migrations ]; then rm -rf cmd/nvp/migrations; fi
+          cp -r db/migrations cmd/nvp/migrations
+          
           # Build dvm (DevOpsMaestro)
           go build -ldflags "-s -w -X main.Version=${{ steps.version.outputs.VERSION }} -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ) -X main.Commit=$(git rev-parse --short HEAD)" -o dvm .
           
@@ -386,6 +392,11 @@ jobs:
 
             def install
               if build.head?
+              # Sync migrations for dvt and nvp embedding before building
+              system "sh", "-c", "if [ -d cmd/dvt/migrations ]; then rm -rf cmd/dvt/migrations; fi"
+              system "cp", "-r", "db/migrations", "cmd/dvt/migrations"
+              system "sh", "-c", "if [ -d cmd/nvp/migrations ]; then rm -rf cmd/nvp/migrations; fi"
+              system "cp", "-r", "db/migrations", "cmd/nvp/migrations"
                 system "go", "build",
                        "-ldflags", "-s -w -X main.Version=HEAD -X main.Commit=#{`git rev-parse --short HEAD`.strip} -X main.BuildTime=#{Time.now.utc.iso8601}",
                        "-o", bin/"dvt",

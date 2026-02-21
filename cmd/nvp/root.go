@@ -45,13 +45,14 @@ var (
 )
 
 // getMigrationsFS creates a filesystem for migrations.
-// Since nvp can't easily access the main package's embedded FS,
-// we'll look for migrations in the filesystem relative to the executable.
+// Uses embedded migrations filesystem for Homebrew compatibility.
 func getMigrationsFS() fs.FS {
-	// Find the migrations directory relative to where the executable is located
-	// This handles both development and installation scenarios
+	// Use embedded migrations (available when built with sync-migrations)
+	if embeddedFS, err := GetEmbeddedMigrationsFS(); err == nil {
+		return embeddedFS
+	}
 
-	// Try several possible locations for migrations
+	// Fallback to filesystem search for development
 	possiblePaths := []string{
 		"db/migrations",       // Development: from repo root
 		"./db/migrations",     // Current directory

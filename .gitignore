@@ -45,3 +45,7 @@ tests/manual/nvim-manager/testrunner.go
 
 # Build/release artifacts
 /dist/
+
+# Generated migrations directory for dvt and nvp embedding (copied from db/migrations)
+cmd/dvt/migrations/
+cmd/nvp/migrations/
