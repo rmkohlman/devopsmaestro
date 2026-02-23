@@ -11,6 +11,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.18.24] - 2026-02-23
+
+### ✨ Added
+
+#### Hierarchical Container Naming
+- **Enhanced container identification** - Container names now include full hierarchy path for better identification
+  - **Format**: `dvm-{ecosystem}-{domain}-{app}-{workspace}` (all lowercase, dash-separated)
+  - **Fallback**: `dvm-{app}-{workspace}` when ecosystem/domain not available (backward compatible)
+  - **Container labels**: Added `io.devopsmaestro.ecosystem` and `io.devopsmaestro.domain` labels to containers
+  - **Environment variables**: `DVM_ECOSYSTEM` and `DVM_DOMAIN` now set inside containers for runtime access
+  - **Files changed**:
+    - `operators/runtime_interface.go` - Added EcosystemName/DomainName to StartOptions, ContainerNamingStrategy interface, HierarchicalNamingStrategy
+    - `operators/docker_runtime.go` - Added ecosystem/domain labels to Docker containers
+    - `operators/containerd_runtime_v2.go` - Added ecosystem/domain labels to containerd containers
+    - `operators/containerd_runtime_v2_test.go` - Updated tests for new labels
+    - `cmd/attach.go` - Use hierarchical naming, pass ecosystem/domain context, add environment variables
+    - `cmd/detach.go` - Use hierarchical naming strategy
+
+#### Starship Theme-Aware Colors
+- **Dynamic terminal prompts** - Starship prompts now use active workspace theme colors automatically
+  - **ColorToPaletteAdapter**: Added Adapter Pattern to convert ColorProvider to palette for StarshipRenderer
+  - **Theme integration**: `dvt prompt` commands now use ColorProvider instead of hardcoded palette
+  - **Auto-sync**: Starship prompts automatically reflect the current workspace's theme colors
+  - **Files changed**:
+    - `pkg/colors/palette_adapter.go` - New ColorToPaletteAdapter implementing Adapter Pattern
+    - `pkg/colors/palette_adapter_test.go` - Comprehensive tests for adapter functionality
+    - `pkg/colors/PALETTE_ADAPTER_USAGE.md` - Usage documentation and examples
+    - `cmd/dvt/prompt.go` - Use ColorProvider palette instead of hardcoded values
+
+---
+
 ## [0.18.23] - 2026-02-23
 
 ### 🐛 Fixed

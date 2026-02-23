@@ -8,6 +8,23 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.18.24 (2026-02-23)
+
+**Hierarchical Container Naming & Starship Theme Colors**
+
+- Container names now include full hierarchy path: `dvm-{ecosystem}-{domain}-{app}-{workspace}` for better identification
+- Added ecosystem/domain labels (`io.devopsmaestro.ecosystem`, `io.devopsmaestro.domain`) and environment variables to containers
+- Starship prompts now automatically use active workspace theme colors via new ColorToPaletteAdapter
+- Backward compatible fallback to `dvm-{app}-{workspace}` naming when hierarchy unavailable
+
+### v0.18.23 (2026-02-23)
+
+**Theme Database Persistence & Output Formatting**
+
+- Fixed theme persistence bug where `dvm set theme --workspace X` wasn't saving to database
+- Fixed theme output formatting that was showing raw struct instead of clean key-value format
+- Theme values now properly appear in `dvm get workspace -o yaml` and all workspace queries
+
 ### v0.18.22 (2026-02-23)
 
 **Shell Completion Enhancements**
