@@ -66,6 +66,7 @@ func runAttach(cmd *cobra.Command) error {
 	var app *models.App
 	var workspace *models.Workspace
 	var appName, workspaceName string
+	var ecosystemName, domainName string // For hierarchical container naming
 
 	// Check if hierarchy flags were provided
 	if attachFlags.HasAnyFlag() {
@@ -95,6 +96,8 @@ func runAttach(cmd *cobra.Command) error {
 		app = result.App
 		appName = app.Name
 		workspaceName = workspace.Name
+		ecosystemName = result.Ecosystem.Name
+		domainName = result.Domain.Name
 
 		// Update context to the resolved workspace
 		if err := updateContextFromHierarchy(ds, result); err != nil {
@@ -164,7 +167,9 @@ func runAttach(cmd *cobra.Command) error {
 		return fmt.Errorf("workspace not built: run 'dvm build' first")
 	}
 
-	containerName := fmt.Sprintf("dvm-%s-%s", appName, workspaceName)
+	// Compute container name using hierarchical naming strategy
+	namingStrategy := operators.NewHierarchicalNamingStrategy()
+	containerName := namingStrategy.GenerateName(ecosystemName, domainName, appName, workspaceName)
 	slog.Debug("container details", "name", containerName, "image", imageName)
 
 	// Start workspace (handles existing containers automatically)
@@ -175,6 +180,8 @@ func runAttach(cmd *cobra.Command) error {
 		WorkspaceName: workspaceName,
 		ContainerName: containerName,
 		AppName:       appName,
+		EcosystemName: ecosystemName,
+		DomainName:    domainName,
 		AppPath:       app.Path,
 	})
 	if err != nil {
@@ -192,6 +199,14 @@ func runAttach(cmd *cobra.Command) error {
 		"TERM":          "xterm-256color",
 		"DVM_WORKSPACE": workspaceName,
 		"DVM_APP":       appName,
+	}
+
+	// Add ecosystem and domain if available
+	if ecosystemName != "" {
+		envVars["DVM_ECOSYSTEM"] = ecosystemName
+	}
+	if domainName != "" {
+		envVars["DVM_DOMAIN"] = domainName
 	}
 
 	// Load theme colors and add to environment

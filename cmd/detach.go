@@ -80,6 +80,7 @@ func detachActiveWorkspace(cmd *cobra.Command, runtime operators.ContainerRuntim
 	var app *models.App
 	var workspace *models.Workspace
 	var appName, workspaceName string
+	var ecosystemName, domainName string // For hierarchical container naming
 
 	// Check if hierarchy flags were provided
 	if detachFlags.HasAnyFlag() {
@@ -109,6 +110,8 @@ func detachActiveWorkspace(cmd *cobra.Command, runtime operators.ContainerRuntim
 		app = result.App
 		appName = app.Name
 		workspaceName = workspace.Name
+		ecosystemName = result.Ecosystem.Name
+		domainName = result.Domain.Name
 
 		// Update context to the resolved workspace
 		if err := updateContextFromHierarchy(ds, result); err != nil {
@@ -158,8 +161,9 @@ func detachActiveWorkspace(cmd *cobra.Command, runtime operators.ContainerRuntim
 	// Use workspace and app to ensure they're referenced (avoid unused variable warnings)
 	_ = workspace
 
-	// Stop the container
-	containerName := fmt.Sprintf("dvm-%s-%s", appName, workspaceName)
+	// Stop the container using hierarchical naming strategy
+	namingStrategy := operators.NewHierarchicalNamingStrategy()
+	containerName := namingStrategy.GenerateName(ecosystemName, domainName, appName, workspaceName)
 	return stopWorkspace(runtime, containerName)
 }
 

@@ -184,12 +184,7 @@ func (d *DockerRuntime) StartWorkspace(ctx context.Context, opts StartOptions) (
 		Tty:        true,
 		OpenStdin:  true,
 		Env:        env,
-		Labels: map[string]string{
-			"io.devopsmaestro.managed":   "true",
-			"io.devopsmaestro.namespace": "devopsmaestro",
-			"io.devopsmaestro.app":       opts.AppName,
-			"io.devopsmaestro.workspace": opts.WorkspaceName,
-		},
+		Labels:     buildDVMLabels(opts),
 	}
 
 	// Build volume mounts
@@ -415,6 +410,8 @@ func (d *DockerRuntime) ListWorkspaces(ctx context.Context) ([]WorkspaceInfo, er
 			Image:     c.Image,
 			App:       c.Labels["io.devopsmaestro.app"],
 			Workspace: c.Labels["io.devopsmaestro.workspace"],
+			Ecosystem: c.Labels["io.devopsmaestro.ecosystem"],
+			Domain:    c.Labels["io.devopsmaestro.domain"],
 			Labels:    c.Labels,
 		})
 	}
@@ -456,6 +453,8 @@ func (d *DockerRuntime) FindWorkspace(ctx context.Context, name string) (*Worksp
 		Image:     c.Image,
 		App:       c.Labels["io.devopsmaestro.app"],
 		Workspace: c.Labels["io.devopsmaestro.workspace"],
+		Ecosystem: c.Labels["io.devopsmaestro.ecosystem"],
+		Domain:    c.Labels["io.devopsmaestro.domain"],
 		Labels:    c.Labels,
 	}, nil
 }
@@ -493,4 +492,26 @@ func envMapToSlice(envMap map[string]string) []string {
 		envSlice = append(envSlice, fmt.Sprintf("%s=%s", key, value))
 	}
 	return envSlice
+}
+
+// buildDVMLabels creates the standard DVM labels with ecosystem and domain support
+func buildDVMLabels(opts StartOptions) map[string]string {
+	labels := map[string]string{
+		"io.devopsmaestro.managed":   "true",
+		"io.devopsmaestro.namespace": "devopsmaestro",
+		"io.devopsmaestro.app":       opts.AppName,
+		"io.devopsmaestro.workspace": opts.WorkspaceName,
+	}
+
+	// Add ecosystem label if provided
+	if opts.EcosystemName != "" {
+		labels["io.devopsmaestro.ecosystem"] = opts.EcosystemName
+	}
+
+	// Add domain label if provided
+	if opts.DomainName != "" {
+		labels["io.devopsmaestro.domain"] = opts.DomainName
+	}
+
+	return labels
 }

@@ -37,6 +37,80 @@ func TestStartOptions_Helpers(t *testing.T) {
 		}
 	})
 
+	t.Run("ComputeContainerName with hierarchical naming - full hierarchy", func(t *testing.T) {
+		opts := StartOptions{
+			EcosystemName: "production",
+			DomainName:    "backend",
+			AppName:       "userservice",
+			WorkspaceName: "dev",
+		}
+
+		result := opts.ComputeContainerName()
+		expected := "dvm-production-backend-userservice-dev"
+		if result != expected {
+			t.Errorf("Expected %s, got %s", expected, result)
+		}
+	})
+
+	t.Run("ComputeContainerName with hierarchical naming - ecosystem only", func(t *testing.T) {
+		opts := StartOptions{
+			EcosystemName: "staging",
+			AppName:       "frontend",
+			WorkspaceName: "test",
+		}
+
+		result := opts.ComputeContainerName()
+		expected := "dvm-staging-frontend-test"
+		if result != expected {
+			t.Errorf("Expected %s, got %s", expected, result)
+		}
+	})
+
+	t.Run("ComputeContainerName with hierarchical naming - domain only", func(t *testing.T) {
+		opts := StartOptions{
+			DomainName:    "data",
+			AppName:       "analytics",
+			WorkspaceName: "dev",
+		}
+
+		result := opts.ComputeContainerName()
+		expected := "dvm-data-analytics-dev"
+		if result != expected {
+			t.Errorf("Expected %s, got %s", expected, result)
+		}
+	})
+
+	t.Run("ComputeContainerName with hierarchical naming - case normalization", func(t *testing.T) {
+		opts := StartOptions{
+			EcosystemName: "PROD",
+			DomainName:    "Backend",
+			AppName:       "UserService",
+			WorkspaceName: "DEV",
+		}
+
+		result := opts.ComputeContainerName()
+		expected := "dvm-prod-backend-userservice-dev"
+		if result != expected {
+			t.Errorf("Expected %s, got %s", expected, result)
+		}
+	})
+
+	t.Run("ComputeContainerName explicit container name overrides hierarchy", func(t *testing.T) {
+		opts := StartOptions{
+			ContainerName: "custom-name",
+			EcosystemName: "production",
+			DomainName:    "backend",
+			AppName:       "userservice",
+			WorkspaceName: "dev",
+		}
+
+		result := opts.ComputeContainerName()
+		expected := "custom-name"
+		if result != expected {
+			t.Errorf("Expected %s, got %s", expected, result)
+		}
+	})
+
 	t.Run("ComputeCommand with Command set", func(t *testing.T) {
 		opts := StartOptions{
 			Command: []string{"/bin/zsh", "-l"},
@@ -84,6 +158,105 @@ func TestStartOptions_Helpers(t *testing.T) {
 				t.Errorf("Expected %v, got %v", expected, result)
 				break
 			}
+		}
+	})
+}
+
+// TestHierarchicalNamingStrategy tests the hierarchical container naming strategy
+func TestHierarchicalNamingStrategy(t *testing.T) {
+	strategy := NewHierarchicalNamingStrategy()
+
+	t.Run("GenerateName - full hierarchy", func(t *testing.T) {
+		result := strategy.GenerateName("production", "backend", "userservice", "dev")
+		expected := "dvm-production-backend-userservice-dev"
+		if result != expected {
+			t.Errorf("Expected %s, got %s", expected, result)
+		}
+	})
+
+	t.Run("GenerateName - ecosystem only", func(t *testing.T) {
+		result := strategy.GenerateName("staging", "", "frontend", "test")
+		expected := "dvm-staging-frontend-test"
+		if result != expected {
+			t.Errorf("Expected %s, got %s", expected, result)
+		}
+	})
+
+	t.Run("GenerateName - domain only", func(t *testing.T) {
+		result := strategy.GenerateName("", "data", "analytics", "dev")
+		expected := "dvm-data-analytics-dev"
+		if result != expected {
+			t.Errorf("Expected %s, got %s", expected, result)
+		}
+	})
+
+	t.Run("GenerateName - legacy format (no hierarchy)", func(t *testing.T) {
+		result := strategy.GenerateName("", "", "myapp", "dev")
+		expected := "dvm-myapp-dev"
+		if result != expected {
+			t.Errorf("Expected %s, got %s", expected, result)
+		}
+	})
+
+	t.Run("GenerateName - case normalization", func(t *testing.T) {
+		result := strategy.GenerateName("PROD", "Backend", "UserService", "DEV")
+		expected := "dvm-prod-backend-userservice-dev"
+		if result != expected {
+			t.Errorf("Expected %s, got %s", expected, result)
+		}
+	})
+
+	t.Run("ParseName - full hierarchy", func(t *testing.T) {
+		ecosystem, domain, app, workspace, ok := strategy.ParseName("dvm-production-backend-userservice-dev")
+		if !ok {
+			t.Errorf("Expected parsing to succeed")
+		}
+		if ecosystem != "production" || domain != "backend" || app != "userservice" || workspace != "dev" {
+			t.Errorf("Expected (production, backend, userservice, dev), got (%s, %s, %s, %s)",
+				ecosystem, domain, app, workspace)
+		}
+	})
+
+	t.Run("ParseName - ecosystem only", func(t *testing.T) {
+		ecosystem, domain, app, workspace, ok := strategy.ParseName("dvm-staging-frontend-test")
+		if !ok {
+			t.Errorf("Expected parsing to succeed")
+		}
+		if ecosystem != "staging" || domain != "" || app != "frontend" || workspace != "test" {
+			t.Errorf("Expected (staging, , frontend, test), got (%s, %s, %s, %s)",
+				ecosystem, domain, app, workspace)
+		}
+	})
+
+	t.Run("ParseName - legacy format", func(t *testing.T) {
+		ecosystem, domain, app, workspace, ok := strategy.ParseName("dvm-myapp-dev")
+		if !ok {
+			t.Errorf("Expected parsing to succeed")
+		}
+		if ecosystem != "" || domain != "" || app != "myapp" || workspace != "dev" {
+			t.Errorf("Expected (, , myapp, dev), got (%s, %s, %s, %s)",
+				ecosystem, domain, app, workspace)
+		}
+	})
+
+	t.Run("ParseName - invalid format (no dvm prefix)", func(t *testing.T) {
+		_, _, _, _, ok := strategy.ParseName("invalid-name")
+		if ok {
+			t.Errorf("Expected parsing to fail for invalid format")
+		}
+	})
+
+	t.Run("ParseName - invalid format (too few parts)", func(t *testing.T) {
+		_, _, _, _, ok := strategy.ParseName("dvm-only")
+		if ok {
+			t.Errorf("Expected parsing to fail for too few parts")
+		}
+	})
+
+	t.Run("ParseName - invalid format (too many parts)", func(t *testing.T) {
+		_, _, _, _, ok := strategy.ParseName("dvm-too-many-parts-here-test-dev-extra")
+		if ok {
+			t.Errorf("Expected parsing to fail for too many parts")
 		}
 	})
 }

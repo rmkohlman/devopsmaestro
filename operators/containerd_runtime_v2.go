@@ -221,6 +221,16 @@ func (r *ContainerdRuntimeV2) startWorkspaceViaColima(ctx context.Context, opts 
 		"--label", fmt.Sprintf("io.devopsmaestro.image=%s", opts.ImageName),
 	)
 
+	// Add ecosystem label if provided
+	if opts.EcosystemName != "" {
+		nerdctlArgs = append(nerdctlArgs, "--label", fmt.Sprintf("io.devopsmaestro.ecosystem=%s", opts.EcosystemName))
+	}
+
+	// Add domain label if provided
+	if opts.DomainName != "" {
+		nerdctlArgs = append(nerdctlArgs, "--label", fmt.Sprintf("io.devopsmaestro.domain=%s", opts.DomainName))
+	}
+
 	// Add image and command
 	nerdctlArgs = append(nerdctlArgs, opts.ImageName)
 	nerdctlArgs = append(nerdctlArgs, command...)
@@ -684,6 +694,8 @@ func (r *ContainerdRuntimeV2) ListWorkspaces(ctx context.Context) ([]WorkspaceIn
 			Image:     imageName,
 			App:       labels["io.devopsmaestro.app"],
 			Workspace: labels["io.devopsmaestro.workspace"],
+			Ecosystem: labels["io.devopsmaestro.ecosystem"],
+			Domain:    labels["io.devopsmaestro.domain"],
 			Labels:    labels,
 		})
 	}
@@ -734,6 +746,8 @@ func (r *ContainerdRuntimeV2) FindWorkspace(ctx context.Context, name string) (*
 		Image:     imageName,
 		App:       labels["io.devopsmaestro.app"],
 		Workspace: labels["io.devopsmaestro.workspace"],
+		Ecosystem: labels["io.devopsmaestro.ecosystem"],
+		Domain:    labels["io.devopsmaestro.domain"],
 		Labels:    labels,
 	}, nil
 }

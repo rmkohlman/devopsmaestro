@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"devopsmaestro/db"
-	"devopsmaestro/pkg/palette"
+	"devopsmaestro/pkg/colors"
 	"devopsmaestro/pkg/resource"
 	"devopsmaestro/pkg/resource/handlers"
 	"devopsmaestro/pkg/source"
@@ -266,24 +266,9 @@ func promptResourceGenerate(cmd *cobra.Command, args []string) error {
 	// Create renderer
 	renderer := prompt.NewStarshipRenderer()
 
-	// Create a basic palette for variable resolution
-	// TODO: This should use the active theme palette from theme resolver
-	pal := &palette.Palette{
-		Name: "default",
-		Colors: map[string]string{
-			// Basic color defaults for demo
-			"bg":      "#1e1e2e",
-			"fg":      "#cdd6f4",
-			"primary": "#89b4fa",
-			"red":     "#f38ba8",
-			"green":   "#a6e3a1",
-			"yellow":  "#f9e2af",
-			"blue":    "#89b4fa",
-			"purple":  "#cba6f7",
-			"cyan":    "#94e2d5",
-			"white":   "#bac2de",
-		},
-	}
+	// Get ColorProvider from context and convert to palette
+	provider := colors.FromContextOrDefault(cmd.Context())
+	pal := colors.ToPalette(provider)
 
 	// Generate config
 	config, err := renderer.Render(promptYAML, pal)
@@ -438,24 +423,9 @@ func promptResourceSet(cmd *cobra.Command, args []string) error {
 	promptYAML := p.ToYAML()
 	renderer := prompt.NewStarshipRenderer()
 
-	// Create a basic palette for variable resolution
-	// TODO: This should use the active theme palette from theme resolver
-	pal := &palette.Palette{
-		Name: "default",
-		Colors: map[string]string{
-			// Basic color defaults for demo
-			"bg":      "#1e1e2e",
-			"fg":      "#cdd6f4",
-			"primary": "#89b4fa",
-			"red":     "#f38ba8",
-			"green":   "#a6e3a1",
-			"yellow":  "#f9e2af",
-			"blue":    "#89b4fa",
-			"purple":  "#cba6f7",
-			"cyan":    "#94e2d5",
-			"white":   "#bac2de",
-		},
-	}
+	// Get ColorProvider from context and convert to palette
+	provider := colors.FromContextOrDefault(cmd.Context())
+	pal := colors.ToPalette(provider)
 
 	// Generate config
 	_, err = renderer.Render(promptYAML, pal)
