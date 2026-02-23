@@ -152,3 +152,128 @@ func registerHierarchyFlagCompletions(cmd *cobra.Command) {
 	cmd.RegisterFlagCompletionFunc("app", completeApps)
 	cmd.RegisterFlagCompletionFunc("workspace", completeWorkspaces)
 }
+
+// NvimOps completion functions
+
+func completeNvimPlugins(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return completeResources(cmd, "NvimPlugin")
+}
+
+func completeNvimThemes(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return completeResources(cmd, "NvimTheme")
+}
+
+func completeNvimPackages(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return completeResources(cmd, "NvimPackage")
+}
+
+func completeTerminalPackages(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return completeResources(cmd, "TerminalPackage")
+}
+
+// registerAllResourceCompletions registers ValidArgsFunction for all commands
+// that accept resource names as positional arguments.
+// This is called from registerDynamicCompletions() in completion.go.
+func registerAllResourceCompletions() {
+	// Ecosystem commands
+	if getEcosystemCmd != nil {
+		getEcosystemCmd.ValidArgsFunction = completeEcosystems
+	}
+	if useEcosystemCmd != nil {
+		useEcosystemCmd.ValidArgsFunction = completeEcosystems
+	}
+	if deleteEcosystemCmd != nil {
+		deleteEcosystemCmd.ValidArgsFunction = completeEcosystems
+	}
+
+	// Domain commands
+	if getDomainCmd != nil {
+		getDomainCmd.ValidArgsFunction = completeDomains
+	}
+	if useDomainCmd != nil {
+		useDomainCmd.ValidArgsFunction = completeDomains
+	}
+	if deleteDomainCmd != nil {
+		deleteDomainCmd.ValidArgsFunction = completeDomains
+	}
+
+	// App commands
+	if getAppCmd != nil {
+		getAppCmd.ValidArgsFunction = completeApps
+	}
+	if useAppCmd != nil {
+		useAppCmd.ValidArgsFunction = completeApps
+	}
+	if deleteAppCmd != nil {
+		deleteAppCmd.ValidArgsFunction = completeApps
+	}
+
+	// Workspace commands
+	if getWorkspaceCmd != nil {
+		getWorkspaceCmd.ValidArgsFunction = completeWorkspaces
+	}
+	if useWorkspaceCmd != nil {
+		useWorkspaceCmd.ValidArgsFunction = completeWorkspaces
+	}
+	if deleteWorkspaceCmd != nil {
+		deleteWorkspaceCmd.ValidArgsFunction = completeWorkspaces
+	}
+
+	// Register flag completions for commands with hierarchy flags
+	registerAllHierarchyFlagCompletions()
+}
+
+// registerAllHierarchyFlagCompletions registers flag completions for all commands
+// that use --ecosystem, --domain, --app, or --workspace flags.
+func registerAllHierarchyFlagCompletions() {
+	// Commands with full hierarchy flags (use registerHierarchyFlagCompletions)
+	commandsWithFullHierarchy := []*cobra.Command{
+		attachCmd,
+		buildCmd,
+		detachCmd,
+		getWorkspacesCmd,
+		getWorkspaceCmd,
+	}
+
+	for _, cmd := range commandsWithFullHierarchy {
+		if cmd != nil {
+			registerHierarchyFlagCompletions(cmd)
+		}
+	}
+
+	// Commands with specific hierarchy flags
+	// Domain commands with --ecosystem flag
+	if getDomainsCmd != nil {
+		getDomainsCmd.RegisterFlagCompletionFunc("ecosystem", completeEcosystems)
+	}
+	if getDomainCmd != nil {
+		getDomainCmd.RegisterFlagCompletionFunc("ecosystem", completeEcosystems)
+	}
+	if deleteDomainCmd != nil {
+		deleteDomainCmd.RegisterFlagCompletionFunc("ecosystem", completeEcosystems)
+	}
+
+	// App commands with --domain flag
+	if getAppsCmd != nil {
+		getAppsCmd.RegisterFlagCompletionFunc("domain", completeDomains)
+	}
+	if getAppCmd != nil {
+		getAppCmd.RegisterFlagCompletionFunc("domain", completeDomains)
+	}
+	if deleteAppCmd != nil {
+		deleteAppCmd.RegisterFlagCompletionFunc("domain", completeDomains)
+	}
+
+	// Workspace commands with --app flag
+	if deleteWorkspaceCmd != nil {
+		deleteWorkspaceCmd.RegisterFlagCompletionFunc("app", completeApps)
+	}
+
+	// set theme command with hierarchy flags
+	if setThemeCmd != nil {
+		setThemeCmd.RegisterFlagCompletionFunc("ecosystem", completeEcosystems)
+		setThemeCmd.RegisterFlagCompletionFunc("domain", completeDomains)
+		setThemeCmd.RegisterFlagCompletionFunc("app", completeApps)
+		setThemeCmd.RegisterFlagCompletionFunc("workspace", completeWorkspaces)
+	}
+}

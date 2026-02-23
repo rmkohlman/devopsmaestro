@@ -66,13 +66,6 @@ func init() {
 
 // registerDynamicCompletions registers custom completion functions
 func registerDynamicCompletions() {
-	// Complete workspace names for commands that accept workspace arguments
-	workspaceCompletion := func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		// TODO: In the future, query the database for workspace names
-		// For now, return empty (will use file completion)
-		return []string{}, cobra.ShellCompDirectiveDefault
-	}
-
 	// Complete template names for 'dvm nvim init'
 	templateCompletion := func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		templates := []string{
@@ -91,39 +84,14 @@ func registerDynamicCompletions() {
 	}
 
 	if nvimSyncCmd != nil {
-		nvimSyncCmd.ValidArgsFunction = workspaceCompletion
+		nvimSyncCmd.ValidArgsFunction = completeWorkspaces
 	}
 
 	if nvimPushCmd != nil {
-		nvimPushCmd.ValidArgsFunction = workspaceCompletion
+		nvimPushCmd.ValidArgsFunction = completeWorkspaces
 	}
 
-	// Register hierarchy flag completions for commands that use them
-	registerHierarchyCompletionsForAllCommands()
-}
-
-// registerHierarchyCompletionsForAllCommands finds all commands with hierarchy flags and registers completions
-func registerHierarchyCompletionsForAllCommands() {
-	// We need to register these after all commands are initialized
-	// This function will be called from init() after all commands are set up
-
-	if attachCmd != nil {
-		registerHierarchyFlagCompletions(attachCmd)
-	}
-
-	if buildCmd != nil {
-		registerHierarchyFlagCompletions(buildCmd)
-	}
-
-	if detachCmd != nil {
-		registerHierarchyFlagCompletions(detachCmd)
-	}
-
-	if getWorkspacesCmd != nil {
-		registerHierarchyFlagCompletions(getWorkspacesCmd)
-	}
-
-	if getWorkspaceCmd != nil {
-		registerHierarchyFlagCompletions(getWorkspaceCmd)
-	}
+	// Register all resource completions (ecosystem, domain, app, workspace)
+	// This wires up ValidArgsFunction for get/use/delete commands
+	registerAllResourceCompletions()
 }
