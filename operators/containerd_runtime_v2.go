@@ -108,19 +108,37 @@ func (r *ContainerdRuntimeV2) startWorkspaceViaColima(ctx context.Context, opts 
 	// First check if container already exists and what image it's using
 	containerName := opts.ComputeContainerName()
 
-	// Get the image the existing container was created with from our label
-	// This returns empty string if container doesn't exist
-	imageCmd := fmt.Sprintf("sudo nerdctl --namespace %s inspect -f '{{index .Config.Labels \"io.devopsmaestro.image\"}}' %s 2>/dev/null || echo ''",
+	// Check if container exists by trying to inspect it
+	// We check for existence separately from the image label because
+	// containers created before v0.18.18 don't have the image label
+	existsCmd := fmt.Sprintf("sudo nerdctl --namespace %s inspect %s >/dev/null 2>&1 && echo EXISTS || echo NOTFOUND",
 		r.namespace, containerName)
-	imageExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", imageCmd)
-	imageOutput, _ := imageExec.Output()
-	existingImage := strings.TrimSpace(string(imageOutput))
-	containerExists := existingImage != "" && existingImage != "''"
+	existsExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", existsCmd)
+	existsOutput, _ := existsExec.Output()
+	containerExists := strings.TrimSpace(string(existsOutput)) == "EXISTS"
 
 	if containerExists {
-		// Check if the image has changed
-		// existingImage contains the image name/tag the container was created with
-		if existingImage != opts.ImageName {
+		// Get the image the existing container was created with from our label
+		// Containers created before v0.18.18 won't have this label
+		imageCmd := fmt.Sprintf("sudo nerdctl --namespace %s inspect -f '{{index .Config.Labels \"io.devopsmaestro.image\"}}' %s 2>/dev/null || echo ''",
+			r.namespace, containerName)
+		imageExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", imageCmd)
+		imageOutput, _ := imageExec.Output()
+		existingImage := strings.TrimSpace(string(imageOutput))
+
+		// If no label (pre-v0.18.18 container) or image changed, recreate the container
+		hasImageLabel := existingImage != "" && existingImage != "''" && existingImage != "<no value>"
+		imageChanged := hasImageLabel && existingImage != opts.ImageName
+
+		if !hasImageLabel {
+			fmt.Printf("Container exists without image label (pre-v0.18.18), recreating...\n")
+			// Remove old container to recreate with proper labels
+			rmCmd := fmt.Sprintf("sudo nerdctl --namespace %s rm -f %s 2>/dev/null || true",
+				r.namespace, containerName)
+			rmExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", rmCmd)
+			rmExec.Run()
+			// Fall through to create new container
+		} else if imageChanged {
 			fmt.Printf("Image changed: %s -> %s\n", existingImage, opts.ImageName)
 			fmt.Printf("Recreating container with new image...\n")
 
