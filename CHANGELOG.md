@@ -11,6 +11,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.18.23] - 2026-02-23
+
+### 🐛 Fixed
+
+#### Theme Database Persistence
+- **Theme persistence in database** - Fixed workspace CRUD queries in `db/store.go` to include the `theme` column
+  - **Root cause**: Migration `002_add_workspace_theme.up.sql` added the theme column, but the queries were never updated to use it
+  - **Impact**: `dvm set theme --workspace X` wasn't persisting to the database, and `dvm get workspace -o yaml` didn't show the theme
+  - **Solution**: Added `theme` column to all 7 workspace functions (CreateWorkspace, GetWorkspaceByName, GetWorkspaceByID, UpdateWorkspace, ListWorkspacesByApp, ListAllWorkspaces, FindWorkspaces)
+  - **Files changed**: 
+    - `db/store.go` - Updated all workspace CRUD operations to handle theme column
+    - `db/store_test.go`, `db/integration_test.go`, `cmd/completion_resources_test.go` - Added theme column to test schemas
+    - `db/migrations/sqlite/002_add_workspace_theme.down.sql` - Added rollback migration
+  - **Result**: Theme values now properly persist to database and appear in all workspace queries
+
+#### Theme Set Output Formatting  
+- **Theme set output formatting** - Fixed `dvm set theme` output that was displaying raw struct `&{workspace bug-fix coolnight-crimson ...}` instead of formatted key-value output
+  - **Root cause**: `ThemeSetResult` was being passed directly to renderer instead of being converted to `render.KeyValueData`
+  - **Solution**: Convert `ThemeSetResult` to `KeyValueData` before rendering in `cmd/set_theme.go`
+  - **Result**: Clean, formatted output showing "Theme set successfully" with proper key-value formatting
+
+---
+
 ## [0.18.22] - 2026-02-23
 
 ### ✨ Added
