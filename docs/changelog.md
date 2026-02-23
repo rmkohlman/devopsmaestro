@@ -8,6 +8,14 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.18.20 (2026-02-23)
+
+**Container Label Compatibility Fix**
+
+- Fixed "name already in use" error when attaching to workspaces after upgrading from pre-v0.18.18 versions
+- Containers created before the image tracking feature (v0.18.18) are now automatically detected and recreated with proper labels
+- Provides seamless upgrade experience without requiring manual container cleanup
+
 ### v0.18.19 (2026-02-23)
 
 **Mason Toolchain Auto-Installation**

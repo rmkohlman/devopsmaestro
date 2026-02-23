@@ -11,6 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.18.20] - 2026-02-23
+
+### 🐛 Fixed
+
+#### Container Label Compatibility
+- **dvm containerd runtime pre-v0.18.18 containers** - Fixed "name already in use" error when trying to attach to workspaces after upgrading from pre-v0.18.18 versions
+  - **Root cause**: Containers created before v0.18.18 lacked the `io.devopsmaestro.image` label, causing the runtime to incorrectly assume they didn't exist
+  - **Impact**: After upgrading to v0.18.18+, users got "container name already in use" errors when trying to attach because old containers weren't properly detected
+  - **Solution**: Changed container existence check to use `nerdctl inspect` instead of relying solely on image label presence
+  - **operators/containerd_runtime_v2.go**: Modified detection logic to handle containers without labels and automatically recreate them with proper labels
+  - **Behavior**: Pre-v0.18.18 containers are now automatically detected, removed, and recreated with current image and proper labels
+  - **Result**: Seamless upgrade experience - no manual container cleanup required when upgrading from older DevOpsMaestro versions
+
+---
+
 ## [0.18.19] - 2026-02-23
 
 ### ✨ Added
