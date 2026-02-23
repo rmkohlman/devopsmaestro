@@ -435,7 +435,7 @@ func (g *DockerfileGenerator) installLanguageTools(dockerfile *strings.Builder, 
 	}
 }
 
-// installNvimDependencies installs packages needed for Neovim
+// installNvimDependencies installs packages needed for Neovim and Mason toolchains
 func (g *DockerfileGenerator) installNvimDependencies(dockerfile *strings.Builder) {
 	// Check if nvim config is requested (structure field must be set)
 	if g.workspaceYAML.Nvim.Structure == "" {
@@ -467,6 +467,34 @@ func (g *DockerfileGenerator) installNvimDependencies(dockerfile *strings.Builde
 		dockerfile.WriteString("    fd-find \\\n")
 		dockerfile.WriteString("    && apt-get clean \\\n")
 		dockerfile.WriteString("    && rm -rf /var/lib/apt/lists/*\n\n")
+	}
+
+	// Install Mason toolchains (npm, cargo, pip) for language server installation
+	// Mason needs these to install LSPs, formatters, and linters
+	g.installMasonToolchains(dockerfile, isAlpine)
+}
+
+// installMasonToolchains installs toolchains needed by Mason to install language servers
+func (g *DockerfileGenerator) installMasonToolchains(dockerfile *strings.Builder, isAlpine bool) {
+	dockerfile.WriteString("# Install Mason toolchains (npm, cargo, pip) for LSP/formatter installation\n")
+
+	if isAlpine {
+		dockerfile.WriteString("RUN apk add --no-cache \\\n")
+		dockerfile.WriteString("    nodejs \\\n")
+		dockerfile.WriteString("    npm \\\n")
+		dockerfile.WriteString("    py3-pip \\\n")
+		dockerfile.WriteString("    cargo \\\n")
+		dockerfile.WriteString("    && npm install -g neovim\n\n")
+	} else {
+		// For Debian/Ubuntu-based images
+		dockerfile.WriteString("RUN apt-get update && apt-get install -y --no-install-recommends \\\n")
+		dockerfile.WriteString("    nodejs \\\n")
+		dockerfile.WriteString("    npm \\\n")
+		dockerfile.WriteString("    python3-pip \\\n")
+		dockerfile.WriteString("    cargo \\\n")
+		dockerfile.WriteString("    && apt-get clean \\\n")
+		dockerfile.WriteString("    && rm -rf /var/lib/apt/lists/* \\\n")
+		dockerfile.WriteString("    && npm install -g neovim\n\n")
 	}
 }
 
