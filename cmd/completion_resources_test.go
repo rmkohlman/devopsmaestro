@@ -79,6 +79,7 @@ func createTestSchema(driver db.Driver) error {
 			status TEXT DEFAULT 'stopped',
 			nvim_structure TEXT,
 			nvim_plugins TEXT,
+			theme TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (app_id) REFERENCES apps(id),

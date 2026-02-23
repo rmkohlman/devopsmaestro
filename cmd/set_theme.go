@@ -154,7 +154,18 @@ func runSetTheme(cmd *cobra.Command, args []string) error {
 		Title: fmt.Sprintf("Theme Set: %s", result.Level),
 	}
 
-	return render.OutputWith(setThemeOutput, result, opts)
+	// Convert ThemeSetResult to KeyValueData for proper rendering
+	kvData := render.NewOrderedKeyValueData(
+		render.KeyValue{Key: "Level", Value: result.Level},
+		render.KeyValue{Key: "Object", Value: result.ObjectName},
+		render.KeyValue{Key: "Theme", Value: result.Theme},
+	)
+	if result.PreviousTheme != "" {
+		kvData.Pairs = append(kvData.Pairs, render.KeyValue{Key: "Previous Theme", Value: result.PreviousTheme})
+	}
+	kvData.Pairs = append(kvData.Pairs, render.KeyValue{Key: "Effective Theme", Value: result.EffectiveTheme})
+
+	return render.OutputWith(setThemeOutput, kvData, opts)
 }
 
 // getEffectiveTheme determines what theme will be active after the change

@@ -540,10 +540,10 @@ func (ds *SQLDataStore) CreateWorkspace(workspace *models.Workspace) error {
 		workspace.NvimStructure = sql.NullString{String: defaultConfig.Structure, Valid: true}
 	}
 
-	query := fmt.Sprintf(`INSERT INTO workspaces (app_id, name, description, image_name, status, nvim_structure, nvim_plugins, created_at, updated_at) 
-		VALUES (?, ?, ?, ?, ?, ?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
+	query := fmt.Sprintf(`INSERT INTO workspaces (app_id, name, description, image_name, status, nvim_structure, nvim_plugins, theme, created_at, updated_at) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
 
-	result, err := ds.driver.Execute(query, workspace.AppID, workspace.Name, workspace.Description, workspace.ImageName, workspace.Status, workspace.NvimStructure, workspace.NvimPlugins)
+	result, err := ds.driver.Execute(query, workspace.AppID, workspace.Name, workspace.Description, workspace.ImageName, workspace.Status, workspace.NvimStructure, workspace.NvimPlugins, workspace.Theme)
 	if err != nil {
 		return fmt.Errorf("failed to create workspace: %w", err)
 	}
@@ -559,13 +559,13 @@ func (ds *SQLDataStore) CreateWorkspace(workspace *models.Workspace) error {
 // GetWorkspaceByName retrieves a workspace by app ID and name.
 func (ds *SQLDataStore) GetWorkspaceByName(appID int, name string) (*models.Workspace, error) {
 	workspace := &models.Workspace{}
-	query := `SELECT id, app_id, name, description, image_name, container_id, status, nvim_structure, nvim_plugins, created_at, updated_at 
+	query := `SELECT id, app_id, name, description, image_name, container_id, status, nvim_structure, nvim_plugins, theme, created_at, updated_at 
 		FROM workspaces WHERE app_id = ? AND name = ?`
 
 	row := ds.driver.QueryRow(query, appID, name)
 	if err := row.Scan(&workspace.ID, &workspace.AppID, &workspace.Name, &workspace.Description,
 		&workspace.ImageName, &workspace.ContainerID, &workspace.Status, &workspace.NvimStructure,
-		&workspace.NvimPlugins, &workspace.CreatedAt, &workspace.UpdatedAt); err != nil {
+		&workspace.NvimPlugins, &workspace.Theme, &workspace.CreatedAt, &workspace.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("workspace not found: %s", name)
 		}
@@ -578,13 +578,13 @@ func (ds *SQLDataStore) GetWorkspaceByName(appID int, name string) (*models.Work
 // GetWorkspaceByID retrieves a workspace by its ID.
 func (ds *SQLDataStore) GetWorkspaceByID(id int) (*models.Workspace, error) {
 	workspace := &models.Workspace{}
-	query := `SELECT id, app_id, name, description, image_name, container_id, status, nvim_structure, nvim_plugins, created_at, updated_at 
+	query := `SELECT id, app_id, name, description, image_name, container_id, status, nvim_structure, nvim_plugins, theme, created_at, updated_at 
 		FROM workspaces WHERE id = ?`
 
 	row := ds.driver.QueryRow(query, id)
 	if err := row.Scan(&workspace.ID, &workspace.AppID, &workspace.Name, &workspace.Description,
 		&workspace.ImageName, &workspace.ContainerID, &workspace.Status, &workspace.NvimStructure,
-		&workspace.NvimPlugins, &workspace.CreatedAt, &workspace.UpdatedAt); err != nil {
+		&workspace.NvimPlugins, &workspace.Theme, &workspace.CreatedAt, &workspace.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("workspace not found: %d", id)
 		}
@@ -597,11 +597,11 @@ func (ds *SQLDataStore) GetWorkspaceByID(id int) (*models.Workspace, error) {
 // UpdateWorkspace updates an existing workspace.
 func (ds *SQLDataStore) UpdateWorkspace(workspace *models.Workspace) error {
 	query := fmt.Sprintf(`UPDATE workspaces SET name = ?, description = ?, image_name = ?, container_id = ?, 
-		status = ?, nvim_structure = ?, nvim_plugins = ?, updated_at = %s WHERE id = ?`,
+		status = ?, nvim_structure = ?, nvim_plugins = ?, theme = ?, updated_at = %s WHERE id = ?`,
 		ds.queryBuilder.Now())
 
 	_, err := ds.driver.Execute(query, workspace.Name, workspace.Description, workspace.ImageName,
-		workspace.ContainerID, workspace.Status, workspace.NvimStructure, workspace.NvimPlugins, workspace.ID)
+		workspace.ContainerID, workspace.Status, workspace.NvimStructure, workspace.NvimPlugins, workspace.Theme, workspace.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update workspace: %w", err)
 	}
@@ -620,7 +620,7 @@ func (ds *SQLDataStore) DeleteWorkspace(id int) error {
 
 // ListWorkspacesByApp retrieves all workspaces for an app.
 func (ds *SQLDataStore) ListWorkspacesByApp(appID int) ([]*models.Workspace, error) {
-	query := `SELECT id, app_id, name, description, image_name, container_id, status, nvim_structure, nvim_plugins, created_at, updated_at 
+	query := `SELECT id, app_id, name, description, image_name, container_id, status, nvim_structure, nvim_plugins, theme, created_at, updated_at 
 		FROM workspaces WHERE app_id = ? ORDER BY name`
 
 	rows, err := ds.driver.Query(query, appID)
@@ -634,7 +634,7 @@ func (ds *SQLDataStore) ListWorkspacesByApp(appID int) ([]*models.Workspace, err
 		workspace := &models.Workspace{}
 		if err := rows.Scan(&workspace.ID, &workspace.AppID, &workspace.Name, &workspace.Description,
 			&workspace.ImageName, &workspace.ContainerID, &workspace.Status, &workspace.NvimStructure,
-			&workspace.NvimPlugins, &workspace.CreatedAt, &workspace.UpdatedAt); err != nil {
+			&workspace.NvimPlugins, &workspace.Theme, &workspace.CreatedAt, &workspace.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan workspace: %w", err)
 		}
 		workspaces = append(workspaces, workspace)
@@ -649,7 +649,7 @@ func (ds *SQLDataStore) ListWorkspacesByApp(appID int) ([]*models.Workspace, err
 
 // ListAllWorkspaces retrieves all workspaces across all apps.
 func (ds *SQLDataStore) ListAllWorkspaces() ([]*models.Workspace, error) {
-	query := `SELECT id, app_id, name, description, image_name, container_id, status, nvim_structure, nvim_plugins, created_at, updated_at 
+	query := `SELECT id, app_id, name, description, image_name, container_id, status, nvim_structure, nvim_plugins, theme, created_at, updated_at 
 		FROM workspaces ORDER BY app_id, name`
 
 	rows, err := ds.driver.Query(query)
@@ -663,7 +663,7 @@ func (ds *SQLDataStore) ListAllWorkspaces() ([]*models.Workspace, error) {
 		workspace := &models.Workspace{}
 		if err := rows.Scan(&workspace.ID, &workspace.AppID, &workspace.Name, &workspace.Description,
 			&workspace.ImageName, &workspace.ContainerID, &workspace.Status, &workspace.NvimStructure,
-			&workspace.NvimPlugins, &workspace.CreatedAt, &workspace.UpdatedAt); err != nil {
+			&workspace.NvimPlugins, &workspace.Theme, &workspace.CreatedAt, &workspace.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan workspace: %w", err)
 		}
 		workspaces = append(workspaces, workspace)
@@ -682,7 +682,7 @@ func (ds *SQLDataStore) ListAllWorkspaces() ([]*models.Workspace, error) {
 func (ds *SQLDataStore) FindWorkspaces(filter models.WorkspaceFilter) ([]*models.WorkspaceWithHierarchy, error) {
 	// Build query with JOINs to get full hierarchy
 	query := `SELECT 
-		w.id, w.app_id, w.name, w.description, w.image_name, w.container_id, w.status, w.nvim_structure, w.nvim_plugins, w.created_at, w.updated_at,
+		w.id, w.app_id, w.name, w.description, w.image_name, w.container_id, w.status, w.nvim_structure, w.nvim_plugins, w.theme, w.created_at, w.updated_at,
 		a.id, a.domain_id, a.name, a.path, a.description, a.language, a.build_config, a.created_at, a.updated_at,
 		d.id, d.ecosystem_id, d.name, d.description, d.created_at, d.updated_at,
 		e.id, e.name, e.description, e.created_at, e.updated_at
@@ -731,7 +731,7 @@ func (ds *SQLDataStore) FindWorkspaces(filter models.WorkspaceFilter) ([]*models
 			// Workspace fields
 			&workspace.ID, &workspace.AppID, &workspace.Name, &workspace.Description,
 			&workspace.ImageName, &workspace.ContainerID, &workspace.Status, &workspace.NvimStructure,
-			&workspace.NvimPlugins, &workspace.CreatedAt, &workspace.UpdatedAt,
+			&workspace.NvimPlugins, &workspace.Theme, &workspace.CreatedAt, &workspace.UpdatedAt,
 			// App fields
 			&app.ID, &app.DomainID, &app.Name, &app.Path, &app.Description,
 			&app.Language, &app.BuildConfig, &app.CreatedAt, &app.UpdatedAt,
