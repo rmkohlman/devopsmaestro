@@ -11,6 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.18.18] - 2026-02-23
+
+### 🐛 Fixed
+
+#### Containerd Runtime Image Change Detection
+- **dvm containerd runtime stale containers** - Fixed critical bug where containerd/Colima runtime was reusing running containers without checking if the underlying image had changed
+  - **Root cause**: Runtime only checked if container existed and was running, ignoring whether image had been updated
+  - **Impact**: `dvm build --force --no-cache` appeared ineffective - users got stale configurations until manually pruning all containers
+  - **Solution**: Added `io.devopsmaestro.image` label tracking and image change detection logic
+  - **operators/containerd_runtime_v2.go**: Modified `startWorkspaceViaColima()` to check if image changed before reusing container
+  - **Behavior**: If image changed → stop/remove old container and create new one; If same image → reuse existing container (start if stopped)
+  - **Result**: Containerd runtime now matches Docker runtime behavior for image change detection, ensuring fresh containers after builds
+
+---
+
 ## [0.18.17] - 2026-02-21
 
 ### 🐛 Fixed

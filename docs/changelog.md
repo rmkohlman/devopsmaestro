@@ -8,6 +8,15 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.18.18 (2026-02-23)
+
+**Containerd Runtime Image Change Detection**
+
+- Fixed critical bug where containerd/Colima runtime was reusing running containers without checking if image had changed
+- `dvm build --force --no-cache` now properly recreates containers with new images instead of reusing stale ones
+- Added `io.devopsmaestro.image` label tracking to detect when underlying image changes
+- Brings containerd runtime behavior in line with Docker runtime for consistent experience
+
 ### v0.18.17 (2026-02-21)
 
 **Docker Build Context Fix**
