@@ -105,32 +105,59 @@ func (r *ContainerdRuntimeV2) startWorkspaceViaColima(ctx context.Context, opts 
 		profile = "default"
 	}
 
-	// First check if container already exists and is running
+	// First check if container already exists and what image it's using
 	containerName := opts.ComputeContainerName()
-	checkCmd := fmt.Sprintf("sudo nerdctl --namespace %s inspect %s 2>/dev/null && echo EXISTS || echo NOTFOUND",
+
+	// Get the image the existing container was created with from our label
+	// This returns empty string if container doesn't exist
+	imageCmd := fmt.Sprintf("sudo nerdctl --namespace %s inspect -f '{{index .Config.Labels \"io.devopsmaestro.image\"}}' %s 2>/dev/null || echo ''",
 		r.namespace, containerName)
-	checkExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", checkCmd)
-	output, _ := checkExec.Output()
-	containerExists := string(output) != "" && string(output) != "NOTFOUND\n"
+	imageExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", imageCmd)
+	imageOutput, _ := imageExec.Output()
+	existingImage := strings.TrimSpace(string(imageOutput))
+	containerExists := existingImage != "" && existingImage != "''"
 
 	if containerExists {
-		// Check if it's running
-		statusCmd := fmt.Sprintf("sudo nerdctl --namespace %s inspect -f '{{.State.Status}}' %s 2>/dev/null || echo stopped",
-			r.namespace, containerName)
-		statusExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", statusCmd)
-		statusOutput, _ := statusExec.Output()
-		status := string(statusOutput)
+		// Check if the image has changed
+		// existingImage contains the image name/tag the container was created with
+		if existingImage != opts.ImageName {
+			fmt.Printf("Image changed: %s -> %s\n", existingImage, opts.ImageName)
+			fmt.Printf("Recreating container with new image...\n")
 
-		if status == "running\n" || status == "running" {
-			// Already running, return the container name as ID
-			return containerName, nil
+			// Stop and remove the old container regardless of state
+			rmCmd := fmt.Sprintf("sudo nerdctl --namespace %s rm -f %s 2>/dev/null || true",
+				r.namespace, containerName)
+			rmExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", rmCmd)
+			rmExec.Run()
+
+			// Fall through to create new container
+		} else {
+			// Same image - check if it's running
+			statusCmd := fmt.Sprintf("sudo nerdctl --namespace %s inspect -f '{{.State.Status}}' %s 2>/dev/null || echo stopped",
+				r.namespace, containerName)
+			statusExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", statusCmd)
+			statusOutput, _ := statusExec.Output()
+			status := strings.TrimSpace(string(statusOutput))
+
+			if status == "running" {
+				// Already running with same image, return the container name as ID
+				return containerName, nil
+			}
+
+			// Container exists but not running, try to start it
+			startCmd := fmt.Sprintf("sudo nerdctl --namespace %s start %s 2>/dev/null",
+				r.namespace, containerName)
+			startExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", startCmd)
+			if err := startExec.Run(); err == nil {
+				return containerName, nil
+			}
+
+			// Start failed, remove and recreate
+			rmCmd := fmt.Sprintf("sudo nerdctl --namespace %s rm -f %s 2>/dev/null || true",
+				r.namespace, containerName)
+			rmExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", rmCmd)
+			rmExec.Run()
 		}
-
-		// Container exists but not running, remove it first
-		rmCmd := fmt.Sprintf("sudo nerdctl --namespace %s rm -f %s 2>/dev/null || true",
-			r.namespace, containerName)
-		rmExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", rmCmd)
-		rmExec.Run()
 	}
 
 	// Build nerdctl run command
@@ -173,6 +200,7 @@ func (r *ContainerdRuntimeV2) startWorkspaceViaColima(ctx context.Context, opts 
 		"--label", "io.devopsmaestro.managed=true",
 		"--label", fmt.Sprintf("io.devopsmaestro.app=%s", opts.AppName),
 		"--label", fmt.Sprintf("io.devopsmaestro.workspace=%s", opts.WorkspaceName),
+		"--label", fmt.Sprintf("io.devopsmaestro.image=%s", opts.ImageName),
 	)
 
 	// Add image and command
