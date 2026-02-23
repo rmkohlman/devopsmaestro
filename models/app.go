@@ -44,6 +44,7 @@ type AppMetadata struct {
 // AppSpec contains app specification - everything about the codebase
 type AppSpec struct {
 	Path         string             `yaml:"path"`
+	Theme        string             `yaml:"theme,omitempty"`
 	Language     AppLanguageConfig  `yaml:"language,omitempty"`
 	Build        AppBuildConfig     `yaml:"build,omitempty"`
 	Dependencies AppDependencies    `yaml:"dependencies,omitempty"`
@@ -108,6 +109,11 @@ func (a *App) ToYAML(domainName string) AppYAML {
 		_ = json.Unmarshal([]byte(a.BuildConfig.String), &buildConfig)
 	}
 
+	theme := ""
+	if a.Theme.Valid {
+		theme = a.Theme.String
+	}
+
 	return AppYAML{
 		APIVersion: "devopsmaestro.io/v1",
 		Kind:       "App",
@@ -119,6 +125,7 @@ func (a *App) ToYAML(domainName string) AppYAML {
 		},
 		Spec: AppSpec{
 			Path:       a.Path,
+			Theme:      theme,
 			Language:   langConfig,
 			Build:      buildConfig,
 			Workspaces: []string{},
@@ -133,6 +140,10 @@ func (a *App) FromYAML(yaml AppYAML) {
 
 	if desc, ok := yaml.Metadata.Annotations["description"]; ok {
 		a.Description = sql.NullString{String: desc, Valid: true}
+	}
+
+	if yaml.Spec.Theme != "" {
+		a.Theme = sql.NullString{String: yaml.Spec.Theme, Valid: true}
 	}
 
 	// Store language config as JSON

@@ -37,7 +37,8 @@ type DomainMetadata struct {
 
 // DomainSpec contains domain specification
 type DomainSpec struct {
-	Apps []string `yaml:"apps,omitempty"`
+	Theme string   `yaml:"theme,omitempty"`
+	Apps  []string `yaml:"apps,omitempty"`
 }
 
 // ToYAML converts a Domain to YAML format
@@ -52,6 +53,11 @@ func (d *Domain) ToYAML(ecosystemName string) DomainYAML {
 		annotations["description"] = description
 	}
 
+	theme := ""
+	if d.Theme.Valid {
+		theme = d.Theme.String
+	}
+
 	return DomainYAML{
 		APIVersion: "devopsmaestro.io/v1",
 		Kind:       "Domain",
@@ -62,7 +68,8 @@ func (d *Domain) ToYAML(ecosystemName string) DomainYAML {
 			Annotations: annotations,
 		},
 		Spec: DomainSpec{
-			Apps: []string{},
+			Theme: theme,
+			Apps:  []string{},
 		},
 	}
 }
@@ -73,5 +80,9 @@ func (d *Domain) FromYAML(yaml DomainYAML) {
 
 	if desc, ok := yaml.Metadata.Annotations["description"]; ok {
 		d.Description = sql.NullString{String: desc, Valid: true}
+	}
+
+	if yaml.Spec.Theme != "" {
+		d.Theme = sql.NullString{String: yaml.Spec.Theme, Valid: true}
 	}
 }

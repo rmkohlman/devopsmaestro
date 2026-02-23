@@ -15,6 +15,7 @@ type Workspace struct {
 	ImageName     string         `db:"image_name" json:"image_name" yaml:"image_name"`
 	ContainerID   sql.NullString `db:"container_id" json:"container_id,omitempty" yaml:"-"`
 	Status        string         `db:"status" json:"status" yaml:"status"`
+	Theme         sql.NullString `db:"theme" json:"theme,omitempty" yaml:"theme,omitempty"`
 	NvimStructure sql.NullString `db:"nvim_structure" json:"nvim_structure,omitempty" yaml:"-"`
 	NvimPlugins   sql.NullString `db:"nvim_plugins" json:"nvim_plugins,omitempty" yaml:"-"` // Comma-separated plugin names
 	CreatedAt     time.Time      `db:"created_at" json:"created_at" yaml:"-"`
@@ -160,6 +161,10 @@ func (w *Workspace) ToYAML(appName string) WorkspaceYAML {
 		pluginNames := strings.Split(w.NvimPlugins.String, ",")
 		nvimConfig.Plugins = pluginNames
 	}
+	// Include theme in nvim config if set at workspace level
+	if w.Theme.Valid && w.Theme.String != "" {
+		nvimConfig.Theme = w.Theme.String
+	}
 
 	// Create default spec with minimal configuration
 	// This will be enhanced when we implement config storage in DB
@@ -196,5 +201,10 @@ func (w *Workspace) FromYAML(yaml WorkspaceYAML) {
 
 	if desc, ok := yaml.Metadata.Annotations["description"]; ok {
 		w.Description = sql.NullString{String: desc, Valid: true}
+	}
+
+	// Read theme from nvim config section
+	if yaml.Spec.Nvim.Theme != "" {
+		w.Theme = sql.NullString{String: yaml.Spec.Nvim.Theme, Valid: true}
 	}
 }

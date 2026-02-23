@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"devopsmaestro/db"
-	"devopsmaestro/models"
 	"devopsmaestro/pkg/colors/resolver"
 	"devopsmaestro/pkg/nvimops/theme/library"
 	"devopsmaestro/pkg/resource"
@@ -398,17 +397,10 @@ func setWorkspaceTheme(cmd *cobra.Command, ctx resource.Context, workspaceName, 
 	workspace := workspaceRes.Workspace()
 	appName := workspaceRes.AppName()
 
-	// Parse existing NvimStructure to get current theme
+	// Get previous theme from workspace.Theme field (stored in dedicated column)
 	var previousTheme string
-	var nvimConfig models.NvimConfig
-
-	if workspace.NvimStructure.Valid && workspace.NvimStructure.String != "" {
-		// Try to parse existing structure - if it fails, we'll start fresh
-		var wsYAML models.WorkspaceYAML
-		if err := yaml.Unmarshal([]byte(workspace.NvimStructure.String), &wsYAML); err == nil {
-			nvimConfig = wsYAML.Spec.Nvim
-			previousTheme = nvimConfig.Theme
-		}
+	if workspace.Theme.Valid {
+		previousTheme = workspace.Theme.String
 	}
 
 	// Handle dry run
@@ -422,23 +414,18 @@ func setWorkspaceTheme(cmd *cobra.Command, ctx resource.Context, workspaceName, 
 		}, nil
 	}
 
-	// Update theme in NvimConfig
-	nvimConfig.Theme = themeName
-
-	// Create updated workspace YAML with theme
+	// Create workspace YAML with the new theme
+	// ToYAML() will include the current theme, so we update it after
 	workspaceYAML := workspace.ToYAML(appName)
 	workspaceYAML.Spec.Nvim.Theme = themeName
 
-	// Marshal and store back as NvimStructure
+	// Marshal to YAML for Apply
 	yamlData, err := yaml.Marshal(workspaceYAML)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal workspace YAML: %w", err)
 	}
 
-	workspace.NvimStructure.String = string(yamlData)
-	workspace.NvimStructure.Valid = true
-
-	// Apply the updated workspace
+	// Apply the updated workspace - FromYAML will set workspace.Theme from Spec.Nvim.Theme
 	_, err = resource.Apply(ctx, yamlData, "set-theme")
 	if err != nil {
 		return nil, fmt.Errorf("failed to update workspace: %w", err)

@@ -35,6 +35,7 @@ type EcosystemMetadata struct {
 
 // EcosystemSpec contains ecosystem specification
 type EcosystemSpec struct {
+	Theme   string   `yaml:"theme,omitempty"`
 	Domains []string `yaml:"domains,omitempty"`
 }
 
@@ -50,6 +51,11 @@ func (e *Ecosystem) ToYAML() EcosystemYAML {
 		annotations["description"] = description
 	}
 
+	theme := ""
+	if e.Theme.Valid {
+		theme = e.Theme.String
+	}
+
 	return EcosystemYAML{
 		APIVersion: "devopsmaestro.io/v1",
 		Kind:       "Ecosystem",
@@ -59,6 +65,7 @@ func (e *Ecosystem) ToYAML() EcosystemYAML {
 			Annotations: annotations,
 		},
 		Spec: EcosystemSpec{
+			Theme:   theme,
 			Domains: []string{},
 		},
 	}
@@ -70,5 +77,9 @@ func (e *Ecosystem) FromYAML(yaml EcosystemYAML) {
 
 	if desc, ok := yaml.Metadata.Annotations["description"]; ok {
 		e.Description = sql.NullString{String: desc, Valid: true}
+	}
+
+	if yaml.Spec.Theme != "" {
+		e.Theme = sql.NullString{String: yaml.Spec.Theme, Valid: true}
 	}
 }

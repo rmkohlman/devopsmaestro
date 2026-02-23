@@ -8,6 +8,14 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.18.21 (2026-02-23)
+
+**Theme Visibility Fix**
+
+- Fixed bug where `dvm set theme` stored themes correctly but theme values were missing from YAML output
+- Theme values now properly appear in `dvm get workspace -o yaml` and similar commands for all resource types
+- Added dedicated theme column to workspaces table and updated all model ToYAML/FromYAML methods
+
 ### v0.18.20 (2026-02-23)
 
 **Container Label Compatibility Fix**

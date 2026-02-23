@@ -11,6 +11,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.18.21] - 2026-02-23
+
+### 🐛 Fixed
+
+#### Theme Visibility in YAML Output
+- **Theme visibility bug** - Fixed issue where `dvm set theme` stored themes correctly in the database but theme values were missing from YAML output for all resource types
+  - **Root cause**: Theme fields were not properly included in ToYAML/FromYAML methods for Ecosystem, Domain, App, and Workspace models
+  - **Impact**: Users could set themes successfully but couldn't see them when using `dvm get workspace -o yaml` or similar commands
+  - **Solution**: Added dedicated `theme` column to workspaces table via migration, updated all model ToYAML/FromYAML methods
+  - **Files changed**: 
+    - `models/ecosystem.go`, `models/domain.go`, `models/app.go` - Added Theme field to Spec structs and ToYAML/FromYAML methods
+    - `models/workspace.go` - Added dedicated Theme field and column, updated ToYAML/FromYAML to use it
+    - `migrations/sqlite/002_add_workspace_theme.up.sql` - New migration for theme column
+    - `cmd/set_theme.go` - Simplified to use workspace.Theme directly instead of parsing NvimStructure
+  - **Result**: Theme values now properly appear in YAML output for all resource types, consistent storage in dedicated database columns
+
+---
+
 ## [0.18.20] - 2026-02-23
 
 ### 🐛 Fixed
