@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.18.19] - 2026-02-23
+
+### ✨ Added
+
+#### Mason Toolchain Auto-Installation
+- **dvm build neovim support** - When Neovim is configured for a workspace, the generated container image now automatically includes npm, cargo, and pip toolchains
+  - **Purpose**: Enables Mason to install language servers, formatters, and linters without "executable not found" errors
+  - **Toolchains installed**: nodejs + npm (TypeScript LSPs, prettier, eslint), cargo (Rust tools like stylua), pip (Python LSPs), neovim npm package
+  - **builders/dockerfile_generator.go**: Added `installMasonToolchains()` function called from `installNvimDependencies()`
+  - **Cross-platform**: Handles both Alpine and Debian-based images with appropriate package managers
+  - **Result**: Neovim workspaces get fully functional Mason environment out-of-the-box, eliminating common "stylua not found" and similar errors
+
+---
+
 ## [0.18.18] - 2026-02-23
 
 ### 🐛 Fixed

@@ -8,6 +8,14 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.18.19 (2026-02-23)
+
+**Mason Toolchain Auto-Installation**
+
+- When Neovim is configured for a workspace, generated containers now automatically include npm, cargo, and pip toolchains
+- Enables Mason to install language servers, formatters, and linters (stylua, prettier, pyright) without "executable not found" errors
+- Supports both Alpine and Debian-based images with cross-platform package management
+
 ### v0.18.18 (2026-02-23)
 
 **Containerd Runtime Image Change Detection**
