@@ -11,6 +11,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.18.22] - 2026-02-23
+
+### ✨ Added
+
+#### Shell Completion Enhancements
+- **Complete tab completion system** - Added comprehensive shell completion for all resource commands
+  - **Resource name completion**: `dvm get ecosystem <TAB>`, `dvm use domain <TAB>`, `dvm delete app <TAB>`, `dvm delete workspace <TAB>` now show available resources
+  - **Flag completion**: All commands with `--ecosystem`, `--domain`, `--app`, `--workspace` flags now complete resource names on TAB
+  - **NvimOps completion**: Added completion functions for NvimPlugin, NvimTheme, NvimPackage, TerminalPackage resources
+  - **Fixed nvim commands**: `dvm nvim sync <TAB>` and `dvm nvim push <TAB>` now complete workspace names correctly
+  - **Files changed**:
+    - `cmd/completion_resources.go` - Added `registerAllResourceCompletions()` and `registerAllHierarchyFlagCompletions()` for centralized completion registration
+    - `cmd/completion.go` - Simplified dynamic completion registration, removed duplicate workspace completion logic
+  - **Implementation**: Uses existing resource querying infrastructure to provide real-time completion based on current database state
+  - **Result**: Significantly improved CLI usability with kubectl-style tab completion for all commands
+
+---
+
 ## [0.18.21] - 2026-02-23
 
 ### 🐛 Fixed

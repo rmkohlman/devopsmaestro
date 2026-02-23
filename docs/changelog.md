@@ -8,6 +8,15 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.18.22 (2026-02-23)
+
+**Shell Completion Enhancements**
+
+- Added comprehensive tab completion for all resource commands (`dvm get ecosystem <TAB>`, etc.)
+- All `--ecosystem`, `--domain`, `--app`, `--workspace` flags now complete resource names on TAB
+- Fixed `dvm nvim sync <TAB>` and `dvm nvim push <TAB>` to complete workspace names correctly
+- Provides kubectl-style CLI experience with real-time completion based on current database state
+
 ### v0.18.21 (2026-02-23)
 
 **Theme Visibility Fix**
