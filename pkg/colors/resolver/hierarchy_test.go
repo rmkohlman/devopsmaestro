@@ -348,6 +348,19 @@ func (m *MockDataStore) ListTerminalProfilesByCategory(category string) ([]*mode
 	return nil, nil
 }
 
+// GitRepo Operations
+func (m *MockDataStore) CreateGitRepo(repo *models.GitRepoDB) error { return nil }
+func (m *MockDataStore) GetGitRepoByName(name string) (*models.GitRepoDB, error) {
+	return nil, nil
+}
+func (m *MockDataStore) GetGitRepoByID(id int64) (*models.GitRepoDB, error) { return nil, nil }
+func (m *MockDataStore) GetGitRepoBySlug(slug string) (*models.GitRepoDB, error) {
+	return nil, nil
+}
+func (m *MockDataStore) UpdateGitRepo(repo *models.GitRepoDB) error { return nil }
+func (m *MockDataStore) DeleteGitRepo(name string) error            { return nil }
+func (m *MockDataStore) ListGitRepos() ([]models.GitRepoDB, error)  { return nil, nil }
+
 // GenerateWorkspaceSlug generates a slug for a workspace (mock implementation)
 func (m *MockDataStore) GenerateWorkspaceSlug(ecosystemName, domainName, appName, workspaceName string) string {
 	return ecosystemName + "-" + domainName + "-" + appName + "-" + workspaceName

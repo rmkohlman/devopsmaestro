@@ -27,6 +27,7 @@ type MockDataStore struct {
 	TerminalPrompts   map[string]*models.TerminalPromptDB
 	TerminalProfiles  map[string]*models.TerminalProfileDB
 	Credentials       map[string]*models.CredentialDB // keyed by "scopeType:scopeID:name"
+	GitRepos          map[string]*models.GitRepoDB    // keyed by name
 	Defaults          map[string]string               // keyed by default key
 	ActiveTheme       string
 	Context           *models.Context
@@ -44,6 +45,7 @@ type MockDataStore struct {
 	NextThemeID            int
 	NextTerminalPromptID   int
 	NextCredentialID       int64
+	NextGitRepoID          int
 
 	// WorkspacePlugins maps workspaceID -> pluginIDs
 	WorkspacePlugins map[int]map[int]bool
@@ -158,6 +160,13 @@ type MockDataStore struct {
 	ListTerminalEmulatorsErr            error
 	ListTerminalEmulatorsByTypeErr      error
 	ListTerminalEmulatorsByWorkspaceErr error
+	CreateGitRepoErr                    error
+	GetGitRepoByNameErr                 error
+	GetGitRepoByIDErr                   error
+	GetGitRepoBySlugErr                 error
+	UpdateGitRepoErr                    error
+	DeleteGitRepoErr                    error
+	ListGitReposErr                     error
 	CloseErr                            error
 	PingErr                             error
 
@@ -197,6 +206,7 @@ func NewMockDataStore() *MockDataStore {
 		Themes:                make(map[string]*models.NvimThemeDB),
 		TerminalPrompts:       make(map[string]*models.TerminalPromptDB),
 		TerminalProfiles:      make(map[string]*models.TerminalProfileDB),
+		GitRepos:              make(map[string]*models.GitRepoDB),
 		WorkspacePlugins:      make(map[int]map[int]bool),
 		Context:               &models.Context{ID: 1},
 		MockDriver:            NewMockDriver(),
@@ -2247,6 +2257,155 @@ func containsAt(s, substr string, start int) bool {
 		}
 	}
 	return false
+}
+
+// =============================================================================
+// GitRepo Operations (v0.20.0 Mirror)
+// =============================================================================
+
+func (m *MockDataStore) CreateGitRepo(repo *models.GitRepoDB) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.CreateGitRepoErr != nil {
+		return m.CreateGitRepoErr
+	}
+
+	// Check for duplicate name
+	if _, exists := m.GitRepos[repo.Name]; exists {
+		return fmt.Errorf("git repo with name %s already exists", repo.Name)
+	}
+
+	// Auto-increment ID
+	m.NextGitRepoID++
+	repo.ID = m.NextGitRepoID
+
+	// Clone the repo to avoid external modifications
+	repoClone := *repo
+	m.GitRepos[repo.Name] = &repoClone
+
+	return nil
+}
+
+func (m *MockDataStore) GetGitRepoByName(name string) (*models.GitRepoDB, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.GetGitRepoByNameErr != nil {
+		return nil, m.GetGitRepoByNameErr
+	}
+
+	repo, exists := m.GitRepos[name]
+	if !exists {
+		return nil, fmt.Errorf("git repo not found: %s", name)
+	}
+
+	// Return a clone to avoid external modifications
+	repoClone := *repo
+	return &repoClone, nil
+}
+
+func (m *MockDataStore) GetGitRepoByID(id int64) (*models.GitRepoDB, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.GetGitRepoByIDErr != nil {
+		return nil, m.GetGitRepoByIDErr
+	}
+
+	for _, repo := range m.GitRepos {
+		if repo.ID == int(id) {
+			repoClone := *repo
+			return &repoClone, nil
+		}
+	}
+
+	return nil, fmt.Errorf("git repo not found with id: %d", id)
+}
+
+func (m *MockDataStore) GetGitRepoBySlug(slug string) (*models.GitRepoDB, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.GetGitRepoBySlugErr != nil {
+		return nil, m.GetGitRepoBySlugErr
+	}
+
+	for _, repo := range m.GitRepos {
+		if repo.Slug == slug {
+			repoClone := *repo
+			return &repoClone, nil
+		}
+	}
+
+	return nil, fmt.Errorf("git repo not found with slug: %s", slug)
+}
+
+func (m *MockDataStore) UpdateGitRepo(repo *models.GitRepoDB) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.UpdateGitRepoErr != nil {
+		return m.UpdateGitRepoErr
+	}
+
+	// Find repo by ID
+	var found bool
+	var oldName string
+	for name, r := range m.GitRepos {
+		if r.ID == repo.ID {
+			found = true
+			oldName = name
+			break
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("git repo not found with id: %d", repo.ID)
+	}
+
+	// Remove old entry if name changed
+	if oldName != repo.Name {
+		delete(m.GitRepos, oldName)
+	}
+
+	// Store updated repo
+	repoClone := *repo
+	m.GitRepos[repo.Name] = &repoClone
+
+	return nil
+}
+
+func (m *MockDataStore) DeleteGitRepo(name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.DeleteGitRepoErr != nil {
+		return m.DeleteGitRepoErr
+	}
+
+	if _, exists := m.GitRepos[name]; !exists {
+		return fmt.Errorf("git repo not found: %s", name)
+	}
+
+	delete(m.GitRepos, name)
+	return nil
+}
+
+func (m *MockDataStore) ListGitRepos() ([]models.GitRepoDB, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.ListGitReposErr != nil {
+		return nil, m.ListGitReposErr
+	}
+
+	repos := make([]models.GitRepoDB, 0, len(m.GitRepos))
+	for _, repo := range m.GitRepos {
+		repos = append(repos, *repo)
+	}
+
+	return repos, nil
 }
 
 // Ensure MockDataStore implements DataStore

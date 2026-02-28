@@ -280,6 +280,29 @@ type DataStore interface {
 	// ListAllCredentials retrieves all credentials across all scopes.
 	ListAllCredentials() ([]*models.CredentialDB, error)
 
+	// GitRepo Operations (v0.20.0 Mirror)
+
+	// CreateGitRepo inserts a new git repository configuration.
+	CreateGitRepo(repo *models.GitRepoDB) error
+
+	// GetGitRepoByName retrieves a git repository by its name.
+	GetGitRepoByName(name string) (*models.GitRepoDB, error)
+
+	// GetGitRepoByID retrieves a git repository by its ID.
+	GetGitRepoByID(id int64) (*models.GitRepoDB, error)
+
+	// GetGitRepoBySlug retrieves a git repository by its slug.
+	GetGitRepoBySlug(slug string) (*models.GitRepoDB, error)
+
+	// UpdateGitRepo updates an existing git repository configuration.
+	UpdateGitRepo(repo *models.GitRepoDB) error
+
+	// DeleteGitRepo removes a git repository by name.
+	DeleteGitRepo(name string) error
+
+	// ListGitRepos retrieves all git repositories.
+	ListGitRepos() ([]models.GitRepoDB, error)
+
 	// Default Operations
 
 	// GetDefault retrieves a default value by key.

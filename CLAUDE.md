@@ -162,6 +162,71 @@ PHASE 4: REFACTOR & VERIFY
 3. **Enforce the phases** - Don't skip architecture review or tests
 4. **Track completion** - Mark todos complete as agents finish
 5. **Ensure docs sync** - Every change updates documentation
+6. **Track test impact** - Flag tests that may break (see below)
+
+---
+
+## Test Impact Tracking (v0.20.0+)
+
+**MANDATORY:** When writing tests or making changes, track which existing tests may be affected.
+
+### When Writing New Tests (Phase 2 - RED)
+
+The @test agent MUST report:
+
+```
+## Test Impact Report
+
+### New Tests Written
+- TestFoo_NewBehavior (expects X)
+- TestBar_EdgeCase (expects Y)
+
+### Existing Tests That May Break
+| Test | File | Reason | Action |
+|------|------|--------|--------|
+| TestOldBehavior | foo_test.go | Interface changed | Update in Phase 3 |
+| TestMockStore | mock_test.go | New methods needed | Add stubs |
+
+### Tests to Remove/Update After Implementation
+- [ ] TestFoo_OldWay - Remove (replaced by TestFoo_NewBehavior)
+- [ ] TestBar_Stub - Update expectations after implementation
+```
+
+### When Implementing (Phase 3 - GREEN)
+
+Domain agents MUST:
+1. **Check test impact report** from Phase 2
+2. **Fix breaking tests** as part of implementation
+3. **Report any additional test breakage** discovered
+
+### When Refactoring (Phase 4)
+
+The @test agent MUST:
+1. **Verify all tests pass** (including previously flagged ones)
+2. **Remove deprecated tests** as documented
+3. **Update test documentation** if patterns changed
+
+### Todo List Integration
+
+Include test cleanup in todo items:
+
+```
+- [test] Write failing tests for NewFeature
+  - Impact: MockDataStore needs new methods
+  - Impact: TestOldFeature may break
+- [database] Implement NewFeature
+  - Includes: Fix MockDataStore interface
+- [test] Cleanup deprecated tests
+  - Remove: TestOldWay (replaced)
+  - Update: TestMock expectations
+```
+
+### Why This Matters
+
+1. **Prevents surprise failures** - Know what will break before it breaks
+2. **Cleaner refactoring** - Track technical debt in tests
+3. **Better TDD discipline** - Tests drive design, not the other way around
+4. **Audit trail** - Document why tests were removed/changed
 
 ---
 

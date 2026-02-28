@@ -429,6 +429,62 @@ func TestDataStoreSwappability(t *testing.T) {
 }
 ```
 
+### Test Impact Tracking (v0.20.0+)
+
+**MANDATORY:** When writing or modifying tests, document the impact on existing tests.
+
+#### When Writing New Tests
+
+Include a Test Impact Report in your output:
+
+```markdown
+## Test Impact Report
+
+### New Tests Written
+- TestNewFeature_HappyPath
+- TestNewFeature_ErrorCase
+
+### Existing Tests That May Break
+| Test | File | Reason | Action |
+|------|------|--------|--------|
+| TestMockStore_Interface | mock_test.go | Interface extended | Add stub methods |
+| TestOldFeature | old_test.go | Behavior changed | Update expectations |
+
+### Tests to Remove/Update After Implementation
+- [ ] TestOldFeature_Stub - Remove after implementation
+- [ ] TestMock_OldMethod - Update to use new signature
+```
+
+#### Interface Changes Impact
+
+When an interface is extended (e.g., adding GitRepo methods to DataStore):
+
+1. **All mocks must be updated** - Add stub implementations
+2. **Track which test files have local mocks** - They need updating too
+3. **Add this as an explicit todo item** - Don't leave tests broken
+
+```go
+// Example: Stub methods for new interface requirements
+func (m *LocalMockDataStore) NewMethod() error {
+    return nil  // Stub - not needed for this test
+}
+```
+
+#### Test Cleanup Tasks
+
+Track test cleanup as explicit todo items:
+
+```
+- [test] Write failing tests for NewFeature
+  - IMPACT: MockDataStore needs 3 new methods
+  - IMPACT: TestOldBehavior expectations change
+- [database] Implement NewFeature
+  - INCLUDES: Update MockDataStore with new methods
+- [test] Cleanup test technical debt
+  - REMOVE: TestOldStub (replaced by TestNew)
+  - UPDATE: TestExpectations in 2 files
+```
+
 ---
 
 ## Flexibility Guidelines

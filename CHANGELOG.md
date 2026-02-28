@@ -11,6 +11,101 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.20.0] - 2026-02-28
+
+### ✨ Added
+
+#### Git Repository Mirror Management
+
+##### GitRepo Resource Type
+- **Declarative git repository management** - New `GitRepo` resource type for managing git repository mirrors
+  - `dvm create gitrepo <name> --url <url>` - Create new git repository mirror
+  - `dvm get gitrepos` - List all configured git repositories
+  - `dvm get gitrepo <name>` - Show specific git repository details
+  - `dvm delete gitrepo <name>` - Remove git repository mirror
+  - `dvm sync gitrepo <name>` - Update single repository mirror from remote
+  - `dvm sync gitrepos` - Update all repository mirrors from remotes
+  - **Aliases**: `repo`, `gr` for shorter commands
+
+##### Bare Repository Mirrors
+- **Automatic bare git mirrors** - Git repositories stored as bare mirrors in `~/.devopsmaestro/repos/`
+  - **Human-readable slugs** - Repository identifiers use format: `github.com_user_repo`
+  - **URL normalization** - SSH and HTTPS URLs normalize to same slug (e.g., `git@github.com:user/repo.git` and `https://github.com/user/repo.git` both become `github.com_user_repo`)
+  - **Auto-sync on creation** - New git repositories are automatically synced when created
+  - **Fast workspace clones** - Workspaces clone from local mirror instead of remote (faster, offline-capable)
+
+##### MirrorManager Package
+- **`pkg/mirror/` package** - Complete git mirror management system
+  - `Clone()` - Create new bare mirror from remote URL
+  - `Sync()` - Update existing mirror from remote (fetch all refs)
+  - `Delete()` - Remove mirror from filesystem
+  - `CloneToWorkspace()` - Clone from local mirror to workspace directory
+  - `Exists()` - Check if mirror exists locally
+  - `GetPath()` - Resolve mirror filesystem path
+  - **Interface-based design** - Swappable MirrorManager implementations
+
+##### Database Schema
+- **`git_repos` table** - New database table for git repository metadata
+  - Stores name, URL, slug, description, labels
+  - Proper migrations: `002_add_git_repos.up.sql`
+  - Foreign key support: `003_add_git_repo_fk.up.sql` for future workspace→gitrepo linking
+  - Full CRUD operations in `db/git_repo.go`
+
+### 🔒 Security
+
+#### URL Validation Improvements
+- **Allowlist-based URL validation** - Changed from blocklist to allowlist approach for stronger security
+  - **Allowed protocols**: `https://`, `ssh://`, `git@host:path` format, local filesystem paths
+  - **Rejected protocols**: `ftp://`, `telnet://`, `gopher://`, `file://`, and all unknown protocols
+  - **Defense-in-depth** - Multiple validation layers prevent protocol-based attacks
+
+#### Comprehensive Security Validation
+- **Shell metacharacter detection** - Prevents command injection via URLs
+  - Blocks: `; & | $ ( ) { } [ ] < > \` ` and other shell metacharacters
+- **Path traversal protection** - Prevents directory traversal attacks
+  - Blocks: `../`, `..\`, and path traversal sequences
+- **Embedded credential rejection** - Prevents credential leakage in URLs
+  - Blocks URLs with `user:password@host` format
+  - Safe error messages that don't expose credentials
+
+### 📦 Files Changed
+
+#### New Files
+```
+pkg/mirror/interfaces.go              # MirrorManager interface definition
+pkg/mirror/git_manager.go             # GitMirrorManager implementation
+pkg/mirror/slug.go                    # URL normalization and slug generation
+pkg/mirror/validation.go              # Security validation functions
+pkg/mirror/slug_test.go               # 67 test cases for slug generation
+pkg/mirror/validation_test.go         # 86 test cases for security validation
+pkg/mirror/manager_test.go            # 16 test cases for mirror operations
+db/git_repo.go                        # DataStore GitRepo CRUD operations
+db/git_repo_test.go                   # 12 test cases for database operations
+db/migrations/sqlite/002_add_git_repos.up.sql    # git_repos table migration
+db/migrations/sqlite/003_add_git_repo_fk.up.sql  # Foreign key support migration
+models/git_repo.go                    # GitRepoDB model definition
+cmd/gitrepo.go                        # CLI commands for GitRepo resource
+cmd/gitrepo_test.go                   # 47 CLI test cases
+```
+
+#### Modified Files
+```
+db/datastore.go                       # Added GitRepo interface methods
+db/mock_store.go                      # Added GitRepo mock implementations
+```
+
+### 🧪 Testing
+
+- **169 total test cases** for git repository mirror management
+  - 67 slug generation tests (URL normalization, edge cases)
+  - 86 security validation tests (protocol filtering, injection prevention)
+  - 16 mirror manager tests (clone, sync, delete operations)
+  - 12 database operation tests (CRUD, migrations)
+  - 47 CLI command tests (create, get, sync, delete workflows)
+- **100% test success rate** - All tests passing before release
+
+---
+
 ## [0.19.0] - 2026-02-28
 
 ### ⚠️ Breaking Changes

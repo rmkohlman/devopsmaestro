@@ -193,6 +193,23 @@ func createTestSchema(driver Driver) error {
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(scope_type, scope_id, name)
 		)`,
+		`CREATE TABLE IF NOT EXISTS git_repos (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL UNIQUE,
+			url TEXT NOT NULL,
+			slug TEXT NOT NULL UNIQUE,
+			default_ref TEXT NOT NULL DEFAULT 'main',
+			auth_type TEXT NOT NULL CHECK(auth_type IN ('none', 'ssh', 'token')),
+			credential_id INTEGER,
+			auto_sync BOOLEAN NOT NULL DEFAULT 0,
+			sync_interval_minutes INTEGER NOT NULL DEFAULT 0,
+			last_synced_at DATETIME,
+			sync_status TEXT NOT NULL DEFAULT 'pending' CHECK(sync_status IN ('pending', 'syncing', 'synced', 'error')),
+			sync_error TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (credential_id) REFERENCES credentials(id)
+		)`,
 		// Initialize context with a single row
 		`INSERT OR IGNORE INTO context (id) VALUES (1)`,
 	}

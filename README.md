@@ -282,6 +282,7 @@ dvm status           # Full status overview
 - **kubectl-style commands** - Familiar `get`, `create`, `delete`, `apply` patterns
 - **Object hierarchy** - Ecosystem → Domain → App → Workspace for organized development
 - **Workspace isolation** - Each workspace has dedicated directories (repo, volume, configs)
+- **Git repository mirrors** - Store bare git mirrors locally for faster workspace cloning
 - **SSH agent forwarding** - Opt-in SSH key access without mounting private keys into containers
 - **Package management** - kubectl-style CRUD operations for NvimPackage resources
 - **Defaults management** - Set default nvim packages for new workspaces
@@ -323,6 +324,7 @@ kubectl-style short aliases for faster commands:
 | domains | `dom` | `dvm get dom` |
 | apps | `app` | `dvm get app` |
 | workspaces | `ws` | `dvm get ws` |
+| gitrepo/gitrepos | `repo`, `gr` | `dvm get repo` |
 | context | `ctx` | `dvm get ctx` |
 | platforms | `plat` | `dvm get plat` |
 | projects | `proj` | `dvm get proj` *(deprecated)* |
@@ -393,6 +395,17 @@ dvm build                     # Build workspace container
 dvm attach                    # Attach to workspace
 dvm attach --ssh-agent        # Attach with SSH agent forwarding
 dvm detach                    # Stop workspace container
+
+# Git Repository Management (v0.20.0+)
+dvm create gitrepo <name> --url <git-url>         # Create git repository mirror
+dvm create gitrepo <name> --url <url> --auth-type ssh --credential <name>  # With authentication
+dvm create gitrepo <name> --url <url> --no-sync  # Create without initial sync
+dvm get gitrepos                                  # List all git repositories
+dvm get gitrepo <name>                            # Get specific repository
+dvm sync gitrepo <name>                           # Sync a repository mirror
+dvm sync gitrepos                                 # Sync all repositories
+dvm delete gitrepo <name>                         # Delete repository (removes mirror)
+dvm delete gitrepo <name> --keep-mirror           # Delete metadata, keep mirror
 
 # Configuration
 dvm apply -f workspace.yaml   # Apply YAML configuration
@@ -523,6 +536,81 @@ Secrets can also be set via environment variables:
 - `DVM_SECRET_<NAME>` - Any secret (uppercase, underscores for dashes)
 
 For backward compatibility, `GITHUB_TOKEN` is also checked.
+
+---
+
+## Git Repository Mirrors
+
+DevOpsMaestro can create and manage local bare git mirrors for faster workspace cloning.
+
+### Benefits
+
+- **Faster workspace cloning** - Clone from local mirrors instead of GitHub
+- **Offline access** - Work with cached repositories
+- **URL normalization** - SSH and HTTPS URLs for the same repo map to the same mirror
+- **Auto-sync** - Keep mirrors up-to-date with remotes
+
+### Storage Location
+
+Git mirrors are stored as bare repositories in:
+```
+~/.devopsmaestro/repos/<slug>/
+```
+
+Where `<slug>` is normalized from the repository URL (e.g., `github.com/user/repo`).
+
+### Usage
+
+```bash
+# Create a git repository mirror
+dvm create gitrepo devopsmaestro --url https://github.com/rmkohlman/devopsmaestro
+
+# Create with SSH authentication
+dvm create gitrepo my-private-repo \
+  --url git@github.com:user/repo.git \
+  --auth-type ssh \
+  --credential my-ssh-key
+
+# Create without syncing immediately
+dvm create gitrepo future-repo --url https://github.com/user/repo --no-sync
+
+# List all git repositories
+dvm get gitrepos
+dvm get gitrepos -o yaml
+
+# Get specific repository details
+dvm get gitrepo devopsmaestro
+
+# Sync a repository mirror (fetch updates)
+dvm sync gitrepo devopsmaestro
+
+# Sync all repository mirrors
+dvm sync gitrepos
+
+# Delete repository (removes mirror by default)
+dvm delete gitrepo devopsmaestro
+
+# Delete metadata but keep mirror
+dvm delete gitrepo devopsmaestro --keep-mirror
+```
+
+### Authentication Types
+
+| Auth Type | Description | Credential Required |
+|-----------|-------------|---------------------|
+| `none` | Public repositories (default) | No |
+| `ssh` | SSH key authentication | Yes (SSH key name) |
+| `token` | GitHub Personal Access Token | Yes (token name) |
+
+### URL Normalization
+
+Both SSH and HTTPS URLs normalize to the same slug:
+```bash
+# These both create the same mirror:
+dvm create gitrepo repo1 --url https://github.com/user/repo.git
+dvm create gitrepo repo2 --url git@github.com:user/repo.git
+# → Both map to: ~/.devopsmaestro/repos/github.com/user/repo/
+```
 
 ---
 
