@@ -6,8 +6,9 @@ metadata:
   author: DevOpsMaestro (parametric generator)
   category: dark
 spec:
+  # Standalone theme - no external plugin required
   plugin:
-    repo: "rmkohlman/coolnight.nvim"
+    repo: ""  # Empty repo makes this a standalone theme
   style: ocean
   transparent: false
   colors:

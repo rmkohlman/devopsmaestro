@@ -1556,6 +1556,11 @@ Other plugins can use the palette:
 			filepath.Join(outputDir, "plugins", "nvp", "colorscheme.lua"): generated.PluginLua,
 		}
 
+		// Add standalone colorscheme file for standalone themes
+		if t.IsStandalone() && generated.ColorschemeLua != "" {
+			files[filepath.Join(outputDir, "theme", "colorscheme.lua")] = generated.ColorschemeLua
+		}
+
 		if dryRun {
 			fmt.Printf("Would generate theme files for '%s':\n", t.Name)
 			for path := range files {

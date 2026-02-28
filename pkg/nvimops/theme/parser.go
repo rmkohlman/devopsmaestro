@@ -22,9 +22,8 @@ func ParseYAML(data []byte) (*Theme, error) {
 		return nil, fmt.Errorf("theme name is required")
 	}
 
-	if themeYAML.Spec.Plugin.Repo == "" {
-		return nil, fmt.Errorf("theme plugin repo is required")
-	}
+	// Plugin repo is optional for standalone themes
+	// If empty, the theme will be treated as standalone
 
 	theme := &Theme{
 		Name:        themeYAML.Metadata.Name,
@@ -69,8 +68,14 @@ func (t *Theme) Validate() error {
 	if t.Name == "" {
 		return fmt.Errorf("theme name is required")
 	}
-	if t.Plugin.Repo == "" {
-		return fmt.Errorf("theme plugin repo is required")
+
+	// For standalone themes, plugin repo is optional
+	// For plugin-based themes, plugin repo is required
+	// If it's standalone, it must have colors defined
+	if t.IsStandalone() {
+		if !t.HasCustomColors() {
+			return fmt.Errorf("standalone themes must define colors")
+		}
 	}
 
 	// Validate color format (should be hex)
@@ -112,6 +117,11 @@ func (t *Theme) HasOptions() bool {
 
 // GetColorschemeCommand returns the vim.cmd to set the colorscheme.
 func (t *Theme) GetColorschemeCommand() string {
+	// For standalone themes, use the theme name
+	if t.IsStandalone() {
+		return t.Name
+	}
+
 	setupName := GetSetupName(t.Plugin.Repo)
 	if setupName == "" {
 		// Extract name from repo (e.g., "user/theme.nvim" -> "theme")

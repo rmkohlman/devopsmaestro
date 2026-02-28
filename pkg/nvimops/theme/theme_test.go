@@ -91,6 +91,15 @@ func TestTheme_Validate(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "valid standalone theme",
+			theme: Theme{
+				Name:   "test-standalone",
+				Plugin: ThemePlugin{Repo: ""}, // Empty repo = standalone
+				Colors: map[string]string{"bg": "#1a1b26", "fg": "#ffffff"},
+			},
+			wantErr: false,
+		},
+		{
 			name: "missing name",
 			theme: Theme{
 				Plugin: ThemePlugin{Repo: "user/repo"},
@@ -98,9 +107,11 @@ func TestTheme_Validate(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "missing repo",
+			name: "standalone theme without colors",
 			theme: Theme{
-				Name: "test",
+				Name:   "test",
+				Plugin: ThemePlugin{Repo: ""}, // Empty repo = standalone
+				// No colors defined - should fail for standalone
 			},
 			wantErr: true,
 		},

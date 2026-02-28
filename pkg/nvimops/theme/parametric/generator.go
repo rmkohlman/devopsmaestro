@@ -202,16 +202,15 @@ func (g *Generator) GenerateFromHue(hue float64, name, description string) *them
 		colors[key] = newHSL.ToHex()
 	}
 
-	// Create theme
+	// Create theme as standalone (no external plugin repo required)
+	// Standalone themes apply colors directly via nvim_set_hl()
 	return &theme.Theme{
 		Name:        name,
 		Description: description,
 		Author:      "DevOpsMaestro (parametric generator)",
-		Category:    "dark", // All CoolNight variants are dark themes
-		Plugin: theme.ThemePlugin{
-			Repo: "rmkohlman/coolnight.nvim", // Custom plugin for generated themes
-		},
-		Colors: colors,
+		Category:    "dark",              // All CoolNight variants are dark themes
+		Plugin:      theme.ThemePlugin{}, // Empty repo = standalone theme
+		Colors:      colors,
 	}
 }
 

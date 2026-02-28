@@ -202,9 +202,18 @@ func TestNvimThemeHandler_LibraryFallback_Get(t *testing.T) {
 		t.Fatalf("Get() result is not *NvimThemeResource")
 	}
 
-	// Verify it's actually from the library (should have specific plugin repo)
-	if tr.Theme().Plugin.Repo == "" {
-		t.Error("Library theme should have a plugin repo")
+	// Verify it's actually from the library
+	// coolnight themes are standalone (no plugin repo), so we check for colors instead
+	if tr.Theme().IsStandalone() {
+		// Standalone themes must have colors defined
+		if len(tr.Theme().Colors) == 0 {
+			t.Error("Standalone library theme should have colors defined")
+		}
+	} else {
+		// Plugin-based themes must have a repo
+		if tr.Theme().Plugin.Repo == "" {
+			t.Error("Plugin-based library theme should have a plugin repo")
+		}
 	}
 }
 

@@ -165,3 +165,10 @@ func (t *Theme) ToTerminalColors() map[string]string {
 	}
 	return p.ToTerminalColors()
 }
+
+// IsStandalone returns true if this is a standalone theme (no external plugin repo).
+// Standalone themes apply colors directly via vim.api.nvim_set_hl() instead of
+// loading an external colorscheme plugin.
+func (t *Theme) IsStandalone() bool {
+	return t.Plugin.Repo == ""
+}
