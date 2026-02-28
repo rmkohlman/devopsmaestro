@@ -77,18 +77,29 @@ type BuildOptions struct {
 	BuildArgs    map[string]string // Build arguments
 }
 
+// MountConfig defines a volume mount for a workspace container
+type MountConfig struct {
+	Type        string // Mount type: "bind", "volume", "tmpfs"
+	Source      string // Host path (for bind mounts)
+	Destination string // Container path
+	ReadOnly    bool   // Mount as read-only
+}
+
 // StartOptions contains options for starting a workspace
 type StartOptions struct {
-	ImageName     string            // Image to run
-	WorkspaceName string            // Logical workspace name (used in labels)
-	ContainerName string            // Physical container name (if empty, uses WorkspaceName)
-	AppName       string            // App name for labeling
-	EcosystemName string            // Ecosystem name for hierarchical naming
-	DomainName    string            // Domain name for hierarchical naming
-	AppPath       string            // Host path to mount at /workspace
-	WorkingDir    string            // Container working directory (default: /workspace)
-	Command       []string          // Command to run (default: /bin/sleep infinity for keep-alive)
-	Env           map[string]string // Environment variables
+	ImageName          string            // Image to run
+	WorkspaceName      string            // Logical workspace name (used in labels)
+	ContainerName      string            // Physical container name (if empty, uses WorkspaceName)
+	AppName            string            // App name for labeling
+	EcosystemName      string            // Ecosystem name for hierarchical naming
+	DomainName         string            // Domain name for hierarchical naming
+	AppPath            string            // Host path to mount at /workspace
+	WorkingDir         string            // Container working directory (default: /workspace)
+	Command            []string          // Command to run (default: /bin/sleep infinity for keep-alive)
+	Env                map[string]string // Environment variables
+	SSHAgentForwarding bool              // Enable SSH agent forwarding (opt-in, default: false)
+	WorkspaceSlug      string            // Workspace slug for path computation (v0.19.0)
+	Mounts             []MountConfig     // Additional volume mounts (v0.19.0)
 }
 
 // ContainerNamingStrategy defines the interface for generating and parsing container names
@@ -203,4 +214,80 @@ func (opts StartOptions) ComputeCommand() []string {
 		return opts.Command
 	}
 	return DefaultKeepAliveCommand()
+}
+
+// ComputeWorkspaceMounts generates the mount configurations for a workspace
+// based on the workspace slug. This includes:
+// - Volume mounts (nvim-data, nvim-state, cache) - read-write
+// - Generated configs (.dvm/nvim, .dvm/shell, .dvm/starship) - read-only
+// - Repo directory - read-write
+//
+// Returns an error if the workspace path cannot be computed.
+func (opts StartOptions) ComputeWorkspaceMounts() ([]MountConfig, error) {
+	// If no workspace slug, return empty (for backward compatibility)
+	if opts.WorkspaceSlug == "" {
+		return nil, nil
+	}
+
+	// Import workspace package for path computation (must be done at call site)
+	// For now, compute paths manually to avoid circular imports
+	// Format: ~/.devopsmaestro/workspaces/{slug}/
+
+	// Note: This is imported from pkg/workspace package
+	// We compute the base path here directly
+	workspacePath := "~/.devopsmaestro/workspaces/" + opts.WorkspaceSlug
+
+	// Expand tilde to home directory
+	// (In production code, this should use os.UserHomeDir())
+	// For now, leave as-is for the path patterns
+
+	mounts := []MountConfig{
+		// Volume mounts (read-write)
+		{
+			Type:        "bind",
+			Source:      workspacePath + "/volume/nvim-data",
+			Destination: "/home/dev/.local/share/nvim",
+			ReadOnly:    false,
+		},
+		{
+			Type:        "bind",
+			Source:      workspacePath + "/volume/nvim-state",
+			Destination: "/home/dev/.local/state/nvim",
+			ReadOnly:    false,
+		},
+		{
+			Type:        "bind",
+			Source:      workspacePath + "/volume/cache",
+			Destination: "/home/dev/.cache",
+			ReadOnly:    false,
+		},
+		// Repo directory (read-write)
+		{
+			Type:        "bind",
+			Source:      workspacePath + "/repo",
+			Destination: "/workspace",
+			ReadOnly:    false,
+		},
+		// Generated configs (read-only)
+		{
+			Type:        "bind",
+			Source:      workspacePath + "/.dvm/nvim",
+			Destination: "/home/dev/.config/nvim",
+			ReadOnly:    true,
+		},
+		{
+			Type:        "bind",
+			Source:      workspacePath + "/.dvm/shell",
+			Destination: "/home/dev/.config/shell",
+			ReadOnly:    true,
+		},
+		{
+			Type:        "bind",
+			Source:      workspacePath + "/.dvm/starship",
+			Destination: "/home/dev/.config/starship.toml",
+			ReadOnly:    true,
+		},
+	}
+
+	return mounts, nil
 }

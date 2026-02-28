@@ -8,18 +8,20 @@ import (
 
 // Workspace represents a workspace entity associated with an app.
 type Workspace struct {
-	ID            int            `db:"id" json:"id" yaml:"-"`
-	AppID         int            `db:"app_id" json:"app_id" yaml:"-"`
-	Name          string         `db:"name" json:"name" yaml:"name"`
-	Description   sql.NullString `db:"description" json:"description,omitempty" yaml:"description,omitempty"`
-	ImageName     string         `db:"image_name" json:"image_name" yaml:"image_name"`
-	ContainerID   sql.NullString `db:"container_id" json:"container_id,omitempty" yaml:"-"`
-	Status        string         `db:"status" json:"status" yaml:"status"`
-	Theme         sql.NullString `db:"theme" json:"theme,omitempty" yaml:"theme,omitempty"`
-	NvimStructure sql.NullString `db:"nvim_structure" json:"nvim_structure,omitempty" yaml:"-"`
-	NvimPlugins   sql.NullString `db:"nvim_plugins" json:"nvim_plugins,omitempty" yaml:"-"` // Comma-separated plugin names
-	CreatedAt     time.Time      `db:"created_at" json:"created_at" yaml:"-"`
-	UpdatedAt     time.Time      `db:"updated_at" json:"updated_at" yaml:"-"`
+	ID                 int            `db:"id" json:"id" yaml:"-"`
+	AppID              int            `db:"app_id" json:"app_id" yaml:"-"`
+	Name               string         `db:"name" json:"name" yaml:"name"`
+	Slug               string         `db:"slug" json:"slug" yaml:"slug"`
+	Description        sql.NullString `db:"description" json:"description,omitempty" yaml:"description,omitempty"`
+	ImageName          string         `db:"image_name" json:"image_name" yaml:"image_name"`
+	ContainerID        sql.NullString `db:"container_id" json:"container_id,omitempty" yaml:"-"`
+	Status             string         `db:"status" json:"status" yaml:"status"`
+	SSHAgentForwarding bool           `db:"ssh_agent_forwarding" json:"ssh_agent_forwarding" yaml:"ssh_agent_forwarding"`
+	Theme              sql.NullString `db:"theme" json:"theme,omitempty" yaml:"theme,omitempty"`
+	NvimStructure      sql.NullString `db:"nvim_structure" json:"nvim_structure,omitempty" yaml:"-"`
+	NvimPlugins        sql.NullString `db:"nvim_plugins" json:"nvim_plugins,omitempty" yaml:"-"` // Comma-separated plugin names
+	CreatedAt          time.Time      `db:"created_at" json:"created_at" yaml:"-"`
+	UpdatedAt          time.Time      `db:"updated_at" json:"updated_at" yaml:"-"`
 }
 
 // WorkspaceYAML represents the YAML serialization format for a workspace

@@ -188,15 +188,33 @@ func (d *DockerRuntime) StartWorkspace(ctx context.Context, opts StartOptions) (
 	}
 
 	// Build volume mounts
-	binds := []string{
-		fmt.Sprintf("%s:/workspace", opts.AppPath),
+	binds := []string{}
+
+	// Legacy mount for AppPath (if not using WorkspaceSlug)
+	if opts.AppPath != "" {
+		binds = append(binds, fmt.Sprintf("%s:/workspace", opts.AppPath))
 	}
 
-	// Mount SSH keys if they exist
-	homeDir, _ := os.UserHomeDir()
-	sshDir := filepath.Join(homeDir, ".ssh")
-	if _, err := os.Stat(sshDir); err == nil {
-		binds = append(binds, fmt.Sprintf("%s:/home/dev/.ssh:ro", sshDir))
+	// v0.19.0: Add workspace volume mounts from Mounts field
+	for _, mount := range opts.Mounts {
+		bindSpec := fmt.Sprintf("%s:%s", mount.Source, mount.Destination)
+		if mount.ReadOnly {
+			bindSpec += ":ro"
+		}
+		binds = append(binds, bindSpec)
+	}
+
+	// SSH agent forwarding (opt-in only)
+	// SECURITY: SSH keys are NEVER mounted. Only the agent socket is forwarded.
+	if opts.SSHAgentForwarding {
+		hostSocket, containerSocket, err := GetSSHAgentMount(d.GetRuntimeType())
+		if err != nil {
+			return "", fmt.Errorf("SSH agent forwarding requested but not available: %w", err)
+		}
+		binds = append(binds, fmt.Sprintf("%s:%s", hostSocket, containerSocket))
+
+		// Add SSH_AUTH_SOCK environment variable
+		env = append(env, fmt.Sprintf("SSH_AUTH_SOCK=%s", containerSocket))
 	}
 
 	// Create host configuration

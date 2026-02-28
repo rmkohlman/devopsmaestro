@@ -3,19 +3,6 @@
 -- This creates all tables needed by the entire toolkit
 
 -- =============================================================================
--- CORE TABLES (Legacy - kept for compatibility)
--- =============================================================================
-
-CREATE TABLE IF NOT EXISTS projects (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
-    path TEXT NOT NULL,
-    description TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- =============================================================================
 -- OBJECT HIERARCHY: Ecosystem -> Domain -> App -> Workspace
 -- =============================================================================
 
@@ -68,16 +55,22 @@ CREATE TABLE IF NOT EXISTS workspaces (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     app_id INTEGER NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
+    slug TEXT NOT NULL UNIQUE,
     description TEXT,
     image_name TEXT NOT NULL,
     container_id TEXT,
     status TEXT NOT NULL DEFAULT 'stopped',
+    ssh_agent_forwarding INTEGER DEFAULT 0,
     nvim_structure TEXT,
     nvim_plugins TEXT,
+    theme TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(app_id, name)
 );
+
+CREATE INDEX IF NOT EXISTS idx_workspaces_slug ON workspaces(slug);
+CREATE INDEX IF NOT EXISTS idx_workspaces_app ON workspaces(app_id);
 
 -- =============================================================================
 -- CONTEXT (Single row tracking active selections)
@@ -85,13 +78,11 @@ CREATE TABLE IF NOT EXISTS workspaces (
 
 CREATE TABLE IF NOT EXISTS context (
     id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
-    active_project_id INTEGER,
     active_workspace_id INTEGER,
     active_ecosystem_id INTEGER REFERENCES ecosystems(id),
     active_domain_id INTEGER REFERENCES domains(id),
     active_app_id INTEGER REFERENCES apps(id),
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (active_project_id) REFERENCES projects(id),
     FOREIGN KEY (active_workspace_id) REFERENCES workspaces(id)
 );
 
@@ -118,10 +109,9 @@ CREATE TABLE IF NOT EXISTS credentials (
     scope_type TEXT NOT NULL CHECK(scope_type IN ('ecosystem', 'domain', 'app', 'workspace')),
     scope_id INTEGER NOT NULL,
     name TEXT NOT NULL,
-    source TEXT NOT NULL CHECK(source IN ('keychain', 'env', 'value')),
+    source TEXT NOT NULL CHECK(source IN ('keychain', 'env')),
     service TEXT,
     env_var TEXT,
-    value TEXT,
     description TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,

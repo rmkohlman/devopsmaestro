@@ -79,26 +79,6 @@ type DataStore interface {
 	// ListAllApps retrieves all apps across all domains.
 	ListAllApps() ([]*models.App, error)
 
-	// Project Operations (DEPRECATED: migrate to Domain/App)
-
-	// CreateProject inserts a new project into the database.
-	CreateProject(project *models.Project) error
-
-	// GetProjectByName retrieves a project by its name.
-	GetProjectByName(name string) (*models.Project, error)
-
-	// GetProjectByID retrieves a project by its ID.
-	GetProjectByID(id int) (*models.Project, error)
-
-	// UpdateProject updates an existing project.
-	UpdateProject(project *models.Project) error
-
-	// DeleteProject removes a project by name.
-	DeleteProject(name string) error
-
-	// ListProjects retrieves all projects.
-	ListProjects() ([]*models.Project, error)
-
 	// Workspace Operations
 
 	// CreateWorkspace inserts a new workspace.
@@ -127,6 +107,17 @@ type DataStore interface {
 	// Use this for smart workspace resolution when the user provides partial criteria.
 	FindWorkspaces(filter models.WorkspaceFilter) ([]*models.WorkspaceWithHierarchy, error)
 
+	// GetWorkspacePath returns the filesystem path for a workspace.
+	// Returns: ~/.devopsmaestro/workspaces/{slug}/
+	GetWorkspacePath(workspaceID int) (string, error)
+
+	// GetWorkspaceSlug returns the slug for a workspace.
+	GetWorkspaceSlug(workspaceID int) (string, error)
+
+	// GenerateWorkspaceSlug creates a slug from hierarchy names.
+	// Format: {ecosystem}-{domain}-{app}-{workspace}
+	GenerateWorkspaceSlug(ecosystemName, domainName, appName, workspaceName string) string
+
 	// Context Operations (active selection state tracking)
 	// The hierarchy is: Ecosystem -> Domain -> App -> Workspace
 
@@ -144,10 +135,6 @@ type DataStore interface {
 
 	// SetActiveWorkspace sets the active workspace in the context.
 	SetActiveWorkspace(workspaceID *int) error
-
-	// SetActiveProject sets the active project in the context.
-	// DEPRECATED: Use SetActiveApp instead. Will be removed in v0.9.0.
-	SetActiveProject(projectID *int) error
 
 	// Plugin Operations
 

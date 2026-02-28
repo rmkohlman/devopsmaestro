@@ -17,7 +17,6 @@ type MockDataStore struct {
 	Ecosystems        map[string]*models.Ecosystem
 	Domains           map[int]*models.Domain // keyed by ID for easier lookup
 	Apps              map[int]*models.App    // keyed by ID for easier lookup
-	Projects          map[string]*models.Project
 	Workspaces        map[int]*models.Workspace
 	Plugins           map[string]*models.NvimPluginDB
 	Packages          map[string]*models.NvimPackageDB      // keyed by name
@@ -36,7 +35,6 @@ type MockDataStore struct {
 	NextEcosystemID        int
 	NextDomainID           int
 	NextAppID              int
-	NextProjectID          int
 	NextWorkspaceID        int
 	NextPluginID           int
 	NextPackageID          int
@@ -74,12 +72,6 @@ type MockDataStore struct {
 	DeleteAppErr                        error
 	ListAppsByDomainErr                 error
 	ListAllAppsErr                      error
-	CreateProjectErr                    error
-	GetProjectByNameErr                 error
-	GetProjectByIDErr                   error
-	UpdateProjectErr                    error
-	DeleteProjectErr                    error
-	ListProjectsErr                     error
 	CreateWorkspaceErr                  error
 	GetWorkspaceByNameErr               error
 	GetWorkspaceByIDErr                 error
@@ -93,7 +85,6 @@ type MockDataStore struct {
 	SetActiveDomainErr                  error
 	SetActiveAppErr                     error
 	SetActiveWorkspaceErr               error
-	SetActiveProjectErr                 error
 	CreatePluginErr                     error
 	GetPluginByNameErr                  error
 	GetPluginByIDErr                    error
@@ -177,7 +168,6 @@ type MockDataStore struct {
 	nextEcosystemID       int
 	nextDomainID          int
 	nextAppID             int
-	nextProjectID         int
 	nextWorkspaceID       int
 	nextPluginID          int
 	nextPackageID         int
@@ -198,7 +188,6 @@ func NewMockDataStore() *MockDataStore {
 		Ecosystems:            make(map[string]*models.Ecosystem),
 		Domains:               make(map[int]*models.Domain),
 		Apps:                  make(map[int]*models.App),
-		Projects:              make(map[string]*models.Project),
 		Workspaces:            make(map[int]*models.Workspace),
 		Plugins:               make(map[string]*models.NvimPluginDB),
 		Packages:              make(map[string]*models.NvimPackageDB),
@@ -214,7 +203,6 @@ func NewMockDataStore() *MockDataStore {
 		nextEcosystemID:       1,
 		nextDomainID:          1,
 		nextAppID:             1,
-		nextProjectID:         1,
 		nextWorkspaceID:       1,
 		nextPluginID:          1,
 		nextPackageID:         1,
@@ -522,87 +510,6 @@ func (m *MockDataStore) ListAllApps() ([]*models.App, error) {
 }
 
 // =============================================================================
-// Project Operations
-// =============================================================================
-
-func (m *MockDataStore) CreateProject(project *models.Project) error {
-	m.recordCall("CreateProject", project)
-	if m.CreateProjectErr != nil {
-		return m.CreateProjectErr
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	project.ID = m.nextProjectID
-	m.nextProjectID++
-	m.Projects[project.Name] = project
-	return nil
-}
-
-func (m *MockDataStore) GetProjectByName(name string) (*models.Project, error) {
-	m.recordCall("GetProjectByName", name)
-	if m.GetProjectByNameErr != nil {
-		return nil, m.GetProjectByNameErr
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if p, ok := m.Projects[name]; ok {
-		return p, nil
-	}
-	return nil, fmt.Errorf("project not found: %s", name)
-}
-
-func (m *MockDataStore) GetProjectByID(id int) (*models.Project, error) {
-	m.recordCall("GetProjectByID", id)
-	if m.GetProjectByIDErr != nil {
-		return nil, m.GetProjectByIDErr
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	for _, p := range m.Projects {
-		if p.ID == id {
-			return p, nil
-		}
-	}
-	return nil, fmt.Errorf("project not found: %d", id)
-}
-
-func (m *MockDataStore) UpdateProject(project *models.Project) error {
-	m.recordCall("UpdateProject", project)
-	if m.UpdateProjectErr != nil {
-		return m.UpdateProjectErr
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.Projects[project.Name] = project
-	return nil
-}
-
-func (m *MockDataStore) DeleteProject(name string) error {
-	m.recordCall("DeleteProject", name)
-	if m.DeleteProjectErr != nil {
-		return m.DeleteProjectErr
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	delete(m.Projects, name)
-	return nil
-}
-
-func (m *MockDataStore) ListProjects() ([]*models.Project, error) {
-	m.recordCall("ListProjects")
-	if m.ListProjectsErr != nil {
-		return nil, m.ListProjectsErr
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	var projects []*models.Project
-	for _, p := range m.Projects {
-		projects = append(projects, p)
-	}
-	return projects, nil
-}
-
-// =============================================================================
 // Workspace Operations
 // =============================================================================
 
@@ -759,6 +666,36 @@ func (m *MockDataStore) FindWorkspaces(filter models.WorkspaceFilter) ([]*models
 	return results, nil
 }
 
+// GetWorkspacePath returns the filesystem path for a workspace.
+func (m *MockDataStore) GetWorkspacePath(workspaceID int) (string, error) {
+	m.recordCall("GetWorkspacePath", workspaceID)
+	slug, err := m.GetWorkspaceSlug(workspaceID)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("~/.devopsmaestro/workspaces/%s/", slug), nil
+}
+
+// GetWorkspaceSlug returns the slug for a workspace.
+func (m *MockDataStore) GetWorkspaceSlug(workspaceID int) (string, error) {
+	m.recordCall("GetWorkspaceSlug", workspaceID)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	ws, ok := m.Workspaces[workspaceID]
+	if !ok {
+		return "", fmt.Errorf("workspace not found")
+	}
+
+	return ws.Slug, nil
+}
+
+// GenerateWorkspaceSlug generates a slug from hierarchy names.
+func (m *MockDataStore) GenerateWorkspaceSlug(ecosystemName, domainName, appName, workspaceName string) string {
+	m.recordCall("GenerateWorkspaceSlug", ecosystemName, domainName, appName, workspaceName)
+	return fmt.Sprintf("%s-%s-%s-%s", ecosystemName, domainName, appName, workspaceName)
+}
+
 // =============================================================================
 // Context Operations
 // =============================================================================
@@ -814,17 +751,6 @@ func (m *MockDataStore) SetActiveWorkspace(workspaceID *int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.Context.ActiveWorkspaceID = workspaceID
-	return nil
-}
-
-func (m *MockDataStore) SetActiveProject(projectID *int) error {
-	m.recordCall("SetActiveProject", projectID)
-	if m.SetActiveProjectErr != nil {
-		return m.SetActiveProjectErr
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.Context.ActiveProjectID = projectID
 	return nil
 }
 
@@ -2288,7 +2214,6 @@ func (m *MockDataStore) Reset() {
 	m.Ecosystems = make(map[string]*models.Ecosystem)
 	m.Domains = make(map[int]*models.Domain)
 	m.Apps = make(map[int]*models.App)
-	m.Projects = make(map[string]*models.Project)
 	m.Workspaces = make(map[int]*models.Workspace)
 	m.Plugins = make(map[string]*models.NvimPluginDB)
 	m.Themes = make(map[string]*models.NvimThemeDB)
@@ -2303,7 +2228,6 @@ func (m *MockDataStore) Reset() {
 	m.nextEcosystemID = 1
 	m.nextDomainID = 1
 	m.nextAppID = 1
-	m.nextProjectID = 1
 	m.nextWorkspaceID = 1
 	m.nextPluginID = 1
 	m.nextThemeID = 1

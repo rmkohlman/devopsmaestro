@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"testing"
 
@@ -320,9 +319,6 @@ func TestNewMockDataStore(t *testing.T) {
 		t.Fatal("NewMockDataStore() returned nil")
 	}
 
-	if store.Projects == nil {
-		t.Error("Projects map is nil")
-	}
 	if store.Workspaces == nil {
 		t.Error("Workspaces map is nil")
 	}
@@ -334,72 +330,22 @@ func TestNewMockDataStore(t *testing.T) {
 	}
 }
 
-func TestMockDataStore_ProjectCRUD(t *testing.T) {
-	store := NewMockDataStore()
-
-	// Create
-	project := &models.Project{Name: "test-project", Path: "/test/path"}
-	if err := store.CreateProject(project); err != nil {
-		t.Fatalf("CreateProject() error = %v", err)
-	}
-	if project.ID == 0 {
-		t.Error("Project ID was not set")
-	}
-
-	// Read by name
-	retrieved, err := store.GetProjectByName("test-project")
-	if err != nil {
-		t.Fatalf("GetProjectByName() error = %v", err)
-	}
-	if retrieved.Path != "/test/path" {
-		t.Errorf("Path = %q, want %q", retrieved.Path, "/test/path")
-	}
-
-	// Read by ID
-	retrieved, err = store.GetProjectByID(project.ID)
-	if err != nil {
-		t.Fatalf("GetProjectByID() error = %v", err)
-	}
-	if retrieved.Name != "test-project" {
-		t.Errorf("Name = %q, want %q", retrieved.Name, "test-project")
-	}
-
-	// Update
-	project.Description = sql.NullString{String: "Updated description", Valid: true}
-	if err := store.UpdateProject(project); err != nil {
-		t.Fatalf("UpdateProject() error = %v", err)
-	}
-
-	// List
-	projects, err := store.ListProjects()
-	if err != nil {
-		t.Fatalf("ListProjects() error = %v", err)
-	}
-	if len(projects) != 1 {
-		t.Errorf("ListProjects() returned %d projects, want 1", len(projects))
-	}
-
-	// Delete
-	if err := store.DeleteProject("test-project"); err != nil {
-		t.Fatalf("DeleteProject() error = %v", err)
-	}
-
-	projects, _ = store.ListProjects()
-	if len(projects) != 0 {
-		t.Error("Project was not deleted")
-	}
-}
-
 func TestMockDataStore_WorkspaceCRUD(t *testing.T) {
 	store := NewMockDataStore()
 
-	// Create project first
-	project := &models.Project{Name: "test-project", Path: "/test"}
-	store.CreateProject(project)
+	// Create ecosystem and app first
+	ecosystem := &models.Ecosystem{Name: "test-eco"}
+	store.CreateEcosystem(ecosystem)
+
+	domain := &models.Domain{Name: "test-domain", EcosystemID: ecosystem.ID}
+	store.CreateDomain(domain)
+
+	app := &models.App{Name: "test-app", DomainID: domain.ID, Path: "/test"}
+	store.CreateApp(app)
 
 	// Create workspace
 	workspace := &models.Workspace{
-		AppID:  project.ID, // Using project.ID as AppID during migration
+		AppID:  app.ID,
 		Name:   "main",
 		Status: "stopped",
 	}
@@ -411,7 +357,7 @@ func TestMockDataStore_WorkspaceCRUD(t *testing.T) {
 	}
 
 	// Read by name
-	retrieved, err := store.GetWorkspaceByName(project.ID, "main")
+	retrieved, err := store.GetWorkspaceByName(app.ID, "main")
 	if err != nil {
 		t.Fatalf("GetWorkspaceByName() error = %v", err)
 	}
@@ -425,8 +371,8 @@ func TestMockDataStore_WorkspaceCRUD(t *testing.T) {
 		t.Fatalf("GetWorkspaceByID() error = %v", err)
 	}
 
-	// List by app (using project.ID as appID during migration)
-	workspaces, err := store.ListWorkspacesByApp(project.ID)
+	// List by app
+	workspaces, err := store.ListWorkspacesByApp(app.ID)
 	if err != nil {
 		t.Fatalf("ListWorkspacesByApp() error = %v", err)
 	}
@@ -461,15 +407,15 @@ func TestMockDataStore_Context(t *testing.T) {
 		t.Errorf("Context ID = %d, want 1", ctx.ID)
 	}
 
-	// Set active project
-	projectID := 42
-	if err := store.SetActiveProject(&projectID); err != nil {
-		t.Fatalf("SetActiveProject() error = %v", err)
+	// Set active app
+	appID := 42
+	if err := store.SetActiveApp(&appID); err != nil {
+		t.Fatalf("SetActiveApp() error = %v", err)
 	}
 
 	ctx, _ = store.GetContext()
-	if ctx.ActiveProjectID == nil || *ctx.ActiveProjectID != 42 {
-		t.Error("Active project ID was not set")
+	if ctx.ActiveAppID == nil || *ctx.ActiveAppID != 42 {
+		t.Error("Active app ID was not set")
 	}
 
 	// Set active workspace
@@ -488,19 +434,19 @@ func TestMockDataStore_ErrorInjection(t *testing.T) {
 	store := NewMockDataStore()
 	expectedErr := errors.New("injected error")
 
-	store.CreateProjectErr = expectedErr
-	if err := store.CreateProject(&models.Project{}); err != expectedErr {
-		t.Errorf("CreateProject() error = %v, want %v", err, expectedErr)
+	store.CreateWorkspaceErr = expectedErr
+	if err := store.CreateWorkspace(&models.Workspace{}); err != expectedErr {
+		t.Errorf("CreateWorkspace() error = %v, want %v", err, expectedErr)
 	}
 
-	store.GetProjectByNameErr = expectedErr
-	if _, err := store.GetProjectByName("test"); err != expectedErr {
-		t.Errorf("GetProjectByName() error = %v, want %v", err, expectedErr)
+	store.GetWorkspaceByIDErr = expectedErr
+	if _, err := store.GetWorkspaceByID(1); err != expectedErr {
+		t.Errorf("GetWorkspaceByID() error = %v, want %v", err, expectedErr)
 	}
 
-	store.ListProjectsErr = expectedErr
-	if _, err := store.ListProjects(); err != expectedErr {
-		t.Errorf("ListProjects() error = %v, want %v", err, expectedErr)
+	store.ListAllWorkspacesErr = expectedErr
+	if _, err := store.ListAllWorkspaces(); err != expectedErr {
+		t.Errorf("ListAllWorkspaces() error = %v, want %v", err, expectedErr)
 	}
 }
 
@@ -508,16 +454,16 @@ func TestMockDataStore_CallTracking(t *testing.T) {
 	store := NewMockDataStore()
 
 	// Make some calls
-	store.CreateProject(&models.Project{Name: "test"})
-	store.ListProjects()
-	store.GetProjectByName("test")
+	store.CreateWorkspace(&models.Workspace{Name: "test"})
+	store.ListAllWorkspaces()
+	store.GetWorkspaceByID(1)
 
 	calls := store.GetCalls()
 	if len(calls) != 3 {
 		t.Errorf("Expected 3 calls, got %d", len(calls))
 	}
 
-	expectedMethods := []string{"CreateProject", "ListProjects", "GetProjectByName"}
+	expectedMethods := []string{"CreateWorkspace", "ListAllWorkspaces", "GetWorkspaceByID"}
 	for i, expected := range expectedMethods {
 		if calls[i].Method != expected {
 			t.Errorf("Call %d method = %q, want %q", i, calls[i].Method, expected)
@@ -535,15 +481,16 @@ func TestMockDataStore_Reset(t *testing.T) {
 	store := NewMockDataStore()
 
 	// Add some data
-	store.CreateProject(&models.Project{Name: "test"})
+	ecosystem := &models.Ecosystem{Name: "test-eco"}
+	store.CreateEcosystem(ecosystem)
 	store.CreateWorkspace(&models.Workspace{Name: "main"})
 
 	// Reset
 	store.Reset()
 
 	// Verify all data is cleared
-	if len(store.Projects) != 0 {
-		t.Error("Projects not cleared")
+	if len(store.Ecosystems) != 0 {
+		t.Error("Ecosystems not cleared")
 	}
 	if len(store.Workspaces) != 0 {
 		t.Error("Workspaces not cleared")

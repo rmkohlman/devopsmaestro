@@ -5,6 +5,8 @@ import (
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/nvimops"
 	"fmt"
+	"os"
+	"strings"
 )
 
 // SQLDataStore is a concrete implementation of the DataStore interface.
@@ -427,108 +429,6 @@ func (ds *SQLDataStore) ListAllApps() ([]*models.App, error) {
 }
 
 // =============================================================================
-// Project Operations
-// =============================================================================
-
-// CreateProject inserts a new project into the database.
-func (ds *SQLDataStore) CreateProject(project *models.Project) error {
-	query := fmt.Sprintf(`INSERT INTO projects (name, path, description, created_at, updated_at) 
-		VALUES (?, ?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
-
-	result, err := ds.driver.Execute(query, project.Name, project.Path, project.Description)
-	if err != nil {
-		return fmt.Errorf("failed to create project: %w", err)
-	}
-
-	id, err := result.LastInsertId()
-	if err == nil {
-		project.ID = int(id)
-	}
-
-	return nil
-}
-
-// GetProjectByName retrieves a project by its name.
-func (ds *SQLDataStore) GetProjectByName(name string) (*models.Project, error) {
-	project := &models.Project{}
-	query := `SELECT id, name, path, description, created_at, updated_at FROM projects WHERE name = ?`
-
-	row := ds.driver.QueryRow(query, name)
-	if err := row.Scan(&project.ID, &project.Name, &project.Path, &project.Description, &project.CreatedAt, &project.UpdatedAt); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("project not found: %s", name)
-		}
-		return nil, fmt.Errorf("failed to scan project: %w", err)
-	}
-
-	return project, nil
-}
-
-// GetProjectByID retrieves a project by its ID.
-func (ds *SQLDataStore) GetProjectByID(id int) (*models.Project, error) {
-	project := &models.Project{}
-	query := `SELECT id, name, path, description, created_at, updated_at FROM projects WHERE id = ?`
-
-	row := ds.driver.QueryRow(query, id)
-	if err := row.Scan(&project.ID, &project.Name, &project.Path, &project.Description, &project.CreatedAt, &project.UpdatedAt); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("project not found: %d", id)
-		}
-		return nil, fmt.Errorf("failed to scan project: %w", err)
-	}
-
-	return project, nil
-}
-
-// UpdateProject updates an existing project.
-func (ds *SQLDataStore) UpdateProject(project *models.Project) error {
-	query := fmt.Sprintf(`UPDATE projects SET name = ?, path = ?, description = ?, updated_at = %s WHERE id = ?`,
-		ds.queryBuilder.Now())
-
-	_, err := ds.driver.Execute(query, project.Name, project.Path, project.Description, project.ID)
-	if err != nil {
-		return fmt.Errorf("failed to update project: %w", err)
-	}
-	return nil
-}
-
-// DeleteProject removes a project by name.
-func (ds *SQLDataStore) DeleteProject(name string) error {
-	query := `DELETE FROM projects WHERE name = ?`
-	_, err := ds.driver.Execute(query, name)
-	if err != nil {
-		return fmt.Errorf("failed to delete project: %w", err)
-	}
-	return nil
-}
-
-// ListProjects retrieves all projects.
-func (ds *SQLDataStore) ListProjects() ([]*models.Project, error) {
-	query := `SELECT id, name, path, description, created_at, updated_at FROM projects ORDER BY name`
-
-	rows, err := ds.driver.Query(query)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list projects: %w", err)
-	}
-	defer rows.Close()
-
-	var projects []*models.Project
-	for rows.Next() {
-		project := &models.Project{}
-		if err := rows.Scan(&project.ID, &project.Name, &project.Path, &project.Description, &project.CreatedAt, &project.UpdatedAt); err != nil {
-			return nil, fmt.Errorf("failed to scan project: %w", err)
-		}
-		projects = append(projects, project)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating over projects: %w", err)
-	}
-
-	return projects, nil
-}
-
-// =============================================================================
 // Workspace Operations
 // =============================================================================
 
@@ -540,10 +440,28 @@ func (ds *SQLDataStore) CreateWorkspace(workspace *models.Workspace) error {
 		workspace.NvimStructure = sql.NullString{String: defaultConfig.Structure, Valid: true}
 	}
 
-	query := fmt.Sprintf(`INSERT INTO workspaces (app_id, name, description, image_name, status, nvim_structure, nvim_plugins, theme, created_at, updated_at) 
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
+	// Generate slug if not provided
+	if workspace.Slug == "" {
+		// Get hierarchy to generate slug
+		app, err := ds.GetAppByID(workspace.AppID)
+		if err != nil {
+			return fmt.Errorf("failed to get app for slug generation: %w", err)
+		}
+		domain, err := ds.GetDomainByID(app.DomainID)
+		if err != nil {
+			return fmt.Errorf("failed to get domain for slug generation: %w", err)
+		}
+		ecosystem, err := ds.GetEcosystemByID(domain.EcosystemID)
+		if err != nil {
+			return fmt.Errorf("failed to get ecosystem for slug generation: %w", err)
+		}
+		workspace.Slug = ds.GenerateWorkspaceSlug(ecosystem.Name, domain.Name, app.Name, workspace.Name)
+	}
 
-	result, err := ds.driver.Execute(query, workspace.AppID, workspace.Name, workspace.Description, workspace.ImageName, workspace.Status, workspace.NvimStructure, workspace.NvimPlugins, workspace.Theme)
+	query := fmt.Sprintf(`INSERT INTO workspaces (app_id, name, slug, description, image_name, status, ssh_agent_forwarding, nvim_structure, nvim_plugins, theme, created_at, updated_at) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
+
+	result, err := ds.driver.Execute(query, workspace.AppID, workspace.Name, workspace.Slug, workspace.Description, workspace.ImageName, workspace.Status, workspace.SSHAgentForwarding, workspace.NvimStructure, workspace.NvimPlugins, workspace.Theme)
 	if err != nil {
 		return fmt.Errorf("failed to create workspace: %w", err)
 	}
@@ -559,12 +477,12 @@ func (ds *SQLDataStore) CreateWorkspace(workspace *models.Workspace) error {
 // GetWorkspaceByName retrieves a workspace by app ID and name.
 func (ds *SQLDataStore) GetWorkspaceByName(appID int, name string) (*models.Workspace, error) {
 	workspace := &models.Workspace{}
-	query := `SELECT id, app_id, name, description, image_name, container_id, status, nvim_structure, nvim_plugins, theme, created_at, updated_at 
+	query := `SELECT id, app_id, name, slug, description, image_name, container_id, status, ssh_agent_forwarding, nvim_structure, nvim_plugins, theme, created_at, updated_at 
 		FROM workspaces WHERE app_id = ? AND name = ?`
 
 	row := ds.driver.QueryRow(query, appID, name)
-	if err := row.Scan(&workspace.ID, &workspace.AppID, &workspace.Name, &workspace.Description,
-		&workspace.ImageName, &workspace.ContainerID, &workspace.Status, &workspace.NvimStructure,
+	if err := row.Scan(&workspace.ID, &workspace.AppID, &workspace.Name, &workspace.Slug, &workspace.Description,
+		&workspace.ImageName, &workspace.ContainerID, &workspace.Status, &workspace.SSHAgentForwarding, &workspace.NvimStructure,
 		&workspace.NvimPlugins, &workspace.Theme, &workspace.CreatedAt, &workspace.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("workspace not found: %s", name)
@@ -578,12 +496,12 @@ func (ds *SQLDataStore) GetWorkspaceByName(appID int, name string) (*models.Work
 // GetWorkspaceByID retrieves a workspace by its ID.
 func (ds *SQLDataStore) GetWorkspaceByID(id int) (*models.Workspace, error) {
 	workspace := &models.Workspace{}
-	query := `SELECT id, app_id, name, description, image_name, container_id, status, nvim_structure, nvim_plugins, theme, created_at, updated_at 
+	query := `SELECT id, app_id, name, slug, description, image_name, container_id, status, ssh_agent_forwarding, nvim_structure, nvim_plugins, theme, created_at, updated_at 
 		FROM workspaces WHERE id = ?`
 
 	row := ds.driver.QueryRow(query, id)
-	if err := row.Scan(&workspace.ID, &workspace.AppID, &workspace.Name, &workspace.Description,
-		&workspace.ImageName, &workspace.ContainerID, &workspace.Status, &workspace.NvimStructure,
+	if err := row.Scan(&workspace.ID, &workspace.AppID, &workspace.Name, &workspace.Slug, &workspace.Description,
+		&workspace.ImageName, &workspace.ContainerID, &workspace.Status, &workspace.SSHAgentForwarding, &workspace.NvimStructure,
 		&workspace.NvimPlugins, &workspace.Theme, &workspace.CreatedAt, &workspace.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("workspace not found: %d", id)
@@ -596,12 +514,12 @@ func (ds *SQLDataStore) GetWorkspaceByID(id int) (*models.Workspace, error) {
 
 // UpdateWorkspace updates an existing workspace.
 func (ds *SQLDataStore) UpdateWorkspace(workspace *models.Workspace) error {
-	query := fmt.Sprintf(`UPDATE workspaces SET name = ?, description = ?, image_name = ?, container_id = ?, 
-		status = ?, nvim_structure = ?, nvim_plugins = ?, theme = ?, updated_at = %s WHERE id = ?`,
+	query := fmt.Sprintf(`UPDATE workspaces SET name = ?, slug = ?, description = ?, image_name = ?, container_id = ?, 
+		status = ?, ssh_agent_forwarding = ?, nvim_structure = ?, nvim_plugins = ?, theme = ?, updated_at = %s WHERE id = ?`,
 		ds.queryBuilder.Now())
 
-	_, err := ds.driver.Execute(query, workspace.Name, workspace.Description, workspace.ImageName,
-		workspace.ContainerID, workspace.Status, workspace.NvimStructure, workspace.NvimPlugins, workspace.Theme, workspace.ID)
+	_, err := ds.driver.Execute(query, workspace.Name, workspace.Slug, workspace.Description, workspace.ImageName,
+		workspace.ContainerID, workspace.Status, workspace.SSHAgentForwarding, workspace.NvimStructure, workspace.NvimPlugins, workspace.Theme, workspace.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update workspace: %w", err)
 	}
@@ -620,7 +538,7 @@ func (ds *SQLDataStore) DeleteWorkspace(id int) error {
 
 // ListWorkspacesByApp retrieves all workspaces for an app.
 func (ds *SQLDataStore) ListWorkspacesByApp(appID int) ([]*models.Workspace, error) {
-	query := `SELECT id, app_id, name, description, image_name, container_id, status, nvim_structure, nvim_plugins, theme, created_at, updated_at 
+	query := `SELECT id, app_id, name, slug, description, image_name, container_id, status, ssh_agent_forwarding, nvim_structure, nvim_plugins, theme, created_at, updated_at 
 		FROM workspaces WHERE app_id = ? ORDER BY name`
 
 	rows, err := ds.driver.Query(query, appID)
@@ -632,8 +550,8 @@ func (ds *SQLDataStore) ListWorkspacesByApp(appID int) ([]*models.Workspace, err
 	var workspaces []*models.Workspace
 	for rows.Next() {
 		workspace := &models.Workspace{}
-		if err := rows.Scan(&workspace.ID, &workspace.AppID, &workspace.Name, &workspace.Description,
-			&workspace.ImageName, &workspace.ContainerID, &workspace.Status, &workspace.NvimStructure,
+		if err := rows.Scan(&workspace.ID, &workspace.AppID, &workspace.Name, &workspace.Slug, &workspace.Description,
+			&workspace.ImageName, &workspace.ContainerID, &workspace.Status, &workspace.SSHAgentForwarding, &workspace.NvimStructure,
 			&workspace.NvimPlugins, &workspace.Theme, &workspace.CreatedAt, &workspace.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan workspace: %w", err)
 		}
@@ -649,7 +567,7 @@ func (ds *SQLDataStore) ListWorkspacesByApp(appID int) ([]*models.Workspace, err
 
 // ListAllWorkspaces retrieves all workspaces across all apps.
 func (ds *SQLDataStore) ListAllWorkspaces() ([]*models.Workspace, error) {
-	query := `SELECT id, app_id, name, description, image_name, container_id, status, nvim_structure, nvim_plugins, theme, created_at, updated_at 
+	query := `SELECT id, app_id, name, slug, description, image_name, container_id, status, ssh_agent_forwarding, nvim_structure, nvim_plugins, theme, created_at, updated_at 
 		FROM workspaces ORDER BY app_id, name`
 
 	rows, err := ds.driver.Query(query)
@@ -661,8 +579,8 @@ func (ds *SQLDataStore) ListAllWorkspaces() ([]*models.Workspace, error) {
 	var workspaces []*models.Workspace
 	for rows.Next() {
 		workspace := &models.Workspace{}
-		if err := rows.Scan(&workspace.ID, &workspace.AppID, &workspace.Name, &workspace.Description,
-			&workspace.ImageName, &workspace.ContainerID, &workspace.Status, &workspace.NvimStructure,
+		if err := rows.Scan(&workspace.ID, &workspace.AppID, &workspace.Name, &workspace.Slug, &workspace.Description,
+			&workspace.ImageName, &workspace.ContainerID, &workspace.Status, &workspace.SSHAgentForwarding, &workspace.NvimStructure,
 			&workspace.NvimPlugins, &workspace.Theme, &workspace.CreatedAt, &workspace.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan workspace: %w", err)
 		}
@@ -682,7 +600,7 @@ func (ds *SQLDataStore) ListAllWorkspaces() ([]*models.Workspace, error) {
 func (ds *SQLDataStore) FindWorkspaces(filter models.WorkspaceFilter) ([]*models.WorkspaceWithHierarchy, error) {
 	// Build query with JOINs to get full hierarchy
 	query := `SELECT 
-		w.id, w.app_id, w.name, w.description, w.image_name, w.container_id, w.status, w.nvim_structure, w.nvim_plugins, w.theme, w.created_at, w.updated_at,
+		w.id, w.app_id, w.name, w.description, w.image_name, w.container_id, w.status, w.nvim_structure, w.nvim_plugins, w.theme, w.slug, w.ssh_agent_forwarding, w.created_at, w.updated_at,
 		a.id, a.domain_id, a.name, a.path, a.description, a.language, a.build_config, a.created_at, a.updated_at,
 		d.id, d.ecosystem_id, d.name, d.description, d.created_at, d.updated_at,
 		e.id, e.name, e.description, e.created_at, e.updated_at
@@ -731,7 +649,7 @@ func (ds *SQLDataStore) FindWorkspaces(filter models.WorkspaceFilter) ([]*models
 			// Workspace fields
 			&workspace.ID, &workspace.AppID, &workspace.Name, &workspace.Description,
 			&workspace.ImageName, &workspace.ContainerID, &workspace.Status, &workspace.NvimStructure,
-			&workspace.NvimPlugins, &workspace.Theme, &workspace.CreatedAt, &workspace.UpdatedAt,
+			&workspace.NvimPlugins, &workspace.Theme, &workspace.Slug, &workspace.SSHAgentForwarding, &workspace.CreatedAt, &workspace.UpdatedAt,
 			// App fields
 			&app.ID, &app.DomainID, &app.Name, &app.Path, &app.Description,
 			&app.Language, &app.BuildConfig, &app.CreatedAt, &app.UpdatedAt,
@@ -760,6 +678,60 @@ func (ds *SQLDataStore) FindWorkspaces(filter models.WorkspaceFilter) ([]*models
 	return results, nil
 }
 
+// GetWorkspacePath returns the filesystem path for a workspace.
+// Returns: ~/.devopsmaestro/workspaces/{slug}/
+func (ds *SQLDataStore) GetWorkspacePath(workspaceID int) (string, error) {
+	slug, err := ds.GetWorkspaceSlug(workspaceID)
+	if err != nil {
+		return "", err
+	}
+
+	// Get home directory
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	return fmt.Sprintf("%s/.devopsmaestro/workspaces/%s/", homeDir, slug), nil
+}
+
+// GetWorkspaceSlug returns the slug for a workspace.
+func (ds *SQLDataStore) GetWorkspaceSlug(workspaceID int) (string, error) {
+	var slug string
+	query := `SELECT slug FROM workspaces WHERE id = ?`
+
+	row := ds.driver.QueryRow(query, workspaceID)
+	if err := row.Scan(&slug); err != nil {
+		if err == sql.ErrNoRows {
+			return "", fmt.Errorf("workspace not found: %d", workspaceID)
+		}
+		return "", fmt.Errorf("failed to get workspace slug: %w", err)
+	}
+
+	return slug, nil
+}
+
+// GenerateWorkspaceSlug creates a slug from hierarchy names.
+// Format: {ecosystem}-{domain}-{app}-{workspace}
+// Names are sanitized: lowercased, spaces/underscores converted to hyphens
+func (ds *SQLDataStore) GenerateWorkspaceSlug(ecosystemName, domainName, appName, workspaceName string) string {
+	sanitize := func(s string) string {
+		// Convert to lowercase
+		s = strings.ToLower(s)
+		// Replace spaces and underscores with hyphens
+		s = strings.ReplaceAll(s, " ", "-")
+		s = strings.ReplaceAll(s, "_", "-")
+		return s
+	}
+
+	return fmt.Sprintf("%s-%s-%s-%s",
+		sanitize(ecosystemName),
+		sanitize(domainName),
+		sanitize(appName),
+		sanitize(workspaceName),
+	)
+}
+
 // =============================================================================
 // Context Operations
 // =============================================================================
@@ -767,10 +739,10 @@ func (ds *SQLDataStore) FindWorkspaces(filter models.WorkspaceFilter) ([]*models
 // GetContext retrieves the current context.
 func (ds *SQLDataStore) GetContext() (*models.Context, error) {
 	context := &models.Context{}
-	query := `SELECT id, active_ecosystem_id, active_domain_id, active_app_id, active_workspace_id, active_project_id, updated_at FROM context WHERE id = 1`
+	query := `SELECT id, active_ecosystem_id, active_domain_id, active_app_id, active_workspace_id, updated_at FROM context WHERE id = 1`
 
 	row := ds.driver.QueryRow(query)
-	if err := row.Scan(&context.ID, &context.ActiveEcosystemID, &context.ActiveDomainID, &context.ActiveAppID, &context.ActiveWorkspaceID, &context.ActiveProjectID, &context.UpdatedAt); err != nil {
+	if err := row.Scan(&context.ID, &context.ActiveEcosystemID, &context.ActiveDomainID, &context.ActiveAppID, &context.ActiveWorkspaceID, &context.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("context not found")
 		}
@@ -824,19 +796,6 @@ func (ds *SQLDataStore) SetActiveWorkspace(workspaceID *int) error {
 	_, err := ds.driver.Execute(query, workspaceID)
 	if err != nil {
 		return fmt.Errorf("failed to set active workspace: %w", err)
-	}
-	return nil
-}
-
-// SetActiveProject sets the active project in the context.
-// DEPRECATED: Use SetActiveApp instead. Will be removed in v0.9.0.
-func (ds *SQLDataStore) SetActiveProject(projectID *int) error {
-	query := fmt.Sprintf(`UPDATE context SET active_project_id = ?, updated_at = %s WHERE id = 1`,
-		ds.queryBuilder.Now())
-
-	_, err := ds.driver.Execute(query, projectID)
-	if err != nil {
-		return fmt.Errorf("failed to set active project: %w", err)
 	}
 	return nil
 }
@@ -2152,8 +2111,21 @@ func (ds *SQLDataStore) ListTerminalEmulatorsByWorkspace(workspace string) ([]*m
 
 // CreateCredential inserts a new credential configuration.
 func (ds *SQLDataStore) CreateCredential(credential *models.CredentialDB) error {
-	query := fmt.Sprintf(`INSERT INTO credentials (scope_type, scope_id, name, source, service, env_var, value, description, created_at, updated_at) 
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
+	// Validate source - only keychain and env allowed
+	if credential.Source != "keychain" && credential.Source != "env" {
+		return fmt.Errorf("plaintext credentials not allowed: source must be 'keychain' or 'env', got '%s'", credential.Source)
+	}
+
+	// Validate required fields based on source
+	if credential.Source == "keychain" && credential.Service == nil {
+		return fmt.Errorf("service required for keychain credentials")
+	}
+	if credential.Source == "env" && credential.EnvVar == nil {
+		return fmt.Errorf("env_var required for env credentials")
+	}
+
+	query := fmt.Sprintf(`INSERT INTO credentials (scope_type, scope_id, name, source, service, env_var, description, created_at, updated_at) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
 
 	result, err := ds.driver.Execute(query,
 		credential.ScopeType,
@@ -2162,7 +2134,6 @@ func (ds *SQLDataStore) CreateCredential(credential *models.CredentialDB) error 
 		credential.Source,
 		credential.Service,
 		credential.EnvVar,
-		credential.Value,
 		credential.Description,
 	)
 	if err != nil {
@@ -2180,7 +2151,7 @@ func (ds *SQLDataStore) CreateCredential(credential *models.CredentialDB) error 
 // GetCredential retrieves a credential by scope and name.
 func (ds *SQLDataStore) GetCredential(scopeType models.CredentialScopeType, scopeID int64, name string) (*models.CredentialDB, error) {
 	credential := &models.CredentialDB{}
-	query := `SELECT id, scope_type, scope_id, name, source, service, env_var, value, description, created_at, updated_at 
+	query := `SELECT id, scope_type, scope_id, name, source, service, env_var, description, created_at, updated_at 
 		FROM credentials WHERE scope_type = ? AND scope_id = ? AND name = ?`
 
 	row := ds.driver.QueryRow(query, scopeType, scopeID, name)
@@ -2192,7 +2163,6 @@ func (ds *SQLDataStore) GetCredential(scopeType models.CredentialScopeType, scop
 		&credential.Source,
 		&credential.Service,
 		&credential.EnvVar,
-		&credential.Value,
 		&credential.Description,
 		&credential.CreatedAt,
 		&credential.UpdatedAt,
@@ -2208,14 +2178,26 @@ func (ds *SQLDataStore) GetCredential(scopeType models.CredentialScopeType, scop
 
 // UpdateCredential updates an existing credential.
 func (ds *SQLDataStore) UpdateCredential(credential *models.CredentialDB) error {
-	query := fmt.Sprintf(`UPDATE credentials SET source = ?, service = ?, env_var = ?, value = ?, description = ?, updated_at = %s 
+	// Validate source - only keychain and env allowed
+	if credential.Source != "keychain" && credential.Source != "env" {
+		return fmt.Errorf("plaintext credentials not allowed: source must be 'keychain' or 'env', got '%s'", credential.Source)
+	}
+
+	// Validate required fields based on source
+	if credential.Source == "keychain" && credential.Service == nil {
+		return fmt.Errorf("service required for keychain credentials")
+	}
+	if credential.Source == "env" && credential.EnvVar == nil {
+		return fmt.Errorf("env_var required for env credentials")
+	}
+
+	query := fmt.Sprintf(`UPDATE credentials SET source = ?, service = ?, env_var = ?, description = ?, updated_at = %s 
 		WHERE scope_type = ? AND scope_id = ? AND name = ?`, ds.queryBuilder.Now())
 
 	result, err := ds.driver.Execute(query,
 		credential.Source,
 		credential.Service,
 		credential.EnvVar,
-		credential.Value,
 		credential.Description,
 		credential.ScopeType,
 		credential.ScopeID,
@@ -2252,7 +2234,7 @@ func (ds *SQLDataStore) DeleteCredential(scopeType models.CredentialScopeType, s
 
 // ListCredentialsByScope retrieves all credentials for a specific scope.
 func (ds *SQLDataStore) ListCredentialsByScope(scopeType models.CredentialScopeType, scopeID int64) ([]*models.CredentialDB, error) {
-	query := `SELECT id, scope_type, scope_id, name, source, service, env_var, value, description, created_at, updated_at 
+	query := `SELECT id, scope_type, scope_id, name, source, service, env_var, description, created_at, updated_at 
 		FROM credentials WHERE scope_type = ? AND scope_id = ? ORDER BY name`
 
 	rows, err := ds.driver.Query(query, scopeType, scopeID)
@@ -2272,7 +2254,6 @@ func (ds *SQLDataStore) ListCredentialsByScope(scopeType models.CredentialScopeT
 			&credential.Source,
 			&credential.Service,
 			&credential.EnvVar,
-			&credential.Value,
 			&credential.Description,
 			&credential.CreatedAt,
 			&credential.UpdatedAt,
@@ -2311,7 +2292,6 @@ func (ds *SQLDataStore) ListAllCredentials() ([]*models.CredentialDB, error) {
 			&credential.Source,
 			&credential.Service,
 			&credential.EnvVar,
-			&credential.Value,
 			&credential.Description,
 			&credential.CreatedAt,
 			&credential.UpdatedAt,

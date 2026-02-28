@@ -12,6 +12,7 @@ import (
 //   - Call recording for verification
 //   - Configurable error injection
 //   - Status simulation
+//   - Function override support (for custom test logic)
 type MockContainerRuntime struct {
 	mu sync.RWMutex
 
@@ -35,6 +36,13 @@ type MockContainerRuntime struct {
 
 	// Behavior configuration
 	RuntimeType string
+
+	// Function overrides (for custom test behavior)
+	BuildImageFunc        func(context.Context, BuildOptions) error
+	StartWorkspaceFunc    func(context.Context, StartOptions) (string, error)
+	AttachToWorkspaceFunc func(context.Context, AttachOptions) error
+	StopWorkspaceFunc     func(context.Context, string) error
+	GetStatusFunc         func(context.Context, string) (string, error)
 }
 
 // MockRuntimeCall records a single method call
@@ -85,6 +93,11 @@ func (m *MockContainerRuntime) StartWorkspace(ctx context.Context, opts StartOpt
 		Method: "StartWorkspace",
 		Args:   []interface{}{opts},
 	})
+
+	// Use function override if provided
+	if m.StartWorkspaceFunc != nil {
+		return m.StartWorkspaceFunc(ctx, opts)
+	}
 
 	if m.StartWorkspaceError != nil {
 		return "", m.StartWorkspaceError

@@ -1,9 +1,9 @@
 package db
 
 import (
-	"database/sql"
 	"devopsmaestro/models"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 )
@@ -160,8 +160,11 @@ func TestWorkspaceSlugUniqueness(t *testing.T) {
 	if err == nil {
 		t.Errorf("CreateWorkspace() expected error for duplicate slug, got nil")
 	}
-	if err != nil && !strings.Contains(err.Error(), "unique") && !strings.Contains(err.Error(), "duplicate") {
-		t.Errorf("CreateWorkspace() expected uniqueness error, got: %v", err)
+	if err != nil {
+		errLower := strings.ToLower(err.Error())
+		if !strings.Contains(errLower, "unique") && !strings.Contains(errLower, "duplicate") {
+			t.Errorf("CreateWorkspace() expected uniqueness error, got: %v", err)
+		}
 	}
 }
 
@@ -518,5 +521,9 @@ func TestWorkspaceSlugInList(t *testing.T) {
 // homeDir returns a mock home directory for testing
 // In real implementation, this would use os.UserHomeDir()
 func homeDir() string {
-	return "/home/testuser" // Mock value for testing
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "/home/testuser" // Fallback for testing
+	}
+	return home
 }

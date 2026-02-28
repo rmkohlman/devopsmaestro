@@ -35,7 +35,6 @@ func TestCredentialRejectPlaintextSource(t *testing.T) {
 				ScopeID:   int64(ecosystem.ID),
 				Name:      "API_KEY",
 				Source:    "value", // PROHIBITED
-				Value:     stringPtr("secret123"),
 			},
 			wantErr: true,
 			errMsg:  "plaintext credentials not allowed",
@@ -47,7 +46,6 @@ func TestCredentialRejectPlaintextSource(t *testing.T) {
 				ScopeID:   int64(ecosystem.ID),
 				Name:      "TOKEN",
 				Source:    "plaintext", // PROHIBITED
-				Value:     stringPtr("token123"),
 			},
 			wantErr: true,
 			errMsg:  "plaintext credentials not allowed",
@@ -99,7 +97,9 @@ func TestCredentialRejectPlaintextSource(t *testing.T) {
 }
 
 // TestCredentialRejectValueField verifies that any non-nil value field is rejected
-func TestCredentialRejectValueField(t *testing.T) {
+func TestCredentialSchemaEnforcement(t *testing.T) {
+	// This test verifies that the database schema enforces source validation
+	// The Value field has been removed from the model entirely in v0.19.0
 	ds := createTestDataStore(t)
 	defer ds.Close()
 
@@ -109,56 +109,31 @@ func TestCredentialRejectValueField(t *testing.T) {
 		t.Fatalf("Setup error: %v", err)
 	}
 
+	// Test that only keychain and env sources are allowed
 	tests := []struct {
 		name    string
 		cred    *models.CredentialDB
 		wantErr bool
 	}{
 		{
-			name: "reject keychain with value field",
-			cred: &models.CredentialDB{
-				ScopeType: models.CredentialScopeEcosystem,
-				ScopeID:   int64(ecosystem.ID),
-				Name:      "TEST_KEY",
-				Source:    "keychain",
-				Service:   stringPtr("test.service"),
-				Value:     stringPtr("should-not-be-here"), // PROHIBITED
-			},
-			wantErr: true,
-		},
-		{
-			name: "reject env with value field",
-			cred: &models.CredentialDB{
-				ScopeType: models.CredentialScopeEcosystem,
-				ScopeID:   int64(ecosystem.ID),
-				Name:      "TEST_ENV",
-				Source:    "env",
-				EnvVar:    stringPtr("TEST_ENV"),
-				Value:     stringPtr("should-not-be-here"), // PROHIBITED
-			},
-			wantErr: true,
-		},
-		{
-			name: "allow keychain without value",
+			name: "allow keychain source",
 			cred: &models.CredentialDB{
 				ScopeType: models.CredentialScopeEcosystem,
 				ScopeID:   int64(ecosystem.ID),
 				Name:      "VALID_KEY",
 				Source:    "keychain",
 				Service:   stringPtr("valid.service"),
-				Value:     nil, // Correct
 			},
 			wantErr: false,
 		},
 		{
-			name: "allow env without value",
+			name: "allow env source",
 			cred: &models.CredentialDB{
 				ScopeType: models.CredentialScopeEcosystem,
 				ScopeID:   int64(ecosystem.ID),
 				Name:      "VALID_ENV",
 				Source:    "env",
 				EnvVar:    stringPtr("VALID_ENV"),
-				Value:     nil, // Correct
 			},
 			wantErr: false,
 		},
@@ -166,13 +141,11 @@ func TestCredentialRejectValueField(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// FIXME: This test will FAIL - CreateCredential() doesn't validate Value field yet
-			// After Phase 3, CreateCredential should reject any non-nil Value field
 			err := ds.CreateCredential(tt.cred)
 
 			if tt.wantErr {
 				if err == nil {
-					t.Errorf("CreateCredential() expected error for non-nil Value field, got nil")
+					t.Errorf("CreateCredential() expected error, got nil")
 				}
 			} else {
 				if err != nil {
@@ -342,21 +315,11 @@ func TestCredentialValidationOnUpdate(t *testing.T) {
 		{
 			name: "update to plaintext source",
 			updateFunc: func(c *models.CredentialDB) {
-				c.Source = "value" // Try to change to plaintext
-				c.Value = stringPtr("secret")
+				c.Source = "value" // Try to change to plaintext (prohibited by schema)
 				c.Service = nil
 			},
 			wantErr: true,
 			errMsg:  "plaintext",
-		},
-		{
-			name: "update to add value field",
-			updateFunc: func(c *models.CredentialDB) {
-				// Keep keychain source but add value
-				c.Value = stringPtr("should-not-work")
-			},
-			wantErr: true,
-			errMsg:  "value",
 		},
 		{
 			name: "valid update - change service",

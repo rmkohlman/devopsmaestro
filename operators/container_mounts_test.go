@@ -50,16 +50,20 @@ func TestWorkspaceVolumesMounted(t *testing.T) {
 			options := StartOptions{
 				WorkspaceName: "ws",
 				ImageName:     "test:latest",
-				WorkspaceSlug: workspaceSlug, // FIXME: Field doesn't exist yet
+				WorkspaceSlug: workspaceSlug,
 			}
+
+			// Compute workspace mounts from slug
+			mounts, err := options.ComputeWorkspaceMounts()
+			if err != nil {
+				t.Fatalf("ComputeWorkspaceMounts() error = %v", err)
+			}
+			options.Mounts = mounts
 
 			ctx := context.Background()
 
 			mockRuntime := &MockContainerRuntime{
 				StartWorkspaceFunc: func(ctx context.Context, opts StartOptions) (string, error) {
-					// FIXME: This test will FAIL - Need to verify mounts
-					// After Phase 3, opts should have Mounts field with volume configurations
-
 					// Verify the volume is in the mounts list
 					found := false
 					for _, mount := range opts.Mounts {
@@ -82,8 +86,7 @@ func TestWorkspaceVolumesMounted(t *testing.T) {
 				},
 			}
 
-			// FIXME: This will fail - Mounts field doesn't exist yet
-			_, err := mockRuntime.StartWorkspace(ctx, options)
+			_, err = mockRuntime.StartWorkspace(ctx, options)
 			if err != nil {
 				t.Fatalf("StartWorkspace() error = %v", err)
 			}
@@ -130,15 +133,21 @@ func TestGeneratedConfigsMountedReadOnly(t *testing.T) {
 			options := StartOptions{
 				WorkspaceName: "ws",
 				ImageName:     "test:latest",
-				WorkspaceSlug: workspaceSlug, // FIXME: Field doesn't exist yet
+				WorkspaceSlug: workspaceSlug,
 			}
+
+			// Compute workspace mounts from slug
+			mounts, err := options.ComputeWorkspaceMounts()
+			if err != nil {
+				t.Fatalf("ComputeWorkspaceMounts() error = %v", err)
+			}
+			options.Mounts = mounts
 
 			ctx := context.Background()
 
 			mockRuntime := &MockContainerRuntime{
 				StartWorkspaceFunc: func(ctx context.Context, opts StartOptions) (string, error) {
-					// FIXME: This test will FAIL - Verify generated configs are read-only
-					// This prevents container from modifying generated configs
+					// Verify generated configs are read-only
 
 					found := false
 					for _, mount := range opts.Mounts {
@@ -160,8 +169,7 @@ func TestGeneratedConfigsMountedReadOnly(t *testing.T) {
 				},
 			}
 
-			// FIXME: This will fail - Mounts field doesn't exist yet
-			_, err := mockRuntime.StartWorkspace(ctx, options)
+			_, err = mockRuntime.StartWorkspace(ctx, options)
 			if err != nil {
 				t.Fatalf("StartWorkspace() error = %v", err)
 			}
@@ -176,15 +184,21 @@ func TestRepoDirectoryMounted(t *testing.T) {
 	options := StartOptions{
 		WorkspaceName: "ws",
 		ImageName:     "test:latest",
-		WorkspaceSlug: workspaceSlug, // FIXME: Field doesn't exist yet
+		WorkspaceSlug: workspaceSlug,
 	}
+
+	// Compute workspace mounts from slug
+	mounts, err := options.ComputeWorkspaceMounts()
+	if err != nil {
+		t.Fatalf("ComputeWorkspaceMounts() error = %v", err)
+	}
+	options.Mounts = mounts
 
 	ctx := context.Background()
 
 	mockRuntime := &MockContainerRuntime{
 		StartWorkspaceFunc: func(ctx context.Context, opts StartOptions) (string, error) {
-			// FIXME: This test will FAIL - Verify repo directory mount
-			// After Phase 3, repo/ should be mounted read-write at /workspace
+			// Verify repo directory mount
 
 			expectedHostPath := ".devopsmaestro/workspaces/" + workspaceSlug + "/repo"
 			expectedContPath := "/workspace"
@@ -210,8 +224,7 @@ func TestRepoDirectoryMounted(t *testing.T) {
 		},
 	}
 
-	// FIXME: This will fail - Mounts field doesn't exist yet
-	_, err := mockRuntime.StartWorkspace(ctx, options)
+	_, err = mockRuntime.StartWorkspace(ctx, options)
 	if err != nil {
 		t.Fatalf("StartWorkspace() error = %v", err)
 	}
@@ -222,8 +235,15 @@ func TestNoHostPathLeakage(t *testing.T) {
 	options := StartOptions{
 		WorkspaceName: "ws",
 		ImageName:     "test:latest",
-		WorkspaceSlug: "test-eco-domain-app-ws", // FIXME: Field doesn't exist yet
+		WorkspaceSlug: "test-eco-domain-app-ws",
 	}
+
+	// Compute workspace mounts from slug
+	mounts, err := options.ComputeWorkspaceMounts()
+	if err != nil {
+		t.Fatalf("ComputeWorkspaceMounts() error = %v", err)
+	}
+	options.Mounts = mounts
 
 	ctx := context.Background()
 
@@ -242,8 +262,7 @@ func TestNoHostPathLeakage(t *testing.T) {
 
 	mockRuntime := &MockContainerRuntime{
 		StartWorkspaceFunc: func(ctx context.Context, opts StartOptions) (string, error) {
-			// FIXME: This test will FAIL - Verify no prohibited paths
-			// After Phase 3, all mounts must be under ~/.devopsmaestro/workspaces/{slug}/
+			// Verify no prohibited paths
 
 			for _, mount := range opts.Mounts {
 				// Check if mount source contains any prohibited path
@@ -263,8 +282,7 @@ func TestNoHostPathLeakage(t *testing.T) {
 		},
 	}
 
-	// FIXME: This will fail - Mounts field doesn't exist yet
-	_, err := mockRuntime.StartWorkspace(ctx, options)
+	_, err = mockRuntime.StartWorkspace(ctx, options)
 	if err != nil {
 		t.Fatalf("StartWorkspace() error = %v", err)
 	}
@@ -295,15 +313,21 @@ func TestVolumePathsMatchWorkspaceSlug(t *testing.T) {
 			options := StartOptions{
 				WorkspaceName: "ws",
 				ImageName:     "test:latest",
-				WorkspaceSlug: tt.workspaceSlug, // FIXME: Field doesn't exist yet
+				WorkspaceSlug: tt.workspaceSlug,
 			}
+
+			// Compute workspace mounts from slug
+			mounts, err := options.ComputeWorkspaceMounts()
+			if err != nil {
+				t.Fatalf("ComputeWorkspaceMounts() error = %v", err)
+			}
+			options.Mounts = mounts
 
 			ctx := context.Background()
 
 			mockRuntime := &MockContainerRuntime{
 				StartWorkspaceFunc: func(ctx context.Context, opts StartOptions) (string, error) {
-					// FIXME: This test will FAIL - Verify all mount paths contain slug
-					// After Phase 3, all workspace mounts should include the workspace slug
+					// Verify all mount paths contain slug
 
 					for _, mount := range opts.Mounts {
 						// Skip SSH agent socket (doesn't contain slug)
@@ -321,8 +345,7 @@ func TestVolumePathsMatchWorkspaceSlug(t *testing.T) {
 				},
 			}
 
-			// FIXME: This will fail - Mounts field doesn't exist yet
-			_, err := mockRuntime.StartWorkspace(ctx, options)
+			_, err = mockRuntime.StartWorkspace(ctx, options)
 			if err != nil {
 				t.Fatalf("StartWorkspace() error = %v", err)
 			}
@@ -337,15 +360,21 @@ func TestVolumePermissions(t *testing.T) {
 	options := StartOptions{
 		WorkspaceName: "ws",
 		ImageName:     "test:latest",
-		WorkspaceSlug: workspaceSlug, // FIXME: Field doesn't exist yet
+		WorkspaceSlug: workspaceSlug,
 	}
+
+	// Compute workspace mounts from slug
+	mounts, err := options.ComputeWorkspaceMounts()
+	if err != nil {
+		t.Fatalf("ComputeWorkspaceMounts() error = %v", err)
+	}
+	options.Mounts = mounts
 
 	ctx := context.Background()
 
 	mockRuntime := &MockContainerRuntime{
 		StartWorkspaceFunc: func(ctx context.Context, opts StartOptions) (string, error) {
-			// FIXME: This test will FAIL - Need to verify volume permissions
-			// After Phase 3, volume directories should be created with 0700 (user-only)
+			// Verify volume permissions by checking mount configuration
 
 			// This would be tested by checking the actual filesystem after creation
 			// For now, we verify the mount configuration is correct
@@ -373,8 +402,7 @@ func TestVolumePermissions(t *testing.T) {
 		},
 	}
 
-	// FIXME: This will fail - Mounts field doesn't exist yet
-	_, err := mockRuntime.StartWorkspace(ctx, options)
+	_, err = mockRuntime.StartWorkspace(ctx, options)
 	if err != nil {
 		t.Fatalf("StartWorkspace() error = %v", err)
 	}
@@ -415,15 +443,21 @@ func TestMountTypes(t *testing.T) {
 			options := StartOptions{
 				WorkspaceName: "ws",
 				ImageName:     "test:latest",
-				WorkspaceSlug: workspaceSlug, // FIXME: Field doesn't exist yet
+				WorkspaceSlug: workspaceSlug,
 			}
+
+			// Compute workspace mounts from slug
+			mounts, err := options.ComputeWorkspaceMounts()
+			if err != nil {
+				t.Fatalf("ComputeWorkspaceMounts() error = %v", err)
+			}
+			options.Mounts = mounts
 
 			ctx := context.Background()
 
 			mockRuntime := &MockContainerRuntime{
 				StartWorkspaceFunc: func(ctx context.Context, opts StartOptions) (string, error) {
-					// FIXME: This test will FAIL - Verify mount type
-					// After Phase 3, mounts should specify type (bind, volume, tmpfs)
+					// Verify mount type
 
 					for _, mount := range opts.Mounts {
 						if strings.Contains(mount.Source, tt.mountPath) {
@@ -438,8 +472,7 @@ func TestMountTypes(t *testing.T) {
 				},
 			}
 
-			// FIXME: This will fail - Mounts field doesn't exist yet
-			_, err := mockRuntime.StartWorkspace(ctx, options)
+			_, err = mockRuntime.StartWorkspace(ctx, options)
 			if err != nil {
 				t.Fatalf("StartWorkspace() error = %v", err)
 			}
@@ -456,22 +489,35 @@ func TestWorkspaceIsolation(t *testing.T) {
 	opts1 := StartOptions{
 		WorkspaceName: "ws1",
 		ImageName:     "test:latest",
-		WorkspaceSlug: workspace1, // FIXME: Field doesn't exist yet
+		WorkspaceSlug: workspace1,
 	}
+
+	// Compute workspace mounts for workspace 1
+	mounts1, err := opts1.ComputeWorkspaceMounts()
+	if err != nil {
+		t.Fatalf("ComputeWorkspaceMounts(ws1) error = %v", err)
+	}
+	opts1.Mounts = mounts1
 
 	// Start second workspace
 	opts2 := StartOptions{
 		WorkspaceName: "ws2",
 		ImageName:     "test:latest",
-		WorkspaceSlug: workspace2, // FIXME: Field doesn't exist yet
+		WorkspaceSlug: workspace2,
 	}
+
+	// Compute workspace mounts for workspace 2
+	mounts2, err := opts2.ComputeWorkspaceMounts()
+	if err != nil {
+		t.Fatalf("ComputeWorkspaceMounts(ws2) error = %v", err)
+	}
+	opts2.Mounts = mounts2
 
 	ctx := context.Background()
 
 	mockRuntime := &MockContainerRuntime{
 		StartWorkspaceFunc: func(ctx context.Context, opts StartOptions) (string, error) {
-			// FIXME: This test will FAIL - Verify workspace isolation
-			// Each workspace should have completely separate mount paths
+			// Verify workspace isolation - each workspace has separate mount paths
 
 			for _, mount := range opts.Mounts {
 				// Verify mount contains the workspace's slug
@@ -493,8 +539,7 @@ func TestWorkspaceIsolation(t *testing.T) {
 		},
 	}
 
-	// FIXME: Both will fail - Mounts and WorkspaceSlug fields don't exist yet
-	_, err := mockRuntime.StartWorkspace(ctx, opts1)
+	_, err = mockRuntime.StartWorkspace(ctx, opts1)
 	if err != nil {
 		t.Fatalf("StartWorkspace(ws1) error = %v", err)
 	}

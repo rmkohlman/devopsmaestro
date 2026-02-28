@@ -44,7 +44,7 @@ brew install devopsmaestro
 brew install nvimops
 
 # Verify installation
-dvm version   # Should show v0.16.0
+dvm version   # Should show v0.19.0
 nvp version
 ```
 
@@ -212,6 +212,9 @@ dvm build
 
 # Attach to the container (your code is mounted inside)
 dvm attach
+
+# Optional: Enable SSH agent forwarding for git operations
+dvm attach --ssh-agent
 ```
 
 #### Option 2: Start a New App
@@ -257,6 +260,7 @@ dvm create app myapp --from-cwd         # Create app
 dvm create ws dev                       # Create workspace
 dvm use ws dev                          # Set active
 dvm build && dvm attach                 # Build and enter container
+# Or with SSH agent: dvm attach --ssh-agent
 ```
 
 #### Verify Your Setup
@@ -277,6 +281,8 @@ dvm status           # Full status overview
 
 - **kubectl-style commands** - Familiar `get`, `create`, `delete`, `apply` patterns
 - **Object hierarchy** - Ecosystem → Domain → App → Workspace for organized development
+- **Workspace isolation** - Each workspace has dedicated directories (repo, volume, configs)
+- **SSH agent forwarding** - Opt-in SSH key access without mounting private keys into containers
 - **Package management** - kubectl-style CRUD operations for NvimPackage resources
 - **Defaults management** - Set default nvim packages for new workspaces
 - **Auto-migration** - Database migrations run automatically on startup
@@ -385,6 +391,7 @@ dvm apply -f github:user/repo/theme.yaml     # Apply from GitHub
 # Build & Runtime
 dvm build                     # Build workspace container
 dvm attach                    # Attach to workspace
+dvm attach --ssh-agent        # Attach with SSH agent forwarding
 dvm detach                    # Stop workspace container
 
 # Configuration
@@ -552,6 +559,7 @@ metadata:
 spec:
   language: python
   version: "3.11"
+  ssh_agent_forwarding: true  # Optional: Enable SSH agent forwarding
   nvim:
     structure: custom
     plugins:

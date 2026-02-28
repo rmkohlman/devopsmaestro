@@ -21,10 +21,9 @@ type CredentialDB struct {
 	ScopeType   CredentialScopeType `db:"scope_type" json:"scope_type"`
 	ScopeID     int64               `db:"scope_id" json:"scope_id"`
 	Name        string              `db:"name" json:"name"`
-	Source      string              `db:"source" json:"source"`   // "keychain", "env", "value"
+	Source      string              `db:"source" json:"source"`   // "keychain", "env"
 	Service     *string             `db:"service" json:"service"` // Keychain service name
 	EnvVar      *string             `db:"env_var" json:"env_var"` // Environment variable name
-	Value       *string             `db:"value" json:"value"`     // Plaintext value (not recommended)
 	Description *string             `db:"description" json:"description"`
 	CreatedAt   time.Time           `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time           `db:"updated_at" json:"updated_at"`
@@ -40,9 +39,6 @@ func (c *CredentialDB) ToConfig() config.CredentialConfig {
 	}
 	if c.EnvVar != nil {
 		cfg.EnvVar = *c.EnvVar
-	}
-	if c.Value != nil {
-		cfg.Value = *c.Value
 	}
 	return cfg
 }

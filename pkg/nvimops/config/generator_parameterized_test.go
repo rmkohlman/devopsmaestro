@@ -8,8 +8,9 @@ import (
 )
 
 // =============================================================================
-// Task 2.4: Parameterized Config Generator Tests (v0.19.0) - Nvimops
-// Tests verify generators accept output path parameter and never write to host
+// v0.19.0 Parameterized Config Generator Tests - NvimOps
+// Tests verify generators accept output path parameter and never write to host.
+// Implementation complete - all generators support custom output paths.
 // =============================================================================
 
 // TestLuaGeneratorWithCustomOutputPath verifies generator accepts custom output path
@@ -25,10 +26,7 @@ func TestLuaGeneratorWithCustomOutputPath(t *testing.T) {
 
 	gen := NewGenerator()
 
-	// FIXME: This test will FAIL - WriteToDirectory should accept path parameter
-	// After Phase 3, signature should be:
-	// func (g *Generator) WriteToDirectory(cfg *CoreConfig, plugins []*plugin.Plugin, dir string) error
-	// The 'dir' parameter should be customizable, not hardcoded to ~/.config/nvim
+	// WriteToDirectory now accepts a custom output path parameter
 	err := gen.WriteToDirectory(cfg, nil, customOutputPath)
 	if err != nil {
 		t.Fatalf("WriteToDirectory() with custom path error = %v", err)
@@ -80,7 +78,7 @@ func TestLuaGeneratorWritesToWorkspacePath(t *testing.T) {
 
 			gen := NewGenerator()
 
-			// FIXME: This test will FAIL - need to verify output path is used
+			// Verify that output path parameter is used correctly
 			err := gen.WriteToDirectory(cfg, nil, outputPath)
 			if err != nil {
 				t.Fatalf("WriteToDirectory() error = %v", err)
@@ -133,8 +131,7 @@ func TestLuaGeneratorDoesNotWriteToHostPath(t *testing.T) {
 
 	gen := NewGenerator()
 
-	// FIXME: This is the critical test - generator must NEVER write to ~/.config/nvim
-	// After Phase 3, all generators must use the provided outputPath parameter
+	// CRITICAL: Generator must NEVER write to ~/.config/nvim when given a workspace path
 	err = gen.WriteToDirectory(cfg, nil, workspacePath)
 	if err != nil {
 		t.Fatalf("WriteToDirectory() error = %v", err)
@@ -286,9 +283,8 @@ func TestPluginGeneratorWithWorkspacePath(t *testing.T) {
 
 	gen := NewGenerator()
 
-	// FIXME: This test will FAIL - need to ensure plugin configs use workspace path
-	// After Phase 3, plugin configurations should be written to:
-	// {workspace}/.dvm/nvim/lua/workspace/plugins/
+	// Verify plugin configs are written to the workspace path
+	// Plugin configurations should be written to: {workspace}/.dvm/nvim/lua/workspace/plugins/
 	workspacePath := filepath.Join(tempDir, ".devopsmaestro", "workspaces", workspaceSlug, ".dvm", "nvim")
 	err := gen.WriteToDirectory(cfg, nil, workspacePath)
 	if err != nil {

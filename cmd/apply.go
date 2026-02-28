@@ -33,7 +33,7 @@ Directory URLs (ending with / or no .yaml extension) will apply all YAML files
 in that directory. Files are applied in alphabetical order.
 
 The resource type is auto-detected from the 'kind' field in the YAML.
-Supported kinds: NvimPlugin, NvimTheme, Workspace, Project, TerminalPrompt
+Supported kinds: NvimPlugin, NvimTheme, Workspace, TerminalPrompt
 
 Secrets in YAML can be resolved from various providers:
   - macOS Keychain (default on macOS)

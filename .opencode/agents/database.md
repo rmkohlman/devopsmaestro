@@ -1,7 +1,7 @@
 ---
 description: Owns all database interactions - DataStore interface, SQLite implementation, migrations. Ensures data layer is decoupled so database can be swapped in the future. Handles schema changes and data integrity.
 mode: subagent
-model: github-copilot/claude-sonnet-4
+model: github-copilot/claude-sonnet-4.5
 temperature: 0.1
 tools:
   read: true
@@ -16,6 +16,7 @@ permission:
     "*": deny
     architecture: allow
     security: allow
+    test: allow
 ---
 
 # Database Agent
@@ -290,6 +291,166 @@ type Workspace struct {
 3. **Breaking changes**: Think about backwards compatibility
 4. **Missing mock updates**: When adding interface methods, update MockDataStore
 5. **Missing indexes**: Add indexes for frequently queried columns
+
+---
+
+## v0.19.0 Database Refresh
+
+**v0.19.0 requires a fresh database schema.** Key changes:
+
+### Schema Changes Required
+
+| Change | Description |
+|--------|-------------|
+| **Encrypted credentials** | `value TEXT` → `encrypted_value BLOB` + `nonce BLOB` |
+| **Workspace volumes** | New `workspace_volumes` table for persistent data paths |
+| **Scope validation** | Foreign key constraints for credential scopes |
+| **Remove stale tables** | Clean up deprecated Project-era tables |
+
+### Fresh Schema Approach
+
+For v0.19.0, we're considering a **fresh schema** rather than incremental migrations:
+
+```sql
+-- migrations/sqlite/019_v0.19.0_fresh_schema.up.sql
+-- This is a clean slate schema for workspace isolation
+
+-- Ecosystems (top-level grouping)
+CREATE TABLE IF NOT EXISTS ecosystems (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    description TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Domains (bounded contexts)
+CREATE TABLE IF NOT EXISTS domains (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ecosystem_id INTEGER NOT NULL REFERENCES ecosystems(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    description TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(ecosystem_id, name)
+);
+
+-- Apps (codebases)
+CREATE TABLE IF NOT EXISTS apps (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    domain_id INTEGER NOT NULL REFERENCES domains(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    description TEXT,
+    repo_url TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(domain_id, name)
+);
+
+-- Workspaces (dev environments)
+CREATE TABLE IF NOT EXISTS workspaces (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    app_id INTEGER NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    container_id TEXT,
+    status TEXT DEFAULT 'stopped',
+    volume_path TEXT,           -- ~/.devopsmaestro/workspaces/{id}/volume/
+    config_path TEXT,           -- ~/.devopsmaestro/workspaces/{id}/.dvm/
+    mount_ssh BOOLEAN DEFAULT FALSE,  -- Explicit SSH opt-in
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(app_id, name)
+);
+
+-- Credentials (encrypted, scoped)
+CREATE TABLE IF NOT EXISTS credentials (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    scope_type TEXT NOT NULL CHECK(scope_type IN ('global', 'ecosystem', 'domain', 'app', 'workspace')),
+    scope_id INTEGER,           -- NULL for global, FK for others
+    encrypted_value BLOB NOT NULL,
+    nonce BLOB NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(scope_type, scope_id, name)
+);
+
+-- Context (active selection)
+CREATE TABLE IF NOT EXISTS context (
+    id INTEGER PRIMARY KEY CHECK(id = 1),
+    active_ecosystem_id INTEGER REFERENCES ecosystems(id),
+    active_domain_id INTEGER REFERENCES domains(id),
+    active_app_id INTEGER REFERENCES apps(id),
+    active_workspace_id INTEGER REFERENCES workspaces(id)
+);
+```
+
+### DataStore Interface Updates
+
+New methods for v0.19.0:
+
+```go
+// Workspace volume management
+GetWorkspaceVolumePath(workspaceID int) (string, error)
+SetWorkspaceVolumePath(workspaceID int, path string) error
+
+// Credential scoping
+GetCredentialsByScope(scopeType CredentialScopeType, scopeID int64) ([]*models.Credential, error)
+ValidateCredentialScope(scopeType CredentialScopeType, scopeID int64) error
+
+// Workspace SSH opt-in
+SetWorkspaceMountSSH(workspaceID int, mount bool) error
+GetWorkspaceMountSSH(workspaceID int) (bool, error)
+```
+
+---
+
+## TDD Workflow (Red-Green-Refactor)
+
+**v0.19.0+ follows strict TDD.** As the Database Agent, you work in Phase 3.
+
+### TDD Phases
+
+```
+PHASE 1: ARCHITECTURE REVIEW (Design First)
+├── @architecture → Reviews design patterns, interfaces
+└── @database → CONSULTS architecture first for schema design
+
+PHASE 2: WRITE FAILING TESTS (RED)
+└── @test → Writes tests based on architecture specs (tests FAIL)
+
+PHASE 3: IMPLEMENTATION (GREEN) ← YOU ARE HERE
+└── @database → Implements DataStore methods to pass tests
+
+PHASE 4: REFACTOR & VERIFY
+├── @architecture → Verify implementation matches design
+└── @test → Ensure tests still pass
+```
+
+### Your Role in TDD
+
+1. **Consult @architecture first**: Before any schema changes
+2. **Wait for failing tests**: @test writes tests, you make them pass
+3. **Implement minimal code**: Just enough to pass tests
+4. **Update mocks**: MockDataStore must match interface
+
+### Test-First Database Development
+
+```go
+// @test writes this first (RED - fails because method doesn't exist)
+func TestSQLDataStore_GetWorkspaceVolumePath(t *testing.T) {
+    db := setupTestDB(t)
+    workspace := createTestWorkspace(t, db)
+    
+    path, err := db.GetWorkspaceVolumePath(workspace.ID)
+    assert.NoError(t, err)
+    assert.Contains(t, path, ".devopsmaestro/workspaces/")
+}
+
+// Then YOU implement to make it pass (GREEN)
+func (s *SQLDataStore) GetWorkspaceVolumePath(workspaceID int) (string, error) {
+    var path string
+    err := s.driver.QueryRow(
+        "SELECT volume_path FROM workspaces WHERE id = ?", workspaceID,
+    ).Scan(&path)
+    return path, err
+}
+```
 
 ---
 

@@ -3,6 +3,8 @@ package prompt
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
@@ -104,6 +106,34 @@ func (g *StarshipGenerator) Generate(p *Prompt) (string, error) {
 		p.Name, p.Description)
 
 	return header + string(data), nil
+}
+
+// WriteToFile generates starship configuration and writes it to the specified path.
+// If outputPath is empty, returns an error (no default path for workspace isolation).
+// The outputPath should be a directory where starship.toml will be created.
+func (g *StarshipGenerator) WriteToFile(p *Prompt, outputPath string) error {
+	if outputPath == "" {
+		return fmt.Errorf("outputPath is required (no default path for workspace isolation)")
+	}
+
+	// Generate the starship configuration content
+	config, err := g.Generate(p)
+	if err != nil {
+		return fmt.Errorf("failed to generate starship config: %w", err)
+	}
+
+	// Create the directory if it doesn't exist
+	if err := os.MkdirAll(outputPath, 0700); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+
+	// Write the file
+	fullPath := filepath.Join(outputPath, "starship.toml")
+	if err := os.WriteFile(fullPath, []byte(config), 0600); err != nil {
+		return fmt.Errorf("failed to write starship config to %s: %w", fullPath, err)
+	}
+
+	return nil
 }
 
 // GenerateMinimal creates a minimal starship.toml with just the essentials.

@@ -81,77 +81,36 @@ func TestIntegration_NewDataStore_CreatesWorkingStore(t *testing.T) {
 // Full Stack Integration: DataStore -> Driver -> Database
 // =============================================================================
 
-func TestIntegration_FullStack_ProjectWorkflow(t *testing.T) {
-	// This test exercises the full stack:
-	// DataStore interface -> SQLDataStore -> Driver interface -> SQLiteDriver -> SQLite
-
-	store := createIntegrationTestStore(t)
-	defer store.Close()
-
-	// --- Create Project (DataStore -> Driver -> DB) ---
-	project := &models.Project{
-		Name:        "integration-project",
-		Path:        "/integration/path",
-		Description: sql.NullString{String: "Integration test project", Valid: true},
-	}
-
-	err := store.CreateProject(project)
-	if err != nil {
-		t.Fatalf("CreateProject() through interface error = %v", err)
-	}
-
-	if project.ID == 0 {
-		t.Error("CreateProject() should set ID through all layers")
-	}
-
-	// --- Retrieve Project (validates data went through all layers) ---
-	retrieved, err := store.GetProjectByName("integration-project")
-	if err != nil {
-		t.Fatalf("GetProjectByName() through interface error = %v", err)
-	}
-
-	if retrieved.Name != project.Name {
-		t.Errorf("Data integrity: Name = %q, want %q", retrieved.Name, project.Name)
-	}
-	if retrieved.Path != project.Path {
-		t.Errorf("Data integrity: Path = %q, want %q", retrieved.Path, project.Path)
-	}
-
-	// --- Update Project ---
-	retrieved.Path = "/updated/path"
-	if err := store.UpdateProject(retrieved); err != nil {
-		t.Fatalf("UpdateProject() through interface error = %v", err)
-	}
-
-	updated, _ := store.GetProjectByID(retrieved.ID)
-	if updated.Path != "/updated/path" {
-		t.Errorf("Update did not propagate: Path = %q, want %q", updated.Path, "/updated/path")
-	}
-
-	// --- Delete Project ---
-	if err := store.DeleteProject("integration-project"); err != nil {
-		t.Fatalf("DeleteProject() through interface error = %v", err)
-	}
-
-	_, err = store.GetProjectByName("integration-project")
-	if err == nil {
-		t.Error("Delete did not propagate through layers")
-	}
-}
-
 func TestIntegration_FullStack_WorkspaceWorkflow(t *testing.T) {
 	store := createIntegrationTestStore(t)
 	defer store.Close()
 
-	// Create project first
-	project := &models.Project{Name: "ws-int-project", Path: "/ws/int"}
-	if err := store.CreateProject(project); err != nil {
+	// Create proper hierarchy for workspace isolation
+	ecosystem := &models.Ecosystem{Name: "test-eco"}
+	if err := store.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	domain := &models.Domain{
+		EcosystemID: ecosystem.ID,
+		Name:        "test-domain",
+	}
+	if err := store.CreateDomain(domain); err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	app := &models.App{
+		DomainID: domain.ID,
+		Name:     "test-app",
+		Path:     "/test/app",
+	}
+	if err := store.CreateApp(app); err != nil {
 		t.Fatalf("Setup error: %v", err)
 	}
 
 	// --- Create Workspace ---
 	workspace := &models.Workspace{
-		AppID:       project.ID, // Using project.ID as AppID during migration
+		AppID:       app.ID,
 		Name:        "integration-workspace",
 		Description: sql.NullString{String: "Integration workspace", Valid: true},
 		ImageName:   "integration:v1",
@@ -163,7 +122,7 @@ func TestIntegration_FullStack_WorkspaceWorkflow(t *testing.T) {
 	}
 
 	// --- Retrieve and verify ---
-	retrieved, err := store.GetWorkspaceByName(project.ID, "integration-workspace")
+	retrieved, err := store.GetWorkspaceByName(app.ID, "integration-workspace")
 	if err != nil {
 		t.Fatalf("GetWorkspaceByName() through interface error = %v", err)
 	}
@@ -184,7 +143,7 @@ func TestIntegration_FullStack_WorkspaceWorkflow(t *testing.T) {
 	}
 
 	// --- List ---
-	workspaces, err := store.ListWorkspacesByApp(project.ID)
+	workspaces, err := store.ListWorkspacesByApp(app.ID)
 	if err != nil {
 		t.Fatalf("ListWorkspacesByApp() error = %v", err)
 	}
@@ -197,12 +156,18 @@ func TestIntegration_FullStack_ContextWorkflow(t *testing.T) {
 	store := createIntegrationTestStore(t)
 	defer store.Close()
 
-	// Setup
-	project := &models.Project{Name: "ctx-int-project", Path: "/ctx/int"}
-	store.CreateProject(project)
+	// Setup proper hierarchy
+	ecosystem := &models.Ecosystem{Name: "ctx-eco"}
+	store.CreateEcosystem(ecosystem)
+
+	domain := &models.Domain{EcosystemID: ecosystem.ID, Name: "ctx-domain"}
+	store.CreateDomain(domain)
+
+	app := &models.App{DomainID: domain.ID, Name: "ctx-app", Path: "/ctx/app"}
+	store.CreateApp(app)
 
 	workspace := &models.Workspace{
-		AppID:     project.ID, // Using project.ID as AppID during migration
+		AppID:     app.ID,
 		Name:      "ctx-int-workspace",
 		ImageName: "ctx:latest",
 		Status:    "stopped",
@@ -210,8 +175,16 @@ func TestIntegration_FullStack_ContextWorkflow(t *testing.T) {
 	store.CreateWorkspace(workspace)
 
 	// --- Set and Get Context ---
-	if err := store.SetActiveProject(&project.ID); err != nil {
-		t.Fatalf("SetActiveProject() error = %v", err)
+	if err := store.SetActiveEcosystem(&ecosystem.ID); err != nil {
+		t.Fatalf("SetActiveEcosystem() error = %v", err)
+	}
+
+	if err := store.SetActiveDomain(&domain.ID); err != nil {
+		t.Fatalf("SetActiveDomain() error = %v", err)
+	}
+
+	if err := store.SetActiveApp(&app.ID); err != nil {
+		t.Fatalf("SetActiveApp() error = %v", err)
 	}
 
 	if err := store.SetActiveWorkspace(&workspace.ID); err != nil {
@@ -223,8 +196,14 @@ func TestIntegration_FullStack_ContextWorkflow(t *testing.T) {
 		t.Fatalf("GetContext() error = %v", err)
 	}
 
-	if ctx.ActiveProjectID == nil || *ctx.ActiveProjectID != project.ID {
-		t.Errorf("Context.ActiveProjectID = %v, want %d", ctx.ActiveProjectID, project.ID)
+	if ctx.ActiveEcosystemID == nil || *ctx.ActiveEcosystemID != ecosystem.ID {
+		t.Errorf("Context.ActiveEcosystemID = %v, want %d", ctx.ActiveEcosystemID, ecosystem.ID)
+	}
+	if ctx.ActiveDomainID == nil || *ctx.ActiveDomainID != domain.ID {
+		t.Errorf("Context.ActiveDomainID = %v, want %d", ctx.ActiveDomainID, domain.ID)
+	}
+	if ctx.ActiveAppID == nil || *ctx.ActiveAppID != app.ID {
+		t.Errorf("Context.ActiveAppID = %v, want %d", ctx.ActiveAppID, app.ID)
 	}
 	if ctx.ActiveWorkspaceID == nil || *ctx.ActiveWorkspaceID != workspace.ID {
 		t.Errorf("Context.ActiveWorkspaceID = %v, want %d", ctx.ActiveWorkspaceID, workspace.ID)
@@ -249,7 +228,7 @@ func TestIntegration_Transaction_CommitPropagates(t *testing.T) {
 	}
 
 	// Execute within transaction
-	_, err = tx.Execute(`INSERT INTO projects (name, path) VALUES (?, ?)`, "tx-project", "/tx/path")
+	_, err = tx.Execute(`INSERT INTO ecosystems (name, description) VALUES (?, ?)`, "tx-ecosystem", "Transaction test")
 	if err != nil {
 		tx.Rollback()
 		t.Fatalf("tx.Execute() error = %v", err)
@@ -261,12 +240,12 @@ func TestIntegration_Transaction_CommitPropagates(t *testing.T) {
 	}
 
 	// Verify through DataStore interface
-	project, err := store.GetProjectByName("tx-project")
+	ecosystem, err := store.GetEcosystemByName("tx-ecosystem")
 	if err != nil {
 		t.Fatalf("Transaction commit did not propagate: %v", err)
 	}
-	if project.Path != "/tx/path" {
-		t.Errorf("Data mismatch after commit: Path = %q", project.Path)
+	if !ecosystem.Description.Valid || ecosystem.Description.String != "Transaction test" {
+		t.Errorf("Data mismatch after commit: Description = %q", ecosystem.Description.String)
 	}
 }
 
@@ -282,7 +261,7 @@ func TestIntegration_Transaction_RollbackPropagates(t *testing.T) {
 	}
 
 	// Insert data
-	_, err = tx.Execute(`INSERT INTO projects (name, path) VALUES (?, ?)`, "rollback-project", "/rb/path")
+	_, err = tx.Execute(`INSERT INTO ecosystems (name, description) VALUES (?, ?)`, "rollback-ecosystem", "Should rollback")
 	if err != nil {
 		tx.Rollback()
 		t.Fatalf("tx.Execute() error = %v", err)
@@ -294,7 +273,7 @@ func TestIntegration_Transaction_RollbackPropagates(t *testing.T) {
 	}
 
 	// Verify data was NOT persisted
-	_, err = store.GetProjectByName("rollback-project")
+	_, err = store.GetEcosystemByName("rollback-ecosystem")
 	if err == nil {
 		t.Error("Transaction rollback did not propagate - data should not exist")
 	}
@@ -314,7 +293,7 @@ func TestIntegration_Transaction_WithContext(t *testing.T) {
 		t.Fatalf("Driver.BeginContext() error = %v", err)
 	}
 
-	_, err = tx.Execute(`INSERT INTO projects (name, path) VALUES (?, ?)`, "ctx-tx-project", "/ctx/tx")
+	_, err = tx.Execute(`INSERT INTO ecosystems (name, description) VALUES (?, ?)`, "ctx-tx-ecosystem", "Context transaction")
 	if err != nil {
 		tx.Rollback()
 		t.Fatalf("tx.Execute() error = %v", err)
@@ -325,11 +304,11 @@ func TestIntegration_Transaction_WithContext(t *testing.T) {
 	}
 
 	// Verify
-	project, err := store.GetProjectByName("ctx-tx-project")
+	ecosystem, err := store.GetEcosystemByName("ctx-tx-ecosystem")
 	if err != nil {
 		t.Fatalf("Context transaction did not work: %v", err)
 	}
-	if project.Name != "ctx-tx-project" {
+	if ecosystem.Name != "ctx-tx-ecosystem" {
 		t.Error("Data integrity issue with context transaction")
 	}
 }
@@ -345,18 +324,18 @@ func TestIntegration_QueryBuilder_DialectCorrect(t *testing.T) {
 	// The SQLDataStore should use SQLite query builder for memory driver
 	// This is verified by the fact that queries work correctly
 
-	// Create project - uses Now() from query builder
-	project := &models.Project{
-		Name: "qb-test",
-		Path: "/qb/path",
+	// Create ecosystem - uses Now() from query builder
+	ecosystem := &models.Ecosystem{
+		Name:        "qb-test",
+		Description: sql.NullString{String: "QueryBuilder test", Valid: true},
 	}
 
-	if err := store.CreateProject(project); err != nil {
+	if err := store.CreateEcosystem(ecosystem); err != nil {
 		t.Fatalf("Query with dialect-specific NOW() failed: %v", err)
 	}
 
 	// Retrieve and check timestamps were set
-	retrieved, _ := store.GetProjectByName("qb-test")
+	retrieved, _ := store.GetEcosystemByName("qb-test")
 	if retrieved.CreatedAt.IsZero() {
 		t.Error("QueryBuilder.Now() did not work - CreatedAt is zero")
 	}
@@ -405,22 +384,22 @@ func TestIntegration_InterfaceSwappability_MockDataStore(t *testing.T) {
 	defer store.Close()
 
 	// Should work through interface
-	project := &models.Project{
-		Name: "mock-project",
-		Path: "/mock/path",
+	ecosystem := &models.Ecosystem{
+		Name:        "mock-ecosystem",
+		Description: sql.NullString{String: "Mock ecosystem", Valid: true},
 	}
 
-	if err := store.CreateProject(project); err != nil {
-		t.Fatalf("MockDataStore.CreateProject() through interface error = %v", err)
+	if err := store.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("MockDataStore.CreateEcosystem() through interface error = %v", err)
 	}
 
-	retrieved, err := store.GetProjectByName("mock-project")
+	retrieved, err := store.GetEcosystemByName("mock-ecosystem")
 	if err != nil {
-		t.Fatalf("MockDataStore.GetProjectByName() through interface error = %v", err)
+		t.Fatalf("MockDataStore.GetEcosystemByName() through interface error = %v", err)
 	}
 
-	if retrieved.Name != "mock-project" {
-		t.Errorf("Data through mock interface: Name = %q, want %q", retrieved.Name, "mock-project")
+	if retrieved.Name != "mock-ecosystem" {
+		t.Errorf("Data through mock interface: Name = %q, want %q", retrieved.Name, "mock-ecosystem")
 	}
 }
 
@@ -446,7 +425,7 @@ func TestIntegration_ErrorPropagation_NotFound(t *testing.T) {
 	store := createIntegrationTestStore(t)
 	defer store.Close()
 
-	_, err := store.GetProjectByName("nonexistent-project")
+	_, err := store.GetEcosystemByName("nonexistent-ecosystem")
 	if err == nil {
 		t.Error("Not found error should propagate through layers")
 	}
@@ -460,16 +439,16 @@ func TestIntegration_ConcurrentAccess(t *testing.T) {
 	store := createIntegrationTestStore(t)
 	defer store.Close()
 
-	// Create initial project
-	project := &models.Project{Name: "concurrent-project", Path: "/concurrent"}
-	store.CreateProject(project)
+	// Create initial ecosystem
+	ecosystem := &models.Ecosystem{Name: "concurrent-ecosystem", Description: sql.NullString{String: "Concurrent test", Valid: true}}
+	store.CreateEcosystem(ecosystem)
 
 	// Concurrent reads
 	done := make(chan bool, 10)
 	for i := 0; i < 10; i++ {
 		go func() {
 			defer func() { done <- true }()
-			_, err := store.GetProjectByName("concurrent-project")
+			_, err := store.GetEcosystemByName("concurrent-ecosystem")
 			if err != nil {
 				t.Errorf("Concurrent read failed: %v", err)
 			}
@@ -523,6 +502,7 @@ func createIntegrationSchema(driver Driver) error {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT NOT NULL UNIQUE,
 			description TEXT,
+			theme TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
@@ -531,6 +511,7 @@ func createIntegrationSchema(driver Driver) error {
 			ecosystem_id INTEGER NOT NULL,
 			name TEXT NOT NULL,
 			description TEXT,
+			theme TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (ecosystem_id) REFERENCES ecosystems(id),
@@ -542,6 +523,7 @@ func createIntegrationSchema(driver Driver) error {
 			name TEXT NOT NULL,
 			path TEXT NOT NULL,
 			description TEXT,
+			theme TEXT,
 			language TEXT,
 			build_config TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -568,6 +550,8 @@ func createIntegrationSchema(driver Driver) error {
 			nvim_structure TEXT,
 			nvim_plugins TEXT,
 			theme TEXT,
+			slug TEXT NOT NULL UNIQUE,
+			ssh_agent_forwarding INTEGER DEFAULT 0,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (app_id) REFERENCES apps(id),

@@ -89,6 +89,8 @@ func createTestSchema(driver Driver) error {
 			nvim_structure TEXT,
 			nvim_plugins TEXT,
 			theme TEXT,
+			slug TEXT NOT NULL UNIQUE,
+			ssh_agent_forwarding INTEGER DEFAULT 0,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (app_id) REFERENCES apps(id),
@@ -177,6 +179,19 @@ func createTestSchema(driver Driver) error {
 			enabled BOOLEAN NOT NULL DEFAULT 1,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS credentials (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			scope_type TEXT NOT NULL CHECK(scope_type IN ('global', 'ecosystem', 'domain', 'app', 'workspace')),
+			scope_id INTEGER,
+			name TEXT NOT NULL,
+			source TEXT NOT NULL CHECK(source IN ('keychain', 'env')),
+			service TEXT,
+			env_var TEXT,
+			description TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(scope_type, scope_id, name)
 		)`,
 		// Initialize context with a single row
 		`INSERT OR IGNORE INTO context (id) VALUES (1)`,
@@ -1152,189 +1167,47 @@ func TestSQLDataStore_App_PreservesLanguageAndBuildConfig(t *testing.T) {
 }
 
 // =============================================================================
-// Project CRUD Tests
-// =============================================================================
+// createTestApp creates a full hierarchy (Ecosystem → Domain → App) for testing workspaces
+func createTestApp(t *testing.T, ds *SQLDataStore, name string) *models.App {
+	t.Helper()
 
-func TestSQLDataStore_CreateProject(t *testing.T) {
-	ds := createTestDataStore(t)
-	defer ds.Close()
-
-	project := &models.Project{
-		Name: "test-project",
-		Path: "/path/to/project",
-		Description: sql.NullString{
-			String: "Test description",
-			Valid:  true,
-		},
+	// Create ecosystem
+	ecosystem := &models.Ecosystem{Name: "test-eco-" + name}
+	if err := ds.CreateEcosystem(ecosystem); err != nil {
+		t.Fatalf("Setup error creating ecosystem: %v", err)
 	}
 
-	err := ds.CreateProject(project)
-	if err != nil {
-		t.Fatalf("CreateProject() error = %v", err)
+	// Create domain
+	domain := &models.Domain{
+		EcosystemID: ecosystem.ID,
+		Name:        "test-domain-" + name,
+	}
+	if err := ds.CreateDomain(domain); err != nil {
+		t.Fatalf("Setup error creating domain: %v", err)
 	}
 
-	if project.ID == 0 {
-		t.Errorf("CreateProject() did not set project.ID")
+	// Create app
+	app := &models.App{
+		DomainID: domain.ID,
+		Name:     "test-app-" + name,
+		Path:     "/test/" + name,
 	}
+	if err := ds.CreateApp(app); err != nil {
+		t.Fatalf("Setup error creating app: %v", err)
+	}
+
+	return app
 }
-
-func TestSQLDataStore_GetProjectByName(t *testing.T) {
-	ds := createTestDataStore(t)
-	defer ds.Close()
-
-	// Create a project first
-	project := &models.Project{
-		Name: "findme-project",
-		Path: "/path/to/findme",
-	}
-	if err := ds.CreateProject(project); err != nil {
-		t.Fatalf("Setup CreateProject() error = %v", err)
-	}
-
-	// Retrieve by name
-	retrieved, err := ds.GetProjectByName("findme-project")
-	if err != nil {
-		t.Fatalf("GetProjectByName() error = %v", err)
-	}
-
-	if retrieved.Name != "findme-project" {
-		t.Errorf("GetProjectByName() Name = %q, want %q", retrieved.Name, "findme-project")
-	}
-	if retrieved.Path != "/path/to/findme" {
-		t.Errorf("GetProjectByName() Path = %q, want %q", retrieved.Path, "/path/to/findme")
-	}
-}
-
-func TestSQLDataStore_GetProjectByName_NotFound(t *testing.T) {
-	ds := createTestDataStore(t)
-	defer ds.Close()
-
-	_, err := ds.GetProjectByName("nonexistent")
-	if err == nil {
-		t.Errorf("GetProjectByName() expected error for nonexistent project")
-	}
-}
-
-func TestSQLDataStore_GetProjectByID(t *testing.T) {
-	ds := createTestDataStore(t)
-	defer ds.Close()
-
-	project := &models.Project{
-		Name: "getbyid-project",
-		Path: "/path/getbyid",
-	}
-	if err := ds.CreateProject(project); err != nil {
-		t.Fatalf("Setup error: %v", err)
-	}
-
-	retrieved, err := ds.GetProjectByID(project.ID)
-	if err != nil {
-		t.Fatalf("GetProjectByID() error = %v", err)
-	}
-
-	if retrieved.ID != project.ID {
-		t.Errorf("GetProjectByID() ID = %d, want %d", retrieved.ID, project.ID)
-	}
-}
-
-func TestSQLDataStore_UpdateProject(t *testing.T) {
-	ds := createTestDataStore(t)
-	defer ds.Close()
-
-	project := &models.Project{
-		Name: "update-project",
-		Path: "/original/path",
-	}
-	if err := ds.CreateProject(project); err != nil {
-		t.Fatalf("Setup error: %v", err)
-	}
-
-	// Update the project
-	project.Path = "/updated/path"
-	project.Description = sql.NullString{String: "Updated description", Valid: true}
-
-	if err := ds.UpdateProject(project); err != nil {
-		t.Fatalf("UpdateProject() error = %v", err)
-	}
-
-	// Verify update
-	retrieved, err := ds.GetProjectByID(project.ID)
-	if err != nil {
-		t.Fatalf("Verification error: %v", err)
-	}
-
-	if retrieved.Path != "/updated/path" {
-		t.Errorf("UpdateProject() Path = %q, want %q", retrieved.Path, "/updated/path")
-	}
-	if retrieved.Description.String != "Updated description" {
-		t.Errorf("UpdateProject() Description = %q, want %q", retrieved.Description.String, "Updated description")
-	}
-}
-
-func TestSQLDataStore_DeleteProject(t *testing.T) {
-	ds := createTestDataStore(t)
-	defer ds.Close()
-
-	project := &models.Project{
-		Name: "delete-project",
-		Path: "/to/delete",
-	}
-	if err := ds.CreateProject(project); err != nil {
-		t.Fatalf("Setup error: %v", err)
-	}
-
-	if err := ds.DeleteProject("delete-project"); err != nil {
-		t.Fatalf("DeleteProject() error = %v", err)
-	}
-
-	// Verify deletion
-	_, err := ds.GetProjectByName("delete-project")
-	if err == nil {
-		t.Errorf("DeleteProject() project should not exist after deletion")
-	}
-}
-
-func TestSQLDataStore_ListProjects(t *testing.T) {
-	ds := createTestDataStore(t)
-	defer ds.Close()
-
-	// Create multiple projects
-	for i := 1; i <= 3; i++ {
-		project := &models.Project{
-			Name: "list-project-" + string(rune('0'+i)),
-			Path: "/path/" + string(rune('0'+i)),
-		}
-		if err := ds.CreateProject(project); err != nil {
-			t.Fatalf("Setup error: %v", err)
-		}
-	}
-
-	projects, err := ds.ListProjects()
-	if err != nil {
-		t.Fatalf("ListProjects() error = %v", err)
-	}
-
-	if len(projects) != 3 {
-		t.Errorf("ListProjects() returned %d projects, want 3", len(projects))
-	}
-}
-
-// =============================================================================
-// Workspace CRUD Tests
-// =============================================================================
 
 func TestSQLDataStore_CreateWorkspace(t *testing.T) {
 	ds := createTestDataStore(t)
 	defer ds.Close()
 
-	// Create a project first
-	project := &models.Project{Name: "ws-project", Path: "/ws/path"}
-	if err := ds.CreateProject(project); err != nil {
-		t.Fatalf("Setup error: %v", err)
-	}
+	// Create app hierarchy
+	app := createTestApp(t, ds, "ws")
 
 	workspace := &models.Workspace{
-		AppID:     project.ID, // Using project.ID as AppID during migration
+		AppID:     app.ID,
 		Name:      "test-workspace",
 		ImageName: "test:latest",
 		Status:    "stopped",
@@ -1354,15 +1227,12 @@ func TestSQLDataStore_CreateWorkspace_AppliesDefaultNvimConfig(t *testing.T) {
 	ds := createTestDataStore(t)
 	defer ds.Close()
 
-	// Create a project first
-	project := &models.Project{Name: "nvim-test-project", Path: "/nvim/path"}
-	if err := ds.CreateProject(project); err != nil {
-		t.Fatalf("Setup error: %v", err)
-	}
+	// Create app hierarchy
+	app := createTestApp(t, ds, "nvim")
 
 	// Test 1: Create workspace without nvim config - should apply defaults
 	workspace := &models.Workspace{
-		AppID:     project.ID,
+		AppID:     app.ID,
 		Name:      "default-nvim-workspace",
 		ImageName: "test:latest",
 		Status:    "stopped",
@@ -1383,7 +1253,7 @@ func TestSQLDataStore_CreateWorkspace_AppliesDefaultNvimConfig(t *testing.T) {
 	}
 
 	// Retrieve and verify persistence
-	retrieved, err := ds.GetWorkspaceByName(project.ID, "default-nvim-workspace")
+	retrieved, err := ds.GetWorkspaceByName(app.ID, "default-nvim-workspace")
 	if err != nil {
 		t.Fatalf("GetWorkspaceByName() error = %v", err)
 	}
@@ -1393,7 +1263,7 @@ func TestSQLDataStore_CreateWorkspace_AppliesDefaultNvimConfig(t *testing.T) {
 
 	// Test 2: Create workspace with explicit nvim config - should preserve it
 	workspace2 := &models.Workspace{
-		AppID:         project.ID,
+		AppID:         app.ID,
 		Name:          "custom-nvim-workspace",
 		ImageName:     "test:latest",
 		Status:        "stopped",
@@ -1411,7 +1281,7 @@ func TestSQLDataStore_CreateWorkspace_AppliesDefaultNvimConfig(t *testing.T) {
 	}
 
 	// Retrieve and verify persistence
-	retrieved2, err := ds.GetWorkspaceByName(project.ID, "custom-nvim-workspace")
+	retrieved2, err := ds.GetWorkspaceByName(app.ID, "custom-nvim-workspace")
 	if err != nil {
 		t.Fatalf("GetWorkspaceByName() error = %v", err)
 	}
@@ -1424,13 +1294,10 @@ func TestSQLDataStore_GetWorkspaceByName(t *testing.T) {
 	ds := createTestDataStore(t)
 	defer ds.Close()
 
-	project := &models.Project{Name: "ws-project2", Path: "/ws/path2"}
-	if err := ds.CreateProject(project); err != nil {
-		t.Fatalf("Setup error: %v", err)
-	}
+	app := createTestApp(t, ds, "ws2")
 
 	workspace := &models.Workspace{
-		AppID:     project.ID, // Using project.ID as AppID during migration
+		AppID:     app.ID,
 		Name:      "findme-ws",
 		ImageName: "image:v1",
 		Status:    "running",
@@ -1439,7 +1306,7 @@ func TestSQLDataStore_GetWorkspaceByName(t *testing.T) {
 		t.Fatalf("Setup error: %v", err)
 	}
 
-	retrieved, err := ds.GetWorkspaceByName(project.ID, "findme-ws")
+	retrieved, err := ds.GetWorkspaceByName(app.ID, "findme-ws")
 	if err != nil {
 		t.Fatalf("GetWorkspaceByName() error = %v", err)
 	}
@@ -1456,13 +1323,10 @@ func TestSQLDataStore_GetWorkspaceByID(t *testing.T) {
 	ds := createTestDataStore(t)
 	defer ds.Close()
 
-	project := &models.Project{Name: "ws-project3", Path: "/ws/path3"}
-	if err := ds.CreateProject(project); err != nil {
-		t.Fatalf("Setup error: %v", err)
-	}
+	app := createTestApp(t, ds, "ws3")
 
 	workspace := &models.Workspace{
-		AppID:     project.ID, // Using project.ID as AppID during migration
+		AppID:     app.ID,
 		Name:      "getbyid-ws",
 		ImageName: "test:v2",
 		Status:    "stopped",
@@ -1485,13 +1349,10 @@ func TestSQLDataStore_UpdateWorkspace(t *testing.T) {
 	ds := createTestDataStore(t)
 	defer ds.Close()
 
-	project := &models.Project{Name: "ws-project4", Path: "/ws/path4"}
-	if err := ds.CreateProject(project); err != nil {
-		t.Fatalf("Setup error: %v", err)
-	}
+	app := createTestApp(t, ds, "update-ws")
 
 	workspace := &models.Workspace{
-		AppID:     project.ID, // Using project.ID as AppID during migration
+		AppID:     app.ID,
 		Name:      "update-ws",
 		ImageName: "old:image",
 		Status:    "stopped",
@@ -1526,13 +1387,10 @@ func TestSQLDataStore_DeleteWorkspace(t *testing.T) {
 	ds := createTestDataStore(t)
 	defer ds.Close()
 
-	project := &models.Project{Name: "ws-project5", Path: "/ws/path5"}
-	if err := ds.CreateProject(project); err != nil {
-		t.Fatalf("Setup error: %v", err)
-	}
+	app := createTestApp(t, ds, "delete-ws")
 
 	workspace := &models.Workspace{
-		AppID:     project.ID, // Using project.ID as AppID during migration
+		AppID:     app.ID,
 		Name:      "delete-ws",
 		ImageName: "img:latest",
 		Status:    "stopped",
@@ -1555,15 +1413,12 @@ func TestSQLDataStore_ListWorkspacesByApp(t *testing.T) {
 	ds := createTestDataStore(t)
 	defer ds.Close()
 
-	project := &models.Project{Name: "ws-project6", Path: "/ws/path6"}
-	if err := ds.CreateProject(project); err != nil {
-		t.Fatalf("Setup error: %v", err)
-	}
+	app := createTestApp(t, ds, "list-ws")
 
 	// Create multiple workspaces
 	for i := 1; i <= 3; i++ {
 		ws := &models.Workspace{
-			AppID:     project.ID, // Using project.ID as AppID during migration
+			AppID:     app.ID,
 			Name:      "ws-" + string(rune('0'+i)),
 			ImageName: "img:v" + string(rune('0'+i)),
 			Status:    "stopped",
@@ -1573,7 +1428,7 @@ func TestSQLDataStore_ListWorkspacesByApp(t *testing.T) {
 		}
 	}
 
-	workspaces, err := ds.ListWorkspacesByApp(project.ID)
+	workspaces, err := ds.ListWorkspacesByApp(app.ID)
 	if err != nil {
 		t.Fatalf("ListWorkspacesByApp() error = %v", err)
 	}
@@ -1587,19 +1442,13 @@ func TestSQLDataStore_ListAllWorkspaces(t *testing.T) {
 	ds := createTestDataStore(t)
 	defer ds.Close()
 
-	// Create two projects with workspaces
+	// Create two apps with workspaces
 	for p := 1; p <= 2; p++ {
-		project := &models.Project{
-			Name: "project-" + string(rune('0'+p)),
-			Path: "/path/" + string(rune('0'+p)),
-		}
-		if err := ds.CreateProject(project); err != nil {
-			t.Fatalf("Setup error: %v", err)
-		}
+		app := createTestApp(t, ds, "list-all-"+string(rune('0'+p)))
 
 		for w := 1; w <= 2; w++ {
 			ws := &models.Workspace{
-				AppID:     project.ID, // Using project.ID as AppID during migration
+				AppID:     app.ID,
 				Name:      "ws-" + string(rune('0'+w)),
 				ImageName: "img:latest",
 				Status:    "stopped",
@@ -1628,14 +1477,11 @@ func TestSQLDataStore_Context(t *testing.T) {
 	ds := createTestDataStore(t)
 	defer ds.Close()
 
-	// Create a project and workspace
-	project := &models.Project{Name: "ctx-project", Path: "/ctx/path"}
-	if err := ds.CreateProject(project); err != nil {
-		t.Fatalf("Setup error: %v", err)
-	}
+	// Create an app and workspace
+	app := createTestApp(t, ds, "ctx")
 
 	workspace := &models.Workspace{
-		AppID:     project.ID, // Using project.ID as AppID during migration
+		AppID:     app.ID,
 		Name:      "ctx-workspace",
 		ImageName: "ctx:img",
 		Status:    "stopped",
@@ -1644,9 +1490,9 @@ func TestSQLDataStore_Context(t *testing.T) {
 		t.Fatalf("Setup error: %v", err)
 	}
 
-	// Set active project
-	if err := ds.SetActiveProject(&project.ID); err != nil {
-		t.Fatalf("SetActiveProject() error = %v", err)
+	// Set active app
+	if err := ds.SetActiveApp(&app.ID); err != nil {
+		t.Fatalf("SetActiveApp() error = %v", err)
 	}
 
 	// Get context and verify
@@ -1655,8 +1501,8 @@ func TestSQLDataStore_Context(t *testing.T) {
 		t.Fatalf("GetContext() error = %v", err)
 	}
 
-	if ctx.ActiveProjectID == nil || *ctx.ActiveProjectID != project.ID {
-		t.Errorf("GetContext() ActiveProjectID = %v, want %d", ctx.ActiveProjectID, project.ID)
+	if ctx.ActiveAppID == nil || *ctx.ActiveAppID != app.ID {
+		t.Errorf("GetContext() ActiveAppID = %v, want %d", ctx.ActiveAppID, app.ID)
 	}
 
 	// Set active workspace
@@ -1678,18 +1524,15 @@ func TestSQLDataStore_ClearContext(t *testing.T) {
 	ds := createTestDataStore(t)
 	defer ds.Close()
 
-	project := &models.Project{Name: "clear-ctx-project", Path: "/clear"}
-	if err := ds.CreateProject(project); err != nil {
-		t.Fatalf("Setup error: %v", err)
-	}
+	app := createTestApp(t, ds, "clear-ctx")
 
 	// Set then clear
-	if err := ds.SetActiveProject(&project.ID); err != nil {
-		t.Fatalf("SetActiveProject() error = %v", err)
+	if err := ds.SetActiveApp(&app.ID); err != nil {
+		t.Fatalf("SetActiveApp() error = %v", err)
 	}
 
-	if err := ds.SetActiveProject(nil); err != nil {
-		t.Fatalf("SetActiveProject(nil) error = %v", err)
+	if err := ds.SetActiveApp(nil); err != nil {
+		t.Fatalf("SetActiveApp(nil) error = %v", err)
 	}
 
 	ctx, err := ds.GetContext()
@@ -1697,8 +1540,8 @@ func TestSQLDataStore_ClearContext(t *testing.T) {
 		t.Fatalf("GetContext() error = %v", err)
 	}
 
-	if ctx.ActiveProjectID != nil {
-		t.Errorf("SetActiveProject(nil) should clear ActiveProjectID")
+	if ctx.ActiveAppID != nil {
+		t.Errorf("SetActiveApp(nil) should clear ActiveAppID")
 	}
 }
 
@@ -1874,13 +1717,8 @@ func TestSQLDataStore_Context_FullHierarchy(t *testing.T) {
 		t.Fatalf("Setup error: %v", err)
 	}
 
-	project := &models.Project{Name: "full-ctx-project", Path: "/full/ctx"}
-	if err := ds.CreateProject(project); err != nil {
-		t.Fatalf("Setup error: %v", err)
-	}
-
 	workspace := &models.Workspace{
-		AppID:     project.ID, // Using project.ID as AppID during migration
+		AppID:     app.ID,
 		Name:      "full-ctx-workspace",
 		ImageName: "full:img",
 		Status:    "stopped",
@@ -2086,13 +1924,10 @@ func TestSQLDataStore_WorkspacePluginAssociation(t *testing.T) {
 	defer ds.Close()
 
 	// Setup
-	project := &models.Project{Name: "wp-project", Path: "/wp/path"}
-	if err := ds.CreateProject(project); err != nil {
-		t.Fatalf("Setup error: %v", err)
-	}
+	app := createTestApp(t, ds, "wp")
 
 	workspace := &models.Workspace{
-		AppID:     project.ID, // Using project.ID as AppID during migration
+		AppID:     app.ID,
 		Name:      "wp-workspace",
 		ImageName: "img:latest",
 		Status:    "stopped",

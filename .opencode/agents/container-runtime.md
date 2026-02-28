@@ -1,7 +1,7 @@
 ---
 description: Owns all container runtime interactions - Docker, Colima, containerd, OrbStack, Podman, k3s. Manages the ContainerRuntime interface and all implementations. Handles platform-specific logic and container lifecycle.
 mode: subagent
-model: github-copilot/claude-sonnet-4
+model: github-copilot/claude-sonnet-4.5
 temperature: 0.1
 tools:
   read: true
@@ -16,6 +16,7 @@ permission:
     "*": deny
     architecture: allow
     security: allow
+    test: allow
 ---
 
 # Container Runtime Agent
@@ -231,6 +232,114 @@ CONTAINER_RUNTIME=colima go test ./operators/... -v
 - Docker SDK docs: https://pkg.go.dev/github.com/docker/docker/client
 - containerd client docs: https://pkg.go.dev/github.com/containerd/containerd
 - nerdctl documentation: https://github.com/containerd/nerdctl
+
+---
+
+## v0.19.0 Workspace Isolation
+
+**v0.19.0 requires full workspace isolation.** Key changes to container runtime:
+
+### SSH Mount Opt-In
+
+Current (BAD):
+```go
+// operators/docker_runtime.go:191-200
+mounts := []mount.Mount{
+    {Source: filepath.Join(os.Getenv("HOME"), ".ssh"), Target: "/root/.ssh"},  // Always!
+}
+```
+
+Required (GOOD):
+```go
+func (r *DockerRuntime) StartWorkspace(ctx context.Context, opts StartOptions) (string, error) {
+    var mounts []mount.Mount
+    
+    // Workspace volume (always mounted)
+    mounts = append(mounts, mount.Mount{
+        Source: opts.VolumePath,  // ~/.devopsmaestro/workspaces/{id}/volume/
+        Target: "/workspace/volume",
+    })
+    
+    // SSH only when explicitly requested
+    if opts.MountSSH {
+        mounts = append(mounts, mount.Mount{
+            Source:   filepath.Join(os.Getenv("HOME"), ".ssh"),
+            Target:   "/home/devuser/.ssh",
+            ReadOnly: true,
+        })
+    }
+}
+```
+
+### StartOptions Updates
+
+```go
+type StartOptions struct {
+    ImageName     string
+    WorkspaceName string
+    ContainerName string
+    AppName       string
+    AppPath       string
+    Env           map[string]string
+    WorkingDir    string
+    Command       []string
+    
+    // v0.19.0 additions
+    VolumePath    string  // Workspace-specific volume path
+    ConfigPath    string  // Workspace-specific config path
+    MountSSH      bool    // Explicit SSH opt-in (default: false)
+}
+```
+
+### Volume Mount Strategy
+
+```
+Container mounts:
+├── /workspace/repo      ← Git clone (from bare mirror or direct)
+├── /workspace/volume    ← Persistent data (nvim-data, nvim-state, cache)
+├── /workspace/.dvm      ← Generated configs (nvim, shell)
+└── /home/devuser/.ssh   ← ONLY if opts.MountSSH == true
+```
+
+### Files to Update
+
+| File | Changes |
+|------|---------|
+| `operators/runtime_interface.go` | Add MountSSH, VolumePath, ConfigPath to StartOptions |
+| `operators/docker_runtime.go` | Remove auto SSH mount, add opt-in logic |
+| `operators/containerd_runtime_v2.go` | Same changes for Colima/nerdctl |
+
+---
+
+## TDD Workflow (Red-Green-Refactor)
+
+**v0.19.0+ follows strict TDD.** As the Container Runtime Agent, you work in Phase 3.
+
+### TDD Phases
+
+```
+PHASE 1: ARCHITECTURE REVIEW (Design First)
+├── @architecture → Reviews design patterns, interfaces
+└── @security → Reviews mount security, SSH handling
+
+PHASE 2: WRITE FAILING TESTS (RED)
+└── @test → Writes tests for isolation requirements (tests FAIL)
+
+PHASE 3: IMPLEMENTATION (GREEN) ← YOU ARE HERE
+└── @container-runtime → Implements runtime changes to pass tests
+
+PHASE 4: REFACTOR & VERIFY
+├── @architecture → Verify implementation matches design
+├── @security → Final security review of mounts
+└── @test → Ensure tests still pass
+```
+
+### Your Role in TDD
+
+1. **Wait for failing tests**: @test writes tests first
+2. **Implement to pass tests**: Minimal code to make tests green
+3. **Request security review**: @security reviews mount changes
+4. **Verify with @test**: Confirm all tests pass
 
 ---
 

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -199,13 +198,32 @@ func (r *ContainerdRuntimeV2) startWorkspaceViaColima(ctx context.Context, opts 
 
 	// Add volume mounts
 	// nerdctl handles path translation for Colima's mounted volumes
-	nerdctlArgs = append(nerdctlArgs, "-v", fmt.Sprintf("%s:/workspace", opts.AppPath))
 
-	// Add SSH key mount if directory exists
-	homeDir, _ := os.UserHomeDir()
-	sshDir := filepath.Join(homeDir, ".ssh")
-	if _, err := os.Stat(sshDir); err == nil {
-		nerdctlArgs = append(nerdctlArgs, "-v", fmt.Sprintf("%s:/root/.ssh:ro", sshDir))
+	// Legacy mount for AppPath (if not using WorkspaceSlug)
+	if opts.AppPath != "" {
+		nerdctlArgs = append(nerdctlArgs, "-v", fmt.Sprintf("%s:/workspace", opts.AppPath))
+	}
+
+	// v0.19.0: Add workspace volume mounts from Mounts field
+	for _, mount := range opts.Mounts {
+		mountSpec := fmt.Sprintf("%s:%s", mount.Source, mount.Destination)
+		if mount.ReadOnly {
+			mountSpec += ":ro"
+		}
+		nerdctlArgs = append(nerdctlArgs, "-v", mountSpec)
+	}
+
+	// SSH agent forwarding (opt-in only)
+	// SECURITY: SSH keys are NEVER mounted. Only the agent socket is forwarded.
+	if opts.SSHAgentForwarding {
+		hostSocket, containerSocket, err := GetSSHAgentMount(r.GetRuntimeType())
+		if err != nil {
+			return "", fmt.Errorf("SSH agent forwarding requested but not available: %w", err)
+		}
+		nerdctlArgs = append(nerdctlArgs, "-v", fmt.Sprintf("%s:%s", hostSocket, containerSocket))
+
+		// Add SSH_AUTH_SOCK environment variable
+		nerdctlArgs = append(nerdctlArgs, "-e", fmt.Sprintf("SSH_AUTH_SOCK=%s", containerSocket))
 	}
 
 	// Add environment variables
@@ -327,28 +345,52 @@ func (r *ContainerdRuntimeV2) startWorkspaceDirectAPI(ctx context.Context, opts 
 		envSlice = append(envSlice, fmt.Sprintf("%s=%s", k, v))
 	}
 
-	// Get home directory for SSH keys
-	homeDir, _ := os.UserHomeDir()
-	sshDir := filepath.Join(homeDir, ".ssh")
-
 	// Create mount specs
-	mounts := []specs.Mount{
-		{
+	mounts := []specs.Mount{}
+
+	// Legacy mount for AppPath (if not using WorkspaceSlug)
+	if opts.AppPath != "" {
+		mounts = append(mounts, specs.Mount{
 			Source:      opts.AppPath,
 			Destination: "/workspace",
 			Type:        "bind",
 			Options:     []string{"rbind", "rw"},
-		},
+		})
 	}
 
-	// Add SSH key mount if directory exists
-	if _, err := os.Stat(sshDir); err == nil {
+	// v0.19.0: Add workspace volume mounts from Mounts field
+	for _, mount := range opts.Mounts {
+		mountOptions := []string{"rbind"}
+		if mount.ReadOnly {
+			mountOptions = append(mountOptions, "ro")
+		} else {
+			mountOptions = append(mountOptions, "rw")
+		}
+
 		mounts = append(mounts, specs.Mount{
-			Source:      sshDir,
-			Destination: "/root/.ssh",
+			Source:      mount.Source,
+			Destination: mount.Destination,
 			Type:        "bind",
-			Options:     []string{"rbind", "ro"},
+			Options:     mountOptions,
 		})
+	}
+
+	// SSH agent forwarding (opt-in only)
+	// SECURITY: SSH keys are NEVER mounted. Only the agent socket is forwarded.
+	if opts.SSHAgentForwarding {
+		hostSocket, containerSocket, err := GetSSHAgentMount(r.GetRuntimeType())
+		if err != nil {
+			return "", fmt.Errorf("SSH agent forwarding requested but not available: %w", err)
+		}
+		mounts = append(mounts, specs.Mount{
+			Source:      hostSocket,
+			Destination: containerSocket,
+			Type:        "bind",
+			Options:     []string{"rbind", "rw"},
+		})
+
+		// Add SSH_AUTH_SOCK environment variable
+		envSlice = append(envSlice, fmt.Sprintf("SSH_AUTH_SOCK=%s", containerSocket))
 	}
 
 	// Create container with proper OCI spec

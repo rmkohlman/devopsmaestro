@@ -8,6 +8,39 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.19.0 (2026-02-28)
+
+**🚀 Full Workspace Isolation**
+
+**⚠️ BREAKING CHANGES - Fresh Database Required**
+
+This is a major breaking release that requires a fresh database. **You must backup and delete your existing database before upgrading.**
+
+- Fresh database schema required - existing databases incompatible
+- Removed `projects` table - use Ecosystem → Domain → App hierarchy
+- Removed credential `value` field - plaintext storage no longer supported
+- Removed SSH key auto-mounting - use SSH agent forwarding instead
+
+**New Features:**
+
+- **Workspace Isolation** - Each workspace has dedicated isolated directories:
+  - `~/.devopsmaestro/workspaces/{slug}/repo/` - Git repository clone
+  - `~/.devopsmaestro/workspaces/{slug}/volume/` - Persistent data (nvim-data, cache)
+  - `~/.devopsmaestro/workspaces/{slug}/.dvm/` - Generated configs
+- **Workspace Slug** - Unique identifier format: `{ecosystem}-{domain}-{app}-{workspace}`
+- **SSH Agent Forwarding** - Opt-in via `--ssh-agent` flag or `ssh_agent_forwarding: true` in YAML
+- **Enhanced Security** - SSH keys never mounted, credentials limited to keychain/env only
+
+**Migration Steps:**
+
+1. Backup: `dvm get <resources> -o yaml > backup.yaml`
+2. Delete database: `rm ~/.devopsmaestro/devopsmaestro.db`
+3. Upgrade: `brew upgrade devopsmaestro`
+4. Re-initialize: `dvm init`
+5. Re-apply resources: `dvm apply -f backup.yaml`
+
+See the [full migration guide](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md#migration-guide) for detailed instructions.
+
 ### v0.18.25 (2026-02-28)
 
 **Fix Coolnight Theme Git Clone Errors**
@@ -223,6 +256,7 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **0.19.0** | 2026-02-28 | Full workspace isolation, SSH agent forwarding, security hardening (BREAKING) |
 | **0.18.17** | 2026-02-21 | Docker build context fix for generated config files |
 | **0.17.0** | 2026-02-20 | DVT binary release, TerminalPackages, test gate requirement |
 | **0.16.0** | 2026-02-20 | Package management system, auto-migration |

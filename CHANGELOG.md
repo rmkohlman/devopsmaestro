@@ -11,6 +11,121 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.19.0] - 2026-02-28
+
+### ⚠️ Breaking Changes
+
+- **Fresh database schema required** - Existing databases are incompatible and must be deleted before upgrading
+  - Delete `~/.devopsmaestro/devopsmaestro.db` before upgrading
+  - Backup your data first: `dvm get <resources> -o yaml > backup.yaml`
+- **Removed `projects` table** - Use Ecosystem → Domain → App hierarchy instead
+  - Migrate projects to the app hierarchy before upgrading
+- **Credential `value` field removed** - Plaintext credential storage no longer supported
+  - Only `keychain` and `env` credential sources are allowed
+  - Migrate any plaintext credentials to keychain or environment variables
+- **SSH key auto-mounting removed** - SSH keys are no longer copied into containers
+  - Use SSH agent forwarding instead: `dvm attach --ssh-agent` or `ssh_agent_forwarding: true` in YAML
+
+### ✨ Added
+
+#### Workspace Isolation System
+- **Isolated workspace directories** - Each workspace now has dedicated directories for complete isolation:
+  - `~/.devopsmaestro/workspaces/{slug}/repo/` - Git repository clone
+  - `~/.devopsmaestro/workspaces/{slug}/volume/` - Persistent data (nvim-data, nvim-state, cache)
+  - `~/.devopsmaestro/workspaces/{slug}/.dvm/` - Generated configs (nvim, shell, starship)
+- **Workspace slug identifier** - Format: `{ecosystem}-{domain}-{app}-{workspace}` for unique workspace identification
+- **Parameterized config generators** - All configuration generators now use workspace-specific paths
+
+#### SSH Agent Forwarding (Opt-In)
+- **`--ssh-agent` flag** - Enable SSH agent forwarding when attaching to containers
+- **`ssh_agent_forwarding` YAML field** - Configure SSH agent forwarding in workspace YAML
+- **Container-to-host SSH** - Access your SSH keys from inside containers without copying private keys
+- **Security improvement** - SSH keys never mounted into containers, only socket forwarding enabled
+
+### 🔄 Changed
+
+- **Workspace data location** - All workspace data moved from app directory to `~/.devopsmaestro/workspaces/{slug}/`
+- **Generated configs** - Workspace-specific configs written to `.dvm/` subdirectory in workspace root
+- **Container mounts** - All container mounts now use workspace-specific paths for complete isolation
+- **Directory permissions** - Workspace directories created with 0700 permissions for enhanced security
+
+### 🔒 Security
+
+- **SSH keys never mounted** - SSH private keys are never copied or mounted into containers
+- **Agent forwarding only** - Opt-in SSH agent forwarding provides secure key access without exposure
+- **Credential restrictions** - Limited to `keychain` and `env` sources, plaintext storage removed
+- **Isolated workspaces** - Each workspace has isolated data directories preventing cross-contamination
+
+### 📖 Migration Guide
+
+#### Step 1: Backup Your Data
+```bash
+# Export all resources to YAML
+dvm get ecosystems -o yaml > ecosystems.yaml
+dvm get domains -o yaml > domains.yaml
+dvm get apps -o yaml > apps.yaml
+dvm get workspaces -A -o yaml > workspaces.yaml
+dvm get nvim plugins -o yaml > plugins.yaml
+dvm get nvim themes -o yaml > themes.yaml
+```
+
+#### Step 2: Delete Database
+```bash
+# Remove the old database
+rm ~/.devopsmaestro/devopsmaestro.db
+```
+
+#### Step 3: Upgrade DevOpsMaestro
+```bash
+# Via Homebrew
+brew upgrade devopsmaestro
+
+# Or rebuild from source
+cd devopsmaestro
+git pull
+go build -o dvm .
+sudo mv dvm /usr/local/bin/
+```
+
+#### Step 4: Re-create Resources
+```bash
+# Re-initialize with fresh database
+dvm init
+
+# Re-apply your resources
+dvm apply -f ecosystems.yaml
+dvm apply -f domains.yaml
+dvm apply -f apps.yaml
+dvm apply -f workspaces.yaml
+dvm apply -f plugins.yaml
+dvm apply -f themes.yaml
+```
+
+#### Step 5: Migrate Credentials (If Applicable)
+```bash
+# If you had plaintext credentials, move them to keychain:
+security add-generic-password -s devopsmaestro -a <credential-name> -w "<value>"
+
+# Or use environment variables:
+export DVM_SECRET_<CREDENTIAL_NAME>="<value>"
+```
+
+#### Step 6: Update SSH Workflows
+```bash
+# Replace SSH key mounting with agent forwarding:
+# Old: SSH keys were auto-mounted
+# New: Use --ssh-agent flag or YAML config
+
+# Via CLI flag
+dvm attach --ssh-agent
+
+# Or in workspace YAML
+spec:
+  ssh_agent_forwarding: true
+```
+
+---
+
 ## [0.18.25] - 2026-02-28
 
 ### 🐛 Fixed

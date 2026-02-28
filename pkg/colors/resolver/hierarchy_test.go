@@ -158,13 +158,6 @@ func (m *MockDataStore) DeleteApp(id int) error                                 
 func (m *MockDataStore) ListAppsByDomain(domainID int) ([]*models.App, error)        { return nil, nil }
 func (m *MockDataStore) ListAllApps() ([]*models.App, error)                         { return nil, nil }
 
-func (m *MockDataStore) CreateProject(project *models.Project) error           { return nil }
-func (m *MockDataStore) GetProjectByName(name string) (*models.Project, error) { return nil, nil }
-func (m *MockDataStore) GetProjectByID(id int) (*models.Project, error)        { return nil, nil }
-func (m *MockDataStore) UpdateProject(project *models.Project) error           { return nil }
-func (m *MockDataStore) DeleteProject(name string) error                       { return nil }
-func (m *MockDataStore) ListProjects() ([]*models.Project, error)              { return nil, nil }
-
 func (m *MockDataStore) CreateWorkspace(workspace *models.Workspace) error { return nil }
 func (m *MockDataStore) GetWorkspaceByName(appID int, name string) (*models.Workspace, error) {
 	return nil, nil
@@ -188,7 +181,6 @@ func (m *MockDataStore) SetActiveEcosystem(ecosystemID *int) error { return nil 
 func (m *MockDataStore) SetActiveDomain(domainID *int) error       { return nil }
 func (m *MockDataStore) SetActiveApp(appID *int) error             { return nil }
 func (m *MockDataStore) SetActiveWorkspace(workspaceID *int) error { return nil }
-func (m *MockDataStore) SetActiveProject(projectID *int) error     { return nil }
 
 // Plugin operations
 func (m *MockDataStore) CreatePlugin(plugin *models.NvimPluginDB) error            { return nil }
@@ -354,6 +346,33 @@ func (m *MockDataStore) DeleteTerminalProfile(name string) error                
 func (m *MockDataStore) ListTerminalProfiles() ([]*models.TerminalProfileDB, error)    { return nil, nil }
 func (m *MockDataStore) ListTerminalProfilesByCategory(category string) ([]*models.TerminalProfileDB, error) {
 	return nil, nil
+}
+
+// GenerateWorkspaceSlug generates a slug for a workspace (mock implementation)
+func (m *MockDataStore) GenerateWorkspaceSlug(ecosystemName, domainName, appName, workspaceName string) string {
+	return ecosystemName + "-" + domainName + "-" + appName + "-" + workspaceName
+}
+
+// GetWorkspacePath returns the path for a workspace (mock implementation)
+func (m *MockDataStore) GetWorkspacePath(workspaceID int) (string, error) {
+	if m.getWorkspaceError {
+		return "", errors.New("mock workspace error")
+	}
+	if workspace, ok := m.workspaces[workspaceID]; ok {
+		return "/mock/path/" + workspace.Name, nil
+	}
+	return "", sql.ErrNoRows
+}
+
+// GetWorkspaceSlug returns the slug for a workspace (mock implementation)
+func (m *MockDataStore) GetWorkspaceSlug(workspaceID int) (string, error) {
+	if m.getWorkspaceError {
+		return "", errors.New("mock workspace error")
+	}
+	if workspace, ok := m.workspaces[workspaceID]; ok {
+		return "mock-workspace-" + workspace.Name, nil
+	}
+	return "", sql.ErrNoRows
 }
 
 // MockThemeStore implements theme.Store for testing

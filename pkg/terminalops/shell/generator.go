@@ -3,6 +3,8 @@ package shell
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -33,6 +35,48 @@ func (g *Generator) Generate(s *Shell) (string, error) {
 	default:
 		return "", fmt.Errorf("unsupported shell type: %s", s.ShellType)
 	}
+}
+
+// WriteToFile generates shell configuration and writes it to the specified path.
+// If outputPath is empty, returns an error (no default path for workspace isolation).
+// The outputPath should be a directory where the shell config file will be created.
+// The filename is determined by the shell type (e.g., .zshrc.workspace, .bashrc.workspace).
+func (g *Generator) WriteToFile(s *Shell, outputPath string) error {
+	if outputPath == "" {
+		return fmt.Errorf("outputPath is required (no default path for workspace isolation)")
+	}
+
+	// Generate the shell configuration content
+	config, err := g.Generate(s)
+	if err != nil {
+		return fmt.Errorf("failed to generate shell config: %w", err)
+	}
+
+	// Create the directory if it doesn't exist
+	if err := os.MkdirAll(outputPath, 0700); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+
+	// Determine filename based on shell type
+	var filename string
+	switch s.ShellType {
+	case ShellTypeZsh:
+		filename = ".zshrc.workspace"
+	case ShellTypeBash:
+		filename = ".bashrc.workspace"
+	case ShellTypeFish:
+		filename = "config.fish.workspace"
+	default:
+		filename = fmt.Sprintf(".%src.workspace", s.ShellType)
+	}
+
+	// Write the file
+	fullPath := filepath.Join(outputPath, filename)
+	if err := os.WriteFile(fullPath, []byte(config), 0600); err != nil {
+		return fmt.Errorf("failed to write shell config to %s: %w", fullPath, err)
+	}
+
+	return nil
 }
 
 // generateZsh generates zsh configuration.

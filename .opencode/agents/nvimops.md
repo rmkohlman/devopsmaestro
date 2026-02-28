@@ -1,7 +1,7 @@
 ---
-description: Owns all NvimOps (nvp) code - plugin management, theme management, Lua generation, library system. Handles pkg/nvimops/ and cmd/nvp/ packages.
+description: Owns all NvimOps (nvp) code - plugin management, theme management, Lua generation, library system. Handles pkg/nvimops/ and cmd/nvp/ packages. v0.19.0 requires parameterized output paths.
 mode: subagent
-model: github-copilot/claude-sonnet-4
+model: github-copilot/claude-sonnet-4.5
 temperature: 0.2
 tools:
   read: true
@@ -16,6 +16,7 @@ permission:
     "*": deny
     architecture: allow
     security: allow
+    test: allow
 ---
 
 # NvimOps Agent
@@ -333,6 +334,120 @@ go build -o nvp ./cmd/nvp/
 - `README.md` - NvimOps section
 - `pkg/palette/` - Shared palette utilities
 - External: nvim-yaml-plugins repo
+
+---
+
+## v0.19.0 Parameterized Paths
+
+**v0.19.0 requires all config generation to accept output paths.** No more hardcoded `~/.config/nvim/`.
+
+### Current Problem
+
+```go
+// pkg/nvimops/config/generator.go:170
+func (g *Generator) Generate() error {
+    // Hardcoded path!
+    outputPath := filepath.Join(os.Getenv("HOME"), ".config", "nvim", "lua", "plugins", "nvp")
+    return g.writeTo(outputPath)
+}
+```
+
+### Required Solution
+
+```go
+// Parameterized output path
+func (g *Generator) Generate(outputPath string) error {
+    // outputPath provided by caller
+    // For nvp (standalone): ~/.config/nvim/lua/plugins/nvp/
+    // For dvm (workspace): ~/.devopsmaestro/workspaces/{id}/.dvm/nvim/lua/plugins/nvp/
+    return g.writeTo(outputPath)
+}
+
+// Factory with path injection
+func NewGenerator(store store.PluginStore, outputPath string) *Generator {
+    return &Generator{
+        store:      store,
+        outputPath: outputPath,
+    }
+}
+```
+
+### Tool Hierarchy
+
+| Tool | Target Path | Use Case |
+|------|-------------|----------|
+| **nvp** (standalone) | `~/.config/nvim/` | User wants local nvim setup |
+| **dvm** (workspace) | `~/.devopsmaestro/workspaces/{id}/.dvm/nvim/` | Workspace isolation |
+
+### Files to Update
+
+| File | Changes |
+|------|---------|
+| `pkg/nvimops/config/generator.go` | Add outputPath parameter |
+| `pkg/nvimops/config/types.go` | Add OutputPath to GeneratorConfig |
+| `pkg/nvimops/plugin/generator.go` | Parameterize Lua output path |
+| `pkg/nvimops/theme/generator.go` | Parameterize theme output path |
+| `cmd/nvp/root.go` | Pass `~/.config/nvim/` as default |
+
+### Container Volume Strategy
+
+When dvm generates nvim config for a workspace:
+
+```
+Host paths:
+~/.devopsmaestro/workspaces/{id}/
+├── .dvm/
+│   └── nvim/                    ← Generated configs
+│       └── lua/plugins/nvp/
+└── volume/
+    ├── nvim-data/               ← XDG_DATA_HOME/nvim (plugins, lazy)
+    ├── nvim-state/              ← XDG_STATE_HOME/nvim (shada, swap)
+    └── nvim-cache/              ← XDG_CACHE_HOME/nvim
+
+Container mounts:
+/workspace/.dvm/nvim     → ~/.config/nvim     (read-only)
+/workspace/volume/nvim-data  → ~/.local/share/nvim
+/workspace/volume/nvim-state → ~/.local/state/nvim
+/workspace/volume/nvim-cache → ~/.cache/nvim
+```
+
+---
+
+## TDD Workflow (Red-Green-Refactor)
+
+**v0.19.0+ follows strict TDD.** As the NvimOps Agent, you work in Phase 3.
+
+### TDD Phases
+
+```
+PHASE 1: ARCHITECTURE REVIEW (Design First)
+├── @architecture → Reviews interface changes for parameterized paths
+
+PHASE 2: WRITE FAILING TESTS (RED)
+└── @test → Writes tests for path parameterization (tests FAIL)
+
+PHASE 3: IMPLEMENTATION (GREEN) ← YOU ARE HERE
+└── @nvimops → Implements parameterized generators to pass tests
+
+PHASE 4: REFACTOR & VERIFY
+├── @architecture → Verify implementation matches design
+└── @test → Ensure tests still pass
+```
+
+### Your Role in TDD
+
+1. **Wait for failing tests**: @test writes tests first
+2. **Implement to pass tests**: Update generators with path parameters
+3. **Maintain backwards compatibility**: nvp standalone still works
+4. **Verify with @test**: Confirm all tests pass
+
+### Test Requirements for v0.19.0
+
+@test should write tests for:
+- Generator accepts custom output path
+- Default path still works for nvp standalone
+- Workspace paths generate correctly
+- No writes to `~/.config/nvim/` when using workspace mode
 
 ---
 
