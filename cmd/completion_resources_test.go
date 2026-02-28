@@ -82,9 +82,11 @@ func createTestSchema(driver db.Driver) error {
 			nvim_structure TEXT,
 			nvim_plugins TEXT,
 			theme TEXT,
+			git_repo_id INTEGER,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (app_id) REFERENCES apps(id),
+			FOREIGN KEY (git_repo_id) REFERENCES git_repos(id),
 			UNIQUE(app_id, name)
 		)`,
 		`CREATE TABLE IF NOT EXISTS context (

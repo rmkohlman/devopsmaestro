@@ -5,8 +5,10 @@ import (
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/operators"
+	"devopsmaestro/pkg/mirror"
 	"devopsmaestro/render"
 	"fmt"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 )
@@ -31,6 +33,7 @@ Examples:
 var (
 	workspaceDescription string
 	workspaceImage       string
+	workspaceRepo        string
 )
 
 // createWorkspaceCmd creates a new workspace in the current app
@@ -51,6 +54,10 @@ Examples:
   # Create a workspace in a specific app
   dvm create workspace dev --app myapp
   
+  # Clone from a GitRepo mirror
+  dvm create workspace feature-x --repo my-repo
+  dvm create workspace feature-x --app myapp --repo my-repo
+  
   # Create with description
   dvm create workspace feature-auth --description "Auth feature branch"
   
@@ -62,6 +69,7 @@ Examples:
 
 		// Get app from flag or context
 		appFlag, _ := cmd.Flags().GetString("app")
+		repoFlag, _ := cmd.Flags().GetString("repo")
 
 		contextMgr, err := operators.NewContextManager()
 		if err != nil {
@@ -117,6 +125,17 @@ Examples:
 			imageName = fmt.Sprintf("dvm-%s-%s:pending", workspaceName, appName)
 		}
 
+		// If --repo flag is provided, look up the GitRepo
+		var gitRepo *models.GitRepoDB
+		if repoFlag != "" {
+			gitRepo, err = ds.GetGitRepoByName(repoFlag)
+			if err != nil {
+				render.Error(fmt.Sprintf("GitRepo '%s' not found: %v", repoFlag, err))
+				render.Info("Hint: List available repos with: dvm get gitrepos")
+				return
+			}
+		}
+
 		render.Progress(fmt.Sprintf("Creating workspace '%s' in app '%s'...", workspaceName, appName))
 
 		// Create workspace
@@ -131,13 +150,55 @@ Examples:
 			Status:    "stopped",
 		}
 
+		// Set GitRepoID if --repo was provided
+		if gitRepo != nil {
+			workspace.GitRepoID = sql.NullInt64{Int64: int64(gitRepo.ID), Valid: true}
+		}
+
 		if err := ds.CreateWorkspace(workspace); err != nil {
 			render.Error(fmt.Sprintf("Failed to create workspace: %v", err))
 			return
 		}
 
+		// Clone from mirror if --repo was provided
+		if gitRepo != nil {
+			render.Progress(fmt.Sprintf("Cloning from mirror '%s'...", repoFlag))
+
+			// Get workspace path and clone to repo/ subdirectory
+			workspacePath, err := ds.GetWorkspacePath(workspace.ID)
+			if err != nil {
+				render.Warning(fmt.Sprintf("Failed to get workspace path: %v", err))
+			} else {
+				repoPath := filepath.Join(workspacePath, "repo")
+				baseDir := getGitRepoBaseDir()
+				mirrorMgr := mirror.NewGitMirrorManager(baseDir)
+
+				// Check if mirror exists, sync if needed
+				if !mirrorMgr.Exists(gitRepo.Slug) {
+					render.Info("Mirror not yet cloned, syncing from remote...")
+					if _, err := mirrorMgr.Clone(gitRepo.URL, gitRepo.Slug); err != nil {
+						render.Error(fmt.Sprintf("Failed to sync mirror: %v", err))
+						render.Info("Workspace created, but repository clone failed")
+						render.Info(fmt.Sprintf("Try: dvm sync gitrepo %s", repoFlag))
+						return
+					}
+				}
+
+				// Clone from local mirror to workspace
+				if err := mirrorMgr.CloneToWorkspace(gitRepo.Slug, repoPath, gitRepo.DefaultRef); err != nil {
+					render.Error(fmt.Sprintf("Failed to clone to workspace: %v", err))
+					render.Info("Workspace created, but repository clone failed")
+					return
+				}
+				render.Success("Cloned repository to workspace")
+			}
+		}
+
 		render.Success(fmt.Sprintf("Workspace '%s' created successfully", workspaceName))
 		render.Info(fmt.Sprintf("App: %s", appName))
+		if gitRepo != nil {
+			render.Info(fmt.Sprintf("GitRepo: %s (cloned)", repoFlag))
+		}
 		render.Info(fmt.Sprintf("Image:   %s", imageName))
 
 		fmt.Println()
@@ -158,4 +219,5 @@ func init() {
 	createWorkspaceCmd.Flags().StringVar(&workspaceDescription, "description", "", "Workspace description")
 	createWorkspaceCmd.Flags().StringVar(&workspaceImage, "image", "", "Custom image name (default: dvm-<workspace>-<app>:<timestamp>)")
 	createWorkspaceCmd.Flags().StringP("app", "a", "", "App name (defaults to active app)")
+	createWorkspaceCmd.Flags().StringVar(&workspaceRepo, "repo", "", "GitRepo to clone into workspace (see: dvm get gitrepos)")
 }

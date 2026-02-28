@@ -20,6 +20,7 @@ type Workspace struct {
 	Theme              sql.NullString `db:"theme" json:"theme,omitempty" yaml:"theme,omitempty"`
 	NvimStructure      sql.NullString `db:"nvim_structure" json:"nvim_structure,omitempty" yaml:"-"`
 	NvimPlugins        sql.NullString `db:"nvim_plugins" json:"nvim_plugins,omitempty" yaml:"-"` // Comma-separated plugin names
+	GitRepoID          sql.NullInt64  `db:"git_repo_id" json:"git_repo_id,omitempty" yaml:"-"`
 	CreatedAt          time.Time      `db:"created_at" json:"created_at" yaml:"-"`
 	UpdatedAt          time.Time      `db:"updated_at" json:"updated_at" yaml:"-"`
 }

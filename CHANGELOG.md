@@ -11,6 +11,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.20.1] - 2026-02-28
+
+### ✨ Added
+
+#### GitRepo-Workspace Integration
+
+##### Workspace Creation with Git Repository
+- **`--repo` flag for `dvm create workspace`** - Associate a workspace with an existing GitRepo resource
+  - Automatically clones from the local git mirror to the workspace's `repo/` directory
+  - Each workspace gets its own independent clone for isolated development
+  - Workspace receives a dedicated copy from the mirror for complete isolation
+  - Example: `dvm create workspace dev --repo my-project`
+  - **Workflow**: GitRepo mirror → Workspace clone (one-to-many)
+  - **Benefits**: Fast cloning from local mirrors, offline-capable, workspace independence
+
+##### Auto-Sync Control for Attach
+- **`--no-sync` flag for `dvm attach`** - Skip automatic mirror sync before attaching to workspace
+  - **Default behavior**: If workspace has a GitRepoID and the GitRepo has AutoSync=true, the mirror is synced before attach
+  - **With `--no-sync`**: Skips the sync step entirely for faster attach or offline usage
+  - **Sync failures**: Treated as warnings, not fatal errors - attach continues if sync fails
+  - **Use cases**: 
+    - Faster attach when you know mirror is up-to-date
+    - Work offline without attempting remote sync
+    - Bypass transient network issues
+  - Example: `dvm attach --no-sync`
+
+### 🔧 Enhanced
+
+#### GitRepo Mirror Workflow
+- **Complete workspace lifecycle** - GitRepo mirrors now support full workspace integration:
+  1. Create GitRepo: `dvm create gitrepo my-project --url <git-url>`
+  2. Create workspace with repo: `dvm create workspace dev --repo my-project`
+  3. Attach with auto-sync: `dvm attach` (syncs mirror automatically)
+  4. Or attach without sync: `dvm attach --no-sync` (skip sync)
+- **Workspace isolation** - Each workspace has independent git clone from shared mirror
+- **Mirror reuse** - Multiple workspaces can share the same GitRepo mirror as their source
+
+### 📦 Files Changed
+
+#### Modified Files
+```
+cmd/create_workspace.go           # Added --repo flag for GitRepo association
+cmd/attach.go                     # Added --no-sync flag and auto-sync logic
+db/datastore.go                   # Enhanced workspace CRUD with GitRepoID
+db/store.go                       # Updated workspace queries for GitRepoID
+pkg/mirror/git_manager.go         # CloneToWorkspace implementation
+models/workspace.go               # Added GitRepoID field to workspace model
+```
+
+### 🧪 Testing
+
+- **Workspace creation with repo** - Verified workspace gets cloned from mirror
+- **Auto-sync behavior** - Confirmed attach syncs mirror when AutoSync=true
+- **No-sync flag** - Verified --no-sync skips mirror sync before attach
+- **Sync failure handling** - Confirmed sync failures don't prevent attach
+- **Workspace isolation** - Each workspace has independent git clone
+
+---
+
 ## [0.20.0] - 2026-02-28
 
 ### ✨ Added

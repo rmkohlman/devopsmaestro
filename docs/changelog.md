@@ -8,7 +8,43 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.20.1 (2026-02-28)
+
+**🔗 GitRepo-Workspace Integration**
+
+**New Features:**
+
+- **Workspace Creation with GitRepo** - `--repo` flag for `dvm create workspace`
+  - Associate workspaces with existing GitRepo resources
+  - Automatically clones from local mirror to workspace's `repo/` directory
+  - Each workspace gets independent clone for isolated development
+  - Example: `dvm create workspace dev --repo my-project`
+  
+- **Auto-Sync Control** - `--no-sync` flag for `dvm attach`
+  - Skip automatic mirror sync before attaching to workspace
+  - Default: Syncs mirror if GitRepo has AutoSync=true
+  - Use `--no-sync` for faster attach or offline work
+  - Sync failures are warnings, not fatal errors
+  - Example: `dvm attach --no-sync`
+
+**Workflow:**
+```bash
+# 1. Create git mirror
+dvm create gitrepo my-project --url https://github.com/myorg/my-project
+
+# 2. Create workspace with repo
+dvm create workspace dev --repo my-project
+
+# 3. Attach (auto-syncs by default)
+dvm attach
+
+# Or skip sync for faster attach
+dvm attach --no-sync
+```
+
 ### v0.19.0 (2026-02-28)
+
+**🚀 Full Workspace Isolation**
 
 **🚀 Full Workspace Isolation**
 
@@ -256,6 +292,8 @@ See the [full migration guide](https://github.com/rmkohlman/devopsmaestro/blob/m
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **0.20.1** | 2026-02-28 | GitRepo-Workspace integration (--repo flag, --no-sync flag, auto-sync on attach) |
+| **0.20.0** | 2026-02-28 | Git repository mirror management, bare mirrors, MirrorManager package, security validation |
 | **0.19.0** | 2026-02-28 | Full workspace isolation, SSH agent forwarding, security hardening (BREAKING) |
 | **0.18.17** | 2026-02-21 | Docker build context fix for generated config files |
 | **0.17.0** | 2026-02-20 | DVT binary release, TerminalPackages, test gate requirement |

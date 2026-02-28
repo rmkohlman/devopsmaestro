@@ -283,6 +283,8 @@ dvm status           # Full status overview
 - **Object hierarchy** - Ecosystem → Domain → App → Workspace for organized development
 - **Workspace isolation** - Each workspace has dedicated directories (repo, volume, configs)
 - **Git repository mirrors** - Store bare git mirrors locally for faster workspace cloning
+- **GitRepo-Workspace integration** - Associate workspaces with GitRepos for automatic cloning
+- **Auto-sync on attach** - Optionally sync mirrors before attaching (can be skipped with `--no-sync`)
 - **SSH agent forwarding** - Opt-in SSH key access without mounting private keys into containers
 - **Package management** - kubectl-style CRUD operations for NvimPackage resources
 - **Defaults management** - Set default nvim packages for new workspaces
@@ -292,7 +294,7 @@ dvm status           # Full status overview
 - **Multi-platform** - OrbStack, Docker Desktop, Podman, Colima
 - **Container-native** - Isolated dev environments with Neovim pre-configured
 - **Default Nvim setup** - New workspaces auto-configured with lazyvim + "core" plugin package
-- **Database-backed** - SQLite storage for apps, workspaces, plugins
+- **Database-backed** - SQLite storage for apps, workspaces, plugins, git repositories
 - **YAML configuration** - Declarative workspace definitions
 - **Hierarchical theme system** - Themes cascade through the object hierarchy
 
@@ -359,6 +361,7 @@ dvm use project <name>        # Set active project (deprecated)
 
 # Workspaces
 dvm create workspace <name>   # Create workspace
+dvm create workspace <name> --repo <gitrepo-name>  # Create with git repository
 dvm get workspaces            # List workspaces (or: dvm get ws)
 dvm delete workspace <name>   # Delete workspace
 dvm use workspace <name>      # Set active workspace
@@ -392,8 +395,9 @@ dvm apply -f github:user/repo/theme.yaml     # Apply from GitHub
 
 # Build & Runtime
 dvm build                     # Build workspace container
-dvm attach                    # Attach to workspace
+dvm attach                    # Attach to workspace (auto-syncs GitRepo if configured)
 dvm attach --ssh-agent        # Attach with SSH agent forwarding
+dvm attach --no-sync          # Attach without syncing GitRepo mirror
 dvm detach                    # Stop workspace container
 
 # Git Repository Management (v0.20.0+)
@@ -541,14 +545,16 @@ For backward compatibility, `GITHUB_TOKEN` is also checked.
 
 ## Git Repository Mirrors
 
-DevOpsMaestro can create and manage local bare git mirrors for faster workspace cloning.
+DevOpsMaestro can create and manage local bare git mirrors for faster workspace cloning and offline access.
 
 ### Benefits
 
-- **Faster workspace cloning** - Clone from local mirrors instead of GitHub
-- **Offline access** - Work with cached repositories
+- **Faster workspace cloning** - Clone from local mirrors instead of remote repositories
+- **Workspace integration** - Associate workspaces with GitRepos for automatic cloning
+- **Auto-sync on attach** - Optionally sync mirrors before attaching to workspaces
+- **Offline access** - Work with cached repositories without network
 - **URL normalization** - SSH and HTTPS URLs for the same repo map to the same mirror
-- **Auto-sync** - Keep mirrors up-to-date with remotes
+- **One-to-many model** - One mirror can serve multiple workspaces
 
 ### Storage Location
 
@@ -574,6 +580,18 @@ dvm create gitrepo my-private-repo \
 # Create without syncing immediately
 dvm create gitrepo future-repo --url https://github.com/user/repo --no-sync
 
+# Create a workspace associated with a GitRepo
+dvm create workspace dev --repo devopsmaestro
+# → Clones from local mirror to ~/.devopsmaestro/workspaces/{slug}/repo/
+
+# Attach with auto-sync (default if GitRepo.AutoSync=true)
+dvm attach
+# → Syncs mirror before attaching if GitRepo configured
+
+# Attach without syncing mirror
+dvm attach --no-sync
+# → Skip mirror sync for faster attach or offline work
+
 # List all git repositories
 dvm get gitrepos
 dvm get gitrepos -o yaml
@@ -592,6 +610,26 @@ dvm delete gitrepo devopsmaestro
 
 # Delete metadata but keep mirror
 dvm delete gitrepo devopsmaestro --keep-mirror
+```
+
+### Workspace Integration Workflow
+
+```bash
+# 1. Create a git repository mirror
+dvm create gitrepo my-project --url https://github.com/myorg/my-project
+
+# 2. Create a workspace with the repository
+dvm create workspace dev --repo my-project
+# → Clones from local mirror to workspace's repo/ directory
+
+# 3. Attach to workspace (auto-syncs if GitRepo.AutoSync=true)
+dvm attach
+# → Mirror synced before attach (can be skipped with --no-sync)
+
+# 4. Multiple workspaces can share the same mirror
+dvm create workspace staging --repo my-project
+dvm create workspace prod --repo my-project
+# → Each gets independent clone from the same mirror
 ```
 
 ### Authentication Types

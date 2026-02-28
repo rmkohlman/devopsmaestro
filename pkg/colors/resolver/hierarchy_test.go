@@ -388,6 +388,31 @@ func (m *MockDataStore) GetWorkspaceSlug(workspaceID int) (string, error) {
 	return "", sql.ErrNoRows
 }
 
+// GetWorkspaceBySlug retrieves a workspace by its hierarchical slug (mock implementation)
+func (m *MockDataStore) GetWorkspaceBySlug(slug string) (*models.Workspace, error) {
+	if m.getWorkspaceError {
+		return nil, errors.New("mock workspace error")
+	}
+	// Simple mock: iterate through workspaces to find one with matching slug
+	for _, workspace := range m.workspaces {
+		if workspace.Slug == slug {
+			return workspace, nil
+		}
+	}
+	return nil, sql.ErrNoRows
+}
+
+// GetWorkspaceRepoPath returns the path to the workspace's git clone directory (mock implementation)
+func (m *MockDataStore) GetWorkspaceRepoPath(workspaceID int) (string, error) {
+	if m.getWorkspaceError {
+		return "", errors.New("mock workspace error")
+	}
+	if workspace, ok := m.workspaces[workspaceID]; ok {
+		return "/mock/path/" + workspace.Name + "/repo", nil
+	}
+	return "", sql.ErrNoRows
+}
+
 // MockThemeStore implements theme.Store for testing
 type MockThemeStore struct {
 	themes   map[string]*theme.Theme

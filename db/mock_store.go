@@ -77,6 +77,7 @@ type MockDataStore struct {
 	CreateWorkspaceErr                  error
 	GetWorkspaceByNameErr               error
 	GetWorkspaceByIDErr                 error
+	GetWorkspaceBySlugErr               error
 	UpdateWorkspaceErr                  error
 	DeleteWorkspaceErr                  error
 	ListWorkspacesByAppErr              error
@@ -564,6 +565,21 @@ func (m *MockDataStore) GetWorkspaceByID(id int) (*models.Workspace, error) {
 	return nil, fmt.Errorf("workspace not found: %d", id)
 }
 
+func (m *MockDataStore) GetWorkspaceBySlug(slug string) (*models.Workspace, error) {
+	m.recordCall("GetWorkspaceBySlug", slug)
+	if m.GetWorkspaceBySlugErr != nil {
+		return nil, m.GetWorkspaceBySlugErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, ws := range m.Workspaces {
+		if ws.Slug == slug {
+			return ws, nil
+		}
+	}
+	return nil, fmt.Errorf("workspace not found: %s", slug)
+}
+
 func (m *MockDataStore) UpdateWorkspace(workspace *models.Workspace) error {
 	m.recordCall("UpdateWorkspace", workspace)
 	if m.UpdateWorkspaceErr != nil {
@@ -684,6 +700,16 @@ func (m *MockDataStore) GetWorkspacePath(workspaceID int) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("~/.devopsmaestro/workspaces/%s/", slug), nil
+}
+
+// GetWorkspaceRepoPath returns the path to the workspace's git clone directory.
+func (m *MockDataStore) GetWorkspaceRepoPath(workspaceID int) (string, error) {
+	m.recordCall("GetWorkspaceRepoPath", workspaceID)
+	basePath, err := m.GetWorkspacePath(workspaceID)
+	if err != nil {
+		return "", err
+	}
+	return basePath + "repo", nil
 }
 
 // GetWorkspaceSlug returns the slug for a workspace.

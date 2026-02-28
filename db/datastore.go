@@ -90,6 +90,9 @@ type DataStore interface {
 	// GetWorkspaceByID retrieves a workspace by its ID.
 	GetWorkspaceByID(id int) (*models.Workspace, error)
 
+	// GetWorkspaceBySlug retrieves a workspace by its hierarchical slug.
+	GetWorkspaceBySlug(slug string) (*models.Workspace, error)
+
 	// UpdateWorkspace updates an existing workspace.
 	UpdateWorkspace(workspace *models.Workspace) error
 
@@ -110,6 +113,10 @@ type DataStore interface {
 	// GetWorkspacePath returns the filesystem path for a workspace.
 	// Returns: ~/.devopsmaestro/workspaces/{slug}/
 	GetWorkspacePath(workspaceID int) (string, error)
+
+	// GetWorkspaceRepoPath returns the path to the workspace's git clone directory.
+	// Returns: ~/.devopsmaestro/workspaces/{slug}/repo/
+	GetWorkspaceRepoPath(workspaceID int) (string, error)
 
 	// GetWorkspaceSlug returns the slug for a workspace.
 	GetWorkspaceSlug(workspaceID int) (string, error)

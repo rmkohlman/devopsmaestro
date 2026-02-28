@@ -517,6 +517,15 @@ func createIntegrationSchema(driver Driver) error {
 			FOREIGN KEY (ecosystem_id) REFERENCES ecosystems(id),
 			UNIQUE(ecosystem_id, name)
 		)`,
+		`CREATE TABLE IF NOT EXISTS git_repos (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL UNIQUE,
+			url TEXT NOT NULL,
+			clone_type TEXT NOT NULL,
+			description TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
 		`CREATE TABLE IF NOT EXISTS apps (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			domain_id INTEGER NOT NULL,
@@ -526,9 +535,11 @@ func createIntegrationSchema(driver Driver) error {
 			theme TEXT,
 			language TEXT,
 			build_config TEXT,
+			git_repo_id INTEGER,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (domain_id) REFERENCES domains(id),
+			FOREIGN KEY (git_repo_id) REFERENCES git_repos(id) ON DELETE SET NULL,
 			UNIQUE(domain_id, name)
 		)`,
 		`CREATE TABLE IF NOT EXISTS projects (
@@ -552,9 +563,11 @@ func createIntegrationSchema(driver Driver) error {
 			theme TEXT,
 			slug TEXT NOT NULL UNIQUE,
 			ssh_agent_forwarding INTEGER DEFAULT 0,
+			git_repo_id INTEGER,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (app_id) REFERENCES apps(id),
+			FOREIGN KEY (git_repo_id) REFERENCES git_repos(id) ON DELETE SET NULL,
 			UNIQUE(app_id, name)
 		)`,
 		`CREATE TABLE IF NOT EXISTS context (

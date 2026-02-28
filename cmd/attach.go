@@ -6,6 +6,7 @@ import (
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/operators"
+	"devopsmaestro/pkg/mirror"
 	"devopsmaestro/pkg/nvimops/theme/library"
 	"devopsmaestro/pkg/resolver"
 	"devopsmaestro/render"
@@ -32,6 +33,9 @@ The workspace provides your complete dev environment with:
 - oh-my-zsh + Powerlevel10k theme
 - Your app files mounted at /workspace
 
+If the workspace is associated with a GitRepo, the mirror is synced
+automatically before attach unless --no-sync is specified.
+
 Press Ctrl+D to detach from the workspace.
 
 Flags:
@@ -39,9 +43,11 @@ Flags:
   -d, --domain      Filter by domain name  
   -a, --app         Filter by app name
   -w, --workspace   Filter by workspace name
+      --no-sync     Skip syncing git mirror before attach
 
 Examples:
-  dvm attach                           # Use current context
+  dvm attach                           # Use current context, sync mirror
+  dvm attach --no-sync                 # Use current context, skip sync
   dvm attach -a portal                 # Attach to workspace in 'portal' app
   dvm attach -e healthcare -a portal   # Specify ecosystem and app
   dvm attach -a portal -w staging      # Specify app and workspace name`,
@@ -144,6 +150,26 @@ func runAttach(cmd *cobra.Command) error {
 	render.Info(fmt.Sprintf("App: %s | Workspace: %s", appName, workspaceName))
 
 	slog.Debug("resolved workspace", "image", workspace.ImageName, "app_path", app.Path)
+
+	// Sync git mirror if workspace has git_repo_id (unless --no-sync)
+	noSync, _ := cmd.Flags().GetBool("no-sync")
+	if workspace.GitRepoID.Valid && !noSync {
+		gitRepo, err := ds.GetGitRepoByID(workspace.GitRepoID.Int64)
+		if err == nil && gitRepo.AutoSync {
+			render.Progress(fmt.Sprintf("Syncing mirror '%s'...", gitRepo.Name))
+			baseDir := getGitRepoBaseDir()
+			mirrorMgr := mirror.NewGitMirrorManager(baseDir)
+			if err := mirrorMgr.Sync(gitRepo.Slug); err != nil {
+				slog.Warn("failed to sync mirror", "repo", gitRepo.Name, "error", err)
+				render.Warning(fmt.Sprintf("Mirror sync failed: %v", err))
+				// Continue with attach - don't fail
+			} else {
+				render.Success("Mirror up to date")
+			}
+		}
+	} else if workspace.GitRepoID.Valid && noSync {
+		render.Info("Skipping mirror sync (--no-sync)")
+	}
 
 	// Create container runtime using factory
 	runtime, err := operators.NewContainerRuntime()
@@ -300,4 +326,5 @@ func loadThemeEnvVars(themeName string) (map[string]string, error) {
 func init() {
 	rootCmd.AddCommand(attachCmd)
 	AddHierarchyFlags(attachCmd, &attachFlags)
+	attachCmd.Flags().Bool("no-sync", false, "Skip syncing git mirror before attach")
 }

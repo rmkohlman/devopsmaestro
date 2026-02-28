@@ -65,9 +65,11 @@ func createTestSchema(driver Driver) error {
 			theme TEXT,
 			language TEXT,
 			build_config TEXT,
+			git_repo_id INTEGER,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (domain_id) REFERENCES domains(id),
+			FOREIGN KEY (git_repo_id) REFERENCES git_repos(id) ON DELETE SET NULL,
 			UNIQUE(domain_id, name)
 		)`,
 		`CREATE TABLE IF NOT EXISTS projects (
@@ -91,9 +93,11 @@ func createTestSchema(driver Driver) error {
 			theme TEXT,
 			slug TEXT NOT NULL UNIQUE,
 			ssh_agent_forwarding INTEGER DEFAULT 0,
+			git_repo_id INTEGER,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (app_id) REFERENCES apps(id),
+			FOREIGN KEY (git_repo_id) REFERENCES git_repos(id) ON DELETE SET NULL,
 			UNIQUE(app_id, name)
 		)`,
 		`CREATE TABLE IF NOT EXISTS context (
@@ -2094,9 +2098,11 @@ func TestSQLDataStore_MigrationSchema_AppsTableHasLanguageAndBuildConfig(t *test
 			theme TEXT,
 			language TEXT,
 			build_config TEXT,
+			git_repo_id INTEGER,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE,
+			FOREIGN KEY (git_repo_id) REFERENCES git_repos(id) ON DELETE SET NULL,
 			UNIQUE(domain_id, name)
 		);
 	`
