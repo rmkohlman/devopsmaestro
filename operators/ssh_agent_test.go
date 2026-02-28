@@ -125,6 +125,11 @@ func TestSSHAgentSocketPath(t *testing.T) {
 				t.Skipf("Test requires %s, running on %s", tt.platform, runtime.GOOS)
 			}
 
+			// Skip if test needs SSH agent and it's not available (CI environment)
+			if tt.checkEnv && os.Getenv("SSH_AUTH_SOCK") == "" {
+				t.Skip("SSH agent not available (CI environment)")
+			}
+
 			// FIXME: This test will FAIL - GetSSHAgentSocketPath() doesn't exist yet
 			// After Phase 3, container runtime should have:
 			// func GetSSHAgentSocketPath(runtimeType string) (string, error)
@@ -319,6 +324,15 @@ func TestSSHAgentPlatformSpecific(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if runtime.GOOS != tt.platform {
 				t.Skipf("Test requires %s, running on %s", tt.platform, runtime.GOOS)
+			}
+
+			// Skip if SSH agent is not available (CI environment)
+			// This is needed for Linux/Colima tests that require SSH_AUTH_SOCK
+			if tt.platform == "linux" && os.Getenv("SSH_AUTH_SOCK") == "" {
+				t.Skip("SSH agent not available (CI environment)")
+			}
+			if tt.runtime == "colima" && os.Getenv("SSH_AUTH_SOCK") == "" {
+				t.Skip("SSH agent not available (CI environment)")
 			}
 
 			// FIXME: This test will FAIL - GetSSHAgentMountPath() doesn't exist yet
