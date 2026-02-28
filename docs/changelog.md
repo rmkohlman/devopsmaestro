@@ -8,6 +8,15 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.18.25 (2026-02-28)
+
+**Fix Coolnight Theme Git Clone Errors**
+
+- Fixed git clone failures for all 21 coolnight parametric themes by converting them to standalone mode
+- Coolnight themes no longer require cloning external `rmkohlman/coolnight.nvim` repo (which doesn't exist)
+- Standalone themes apply colors directly via `nvim_set_hl()` for better reliability
+- **Breaking change**: Existing workspaces using coolnight themes need `dvm build` to regenerate config
+
 ### v0.18.24 (2026-02-23)
 
 **Hierarchical Container Naming & Starship Theme Colors**

@@ -11,6 +11,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.18.25] - 2026-02-28
+
+### 🐛 Fixed
+
+#### Coolnight Theme Git Clone Error
+- **Fixed git clone failures for coolnight themes** - All 21 coolnight parametric themes are now standalone themes that don't require cloning an external plugin repo
+  - **Root cause**: `rmkohlman/coolnight.nvim` repository referenced in theme configs doesn't exist
+  - **Solution**: Convert all coolnight themes to standalone mode - apply colors directly via `nvim_set_hl()`
+  - **Files changed**:
+    - `pkg/nvimops/theme/parametric/generator.go` - Removed hardcoded `rmkohlman/coolnight.nvim` repo from generator
+    - All 21 coolnight theme YAML files - Updated to use `repo: ""` (standalone mode)
+    - `pkg/resource/handlers/nvim_theme_test.go` - Updated tests to handle standalone library themes
+  - **Breaking change**: Users with existing workspaces using coolnight themes will need to rebuild their nvim config (`dvm build`) to get the standalone colorscheme files generated
+
+---
+
 ## [0.18.24] - 2026-02-23
 
 ### ✨ Added
