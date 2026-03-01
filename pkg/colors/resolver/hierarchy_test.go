@@ -380,6 +380,19 @@ func (m *MockDataStore) UpdateGitRepo(repo *models.GitRepoDB) error { return nil
 func (m *MockDataStore) DeleteGitRepo(name string) error            { return nil }
 func (m *MockDataStore) ListGitRepos() ([]models.GitRepoDB, error)  { return nil, nil }
 
+// Registry History Operations (stub implementations - these tests don't use registry history)
+func (m *MockDataStore) CreateRegistryHistory(history *models.RegistryHistory) error { return nil }
+func (m *MockDataStore) GetRegistryHistory(registryID int, revision int) (*models.RegistryHistory, error) {
+	return nil, nil
+}
+func (m *MockDataStore) GetLatestRegistryHistory(registryID int) (*models.RegistryHistory, error) {
+	return nil, nil
+}
+func (m *MockDataStore) ListRegistryHistory(registryID int) ([]*models.RegistryHistory, error) {
+	return nil, nil
+}
+func (m *MockDataStore) GetNextRevisionNumber(registryID int) (int, error) { return 0, nil }
+
 // GenerateWorkspaceSlug generates a slug for a workspace (mock implementation)
 func (m *MockDataStore) GenerateWorkspaceSlug(ecosystemName, domainName, appName, workspaceName string) string {
 	return ecosystemName + "-" + domainName + "-" + appName + "-" + workspaceName
