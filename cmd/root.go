@@ -29,7 +29,7 @@ create, manage, and deploy workspaces, apps, dependencies, and more.`,
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
-func Execute(database *db.Database, dataStore *db.DataStore, executor *Executor, migrationsFS fs.FS) {
+func Execute(dataStore *db.DataStore, executor *Executor, migrationsFS fs.FS) {
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
 		// Initialize logging
 		initLogging()
@@ -44,8 +44,7 @@ func Execute(database *db.Database, dataStore *db.DataStore, executor *Executor,
 			slog.Warn("using default colors", "error", err)
 		}
 
-		// Set the database, dataStore, and executor for all commands
-		ctx = context.WithValue(ctx, "database", database)
+		// Set the dataStore and executor for all commands
 		ctx = context.WithValue(ctx, "dataStore", dataStore)
 		ctx = context.WithValue(ctx, "executor", executor)
 		ctx = context.WithValue(ctx, "migrationsFS", migrationsFS)

@@ -179,18 +179,11 @@ func init() {
 			// Setup database configuration
 			setupDatabaseConfig()
 
-			// Initialize database connection
-			dbInstance, err := db.InitializeDBConnection()
+			// Create DataStore instance
+			dataStore, err := db.CreateDataStore()
 			if err != nil {
 				slog.Warn("Failed to initialize database (using file-based storage)", "error", err)
 				return // Continue without database - nvp can work with file-based storage
-			}
-
-			// Create DataStore instance
-			dataStore, err := db.StoreFactory(dbInstance)
-			if err != nil {
-				slog.Warn("Failed to create DataStore (using file-based storage)", "error", err)
-				return // Continue without database
 			}
 
 			// Set the dataStore in context for resource operations

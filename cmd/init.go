@@ -82,10 +82,17 @@ templates:
 
 		// Initialize database
 		ctx := cmd.Context()
-		database := ctx.Value("database").(*db.Database)
-		if database == nil {
-			slog.Error("database not initialized in context")
-			fmt.Println("Error: Database not initialized")
+		dataStore := ctx.Value("dataStore").(*db.DataStore)
+		if dataStore == nil || *dataStore == nil {
+			slog.Error("dataStore not initialized in context")
+			fmt.Println("Error: DataStore not initialized")
+			return
+		}
+
+		driver := (*dataStore).Driver()
+		if driver == nil {
+			slog.Error("driver not available from dataStore")
+			fmt.Println("Error: Database driver not available")
 			return
 		}
 
@@ -99,9 +106,9 @@ templates:
 
 		fmt.Println("Running database migrations...")
 		slog.Debug("running database migrations")
-		if err := db.InitializeDatabase(*database, migrationsFS); err != nil {
-			slog.Error("failed to initialize database", "error", err)
-			fmt.Printf("Error: Failed to initialize database: %v\n", err)
+		if err := db.RunMigrations(driver, migrationsFS); err != nil {
+			slog.Error("failed to run database migrations", "error", err)
+			fmt.Printf("Error: Failed to run database migrations: %v\n", err)
 			return
 		}
 		slog.Info("database migrations completed")

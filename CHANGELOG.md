@@ -11,6 +11,93 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.23.0] - 2026-02-28
+
+### 🧹 Removed
+
+#### Deprecated Commands and Documentation
+- **`proj` alias** - Removed from README.md (deprecated since v0.8.0)
+- **Deprecated project commands section** - Removed from README.md
+- **`docs/dvm/projects.md`** - Removed deprecated project documentation file
+
+#### Legacy Database Interfaces
+- **`Database` interface** - Replaced by `Driver` interface
+- **`InitializeDBConnection()`** - Replaced by `InitializeDriver()`
+- **`InitializeDatabase()`** - Replaced by `RunMigrations()`
+- **`SnapshotDatabase()`** - Removed (not used)
+- **`BackupDatabase()`** - Removed (not used)
+
+#### Legacy Factory Functions
+- **`DatabaseCreator` type** - Replaced by `DriverCreator`
+- **`StoreCreator` type** - Not needed
+- **`RegisterDatabase()`** - Replaced by `RegisterDriver()`
+- **`RegisterStore()`** - Not needed
+- **`DatabaseFactory()`** - Replaced by `DriverFactory()`
+- **`StoreFactory()`** - Replaced by `CreateDataStore()`
+
+#### Legacy Command Files
+- **`cmd/backup.go`** - Empty backup command removed
+- **`cmd/snapshot.go`** - Empty snapshot command removed
+
+#### Legacy Database Implementation Files
+- **`db/sqlite.go`** - Legacy SQLite Database implementation removed
+- **`db/postgres.go`** - Legacy PostgreSQL Database implementation removed
+- **`db/mock_driver.go`** - MockDB struct removed (MockDriver kept)
+
+#### Test Cleanup
+- **Orphaned `projects` table** - Removed from test schema in `db/store_test.go`
+- **`active_project_id` field** - Removed from context table in tests
+- **`main_test.go`** - Fixed to use new DataStore-only interface
+
+### 🔄 Refactored
+
+#### Core Initialization
+- **`main.go`** - Simplified to use `CreateDataStore()` only
+- **`cmd/executor.go`** - Removed Database field from Executor
+- **`cmd/root.go`** - Simplified context to DataStore only
+- **`cmd/init.go`** - Use Driver from DataStore instead of direct Database
+- **`cmd/migrate.go`** - Use Driver from DataStore, removed backup/snapshot flags
+
+#### Sub-Tool Initialization
+- **`cmd/dvt/root.go`** - Simplified initialization to DataStore-only
+- **`cmd/nvp/root.go`** - Simplified initialization to DataStore-only
+
+### 📦 Files Changed
+
+#### Removed Files
+```
+cmd/backup.go                                # Empty backup command
+cmd/snapshot.go                              # Empty snapshot command
+db/sqlite.go                                 # Legacy SQLite Database implementation
+db/postgres.go                               # Legacy PostgreSQL Database implementation
+db/mock_driver.go                            # MockDB struct (MockDriver kept)
+docs/dvm/projects.md                         # Deprecated project documentation
+```
+
+#### Modified Files
+```
+main.go                                      # Simplified to CreateDataStore() only
+cmd/executor.go                              # Removed Database field
+cmd/root.go                                  # Simplified context to DataStore only
+cmd/init.go                                  # Use Driver from DataStore
+cmd/migrate.go                               # Use Driver from DataStore, removed flags
+cmd/dvt/root.go                              # Simplified initialization
+cmd/nvp/root.go                              # Simplified initialization
+db/store_test.go                             # Removed orphaned projects table
+main_test.go                                 # Fixed DataStore-only interface
+README.md                                    # Removed proj alias and deprecated sections
+```
+
+### ✨ Impact
+
+This cleanup removes all legacy code and interfaces that were deprecated or unused:
+- **No breaking changes for end users** - All user-facing commands work the same
+- **Cleaner codebase** - Removed ~1500 lines of dead code and legacy interfaces
+- **Single source of truth** - DataStore is now the only database interface
+- **Improved maintainability** - Fewer code paths to test and maintain
+
+---
+
 ## [0.22.0] - 2026-02-28
 
 ### ✨ Added

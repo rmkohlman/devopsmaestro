@@ -19,9 +19,9 @@ var (
 	Commit    = "unknown"
 )
 
-func run(dbInstance db.Database, dataStoreInstance db.DataStore, executor cmd.Executor, migrationsFS fs.FS) int {
+func run(dataStoreInstance db.DataStore, executor cmd.Executor, migrationsFS fs.FS) int {
 	// Execute the root command of the CLI tool
-	cmd.Execute(&dbInstance, &dataStoreInstance, &executor, migrationsFS)
+	cmd.Execute(&dataStoreInstance, &executor, migrationsFS)
 
 	return 0
 }
@@ -83,15 +83,14 @@ func main() {
 		viper.Set("store", "sql")
 	}
 
-	var dbInstance db.Database
 	var dataStoreInstance db.DataStore
 	var executor cmd.Executor
 
 	// Only initialize database for commands that need it
 	if !skipDB {
-		// Initialize the database connection
+		// Initialize the database connection and DataStore
 		var err error
-		dbInstance, err = db.InitializeDBConnection()
+		dataStoreInstance, err = db.CreateDataStore()
 		if err != nil {
 			fmt.Printf("Failed to initialize database: %v\n", err)
 			os.Exit(1)
@@ -99,21 +98,14 @@ func main() {
 
 		// Ensure the database connection is closed when the program exits
 		defer func() {
-			if dbInstance != nil {
-				if err := dbInstance.Close(); err != nil {
+			if dataStoreInstance != nil {
+				if err := dataStoreInstance.Close(); err != nil {
 					fmt.Printf("Failed to close database connection: %v\n", err)
 				}
 			}
 		}()
 
-		// Create an instance of DataStore
-		dataStoreInstance, err = db.StoreFactory(dbInstance)
-		if err != nil {
-			fmt.Printf("Failed to create DataStore instance: %v\n", err)
-			os.Exit(1)
-		}
-
-		executor = cmd.NewExecutor(dataStoreInstance, dbInstance)
+		executor = cmd.NewExecutor(dataStoreInstance)
 	}
 
 	// Get migrations subdirectory from embedded filesystem
@@ -123,5 +115,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	os.Exit(run(dbInstance, dataStoreInstance, executor, migrationsSubFS))
+	os.Exit(run(dataStoreInstance, executor, migrationsSubFS))
 }

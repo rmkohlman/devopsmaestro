@@ -72,14 +72,6 @@ func createTestSchema(driver Driver) error {
 			FOREIGN KEY (git_repo_id) REFERENCES git_repos(id) ON DELETE SET NULL,
 			UNIQUE(domain_id, name)
 		)`,
-		`CREATE TABLE IF NOT EXISTS projects (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			name TEXT NOT NULL UNIQUE,
-			path TEXT,
-			description TEXT,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-		)`,
 		`CREATE TABLE IF NOT EXISTS workspaces (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			app_id INTEGER NOT NULL,
@@ -106,13 +98,11 @@ func createTestSchema(driver Driver) error {
 			active_domain_id INTEGER,
 			active_app_id INTEGER,
 			active_workspace_id INTEGER,
-			active_project_id INTEGER,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (active_ecosystem_id) REFERENCES ecosystems(id),
 			FOREIGN KEY (active_domain_id) REFERENCES domains(id),
 			FOREIGN KEY (active_app_id) REFERENCES apps(id),
-			FOREIGN KEY (active_workspace_id) REFERENCES workspaces(id),
-			FOREIGN KEY (active_project_id) REFERENCES projects(id)
+			FOREIGN KEY (active_workspace_id) REFERENCES workspaces(id)
 		)`,
 		`CREATE TABLE IF NOT EXISTS nvim_plugins (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -43,8 +43,6 @@ CREATE TABLE IF NOT EXISTS projects (
 
 // TestRun tests the run function with mock dependencies
 func TestRun(t *testing.T) {
-	// Create a mock instance of the Database (legacy interface)
-	mockDB := db.NewMockDB()
 	// Create a mock instance of the DataStore
 	mockDS := db.NewMockDataStore()
 	// Create a mock instance of the Executor
@@ -53,7 +51,7 @@ func TestRun(t *testing.T) {
 	// Call the run function with the mock instances
 	// Note: run() calls cmd.Execute which will parse args and run commands
 	// Since we're testing with no args, it should just show help
-	exitCode := run(mockDB, mockDS, mockExecutor, testMigrationsFS())
+	exitCode := run(mockDS, mockExecutor, testMigrationsFS())
 
 	// run should return 0 for success
 	assert.Equal(t, 0, exitCode)

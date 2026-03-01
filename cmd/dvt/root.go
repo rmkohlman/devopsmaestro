@@ -133,17 +133,10 @@ func init() {
 			// Setup database configuration
 			setupDatabaseConfig()
 
-			// Initialize database connection
-			dbInstance, err := db.InitializeDBConnection()
+			// Create DataStore instance
+			dataStore, err := db.CreateDataStore()
 			if err != nil {
 				slog.Error("Failed to initialize database", "error", err)
-				os.Exit(1)
-			}
-
-			// Create DataStore instance
-			dataStore, err := db.StoreFactory(dbInstance)
-			if err != nil {
-				slog.Error("Failed to create DataStore", "error", err)
 				os.Exit(1)
 			}
 

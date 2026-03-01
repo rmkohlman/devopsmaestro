@@ -14,7 +14,6 @@ type Executor interface {
 
 type DefaultExecutor struct {
 	DataStore db.DataStore
-	Database  db.Database
 }
 
 func (e *DefaultExecutor) Execute(ctx context.Context) error {
@@ -30,10 +29,9 @@ func (e *DefaultExecutor) Execute(ctx context.Context) error {
 	return nil
 }
 
-func NewExecutor(dataStore db.DataStore, dbInstance db.Database) Executor {
+func NewExecutor(dataStore db.DataStore) Executor {
 	return &DefaultExecutor{
 		DataStore: dataStore,
-		Database:  dbInstance,
 	}
 }
 

@@ -334,7 +334,6 @@ kubectl-style short aliases for faster commands:
 | plugins | `np` | `dvm lib ls np` |
 | themes | `nt` | `dvm lib ls nt` |
 | terminal prompts | `tp` | `dvm lib ls tp` |
-| projects | `proj` | `dvm get proj` *(deprecated)* |
 
 ### dvm Commands
 
@@ -358,11 +357,6 @@ dvm create app <name>         # Create app
 dvm get apps                  # List apps
 dvm delete app <name>         # Delete app
 dvm use app <name>            # Set active app
-
-# Projects (DEPRECATED - use Apps)
-dvm create project <name>     # Create project (deprecated)
-dvm get projects              # List projects (deprecated)
-dvm use project <name>        # Set active project (deprecated)
 
 # Workspaces
 dvm create workspace <name>   # Create workspace
