@@ -376,6 +376,91 @@ func (f *TestFramework) GetDatabasePath() string {
 	return f.DBPath
 }
 
+// RunDVMWithExitCode executes a dvm command and returns the exit code along with
+// stdout and stderr. This is useful for testing that commands return proper exit codes.
+//
+// Example:
+//
+//	exitCode, stdout, stderr := f.RunDVMWithExitCode("get", "ecosystem", "nonexistent")
+//	assert.Equal(t, 1, exitCode)
+func (f *TestFramework) RunDVMWithExitCode(args ...string) (exitCode int, stdout, stderr string) {
+	f.t.Helper()
+
+	// Auto-add --force to "delete workspace" commands to skip confirmation prompts
+	if len(args) >= 2 && args[0] == "delete" && args[1] == "workspace" {
+		hasForce := false
+		for _, arg := range args {
+			if arg == "--force" || arg == "-f" {
+				hasForce = true
+				break
+			}
+		}
+		if !hasForce {
+			args = append(args, "--force")
+		}
+	}
+
+	cmd := exec.Command(f.BinaryPath, args...)
+
+	// Set environment to use test database and home
+	cmd.Env = []string{
+		fmt.Sprintf("HOME=%s", f.HomeDir),
+		fmt.Sprintf("DVM_DB_PATH=%s", f.DBPath),
+		"PATH=" + os.Getenv("PATH"),
+	}
+
+	var stdoutBuf, stderrBuf strings.Builder
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+
+	err := cmd.Run()
+	exitCode = 0
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		} else {
+			// Non-exit error (e.g., binary not found)
+			exitCode = -1
+		}
+	}
+
+	return exitCode, stdoutBuf.String(), stderrBuf.String()
+}
+
+// AssertExitCode executes a command and asserts that it returns the expected exit code.
+//
+// Example:
+//
+//	f.AssertExitCode(t, 0, "get", "ecosystems")        // success
+//	f.AssertExitCode(t, 1, "get", "workspace", "none") // error
+func (f *TestFramework) AssertExitCode(t *testing.T, expectedCode int, args ...string) {
+	t.Helper()
+
+	exitCode, stdout, stderr := f.RunDVMWithExitCode(args...)
+	if exitCode != expectedCode {
+		t.Fatalf("Exit code mismatch\nExpected: %d\nActual: %d\nArgs: %v\nStdout: %s\nStderr: %s",
+			expectedCode, exitCode, args, stdout, stderr)
+	}
+}
+
+// AssertExitCodeWithOutput executes a command, asserts the exit code, and returns output.
+// This is useful when you need to verify both exit code and output content.
+//
+// Example:
+//
+//	stdout, stderr := f.AssertExitCodeWithOutput(t, 1, "create", "ecosystem", "")
+//	assert.Contains(t, stderr, "cannot be empty")
+func (f *TestFramework) AssertExitCodeWithOutput(t *testing.T, expectedCode int, args ...string) (stdout, stderr string) {
+	t.Helper()
+
+	exitCode, stdout, stderr := f.RunDVMWithExitCode(args...)
+	if exitCode != expectedCode {
+		t.Fatalf("Exit code mismatch\nExpected: %d\nActual: %d\nArgs: %v\nStdout: %s\nStderr: %s",
+			expectedCode, exitCode, args, stdout, stderr)
+	}
+	return stdout, stderr
+}
+
 // buildBinary compiles the dvm binary to the specified path.
 // It uses go build with appropriate flags for testing.
 func buildBinary(outputPath string) error {
