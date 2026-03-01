@@ -446,3 +446,322 @@ func TestRegistry_ConfigJSON(t *testing.T) {
 		})
 	}
 }
+
+// =============================================================================
+// Registry New Fields Tests (TDD Phase 2 - RED)
+// =============================================================================
+
+func TestRegistry_NewFields(t *testing.T) {
+	tests := []struct {
+		name        string
+		enabled     bool
+		storage     string
+		idleTimeout int
+		wantEnabled bool
+		wantStorage string
+		wantIdle    int
+	}{
+		{
+			name:        "all fields set to non-zero values",
+			enabled:     true,
+			storage:     "/custom/storage",
+			idleTimeout: 3600,
+			wantEnabled: true,
+			wantStorage: "/custom/storage",
+			wantIdle:    3600,
+		},
+		{
+			name:        "enabled false explicitly",
+			enabled:     false,
+			storage:     "/data",
+			idleTimeout: 1800,
+			wantEnabled: false,
+			wantStorage: "/data",
+			wantIdle:    1800,
+		},
+		{
+			name:        "zero values",
+			enabled:     false,
+			storage:     "",
+			idleTimeout: 0,
+			wantEnabled: false,
+			wantStorage: "",
+			wantIdle:    0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reg := &Registry{
+				Name:        "test-reg",
+				Type:        "zot",
+				Port:        5000,
+				Enabled:     tt.enabled,
+				Storage:     tt.storage,
+				IdleTimeout: tt.idleTimeout,
+			}
+
+			assert.Equal(t, tt.wantEnabled, reg.Enabled)
+			assert.Equal(t, tt.wantStorage, reg.Storage)
+			assert.Equal(t, tt.wantIdle, reg.IdleTimeout)
+		})
+	}
+}
+
+func TestRegistry_IsOnDemand(t *testing.T) {
+	tests := []struct {
+		name      string
+		lifecycle string
+		want      bool
+	}{
+		{
+			name:      "on-demand lifecycle",
+			lifecycle: "on-demand",
+			want:      true,
+		},
+		{
+			name:      "persistent lifecycle",
+			lifecycle: "persistent",
+			want:      false,
+		},
+		{
+			name:      "manual lifecycle",
+			lifecycle: "manual",
+			want:      false,
+		},
+		{
+			name:      "empty lifecycle",
+			lifecycle: "",
+			want:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reg := &Registry{
+				Name:      "test-reg",
+				Type:      "zot",
+				Lifecycle: tt.lifecycle,
+			}
+
+			got := reg.IsOnDemand()
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestRegistry_ShouldStopAfterIdle(t *testing.T) {
+	tests := []struct {
+		name        string
+		lifecycle   string
+		idleTimeout int
+		want        bool
+	}{
+		{
+			name:        "on-demand with positive timeout",
+			lifecycle:   "on-demand",
+			idleTimeout: 1800,
+			want:        true,
+		},
+		{
+			name:        "on-demand with zero timeout",
+			lifecycle:   "on-demand",
+			idleTimeout: 0,
+			want:        false,
+		},
+		{
+			name:        "persistent with positive timeout",
+			lifecycle:   "persistent",
+			idleTimeout: 1800,
+			want:        false,
+		},
+		{
+			name:        "manual with positive timeout",
+			lifecycle:   "manual",
+			idleTimeout: 1800,
+			want:        false,
+		},
+		{
+			name:        "on-demand with negative timeout",
+			lifecycle:   "on-demand",
+			idleTimeout: -1,
+			want:        false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reg := &Registry{
+				Name:        "test-reg",
+				Type:        "zot",
+				Lifecycle:   tt.lifecycle,
+				IdleTimeout: tt.idleTimeout,
+			}
+
+			got := reg.ShouldStopAfterIdle()
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestRegistry_GetIdleTimeoutDuration(t *testing.T) {
+	tests := []struct {
+		name        string
+		idleTimeout int
+		wantSeconds int
+	}{
+		{
+			name:        "zero timeout",
+			idleTimeout: 0,
+			wantSeconds: 0,
+		},
+		{
+			name:        "60 seconds",
+			idleTimeout: 60,
+			wantSeconds: 60,
+		},
+		{
+			name:        "1800 seconds (30 minutes)",
+			idleTimeout: 1800,
+			wantSeconds: 1800,
+		},
+		{
+			name:        "3600 seconds (1 hour)",
+			idleTimeout: 3600,
+			wantSeconds: 3600,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reg := &Registry{
+				Name:        "test-reg",
+				Type:        "zot",
+				IdleTimeout: tt.idleTimeout,
+			}
+
+			got := reg.GetIdleTimeoutDuration()
+			assert.Equal(t, tt.wantSeconds, int(got.Seconds()))
+		})
+	}
+}
+
+func TestRegistry_ApplyDefaults(t *testing.T) {
+	tests := []struct {
+		name            string
+		registry        Registry
+		wantPort        int
+		wantStorage     string
+		wantIdleTimeout int
+	}{
+		{
+			name: "zot with zero port",
+			registry: Registry{
+				Name: "zot-reg",
+				Type: "zot",
+				Port: 0,
+			},
+			wantPort:        5000,
+			wantStorage:     "/var/lib/zot",
+			wantIdleTimeout: 0, // Not on-demand, no default timeout
+		},
+		{
+			name: "athens with explicit port",
+			registry: Registry{
+				Name: "athens-reg",
+				Type: "athens",
+				Port: 9000,
+			},
+			wantPort:        9000, // Should keep explicit port
+			wantStorage:     "/var/lib/athens",
+			wantIdleTimeout: 0,
+		},
+		{
+			name: "devpi with empty storage",
+			registry: Registry{
+				Name:    "devpi-reg",
+				Type:    "devpi",
+				Port:    3141,
+				Storage: "",
+			},
+			wantPort:        3141,
+			wantStorage:     "/var/lib/devpi",
+			wantIdleTimeout: 0,
+		},
+		{
+			name: "verdaccio with explicit storage",
+			registry: Registry{
+				Name:    "verdaccio-reg",
+				Type:    "verdaccio",
+				Port:    4873,
+				Storage: "/custom/storage",
+			},
+			wantPort:        4873,
+			wantStorage:     "/custom/storage", // Should keep explicit storage
+			wantIdleTimeout: 0,
+		},
+		{
+			name: "on-demand zot with zero timeout",
+			registry: Registry{
+				Name:        "zot-ondemand",
+				Type:        "zot",
+				Port:        0,
+				Lifecycle:   "on-demand",
+				IdleTimeout: 0,
+			},
+			wantPort:        5000,
+			wantStorage:     "/var/lib/zot",
+			wantIdleTimeout: 1800, // Should set default timeout for on-demand
+		},
+		{
+			name: "on-demand athens with explicit timeout",
+			registry: Registry{
+				Name:        "athens-ondemand",
+				Type:        "athens",
+				Port:        3000,
+				Lifecycle:   "on-demand",
+				IdleTimeout: 3600,
+			},
+			wantPort:        3000,
+			wantStorage:     "/var/lib/athens",
+			wantIdleTimeout: 3600, // Should keep explicit timeout
+		},
+		{
+			name: "persistent registry should not set timeout",
+			registry: Registry{
+				Name:        "zot-persistent",
+				Type:        "zot",
+				Port:        5000,
+				Lifecycle:   "persistent",
+				IdleTimeout: 0,
+			},
+			wantPort:        5000,
+			wantStorage:     "/var/lib/zot",
+			wantIdleTimeout: 0, // Should NOT set timeout for persistent
+		},
+		{
+			name: "squid with all defaults",
+			registry: Registry{
+				Name:      "squid-reg",
+				Type:      "squid",
+				Port:      0,
+				Storage:   "",
+				Lifecycle: "manual",
+			},
+			wantPort:        3128,
+			wantStorage:     "/var/cache/squid",
+			wantIdleTimeout: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reg := tt.registry
+			reg.ApplyDefaults()
+
+			assert.Equal(t, tt.wantPort, reg.Port, "Port mismatch")
+			assert.Equal(t, tt.wantStorage, reg.Storage, "Storage mismatch")
+			assert.Equal(t, tt.wantIdleTimeout, reg.IdleTimeout, "IdleTimeout mismatch")
+		})
+	}
+}

@@ -423,10 +423,16 @@ dvm create registry <name> --type <type> --port <port>  # Create registry resour
 dvm get registries            # List all registry resources
 dvm get registry <name>       # Show specific registry
 dvm delete registry <name>    # Delete registry resource
-dvm registry start <name>     # Start registry (name required)
-dvm registry stop <name>      # Stop registry (name required)
-dvm registry status           # List all registries
-dvm registry status <name>    # Show specific registry status
+
+# Registry Lifecycle (v0.25.0+)
+dvm start registry <name>     # Start registry
+dvm stop registry <name>      # Stop registry
+
+# Registry Rollout Commands (v0.25.0+)
+dvm rollout restart registry <name>  # Restart registry
+dvm rollout status registry <name>   # Show rollout status
+dvm rollout history registry <name>  # Show rollout history
+dvm rollout undo registry <name>     # Rollback (not yet implemented)
 
 # Git Repository Management (v0.20.0+)
 dvm create gitrepo <name> --url <git-url>         # Create git repository mirror
@@ -710,19 +716,22 @@ DevOpsMaestro provides a flexible registry system supporting multiple registry t
 dvm create registry myregistry --type zot --port 5000
 
 # Start the registry
-dvm registry start myregistry
+dvm start registry myregistry
 
-# Check status of all registries
-dvm registry status
-
-# Check specific registry status
-dvm registry status myregistry
+# Check rollout status
+dvm rollout status registry myregistry
 
 # Build with caching (default behavior)
 dvm build
 
+# Restart the registry (stop + start)
+dvm rollout restart registry myregistry
+
+# View rollout history
+dvm rollout history registry myregistry
+
 # Stop the registry
-dvm registry stop myregistry
+dvm stop registry myregistry
 
 # List all registry resources
 dvm get registries
@@ -774,16 +783,19 @@ For Zot registries:
 
 ```bash
 # Start a registry
-dvm registry start myregistry
+dvm start registry myregistry
 
 # Stop a registry
-dvm registry stop myregistry
+dvm stop registry myregistry
 
-# Check status of all registries
-dvm registry status
+# Restart a registry (kubectl-style rollout)
+dvm rollout restart registry myregistry
 
-# Check specific registry status
-dvm registry status myregistry
+# Check rollout status
+dvm rollout status registry myregistry
+
+# View rollout history
+dvm rollout history registry myregistry
 ```
 
 ### Build Integration
@@ -815,15 +827,17 @@ dvm create registry gomodules --type athens --port 3000
 dvm create registry pypi --type devpi --port 4000
 
 # Start them all
-dvm registry start images
-dvm registry start gomodules
-dvm registry start pypi
+dvm start registry images
+dvm start registry gomodules
+dvm start registry pypi
 
-# Check status of all registries
-dvm registry status
+# Check status of each
+dvm rollout status registry images
+dvm rollout status registry gomodules
+dvm rollout status registry pypi
 
 # Stop specific registry
-dvm registry stop images
+dvm stop registry images
 ```
 
 ### Troubleshooting
@@ -836,8 +850,8 @@ lsof -i :5000
 # Check registry resource configuration
 dvm get registry myregistry
 
-# Check registry status for errors
-dvm registry status myregistry
+# Check rollout status for errors
+dvm rollout status registry myregistry
 ```
 
 **Port conflict:**
@@ -845,7 +859,7 @@ dvm registry status myregistry
 # Create registry with different port
 dvm delete registry myregistry
 dvm create registry myregistry --type zot --port 5050
-dvm registry start myregistry
+dvm start registry myregistry
 ```
 
 **Check running registries:**
@@ -853,8 +867,8 @@ dvm registry start myregistry
 # List all registry resources
 dvm get registries
 
-# Check status of all running registries
-dvm registry status
+# Check status of each registry
+dvm rollout status registry myregistry
 ```
 
 ---

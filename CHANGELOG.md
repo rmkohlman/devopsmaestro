@@ -11,6 +11,111 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.25.0] - 2026-03-01
+
+### ⚠️ Breaking Changes
+
+#### CLI Restructure
+- **Registry command structure changed** - Commands moved from `dvm registry start/stop` to `dvm start/stop registry`
+  - **Old**: `dvm registry start <name>` → **New**: `dvm start registry <name>`
+  - **Old**: `dvm registry stop <name>` → **New**: `dvm stop registry <name>`
+  - **Removed**: `dvm registry` base command (was empty)
+  - **Deleted**: `cmd/registry.go` (obsolete legacy file)
+
+### ✨ Added
+
+#### Lifecycle Commands
+- **`dvm start registry <name>`** - Start a specific registry
+  - Supports all registry types via ServiceFactory
+  - Returns registry status after start
+- **`dvm stop registry <name>`** - Stop a running registry
+  - Graceful shutdown with process cleanup
+  - Updates registry state in database
+
+#### Rollout Commands (kubectl-style)
+- **`dvm rollout restart registry <name>`** - Restart a registry (stop + start)
+  - Creates restart history entry in registry_history table
+  - Useful for applying configuration changes
+- **`dvm rollout status registry <name>`** - Show rollout status
+  - Displays registry state, uptime, version
+  - Shows recent history entries
+- **`dvm rollout history registry <name>`** - Show rollout history
+  - Lists all historical changes for a registry
+  - Includes timestamps, change types, descriptions
+- **`dvm rollout undo registry <name>`** - Rollback to previous state (planned, not yet implemented)
+
+#### Registry History Tracking
+- **`registry_history` table** - New database table for tracking registry changes
+  - Tracks restarts, config changes, rollbacks
+  - Stores timestamp, change type, description, old/new state
+  - Migration: `db/migrations/sqlite/006_add_registry_history.up.sql`
+- **DataStore registry history methods** - New interface methods for history management
+  - `CreateRegistryHistory(entry)` - Create new history entry
+  - `ListRegistryHistory(registryName)` - List all history for a registry
+  - `GetRegistryHistory(registryName, limit)` - Get recent history entries
+  - `DeleteRegistryHistory(id)` - Delete specific history entry
+
+#### Registry Model Enhancements
+- **New `Enabled` field** - Boolean flag to enable/disable registries without deletion
+- **New `Storage` field** - Configurable storage location for registry data
+- **New `IdleTimeout` field** - Timeout in seconds for on-demand registry lifecycle
+- **Helper methods added**:
+  - `IsOnDemand()` - Check if registry uses on-demand lifecycle
+  - `ShouldStopAfterIdle()` - Check if registry should stop after idle timeout
+  - `GetIdleTimeoutDuration()` - Get idle timeout as time.Duration
+  - `ApplyDefaults()` - Apply default values for missing fields
+
+### 🔧 Enhanced
+
+#### Code Quality Improvements
+- **BaseServiceManager** - New shared service manager implementation
+  - Common registry management logic extracted to base class
+  - Reduces code duplication across service implementations
+  - Provides standard patterns for start, stop, status operations
+- **Utility functions** - New helper functions in `pkg/registry/utils.go`
+  - `IsPortAvailable(port)` - Check if network port is available
+  - `WaitForReady(url, timeout)` - Wait for service to become ready
+  - `CalculateDiskUsage(path)` - Calculate disk space used by registry
+  - `EnsureDir(path)` - Ensure directory exists with proper permissions
+
+### 📦 Files Changed
+
+#### New Files
+```
+cmd/lifecycle.go                      # dvm start/stop commands
+cmd/rollout.go                        # dvm rollout commands
+pkg/registry/base_service_manager.go # Common service manager logic
+pkg/registry/utils.go                 # Utility functions
+db/migrations/sqlite/006_add_registry_history.up.sql
+db/migrations/sqlite/006_add_registry_history.down.sql
+db/registry_history.go                # Registry history CRUD operations
+models/registry_history.go            # RegistryHistory model
+```
+
+#### Modified Files
+```
+models/registry.go                    # Added Enabled, Storage, IdleTimeout fields
+db/datastore.go                       # Added registry history interface methods
+db/store.go                           # Implemented registry history methods
+cmd/registry_runtime.go               # Migrated to lifecycle.go (logic preserved)
+```
+
+#### Removed Files
+```
+cmd/registry.go                       # Empty legacy registry command file
+```
+
+### 🧪 Testing
+
+- **CLI command restructure** - Verified new command structure works correctly
+- **Registry lifecycle** - Tested start, stop, restart operations
+- **History tracking** - Verified history entries created for all operations
+- **Model helpers** - Unit tests for new registry helper methods
+- **Utility functions** - Tests for port checking, disk usage, directory creation
+- **Database migration** - Verified migration creates registry_history table correctly
+
+---
+
 ## [0.24.0] - 2026-03-01
 
 ### ✨ Added

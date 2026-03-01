@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 )
 
 // Registry represents a package registry (zot, athens, devpi, verdaccio, squid)
@@ -11,8 +12,11 @@ type Registry struct {
 	ID          int
 	Name        string
 	Type        string // zot, athens, devpi, verdaccio, squid
+	Enabled     bool   // Whether the registry is enabled
 	Port        int
 	Lifecycle   string // persistent, on-demand, manual
+	Storage     string // Storage path for registry data
+	IdleTimeout int    // Idle timeout in seconds (for on-demand registries)
 	Description sql.NullString
 	Config      sql.NullString // JSON config specific to registry type
 	Status      string         // stopped, starting, running, error
@@ -208,4 +212,41 @@ func (r *Registry) GetDefaultStorage() string {
 		return storage
 	}
 	return ""
+}
+
+// IsOnDemand returns true if this registry uses on-demand lifecycle
+func (r *Registry) IsOnDemand() bool {
+	return r.Lifecycle == "on-demand"
+}
+
+// ShouldStopAfterIdle returns true if registry should auto-stop after idle timeout
+func (r *Registry) ShouldStopAfterIdle() bool {
+	return r.IsOnDemand() && r.IdleTimeout > 0
+}
+
+// GetIdleTimeoutDuration returns idle timeout as time.Duration
+func (r *Registry) GetIdleTimeoutDuration() time.Duration {
+	return time.Duration(r.IdleTimeout) * time.Second
+}
+
+// ApplyDefaults sets default values for Port, Storage, and IdleTimeout
+func (r *Registry) ApplyDefaults() {
+	// Apply default port if not set
+	if r.Port == 0 {
+		if port, ok := defaultPorts[r.Type]; ok {
+			r.Port = port
+		}
+	}
+
+	// Apply default storage if not set
+	if r.Storage == "" {
+		if storage, ok := defaultStorage[r.Type]; ok {
+			r.Storage = storage
+		}
+	}
+
+	// Apply default idle timeout for on-demand registries
+	if r.IsOnDemand() && r.IdleTimeout == 0 {
+		r.IdleTimeout = 1800 // 30 minutes default
+	}
 }

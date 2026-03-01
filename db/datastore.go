@@ -457,6 +457,24 @@ type DataStore interface {
 	// ListRegistriesByStatus retrieves registries filtered by status.
 	ListRegistriesByStatus(status string) ([]*models.Registry, error)
 
+	// Registry History Operations
+
+	// CreateRegistryHistory inserts a new registry history entry.
+	CreateRegistryHistory(history *models.RegistryHistory) error
+
+	// GetRegistryHistory retrieves a specific registry history entry by registryID and revision.
+	GetRegistryHistory(registryID int, revision int) (*models.RegistryHistory, error)
+
+	// GetLatestRegistryHistory retrieves the most recent history entry for a registry.
+	GetLatestRegistryHistory(registryID int) (*models.RegistryHistory, error)
+
+	// ListRegistryHistory retrieves all history entries for a registry, ordered by revision DESC.
+	ListRegistryHistory(registryID int) ([]*models.RegistryHistory, error)
+
+	// GetNextRevisionNumber returns the next available revision number for a registry.
+	// Returns 1 if no history exists yet.
+	GetNextRevisionNumber(registryID int) (int, error)
+
 	// Driver Access
 
 	// Driver returns the underlying database driver.

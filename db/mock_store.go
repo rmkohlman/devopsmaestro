@@ -3,7 +3,9 @@ package db
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"sync"
+	"time"
 
 	"devopsmaestro/models"
 )
@@ -26,10 +28,11 @@ type MockDataStore struct {
 	Themes            map[string]*models.NvimThemeDB
 	TerminalPrompts   map[string]*models.TerminalPromptDB
 	TerminalProfiles  map[string]*models.TerminalProfileDB
-	Credentials       map[string]*models.CredentialDB // keyed by "scopeType:scopeID:name"
-	GitRepos          map[string]*models.GitRepoDB    // keyed by name
-	Registries        map[string]*models.Registry     // keyed by name
-	Defaults          map[string]string               // keyed by default key
+	Credentials       map[string]*models.CredentialDB    // keyed by "scopeType:scopeID:name"
+	GitRepos          map[string]*models.GitRepoDB       // keyed by name
+	Registries        map[string]*models.Registry        // keyed by name
+	RegistryHistories map[string]*models.RegistryHistory // keyed by "registryID:revision"
+	Defaults          map[string]string                  // keyed by default key
 	ActiveTheme       string
 	Context           *models.Context
 
@@ -48,6 +51,7 @@ type MockDataStore struct {
 	NextCredentialID       int64
 	NextGitRepoID          int
 	NextRegistryID         int
+	NextRegistryHistoryID  int64
 
 	// WorkspacePlugins maps workspaceID -> pluginIDs
 	WorkspacePlugins map[int]map[int]bool
@@ -170,6 +174,20 @@ type MockDataStore struct {
 	UpdateGitRepoErr                    error
 	DeleteGitRepoErr                    error
 	ListGitReposErr                     error
+	CreateRegistryErr                   error
+	GetRegistryByNameErr                error
+	GetRegistryByIDErr                  error
+	GetRegistryByPortErr                error
+	UpdateRegistryErr                   error
+	DeleteRegistryErr                   error
+	ListRegistriesErr                   error
+	ListRegistriesByTypeErr             error
+	ListRegistriesByStatusErr           error
+	CreateRegistryHistoryErr            error
+	GetRegistryHistoryErr               error
+	GetLatestRegistryHistoryErr         error
+	ListRegistryHistoryErr              error
+	GetNextRevisionNumberErr            error
 	CloseErr                            error
 	PingErr                             error
 
@@ -211,6 +229,7 @@ func NewMockDataStore() *MockDataStore {
 		TerminalProfiles:      make(map[string]*models.TerminalProfileDB),
 		GitRepos:              make(map[string]*models.GitRepoDB),
 		Registries:            make(map[string]*models.Registry),
+		RegistryHistories:     make(map[string]*models.RegistryHistory),
 		WorkspacePlugins:      make(map[int]map[int]bool),
 		Context:               &models.Context{ID: 1},
 		MockDriver:            NewMockDriver(),
@@ -2622,6 +2641,130 @@ func (m *MockDataStore) ListRegistriesByStatus(status string) ([]*models.Registr
 	}
 
 	return registries, nil
+}
+
+// =============================================================================
+// Registry History Operations
+// =============================================================================
+
+func (m *MockDataStore) CreateRegistryHistory(history *models.RegistryHistory) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.CreateRegistryHistoryErr != nil {
+		return m.CreateRegistryHistoryErr
+	}
+
+	// Generate composite key
+	key := fmt.Sprintf("%d:%d", history.RegistryID, history.Revision)
+
+	// Check for duplicate
+	if _, exists := m.RegistryHistories[key]; exists {
+		return fmt.Errorf("revision %d already exists for registry %d", history.Revision, history.RegistryID)
+	}
+
+	// Assign ID
+	m.NextRegistryHistoryID++
+	history.ID = m.NextRegistryHistoryID
+
+	// Set timestamps if not already set
+	if history.CreatedAt.IsZero() {
+		history.CreatedAt = time.Now()
+	}
+
+	// Store history
+	historyClone := *history
+	m.RegistryHistories[key] = &historyClone
+
+	return nil
+}
+
+func (m *MockDataStore) GetRegistryHistory(registryID int, revision int) (*models.RegistryHistory, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.GetRegistryHistoryErr != nil {
+		return nil, m.GetRegistryHistoryErr
+	}
+
+	key := fmt.Sprintf("%d:%d", registryID, revision)
+	history, exists := m.RegistryHistories[key]
+	if !exists {
+		return nil, fmt.Errorf("registry history not found: registry_id=%d, revision=%d", registryID, revision)
+	}
+
+	historyClone := *history
+	return &historyClone, nil
+}
+
+func (m *MockDataStore) GetLatestRegistryHistory(registryID int) (*models.RegistryHistory, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.GetLatestRegistryHistoryErr != nil {
+		return nil, m.GetLatestRegistryHistoryErr
+	}
+
+	var latest *models.RegistryHistory
+	var maxRevision int
+
+	for _, history := range m.RegistryHistories {
+		if history.RegistryID == registryID {
+			if latest == nil || history.Revision > maxRevision {
+				latest = history
+				maxRevision = history.Revision
+			}
+		}
+	}
+
+	if latest == nil {
+		return nil, fmt.Errorf("no history found for registry_id=%d", registryID)
+	}
+
+	historyClone := *latest
+	return &historyClone, nil
+}
+
+func (m *MockDataStore) ListRegistryHistory(registryID int) ([]*models.RegistryHistory, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.ListRegistryHistoryErr != nil {
+		return nil, m.ListRegistryHistoryErr
+	}
+
+	var histories []*models.RegistryHistory
+	for _, history := range m.RegistryHistories {
+		if history.RegistryID == registryID {
+			historyClone := *history
+			histories = append(histories, &historyClone)
+		}
+	}
+
+	// Sort by revision DESC
+	sort.Slice(histories, func(i, j int) bool {
+		return histories[i].Revision > histories[j].Revision
+	})
+
+	return histories, nil
+}
+
+func (m *MockDataStore) GetNextRevisionNumber(registryID int) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.GetNextRevisionNumberErr != nil {
+		return 0, m.GetNextRevisionNumberErr
+	}
+
+	maxRevision := 0
+	for _, history := range m.RegistryHistories {
+		if history.RegistryID == registryID && history.Revision > maxRevision {
+			maxRevision = history.Revision
+		}
+	}
+
+	return maxRevision + 1, nil
 }
 
 // Ensure MockDataStore implements DataStore
