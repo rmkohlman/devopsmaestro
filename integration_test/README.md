@@ -1,184 +1,342 @@
-# GetDefaults() Integration Test Documentation
+# Integration Testing Framework Documentation
 
 ## Overview
 
-This document describes the integration test and demo program created to demonstrate how the `GetDefaults()` functions work in DevOpsMaestro. The implementation shows practical usage patterns for the `dvm get defaults` command and how different packages provide default configuration values.
+This directory contains a comprehensive system integration testing framework for DevOpsMaestro. The framework enables end-to-end testing of CLI commands, complete workflows, state verification, and output validation.
 
-## Files Created
+The framework provides:
+- **Isolated test environments** - Each test gets its own database and binary
+- **CLI command testing** - Execute real dvm commands and verify results
+- **Workflow verification** - Test complete user workflows (create hierarchy, manage workspaces, etc.)
+- **State verification** - Verify database state after commands
+- **Output verification** - Verify CLI output (JSON, YAML, table formats)
 
-### 1. Integration Test Suite
-**File:** `integration_test/defaults_integration_test.go`
+## Framework Components
 
-A comprehensive test suite that demonstrates:
-- How to call `GetDefaults()` functions from multiple packages
-- Practical usage scenarios (workspace creation, theme resolution, configuration validation)
-- Integration with CLI output patterns
-- Verification of expected default values
+### 1. Core Framework (`framework.go`)
 
-**Key Test Functions:**
-- `TestGetDefaultsIntegration()` - Demonstrates all GetDefaults() functions with formatted output
-- `TestGetDefaultsForCLI()` - Shows how CLI collects and structures the data
-- `TestDefaultsUsagePatterns()` - Real-world usage scenarios
+Provides the `TestFramework` struct and utilities for integration testing:
 
-### 2. Standalone Demo Program  
-**File:** `cmd/examples/test_get_defaults/main.go`
+```go
+type TestFramework struct {
+    TempDir    string  // Root temporary directory
+    DBPath     string  // Isolated test database path
+    BinaryPath string  // Path to dvm executable
+    HomeDir    string  // Isolated home directory
+}
 
-An independent program that can be run to see GetDefaults() in action:
-```bash
-go run cmd/examples/test_get_defaults/main.go
+// Create isolated test environment
+func NewTestFramework(t *testing.T) *TestFramework
+
+// Execute dvm command
+func (f *TestFramework) RunDVM(args ...string) (stdout, stderr string, err error)
+
+// Execute command with JSON output
+func (f *TestFramework) RunDVMJSON(args ...string) (map[string]interface{}, error)
+func (f *TestFramework) RunDVMJSONList(args ...string) ([]map[string]interface{}, error)
+
+// Assert command success/failure
+func (f *TestFramework) AssertCommandSuccess(t *testing.T, args ...string)
+func (f *TestFramework) AssertCommandFails(t *testing.T, args ...string)
+
+// Verify output
+func (f *TestFramework) AssertOutput(t *testing.T, output string, contains ...string)
+func (f *TestFramework) AssertOutputDoesNotContain(t *testing.T, output string, notContains ...string)
+
+// Cleanup (call via defer)
+func (f *TestFramework) Cleanup()
 ```
 
-This program:
-- Calls all GetDefaults() functions
-- Shows formatted output similar to CLI
-- Demonstrates practical usage patterns
-- Explains how theme resolution hierarchy works
+### 2. Test Suites
 
-### 3. Enhanced CLI Implementation
-**File:** `cmd/get.go` (updated)
+| File | Purpose | Test Count |
+|------|---------|------------|
+| `hierarchy_test.go` | Ecosystem/Domain/App hierarchy management | 5 tests |
+| `workspace_test.go` | Workspace lifecycle and configuration | 7 tests |
+| `gitrepo_test.go` | Git repository management | 8 tests |
+| `crud_test.go` | Basic CRUD operations and validation | 10 tests |
+| `defaults_integration_test.go` | GetDefaults() functions (existing) | 3 tests |
 
-Updated the existing `getDefaults` CLI function to include all default categories:
-- **Theme defaults** - Global theme and resolution hierarchy
-- **Shell defaults** - Shell type, framework, theme
-- **Neovim defaults** - Structure, plugins, merge mode
-- **Container defaults** - User, working directory, command
+**Total: 33 integration tests**
 
-## GetDefaults() Functions Covered
+### 3. Test Categories
 
-The integration demonstrates all four GetDefaults() functions in the codebase:
+#### Hierarchy Tests (`hierarchy_test.go`)
+- `TestHierarchyCreation` - Creating full ecosystem → domain → app hierarchy
+- `TestHierarchyMultipleResources` - Multiple resources at each level
+- `TestHierarchyContextSwitching` - Context switching between resources
+- `TestHierarchyDeletion` - Resource deletion and cleanup
+- `TestHierarchyValidation` - Input validation and error handling
 
-### 1. Theme Resolver Defaults
-**Location:** `pkg/colors/resolver/interface.go`
+#### Workspace Tests (`workspace_test.go`)
+- `TestWorkspaceCreation` - Basic workspace creation
+- `TestWorkspaceMultiple` - Multiple workspaces per app
+- `TestWorkspaceWithGitRepo` - Workspace with git repository
+- `TestWorkspaceDelete` - Workspace deletion
+- `TestWorkspaceValidation` - Input validation
+- `TestWorkspaceContext` - Context management
+- `TestWorkspaceTheme` - Theme configuration
+- `TestWorkspaceNvimConfig` - Neovim configuration
+
+#### GitRepo Tests (`gitrepo_test.go`)
+- `TestGitRepoCreate` - Basic gitrepo creation
+- `TestGitRepoMultiple` - Multiple git repositories
+- `TestGitRepoGet` - Retrieving specific gitrepo
+- `TestGitRepoDelete` - Gitrepo deletion
+- `TestGitRepoValidation` - Input validation
+- `TestGitRepoWithWorkspace` - Integration with workspaces
+- `TestGitRepoWithApp` - Integration with apps
+- `TestGitRepoURLFormats` - Various URL formats
+- `TestGitRepoUpdate` - Updating gitrepo properties
+
+#### CRUD Tests (`crud_test.go`)
+- `TestCRUDEcosystem` - CRUD on ecosystems
+- `TestCRUDDomain` - CRUD on domains
+- `TestCRUDApp` - CRUD on apps
+- `TestCRUDWorkspace` - CRUD on workspaces
+- `TestOutputFormats` - JSON/YAML/table output
+- `TestContextPersistence` - Context across commands
+- `TestBulkOperations` - Multiple resources
+- `TestConcurrentSafety` - Concurrent operations
+- `TestErrorHandling` - Error cases and messages
+- `TestCleanState` - Test isolation
+
+## Usage Examples
+
+### Basic Test Pattern
+
 ```go
-func GetDefaults() map[string]interface{} {
-    return map[string]interface{}{
-        "global":     "coolnight-ocean",
-        "resolution": "workspace → app → domain → ecosystem → global",
+func TestMyWorkflow(t *testing.T) {
+    if testing.Short() {
+        t.Skip("skipping integration test in short mode")
     }
+    
+    f := NewTestFramework(t)
+    defer f.Cleanup()
+    
+    // Create hierarchy
+    f.AssertCommandSuccess(t, "create", "ecosystem", "test")
+    f.AssertCommandSuccess(t, "use", "ecosystem", "test")
+    
+    // Verify ecosystem exists
+    ecosystems, err := f.RunDVMJSONList("get", "ecosystems")
+    require.NoError(t, err)
+    assert.Len(t, ecosystems, 1)
+    assert.Equal(t, "test", ecosystems[0]["name"])
 }
 ```
 
-### 2. Shell Defaults
-**Location:** `pkg/terminalops/shell/defaults.go`
+### Testing Complete Workflow
+
 ```go
-func GetDefaults() map[string]interface{} {
-    return map[string]interface{}{
-        "type":      "zsh",
-        "framework": "oh-my-zsh", 
-        "theme":     "starship",
+func TestWorkspaceLifecycle(t *testing.T) {
+    if testing.Short() {
+        t.Skip("skipping integration test in short mode")
     }
+    
+    f := NewTestFramework(t)
+    defer f.Cleanup()
+    
+    // Setup hierarchy
+    f.AssertCommandSuccess(t, "create", "ecosystem", "eco")
+    f.AssertCommandSuccess(t, "use", "ecosystem", "eco")
+    f.AssertCommandSuccess(t, "create", "domain", "domain")
+    f.AssertCommandSuccess(t, "use", "domain", "domain")
+    f.AssertCommandSuccess(t, "create", "app", "app", "--path", "/workspace/app")
+    f.AssertCommandSuccess(t, "use", "app", "app")
+    
+    // Create workspace
+    f.AssertCommandSuccess(t, "create", "workspace", "ws1")
+    
+    // Verify workspace exists
+    workspaces, err := f.RunDVMJSONList("get", "workspaces")
+    require.NoError(t, err)
+    assert.Len(t, workspaces, 1)
+    
+    // Delete workspace
+    f.AssertCommandSuccess(t, "delete", "workspace", "ws1")
+    
+    // Verify cleanup
+    workspaces, err = f.RunDVMJSONList("get", "workspaces")
+    require.NoError(t, err)
+    assert.Len(t, workspaces, 0)
 }
 ```
 
-### 3. Neovim Defaults
-**Location:** `pkg/nvimops/defaults.go`
+### Testing Output Formats
+
 ```go
-func GetDefaults() map[string]interface{} {
-    return map[string]interface{}{
-        "structure":     "lazyvim",
-        "pluginPackage": "core",
-        "mergeMode":     "append",
-        "corePlugins": []string{
-            "treesitter", "telescope", "which-key", 
-            "lspconfig", "nvim-cmp", "gitsigns",
-        },
-    }
-}
+// Test JSON output
+result, err := f.RunDVMJSON("get", "ecosystem", "test")
+assert.NoError(t, err)
+assert.Equal(t, "test", result["name"])
+
+// Test list output
+list, err := f.RunDVMJSONList("get", "ecosystems")
+assert.NoError(t, err)
+assert.Len(t, list, 1)
+
+// Test raw output (YAML, table, etc.)
+stdout, _, err := f.RunDVM("get", "ecosystems", "-o", "yaml")
+assert.NoError(t, err)
+assert.Contains(t, stdout, "name: test")
 ```
-
-### 4. Container Defaults
-**Location:** `builders/defaults.go`
-```go
-func GetContainerDefaults() map[string]interface{} {
-    return map[string]interface{}{
-        "user":       "dev",
-        "uid":        1000,
-        "gid":        1000,
-        "workingDir": "/workspace",
-        "command":    []string{"/bin/zsh", "-l"},
-    }
-}
-```
-
-## CLI Command Usage
-
-The `dvm get defaults` command now works with all output formats:
-
-### Human-readable output:
-```bash
-dvm get defaults
-```
-Shows organized sections with icons and proper formatting.
-
-### JSON output:
-```bash
-dvm get defaults -o json
-```
-Returns structured JSON with all default categories.
-
-### YAML output:
-```bash
-dvm get defaults -o yaml
-```
-Returns YAML format suitable for configuration files.
-
-## Test Results
-
-All tests pass successfully and demonstrate:
-
-✅ **Basic Functionality**
-- All GetDefaults() functions return expected data structures
-- Values match documented defaults
-- Function signatures are consistent
-
-✅ **Integration Patterns**
-- CLI data collection works correctly
-- Output formatting integrates properly
-- Error handling is robust
-
-✅ **Real-world Scenarios**
-- Workspace creation using defaults
-- Theme resolution hierarchy understanding
-- Configuration validation against defaults
-
-✅ **Multiple Output Formats**
-- JSON output for API integration
-- YAML output for configuration
-- Human-readable output for CLI users
 
 ## Running the Tests
 
+### Run All Integration Tests
+
 ```bash
-# Run the integration tests
+# From repository root
+cd repos/dvm
+
+# Run all integration tests
 go test ./integration_test/... -v
 
-# Run the standalone demo
-go run cmd/examples/test_get_defaults/main.go
+# Run without verbose output
+go test ./integration_test/...
 
-# Test the CLI command
-./dvm get defaults
-./dvm get defaults -o json
-./dvm get defaults -o yaml
+# Run specific test file
+go test ./integration_test/hierarchy_test.go ./integration_test/framework.go -v
+
+# Run specific test
+go test ./integration_test/... -run TestHierarchyCreation -v
 ```
 
-## Key Features Demonstrated
+### Skip Integration Tests (Short Mode)
 
-1. **Hierarchical Theme Resolution**
-   - Shows workspace → app → domain → ecosystem → global hierarchy
-   - Demonstrates fallback to global default theme
+Integration tests are skipped in short mode for fast unit test runs:
 
-2. **Workspace Creation Defaults**
-   - LazyVim structure with core plugin package
-   - Zsh with Oh My Zsh framework and Starship prompt
-   - Standard container user and working directory
+```bash
+# Skip integration tests (fast)
+go test ./... -short
 
-3. **Configuration Validation**
-   - Checking user configs against essential plugins
-   - Providing helpful suggestions for missing components
+# Run only integration tests
+go test ./integration_test/... -v
+```
 
-4. **CLI Integration**
-   - Proper data collection from multiple packages
-   - Consistent output formatting across formats
-   - Integration with existing render system
+### CI/CD Integration
 
-This integration test serves as both a validation of the GetDefaults() functionality and documentation of how these defaults work together in practice.
+Integration tests run in CI with race detection:
+
+```bash
+# CI command
+go test ./integration_test/... -race -v
+```
+
+## Test Isolation
+
+Each test gets:
+- ✅ **Isolated database** - Fresh SQLite database in temp directory
+- ✅ **Isolated binary** - Compiled dvm binary per test run
+- ✅ **Isolated home directory** - Separate `~/.devopsmaestro/` per test
+- ✅ **Clean environment** - No interference between tests
+
+This ensures:
+- Tests can run in parallel
+- No shared state between tests
+- Reproducible results
+- Safe to run locally or in CI
+
+## Framework Features
+
+### 1. Automatic Binary Compilation
+
+The framework automatically compiles the dvm binary before running tests. If compilation fails, tests fail fast with clear error message.
+
+### 2. Database Initialization
+
+Each test gets a fresh database with proper schema. No manual setup required.
+
+### 3. Environment Isolation
+
+Tests set `HOME` and `DVM_DB_PATH` environment variables to ensure complete isolation.
+
+### 4. Cleanup Guarantees
+
+Using `defer f.Cleanup()` ensures temporary files are removed even if test fails.
+
+### 5. JSON Parsing Utilities
+
+Built-in JSON parsing for easy verification of structured output:
+- `RunDVMJSON()` - Parse single object
+- `RunDVMJSONList()` - Parse array of objects
+
+### 6. Assertion Helpers
+
+Convenient assertion methods:
+- `AssertCommandSuccess()` - Fail if command fails
+- `AssertCommandFails()` - Fail if command succeeds
+- `AssertOutput()` - Verify output contains strings
+- `AssertOutputDoesNotContain()` - Verify output doesn't contain strings
+
+## Test Coverage
+
+The integration tests verify:
+
+✅ **Complete Workflows**
+- Create full hierarchy (ecosystem → domain → app → workspace)
+- Context switching between resources
+- Resource deletion and cleanup
+
+✅ **CRUD Operations**
+- Create, Read, Update, Delete for all resource types
+- Duplicate name handling
+- Validation and error cases
+
+✅ **Output Formats**
+- JSON output parsing
+- YAML output verification
+- Table format verification
+
+✅ **State Verification**
+- Database state after operations
+- Context persistence across commands
+- Resource scoping (domains in ecosystems, etc.)
+
+✅ **Error Handling**
+- Empty names rejected
+- Duplicates rejected
+- Non-existent resources handled
+- Error messages on stderr
+
+## Adding New Tests
+
+1. Create new test file in `integration_test/`
+2. Use `package integration`
+3. Import the framework
+4. Follow the test pattern:
+
+```go
+func TestMyFeature(t *testing.T) {
+    if testing.Short() {
+        t.Skip("skipping integration test in short mode")
+    }
+    
+    f := NewTestFramework(t)
+    defer f.Cleanup()
+    
+    // Your test code here
+}
+```
+
+## Debugging Failed Tests
+
+If a test fails:
+
+1. **Check stderr output** - Error messages go to stderr
+2. **Verify command args** - Framework logs failed commands
+3. **Check database state** - Use `f.GetDatabasePath()` to inspect
+4. **Run single test** - `go test -run TestName -v` for detailed output
+
+## Future Enhancements
+
+Potential additions to the framework:
+
+- [ ] Container runtime testing (requires Docker/Colima)
+- [ ] Image building tests
+- [ ] Workspace start/stop/attach tests (requires container runtime)
+- [ ] Performance benchmarks
+- [ ] Parallel test execution optimization
+- [ ] Test data fixtures
+- [ ] Custom assertions for specific resources

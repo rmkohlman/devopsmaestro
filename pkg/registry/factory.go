@@ -17,13 +17,23 @@ func NewRegistryManager(config RegistryConfig) RegistryManager {
 // NewZotManager creates a ZotManager with injected dependencies.
 func NewZotManager(config RegistryConfig) *ZotManager {
 	binDir := filepath.Join(config.Storage, "bin")
-	return &ZotManager{
-		config:        config,
-		binaryManager: NewBinaryManager(binDir, "1.4.3"),
-		processManager: NewProcessManager(ProcessConfig{
+	return NewZotManagerWithDeps(
+		config,
+		NewBinaryManager(binDir, "1.4.3"),
+		NewProcessManager(ProcessConfig{
 			PIDFile: filepath.Join(config.Storage, "zot.pid"),
 			LogFile: filepath.Join(config.Storage, "zot.log"),
 		}),
+	)
+}
+
+// NewZotManagerWithDeps creates a ZotManager with explicit dependency injection.
+// This is useful for testing with mock dependencies.
+func NewZotManagerWithDeps(config RegistryConfig, binaryMgr BinaryManager, processMgr ProcessManager) *ZotManager {
+	return &ZotManager{
+		config:         config,
+		binaryManager:  binaryMgr,
+		processManager: processMgr,
 	}
 }
 

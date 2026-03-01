@@ -15,11 +15,21 @@ import (
 // =============================================================================
 
 // setupTestBinaryManager creates a BinaryManager with a test directory.
+// For integration tests that need real downloads, use a valid version.
 func setupTestBinaryManager(t *testing.T) BinaryManager {
 	t.Helper()
 
 	binDir := t.TempDir()
-	return NewBinaryManager(binDir, "1.0.0")
+	// Use v2.1.1 which is a real, stable Zot version
+	return NewBinaryManager(binDir, "2.1.1")
+}
+
+// setupMockBinaryManager creates a MockBinaryManager for unit tests.
+func setupMockBinaryManager(t *testing.T) *MockBinaryManager {
+	t.Helper()
+
+	binDir := t.TempDir()
+	return NewMockBinaryManager(binDir, "1.4.3")
 }
 
 // =============================================================================
