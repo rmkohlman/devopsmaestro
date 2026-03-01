@@ -132,7 +132,7 @@ func (ds *SQLDataStore) DeleteEcosystem(name string) error {
 		return fmt.Errorf("failed to check rows affected: %w", err)
 	}
 	if rowsAffected == 0 {
-		return fmt.Errorf("ecosystem '%s' not found", name)
+		return NewErrNotFound("ecosystem", name)
 	}
 	return nil
 }
@@ -232,9 +232,16 @@ func (ds *SQLDataStore) UpdateDomain(domain *models.Domain) error {
 // DeleteDomain removes a domain by ID.
 func (ds *SQLDataStore) DeleteDomain(id int) error {
 	query := `DELETE FROM domains WHERE id = ?`
-	_, err := ds.driver.Execute(query, id)
+	result, err := ds.driver.Execute(query, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete domain: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return NewErrNotFound("domain", id)
 	}
 	return nil
 }
@@ -377,9 +384,16 @@ func (ds *SQLDataStore) UpdateApp(app *models.App) error {
 // DeleteApp removes an app by ID.
 func (ds *SQLDataStore) DeleteApp(id int) error {
 	query := `DELETE FROM apps WHERE id = ?`
-	_, err := ds.driver.Execute(query, id)
+	result, err := ds.driver.Execute(query, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete app: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return NewErrNotFound("app", id)
 	}
 	return nil
 }
@@ -556,9 +570,16 @@ func (ds *SQLDataStore) UpdateWorkspace(workspace *models.Workspace) error {
 // DeleteWorkspace removes a workspace by ID.
 func (ds *SQLDataStore) DeleteWorkspace(id int) error {
 	query := `DELETE FROM workspaces WHERE id = ?`
-	_, err := ds.driver.Execute(query, id)
+	result, err := ds.driver.Execute(query, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete workspace: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return NewErrNotFound("workspace", id)
 	}
 	return nil
 }
@@ -934,9 +955,16 @@ func (ds *SQLDataStore) UpdatePlugin(plugin *models.NvimPluginDB) error {
 // DeletePlugin removes a plugin by name.
 func (ds *SQLDataStore) DeletePlugin(name string) error {
 	query := `DELETE FROM nvim_plugins WHERE name = ?`
-	_, err := ds.driver.Execute(query, name)
+	result, err := ds.driver.Execute(query, name)
 	if err != nil {
 		return fmt.Errorf("failed to delete plugin: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return NewErrNotFound("plugin", name)
 	}
 	return nil
 }
@@ -1233,9 +1261,16 @@ func (ds *SQLDataStore) UpdateTheme(theme *models.NvimThemeDB) error {
 // DeleteTheme removes a theme by name.
 func (ds *SQLDataStore) DeleteTheme(name string) error {
 	query := `DELETE FROM nvim_themes WHERE name = ?`
-	_, err := ds.driver.Execute(query, name)
+	result, err := ds.driver.Execute(query, name)
 	if err != nil {
 		return fmt.Errorf("failed to delete theme: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return NewErrNotFound("theme", name)
 	}
 	return nil
 }
@@ -1445,9 +1480,16 @@ func (ds *SQLDataStore) UpsertTerminalPrompt(prompt *models.TerminalPromptDB) er
 // DeleteTerminalPrompt removes a terminal prompt by name.
 func (ds *SQLDataStore) DeleteTerminalPrompt(name string) error {
 	query := `DELETE FROM terminal_prompts WHERE name = ?`
-	_, err := ds.driver.Execute(query, name)
+	result, err := ds.driver.Execute(query, name)
 	if err != nil {
 		return fmt.Errorf("failed to delete terminal prompt: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return NewErrNotFound("terminal prompt", name)
 	}
 	return nil
 }
@@ -1634,9 +1676,16 @@ func (ds *SQLDataStore) UpsertTerminalProfile(profile *models.TerminalProfileDB)
 // DeleteTerminalProfile removes a terminal profile by name.
 func (ds *SQLDataStore) DeleteTerminalProfile(name string) error {
 	query := `DELETE FROM terminal_profiles WHERE name = ?`
-	_, err := ds.driver.Execute(query, name)
+	result, err := ds.driver.Execute(query, name)
 	if err != nil {
 		return fmt.Errorf("failed to delete terminal profile: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return NewErrNotFound("terminal profile", name)
 	}
 	return nil
 }
@@ -1808,9 +1857,16 @@ func (ds *SQLDataStore) UpsertTerminalPlugin(plugin *models.TerminalPluginDB) er
 // DeleteTerminalPlugin removes a terminal plugin by name.
 func (ds *SQLDataStore) DeleteTerminalPlugin(name string) error {
 	query := `DELETE FROM terminal_plugins WHERE name = ?`
-	_, err := ds.driver.Execute(query, name)
+	result, err := ds.driver.Execute(query, name)
 	if err != nil {
 		return fmt.Errorf("failed to delete terminal plugin: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return NewErrNotFound("terminal plugin", name)
 	}
 	return nil
 }
@@ -2042,9 +2098,16 @@ func (ds *SQLDataStore) UpsertTerminalEmulator(emulator *models.TerminalEmulator
 // DeleteTerminalEmulator removes a terminal emulator by name.
 func (ds *SQLDataStore) DeleteTerminalEmulator(name string) error {
 	query := `DELETE FROM terminal_emulators WHERE name = ?`
-	_, err := ds.driver.Execute(query, name)
+	result, err := ds.driver.Execute(query, name)
 	if err != nil {
 		return fmt.Errorf("failed to delete terminal emulator: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return NewErrNotFound("terminal emulator", name)
 	}
 	return nil
 }
@@ -2261,9 +2324,12 @@ func (ds *SQLDataStore) DeleteCredential(scopeType models.CredentialScopeType, s
 		return fmt.Errorf("failed to delete credential: %w", err)
 	}
 
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
 	if rowsAffected == 0 {
-		return fmt.Errorf("credential not found: %s (scope: %s, id: %d)", name, scopeType, scopeID)
+		return NewErrNotFound("credential", fmt.Sprintf("%s (scope: %s, id: %d)", name, scopeType, scopeID))
 	}
 
 	return nil
@@ -2487,8 +2553,11 @@ func (ds *SQLDataStore) DeletePackage(name string) error {
 	}
 
 	rowsAffected, err := result.RowsAffected()
-	if err == nil && rowsAffected == 0 {
-		return fmt.Errorf("package not found: %s", name)
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return NewErrNotFound("package", name)
 	}
 
 	return nil
@@ -2637,8 +2706,11 @@ func (ds *SQLDataStore) DeleteTerminalPackage(name string) error {
 	}
 
 	rowsAffected, err := result.RowsAffected()
-	if err == nil && rowsAffected == 0 {
-		return fmt.Errorf("terminal package not found: %s", name)
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return NewErrNotFound("terminal package", name)
 	}
 
 	return nil

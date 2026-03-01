@@ -107,6 +107,13 @@ func (h *EcosystemHandler) Delete(ctx resource.Context, name string) error {
 		return err
 	}
 
+	// Check existence at handler level (consistent with Domain/App/Workspace handlers)
+	// This provides a clear error message and is defense-in-depth with DataStore checks
+	_, err = ds.GetEcosystemByName(name)
+	if err != nil {
+		return err
+	}
+
 	return ds.DeleteEcosystem(name)
 }
 

@@ -187,9 +187,17 @@ func (ds *SQLDataStore) UpdateGitRepo(repo *models.GitRepoDB) error {
 func (ds *SQLDataStore) DeleteGitRepo(name string) error {
 	query := `DELETE FROM git_repos WHERE name = ?`
 
-	_, err := ds.driver.Execute(query, name)
+	result, err := ds.driver.Execute(query, name)
 	if err != nil {
 		return fmt.Errorf("failed to delete git repo: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return NewErrNotFound("git repo", name)
 	}
 
 	return nil
