@@ -128,12 +128,7 @@ func TestWorkspaceWithGitRepo(t *testing.T) {
 // - Workspace can be deleted
 // - Deleted workspace no longer appears in list
 // - Deletion is clean (no orphaned data)
-//
-// SKIP: Workspace deletion appears to have a bug where deleted workspaces
-// still appear in the list. This needs investigation in the core codebase.
 func TestWorkspaceDelete(t *testing.T) {
-	t.Skip("skipping: workspace deletion bug - deleted workspace still appears in list")
-
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -150,7 +145,7 @@ func TestWorkspaceDelete(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, workspaces, 1)
 
-	// Delete workspace
+	// Delete workspace (framework auto-adds --force)
 	f.AssertCommandSuccess(t, "delete", "workspace", "temp-workspace")
 
 	// Verify workspace is gone
@@ -169,12 +164,7 @@ func TestWorkspaceDelete(t *testing.T) {
 // - Empty names are rejected
 // - Duplicate names are rejected
 // - Invalid flags are rejected
-//
-// SKIP: Empty name validation is not implemented - CLI accepts empty names.
-// This test should be enabled when input validation is improved.
 func TestWorkspaceValidation(t *testing.T) {
-	t.Skip("skipping: empty name validation not implemented - CLI accepts empty workspace names")
-
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}

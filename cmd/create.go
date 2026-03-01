@@ -64,8 +64,13 @@ Examples:
   # Create with custom image name
   dvm create workspace staging --image my-app:staging`,
 	Args: cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		workspaceName := args[0]
+
+		// Validate name is not empty
+		if err := ValidateResourceName(workspaceName, "workspace"); err != nil {
+			return err
+		}
 
 		// Get app from flag or context
 		appFlag, _ := cmd.Flags().GetString("app")
@@ -73,8 +78,7 @@ Examples:
 
 		contextMgr, err := operators.NewContextManager()
 		if err != nil {
-			render.Error(fmt.Sprintf("Failed to initialize context manager: %v", err))
-			return
+			return fmt.Errorf("failed to initialize context manager: %w", err)
 		}
 
 		var appName string
@@ -85,7 +89,7 @@ Examples:
 			if err != nil {
 				render.Error("No app specified")
 				render.Info("Hint: Use --app <name> or 'dvm use app <name>' to select an app first")
-				return
+				return nil
 			}
 		}
 
@@ -93,8 +97,7 @@ Examples:
 		ctx := cmd.Context()
 		dataStore := ctx.Value("dataStore").(*db.DataStore)
 		if dataStore == nil {
-			render.Error("DataStore not initialized")
-			return
+			return fmt.Errorf("DataStore not initialized")
 		}
 
 		ds := *dataStore
@@ -104,7 +107,7 @@ Examples:
 		if err != nil {
 			render.Error(fmt.Sprintf("App '%s' not found: %v", appName, err))
 			render.Info("Hint: List available apps with: dvm get apps --all")
-			return
+			return nil
 		}
 
 		// Check if workspace already exists
@@ -112,8 +115,7 @@ Examples:
 		if err == nil {
 			for _, ws := range existingWorkspaces {
 				if ws.Name == workspaceName {
-					render.Error(fmt.Sprintf("Workspace '%s' already exists in app '%s'", workspaceName, appName))
-					return
+					return fmt.Errorf("workspace '%s' already exists in app '%s'", workspaceName, appName)
 				}
 			}
 		}
@@ -130,9 +132,7 @@ Examples:
 		if repoFlag != "" {
 			gitRepo, err = ds.GetGitRepoByName(repoFlag)
 			if err != nil {
-				render.Error(fmt.Sprintf("GitRepo '%s' not found: %v", repoFlag, err))
-				render.Info("Hint: List available repos with: dvm get gitrepos")
-				return
+				return fmt.Errorf("gitrepo '%s' not found", repoFlag)
 			}
 		}
 
@@ -156,8 +156,7 @@ Examples:
 		}
 
 		if err := ds.CreateWorkspace(workspace); err != nil {
-			render.Error(fmt.Sprintf("Failed to create workspace: %v", err))
-			return
+			return fmt.Errorf("failed to create workspace: %w", err)
 		}
 
 		// Clone from mirror if --repo was provided
@@ -180,7 +179,7 @@ Examples:
 						render.Error(fmt.Sprintf("Failed to sync mirror: %v", err))
 						render.Info("Workspace created, but repository clone failed")
 						render.Info(fmt.Sprintf("Try: dvm sync gitrepo %s", repoFlag))
-						return
+						return nil
 					}
 				}
 
@@ -188,7 +187,7 @@ Examples:
 				if err := mirrorMgr.CloneToWorkspace(gitRepo.Slug, repoPath, gitRepo.DefaultRef); err != nil {
 					render.Error(fmt.Sprintf("Failed to clone to workspace: %v", err))
 					render.Info("Workspace created, but repository clone failed")
-					return
+					return nil
 				}
 				render.Success("Cloned repository to workspace")
 			}
@@ -207,6 +206,7 @@ Examples:
 		render.Info(fmt.Sprintf("     dvm use workspace %s", workspaceName))
 		render.Info("  2. Build and attach:")
 		render.Info("     dvm build && dvm attach")
+		return nil
 	},
 }
 

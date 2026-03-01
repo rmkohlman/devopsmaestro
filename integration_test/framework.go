@@ -107,11 +107,29 @@ func (f *TestFramework) Cleanup() {
 // stdout, stderr, and any error. The command runs in the isolated test
 // environment with its own database and home directory.
 //
+// For workspace delete commands, --force is automatically added to skip
+// confirmation prompts in the non-interactive test environment.
+//
 // Example:
 //
 //	stdout, stderr, err := f.RunDVM("get", "ecosystems", "-o", "json")
 func (f *TestFramework) RunDVM(args ...string) (stdout, stderr string, err error) {
 	f.t.Helper()
+
+	// Auto-add --force to "delete workspace" commands to skip confirmation prompts
+	// Only workspace delete has a confirmation prompt requiring --force
+	if len(args) >= 2 && args[0] == "delete" && args[1] == "workspace" {
+		hasForce := false
+		for _, arg := range args {
+			if arg == "--force" || arg == "-f" {
+				hasForce = true
+				break
+			}
+		}
+		if !hasForce {
+			args = append(args, "--force")
+		}
+	}
 
 	cmd := exec.Command(f.BinaryPath, args...)
 

@@ -252,6 +252,11 @@ func getDataStoreFromContext(cmd *cobra.Command) (db.DataStore, error) {
 func runCreateGitRepo(cmd *cobra.Command, args []string) error {
 	name := args[0]
 
+	// Validate name is not empty
+	if err := ValidateResourceName(name, "gitrepo"); err != nil {
+		return err
+	}
+
 	// Get URL from flag
 	url, err := cmd.Flags().GetString("url")
 	if err != nil {

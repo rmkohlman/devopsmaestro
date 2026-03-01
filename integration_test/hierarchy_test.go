@@ -297,12 +297,7 @@ func TestHierarchyDeletion(t *testing.T) {
 // - Empty names are rejected
 // - Duplicate names are rejected
 // - Invalid operations fail gracefully
-//
-// SKIP: Empty name validation is not implemented - CLI accepts empty names.
-// This test should be enabled when input validation is improved.
 func TestHierarchyValidation(t *testing.T) {
-	t.Skip("skipping: empty name validation not implemented - CLI accepts empty names")
-
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}

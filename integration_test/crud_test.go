@@ -122,11 +122,7 @@ func TestCRUDApp(t *testing.T) {
 }
 
 // TestCRUDWorkspace tests CRUD operations on workspaces.
-// SKIP: Workspace deletion appears to have a bug where deleted workspaces
-// still appear in the list. This needs investigation in the core codebase.
 func TestCRUDWorkspace(t *testing.T) {
-	t.Skip("skipping: workspace deletion bug - deleted workspace still appears in list")
-
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -288,11 +284,7 @@ func TestConcurrentSafety(t *testing.T) {
 }
 
 // TestErrorHandling tests error cases and error messages.
-// SKIP: Empty name validation is not implemented - CLI accepts empty names.
-// This test should be enabled when input validation is improved.
 func TestErrorHandling(t *testing.T) {
-	t.Skip("skipping: empty name validation not implemented - CLI accepts empty names")
-
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}

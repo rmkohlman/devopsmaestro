@@ -36,6 +36,11 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ecosystemName := args[0]
 
+		// Validate name is not empty
+		if err := ValidateResourceName(ecosystemName, "ecosystem"); err != nil {
+			return err
+		}
+
 		render.Progress(fmt.Sprintf("Creating ecosystem '%s'...", ecosystemName))
 
 		// Build resource context

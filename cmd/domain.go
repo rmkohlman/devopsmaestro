@@ -42,6 +42,11 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		domainName := args[0]
 
+		// Validate name is not empty
+		if err := ValidateResourceName(domainName, "domain"); err != nil {
+			return err
+		}
+
 		ds, err := getDataStore(cmd)
 		if err != nil {
 			return err
