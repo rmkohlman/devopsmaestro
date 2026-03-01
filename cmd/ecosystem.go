@@ -226,8 +226,16 @@ func getEcosystems(cmd *cobra.Command) error {
 		return render.OutputWith(getOutputFormat, ecosystemsYAML, render.Options{})
 	}
 
+	// Determine if wide format
+	isWide := getOutputFormat == "wide"
+
 	// For human output, build table data
-	headers := []string{"NAME", "DESCRIPTION", "CREATED"}
+	var headers []string
+	if isWide {
+		headers = []string{"NAME", "DESCRIPTION", "CREATED", "ID"}
+	} else {
+		headers = []string{"NAME", "DESCRIPTION", "CREATED"}
+	}
 	if showTheme {
 		headers = append(headers, "THEME", "THEME SOURCE")
 	}
@@ -266,6 +274,11 @@ func getEcosystems(cmd *cobra.Command) error {
 			e.CreatedAt.Format("2006-01-02 15:04"),
 		}
 
+		if isWide {
+			// Add ID
+			row = append(row, fmt.Sprintf("%d", e.ID))
+		}
+
 		// Add theme information if requested
 		if showTheme && themeResolver != nil {
 			themeName := themeresolver.DefaultTheme
@@ -284,7 +297,13 @@ func getEcosystems(cmd *cobra.Command) error {
 		tableData.Rows[i] = row
 	}
 
-	return render.OutputWith(getOutputFormat, tableData, render.Options{
+	// For rendering, treat "wide" as table format
+	renderFormat := getOutputFormat
+	if isWide {
+		renderFormat = "table"
+	}
+
+	return render.OutputWith(renderFormat, tableData, render.Options{
 		Type: render.TypeTable,
 	})
 }

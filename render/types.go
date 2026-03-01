@@ -99,6 +99,9 @@ type Options struct {
 
 	// Verbose enables extra detail in output
 	Verbose bool
+
+	// Wide enables wide format output with additional columns
+	Wide bool
 }
 
 // MessageLevel indicates the severity/type of a message

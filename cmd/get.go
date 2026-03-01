@@ -345,9 +345,17 @@ func getWorkspaces(cmd *cobra.Command) error {
 			return render.OutputWith(getOutputFormat, workspacesYAML, render.Options{})
 		}
 
+		// Determine if wide format
+		isWide := getOutputFormat == "wide"
+
 		// For human output, build table data
 		// We need to look up app names for display
-		headers := []string{"NAME", "APP", "IMAGE", "STATUS"}
+		var headers []string
+		if isWide {
+			headers = []string{"NAME", "APP", "IMAGE", "STATUS", "CREATED", "CONTAINER-ID"}
+		} else {
+			headers = []string{"NAME", "APP", "IMAGE", "STATUS"}
+		}
 		if showTheme {
 			headers = append(headers, "THEME", "THEME SOURCE")
 		}
@@ -377,6 +385,20 @@ func getWorkspaces(cmd *cobra.Command) error {
 				ws.Status,
 			}
 
+			if isWide {
+				// Add CREATED timestamp
+				row = append(row, ws.CreatedAt.Format("2006-01-02 15:04"))
+				// Add CONTAINER-ID (truncated to 12 chars like Docker)
+				containerID := "<none>"
+				if ws.ContainerID.Valid && ws.ContainerID.String != "" {
+					containerID = ws.ContainerID.String
+					if len(containerID) > 12 {
+						containerID = containerID[:12]
+					}
+				}
+				row = append(row, containerID)
+			}
+
 			// Add theme information if requested
 			if showTheme && themeResolver != nil {
 				themeName := themeresolver.DefaultTheme
@@ -395,7 +417,13 @@ func getWorkspaces(cmd *cobra.Command) error {
 			tableData.Rows[i] = row
 		}
 
-		return render.OutputWith(getOutputFormat, tableData, render.Options{
+		// For rendering, treat "wide" as table format
+		renderFormat := getOutputFormat
+		if isWide {
+			renderFormat = "table"
+		}
+
+		return render.OutputWith(renderFormat, tableData, render.Options{
 			Type: render.TypeTable,
 		})
 	}
@@ -433,8 +461,16 @@ func getWorkspaces(cmd *cobra.Command) error {
 			return render.OutputWith(getOutputFormat, workspacesYAML, render.Options{})
 		}
 
+		// Determine if wide format
+		isWide := getOutputFormat == "wide"
+
 		// For human output, build table data with full path
-		headers := []string{"NAME", "PATH", "IMAGE", "STATUS"}
+		var headers []string
+		if isWide {
+			headers = []string{"NAME", "PATH", "IMAGE", "STATUS", "CREATED", "CONTAINER-ID"}
+		} else {
+			headers = []string{"NAME", "PATH", "IMAGE", "STATUS"}
+		}
 		if showTheme {
 			headers = append(headers, "THEME", "THEME SOURCE")
 		}
@@ -458,6 +494,20 @@ func getWorkspaces(cmd *cobra.Command) error {
 				wh.Workspace.Status,
 			}
 
+			if isWide {
+				// Add CREATED timestamp
+				row = append(row, wh.Workspace.CreatedAt.Format("2006-01-02 15:04"))
+				// Add CONTAINER-ID (truncated to 12 chars like Docker)
+				containerID := "<none>"
+				if wh.Workspace.ContainerID.Valid && wh.Workspace.ContainerID.String != "" {
+					containerID = wh.Workspace.ContainerID.String
+					if len(containerID) > 12 {
+						containerID = containerID[:12]
+					}
+				}
+				row = append(row, containerID)
+			}
+
 			// Add theme information if requested
 			if showTheme && themeResolver != nil {
 				themeName := themeresolver.DefaultTheme
@@ -476,7 +526,13 @@ func getWorkspaces(cmd *cobra.Command) error {
 			tableData.Rows[i] = row
 		}
 
-		return render.OutputWith(getOutputFormat, tableData, render.Options{
+		// For rendering, treat "wide" as table format
+		renderFormat := getOutputFormat
+		if isWide {
+			renderFormat = "table"
+		}
+
+		return render.OutputWith(renderFormat, tableData, render.Options{
 			Type: render.TypeTable,
 		})
 	}
@@ -528,8 +584,16 @@ func getWorkspaces(cmd *cobra.Command) error {
 		return render.OutputWith(getOutputFormat, workspacesYAML, render.Options{})
 	}
 
+	// Determine if wide format
+	isWide := getOutputFormat == "wide"
+
 	// For human output, build table data
-	headers := []string{"NAME", "APP", "IMAGE", "STATUS", "CREATED"}
+	var headers []string
+	if isWide {
+		headers = []string{"NAME", "APP", "IMAGE", "STATUS", "CREATED", "CONTAINER-ID"}
+	} else {
+		headers = []string{"NAME", "APP", "IMAGE", "STATUS"}
+	}
 	if showTheme {
 		headers = append(headers, "THEME", "THEME SOURCE")
 	}
@@ -556,7 +620,20 @@ func getWorkspaces(cmd *cobra.Command) error {
 			appName,
 			ws.ImageName,
 			ws.Status,
-			ws.CreatedAt.Format("2006-01-02 15:04"),
+		}
+
+		if isWide {
+			// Add CREATED timestamp
+			row = append(row, ws.CreatedAt.Format("2006-01-02 15:04"))
+			// Add CONTAINER-ID (truncated to 12 chars like Docker)
+			containerID := "<none>"
+			if ws.ContainerID.Valid && ws.ContainerID.String != "" {
+				containerID = ws.ContainerID.String
+				if len(containerID) > 12 {
+					containerID = containerID[:12]
+				}
+			}
+			row = append(row, containerID)
 		}
 
 		// Add theme information if requested
@@ -577,7 +654,13 @@ func getWorkspaces(cmd *cobra.Command) error {
 		tableData.Rows[i] = row
 	}
 
-	return render.OutputWith(getOutputFormat, tableData, render.Options{
+	// For rendering, treat "wide" as table format
+	renderFormat := getOutputFormat
+	if isWide {
+		renderFormat = "table"
+	}
+
+	return render.OutputWith(renderFormat, tableData, render.Options{
 		Type: render.TypeTable,
 	})
 }

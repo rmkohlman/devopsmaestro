@@ -269,8 +269,16 @@ func getApps(cmd *cobra.Command) error {
 		return render.OutputWith(getOutputFormat, appsYAML, render.Options{})
 	}
 
+	// Determine if wide format
+	isWide := getOutputFormat == "wide"
+
 	// For human output, build table data
-	headers := []string{"NAME", "DOMAIN", "PATH", "CREATED"}
+	var headers []string
+	if isWide {
+		headers = []string{"NAME", "DOMAIN", "PATH", "CREATED", "ID", "GITREPO"}
+	} else {
+		headers = []string{"NAME", "DOMAIN", "PATH", "CREATED"}
+	}
 	if showTheme {
 		headers = append(headers, "THEME", "THEME SOURCE")
 	}
@@ -312,6 +320,13 @@ func getApps(cmd *cobra.Command) error {
 			a.CreatedAt.Format("2006-01-02 15:04"),
 		}
 
+		if isWide {
+			// Add ID
+			row = append(row, fmt.Sprintf("%d", a.ID))
+			// Add GITREPO - currently apps don't have a direct GitRepo association
+			row = append(row, "<none>")
+		}
+
 		// Add theme information if requested
 		if showTheme && themeResolver != nil {
 			themeName := themeresolver.DefaultTheme
@@ -330,7 +345,13 @@ func getApps(cmd *cobra.Command) error {
 		tableData.Rows[i] = row
 	}
 
-	return render.OutputWith(getOutputFormat, tableData, render.Options{
+	// For rendering, treat "wide" as table format
+	renderFormat := getOutputFormat
+	if isWide {
+		renderFormat = "table"
+	}
+
+	return render.OutputWith(renderFormat, tableData, render.Options{
 		Type: render.TypeTable,
 	})
 }
