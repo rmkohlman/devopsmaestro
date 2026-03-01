@@ -8,6 +8,56 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.21.0 (2026-02-28)
+
+**🚀 Local OCI Registry (Zot) - Container Image Caching**
+
+**New Features:**
+
+- **Local OCI Registry** - Integrated Zot registry for pull-through caching
+  - Faster builds: Base images cached locally after first pull
+  - Offline support: Build without network if images are cached
+  - Rate limit avoidance: Reduce Docker Hub pulls (avoid 100/6hr limit)
+  - Local image storage: Store built workspace images locally
+  - Automatic binary management: Zot auto-downloaded to `~/.devopsmaestro/bin/`
+
+- **Registry CLI Commands**
+  - `dvm registry start` - Start Zot registry (flags: `--port`, `--foreground`)
+  - `dvm registry stop` - Stop registry (flags: `--force`)
+  - `dvm registry status` - Show status (flags: `-o table/wide/json/yaml`)
+  - `dvm registry logs` - View logs (flags: `-n/--lines`, `--since`)
+  - `dvm registry prune` - Clean up images (flags: `--all`, `--older-than`, `--dry-run`, `--force`)
+
+- **Build Integration**
+  - `--no-cache` flag for `dvm build` - Skip registry cache
+  - `--push` flag for `dvm build` - Push built image to local registry
+  - `--registry` flag for `dvm build` - Override registry endpoint
+
+**Configuration:**
+
+```yaml
+registry:
+  enabled: true
+  lifecycle: persistent  # persistent | on-demand | manual
+  port: 5001
+  storage: ~/.devopsmaestro/registry
+  idle_timeout: 30m
+  mirrors:
+    - name: docker-hub
+      url: https://index.docker.io
+      on_demand: true
+      prefix: docker.io
+```
+
+**Technical Details:**
+
+- New `pkg/registry/` package with 7 implementation files
+- Interface-based design: RegistryManager, BinaryManager, ProcessManager
+- Custom error types for registry operations
+- Zot configuration generation and validation
+- Process lifecycle management
+- Integration tests with `-short` flag for CI compatibility
+
 ### v0.20.1 (2026-02-28)
 
 **🔗 GitRepo-Workspace Integration**
@@ -292,6 +342,7 @@ See the [full migration guide](https://github.com/rmkohlman/devopsmaestro/blob/m
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **0.21.0** | 2026-02-28 | Local OCI registry (Zot), pull-through cache, offline builds, registry CLI commands |
 | **0.20.1** | 2026-02-28 | GitRepo-Workspace integration (--repo flag, --no-sync flag, auto-sync on attach) |
 | **0.20.0** | 2026-02-28 | Git repository mirror management, bare mirrors, MirrorManager package, security validation |
 | **0.19.0** | 2026-02-28 | Full workspace isolation, SSH agent forwarding, security hardening (BREAKING) |

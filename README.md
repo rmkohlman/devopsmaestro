@@ -282,6 +282,7 @@ dvm status           # Full status overview
 - **kubectl-style commands** - Familiar `get`, `create`, `delete`, `apply` patterns
 - **Object hierarchy** - Ecosystem → Domain → App → Workspace for organized development
 - **Workspace isolation** - Each workspace has dedicated directories (repo, volume, configs)
+- **Local OCI registry (Zot)** - Pull-through cache for faster builds and offline support
 - **Git repository mirrors** - Store bare git mirrors locally for faster workspace cloning
 - **GitRepo-Workspace integration** - Associate workspaces with GitRepos for automatic cloning
 - **Auto-sync on attach** - Optionally sync mirrors before attaching (can be skipped with `--no-sync`)
@@ -395,10 +396,29 @@ dvm apply -f github:user/repo/theme.yaml     # Apply from GitHub
 
 # Build & Runtime
 dvm build                     # Build workspace container
+dvm build --no-cache          # Build without using registry cache
+dvm build --push              # Build and push to local registry
+dvm build --registry <url>    # Use custom registry endpoint
 dvm attach                    # Attach to workspace (auto-syncs GitRepo if configured)
 dvm attach --ssh-agent        # Attach with SSH agent forwarding
 dvm attach --no-sync          # Attach without syncing GitRepo mirror
 dvm detach                    # Stop workspace container
+
+# Local OCI Registry Management (v0.21.0+)
+dvm registry start            # Start Zot registry (pull-through cache)
+dvm registry start --port 5001 # Start on custom port
+dvm registry start --foreground # Run in foreground mode
+dvm registry stop             # Stop registry
+dvm registry stop --force     # Force stop (kill process)
+dvm registry status           # Show registry status
+dvm registry status -o wide   # Show detailed status with uptime
+dvm registry logs             # View registry logs
+dvm registry logs -n 100      # Show last 100 log lines
+dvm registry logs --since 10m # Show logs from last 10 minutes
+dvm registry prune            # Clean up cached images (interactive)
+dvm registry prune --dry-run  # Preview what would be deleted
+dvm registry prune --all      # Remove all cached images
+dvm registry prune --older-than 7d  # Remove images older than 7 days
 
 # Git Repository Management (v0.20.0+)
 dvm create gitrepo <name> --url <git-url>         # Create git repository mirror
@@ -648,6 +668,179 @@ Both SSH and HTTPS URLs normalize to the same slug:
 dvm create gitrepo repo1 --url https://github.com/user/repo.git
 dvm create gitrepo repo2 --url git@github.com:user/repo.git
 # → Both map to: ~/.devopsmaestro/repos/github.com/user/repo/
+```
+
+---
+
+## Local OCI Registry (Zot)
+
+DevOpsMaestro includes an integrated local OCI registry (Zot) that acts as a pull-through cache for container images. This provides faster builds, offline support, and helps avoid Docker Hub rate limits.
+
+### Benefits
+
+- **Faster builds** - Base images are cached locally after the first pull
+- **Offline support** - Build workspaces without network access if images are cached
+- **Rate limit avoidance** - Reduce pulls from Docker Hub (avoids 100 pulls/6 hours limit)
+- **Local image storage** - Store built workspace images in the local registry
+- **Automatic management** - Zot binary auto-downloaded and managed by DevOpsMaestro
+
+### Quick Start
+
+```bash
+# Start the registry (one-time setup)
+dvm registry start
+
+# Check status
+dvm registry status
+
+# Build with caching (default behavior)
+dvm build
+
+# Build without cache (fresh pull from upstream)
+dvm build --no-cache
+
+# Build and push to local registry
+dvm build --push
+
+# View cached images
+dvm registry status -o wide
+
+# Clean up old cached images
+dvm registry prune --older-than 7d
+```
+
+### Configuration
+
+The registry can be configured in `~/.devopsmaestro/config.yaml`:
+
+```yaml
+registry:
+  enabled: true
+  lifecycle: persistent  # persistent | on-demand | manual
+  port: 5001
+  storage: ~/.devopsmaestro/registry
+  idle_timeout: 30m  # for on-demand lifecycle
+  mirrors:
+    - name: docker-hub
+      url: https://index.docker.io
+      on_demand: true
+      prefix: docker.io
+```
+
+### Lifecycle Modes
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| `persistent` | Registry runs continuously | Heavy development, frequent builds |
+| `on-demand` | Starts on first use, stops after idle timeout | Occasional builds, save resources |
+| `manual` | User explicitly starts/stops | Full control over registry |
+
+### Storage Location
+
+- **Zot binary**: `~/.devopsmaestro/bin/zot`
+- **Registry data**: `~/.devopsmaestro/registry/`
+- **Registry config**: `~/.devopsmaestro/registry/config.json`
+- **Logs**: `~/.devopsmaestro/registry/zot.log`
+
+### Port Configuration
+
+The registry uses port **5001** by default (avoids conflict with Docker registry on port 5000). You can customize this:
+
+```bash
+dvm registry start --port 5050
+```
+
+Or in `config.yaml`:
+
+```yaml
+registry:
+  port: 5050
+```
+
+### Managing Cached Images
+
+```bash
+# View registry status with image count
+dvm registry status -o wide
+
+# Clean up interactively (prompts for confirmation)
+dvm registry prune
+
+# Preview what would be deleted
+dvm registry prune --dry-run
+
+# Remove all cached images
+dvm registry prune --all --force
+
+# Remove images older than 30 days
+dvm registry prune --older-than 30d
+```
+
+### Build Integration
+
+The registry automatically acts as a pull-through cache for base images:
+
+```bash
+# First build: Pulls from Docker Hub, caches locally
+dvm build
+
+# Second build: Uses cached image (much faster!)
+dvm build
+
+# Force fresh pull from upstream
+dvm build --no-cache
+
+# Build and store in local registry
+dvm build --push
+```
+
+### Advanced Usage
+
+```bash
+# Run registry in foreground (see logs in real-time)
+dvm registry start --foreground
+
+# Stop registry gracefully
+dvm registry stop
+
+# Force stop (if graceful stop hangs)
+dvm registry stop --force
+
+# View recent logs
+dvm registry logs -n 50
+
+# View logs from last hour
+dvm registry logs --since 1h
+
+# Use custom registry endpoint
+dvm build --registry localhost:5050
+```
+
+### Troubleshooting
+
+**Registry won't start:**
+```bash
+# Check if port is already in use
+lsof -i :5001
+
+# Try a different port
+dvm registry start --port 5050
+```
+
+**Zot binary not found:**
+The binary is auto-downloaded on first use. If download fails:
+```bash
+# Check internet connectivity
+# The binary is downloaded from: https://github.com/project-zot/zot/releases
+```
+
+**Builds still slow:**
+```bash
+# Verify registry is running
+dvm registry status
+
+# Check if images are being cached
+dvm registry status -o wide
 ```
 
 ---

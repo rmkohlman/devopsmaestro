@@ -15,6 +15,7 @@ import (
 	"devopsmaestro/pkg/nvimops/store"
 	"devopsmaestro/pkg/nvimops/theme"
 	"devopsmaestro/pkg/palette"
+	"devopsmaestro/pkg/registry"
 	"devopsmaestro/pkg/resolver"
 	"devopsmaestro/pkg/resource"
 	"devopsmaestro/pkg/resource/handlers"
@@ -38,10 +39,12 @@ import (
 )
 
 var (
-	buildForce   bool
-	buildNocache bool
-	buildTarget  string
-	buildFlags   HierarchyFlags
+	buildForce    bool
+	buildNocache  bool
+	buildTarget   string
+	buildPush     bool
+	buildRegistry string
+	buildFlags    HierarchyFlags
 )
 
 // buildCmd represents the build command
@@ -55,6 +58,7 @@ This command:
 - Generates or extends Dockerfile with dev tools
 - Builds the image using the detected container platform
 - Tags as dvm-<workspace>-<app>:latest
+- Optionally pushes to local registry cache
 
 Supports multiple platforms:
 - OrbStack (uses Docker API)
@@ -64,18 +68,27 @@ Supports multiple platforms:
 
 Use DVM_PLATFORM environment variable to select a specific platform.
 
+Registry Integration:
+  If registry.enabled is true in config and lifecycle is "on-demand" or "persistent",
+  the build command will automatically start the registry before building. This provides
+  image caching to speed up builds and reduce network usage.
+
 Flags:
   -e, --ecosystem   Filter by ecosystem name
   -d, --domain      Filter by domain name  
   -a, --app         Filter by app name
   -w, --workspace   Filter by workspace name
+  --no-cache        Build without using registry cache (pull fresh from upstream)
+  --push            Push built image to local registry after build
+  --registry        Override registry endpoint (default: from config)
 
 Examples:
   dvm build
   dvm build --force
   dvm build --no-cache
-  dvm build -a portal                 # Build workspace in 'portal' app
-  dvm build -e healthcare -a portal   # Specify ecosystem and app
+  dvm build --push                        # Push to local registry
+  dvm build -a portal                     # Build workspace in 'portal' app
+  dvm build -e healthcare -a portal       # Specify ecosystem and app
   DVM_PLATFORM=colima dvm build
 `,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -86,8 +99,10 @@ Examples:
 func init() {
 	rootCmd.AddCommand(buildCmd)
 	buildCmd.Flags().BoolVar(&buildForce, "force", false, "Force rebuild even if image exists")
-	buildCmd.Flags().BoolVar(&buildNocache, "no-cache", false, "Build without using cache")
+	buildCmd.Flags().BoolVar(&buildNocache, "no-cache", false, "Build without using cache (skip registry cache)")
 	buildCmd.Flags().StringVar(&buildTarget, "target", "dev", "Build target stage (default: dev)")
+	buildCmd.Flags().BoolVar(&buildPush, "push", false, "Push built image to local registry")
+	buildCmd.Flags().StringVar(&buildRegistry, "registry", "", "Override registry endpoint (default: from config)")
 	AddHierarchyFlags(buildCmd, &buildFlags)
 }
 
@@ -200,6 +215,45 @@ func buildWorkspace(cmd *cobra.Command) error {
 	}
 	render.Info(fmt.Sprintf("Platform: %s", platform.Name))
 	slog.Info("detected platform", "name", platform.Name, "type", platform.Type, "socket", platform.SocketPath)
+
+	// Step 1.5: Ensure registry is running if enabled
+	var registryEndpoint string
+	if config.IsRegistryEnabled() {
+		cfg := config.GetRegistryConfig()
+		// Only auto-start for on-demand or persistent lifecycle
+		if cfg.Lifecycle == "on-demand" || cfg.Lifecycle == "persistent" {
+			fmt.Println()
+			render.Progress("Starting registry cache...")
+
+			// Convert to registry.RegistryConfig
+			regCfg := convertToRegistryConfig(cfg)
+			if err := regCfg.Validate(); err != nil {
+				render.Warning(fmt.Sprintf("Invalid registry config: %v", err))
+				render.Info("Continuing build without registry cache")
+			} else {
+				mgr := registry.NewRegistryManager(regCfg)
+
+				// Use context with timeout for registry operations
+				regCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+
+				if err := mgr.EnsureRunning(regCtx); err != nil {
+					render.Warning(fmt.Sprintf("Failed to start registry: %v", err))
+					render.Info("Continuing build without registry cache")
+				} else {
+					registryEndpoint = mgr.GetEndpoint()
+					render.Success(fmt.Sprintf("Using registry cache: %s", registryEndpoint))
+					slog.Info("registry cache available", "endpoint", registryEndpoint)
+
+					// Override with --registry flag if provided
+					if buildRegistry != "" {
+						registryEndpoint = buildRegistry
+						render.Info(fmt.Sprintf("Registry override: %s", registryEndpoint))
+					}
+				}
+			}
+		}
+	}
 
 	// Step 2: Detect language (use App.Language if set, fall back to auto-detection)
 	fmt.Println()
@@ -386,10 +440,37 @@ func buildWorkspace(cmd *cobra.Command) error {
 		render.Warning(fmt.Sprintf("Failed to update workspace image name: %v", err))
 	}
 
+	// Step 8: Push to registry if --push flag is set and registry is available
+	if buildPush && registryEndpoint != "" {
+		fmt.Println()
+		render.Progress(fmt.Sprintf("Pushing image to registry: %s", registryEndpoint))
+
+		// Tag image for registry
+		registryImage := fmt.Sprintf("%s/%s", registryEndpoint, imageName)
+		if err := tagImageForRegistry(platform, imageName, registryImage); err != nil {
+			render.Warning(fmt.Sprintf("Failed to tag image for registry: %v", err))
+			render.Info("Skipping push to registry")
+		} else {
+			// Push image to registry
+			if err := pushImageToRegistry(platform, registryImage); err != nil {
+				render.Warning(fmt.Sprintf("Failed to push image to registry: %v", err))
+			} else {
+				render.Success(fmt.Sprintf("Pushed to registry: %s", registryImage))
+				slog.Info("pushed image to registry", "image", registryImage)
+			}
+		}
+	} else if buildPush && registryEndpoint == "" {
+		render.Warning("Cannot push: registry is not available")
+		render.Info("Start the registry with: dvm registry start")
+	}
+
 	fmt.Println()
 	render.Success("Build complete!")
 	render.Info(fmt.Sprintf("Image: %s", imageName))
 	render.Info(fmt.Sprintf("Dockerfile: %s", dvmDockerfile))
+	if registryEndpoint != "" {
+		render.Info(fmt.Sprintf("Registry cache: %s", registryEndpoint))
+	}
 	fmt.Println()
 	render.Info("Next: Attach to your workspace with: dvm attach")
 
@@ -1638,4 +1719,54 @@ func mapConfigToWezTerm(config map[string]any, wt *wezterm.WezTerm) error {
 	}
 
 	return nil
+}
+
+// tagImageForRegistry tags an image for pushing to a registry.
+// For Docker/OrbStack/Podman, uses docker tag command.
+// For Colima/containerd, uses nerdctl tag command.
+func tagImageForRegistry(platform *operators.Platform, sourceImage, targetImage string) error {
+	slog.Debug("tagging image for registry", "source", sourceImage, "target", targetImage)
+
+	var cmd *exec.Cmd
+	if platform.IsContainerd() {
+		// Use nerdctl via colima ssh for containerd
+		profile := platform.Profile
+		if profile == "" {
+			profile = "default"
+		}
+		cmd = exec.Command("colima", "--profile", profile, "ssh", "--",
+			"sudo", "nerdctl", "--namespace", "devopsmaestro", "tag", sourceImage, targetImage)
+	} else {
+		// Use docker for Docker/OrbStack/Podman
+		cmd = exec.Command("docker", "tag", sourceImage, targetImage)
+	}
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// pushImageToRegistry pushes an image to a registry.
+// For Docker/OrbStack/Podman, uses docker push command.
+// For Colima/containerd, uses nerdctl push command.
+func pushImageToRegistry(platform *operators.Platform, image string) error {
+	slog.Debug("pushing image to registry", "image", image)
+
+	var cmd *exec.Cmd
+	if platform.IsContainerd() {
+		// Use nerdctl via colima ssh for containerd
+		profile := platform.Profile
+		if profile == "" {
+			profile = "default"
+		}
+		cmd = exec.Command("colima", "--profile", profile, "ssh", "--",
+			"sudo", "nerdctl", "--namespace", "devopsmaestro", "push", "--insecure-registry", image)
+	} else {
+		// Use docker for Docker/OrbStack/Podman
+		cmd = exec.Command("docker", "push", image)
+	}
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }

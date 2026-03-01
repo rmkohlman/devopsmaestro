@@ -11,6 +11,108 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.21.0] - 2026-02-28
+
+### ✨ Added
+
+#### Local OCI Registry (Zot) for Container Image Caching
+
+##### Registry Infrastructure
+- **`pkg/registry/` package** - Complete Zot registry management system (7 implementation files)
+  - `interfaces.go` - RegistryManager, BinaryManager, ProcessManager interfaces
+  - `errors.go` - Custom error types (ErrRegistryNotRunning, ErrBinaryNotFound, etc.)
+  - `config.go` - Zot configuration generation, validation, and defaults
+  - `factory.go` - Factory functions for creating managers
+  - `process_manager.go` - Process lifecycle management (start, stop, status)
+  - `binary_manager.go` - Zot binary download and management
+  - `zot_manager.go` - Main registry manager implementation
+
+##### Registry CLI Commands
+- **`dvm registry start`** - Start Zot registry
+  - `--port` - Custom registry port (default: 5001)
+  - `--foreground` - Run in foreground mode
+- **`dvm registry stop`** - Stop running registry
+  - `--force` - Force stop (kill process)
+- **`dvm registry status`** - Show registry status
+  - `-o table/wide/json/yaml` - Multiple output formats
+- **`dvm registry logs`** - View registry logs
+  - `-n/--lines` - Number of log lines to show
+  - `--since` - Show logs since duration (e.g., "10m", "1h")
+- **`dvm registry prune`** - Clean up cached images
+  - `--all` - Remove all cached images
+  - `--older-than` - Remove images older than duration (e.g., "7d", "30d")
+  - `--dry-run` - Preview what would be deleted
+  - `--force` - Skip confirmation prompt
+
+##### Build Integration
+- **Pull-through cache support** - Base images cached locally after first pull
+- **Local image storage** - Built workspace images stored in local registry
+- **`--no-cache` flag for `dvm build`** - Skip registry cache for fresh builds
+- **`--push` flag for `dvm build`** - Push built image to local registry (opt-in)
+- **`--registry` flag for `dvm build`** - Override registry endpoint
+
+##### Registry Configuration
+- **`registry` section in config.yaml** - Declarative registry configuration
+  - `enabled: true/false` - Enable/disable registry integration
+  - `lifecycle: persistent/on-demand/manual` - Registry lifecycle mode
+  - `port: 5001` - Registry port (default: 5001, avoids Docker registry 5000)
+  - `storage: ~/.devopsmaestro/registry` - Registry data storage location
+  - `idle_timeout: 30m` - Idle timeout for on-demand lifecycle
+  - `mirrors` - Configure pull-through caching for external registries
+    - `name` - Mirror name (e.g., "docker-hub")
+    - `url` - Upstream registry URL (e.g., "https://index.docker.io")
+    - `on_demand: true` - Enable on-demand pull-through
+    - `prefix` - Mirror prefix (e.g., "docker.io")
+
+##### Features & Benefits
+- **Faster builds** - Base images cached locally after first pull (no repeated downloads)
+- **Offline support** - Build workspaces without network if images are cached
+- **Rate limit avoidance** - Reduce Docker Hub pulls (avoid 100 pulls/6 hours limit)
+- **Local image storage** - Store built workspace images in local registry
+- **Automatic binary management** - Zot binary auto-downloaded to `~/.devopsmaestro/bin/`
+- **Port 5001 default** - Avoids conflict with Docker registry on port 5000
+- **Three lifecycle modes**:
+  - `persistent` - Registry runs continuously
+  - `on-demand` - Registry starts on first use, stops after idle timeout
+  - `manual` - User explicitly starts/stops via CLI
+
+### 🔧 Enhanced
+
+#### Testing Infrastructure
+- **Integration test support** - Registry integration tests with actual Zot binary
+- **Test isolation** - Tests use `-short` flag to skip integration tests in CI
+- **CI compatibility** - CI runs fast unit tests only, skips binary-dependent tests
+
+### 📦 Files Changed
+
+#### New Files
+```
+pkg/registry/interfaces.go          # RegistryManager, BinaryManager, ProcessManager interfaces
+pkg/registry/errors.go               # Custom error types for registry operations
+pkg/registry/config.go               # Zot configuration generation and validation
+pkg/registry/factory.go              # Factory functions for manager creation
+pkg/registry/process_manager.go      # Process lifecycle management implementation
+pkg/registry/binary_manager.go       # Zot binary download and management
+pkg/registry/zot_manager.go          # Main registry manager implementation
+config/registry.go                   # Registry config types for viper integration
+cmd/registry.go                      # CLI commands for registry operations
+```
+
+#### Modified Files
+```
+cmd/build.go                         # Added --no-cache, --push, --registry flags
+.github/workflows/ci.yml             # Added -short flag to skip integration tests
+```
+
+### 🧪 Testing
+
+- **Registry manager tests** - Process lifecycle, binary management, configuration
+- **CLI integration tests** - All registry commands tested with mock implementations
+- **Build integration tests** - Cache and push functionality verified
+- **CI compatibility** - Integration tests skipped in CI with `-short` flag
+
+---
+
 ## [0.20.1] - 2026-02-28
 
 ### ✨ Added
