@@ -44,7 +44,7 @@ brew install devopsmaestro
 brew install nvimops
 
 # Verify installation
-dvm version   # Should show v0.19.0
+dvm version   # Should show v0.22.0
 nvp version
 ```
 
@@ -330,6 +330,10 @@ kubectl-style short aliases for faster commands:
 | gitrepo/gitrepos | `repo`, `gr` | `dvm get repo` |
 | context | `ctx` | `dvm get ctx` |
 | platforms | `plat` | `dvm get plat` |
+| library | `lib` | `dvm lib ls plugins` |
+| plugins | `np` | `dvm lib ls np` |
+| themes | `nt` | `dvm lib ls nt` |
+| terminal prompts | `tp` | `dvm lib ls tp` |
 | projects | `proj` | `dvm get proj` *(deprecated)* |
 
 ### dvm Commands
@@ -381,6 +385,22 @@ dvm delete nvim package <name> # Remove a package
 dvm use nvim package <name>   # Set default package for new workspaces
 dvm use nvim package none     # Clear default package
 dvm get nvim defaults         # Show current defaults
+
+# Library Browsing (v0.22.0+)
+dvm library list plugins              # List available nvim plugins (38+)
+dvm library list themes               # List available nvim themes (34+)
+dvm library list nvim packages        # List nvim package bundles
+dvm library list terminal prompts     # List terminal prompts
+dvm library list terminal plugins     # List shell plugins
+dvm library list terminal packages    # List terminal bundles
+dvm library show plugin <name>        # Show plugin details
+dvm library show theme <name>         # Show theme details
+dvm lib ls np                         # Short aliases work
+
+# Terminal Configuration (v0.22.0+)
+dvm set terminal prompt -w <workspace> <name>    # Set workspace terminal prompt
+dvm set terminal plugin -w <workspace> <plugins> # Set workspace terminal plugins
+dvm set terminal package -w <workspace> <name>   # Set workspace terminal package
 
 # Theme Management (v0.12.0+)
 dvm get nvim themes           # List all 34+ available themes

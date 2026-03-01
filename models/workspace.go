@@ -2,6 +2,7 @@ package models
 
 import (
 	"database/sql"
+	"encoding/json"
 	"strings"
 	"time"
 )
@@ -20,6 +21,9 @@ type Workspace struct {
 	Theme              sql.NullString `db:"theme" json:"theme,omitempty" yaml:"theme,omitempty"`
 	NvimStructure      sql.NullString `db:"nvim_structure" json:"nvim_structure,omitempty" yaml:"-"`
 	NvimPlugins        sql.NullString `db:"nvim_plugins" json:"nvim_plugins,omitempty" yaml:"-"` // Comma-separated plugin names
+	TerminalPrompt     sql.NullString `db:"terminal_prompt" json:"terminal_prompt,omitempty" yaml:"-"`
+	TerminalPlugins    sql.NullString `db:"terminal_plugins" json:"terminal_plugins,omitempty" yaml:"-"` // JSON array
+	TerminalPackage    sql.NullString `db:"terminal_package" json:"terminal_package,omitempty" yaml:"-"`
 	GitRepoID          sql.NullInt64  `db:"git_repo_id" json:"git_repo_id,omitempty" yaml:"-"`
 	CreatedAt          time.Time      `db:"created_at" json:"created_at" yaml:"-"`
 	UpdatedAt          time.Time      `db:"updated_at" json:"updated_at" yaml:"-"`
@@ -210,4 +214,34 @@ func (w *Workspace) FromYAML(yaml WorkspaceYAML) {
 	if yaml.Spec.Nvim.Theme != "" {
 		w.Theme = sql.NullString{String: yaml.Spec.Nvim.Theme, Valid: true}
 	}
+}
+
+// GetTerminalPlugins returns the list of terminal plugins configured for this workspace.
+// Returns an empty slice if no plugins are configured or if the JSON is invalid.
+func (w *Workspace) GetTerminalPlugins() []string {
+	if !w.TerminalPlugins.Valid || w.TerminalPlugins.String == "" {
+		return []string{}
+	}
+	var plugins []string
+	if err := json.Unmarshal([]byte(w.TerminalPlugins.String), &plugins); err != nil {
+		// If unmarshal fails, return empty slice
+		return []string{}
+	}
+	return plugins
+}
+
+// SetTerminalPlugins sets the terminal plugins for this workspace.
+// Stores as a JSON array. If plugins is empty, sets to NULL.
+func (w *Workspace) SetTerminalPlugins(plugins []string) {
+	if len(plugins) == 0 {
+		w.TerminalPlugins = sql.NullString{Valid: false}
+		return
+	}
+	data, err := json.Marshal(plugins)
+	if err != nil {
+		// If marshal fails, set to invalid
+		w.TerminalPlugins = sql.NullString{Valid: false}
+		return
+	}
+	w.TerminalPlugins = sql.NullString{String: string(data), Valid: true}
 }

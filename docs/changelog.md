@@ -8,6 +8,51 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.22.0 (2026-02-28)
+
+**🔗 Integration - Consolidated Library & Terminal Configuration**
+
+Complete integration of nvp/dvt functionality into dvm. Users can now browse libraries and configure terminal settings without leaving the dvm CLI.
+
+**New Features:**
+
+- **Library Browsing Commands** - Browse all libraries from dvm:
+  - `dvm library list plugins` - 38+ nvim plugins
+  - `dvm library list themes` - 34+ nvim themes
+  - `dvm library list nvim packages` - Nvim bundles
+  - `dvm library list terminal prompts` - 5 terminal prompts
+  - `dvm library list terminal plugins` - 8 shell plugins
+  - `dvm library list terminal packages` - Terminal bundles
+  - `dvm library show <resource> <name>` - Detailed info
+  - **Aliases**: `lib` → `library`, `ls` → `list`, `np` → `plugins`, `nt` → `themes`, `tp` → `terminal prompts`
+
+- **Terminal Configuration** - Configure terminal per-workspace:
+  - `dvm set terminal prompt -w <workspace> <name>` - Set prompt
+  - `dvm set terminal plugin -w <workspace> <plugins...>` - Set plugins
+  - `dvm set terminal package -w <workspace> <name>` - Set package bundle
+  - Workspace-specific terminal configuration stored in database
+  - Validation ensures resources exist in library
+
+**Example Workflow:**
+```bash
+# Browse available themes
+dvm lib ls themes
+
+# Set terminal prompt for workspace
+dvm set terminal prompt -w dev starship-minimal
+
+# Set shell plugins
+dvm set terminal plugin -w dev zsh-autosuggestions fzf
+
+# Verify workspace config
+dvm get workspace dev -o yaml
+```
+
+**Technical Details:**
+- New database migration `004_add_terminal_fields`
+- 104 new integration tests following TDD
+- Workspace model extended with TerminalPrompt, TerminalPlugins, TerminalPackage fields
+
 ### v0.21.0 (2026-02-28)
 
 **🚀 Local OCI Registry (Zot) - Container Image Caching**
@@ -342,6 +387,7 @@ See the [full migration guide](https://github.com/rmkohlman/devopsmaestro/blob/m
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **0.22.0** | 2026-02-28 | Library browsing (dvm library), terminal configuration (dvm set terminal), integration |
 | **0.21.0** | 2026-02-28 | Local OCI registry (Zot), pull-through cache, offline builds, registry CLI commands |
 | **0.20.1** | 2026-02-28 | GitRepo-Workspace integration (--repo flag, --no-sync flag, auto-sync on attach) |
 | **0.20.0** | 2026-02-28 | Git repository mirror management, bare mirrors, MirrorManager package, security validation |

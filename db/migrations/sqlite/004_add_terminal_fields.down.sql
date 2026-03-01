@@ -1,0 +1,4 @@
+-- 004_add_terminal_fields.down.sql
+-- Remove terminal configuration fields from workspaces table
+-- Note: SQLite doesn't support DROP COLUMN directly, so we leave these columns
+-- They will be ignored if migration is rolled back and not used

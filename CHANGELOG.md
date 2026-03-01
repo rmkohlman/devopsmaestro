@@ -11,6 +11,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.22.0] - 2026-02-28
+
+### ✨ Added
+
+#### Library Browsing from dvm
+
+Browse all available plugins, themes, prompts, and packages directly from dvm without needing to use nvp or dvt.
+
+##### Library List Commands
+- **`dvm library list plugins`** - List all 38+ available Neovim plugins from embedded library
+- **`dvm library list themes`** - List all 34+ available Neovim themes (CoolNight variants, Catppuccin, Dracula, etc.)
+- **`dvm library list nvim packages`** - List available Neovim package bundles
+- **`dvm library list terminal prompts`** - List all 5 terminal prompt configurations
+- **`dvm library list terminal plugins`** - List all 8 shell plugins (zsh-autosuggestions, fzf, etc.)
+- **`dvm library list terminal packages`** - List available terminal package bundles
+- **Aliases**: `lib` → `library`, `ls` → `list`, `np` → `plugins`, `nt` → `themes`, `tp` → `terminal prompts`
+- **Example**: `dvm lib ls np` lists nvim plugins
+
+##### Library Show Commands
+- **`dvm library show plugin <name>`** - Show detailed nvim plugin information
+- **`dvm library show theme <name>`** - Show nvim theme details with color palette
+- **`dvm library show nvim package <name>`** - Show nvim package contents
+- **`dvm library show terminal prompt <name>`** - Show terminal prompt details
+- **`dvm library show terminal plugin <name>`** - Show shell plugin details
+- **`dvm library show terminal package <name>`** - Show terminal package contents
+
+#### Terminal Configuration for Workspaces
+
+Configure terminal prompts and plugins per-workspace, completing the integration of nvp/dvt functionality into dvm.
+
+##### Terminal Set Commands
+- **`dvm set terminal prompt -w <workspace> <name>`** - Set terminal prompt for workspace
+- **`dvm set terminal plugin -w <workspace> <plugins...>`** - Set terminal plugins for workspace (multiple allowed)
+- **`dvm set terminal package -w <workspace> <name>`** - Set terminal package for workspace
+- **Workspace resolution**: Supports `-w/--workspace`, `-a/--app`, `-d/--domain`, `-e/--ecosystem` flags
+- **Validation**: Commands validate that specified prompts/plugins/packages exist in library
+
+##### Workspace Model Updates
+- **New workspace fields**: `TerminalPrompt`, `TerminalPlugins`, `TerminalPackage`
+- **Database migration**: Added `004_add_terminal_fields` migration for new columns
+- **YAML support**: Terminal fields appear in `dvm get workspace -o yaml` output
+
+### 📦 Files Changed
+
+#### New Files
+```
+cmd/library.go                              # Library command group (list/show)
+cmd/library_test.go                         # 73 integration tests
+cmd/terminal_set.go                         # Terminal set commands
+cmd/terminal_set_test.go                    # 31 integration tests
+db/migrations/sqlite/004_add_terminal_fields.up.sql
+db/migrations/sqlite/004_add_terminal_fields.down.sql
+models/workspace_terminal_test.go           # Unit tests for terminal methods
+```
+
+#### Modified Files
+```
+models/workspace.go                         # Added terminal fields and methods
+```
+
+### 🧪 Testing
+
+- **104 new tests** for library and terminal set commands
+- **Integration test tags** - Tests tagged with `//go:build integration`
+- **TDD workflow** - All tests written before implementation (RED → GREEN)
+
+---
+
 ## [0.21.0] - 2026-02-28
 
 ### ✨ Added
