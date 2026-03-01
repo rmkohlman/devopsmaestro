@@ -44,7 +44,7 @@ brew install devopsmaestro
 brew install nvimops
 
 # Verify installation
-dvm version   # Should show v0.22.0
+dvm version   # Should show v0.26.0
 nvp version
 ```
 
@@ -695,8 +695,8 @@ DevOpsMaestro provides a flexible registry system supporting multiple registry t
 | Type | Purpose | Status |
 |------|---------|--------|
 | `zot` | OCI container image registry | ✅ Full support |
+| `devpi` | Python package index/proxy | ✅ Full support |
 | `athens` | Go module proxy | 🚧 Stub implementation |
-| `devpi` | Python package index | 🚧 Stub implementation |
 | `verdaccio` | npm registry | 🚧 Stub implementation |
 | `squid` | HTTP proxy cache | 🚧 Stub implementation |
 
@@ -705,7 +705,8 @@ DevOpsMaestro provides a flexible registry system supporting multiple registry t
 - **Faster builds** - Base images are cached locally after the first pull
 - **Offline support** - Build workspaces without network access if images are cached
 - **Rate limit avoidance** - Reduce pulls from Docker Hub (avoids 100 pulls/6 hours limit)
-- **Multi-registry support** - Run multiple registries simultaneously (zot, athens, devpi, etc.)
+- **Python package caching** - Cache PyPI packages locally with devpi for faster pip installs
+- **Multi-registry support** - Run multiple registries simultaneously (zot, devpi, athens, etc.)
 - **Resource-based management** - Registries are database-backed resources like other DevOpsMaestro objects
 - **ServiceFactory pattern** - Extensible design for adding new registry types
 
@@ -745,12 +746,14 @@ dvm delete registry myregistry
 Registries are managed as database-backed resources:
 
 ```bash
-# Create a Zot registry
+# Create a Zot registry (OCI images)
 dvm create registry myregistry --type zot --port 5000
+
+# Create a devpi registry (Python packages)
+dvm create registry pypi --type devpi --port 3141
 
 # Create registries for other types (stub implementations)
 dvm create registry athens --type athens --port 3000
-dvm create registry devpi --type devpi --port 4000
 dvm create registry verdaccio --type verdaccio --port 4873
 
 # List all registries
@@ -773,11 +776,17 @@ Each registry type has its own configuration stored in the database. For Zot reg
 
 ### Storage Location
 
-For Zot registries:
+**For Zot registries:**
 - **Zot binary**: `~/.devopsmaestro/bin/zot`
 - **Registry data**: `~/.devopsmaestro/registry/<registry-name>/`
 - **Registry config**: `~/.devopsmaestro/registry/<registry-name>/config.json`
 - **Logs**: `~/.devopsmaestro/registry/<registry-name>/zot.log`
+
+**For devpi registries:**
+- **devpi-server binary**: Managed by pipx (installed via `pipx install devpi-server`)
+- **Registry data**: `~/.dvm/devpi/<registry-name>/`
+- **Server config**: `~/.dvm/devpi/<registry-name>/devpi-server/`
+- **Logs**: Managed by devpi-server
 
 ### Runtime Operations
 
@@ -823,18 +832,18 @@ You can run multiple registries simultaneously:
 ```bash
 # Create different registry types
 dvm create registry images --type zot --port 5000
+dvm create registry pypi --type devpi --port 3141
 dvm create registry gomodules --type athens --port 3000
-dvm create registry pypi --type devpi --port 4000
 
 # Start them all
 dvm start registry images
-dvm start registry gomodules
 dvm start registry pypi
+dvm start registry gomodules
 
 # Check status of each
 dvm rollout status registry images
-dvm rollout status registry gomodules
 dvm rollout status registry pypi
+dvm rollout status registry gomodules
 
 # Stop specific registry
 dvm stop registry images

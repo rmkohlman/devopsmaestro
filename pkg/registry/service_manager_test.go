@@ -116,13 +116,6 @@ func TestStubStrategies(t *testing.T) {
 		expectedPath string
 	}{
 		{
-			name:         "devpi",
-			strategy:     NewDevpiStrategy(),
-			registryType: "devpi",
-			expectedPort: 3141,
-			expectedPath: "/var/lib/devpi",
-		},
-		{
 			name:         "verdaccio",
 			strategy:     NewVerdaccioStrategy(),
 			registryType: "verdaccio",

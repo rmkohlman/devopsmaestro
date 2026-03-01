@@ -206,6 +206,110 @@ func (a *AthensManagerAdapter) GetEndpoint() string {
 	return a.manager.GetEndpoint()
 }
 
+// --- Devpi Strategy ---
+
+// DevpiStrategy implements RegistryStrategy for devpi PyPI proxy.
+type DevpiStrategy struct{}
+
+// NewDevpiStrategy creates a new DevpiStrategy.
+func NewDevpiStrategy() *DevpiStrategy {
+	return &DevpiStrategy{}
+}
+
+// ValidateConfig validates devpi-specific configuration.
+func (s *DevpiStrategy) ValidateConfig(config json.RawMessage) error {
+	if len(config) == 0 {
+		return nil // Empty config is valid
+	}
+
+	// Parse config to verify it's valid JSON
+	var configMap map[string]interface{}
+	if err := json.Unmarshal(config, &configMap); err != nil {
+		return fmt.Errorf("invalid JSON config: %w", err)
+	}
+
+	// Devpi config validation would go here
+	return nil
+}
+
+// CreateManager creates a DevpiManagerAdapter from a Registry resource.
+func (s *DevpiStrategy) CreateManager(reg *models.Registry) (ServiceManager, error) {
+	if reg == nil {
+		return nil, fmt.Errorf("registry cannot be nil")
+	}
+
+	// Convert Registry to PyPIProxyConfig
+	config := PyPIProxyConfig{
+		Enabled:     true,
+		Lifecycle:   reg.Lifecycle,
+		Port:        reg.Port,
+		Storage:     s.getStoragePath(reg),
+		IdleTimeout: 30 * time.Minute,
+		Upstreams:   defaultPyPIUpstreams(),
+	}
+
+	// Apply defaults
+	if config.Port == 0 {
+		config.Port = s.GetDefaultPort()
+	}
+
+	// Create DevpiManager and wrap it in adapter
+	devpiManager := NewDevpiManager(config)
+	return &DevpiManagerAdapter{manager: devpiManager}, nil
+}
+
+// GetDefaultPort returns the default devpi port (3141).
+func (s *DevpiStrategy) GetDefaultPort() int {
+	return 3141
+}
+
+// GetDefaultStorage returns the default devpi storage path.
+func (s *DevpiStrategy) GetDefaultStorage() string {
+	return "/var/lib/devpi"
+}
+
+// getStoragePath determines the storage path for a registry.
+func (s *DevpiStrategy) getStoragePath(reg *models.Registry) string {
+	// If config specifies storage, use it
+	if reg.Config.Valid && reg.Config.String != "" {
+		var configMap map[string]interface{}
+		if err := json.Unmarshal([]byte(reg.Config.String), &configMap); err == nil {
+			if storage, ok := configMap["storage"].(string); ok && storage != "" {
+				return storage
+			}
+		}
+	}
+
+	// Otherwise use default path under ~/.devopsmaestro
+	homeDir, _ := os.UserHomeDir()
+	return filepath.Join(homeDir, ".devopsmaestro", "registries", reg.Name)
+}
+
+// DevpiManagerAdapter adapts DevpiManager to ServiceManager interface.
+type DevpiManagerAdapter struct {
+	manager *DevpiManager
+}
+
+// Start starts the devpi proxy.
+func (d *DevpiManagerAdapter) Start(ctx context.Context) error {
+	return d.manager.Start(ctx)
+}
+
+// Stop stops the devpi proxy.
+func (d *DevpiManagerAdapter) Stop(ctx context.Context) error {
+	return d.manager.Stop(ctx)
+}
+
+// IsRunning checks if devpi is running.
+func (d *DevpiManagerAdapter) IsRunning(ctx context.Context) bool {
+	return d.manager.IsRunning(ctx)
+}
+
+// GetEndpoint returns the devpi endpoint (full URL).
+func (d *DevpiManagerAdapter) GetEndpoint() string {
+	return d.manager.GetEndpoint()
+}
+
 // --- Stub Strategies for Future Implementation ---
 
 // StubStrategy is a base strategy for registries not yet implemented.
@@ -241,15 +345,6 @@ func (s *StubStrategy) GetDefaultPort() int {
 // GetDefaultStorage returns the default storage path for this registry type.
 func (s *StubStrategy) GetDefaultStorage() string {
 	return s.defaultStorage
-}
-
-// NewDevpiStrategy creates a stub strategy for devpi (Python package index).
-func NewDevpiStrategy() RegistryStrategy {
-	return &StubStrategy{
-		registryType:   "devpi",
-		defaultPort:    3141,
-		defaultStorage: "/var/lib/devpi",
-	}
 }
 
 // NewVerdaccioStrategy creates a stub strategy for verdaccio (npm registry).

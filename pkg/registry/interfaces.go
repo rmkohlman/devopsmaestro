@@ -249,3 +249,35 @@ type GoModuleProxyStatus struct {
 	// DiskUsage is the total disk space used (bytes)
 	DiskUsage int64
 }
+
+// PyPIProxy defines the interface for managing a PyPI proxy (devpi).
+// All implementations must be safe for concurrent use.
+type PyPIProxy interface {
+	// Start starts the PyPI proxy process.
+	// Returns an error if the proxy fails to start.
+	Start(ctx context.Context) error
+
+	// Stop stops the proxy process gracefully.
+	// Sends SIGTERM, then SIGKILL if process doesn't exit within timeout.
+	Stop(ctx context.Context) error
+
+	// Status returns the current status of the proxy.
+	Status(ctx context.Context) (*PyPIProxyStatus, error)
+
+	// EnsureRunning starts the proxy if it's not running.
+	// Idempotent - does nothing if already running.
+	EnsureRunning(ctx context.Context) error
+
+	// IsRunning checks if the proxy is currently running.
+	IsRunning(ctx context.Context) bool
+
+	// GetEndpoint returns the proxy endpoint (e.g., "http://localhost:3141").
+	GetEndpoint() string
+
+	// GetPipEnv returns the pip environment variables to use this proxy.
+	// Returns a map with keys like "PIP_INDEX_URL", "PIP_TRUSTED_HOST".
+	GetPipEnv() map[string]string
+
+	// GetPipConfig returns the pip configuration in pip.conf format.
+	GetPipConfig() string
+}

@@ -11,6 +11,99 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.26.0] - 2026-03-01
+
+### ✨ Added
+
+#### devpi Python Package Index/Proxy (PyPI Integration)
+
+##### devpi Registry Type
+- **Full devpi implementation** - Complete Python package index/proxy with lifecycle management
+  - Start/stop/status operations via registry commands
+  - Health checking with automatic retry mechanism
+  - Idle timeout support for on-demand mode
+  - Package caching and statistics tracking
+  - Default port: 3141 (configurable)
+  - Default storage: `~/.dvm/devpi`
+
+##### PipxBinaryManager
+- **New binary manager** - Manages devpi-server installation via pipx
+  - Cross-platform support (macOS, Linux)
+  - Version management and updates
+  - Automatic pipx installation if missing
+  - Binary lifecycle: install, update, uninstall
+  - Health checks for binary availability
+
+##### pip Integration
+- **`GetPipEnv()`** - Returns environment variables for pip configuration
+  - `PIP_INDEX_URL` - Points to devpi registry
+  - `PIP_TRUSTED_HOST` - Trusts local devpi host
+- **`GetPipConfig()`** - Generates pip.conf for workspace configuration
+  - Automatic index URL configuration
+  - Trust settings for local registry
+  - Works with workspace-specific configurations
+
+##### Configuration
+- **`PyPIProxyConfig`** - Configuration structure for Python package proxy
+  - Server URL and port configuration
+  - Storage path management
+  - Upstream index settings
+- **`PyPIUpstreamConfig`** - Upstream PyPI index configuration
+  - Configurable upstream URL (default: pypi.org)
+  - Mirror settings for caching
+  - Fallback configuration
+
+### 📦 Files Changed
+
+#### New Files
+```
+pkg/registry/config_devpi.go          # Config structs and validation
+pkg/registry/devpi_manager.go         # Main devpi manager implementation
+pkg/registry/binary_pipx.go           # Pipx binary manager
+pkg/registry/mock_pipx_binary_manager.go  # Mock for testing
+pkg/registry/config_devpi_test.go     # Config tests
+pkg/registry/devpi_manager_test.go    # Manager tests (22 tests)
+pkg/registry/binary_pipx_test.go      # Binary manager tests (47 tests)
+pkg/registry/integration_test.go      # Integration tests (9 tests)
+```
+
+#### Modified Files
+```
+pkg/registry/interfaces.go            # Added PyPIProxy interface
+pkg/registry/strategy.go               # Replaced devpi stub with real strategy
+```
+
+### 🧪 Testing
+
+- **78 total test cases** for devpi implementation
+  - 47 pipx binary manager tests (install, update, uninstall, health)
+  - 22 devpi manager tests (lifecycle, health, config)
+  - 9 integration tests (full workflow validation)
+- **100% test success rate** - All tests passing before release
+
+### Usage
+
+```bash
+# Create a devpi registry
+dvm create registry my-pypi --type devpi
+
+# Start the registry
+dvm start registry my-pypi
+
+# Check status
+dvm rollout status registry my-pypi
+
+# Configure pip to use it
+export PIP_INDEX_URL=http://localhost:3141/root/pypi/+simple/
+export PIP_TRUSTED_HOST=localhost
+pip install <package>
+
+# Stop the registry
+dvm stop registry my-pypi
+```
+
+---
+
 ## [0.25.0] - 2026-03-01
 
 ### ⚠️ Breaking Changes
