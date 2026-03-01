@@ -696,8 +696,8 @@ DevOpsMaestro provides a flexible registry system supporting multiple registry t
 |------|---------|--------|
 | `zot` | OCI container image registry | ✅ Full support |
 | `devpi` | Python package index/proxy | ✅ Full support |
+| `verdaccio` | npm package proxy | ✅ Full support |
 | `athens` | Go module proxy | 🚧 Stub implementation |
-| `verdaccio` | npm registry | 🚧 Stub implementation |
 | `squid` | HTTP proxy cache | 🚧 Stub implementation |
 
 ### Benefits
@@ -706,7 +706,8 @@ DevOpsMaestro provides a flexible registry system supporting multiple registry t
 - **Offline support** - Build workspaces without network access if images are cached
 - **Rate limit avoidance** - Reduce pulls from Docker Hub (avoids 100 pulls/6 hours limit)
 - **Python package caching** - Cache PyPI packages locally with devpi for faster pip installs
-- **Multi-registry support** - Run multiple registries simultaneously (zot, devpi, athens, etc.)
+- **npm package caching** - Cache npm packages locally with verdaccio for faster npm installs
+- **Multi-registry support** - Run multiple registries simultaneously (zot, devpi, verdaccio, athens, etc.)
 - **Resource-based management** - Registries are database-backed resources like other DevOpsMaestro objects
 - **ServiceFactory pattern** - Extensible design for adding new registry types
 
@@ -752,9 +753,11 @@ dvm create registry myregistry --type zot --port 5000
 # Create a devpi registry (Python packages)
 dvm create registry pypi --type devpi --port 3141
 
+# Create a verdaccio registry (npm packages)
+dvm create registry npm --type verdaccio --port 4873
+
 # Create registries for other types (stub implementations)
 dvm create registry athens --type athens --port 3000
-dvm create registry verdaccio --type verdaccio --port 4873
 
 # List all registries
 dvm get registries
@@ -787,6 +790,12 @@ Each registry type has its own configuration stored in the database. For Zot reg
 - **Registry data**: `~/.dvm/devpi/<registry-name>/`
 - **Server config**: `~/.dvm/devpi/<registry-name>/devpi-server/`
 - **Logs**: Managed by devpi-server
+
+**For verdaccio registries:**
+- **verdaccio binary**: Managed by npm (installed via `npm install -g verdaccio`)
+- **Registry data**: `~/.devopsmaestro/registry/<registry-name>/storage/`
+- **Registry config**: `~/.devopsmaestro/registry/<registry-name>/config.yaml`
+- **Logs**: `~/.devopsmaestro/registry/<registry-name>/verdaccio.log`
 
 ### Runtime Operations
 
@@ -833,16 +842,19 @@ You can run multiple registries simultaneously:
 # Create different registry types
 dvm create registry images --type zot --port 5000
 dvm create registry pypi --type devpi --port 3141
+dvm create registry npm --type verdaccio --port 4873
 dvm create registry gomodules --type athens --port 3000
 
 # Start them all
 dvm start registry images
 dvm start registry pypi
+dvm start registry npm
 dvm start registry gomodules
 
 # Check status of each
 dvm rollout status registry images
 dvm rollout status registry pypi
+dvm rollout status registry npm
 dvm rollout status registry gomodules
 
 # Stop specific registry

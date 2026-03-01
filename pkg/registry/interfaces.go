@@ -281,3 +281,38 @@ type PyPIProxy interface {
 	// GetPipConfig returns the pip configuration in pip.conf format.
 	GetPipConfig() string
 }
+
+// NpmProxy defines the interface for managing an npm proxy (verdaccio).
+// All implementations must be safe for concurrent use.
+type NpmProxy interface {
+	// Start starts the npm proxy process.
+	// Returns an error if the proxy fails to start.
+	Start(ctx context.Context) error
+
+	// Stop stops the proxy process gracefully.
+	// Sends SIGTERM, then SIGKILL if process doesn't exit within timeout.
+	Stop(ctx context.Context) error
+
+	// Status returns the current status of the proxy.
+	Status(ctx context.Context) (*NpmProxyStatus, error)
+
+	// EnsureRunning starts the proxy if it's not running.
+	// Idempotent - does nothing if already running.
+	EnsureRunning(ctx context.Context) error
+
+	// IsRunning checks if the proxy is currently running.
+	IsRunning(ctx context.Context) bool
+
+	// GetEndpoint returns the proxy endpoint (e.g., "http://localhost:4873").
+	GetEndpoint() string
+
+	// GetNpmEnv returns the npm environment variables to use this proxy.
+	// Returns a map with keys like "npm_config_registry", "NPM_CONFIG_REGISTRY".
+	GetNpmEnv() map[string]string
+
+	// GetNpmrc returns the npm configuration in .npmrc format.
+	GetNpmrc() string
+
+	// GetYarnConfig returns the yarn configuration in .yarnrc.yml format.
+	GetYarnConfig() string
+}

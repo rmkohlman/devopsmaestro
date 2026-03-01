@@ -310,6 +310,115 @@ func (d *DevpiManagerAdapter) GetEndpoint() string {
 	return d.manager.GetEndpoint()
 }
 
+// --- Verdaccio Strategy ---
+
+// VerdaccioStrategy implements RegistryStrategy for verdaccio npm proxy.
+type VerdaccioStrategy struct{}
+
+// NewVerdaccioStrategy creates a new VerdaccioStrategy.
+func NewVerdaccioStrategy() *VerdaccioStrategy {
+	return &VerdaccioStrategy{}
+}
+
+// ValidateConfig validates verdaccio-specific configuration.
+func (s *VerdaccioStrategy) ValidateConfig(config json.RawMessage) error {
+	if len(config) == 0 {
+		return nil // Empty config is valid
+	}
+
+	// Parse config to verify it's valid JSON
+	var configMap map[string]interface{}
+	if err := json.Unmarshal(config, &configMap); err != nil {
+		return fmt.Errorf("invalid JSON config: %w", err)
+	}
+
+	// Verdaccio config validation would go here
+	return nil
+}
+
+// CreateManager creates a VerdaccioManagerAdapter from a Registry resource.
+func (s *VerdaccioStrategy) CreateManager(reg *models.Registry) (ServiceManager, error) {
+	if reg == nil {
+		return nil, fmt.Errorf("registry cannot be nil")
+	}
+
+	// Convert Registry to NpmProxyConfig
+	config := NpmProxyConfig{
+		Enabled:     true,
+		Lifecycle:   reg.Lifecycle,
+		Port:        reg.Port,
+		Storage:     s.getStoragePath(reg),
+		IdleTimeout: 30 * time.Minute,
+		Upstreams:   defaultNpmUpstreams(),
+	}
+
+	// Apply defaults
+	if config.Port == 0 {
+		config.Port = s.GetDefaultPort()
+	}
+
+	// Set default lifecycle if not specified
+	if config.Lifecycle == "" {
+		config.Lifecycle = "manual"
+	}
+
+	// Create VerdaccioManager and wrap it in adapter
+	verdaccioManager := NewVerdaccioManager(config)
+	return &VerdaccioManagerAdapter{manager: verdaccioManager}, nil
+}
+
+// GetDefaultPort returns the default verdaccio port (4873).
+func (s *VerdaccioStrategy) GetDefaultPort() int {
+	return 4873
+}
+
+// GetDefaultStorage returns the default verdaccio storage path.
+func (s *VerdaccioStrategy) GetDefaultStorage() string {
+	return "/var/lib/verdaccio"
+}
+
+// getStoragePath determines the storage path for a registry.
+func (s *VerdaccioStrategy) getStoragePath(reg *models.Registry) string {
+	// If config specifies storage, use it
+	if reg.Config.Valid && reg.Config.String != "" {
+		var configMap map[string]interface{}
+		if err := json.Unmarshal([]byte(reg.Config.String), &configMap); err == nil {
+			if storage, ok := configMap["storage"].(string); ok && storage != "" {
+				return storage
+			}
+		}
+	}
+
+	// Otherwise use default path under ~/.devopsmaestro
+	homeDir, _ := os.UserHomeDir()
+	return filepath.Join(homeDir, ".devopsmaestro", "registries", reg.Name)
+}
+
+// VerdaccioManagerAdapter adapts VerdaccioManager to ServiceManager interface.
+type VerdaccioManagerAdapter struct {
+	manager *VerdaccioManager
+}
+
+// Start starts the verdaccio proxy.
+func (v *VerdaccioManagerAdapter) Start(ctx context.Context) error {
+	return v.manager.Start(ctx)
+}
+
+// Stop stops the verdaccio proxy.
+func (v *VerdaccioManagerAdapter) Stop(ctx context.Context) error {
+	return v.manager.Stop(ctx)
+}
+
+// IsRunning checks if verdaccio is running.
+func (v *VerdaccioManagerAdapter) IsRunning(ctx context.Context) bool {
+	return v.manager.IsRunning(ctx)
+}
+
+// GetEndpoint returns the verdaccio endpoint (full URL).
+func (v *VerdaccioManagerAdapter) GetEndpoint() string {
+	return v.manager.GetEndpoint()
+}
+
 // --- Stub Strategies for Future Implementation ---
 
 // StubStrategy is a base strategy for registries not yet implemented.
@@ -345,15 +454,6 @@ func (s *StubStrategy) GetDefaultPort() int {
 // GetDefaultStorage returns the default storage path for this registry type.
 func (s *StubStrategy) GetDefaultStorage() string {
 	return s.defaultStorage
-}
-
-// NewVerdaccioStrategy creates a stub strategy for verdaccio (npm registry).
-func NewVerdaccioStrategy() RegistryStrategy {
-	return &StubStrategy{
-		registryType:   "verdaccio",
-		defaultPort:    4873,
-		defaultStorage: "/var/lib/verdaccio",
-	}
 }
 
 // NewSquidStrategy creates a stub strategy for squid (HTTP proxy/cache).

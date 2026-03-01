@@ -116,13 +116,6 @@ func TestStubStrategies(t *testing.T) {
 		expectedPath string
 	}{
 		{
-			name:         "verdaccio",
-			strategy:     NewVerdaccioStrategy(),
-			registryType: "verdaccio",
-			expectedPort: 4873,
-			expectedPath: "/var/lib/verdaccio",
-		},
-		{
 			name:         "squid",
 			strategy:     NewSquidStrategy(),
 			registryType: "squid",

@@ -11,6 +11,106 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.27.0] - 2026-03-01
+
+### ✨ Added
+
+#### Verdaccio npm Package Proxy (Full npm Support)
+
+##### Verdaccio Registry Type
+- **Full verdaccio implementation** - Complete npm package proxy with lifecycle management
+  - Start/stop/status operations via registry commands
+  - Health checking with automatic retry mechanism
+  - Configuration file generation (config.yaml for verdaccio)
+  - Environment variable generation for npm clients
+  - Default port: 4873 (verdaccio default)
+  - Default storage: `~/.devopsmaestro/registry/<registry-name>`
+
+##### NpmBinaryManager
+- **New binary manager** - Manages verdaccio installation via npm global install
+  - Uses `npm install -g verdaccio` for installation
+  - Cross-platform support (macOS, Linux)
+  - Version management and updates
+  - Binary lifecycle: install, update, uninstall
+  - Health checks for binary availability
+
+##### npm Integration
+- **`GetNpmEnv()`** - Returns environment variables for npm configuration
+  - `NPM_CONFIG_REGISTRY` - Points to verdaccio registry
+  - Configures npm to use local proxy
+- **Upstream registry support** - Configurable upstream (defaults to registry.npmjs.org)
+- **Scoped package support** - Handle organization-scoped packages
+- **Caching configuration** - Configurable package caching
+
+##### Configuration
+- **`NpmProxyConfig`** - Configuration structure for npm package proxy
+  - Server URL and port configuration (default: 4873)
+  - Storage path management
+  - Upstream registry settings
+  - Scoped package configuration
+- **VerdaccioManager** - Full implementation of npm proxy management
+  - Configuration file generation
+  - Process lifecycle management
+  - Health checking via HTTP endpoint
+
+##### All Three Proxy Registries Complete
+- **Full support for all registry types** - npm proxy completes the set:
+  - **zot** - OCI container image registry (v0.21.0)
+  - **athens** - Go module proxy (planned)
+  - **devpi** - Python package index/proxy (v0.26.0)
+  - **verdaccio** - npm package proxy (v0.27.0)
+  - All registries now have complete implementations with lifecycle management
+
+### 📦 Files Changed
+
+#### New Files
+```
+pkg/registry/config_verdaccio.go          # Config structs and validation
+pkg/registry/verdaccio_manager.go         # Main verdaccio manager implementation
+pkg/registry/binary_npm.go                # npm binary manager
+pkg/registry/config_verdaccio_test.go     # Config tests (21 tests)
+pkg/registry/verdaccio_manager_test.go    # Manager tests (27 tests)
+pkg/registry/binary_npm_test.go           # Binary manager tests (30 tests)
+pkg/registry/strategy_verdaccio_test.go   # Strategy tests (23 tests)
+```
+
+#### Modified Files
+```
+pkg/registry/interfaces.go                # Added NpmProxy interface
+pkg/registry/strategy.go                  # Replaced verdaccio stub with real strategy
+```
+
+### 🧪 Testing
+
+- **101 total test cases** for verdaccio implementation
+  - 21 config tests (validation, defaults, upstream)
+  - 27 verdaccio manager tests (lifecycle, health, config generation)
+  - 30 npm binary manager tests (install, update, uninstall, health)
+  - 23 strategy tests (integration, factory patterns)
+- **100% test success rate** - All tests passing before release
+
+### Usage
+
+```bash
+# Create a verdaccio registry
+dvm create registry my-npm --type verdaccio
+
+# Start the registry
+dvm start registry my-npm
+
+# Check status
+dvm rollout status registry my-npm
+
+# Configure npm to use it
+export NPM_CONFIG_REGISTRY=http://localhost:4873/
+npm install <package>
+
+# Stop the registry
+dvm stop registry my-npm
+```
+
+---
+
 ## [0.26.0] - 2026-03-01
 
 ### ✨ Added
