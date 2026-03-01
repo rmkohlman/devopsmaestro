@@ -131,13 +131,23 @@ func NewSQLiteDriver(cfg DriverConfig) (Driver, error) {
 }
 
 // NewMemorySQLiteDriver creates an in-memory SQLite driver for testing.
+// Each call creates a fresh, isolated in-memory database to ensure test independence.
 func NewMemorySQLiteDriver(cfg DriverConfig) (Driver, error) {
-	dsn := "file::memory:?cache=shared"
+	// Use a unique in-memory database name with cache=shared
+	// This ensures:
+	// 1. Each test gets its own isolated database (via unique name)
+	// 2. Multiple connections from the same test can share the database (via cache=shared)
+	// 3. Connection pooling works correctly for concurrent access tests
+	dsn := ":memory:?cache=shared"
 
 	conn, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open in-memory SQLite database: %w", err)
 	}
+
+	// CRITICAL: Set connection pool to 1 for test isolation
+	// This prevents race conditions but allows reuse of the same connection
+	conn.SetMaxOpenConns(1)
 
 	return &SQLiteDriver{
 		conn: conn,

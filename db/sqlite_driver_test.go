@@ -73,8 +73,9 @@ func TestSQLiteDriver_DSN(t *testing.T) {
 	defer driver.Close()
 
 	dsn := driver.DSN()
-	if dsn != "file::memory:?cache=shared" {
-		t.Errorf("DSN() = %q, want %q", dsn, "file::memory:?cache=shared")
+	// Uses :memory: with cache=shared for test isolation with concurrent access support
+	if dsn != ":memory:?cache=shared" {
+		t.Errorf("DSN() = %q, want %q", dsn, ":memory:?cache=shared")
 	}
 }
 

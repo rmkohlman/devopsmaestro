@@ -266,6 +266,25 @@ func (m *MockDataStore) SetDefault(key, value string) error       { return nil }
 func (m *MockDataStore) DeleteDefault(key string) error           { return nil }
 func (m *MockDataStore) ListDefaults() (map[string]string, error) { return nil, nil }
 
+// Registry operations (stub implementations - these tests don't use registries)
+func (m *MockDataStore) CreateRegistry(registry *models.Registry) error { return nil }
+func (m *MockDataStore) GetRegistryByName(name string) (*models.Registry, error) {
+	return nil, nil
+}
+func (m *MockDataStore) GetRegistryByID(id int) (*models.Registry, error) { return nil, nil }
+func (m *MockDataStore) GetRegistryByPort(port int) (*models.Registry, error) {
+	return nil, nil
+}
+func (m *MockDataStore) UpdateRegistry(registry *models.Registry) error { return nil }
+func (m *MockDataStore) DeleteRegistry(name string) error               { return nil }
+func (m *MockDataStore) ListRegistries() ([]*models.Registry, error)    { return nil, nil }
+func (m *MockDataStore) ListRegistriesByType(registryType string) ([]*models.Registry, error) {
+	return nil, nil
+}
+func (m *MockDataStore) ListRegistriesByStatus(status string) ([]*models.Registry, error) {
+	return nil, nil
+}
+
 // Package Operations (added to satisfy interface)
 func (m *MockDataStore) CreatePackage(pkg *models.NvimPackageDB) error         { return nil }
 func (m *MockDataStore) UpdatePackage(pkg *models.NvimPackageDB) error         { return nil }

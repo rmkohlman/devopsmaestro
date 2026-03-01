@@ -428,6 +428,35 @@ type DataStore interface {
 	// ListTerminalEmulatorsByWorkspace retrieves terminal emulators for a workspace.
 	ListTerminalEmulatorsByWorkspace(workspace string) ([]*models.TerminalEmulatorDB, error)
 
+	// Registry Operations (package registries: zot, athens, devpi, verdaccio, squid)
+
+	// CreateRegistry inserts a new registry.
+	CreateRegistry(registry *models.Registry) error
+
+	// GetRegistryByName retrieves a registry by its name.
+	GetRegistryByName(name string) (*models.Registry, error)
+
+	// GetRegistryByID retrieves a registry by its ID.
+	GetRegistryByID(id int) (*models.Registry, error)
+
+	// GetRegistryByPort retrieves a registry by its port (for conflict detection).
+	GetRegistryByPort(port int) (*models.Registry, error)
+
+	// UpdateRegistry updates an existing registry.
+	UpdateRegistry(registry *models.Registry) error
+
+	// DeleteRegistry removes a registry by name.
+	DeleteRegistry(name string) error
+
+	// ListRegistries retrieves all registries.
+	ListRegistries() ([]*models.Registry, error)
+
+	// ListRegistriesByType retrieves registries filtered by type.
+	ListRegistriesByType(registryType string) ([]*models.Registry, error)
+
+	// ListRegistriesByStatus retrieves registries filtered by status.
+	ListRegistriesByStatus(status string) ([]*models.Registry, error)
+
 	// Driver Access
 
 	// Driver returns the underlying database driver.

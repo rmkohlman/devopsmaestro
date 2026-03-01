@@ -11,6 +11,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.24.0] - 2026-03-01
+
+### ✨ Added
+
+#### Registry Resource Type
+- **Registry Resource** - New database-backed resource type for managing registries
+  - `dvm create registry <name> --type <type> --port <port>` - Create registry resource
+  - `dvm get registries` - List all registry resources
+  - `dvm get registry <name>` - Show specific registry details
+  - `dvm delete registry <name>` - Delete registry resource
+  - **Supported types**: `zot` (OCI images), `athens` (Go modules), `devpi` (Python packages), `verdaccio` (npm), `squid` (HTTP proxy)
+
+#### ServiceFactory Pattern for Registries
+- **Multi-registry support** - ServiceFactory pattern enables multiple registry types
+  - Each registry type has dedicated service implementation
+  - Extensible design for adding new registry types
+  - Database persistence for all registry configurations
+  - Independent lifecycle management per registry
+
+#### Registry Runtime Commands (Positional Arguments)
+- **`dvm registry start <name>`** - Start specific registry (name REQUIRED)
+- **`dvm registry stop <name>`** - Stop specific registry (name REQUIRED)
+- **`dvm registry status`** - List all registries (no args = show all)
+- **`dvm registry status <name>`** - Show specific registry status
+
+### 🔄 Changed
+
+- **BREAKING**: `dvm registry start/stop` now require registry name as positional argument
+- **BREAKING**: Removed `--name` flag from registry runtime commands
+- **BREAKING**: Removed config-based registry approach (use Registry Resources instead)
+- **Registry management** - All registry operations now go through ServiceFactory and database
+
+### 🗑️ Removed
+
+- **Legacy config-based registry** - Removed config.yaml registry section
+- **`--name` flag** - No longer used on registry commands (use positional argument)
+- **Direct Zot manager calls** - All operations now through ServiceFactory pattern
+
+### 📦 Files Changed
+
+#### New Files
+```
+models/registry.go                       # Registry resource model
+db/registry.go                           # Registry CRUD operations
+pkg/registry/service_factory.go         # ServiceFactory for multi-registry support
+pkg/registry/zot_service.go             # Zot service implementation
+pkg/registry/athens_service.go          # Athens service stub
+pkg/registry/devpi_service.go           # Devpi service stub
+pkg/registry/verdaccio_service.go       # Verdaccio service stub
+pkg/registry/squid_service.go           # Squid service stub
+cmd/create_registry.go                   # Registry resource creation command
+cmd/registry_runtime.go                  # Registry runtime commands (start/stop/status)
+```
+
+#### Modified Files
+```
+db/datastore.go                          # Added Registry CRUD interface
+db/mock_store.go                         # Added Registry mock methods
+cmd/delete.go                            # Added registry delete support
+cmd/get.go                               # Added registry get support
+```
+
+### 🧪 Testing
+
+- **Registry resource CRUD** - Full test coverage for create/get/delete operations
+- **ServiceFactory pattern** - Verified factory creates correct service types
+- **Runtime commands** - Tested start/stop/status with positional arguments
+- **Multi-registry support** - Verified multiple registries can run simultaneously
+
+---
+
 ## [0.23.0] - 2026-02-28
 
 ### 🧹 Removed

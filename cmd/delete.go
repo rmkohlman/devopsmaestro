@@ -281,6 +281,67 @@ Examples:
 	},
 }
 
+// =============================================================================
+// Registry Resource Commands (dvm delete registry <name>)
+// =============================================================================
+
+// deleteRegistryCmd deletes a registry
+var deleteRegistryCmd = &cobra.Command{
+	Use:     "registry <name>",
+	Aliases: []string{"reg"},
+	Short:   "Delete a registry",
+	Long: `Delete a package registry by name.
+
+This permanently removes the registry from DVM's database.
+It does NOT delete any container data or volumes associated with the registry.
+By default, you will be prompted for confirmation.
+
+Examples:
+  dvm delete registry my-zot
+  dvm delete reg my-zot            # Short form
+  dvm delete registry my-zot -f    # Skip confirmation`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return deleteRegistry(cmd, args[0])
+	},
+}
+
+func deleteRegistry(cmd *cobra.Command, name string) error {
+	// Get datastore from context
+	ctx := cmd.Context()
+	dataStore := ctx.Value("dataStore").(*db.DataStore)
+	if dataStore == nil {
+		return fmt.Errorf("DataStore not initialized")
+	}
+	ds := *dataStore
+
+	// Check if registry exists
+	registry, err := ds.GetRegistryByName(name)
+	if err != nil {
+		return fmt.Errorf("registry '%s' not found", name)
+	}
+
+	// Confirm deletion
+	force, _ := cmd.Flags().GetBool("force")
+	if !force {
+		fmt.Printf("Delete registry '%s' (type: %s)? (y/N): ", name, registry.Type)
+		var response string
+		fmt.Scanln(&response)
+		if response != "y" && response != "Y" {
+			render.Info("Aborted")
+			return nil
+		}
+	}
+
+	// Delete the registry
+	if err := ds.DeleteRegistry(name); err != nil {
+		return fmt.Errorf("failed to delete registry: %w", err)
+	}
+
+	render.Success(fmt.Sprintf("Registry '%s' deleted", name))
+	return nil
+}
+
 func init() {
 	rootCmd.AddCommand(deleteCmd)
 
@@ -302,4 +363,10 @@ func init() {
 	// Add flags for workspace
 	deleteWorkspaceCmd.Flags().BoolP("force", "f", false, "Skip confirmation prompt")
 	deleteWorkspaceCmd.Flags().StringP("app", "a", "", "App name (defaults to active app)")
+
+	// Registry command
+	deleteCmd.AddCommand(deleteRegistryCmd)
+
+	// Registry deletion flags
+	deleteRegistryCmd.Flags().BoolP("force", "f", false, "Skip confirmation prompt")
 }

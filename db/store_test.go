@@ -204,6 +204,18 @@ func createTestSchema(driver Driver) error {
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (credential_id) REFERENCES credentials(id)
 		)`,
+		`CREATE TABLE IF NOT EXISTS registries (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL UNIQUE,
+			type TEXT NOT NULL CHECK(type IN ('zot', 'athens', 'devpi', 'verdaccio', 'squid')),
+			lifecycle TEXT NOT NULL DEFAULT 'manual' CHECK(lifecycle IN ('persistent', 'on-demand', 'manual')),
+			port INTEGER NOT NULL,
+			description TEXT,
+			config TEXT,
+			status TEXT DEFAULT 'stopped' CHECK(status IN ('running', 'stopped', 'starting', 'error')),
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
 		// Initialize context with a single row
 		`INSERT OR IGNORE INTO context (id) VALUES (1)`,
 	}

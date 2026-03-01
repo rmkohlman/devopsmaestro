@@ -1,0 +1,211 @@
+package models
+
+import (
+	"database/sql"
+	"encoding/json"
+	"fmt"
+)
+
+// Registry represents a package registry (zot, athens, devpi, verdaccio, squid)
+type Registry struct {
+	ID          int
+	Name        string
+	Type        string // zot, athens, devpi, verdaccio, squid
+	Port        int
+	Lifecycle   string // persistent, on-demand, manual
+	Description sql.NullString
+	Config      sql.NullString // JSON config specific to registry type
+	Status      string         // stopped, starting, running, error
+	CreatedAt   string
+	UpdatedAt   string
+}
+
+// RegistryYAML represents the YAML structure for a Registry resource
+type RegistryYAML struct {
+	APIVersion string           `yaml:"apiVersion"`
+	Kind       string           `yaml:"kind"`
+	Metadata   RegistryMetadata `yaml:"metadata"`
+	Spec       RegistrySpec     `yaml:"spec"`
+}
+
+type RegistryMetadata struct {
+	Name        string `yaml:"name"`
+	Description string `yaml:"description,omitempty"`
+}
+
+type RegistrySpec struct {
+	Type      string                 `yaml:"type"`
+	Port      int                    `yaml:"port,omitempty"`
+	Lifecycle string                 `yaml:"lifecycle,omitempty"`
+	Config    map[string]interface{} `yaml:"config,omitempty"`
+}
+
+// Valid registry types
+var validRegistryTypes = map[string]bool{
+	"zot":       true,
+	"athens":    true,
+	"devpi":     true,
+	"verdaccio": true,
+	"squid":     true,
+}
+
+// Valid lifecycle values
+var validLifecycles = map[string]bool{
+	"persistent": true,
+	"on-demand":  true,
+	"manual":     true,
+}
+
+// Default ports for each registry type
+var defaultPorts = map[string]int{
+	"zot":       5000,
+	"athens":    3000,
+	"devpi":     3141,
+	"verdaccio": 4873,
+	"squid":     3128,
+}
+
+// Default storage paths for each registry type
+var defaultStorage = map[string]string{
+	"zot":       "/var/lib/zot",
+	"athens":    "/var/lib/athens",
+	"devpi":     "/var/lib/devpi",
+	"verdaccio": "/var/lib/verdaccio",
+	"squid":     "/var/cache/squid",
+}
+
+// ToYAML converts Registry to RegistryYAML
+func (r *Registry) ToYAML() RegistryYAML {
+	yaml := RegistryYAML{
+		APIVersion: "devopsmaestro.io/v1",
+		Kind:       "Registry",
+		Metadata: RegistryMetadata{
+			Name: r.Name,
+		},
+		Spec: RegistrySpec{
+			Type:      r.Type,
+			Port:      r.Port,
+			Lifecycle: r.Lifecycle,
+		},
+	}
+
+	if r.Description.Valid {
+		yaml.Metadata.Description = r.Description.String
+	}
+
+	if r.Config.Valid && r.Config.String != "" {
+		var config map[string]interface{}
+		if err := json.Unmarshal([]byte(r.Config.String), &config); err == nil {
+			yaml.Spec.Config = config
+		}
+	}
+
+	return yaml
+}
+
+// FromYAML populates Registry from RegistryYAML
+func (r *Registry) FromYAML(yaml RegistryYAML) {
+	r.Name = yaml.Metadata.Name
+	r.Type = yaml.Spec.Type
+	r.Port = yaml.Spec.Port
+	r.Lifecycle = yaml.Spec.Lifecycle
+
+	if yaml.Metadata.Description != "" {
+		r.Description = sql.NullString{String: yaml.Metadata.Description, Valid: true}
+	}
+
+	if len(yaml.Spec.Config) > 0 {
+		configJSON, err := json.Marshal(yaml.Spec.Config)
+		if err == nil {
+			r.Config = sql.NullString{String: string(configJSON), Valid: true}
+		}
+	}
+
+	// Apply defaults if not specified
+	if r.Lifecycle == "" {
+		r.Lifecycle = "manual"
+	}
+	if r.Status == "" {
+		r.Status = "stopped"
+	}
+}
+
+// ValidateType checks if the registry type is valid
+func (r *Registry) ValidateType() error {
+	if r.Type == "" {
+		return fmt.Errorf("type is required")
+	}
+	if !validRegistryTypes[r.Type] {
+		return fmt.Errorf("unsupported registry type: %s (valid types: zot, athens, devpi, verdaccio, squid)", r.Type)
+	}
+	return nil
+}
+
+// ValidatePort checks if the port is in valid range (1024-65535)
+func (r *Registry) ValidatePort() error {
+	// Port 0 means auto-assign, which is allowed
+	if r.Port == 0 {
+		return nil
+	}
+	if r.Port < 1024 || r.Port > 65535 {
+		return fmt.Errorf("port must be between 1024 and 65535 (got %d)", r.Port)
+	}
+	return nil
+}
+
+// ValidateLifecycle checks if the lifecycle is valid
+func (r *Registry) ValidateLifecycle() error {
+	// Empty lifecycle defaults to manual
+	if r.Lifecycle == "" {
+		return nil
+	}
+	if !validLifecycles[r.Lifecycle] {
+		return fmt.Errorf("unsupported lifecycle: %s (valid: persistent, on-demand, manual)", r.Lifecycle)
+	}
+	return nil
+}
+
+// Validate performs all validation checks
+func (r *Registry) Validate() error {
+	if r.Name == "" {
+		return fmt.Errorf("name is required")
+	}
+
+	if err := r.ValidateType(); err != nil {
+		return err
+	}
+
+	if err := r.ValidatePort(); err != nil {
+		return err
+	}
+
+	if err := r.ValidateLifecycle(); err != nil {
+		return err
+	}
+
+	// Validate config JSON if present
+	if r.Config.Valid && r.Config.String != "" {
+		var config map[string]interface{}
+		if err := json.Unmarshal([]byte(r.Config.String), &config); err != nil {
+			return fmt.Errorf("invalid config JSON: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// GetDefaultPort returns the default port for the registry type
+func (r *Registry) GetDefaultPort() int {
+	if port, ok := defaultPorts[r.Type]; ok {
+		return port
+	}
+	return 0
+}
+
+// GetDefaultStorage returns the default storage path for the registry type
+func (r *Registry) GetDefaultStorage() string {
+	if storage, ok := defaultStorage[r.Type]; ok {
+		return storage
+	}
+	return ""
+}

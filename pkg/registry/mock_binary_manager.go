@@ -34,7 +34,9 @@ func (m *MockBinaryManager) EnsureBinary(ctx context.Context) (string, error) {
 	}
 
 	// Default behavior: create a fake binary
-	binaryPath := filepath.Join(m.binDir, "zot")
+	// Detect which binary based on directory structure or just use "athens" as default
+	binaryName := "athens"
+	binaryPath := filepath.Join(m.binDir, binaryName)
 
 	// Check if already exists
 	if _, err := os.Stat(binaryPath); err == nil {
@@ -46,15 +48,15 @@ func (m *MockBinaryManager) EnsureBinary(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("failed to create bin directory: %w", err)
 	}
 
-	// Create fake executable script that handles "version" command
+	// Create fake executable script that handles version command
 	script := fmt.Sprintf(`#!/bin/bash
-if [ "$1" = "version" ]; then
-    echo "zot v%s"
+if [ "$1" = "--version" ] || [ "$1" = "version" ]; then
+    echo "%s v%s"
     exit 0
 fi
-# For serve command, sleep forever
+# For serve/start command, sleep forever to simulate running server
 sleep infinity
-`, m.version)
+`, binaryName, m.version)
 
 	if err := os.WriteFile(binaryPath, []byte(script), 0755); err != nil {
 		return "", fmt.Errorf("failed to create fake binary: %w", err)

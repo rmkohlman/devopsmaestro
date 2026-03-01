@@ -193,3 +193,59 @@ func (c *RegistryConfig) Validate() error {
 
 	return nil
 }
+
+// GoModuleProxy defines the interface for managing a Go module proxy (Athens).
+// All implementations must be safe for concurrent use.
+type GoModuleProxy interface {
+	// Start starts the Go module proxy process.
+	// Returns an error if the proxy fails to start.
+	Start(ctx context.Context) error
+
+	// Stop stops the proxy process gracefully.
+	// Sends SIGTERM, then SIGKILL if process doesn't exit within timeout.
+	Stop(ctx context.Context) error
+
+	// Status returns the current status of the proxy.
+	Status(ctx context.Context) (*GoModuleProxyStatus, error)
+
+	// EnsureRunning starts the proxy if it's not running.
+	// Idempotent - does nothing if already running.
+	EnsureRunning(ctx context.Context) error
+
+	// IsRunning checks if the proxy is currently running.
+	IsRunning(ctx context.Context) bool
+
+	// GetEndpoint returns the proxy endpoint (e.g., "http://localhost:3000").
+	GetEndpoint() string
+
+	// GetGoEnv returns the Go environment variables to use this proxy.
+	// Returns a map with keys like "GOPROXY", "GONOSUMDB", "GOPRIVATE".
+	GetGoEnv() map[string]string
+}
+
+// GoModuleProxyStatus represents the current state of the Go module proxy.
+type GoModuleProxyStatus struct {
+	// State is "running" or "stopped"
+	State string
+
+	// PID is the process ID (0 if stopped)
+	PID int
+
+	// Port is the configured port
+	Port int
+
+	// Storage is the storage directory path
+	Storage string
+
+	// Version is the Athens version
+	Version string
+
+	// Uptime is how long the proxy has been running
+	Uptime time.Duration
+
+	// ModuleCount is the number of modules cached
+	ModuleCount int
+
+	// DiskUsage is the total disk space used (bytes)
+	DiskUsage int64
+}

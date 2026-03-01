@@ -4,9 +4,80 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Upcoming Changes
 
-*No upcoming changes at this time*
+**v0.24.0 - Registry Resource Refactor** (Coming soon)
+
+Multi-registry support with database-backed resources. Breaking changes to registry commands.
 
 ## Latest Releases
+
+### v0.24.0 (2026-03-01)
+
+**🔄 Registry Resources - Multi-Registry Support**
+
+Major refactor of registry system to support multiple registry types with database-backed resources.
+
+**⚠️ Breaking Changes:**
+
+- **Registry commands now require name as positional argument**:
+  - OLD: `dvm registry start` → NEW: `dvm registry start myregistry`
+  - OLD: `dvm registry stop` → NEW: `dvm registry stop myregistry`
+- **Removed `--name` flag** from all registry runtime commands
+- **Removed config-based registry** - Must use Registry Resources instead
+- **Must create registry resource first**: `dvm create registry <name> --type <type> --port <port>`
+
+**New Features:**
+
+- **Registry Resource Type** - Database-backed registry management:
+  - `dvm create registry <name> --type <type> --port <port>` - Create registry
+  - `dvm get registries` - List all registries
+  - `dvm get registry <name>` - Show specific registry
+  - `dvm delete registry <name>` - Delete registry
+  
+- **Multi-Registry Support** - Run multiple registry types simultaneously:
+  - `zot` - OCI container images (full support)
+  - `athens` - Go module proxy (stub)
+  - `devpi` - Python package index (stub)
+  - `verdaccio` - npm registry (stub)
+  - `squid` - HTTP proxy cache (stub)
+
+- **ServiceFactory Pattern** - Extensible architecture for registry services:
+  - Each registry type has dedicated service implementation
+  - Database persistence for all registry configurations
+  - Independent lifecycle management per registry
+
+**Updated Commands:**
+
+- `dvm registry start <name>` - Start specific registry (name REQUIRED)
+- `dvm registry stop <name>` - Stop specific registry (name REQUIRED)
+- `dvm registry status` - List all registries (no name = show all)
+- `dvm registry status <name>` - Show specific registry status
+
+**Migration Guide:**
+
+```bash
+# OLD approach (no longer works):
+dvm registry start
+
+# NEW approach (required):
+# Step 1: Create registry resource
+dvm create registry myregistry --type zot --port 5000
+
+# Step 2: Start the registry
+dvm registry start myregistry
+
+# Check status
+dvm registry status myregistry
+# or list all:
+dvm registry status
+```
+
+**Technical Details:**
+
+- New Registry Resource model with database persistence
+- ServiceFactory pattern for multi-registry support
+- Zot service implementation with full lifecycle management
+- Stub implementations for Athens, Devpi, Verdaccio, Squid
+- Full test coverage for CRUD operations and runtime commands
 
 ### v0.22.0 (2026-02-28)
 
@@ -57,51 +128,15 @@ dvm get workspace dev -o yaml
 
 **🚀 Local OCI Registry (Zot) - Container Image Caching**
 
-**New Features:**
+> **Note**: This version has been superseded by v0.24.0 which introduces Registry Resources. See v0.24.0 for current registry usage.
 
-- **Local OCI Registry** - Integrated Zot registry for pull-through caching
-  - Faster builds: Base images cached locally after first pull
-  - Offline support: Build without network if images are cached
-  - Rate limit avoidance: Reduce Docker Hub pulls (avoid 100/6hr limit)
-  - Local image storage: Store built workspace images locally
-  - Automatic binary management: Zot auto-downloaded to `~/.devopsmaestro/bin/`
+**Legacy Features (replaced in v0.24.0):**
 
-- **Registry CLI Commands**
-  - `dvm registry start` - Start Zot registry (flags: `--port`, `--foreground`)
-  - `dvm registry stop` - Stop registry (flags: `--force`)
-  - `dvm registry status` - Show status (flags: `-o table/wide/json/yaml`)
-  - `dvm registry logs` - View logs (flags: `-n/--lines`, `--since`)
-  - `dvm registry prune` - Clean up images (flags: `--all`, `--older-than`, `--dry-run`, `--force`)
+- Local OCI Registry with pull-through caching
+- Registry CLI commands (now require positional arguments in v0.24.0)
+- Build integration with `--no-cache`, `--push`, `--registry` flags
 
-- **Build Integration**
-  - `--no-cache` flag for `dvm build` - Skip registry cache
-  - `--push` flag for `dvm build` - Push built image to local registry
-  - `--registry` flag for `dvm build` - Override registry endpoint
-
-**Configuration:**
-
-```yaml
-registry:
-  enabled: true
-  lifecycle: persistent  # persistent | on-demand | manual
-  port: 5001
-  storage: ~/.devopsmaestro/registry
-  idle_timeout: 30m
-  mirrors:
-    - name: docker-hub
-      url: https://index.docker.io
-      on_demand: true
-      prefix: docker.io
-```
-
-**Technical Details:**
-
-- New `pkg/registry/` package with 7 implementation files
-- Interface-based design: RegistryManager, BinaryManager, ProcessManager
-- Custom error types for registry operations
-- Zot configuration generation and validation
-- Process lifecycle management
-- Integration tests with `-short` flag for CI compatibility
+See [Full CHANGELOG](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) for complete v0.21.0 details.
 
 ### v0.20.1 (2026-02-28)
 

@@ -15,7 +15,6 @@ import (
 	"devopsmaestro/pkg/nvimops/store"
 	"devopsmaestro/pkg/nvimops/theme"
 	"devopsmaestro/pkg/palette"
-	"devopsmaestro/pkg/registry"
 	"devopsmaestro/pkg/resolver"
 	"devopsmaestro/pkg/resource"
 	"devopsmaestro/pkg/resource/handlers"
@@ -219,40 +218,11 @@ func buildWorkspace(cmd *cobra.Command) error {
 	// Step 1.5: Ensure registry is running if enabled
 	var registryEndpoint string
 	if config.IsRegistryEnabled() {
-		cfg := config.GetRegistryConfig()
-		// Only auto-start for on-demand or persistent lifecycle
-		if cfg.Lifecycle == "on-demand" || cfg.Lifecycle == "persistent" {
-			fmt.Println()
-			render.Progress("Starting registry cache...")
-
-			// Convert to registry.RegistryConfig
-			regCfg := convertToRegistryConfig(cfg)
-			if err := regCfg.Validate(); err != nil {
-				render.Warning(fmt.Sprintf("Invalid registry config: %v", err))
-				render.Info("Continuing build without registry cache")
-			} else {
-				mgr := registry.NewRegistryManager(regCfg)
-
-				// Use context with timeout for registry operations
-				regCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-				defer cancel()
-
-				if err := mgr.EnsureRunning(regCtx); err != nil {
-					render.Warning(fmt.Sprintf("Failed to start registry: %v", err))
-					render.Info("Continuing build without registry cache")
-				} else {
-					registryEndpoint = mgr.GetEndpoint()
-					render.Success(fmt.Sprintf("Using registry cache: %s", registryEndpoint))
-					slog.Info("registry cache available", "endpoint", registryEndpoint)
-
-					// Override with --registry flag if provided
-					if buildRegistry != "" {
-						registryEndpoint = buildRegistry
-						render.Info(fmt.Sprintf("Registry override: %s", registryEndpoint))
-					}
-				}
-			}
-		}
+		// TODO(v0.21.0): Update to use ServiceFactory pattern with registry resources
+		// For now, registry auto-start is disabled - manually start with: dvm registry start <name>
+		render.Warning("Registry auto-start not yet updated for multi-registry support")
+		render.Info("Manually start registry with: dvm registry start <name>")
+		render.Info("Continuing build without registry cache")
 	}
 
 	// Step 2: Detect language (use App.Language if set, fall back to auto-detection)

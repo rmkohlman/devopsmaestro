@@ -28,6 +28,7 @@ type MockDataStore struct {
 	TerminalProfiles  map[string]*models.TerminalProfileDB
 	Credentials       map[string]*models.CredentialDB // keyed by "scopeType:scopeID:name"
 	GitRepos          map[string]*models.GitRepoDB    // keyed by name
+	Registries        map[string]*models.Registry     // keyed by name
 	Defaults          map[string]string               // keyed by default key
 	ActiveTheme       string
 	Context           *models.Context
@@ -46,6 +47,7 @@ type MockDataStore struct {
 	NextTerminalPromptID   int
 	NextCredentialID       int64
 	NextGitRepoID          int
+	NextRegistryID         int
 
 	// WorkspacePlugins maps workspaceID -> pluginIDs
 	WorkspacePlugins map[int]map[int]bool
@@ -208,6 +210,7 @@ func NewMockDataStore() *MockDataStore {
 		TerminalPrompts:       make(map[string]*models.TerminalPromptDB),
 		TerminalProfiles:      make(map[string]*models.TerminalProfileDB),
 		GitRepos:              make(map[string]*models.GitRepoDB),
+		Registries:            make(map[string]*models.Registry),
 		WorkspacePlugins:      make(map[int]map[int]bool),
 		Context:               &models.Context{ID: 1},
 		MockDriver:            NewMockDriver(),
@@ -2432,6 +2435,193 @@ func (m *MockDataStore) ListGitRepos() ([]models.GitRepoDB, error) {
 	}
 
 	return repos, nil
+}
+
+// =============================================================================
+// Registry Methods
+// =============================================================================
+
+func (m *MockDataStore) CreateRegistry(registry *models.Registry) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Validate
+	if err := registry.Validate(); err != nil {
+		return fmt.Errorf("validation failed: %w", err)
+	}
+
+	// Check for existing registry with same name
+	if _, exists := m.Registries[registry.Name]; exists {
+		return fmt.Errorf("registry with name '%s' already exists", registry.Name)
+	}
+
+	// Check for port conflicts
+	if registry.Port > 0 {
+		for _, r := range m.Registries {
+			if r.Port == registry.Port {
+				return fmt.Errorf("port %d is already in use by registry '%s'", registry.Port, r.Name)
+			}
+		}
+	}
+
+	// Apply defaults
+	if registry.Status == "" {
+		registry.Status = "stopped"
+	}
+	if registry.Lifecycle == "" {
+		registry.Lifecycle = "manual"
+	}
+
+	// Assign ID
+	m.NextRegistryID++
+	registry.ID = m.NextRegistryID
+
+	// Store registry
+	registryClone := *registry
+	m.Registries[registry.Name] = &registryClone
+
+	return nil
+}
+
+func (m *MockDataStore) GetRegistryByName(name string) (*models.Registry, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	registry, exists := m.Registries[name]
+	if !exists {
+		return nil, fmt.Errorf("registry '%s' not found", name)
+	}
+
+	registryClone := *registry
+	return &registryClone, nil
+}
+
+func (m *MockDataStore) GetRegistryByID(id int) (*models.Registry, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for _, registry := range m.Registries {
+		if registry.ID == id {
+			registryClone := *registry
+			return &registryClone, nil
+		}
+	}
+
+	return nil, fmt.Errorf("registry with ID %d not found", id)
+}
+
+func (m *MockDataStore) GetRegistryByPort(port int) (*models.Registry, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for _, registry := range m.Registries {
+		if registry.Port == port {
+			registryClone := *registry
+			return &registryClone, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no registry found on port %d", port)
+}
+
+func (m *MockDataStore) UpdateRegistry(registry *models.Registry) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Validate
+	if err := registry.Validate(); err != nil {
+		return fmt.Errorf("validation failed: %w", err)
+	}
+
+	// Find registry by ID
+	var found bool
+	var oldName string
+	for name, r := range m.Registries {
+		if r.ID == registry.ID {
+			found = true
+			oldName = name
+			break
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("registry with ID %d not found", registry.ID)
+	}
+
+	// Check for port conflicts (excluding this registry)
+	if registry.Port > 0 {
+		for _, r := range m.Registries {
+			if r.Port == registry.Port && r.ID != registry.ID {
+				return fmt.Errorf("port %d is already in use by registry '%s'", registry.Port, r.Name)
+			}
+		}
+	}
+
+	// Remove old entry if name changed
+	if oldName != registry.Name {
+		delete(m.Registries, oldName)
+	}
+
+	// Store updated registry
+	registryClone := *registry
+	m.Registries[registry.Name] = &registryClone
+
+	return nil
+}
+
+func (m *MockDataStore) DeleteRegistry(name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, exists := m.Registries[name]; !exists {
+		return fmt.Errorf("registry '%s' not found", name)
+	}
+
+	delete(m.Registries, name)
+	return nil
+}
+
+func (m *MockDataStore) ListRegistries() ([]*models.Registry, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var registries []*models.Registry
+	for _, registry := range m.Registries {
+		registryClone := *registry
+		registries = append(registries, &registryClone)
+	}
+
+	return registries, nil
+}
+
+func (m *MockDataStore) ListRegistriesByType(registryType string) ([]*models.Registry, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var registries []*models.Registry
+	for _, registry := range m.Registries {
+		if registry.Type == registryType {
+			registryClone := *registry
+			registries = append(registries, &registryClone)
+		}
+	}
+
+	return registries, nil
+}
+
+func (m *MockDataStore) ListRegistriesByStatus(status string) ([]*models.Registry, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var registries []*models.Registry
+	for _, registry := range m.Registries {
+		if registry.Status == status {
+			registryClone := *registry
+			registries = append(registries, &registryClone)
+		}
+	}
+
+	return registries, nil
 }
 
 // Ensure MockDataStore implements DataStore

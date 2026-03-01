@@ -9,6 +9,7 @@ import (
 	"devopsmaestro/render"
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -210,6 +211,122 @@ Examples:
 	},
 }
 
+// =============================================================================
+// Registry Resource Commands (dvm create registry <name>)
+// =============================================================================
+
+// Registry creation flags
+var (
+	registryType        string
+	registryPort        int
+	registryLifecycle   string
+	registryDescription string
+)
+
+// createRegistryCmd creates a new registry
+var createRegistryCmd = &cobra.Command{
+	Use:     "registry <name>",
+	Aliases: []string{"reg"},
+	Short:   "Create a new registry",
+	Long: `Create a new package registry (zot, athens, devpi, verdaccio, squid).
+
+Registry types:
+  zot        - OCI container image registry (default port 5000)
+  athens     - Go module proxy (default port 3000)
+  devpi      - Python package index (default port 3141)
+  verdaccio  - npm private registry (default port 4873)
+  squid      - HTTP/HTTPS caching proxy (default port 3128)
+
+Lifecycle modes:
+  persistent - Always running (starts with system)
+  on-demand  - Starts when needed, stops when idle
+  manual     - User controls start/stop (default)
+
+Examples:
+  dvm create registry my-zot --type zot
+  dvm create registry my-npm --type verdaccio --port 4880
+  dvm create registry go-proxy --type athens --lifecycle persistent
+  dvm create registry pypi --type devpi --description "Python packages"`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return createRegistry(cmd, args[0])
+	},
+}
+
+func createRegistry(cmd *cobra.Command, name string) error {
+	// Validate name is not empty
+	if err := ValidateResourceName(name, "registry"); err != nil {
+		return err
+	}
+
+	// Get datastore from context
+	ctx := cmd.Context()
+	dataStore := ctx.Value("dataStore").(*db.DataStore)
+	if dataStore == nil {
+		return fmt.Errorf("DataStore not initialized")
+	}
+	ds := *dataStore
+
+	// Check if registry already exists
+	existing, _ := ds.GetRegistryByName(name)
+	if existing != nil {
+		return fmt.Errorf("registry '%s' already exists", name)
+	}
+
+	// Type is required
+	if registryType == "" {
+		return fmt.Errorf("--type is required (valid types: zot, athens, devpi, verdaccio, squid)")
+	}
+
+	// Create registry model
+	registry := &models.Registry{
+		Name:      name,
+		Type:      registryType,
+		Port:      registryPort,
+		Lifecycle: registryLifecycle,
+		Status:    "stopped",
+		CreatedAt: time.Now().Format(time.RFC3339),
+		UpdatedAt: time.Now().Format(time.RFC3339),
+	}
+
+	// Set description if provided
+	if registryDescription != "" {
+		registry.Description = sql.NullString{String: registryDescription, Valid: true}
+	}
+
+	// Apply defaults
+	if registry.Port == 0 {
+		registry.Port = registry.GetDefaultPort()
+	}
+	if registry.Lifecycle == "" {
+		registry.Lifecycle = "manual"
+	}
+
+	// Validate the registry
+	if err := registry.Validate(); err != nil {
+		return fmt.Errorf("validation failed: %w", err)
+	}
+
+	render.Progress(fmt.Sprintf("Creating registry '%s' (type: %s)...", name, registryType))
+
+	// Create in database
+	if err := ds.CreateRegistry(registry); err != nil {
+		return fmt.Errorf("failed to create registry: %w", err)
+	}
+
+	render.Success(fmt.Sprintf("Registry '%s' created successfully", name))
+	render.Info(fmt.Sprintf("Type:      %s", registry.Type))
+	render.Info(fmt.Sprintf("Port:      %d", registry.Port))
+	render.Info(fmt.Sprintf("Lifecycle: %s", registry.Lifecycle))
+
+	fmt.Println()
+	render.Info("Next steps:")
+	render.Info(fmt.Sprintf("  dvm registry start %s    # Start the registry", name))
+	render.Info(fmt.Sprintf("  dvm registry status %s   # Check status", name))
+
+	return nil
+}
+
 // Initializes the 'create' command and links subcommands
 func init() {
 	rootCmd.AddCommand(createCmd)
@@ -220,4 +337,13 @@ func init() {
 	createWorkspaceCmd.Flags().StringVar(&workspaceImage, "image", "", "Custom image name (default: dvm-<workspace>-<app>:<timestamp>)")
 	createWorkspaceCmd.Flags().StringP("app", "a", "", "App name (defaults to active app)")
 	createWorkspaceCmd.Flags().StringVar(&workspaceRepo, "repo", "", "GitRepo to clone into workspace (see: dvm get gitrepos)")
+
+	// Registry command
+	createCmd.AddCommand(createRegistryCmd)
+
+	// Registry creation flags
+	createRegistryCmd.Flags().StringVarP(&registryType, "type", "t", "", "Registry type (required): zot, athens, devpi, verdaccio, squid")
+	createRegistryCmd.Flags().IntVarP(&registryPort, "port", "p", 0, "Port number (default: type-specific)")
+	createRegistryCmd.Flags().StringVarP(&registryLifecycle, "lifecycle", "l", "", "Lifecycle mode: persistent, on-demand, manual (default)")
+	createRegistryCmd.Flags().StringVarP(&registryDescription, "description", "d", "", "Registry description")
 }
