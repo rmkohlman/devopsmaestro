@@ -14,30 +14,30 @@ import (
 )
 
 // =============================================================================
-// VerdaccioStrategy Basic Tests
+// SquidStrategy Basic Tests
 // =============================================================================
 
-func TestVerdaccioStrategy_GetDefaultPort(t *testing.T) {
-	strategy := NewVerdaccioStrategy()
+func TestSquidStrategy_GetDefaultPort(t *testing.T) {
+	strategy := NewSquidStrategy()
 
 	port := strategy.GetDefaultPort()
-	assert.Equal(t, 4873, port, "Default verdaccio port should be 4873")
+	assert.Equal(t, 3128, port, "Default squid port should be 3128")
 }
 
-func TestVerdaccioStrategy_GetDefaultStorage(t *testing.T) {
-	strategy := NewVerdaccioStrategy()
+func TestSquidStrategy_GetDefaultStorage(t *testing.T) {
+	strategy := NewSquidStrategy()
 
 	storage := strategy.GetDefaultStorage()
 	assert.NotEmpty(t, storage, "Default storage should not be empty")
-	assert.Equal(t, "/var/lib/verdaccio", storage, "Default storage should be /var/lib/verdaccio")
+	assert.Equal(t, "/var/cache/squid", storage, "Default storage should be /var/cache/squid")
 }
 
 // =============================================================================
-// VerdaccioStrategy ValidateConfig Tests
+// SquidStrategy ValidateConfig Tests
 // =============================================================================
 
-func TestVerdaccioStrategy_ValidateConfig_Valid(t *testing.T) {
-	strategy := NewVerdaccioStrategy()
+func TestSquidStrategy_ValidateConfig_Valid(t *testing.T) {
+	strategy := NewSquidStrategy()
 
 	tests := []struct {
 		name   string
@@ -56,28 +56,20 @@ func TestVerdaccioStrategy_ValidateConfig_Valid(t *testing.T) {
 			config: json.RawMessage("{}"),
 		},
 		{
-			name:   "config with storage",
-			config: json.RawMessage(`{"storage": "/tmp/verdaccio"}`),
+			name:   "config with cacheDir",
+			config: json.RawMessage(`{"cacheDir": "/tmp/squid/cache"}`),
 		},
 		{
 			name:   "config with port",
-			config: json.RawMessage(`{"port": 4874}`),
+			config: json.RawMessage(`{"port": 8080}`),
 		},
 		{
-			name:   "config with upstreams",
-			config: json.RawMessage(`{"upstreams": [{"name": "npmjs", "url": "https://registry.npmjs.org"}]}`),
+			name:   "config with cache sizes",
+			config: json.RawMessage(`{"cacheSizeMB": 5000, "maxObjectSizeMB": 500, "memoryCacheMB": 512}`),
 		},
 		{
 			name:   "full config",
-			config: json.RawMessage(`{"port": 4873, "storage": "/tmp/verdaccio", "lifecycle": "persistent"}`),
-		},
-		{
-			name:   "config with auth",
-			config: json.RawMessage(`{"auth": {"enabled": true, "type": "htpasswd"}}`),
-		},
-		{
-			name:   "config with max body size",
-			config: json.RawMessage(`{"maxBodySize": "50mb"}`),
+			config: json.RawMessage(`{"port": 3128, "cacheDir": "/tmp/squid/cache", "logDir": "/tmp/squid/logs", "cacheSizeMB": 1000}`),
 		},
 	}
 
@@ -89,8 +81,8 @@ func TestVerdaccioStrategy_ValidateConfig_Valid(t *testing.T) {
 	}
 }
 
-func TestVerdaccioStrategy_ValidateConfig_Invalid(t *testing.T) {
-	strategy := NewVerdaccioStrategy()
+func TestSquidStrategy_ValidateConfig_Invalid(t *testing.T) {
+	strategy := NewSquidStrategy()
 
 	tests := []struct {
 		name    string
@@ -126,20 +118,20 @@ func TestVerdaccioStrategy_ValidateConfig_Invalid(t *testing.T) {
 }
 
 // =============================================================================
-// VerdaccioStrategy CreateManager Tests
+// SquidStrategy CreateManager Tests
 // =============================================================================
 
-func TestVerdaccioStrategy_CreateManager_Success(t *testing.T) {
-	t.Skip("Integration test - requires implementation of VerdaccioManager")
+func TestSquidStrategy_CreateManager_Success(t *testing.T) {
+	t.Skip("Integration test - requires implementation of SquidManager")
 
-	strategy := NewVerdaccioStrategy()
+	strategy := NewSquidStrategy()
 
 	reg := &models.Registry{
 		ID:        1,
-		Name:      "test-verdaccio",
-		Type:      "verdaccio",
+		Name:      "test-squid",
+		Type:      RegistryTypeSquid,
 		Lifecycle: "persistent",
-		Port:      4873,
+		Port:      3128,
 	}
 
 	manager, err := strategy.CreateManager(reg)
@@ -150,15 +142,15 @@ func TestVerdaccioStrategy_CreateManager_Success(t *testing.T) {
 	assert.Implements(t, (*ServiceManager)(nil), manager)
 }
 
-func TestVerdaccioStrategy_CreateManager_WithDefaultPort(t *testing.T) {
+func TestSquidStrategy_CreateManager_WithDefaultPort(t *testing.T) {
 	t.Skip("Integration test - requires implementation")
 
-	strategy := NewVerdaccioStrategy()
+	strategy := NewSquidStrategy()
 
 	reg := &models.Registry{
 		ID:        1,
-		Name:      "test-verdaccio",
-		Type:      "verdaccio",
+		Name:      "test-squid",
+		Type:      RegistryTypeSquid,
 		Lifecycle: "persistent",
 		Port:      0, // Should use default
 	}
@@ -169,21 +161,21 @@ func TestVerdaccioStrategy_CreateManager_WithDefaultPort(t *testing.T) {
 
 	// Verify default port is used
 	endpoint := manager.GetEndpoint()
-	assert.Contains(t, endpoint, "4873", "Should use default port 4873")
+	assert.Contains(t, endpoint, "3128", "Should use default port 3128")
 }
 
-func TestVerdaccioStrategy_CreateManager_WithCustomConfig(t *testing.T) {
+func TestSquidStrategy_CreateManager_WithCustomConfig(t *testing.T) {
 	t.Skip("Integration test - requires implementation")
 
-	strategy := NewVerdaccioStrategy()
+	strategy := NewSquidStrategy()
 
-	customConfig := `{"storage": "/custom/path", "upstreams": [{"name": "npmjs", "url": "https://registry.npmjs.org"}]}`
+	customConfig := `{"cacheDir": "/custom/cache", "cacheSizeMB": 5000, "maxObjectSizeMB": 500}`
 	reg := &models.Registry{
 		ID:        1,
-		Name:      "test-verdaccio",
-		Type:      "verdaccio",
+		Name:      "test-squid",
+		Type:      RegistryTypeSquid,
 		Lifecycle: "on-demand",
-		Port:      4874,
+		Port:      8080,
 		Config: sql.NullString{
 			Valid:  true,
 			String: customConfig,
@@ -195,8 +187,8 @@ func TestVerdaccioStrategy_CreateManager_WithCustomConfig(t *testing.T) {
 	assert.NotNil(t, manager)
 }
 
-func TestVerdaccioStrategy_CreateManager_StoragePath(t *testing.T) {
-	strategy := NewVerdaccioStrategy()
+func TestSquidStrategy_CreateManager_StoragePath(t *testing.T) {
+	strategy := NewSquidStrategy()
 
 	tests := []struct {
 		name        string
@@ -207,27 +199,27 @@ func TestVerdaccioStrategy_CreateManager_StoragePath(t *testing.T) {
 			name: "uses name in default storage",
 			registry: &models.Registry{
 				ID:        1,
-				Name:      "my-verdaccio",
-				Type:      "verdaccio",
+				Name:      "my-squid",
+				Type:      RegistryTypeSquid,
 				Lifecycle: "persistent",
-				Port:      4873,
+				Port:      3128,
 			},
-			wantContain: "my-verdaccio",
+			wantContain: "my-squid",
 		},
 		{
 			name: "uses custom storage from config",
 			registry: &models.Registry{
 				ID:        1,
-				Name:      "custom-verdaccio",
-				Type:      "verdaccio",
+				Name:      "custom-squid",
+				Type:      RegistryTypeSquid,
 				Lifecycle: "persistent",
-				Port:      4873,
+				Port:      3128,
 				Config: sql.NullString{
 					Valid:  true,
-					String: `{"storage": "/custom/storage/path"}`,
+					String: `{"cacheDir": "/custom/cache/path"}`,
 				},
 			},
-			wantContain: "/custom/storage/path",
+			wantContain: "/custom/cache/path",
 		},
 	}
 
@@ -246,13 +238,13 @@ func TestVerdaccioStrategy_CreateManager_StoragePath(t *testing.T) {
 }
 
 // =============================================================================
-// VerdaccioStrategy Integration with Models
+// SquidStrategy Integration with Models
 // =============================================================================
 
-func TestVerdaccioStrategy_CreateManager_AllLifecycles(t *testing.T) {
+func TestSquidStrategy_CreateManager_AllLifecycles(t *testing.T) {
 	t.Skip("Integration test - requires implementation")
 
-	strategy := NewVerdaccioStrategy()
+	strategy := NewSquidStrategy()
 
 	lifecycles := []string{"persistent", "on-demand", "manual"}
 
@@ -260,10 +252,10 @@ func TestVerdaccioStrategy_CreateManager_AllLifecycles(t *testing.T) {
 		t.Run(lifecycle, func(t *testing.T) {
 			reg := &models.Registry{
 				ID:        1,
-				Name:      "test-verdaccio",
-				Type:      "verdaccio",
+				Name:      "test-squid",
+				Type:      RegistryTypeSquid,
 				Lifecycle: lifecycle,
-				Port:      4873,
+				Port:      3128,
 			}
 
 			manager, err := strategy.CreateManager(reg)
@@ -273,38 +265,38 @@ func TestVerdaccioStrategy_CreateManager_AllLifecycles(t *testing.T) {
 	}
 }
 
-func TestVerdaccioStrategy_CreateManager_NilRegistry(t *testing.T) {
-	strategy := NewVerdaccioStrategy()
+func TestSquidStrategy_CreateManager_NilRegistry(t *testing.T) {
+	strategy := NewSquidStrategy()
 
 	_, err := strategy.CreateManager(nil)
 	assert.Error(t, err, "Should error on nil registry")
 }
 
 // =============================================================================
-// VerdaccioStrategy Type Verification
+// SquidStrategy Type Verification
 // =============================================================================
 
-func TestVerdaccioStrategy_IsCorrectType(t *testing.T) {
-	// This test verifies that VerdaccioStrategy is the correct type
+func TestSquidStrategy_IsCorrectType(t *testing.T) {
+	// This test verifies that SquidStrategy is the correct type
 
-	var strategy RegistryStrategy = NewVerdaccioStrategy()
+	var strategy RegistryStrategy = NewSquidStrategy()
 
-	// Should be a real VerdaccioStrategy type
-	_, isVerdaccio := strategy.(*VerdaccioStrategy)
-	assert.True(t, isVerdaccio, "Should be actual VerdaccioStrategy type")
+	// Should be a real SquidStrategy type
+	_, isSquid := strategy.(*SquidStrategy)
+	assert.True(t, isSquid, "Should be actual SquidStrategy type")
 }
 
-func TestVerdaccioStrategy_CreateManager_DoesNotReturnNotImplementedError(t *testing.T) {
+func TestSquidStrategy_CreateManager_DoesNotReturnNotImplementedError(t *testing.T) {
 	t.Skip("Integration test - requires implementation")
 
-	strategy := NewVerdaccioStrategy()
+	strategy := NewSquidStrategy()
 
 	reg := &models.Registry{
 		ID:        1,
-		Name:      "test-verdaccio",
-		Type:      "verdaccio",
+		Name:      "test-squid",
+		Type:      RegistryTypeSquid,
 		Lifecycle: "persistent",
-		Port:      4873,
+		Port:      3128,
 	}
 
 	_, err := strategy.CreateManager(reg)
@@ -319,34 +311,34 @@ func TestVerdaccioStrategy_CreateManager_DoesNotReturnNotImplementedError(t *tes
 // getStoragePath Helper Tests
 // =============================================================================
 
-func TestVerdaccioStrategy_getStoragePath_DefaultPath(t *testing.T) {
+func TestSquidStrategy_getStoragePath_DefaultPath(t *testing.T) {
 	t.Skip("Would need to test internal getStoragePath method")
 
-	strategy := NewVerdaccioStrategy()
+	strategy := NewSquidStrategy()
 
 	reg := &models.Registry{
-		Name: "test-verdaccio",
+		Name: "test-squid",
 	}
 
 	// Access private method via reflection or test the CreateManager behavior
 	// For now, validate expected behavior through CreateManager
 
-	// Expected: ~/.devopsmaestro/registries/test-verdaccio
+	// Expected: ~/.devopsmaestro/registries/test-squid/cache
 	homeDir, _ := os.UserHomeDir()
-	expectedPath := filepath.Join(homeDir, ".devopsmaestro", "registries", "test-verdaccio")
+	expectedPath := filepath.Join(homeDir, ".devopsmaestro", "registries", "test-squid", "cache")
 
 	// This would be validated in CreateManager integration test
 	_, _, _ = strategy, reg, expectedPath
 }
 
-func TestVerdaccioStrategy_getStoragePath_CustomPath(t *testing.T) {
-	strategy := NewVerdaccioStrategy()
+func TestSquidStrategy_getStoragePath_CustomPath(t *testing.T) {
+	strategy := NewSquidStrategy()
 
 	reg := &models.Registry{
-		Name: "test-verdaccio",
+		Name: "test-squid",
 		Config: sql.NullString{
 			Valid:  true,
-			String: `{"storage": "/custom/path"}`,
+			String: `{"cacheDir": "/custom/path"}`,
 		},
 	}
 
@@ -357,11 +349,11 @@ func TestVerdaccioStrategy_getStoragePath_CustomPath(t *testing.T) {
 	_ = reg
 }
 
-func TestVerdaccioStrategy_getStoragePath_InvalidJSON(t *testing.T) {
-	strategy := NewVerdaccioStrategy()
+func TestSquidStrategy_getStoragePath_InvalidJSON(t *testing.T) {
+	strategy := NewSquidStrategy()
 
 	reg := &models.Registry{
-		Name: "test-verdaccio",
+		Name: "test-squid",
 		Config: sql.NullString{
 			Valid:  true,
 			String: `{invalid json}`,
@@ -376,29 +368,29 @@ func TestVerdaccioStrategy_getStoragePath_InvalidJSON(t *testing.T) {
 }
 
 // =============================================================================
-// VerdaccioStrategy Config Parsing Tests
+// SquidStrategy Config Parsing Tests
 // =============================================================================
 
-func TestVerdaccioStrategy_parseConfig_ValidJSON(t *testing.T) {
+func TestSquidStrategy_parseConfig_ValidJSON(t *testing.T) {
 	t.Skip("Would need to test internal parseConfig method")
 
-	strategy := NewVerdaccioStrategy()
+	strategy := NewSquidStrategy()
 
-	configJSON := `{"port": 4873, "storage": "/tmp/verdaccio", "upstreams": [{"name": "npmjs", "url": "https://registry.npmjs.org"}]}`
+	configJSON := `{"port": 3128, "cacheDir": "/tmp/squid/cache", "cacheSizeMB": 1000, "maxObjectSizeMB": 100}`
 
 	// Parse config
 	// config, err := strategy.parseConfig(configJSON)
 	// require.NoError(t, err)
-	// assert.Equal(t, 4873, config.Port)
+	// assert.Equal(t, 3128, config.Port)
 
 	_ = strategy
 	_ = configJSON
 }
 
-func TestVerdaccioStrategy_parseConfig_EmptyConfig(t *testing.T) {
+func TestSquidStrategy_parseConfig_EmptyConfig(t *testing.T) {
 	t.Skip("Would need to test internal parseConfig method")
 
-	strategy := NewVerdaccioStrategy()
+	strategy := NewSquidStrategy()
 
 	// Empty config should use defaults
 	// config, err := strategy.parseConfig("")
@@ -408,10 +400,10 @@ func TestVerdaccioStrategy_parseConfig_EmptyConfig(t *testing.T) {
 	_ = strategy
 }
 
-func TestVerdaccioStrategy_parseConfig_InvalidJSON(t *testing.T) {
+func TestSquidStrategy_parseConfig_InvalidJSON(t *testing.T) {
 	t.Skip("Would need to test internal parseConfig method")
 
-	strategy := NewVerdaccioStrategy()
+	strategy := NewSquidStrategy()
 
 	configJSON := `{invalid json}`
 
@@ -424,71 +416,96 @@ func TestVerdaccioStrategy_parseConfig_InvalidJSON(t *testing.T) {
 }
 
 // =============================================================================
-// Registry Strategy Registry Tests (ensure verdaccio is registered)
+// Registry Strategy Registry Tests (ensure squid is registered)
 // =============================================================================
 
-func TestStrategyRegistry_VerdaccioRegistered(t *testing.T) {
+func TestStrategyRegistry_SquidRegistered(t *testing.T) {
 	t.Skip("Requires strategy registry implementation")
 
-	// Verify verdaccio strategy is registered in the strategy registry
-	// This ensures NewVerdaccioStrategy() returns a real strategy, not stub
+	// Verify squid strategy is registered in the strategy registry
+	// This ensures NewSquidStrategy() returns a real strategy, not stub
 
-	// strategy := GetRegistryStrategy("verdaccio")
-	// assert.NotNil(t, strategy, "verdaccio strategy should be registered")
+	// strategy := GetRegistryStrategy(RegistryTypeSquid)
+	// assert.NotNil(t, strategy, "squid strategy should be registered")
 
 	// _, isStub := strategy.(*StubStrategy)
-	// assert.False(t, isStub, "verdaccio should not be a stub")
+	// assert.False(t, isStub, "squid should not be a stub")
 }
 
-func TestStrategyRegistry_VerdaccioType(t *testing.T) {
+func TestStrategyRegistry_SquidType(t *testing.T) {
 	t.Skip("Requires strategy registry implementation")
 
-	// Verify that "verdaccio" type maps to VerdaccioStrategy
+	// Verify that RegistryTypeSquid type maps to SquidStrategy
 
-	// strategy := GetRegistryStrategy("verdaccio")
-	// _, ok := strategy.(*VerdaccioStrategy)
-	// assert.True(t, ok, "verdaccio type should return VerdaccioStrategy")
+	// strategy := GetRegistryStrategy(RegistryTypeSquid)
+	// _, ok := strategy.(*SquidStrategy)
+	// assert.True(t, ok, "squid type should return SquidStrategy")
 }
 
 // =============================================================================
-// VerdaccioStrategy npm vs Verdaccio naming
+// SquidStrategy HTTP Proxy Naming
 // =============================================================================
 
-func TestVerdaccioStrategy_ConfigUsesNpmTypes(t *testing.T) {
+func TestSquidStrategy_ConfigUsesHttpProxyTypes(t *testing.T) {
 	t.Skip("Integration test - requires implementation")
 
-	strategy := NewVerdaccioStrategy()
+	strategy := NewSquidStrategy()
 
 	reg := &models.Registry{
 		ID:        1,
-		Name:      "test-verdaccio",
-		Type:      "verdaccio",
+		Name:      "test-squid",
+		Type:      RegistryTypeSquid,
 		Lifecycle: "persistent",
-		Port:      4873,
+		Port:      3128,
 	}
 
 	manager, err := strategy.CreateManager(reg)
 	require.NoError(t, err)
 
-	// Verify manager implements NpmProxy interface (not VerdaccioProxy)
-	_, ok := manager.(NpmProxy)
-	assert.True(t, ok, "VerdaccioManager should implement NpmProxy interface")
+	// Verify manager implements HttpProxy interface
+	_, ok := manager.(HttpProxy)
+	assert.True(t, ok, "SquidManager should implement HttpProxy interface")
 }
 
-func TestVerdaccioStrategy_ImplementsNpmStrategy(t *testing.T) {
-	// Verify VerdaccioStrategy is the concrete npm implementation
+func TestSquidStrategy_ImplementsHttpProxyStrategy(t *testing.T) {
+	// Verify SquidStrategy is the concrete HTTP proxy implementation
 
-	strategy := NewVerdaccioStrategy()
+	strategy := NewSquidStrategy()
 
-	// Should be the strategy for "npm" type registries
-	// (verdaccio is the implementation of npm proxy)
-	assert.NotNil(t, strategy, "VerdaccioStrategy should be the npm proxy implementation")
+	// Should be the strategy for "squid" type registries
+	// (squid is the implementation of HTTP proxy)
+	assert.NotNil(t, strategy, "SquidStrategy should be the HTTP proxy implementation")
+}
+
+// =============================================================================
+// SquidStrategy Adapter Tests
+// =============================================================================
+
+func TestSquidStrategy_CreatesAdapter(t *testing.T) {
+	t.Skip("Integration test - requires implementation")
+
+	strategy := NewSquidStrategy()
+
+	reg := &models.Registry{
+		ID:        1,
+		Name:      "test-squid",
+		Type:      RegistryTypeSquid,
+		Lifecycle: "persistent",
+		Port:      3128,
+	}
+
+	manager, err := strategy.CreateManager(reg)
+	require.NoError(t, err)
+
+	// Verify manager is wrapped in adapter for ServiceManager interface
+	_, isAdapter := manager.(*SquidManagerAdapter)
+	assert.True(t, isAdapter, "Should return SquidManagerAdapter to implement ServiceManager")
 }
 
 // =============================================================================
 // Interface Compliance Test
 // =============================================================================
 
-func TestVerdaccioStrategy_ImplementsRegistryStrategy(t *testing.T) {
-	var _ RegistryStrategy = (*VerdaccioStrategy)(nil)
+func TestSquidStrategy_ImplementsRegistryStrategy(t *testing.T) {
+	var _ RegistryStrategy = (*SquidStrategy)(nil)
 }

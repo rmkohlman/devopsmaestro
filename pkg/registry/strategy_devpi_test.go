@@ -273,17 +273,13 @@ func TestDevpiStrategy_CreateManager_NilRegistry(t *testing.T) {
 }
 
 // =============================================================================
-// DevpiStrategy vs StubStrategy Comparison
+// DevpiStrategy Type Verification
 // =============================================================================
 
-func TestDevpiStrategy_IsNotStub(t *testing.T) {
-	// This test verifies that DevpiStrategy is no longer a StubStrategy
+func TestDevpiStrategy_IsCorrectType(t *testing.T) {
+	// This test verifies that DevpiStrategy is the correct type
 
 	var strategy RegistryStrategy = NewDevpiStrategy()
-
-	// Should not be a StubStrategy type
-	_, isStub := strategy.(*StubStrategy)
-	assert.False(t, isStub, "DevpiStrategy should not be a StubStrategy")
 
 	// Should be a real DevpiStrategy type
 	_, isDevpi := strategy.(*DevpiStrategy)

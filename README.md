@@ -698,7 +698,7 @@ DevOpsMaestro provides a flexible registry system supporting multiple registry t
 | `devpi` | Python package index/proxy | ✅ Full support |
 | `verdaccio` | npm package proxy | ✅ Full support |
 | `athens` | Go module proxy | 🚧 Stub implementation |
-| `squid` | HTTP proxy cache | 🚧 Stub implementation |
+| `squid` | HTTP proxy cache | ✅ Full support |
 
 ### Benefits
 

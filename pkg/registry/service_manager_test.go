@@ -106,52 +106,50 @@ func TestAthensStrategy(t *testing.T) {
 	})
 }
 
-// TestStubStrategies tests the stub strategies for future registry types
-func TestStubStrategies(t *testing.T) {
-	testCases := []struct {
-		name         string
-		strategy     RegistryStrategy
-		registryType string
-		expectedPort int
-		expectedPath string
-	}{
-		{
-			name:         "squid",
-			strategy:     NewSquidStrategy(),
-			registryType: "squid",
-			expectedPort: 3128,
-			expectedPath: "/var/cache/squid",
-		},
-	}
+// TestSquidStrategy tests the Squid proxy strategy
+func TestSquidStrategy(t *testing.T) {
+	strategy := NewSquidStrategy()
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Run("GetDefaultPort", func(t *testing.T) {
-				assert.Equal(t, tc.expectedPort, tc.strategy.GetDefaultPort())
-			})
+	t.Run("ValidateConfig accepts valid squid config", func(t *testing.T) {
+		config := map[string]interface{}{
+			"port":     3128,
+			"cacheDir": "/var/cache/squid",
+		}
+		configJSON, _ := json.Marshal(config)
 
-			t.Run("GetDefaultStorage", func(t *testing.T) {
-				assert.Equal(t, tc.expectedPath, tc.strategy.GetDefaultStorage())
-			})
+		err := strategy.ValidateConfig(configJSON)
+		assert.NoError(t, err)
+	})
 
-			t.Run("ValidateConfig accepts empty config", func(t *testing.T) {
-				err := tc.strategy.ValidateConfig(nil)
-				assert.NoError(t, err)
-			})
+	t.Run("ValidateConfig rejects invalid JSON", func(t *testing.T) {
+		err := strategy.ValidateConfig([]byte("{invalid"))
+		assert.Error(t, err)
+	})
 
-			t.Run("CreateManager returns not implemented error", func(t *testing.T) {
-				reg := &models.Registry{
-					Name: "test-" + tc.registryType,
-					Type: tc.registryType,
-					Port: tc.expectedPort,
-				}
+	t.Run("GetDefaultPort returns 3128", func(t *testing.T) {
+		assert.Equal(t, 3128, strategy.GetDefaultPort())
+	})
 
-				_, err := tc.strategy.CreateManager(reg)
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), "not implemented")
-			})
-		})
-	}
+	t.Run("GetDefaultStorage returns squid path", func(t *testing.T) {
+		assert.Equal(t, "/var/cache/squid", strategy.GetDefaultStorage())
+	})
+
+	t.Run("CreateManager creates a SquidManagerAdapter", func(t *testing.T) {
+		reg := &models.Registry{
+			ID:   1,
+			Name: "test-squid",
+			Type: "squid",
+			Port: 3128,
+		}
+
+		manager, err := strategy.CreateManager(reg)
+		require.NoError(t, err)
+		assert.NotNil(t, manager)
+
+		// Verify it's a ServiceManager
+		_, ok := manager.(ServiceManager)
+		assert.True(t, ok, "CreateManager should return a ServiceManager")
+	})
 }
 
 // TestServiceFactory tests the service factory

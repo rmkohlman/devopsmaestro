@@ -452,6 +452,7 @@ func TestBaseServiceManager_StopProcess_StopsIdleTimer(t *testing.T) {
 	mgr, _, mockProcess := setupBaseServiceManager(t)
 	ctx := context.Background()
 
+	var mu sync.Mutex
 	stopFuncCalled := false
 	mockProcess.StopFunc = func(ctx context.Context) error {
 		return nil
@@ -459,7 +460,9 @@ func TestBaseServiceManager_StopProcess_StopsIdleTimer(t *testing.T) {
 
 	// Setup idle timer
 	mgr.SetupIdleTimer("on-demand", 1*time.Second, func() {
+		mu.Lock()
 		stopFuncCalled = true
+		mu.Unlock()
 	})
 
 	// Stop process should stop idle timer
@@ -469,7 +472,10 @@ func TestBaseServiceManager_StopProcess_StopsIdleTimer(t *testing.T) {
 	// Wait to ensure timer doesn't fire
 	time.Sleep(1500 * time.Millisecond)
 
-	assert.False(t, stopFuncCalled, "Idle timer should be stopped by StopProcess")
+	mu.Lock()
+	called := stopFuncCalled
+	mu.Unlock()
+	assert.False(t, called, "Idle timer should be stopped by StopProcess")
 }
 
 func TestBaseServiceManager_StopProcess_DelegatesToProcessManager(t *testing.T) {
@@ -609,9 +615,12 @@ func TestBaseServiceManager_SetupIdleTimer(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mgr, _, _ := setupBaseServiceManager(t)
 
+			var mu sync.Mutex
 			stopFuncCalled := false
 			stopFunc := func() {
+				mu.Lock()
 				stopFuncCalled = true
+				mu.Unlock()
 			}
 
 			mgr.SetupIdleTimer(tt.lifecycle, tt.timeout, stopFunc)
@@ -619,10 +628,13 @@ func TestBaseServiceManager_SetupIdleTimer(t *testing.T) {
 			// Wait for timer to potentially fire
 			time.Sleep(tt.timeout + 50*time.Millisecond)
 
+			mu.Lock()
+			called := stopFuncCalled
+			mu.Unlock()
 			if tt.shouldActivate {
-				assert.True(t, stopFuncCalled, "Timer should fire for %s lifecycle", tt.lifecycle)
+				assert.True(t, called, "Timer should fire for %s lifecycle", tt.lifecycle)
 			} else {
-				assert.False(t, stopFuncCalled, "Timer should not fire for %s lifecycle", tt.lifecycle)
+				assert.False(t, called, "Timer should not fire for %s lifecycle", tt.lifecycle)
 			}
 		})
 	}
@@ -631,30 +643,42 @@ func TestBaseServiceManager_SetupIdleTimer(t *testing.T) {
 func TestBaseServiceManager_SetupIdleTimer_RespectsTimeout(t *testing.T) {
 	mgr, _, _ := setupBaseServiceManager(t)
 
+	var mu sync.Mutex
 	stopFuncCalled := false
 	timeout := 200 * time.Millisecond
 
 	mgr.SetupIdleTimer("on-demand", timeout, func() {
+		mu.Lock()
 		stopFuncCalled = true
+		mu.Unlock()
 	})
 
 	// Check before timeout expires
 	time.Sleep(100 * time.Millisecond)
-	assert.False(t, stopFuncCalled, "Timer should not fire before timeout")
+	mu.Lock()
+	called := stopFuncCalled
+	mu.Unlock()
+	assert.False(t, called, "Timer should not fire before timeout")
 
 	// Check after timeout expires
 	time.Sleep(150 * time.Millisecond)
-	assert.True(t, stopFuncCalled, "Timer should fire after timeout")
+	mu.Lock()
+	called = stopFuncCalled
+	mu.Unlock()
+	assert.True(t, called, "Timer should fire after timeout")
 }
 
 func TestBaseServiceManager_SetupIdleTimer_CanBeStopped(t *testing.T) {
 	mgr, _, _ := setupBaseServiceManager(t)
 
+	var mu sync.Mutex
 	stopFuncCalled := false
 	timeout := 100 * time.Millisecond
 
 	mgr.SetupIdleTimer("on-demand", timeout, func() {
+		mu.Lock()
 		stopFuncCalled = true
+		mu.Unlock()
 	})
 
 	// Stop timer before it fires
@@ -664,7 +688,10 @@ func TestBaseServiceManager_SetupIdleTimer_CanBeStopped(t *testing.T) {
 	// Wait past timeout
 	time.Sleep(100 * time.Millisecond)
 
-	assert.False(t, stopFuncCalled, "Timer should not fire after being stopped")
+	mu.Lock()
+	called := stopFuncCalled
+	mu.Unlock()
+	assert.False(t, called, "Timer should not fire after being stopped")
 }
 
 // =============================================================================
@@ -706,10 +733,13 @@ func TestBaseServiceManager_ResetIdleTimer(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mgr, _, _ := setupBaseServiceManager(t)
 
+			var mu sync.Mutex
 			stopFuncCallCount := 0
 			timeout := 150 * time.Millisecond
 			stopFunc := func() {
+				mu.Lock()
 				stopFuncCallCount++
+				mu.Unlock()
 			}
 
 			if tt.initialTimer {
@@ -723,11 +753,17 @@ func TestBaseServiceManager_ResetIdleTimer(t *testing.T) {
 			if tt.shouldReset {
 				// Wait for original timeout (should not fire because it was reset)
 				time.Sleep(120 * time.Millisecond)
-				assert.Equal(t, 0, stopFuncCallCount, "Original timer should be cancelled")
+				mu.Lock()
+				count := stopFuncCallCount
+				mu.Unlock()
+				assert.Equal(t, 0, count, "Original timer should be cancelled")
 
 				// Wait for new timeout (should fire)
 				time.Sleep(80 * time.Millisecond)
-				assert.Equal(t, 1, stopFuncCallCount, "New timer should fire after reset")
+				mu.Lock()
+				count = stopFuncCallCount
+				mu.Unlock()
+				assert.Equal(t, 1, count, "New timer should fire after reset")
 			}
 		})
 	}
@@ -736,12 +772,15 @@ func TestBaseServiceManager_ResetIdleTimer(t *testing.T) {
 func TestBaseServiceManager_ResetIdleTimer_ExtendsTimeout(t *testing.T) {
 	mgr, _, _ := setupBaseServiceManager(t)
 
+	var mu sync.Mutex
 	stopFuncCalled := false
 	initialTimeout := 100 * time.Millisecond
 
 	// Setup initial timer
 	mgr.SetupIdleTimer("on-demand", initialTimeout, func() {
+		mu.Lock()
 		stopFuncCalled = true
+		mu.Unlock()
 	})
 
 	// Wait halfway through timeout
@@ -749,16 +788,24 @@ func TestBaseServiceManager_ResetIdleTimer_ExtendsTimeout(t *testing.T) {
 
 	// Reset timer with new timeout
 	mgr.ResetIdleTimer("on-demand", 200*time.Millisecond, func() {
+		mu.Lock()
 		stopFuncCalled = true
+		mu.Unlock()
 	})
 
 	// Wait past original timeout
 	time.Sleep(60 * time.Millisecond)
-	assert.False(t, stopFuncCalled, "Timer should not fire at original timeout after reset")
+	mu.Lock()
+	called := stopFuncCalled
+	mu.Unlock()
+	assert.False(t, called, "Timer should not fire at original timeout after reset")
 
 	// Wait for new timeout
 	time.Sleep(160 * time.Millisecond)
-	assert.True(t, stopFuncCalled, "Timer should fire at new timeout")
+	mu.Lock()
+	called = stopFuncCalled
+	mu.Unlock()
+	assert.True(t, called, "Timer should fire at new timeout")
 }
 
 func TestBaseServiceManager_ResetIdleTimer_SafeWhenNoTimer(t *testing.T) {
@@ -796,11 +843,14 @@ func TestBaseServiceManager_StopIdleTimer(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mgr, _, _ := setupBaseServiceManager(t)
 
+			var mu sync.Mutex
 			stopFuncCalled := false
 
 			if tt.setupTimer {
 				mgr.SetupIdleTimer("on-demand", 100*time.Millisecond, func() {
+					mu.Lock()
 					stopFuncCalled = true
+					mu.Unlock()
 				})
 			}
 
@@ -812,7 +862,10 @@ func TestBaseServiceManager_StopIdleTimer(t *testing.T) {
 			// Wait to ensure timer doesn't fire
 			time.Sleep(150 * time.Millisecond)
 
-			assert.False(t, stopFuncCalled, "Timer should not fire after being stopped")
+			mu.Lock()
+			called := stopFuncCalled
+			mu.Unlock()
+			assert.False(t, called, "Timer should not fire after being stopped")
 		})
 	}
 }
@@ -833,9 +886,12 @@ func TestBaseServiceManager_StopIdleTimer_MultipleCalls(t *testing.T) {
 func TestBaseServiceManager_StopIdleTimer_DoesNotTriggerStopFunc(t *testing.T) {
 	mgr, _, _ := setupBaseServiceManager(t)
 
+	var mu sync.Mutex
 	stopFuncCalled := false
 	mgr.SetupIdleTimer("on-demand", 50*time.Millisecond, func() {
+		mu.Lock()
 		stopFuncCalled = true
+		mu.Unlock()
 	})
 
 	// Stop timer immediately
@@ -844,7 +900,10 @@ func TestBaseServiceManager_StopIdleTimer_DoesNotTriggerStopFunc(t *testing.T) {
 	// Wait well past timeout
 	time.Sleep(100 * time.Millisecond)
 
-	assert.False(t, stopFuncCalled, "StopIdleTimer should prevent stopFunc from being called")
+	mu.Lock()
+	called := stopFuncCalled
+	mu.Unlock()
+	assert.False(t, called, "StopIdleTimer should prevent stopFunc from being called")
 }
 
 // =============================================================================

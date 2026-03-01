@@ -419,48 +419,128 @@ func (v *VerdaccioManagerAdapter) GetEndpoint() string {
 	return v.manager.GetEndpoint()
 }
 
-// --- Stub Strategies for Future Implementation ---
+// --- Registry Type Constants ---
 
-// StubStrategy is a base strategy for registries not yet implemented.
-type StubStrategy struct {
-	registryType   string
-	defaultPort    int
-	defaultStorage string
+// RegistryTypeSquid is the registry type for squid HTTP proxy.
+const RegistryTypeSquid = "squid"
+
+// --- Squid Strategy ---
+
+// SquidStrategy implements RegistryStrategy for squid HTTP proxy/cache.
+type SquidStrategy struct{}
+
+// NewSquidStrategy creates a new SquidStrategy.
+func NewSquidStrategy() *SquidStrategy {
+	return &SquidStrategy{}
 }
 
-// ValidateConfig accepts any valid JSON for stub registries.
-func (s *StubStrategy) ValidateConfig(config json.RawMessage) error {
+// ValidateConfig validates squid-specific configuration.
+func (s *SquidStrategy) ValidateConfig(config json.RawMessage) error {
 	if len(config) == 0 {
+		return nil // Empty config is valid
+	}
+
+	// Handle null JSON
+	if string(config) == "null" {
 		return nil
 	}
 
-	var configMap map[string]interface{}
-	if err := json.Unmarshal(config, &configMap); err != nil {
+	// Parse config as HttpProxyConfig
+	var proxyConfig HttpProxyConfig
+	if err := json.Unmarshal(config, &proxyConfig); err != nil {
 		return fmt.Errorf("invalid JSON config: %w", err)
 	}
+
+	// Config parsed successfully - validation happens when applying defaults
 	return nil
 }
 
-// CreateManager returns a not implemented error.
-func (s *StubStrategy) CreateManager(reg *models.Registry) (ServiceManager, error) {
-	return nil, fmt.Errorf("%s registry not implemented yet", s.registryType)
-}
-
-// GetDefaultPort returns the default port for this registry type.
-func (s *StubStrategy) GetDefaultPort() int {
-	return s.defaultPort
-}
-
-// GetDefaultStorage returns the default storage path for this registry type.
-func (s *StubStrategy) GetDefaultStorage() string {
-	return s.defaultStorage
-}
-
-// NewSquidStrategy creates a stub strategy for squid (HTTP proxy/cache).
-func NewSquidStrategy() RegistryStrategy {
-	return &StubStrategy{
-		registryType:   "squid",
-		defaultPort:    3128,
-		defaultStorage: "/var/cache/squid",
+// CreateManager creates a SquidManagerAdapter from a Registry resource.
+func (s *SquidStrategy) CreateManager(reg *models.Registry) (ServiceManager, error) {
+	if reg == nil {
+		return nil, fmt.Errorf("registry cannot be nil")
 	}
+
+	// Start with default config
+	config := DefaultHttpProxyConfig()
+
+	// Override port if specified
+	if reg.Port != 0 {
+		config.Port = reg.Port
+	}
+
+	// Parse custom config if provided
+	if reg.Config.Valid && reg.Config.String != "" {
+		var customConfig HttpProxyConfig
+		if err := json.Unmarshal([]byte(reg.Config.String), &customConfig); err == nil {
+			// Merge custom config values
+			if customConfig.Port != 0 {
+				config.Port = customConfig.Port
+			}
+			if customConfig.CacheDir != "" {
+				config.CacheDir = customConfig.CacheDir
+			}
+			if customConfig.LogDir != "" {
+				config.LogDir = customConfig.LogDir
+			}
+			if customConfig.PidFile != "" {
+				config.PidFile = customConfig.PidFile
+			}
+			if customConfig.CacheSizeMB != 0 {
+				config.CacheSizeMB = customConfig.CacheSizeMB
+			}
+			if customConfig.MaxObjectSizeMB != 0 {
+				config.MaxObjectSizeMB = customConfig.MaxObjectSizeMB
+			}
+			if customConfig.MemoryCacheMB != 0 {
+				config.MemoryCacheMB = customConfig.MemoryCacheMB
+			}
+		}
+	}
+
+	// Determine storage path - override defaults if not set in custom config
+	storagePath := s.getStoragePath(reg)
+	if config.CacheDir == "" || config.CacheDir == DefaultHttpProxyConfig().CacheDir {
+		config.CacheDir = filepath.Join(storagePath, "cache")
+	}
+	if config.LogDir == "" || config.LogDir == DefaultHttpProxyConfig().LogDir {
+		config.LogDir = filepath.Join(storagePath, "logs")
+	}
+	if config.PidFile == "" || config.PidFile == DefaultHttpProxyConfig().PidFile {
+		config.PidFile = filepath.Join(storagePath, "squid.pid")
+	}
+
+	// Apply any remaining defaults
+	config.ApplyDefaults()
+
+	// Create SquidManager and wrap it in adapter
+	squidManager := NewSquidManager(config)
+	return NewSquidManagerAdapter(squidManager), nil
+}
+
+// GetDefaultPort returns the default squid port (3128).
+func (s *SquidStrategy) GetDefaultPort() int {
+	return 3128
+}
+
+// GetDefaultStorage returns the default squid storage path.
+func (s *SquidStrategy) GetDefaultStorage() string {
+	return "/var/cache/squid"
+}
+
+// getStoragePath determines the storage path for a registry.
+func (s *SquidStrategy) getStoragePath(reg *models.Registry) string {
+	// If config specifies cacheDir, use its parent as storage
+	if reg.Config.Valid && reg.Config.String != "" {
+		var configMap map[string]interface{}
+		if err := json.Unmarshal([]byte(reg.Config.String), &configMap); err == nil {
+			if cacheDir, ok := configMap["cacheDir"].(string); ok && cacheDir != "" {
+				return filepath.Dir(cacheDir)
+			}
+		}
+	}
+
+	// Otherwise use default path under ~/.devopsmaestro
+	homeDir, _ := os.UserHomeDir()
+	return filepath.Join(homeDir, ".devopsmaestro", "registries", reg.Name)
 }
