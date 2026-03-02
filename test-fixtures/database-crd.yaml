@@ -1,0 +1,39 @@
+apiVersion: devopsmaestro.io/v1alpha1
+kind: CustomResourceDefinition
+metadata:
+  name: databases.devopsmaestro.io
+spec:
+  group: devopsmaestro.io
+  names:
+    kind: Database
+    singular: database
+    plural: databases
+    shortNames:
+      - db
+  scope: Global
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - engine
+                - version
+              properties:
+                engine:
+                  type: string
+                  enum:
+                    - postgres
+                    - mysql
+                    - sqlite
+                version:
+                  type: string
+                port:
+                  type: integer
+                  minimum: 1
+                  maximum: 65535

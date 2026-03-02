@@ -475,6 +475,52 @@ type DataStore interface {
 	// Returns 1 if no history exists yet.
 	GetNextRevisionNumber(registryID int) (int, error)
 
+	// CRD Operations (Custom Resource Definitions)
+
+	// CreateCRD inserts a new custom resource definition.
+	CreateCRD(crd *models.CustomResourceDefinition) error
+
+	// GetCRDByKind retrieves a CRD by its kind name.
+	GetCRDByKind(kind string) (*models.CustomResourceDefinition, error)
+
+	// GetCRDByID retrieves a CRD by its ID.
+	GetCRDByID(id int) (*models.CustomResourceDefinition, error)
+
+	// UpdateCRD updates an existing CRD.
+	UpdateCRD(crd *models.CustomResourceDefinition) error
+
+	// DeleteCRD removes a CRD by kind.
+	DeleteCRD(kind string) error
+
+	// ListCRDs retrieves all CRDs.
+	ListCRDs() ([]*models.CustomResourceDefinition, error)
+
+	// ListCRDsByScope retrieves CRDs filtered by scope.
+	ListCRDsByScope(scope string) ([]*models.CustomResourceDefinition, error)
+
+	// Custom Resource Operations (instances of CRDs)
+
+	// CreateCustomResource inserts a new custom resource instance.
+	CreateCustomResource(resource *models.CustomResource) error
+
+	// GetCustomResource retrieves a custom resource by kind, name, and namespace.
+	GetCustomResource(kind, name, namespace string) (*models.CustomResource, error)
+
+	// GetCustomResourceByID retrieves a custom resource by its ID.
+	GetCustomResourceByID(id int) (*models.CustomResource, error)
+
+	// UpdateCustomResource updates an existing custom resource.
+	UpdateCustomResource(resource *models.CustomResource) error
+
+	// DeleteCustomResource removes a custom resource by kind, name, and namespace.
+	DeleteCustomResource(kind, name, namespace string) error
+
+	// ListCustomResources retrieves all custom resources of a given kind.
+	ListCustomResources(kind string) ([]*models.CustomResource, error)
+
+	// ListCustomResourcesByNamespace retrieves custom resources filtered by namespace.
+	ListCustomResourcesByNamespace(kind, namespace string) ([]*models.CustomResource, error)
+
 	// Driver Access
 
 	// Driver returns the underlying database driver.

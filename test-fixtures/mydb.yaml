@@ -1,0 +1,8 @@
+apiVersion: devopsmaestro.io/v1alpha1
+kind: Database
+metadata:
+  name: mydb
+spec:
+  engine: postgres
+  version: "14"
+  port: 5432

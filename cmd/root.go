@@ -4,6 +4,7 @@ import (
 	"context"
 	"devopsmaestro/db"
 	"devopsmaestro/pkg/colors"
+	"devopsmaestro/pkg/crd"
 	"fmt"
 	"io"
 	"io/fs"
@@ -71,6 +72,12 @@ func Execute(dataStore *db.DataStore, executor *Executor, migrationsFS fs.FS) {
 				if migrationsApplied && verbose {
 					slog.Info("database migrations applied successfully")
 				}
+			}
+
+			// Initialize CRD fallback handler for custom resources (v0.29.0)
+			if err := crd.InitializeFallbackHandler(*dataStore); err != nil {
+				slog.Warn("failed to initialize CRD handler", "error", err)
+				// Don't exit - CRD support is optional, built-in resources still work
 			}
 		}
 	}

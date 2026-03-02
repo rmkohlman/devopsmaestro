@@ -295,6 +295,7 @@ dvm status           # Full status overview
 - **Multi-platform** - OrbStack, Docker Desktop, Podman, Colima
 - **Container-native** - Isolated dev environments with Neovim pre-configured
 - **Default Nvim setup** - New workspaces auto-configured with lazyvim + "core" plugin package
+- **Custom Resource Definitions** - Define custom resource types with OpenAPI V3 schema validation
 - **Database-backed** - SQLite storage for apps, workspaces, plugins, git repositories
 - **YAML configuration** - Declarative workspace definitions
 - **Hierarchical theme system** - Themes cascade through the object hierarchy
@@ -444,6 +445,15 @@ dvm sync gitrepo <name>                           # Sync a repository mirror
 dvm sync gitrepos                                 # Sync all repositories
 dvm delete gitrepo <name>                         # Delete repository (removes mirror)
 dvm delete gitrepo <name> --keep-mirror           # Delete metadata, keep mirror
+
+# Custom Resource Definitions (v0.29.0+)
+dvm apply -f crd.yaml                             # Register a CRD
+dvm get crds                                      # List all CRDs
+dvm get crd <name>                                # Show specific CRD
+dvm delete crd <name>                             # Delete a CRD
+dvm apply -f resource.yaml                        # Create custom resource instance
+dvm get <plural-name>                             # List custom resources
+dvm delete <kind> <name>                          # Delete custom resource
 
 # Configuration
 dvm apply -f workspace.yaml   # Apply YAML configuration
@@ -891,6 +901,207 @@ dvm get registries
 # Check status of each registry
 dvm rollout status registry myregistry
 ```
+
+---
+
+## Custom Resource Definitions (CRDs)
+
+DevOpsMaestro supports Kubernetes-style Custom Resource Definitions (CRDs) for defining custom resource types with schema validation. This allows you to extend DevOpsMaestro with your own resource types while maintaining the same kubectl-style workflow.
+
+### Key Features
+
+- **Define custom resource types** with OpenAPI V3 schema validation
+- **Support for all scope types** (Workspace, App, Domain, Ecosystem, Global)
+- **Full CRUD operations** on custom resources
+- **Case-insensitive kind lookup** - `dvm get Database` and `dvm get database` both work
+- **Built-in kind protection** - Cannot override core types like Workspace, App, Domain, etc.
+- **kubectl-style workflow** - Familiar `apply`, `get`, `delete` commands
+
+### Quick Start
+
+```bash
+# Register a CRD
+dvm apply -f database-crd.yaml
+
+# List registered CRDs
+dvm get crds
+
+# Create a custom resource
+dvm apply -f mydb.yaml
+
+# Get custom resources by kind
+dvm get databases
+
+# Delete a custom resource
+dvm delete database mydb
+```
+
+### CRD YAML Example
+
+```yaml
+apiVersion: devopsmaestro.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: databases
+spec:
+  group: mycompany.io
+  names:
+    kind: Database
+    singular: database
+    plural: databases
+    shortNames:
+      - db
+  scope: App
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - engine
+              properties:
+                engine:
+                  type: string
+                  enum: ["postgres", "mysql", "sqlite"]
+                replicas:
+                  type: integer
+                  minimum: 1
+                  maximum: 10
+```
+
+### Custom Resource YAML Example
+
+Once the CRD is registered, create instances of your custom resource:
+
+```yaml
+apiVersion: mycompany.io/v1
+kind: Database
+metadata:
+  name: mydb
+spec:
+  engine: postgres
+  replicas: 3
+```
+
+### Schema Validation
+
+CRDs support full OpenAPI V3 schema validation features:
+
+| Feature | Example | Description |
+|---------|---------|-------------|
+| **Types** | `type: string` | string, integer, number, boolean, object, array |
+| **Required** | `required: ["engine"]` | Mark fields as required |
+| **Enums** | `enum: ["a", "b"]` | Restrict to specific values |
+| **Min/Max** | `minimum: 1, maximum: 10` | Numeric constraints |
+| **Patterns** | `pattern: "^[a-z]+$"` | Regex validation for strings |
+| **Nested** | `properties: { spec: { ... } }` | Nested object schemas |
+
+### Scope Types
+
+Custom resources can be scoped at different levels of the object hierarchy:
+
+| Scope | Description | Example Use Case |
+|-------|-------------|------------------|
+| **Workspace** | Scoped to a workspace | Workspace-specific configurations |
+| **App** | Scoped to an app | Application-level resources (databases, services) |
+| **Domain** | Scoped to a domain | Domain-wide shared resources |
+| **Ecosystem** | Scoped to an ecosystem | Ecosystem-level infrastructure |
+| **Global** | Available globally | System-wide resource types |
+
+### Working with Custom Resources
+
+```bash
+# Register a CRD
+dvm apply -f database-crd.yaml
+
+# Create custom resource instances
+dvm apply -f production-db.yaml
+dvm apply -f staging-db.yaml
+
+# List all custom resources of a kind
+dvm get databases           # Plural form
+dvm get database            # Singular form works too
+dvm get db                  # Short name also works
+
+# Get specific custom resource
+dvm get database production-db
+dvm get database production-db -o yaml
+
+# Delete custom resource
+dvm delete database production-db
+
+# List all registered CRDs
+dvm get crds
+
+# Get specific CRD details
+dvm get crd databases
+
+# Delete a CRD (removes all instances)
+dvm delete crd databases
+```
+
+### Example: Service CRD
+
+```yaml
+apiVersion: devopsmaestro.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: services
+spec:
+  group: platform.io
+  names:
+    kind: Service
+    singular: service
+    plural: services
+    shortNames:
+      - svc
+  scope: App
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - port
+                - protocol
+              properties:
+                port:
+                  type: integer
+                  minimum: 1
+                  maximum: 65535
+                protocol:
+                  type: string
+                  enum: ["http", "https", "tcp", "grpc"]
+                healthCheck:
+                  type: object
+                  properties:
+                    path:
+                      type: string
+                    interval:
+                      type: integer
+```
+
+### Benefits
+
+- **Extensibility** - Add custom resource types without modifying core DevOpsMaestro code
+- **Validation** - OpenAPI V3 schemas ensure resources are valid before creation
+- **Consistency** - Same kubectl-style workflow for all resources (core + custom)
+- **Flexibility** - Define resources at the scope level that makes sense for your use case
+- **Type Safety** - Schema validation catches errors early
 
 ---
 

@@ -7,8 +7,9 @@ import (
 
 var (
 	// handlers stores registered handlers by Kind
-	handlers = make(map[string]Handler)
-	mu       sync.RWMutex
+	handlers        = make(map[string]Handler)
+	fallbackHandler Handler // For dynamic/custom resources
+	mu              sync.RWMutex
 )
 
 // Register adds a handler to the registry.
@@ -25,12 +26,25 @@ func Register(h Handler) {
 	handlers[kind] = h
 }
 
+// SetFallbackHandler sets a handler to use for unknown kinds.
+// This is typically the DynamicHandler for custom resources.
+func SetFallbackHandler(h Handler) {
+	mu.Lock()
+	defer mu.Unlock()
+	fallbackHandler = h
+}
+
 // GetHandler returns the handler for the given Kind.
-// Returns nil if no handler is registered for that Kind.
+// Returns the fallback handler if no specific handler is registered.
+// Returns nil if no handler is found and no fallback is set.
 func GetHandler(kind string) Handler {
 	mu.RLock()
 	defer mu.RUnlock()
-	return handlers[kind]
+
+	if h, exists := handlers[kind]; exists {
+		return h
+	}
+	return fallbackHandler
 }
 
 // MustGetHandler returns the handler for the given Kind.
@@ -61,6 +75,7 @@ func ClearRegistry() {
 	mu.Lock()
 	defer mu.Unlock()
 	handlers = make(map[string]Handler)
+	fallbackHandler = nil
 }
 
 // Apply parses YAML data, detects the Kind, and applies it using the appropriate handler.

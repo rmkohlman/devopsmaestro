@@ -28,11 +28,13 @@ type MockDataStore struct {
 	Themes            map[string]*models.NvimThemeDB
 	TerminalPrompts   map[string]*models.TerminalPromptDB
 	TerminalProfiles  map[string]*models.TerminalProfileDB
-	Credentials       map[string]*models.CredentialDB    // keyed by "scopeType:scopeID:name"
-	GitRepos          map[string]*models.GitRepoDB       // keyed by name
-	Registries        map[string]*models.Registry        // keyed by name
-	RegistryHistories map[string]*models.RegistryHistory // keyed by "registryID:revision"
-	Defaults          map[string]string                  // keyed by default key
+	Credentials       map[string]*models.CredentialDB             // keyed by "scopeType:scopeID:name"
+	GitRepos          map[string]*models.GitRepoDB                // keyed by name
+	Registries        map[string]*models.Registry                 // keyed by name
+	RegistryHistories map[string]*models.RegistryHistory          // keyed by "registryID:revision"
+	Defaults          map[string]string                           // keyed by default key
+	CRDs              map[string]*models.CustomResourceDefinition // keyed by kind
+	CustomResources   map[string]*models.CustomResource           // keyed by "kind:name:namespace"
 	ActiveTheme       string
 	Context           *models.Context
 
@@ -52,6 +54,8 @@ type MockDataStore struct {
 	NextGitRepoID          int
 	NextRegistryID         int
 	NextRegistryHistoryID  int64
+	NextCRDID              int
+	NextCustomResourceID   int
 
 	// WorkspacePlugins maps workspaceID -> pluginIDs
 	WorkspacePlugins map[int]map[int]bool
@@ -188,6 +192,20 @@ type MockDataStore struct {
 	GetLatestRegistryHistoryErr         error
 	ListRegistryHistoryErr              error
 	GetNextRevisionNumberErr            error
+	CreateCRDErr                        error
+	GetCRDByKindErr                     error
+	GetCRDByIDErr                       error
+	UpdateCRDErr                        error
+	DeleteCRDErr                        error
+	ListCRDsErr                         error
+	ListCRDsByScopeErr                  error
+	CreateCustomResourceErr             error
+	GetCustomResourceErr                error
+	GetCustomResourceByIDErr            error
+	UpdateCustomResourceErr             error
+	DeleteCustomResourceErr             error
+	ListCustomResourcesErr              error
+	ListCustomResourcesByNamespaceErr   error
 	CloseErr                            error
 	PingErr                             error
 
@@ -230,6 +248,8 @@ func NewMockDataStore() *MockDataStore {
 		GitRepos:              make(map[string]*models.GitRepoDB),
 		Registries:            make(map[string]*models.Registry),
 		RegistryHistories:     make(map[string]*models.RegistryHistory),
+		CRDs:                  make(map[string]*models.CustomResourceDefinition),
+		CustomResources:       make(map[string]*models.CustomResource),
 		WorkspacePlugins:      make(map[int]map[int]bool),
 		Context:               &models.Context{ID: 1},
 		MockDriver:            NewMockDriver(),
@@ -2765,6 +2785,309 @@ func (m *MockDataStore) GetNextRevisionNumber(registryID int) (int, error) {
 	}
 
 	return maxRevision + 1, nil
+}
+
+// =============================================================================
+// CRD Operations (Custom Resource Definitions)
+// =============================================================================
+
+func (m *MockDataStore) CreateCRD(crd *models.CustomResourceDefinition) error {
+	m.recordCall("CreateCRD", crd)
+	if m.CreateCRDErr != nil {
+		return m.CreateCRDErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, exists := m.CRDs[crd.Kind]; exists {
+		return fmt.Errorf("CRD with kind %s already exists", crd.Kind)
+	}
+
+	m.NextCRDID++
+	crd.ID = m.NextCRDID
+	crd.CreatedAt = time.Now()
+	crd.UpdatedAt = time.Now()
+
+	m.CRDs[crd.Kind] = crd
+	return nil
+}
+
+func (m *MockDataStore) GetCRDByKind(kind string) (*models.CustomResourceDefinition, error) {
+	m.recordCall("GetCRDByKind", kind)
+	if m.GetCRDByKindErr != nil {
+		return nil, m.GetCRDByKindErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	crd, exists := m.CRDs[kind]
+	if !exists {
+		return nil, fmt.Errorf("CRD not found: %s", kind)
+	}
+
+	// Return a copy to avoid external mutations
+	crdCopy := *crd
+	return &crdCopy, nil
+}
+
+func (m *MockDataStore) GetCRDByID(id int) (*models.CustomResourceDefinition, error) {
+	m.recordCall("GetCRDByID", id)
+	if m.GetCRDByIDErr != nil {
+		return nil, m.GetCRDByIDErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for _, crd := range m.CRDs {
+		if crd.ID == id {
+			// Return a copy to avoid external mutations
+			crdCopy := *crd
+			return &crdCopy, nil
+		}
+	}
+
+	return nil, fmt.Errorf("CRD not found: %d", id)
+}
+
+func (m *MockDataStore) UpdateCRD(crd *models.CustomResourceDefinition) error {
+	m.recordCall("UpdateCRD", crd)
+	if m.UpdateCRDErr != nil {
+		return m.UpdateCRDErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, exists := m.CRDs[crd.Kind]; !exists {
+		return fmt.Errorf("CRD not found: %s", crd.Kind)
+	}
+
+	crd.UpdatedAt = time.Now()
+	m.CRDs[crd.Kind] = crd
+	return nil
+}
+
+func (m *MockDataStore) DeleteCRD(kind string) error {
+	m.recordCall("DeleteCRD", kind)
+	if m.DeleteCRDErr != nil {
+		return m.DeleteCRDErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, exists := m.CRDs[kind]; !exists {
+		return NewErrNotFound("CRD", kind)
+	}
+
+	delete(m.CRDs, kind)
+	return nil
+}
+
+func (m *MockDataStore) ListCRDs() ([]*models.CustomResourceDefinition, error) {
+	m.recordCall("ListCRDs")
+	if m.ListCRDsErr != nil {
+		return nil, m.ListCRDsErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var crds []*models.CustomResourceDefinition
+	for _, crd := range m.CRDs {
+		crdCopy := *crd
+		crds = append(crds, &crdCopy)
+	}
+
+	// Sort by kind for deterministic results
+	sort.Slice(crds, func(i, j int) bool {
+		return crds[i].Kind < crds[j].Kind
+	})
+
+	return crds, nil
+}
+
+func (m *MockDataStore) ListCRDsByScope(scope string) ([]*models.CustomResourceDefinition, error) {
+	m.recordCall("ListCRDsByScope", scope)
+	if m.ListCRDsByScopeErr != nil {
+		return nil, m.ListCRDsByScopeErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var crds []*models.CustomResourceDefinition
+	for _, crd := range m.CRDs {
+		if crd.Scope == scope {
+			crdCopy := *crd
+			crds = append(crds, &crdCopy)
+		}
+	}
+
+	// Sort by kind for deterministic results
+	sort.Slice(crds, func(i, j int) bool {
+		return crds[i].Kind < crds[j].Kind
+	})
+
+	return crds, nil
+}
+
+// =============================================================================
+// Custom Resource Operations (instances of CRDs)
+// =============================================================================
+
+func (m *MockDataStore) CreateCustomResource(resource *models.CustomResource) error {
+	m.recordCall("CreateCustomResource", resource)
+	if m.CreateCustomResourceErr != nil {
+		return m.CreateCustomResourceErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	namespace := ""
+	if resource.Namespace.Valid {
+		namespace = resource.Namespace.String
+	}
+
+	key := fmt.Sprintf("%s:%s:%s", resource.Kind, resource.Name, namespace)
+	if _, exists := m.CustomResources[key]; exists {
+		return fmt.Errorf("custom resource already exists: %s", key)
+	}
+
+	m.NextCustomResourceID++
+	resource.ID = m.NextCustomResourceID
+	resource.CreatedAt = time.Now()
+	resource.UpdatedAt = time.Now()
+
+	m.CustomResources[key] = resource
+	return nil
+}
+
+func (m *MockDataStore) GetCustomResource(kind, name, namespace string) (*models.CustomResource, error) {
+	m.recordCall("GetCustomResource", kind, name, namespace)
+	if m.GetCustomResourceErr != nil {
+		return nil, m.GetCustomResourceErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	key := fmt.Sprintf("%s:%s:%s", kind, name, namespace)
+	resource, exists := m.CustomResources[key]
+	if !exists {
+		return nil, fmt.Errorf("custom resource not found: %s/%s/%s", kind, namespace, name)
+	}
+
+	// Return a copy to avoid external mutations
+	resourceCopy := *resource
+	return &resourceCopy, nil
+}
+
+func (m *MockDataStore) GetCustomResourceByID(id int) (*models.CustomResource, error) {
+	m.recordCall("GetCustomResourceByID", id)
+	if m.GetCustomResourceByIDErr != nil {
+		return nil, m.GetCustomResourceByIDErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for _, resource := range m.CustomResources {
+		if resource.ID == id {
+			// Return a copy to avoid external mutations
+			resourceCopy := *resource
+			return &resourceCopy, nil
+		}
+	}
+
+	return nil, fmt.Errorf("custom resource not found: %d", id)
+}
+
+func (m *MockDataStore) UpdateCustomResource(resource *models.CustomResource) error {
+	m.recordCall("UpdateCustomResource", resource)
+	if m.UpdateCustomResourceErr != nil {
+		return m.UpdateCustomResourceErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	namespace := ""
+	if resource.Namespace.Valid {
+		namespace = resource.Namespace.String
+	}
+
+	key := fmt.Sprintf("%s:%s:%s", resource.Kind, resource.Name, namespace)
+	if _, exists := m.CustomResources[key]; !exists {
+		return fmt.Errorf("custom resource not found: %s", key)
+	}
+
+	resource.UpdatedAt = time.Now()
+	m.CustomResources[key] = resource
+	return nil
+}
+
+func (m *MockDataStore) DeleteCustomResource(kind, name, namespace string) error {
+	m.recordCall("DeleteCustomResource", kind, name, namespace)
+	if m.DeleteCustomResourceErr != nil {
+		return m.DeleteCustomResourceErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	key := fmt.Sprintf("%s:%s:%s", kind, name, namespace)
+	if _, exists := m.CustomResources[key]; !exists {
+		return NewErrNotFound("custom resource", fmt.Sprintf("%s/%s/%s", kind, namespace, name))
+	}
+
+	delete(m.CustomResources, key)
+	return nil
+}
+
+func (m *MockDataStore) ListCustomResources(kind string) ([]*models.CustomResource, error) {
+	m.recordCall("ListCustomResources", kind)
+	if m.ListCustomResourcesErr != nil {
+		return nil, m.ListCustomResourcesErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var resources []*models.CustomResource
+	for _, resource := range m.CustomResources {
+		if resource.Kind == kind {
+			resourceCopy := *resource
+			resources = append(resources, &resourceCopy)
+		}
+	}
+
+	// Sort by name for deterministic results
+	sort.Slice(resources, func(i, j int) bool {
+		return resources[i].Name < resources[j].Name
+	})
+
+	return resources, nil
+}
+
+func (m *MockDataStore) ListCustomResourcesByNamespace(kind, namespace string) ([]*models.CustomResource, error) {
+	m.recordCall("ListCustomResourcesByNamespace", kind, namespace)
+	if m.ListCustomResourcesByNamespaceErr != nil {
+		return nil, m.ListCustomResourcesByNamespaceErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var resources []*models.CustomResource
+	for _, resource := range m.CustomResources {
+		resourceNS := ""
+		if resource.Namespace.Valid {
+			resourceNS = resource.Namespace.String
+		}
+
+		if resource.Kind == kind && resourceNS == namespace {
+			resourceCopy := *resource
+			resources = append(resources, &resourceCopy)
+		}
+	}
+
+	// Sort by name for deterministic results
+	sort.Slice(resources, func(i, j int) bool {
+		return resources[i].Name < resources[j].Name
+	})
+
+	return resources, nil
 }
 
 // Ensure MockDataStore implements DataStore

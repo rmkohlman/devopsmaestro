@@ -47,5 +47,8 @@ func RegisterAll() {
 
 		// Package registry resources
 		resource.Register(NewRegistryHandler())
+
+		// CRD resources (v0.29.0 Extensibility)
+		resource.Register(NewCRDHandler())
 	})
 }

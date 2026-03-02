@@ -11,6 +11,279 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.29.0] - 2026-03-01
+
+### ✨ Added
+
+#### CRD (Custom Resource Definition) System
+
+##### Extensibility - Define Your Own Resource Types
+
+DevOpsMaestro now supports Custom Resource Definitions (CRDs) following Kubernetes patterns, allowing users to extend the system with custom resource types beyond the built-in Workspace, App, Domain, etc.
+
+- **`dvm apply -f crd.yaml`** - Register new custom resource types with full OpenAPI V3 schema validation
+- **`dvm get crds`** - List all registered CRDs
+- **`dvm apply -f custom-resource.yaml`** - Create instances of custom resources
+- **`dvm get <kind> <name>`** - Retrieve custom resources using their kind (e.g., `dvm get database mydb`)
+- **`dvm delete <kind> <name>`** - Delete custom resource instances
+
+##### CRD Features
+
+- **OpenAPI V3 Schema Validation** - Define schemas with types, required fields, patterns, enums, ranges
+  - Uses `santhosh-tekuri/jsonschema/v5` library for comprehensive validation
+  - Supports object types, arrays, strings, numbers, booleans
+  - Validation enforced on `dvm apply` - invalid resources are rejected
+- **Flexible Scoping** - CRDs can be scoped to:
+  - `Workspace` - Resources tied to specific workspaces
+  - `App` - Resources tied to apps
+  - `Domain` - Resources tied to domains
+  - `Ecosystem` - Resources tied to ecosystems
+  - `Global` - Resources available system-wide
+- **Case-Insensitive Kind Lookup** - Flexible kind matching (e.g., `Database`, `database`, `DATABASE` all work)
+- **Built-in Kind Protection** - CRDs cannot override built-in kinds (Workspace, App, Domain, Ecosystem, Credential, etc.)
+- **DynamicHandler** - Single unified handler for all custom resources via fallback mechanism
+- **Group/Version Support** - CRDs support API groups and versions (e.g., `mycompany.io/v1`)
+
+##### Database Schema
+
+- **Migration 007** - Added `custom_resource_definitions` and `custom_resources` tables
+  - `custom_resource_definitions` - Stores CRD metadata, schema, scoping
+  - `custom_resources` - Stores custom resource instances with spec data (JSON)
+  - Full CRUD operations for both CRDs and custom resources
+  - **14 new DataStore interface methods**:
+    - `CreateCRD`, `GetCRDByKind`, `ListCRDs`, `DeleteCRD`
+    - `CreateCustomResource`, `GetCustomResource`, `ListCustomResources`, `DeleteCustomResource`
+    - `ListCustomResourcesByKind`, `UpdateCustomResource`
+    - `GetCRDByGroup`, `ListCRDsByScope`, `ValidateCRDExists`, `GetCustomResourceWithCRD`
+
+##### CRD Package (`pkg/crd/`)
+
+- **`crd.go`** - Core CRD types (CRDDefinition, CRDNames, CRDVersion, CRDScope)
+- **`errors.go`** - 6 custom error types:
+  - `ErrCRDNotFound`, `ErrCRDAlreadyExists`, `ErrInvalidCRDScope`
+  - `ErrInvalidSchema`, `ErrValidationFailed`, `ErrBuiltinKindProtected`
+- **`resolver.go`** - CRDResolver interface + DefaultCRDResolver for kind resolution
+  - Case-insensitive kind lookup
+  - Built-in kind protection
+  - API group resolution
+- **`validator.go`** - SchemaValidator + DefaultSchemaValidator for OpenAPI V3 validation
+  - JSON schema compilation and caching
+  - Detailed validation error messages
+  - Supports full OpenAPI V3 schema features
+- **`scope.go`** - ScopeValidator + DefaultScopeValidator for resource scoping
+  - Validates resources have proper scope references
+  - Ensures scoped resources reference valid parent objects
+- **`dynamic_handler.go`** - DynamicHandler for generic custom resource operations
+  - Handles create, get, list, delete for ALL custom resource kinds
+  - Uses CRDResolver to validate kinds exist
+  - Uses SchemaValidator to enforce schemas
+- **`store_adapter.go`** - DataStoreAdapter bridges DataStore interface to CRD components
+- **`init.go`** - InitializeFallbackHandler() registers DynamicHandler as catch-all
+
+##### CRD Handler (`pkg/resource/handlers/crd_handler.go`)
+
+- **CRDHandler** - Handles CRD lifecycle (create, get, list, delete)
+  - Validates CRD schemas on creation
+  - Prevents duplicate CRD registration
+  - Protects built-in kinds from being overridden
+  - Lists all registered CRDs
+
+### 📦 Files Changed
+
+#### New Files
+```
+db/migrations/sqlite/007_add_crds.up.sql          # CRD table schema
+db/migrations/sqlite/007_add_crds.down.sql        # Rollback migration
+db/crd.go                                          # DataStore CRD CRUD operations
+models/crd.go                                      # CustomResourceDefinition model
+models/custom_resource.go                          # CustomResource model
+pkg/crd/crd.go                                     # CRD core types
+pkg/crd/errors.go                                  # CRD error types
+pkg/crd/resolver.go                                # CRDResolver interface + impl
+pkg/crd/validator.go                               # SchemaValidator interface + impl
+pkg/crd/scope.go                                   # ScopeValidator interface + impl
+pkg/crd/dynamic_handler.go                         # DynamicHandler for custom resources
+pkg/crd/store_adapter.go                           # DataStoreAdapter
+pkg/crd/init.go                                    # Fallback handler initialization
+pkg/crd/resolver_test.go                           # 28 resolver tests
+pkg/crd/validator_test.go                          # 34 validator tests
+pkg/crd/scope_test.go                              # 19 scope tests
+pkg/crd/dynamic_handler_test.go                    # 16 handler tests
+pkg/resource/handlers/crd_handler.go               # CRD lifecycle handler
+pkg/resource/handlers/crd_handler_test.go          # 19 CRD handler tests
+```
+
+#### Modified Files
+```
+db/datastore.go                                    # Added 14 CRD interface methods
+db/mock_store.go                                   # Added CRD mock implementations
+pkg/resource/apply.go                              # CRD registration during apply
+pkg/resource/factory.go                            # Register CRDHandler + DynamicHandler
+models/resource.go                                 # Added CRD and CustomResource kinds
+```
+
+### 🧪 Testing
+
+- **116 total test cases** for CRD implementation
+  - 28 resolver tests (kind lookup, case sensitivity, built-in protection)
+  - 34 validator tests (schema compilation, validation, error handling)
+  - 19 scope tests (workspace/app/domain/ecosystem/global scoping)
+  - 16 dynamic handler tests (create, get, list, delete operations)
+  - 19 CRD handler tests (CRD lifecycle, validation, protection)
+- **100% test success rate** - All tests passing before release
+
+### Usage
+
+#### Define a Custom Resource Type
+
+```yaml
+apiVersion: devopsmaestro.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: databases
+spec:
+  group: mycompany.io
+  names:
+    kind: Database
+    singular: database
+    plural: databases
+    shortNames:
+      - db
+  scope: App
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - engine
+              properties:
+                engine:
+                  type: string
+                  enum: ["postgres", "mysql", "sqlite"]
+                replicas:
+                  type: integer
+                  minimum: 1
+                  maximum: 10
+```
+
+#### Register the CRD
+
+```bash
+# Register the CRD
+dvm apply -f database-crd.yaml
+
+# List registered CRDs
+dvm get crds
+
+# Show specific CRD details
+dvm get crd databases
+```
+
+#### Create Custom Resource Instances
+
+```yaml
+apiVersion: mycompany.io/v1
+kind: Database
+metadata:
+  name: mydb
+spec:
+  engine: postgres
+  replicas: 3
+```
+
+```bash
+# Create a custom resource
+dvm apply -f mydb.yaml
+
+# Get the custom resource
+dvm get database mydb
+
+# List all databases
+dvm get databases
+
+# Delete the custom resource
+dvm delete database mydb
+```
+
+#### Example: Define a "Service" CRD
+
+```yaml
+apiVersion: devopsmaestro.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: services
+spec:
+  group: infra.io
+  names:
+    kind: Service
+    singular: service
+    plural: services
+    shortNames:
+      - svc
+  scope: Workspace
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - port
+                - protocol
+              properties:
+                port:
+                  type: integer
+                  minimum: 1
+                  maximum: 65535
+                protocol:
+                  type: string
+                  enum: ["http", "https", "tcp", "udp"]
+                replicas:
+                  type: integer
+                  minimum: 1
+                  default: 1
+```
+
+#### Create a Service Instance
+
+```yaml
+apiVersion: infra.io/v1
+kind: Service
+metadata:
+  name: api-gateway
+spec:
+  port: 8080
+  protocol: https
+  replicas: 3
+```
+
+```bash
+# Apply the service
+dvm apply -f api-gateway.yaml
+
+# Get the service
+dvm get service api-gateway
+
+# Output as YAML
+dvm get service api-gateway -o yaml
+```
+
+---
+
 ## [0.28.0] - 2026-03-01
 
 ### ✨ Added
