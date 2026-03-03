@@ -197,6 +197,7 @@ func TestRegistry_Validate(t *testing.T) {
 				Name:      "test-reg",
 				Type:      "zot",
 				Port:      5000,
+				Storage:   "/data/registry", // Required field
 				Lifecycle: "persistent",
 			},
 			wantErr: false,
@@ -429,10 +430,11 @@ func TestRegistry_ConfigJSON(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			reg := &Registry{
-				Name:   "test-reg",
-				Type:   "zot",
-				Port:   5000,
-				Config: sql.NullString{String: tt.configJSON, Valid: tt.configJSON != ""},
+				Name:    "test-reg",
+				Type:    "zot",
+				Port:    5000,
+				Storage: "/data/registry", // Required field
+				Config:  sql.NullString{String: tt.configJSON, Valid: tt.configJSON != ""},
 			}
 
 			// Validate should check JSON if present

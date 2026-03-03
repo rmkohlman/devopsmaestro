@@ -185,6 +185,7 @@ func TestRegistryHandler_Get(t *testing.T) {
 		Name:        "test-registry-get",
 		Type:        "zot",
 		Port:        5140,
+		Storage:     "/data/registry",
 		Lifecycle:   "persistent",
 		Description: sql.NullString{String: "Test registry", Valid: true},
 	}
@@ -240,9 +241,9 @@ func TestRegistryHandler_List(t *testing.T) {
 
 	// Pre-populate datastore
 	registries := []*models.Registry{
-		{Name: "zot-list-h1", Type: "zot", Port: 5150, Lifecycle: "persistent"},
-		{Name: "athens-list-h1", Type: "athens", Port: 3150, Lifecycle: "on-demand"},
-		{Name: "devpi-list-h1", Type: "devpi", Port: 3151, Lifecycle: "manual"},
+		{Name: "zot-list-h1", Type: "zot", Port: 5150, Storage: "/data/zot", Lifecycle: "persistent"},
+		{Name: "athens-list-h1", Type: "athens", Port: 3150, Storage: "/data/athens", Lifecycle: "on-demand"},
+		{Name: "devpi-list-h1", Type: "devpi", Port: 3151, Storage: "/data/devpi", Lifecycle: "manual"},
 	}
 
 	for _, reg := range registries {
@@ -304,6 +305,7 @@ func TestRegistryHandler_Delete(t *testing.T) {
 		Name:      "to-delete-h",
 		Type:      "squid",
 		Port:      3160,
+		Storage:   "/data/squid",
 		Lifecycle: "manual",
 	}
 	err := ds.CreateRegistry(reg)
@@ -352,6 +354,7 @@ func TestRegistryHandler_ToYAML(t *testing.T) {
 		Name:        "test-registry-yaml",
 		Type:        "verdaccio",
 		Port:        4873,
+		Storage:     "/data/npm",
 		Lifecycle:   "on-demand",
 		Description: sql.NullString{String: "npm registry", Valid: true},
 	}
@@ -393,27 +396,32 @@ func TestRegistryResource_Validate(t *testing.T) {
 	}{
 		{
 			name:     "valid registry",
-			registry: &models.Registry{Name: "test", Type: "zot", Port: 5170, Lifecycle: "persistent"},
+			registry: &models.Registry{Name: "test", Type: "zot", Port: 5170, Storage: "/data/registry", Lifecycle: "persistent"},
 			wantErr:  false,
 		},
 		{
 			name:     "missing name",
-			registry: &models.Registry{Name: "", Type: "zot", Port: 5171, Lifecycle: "persistent"},
+			registry: &models.Registry{Name: "", Type: "zot", Port: 5171, Storage: "/data/registry", Lifecycle: "persistent"},
 			wantErr:  true,
 		},
 		{
 			name:     "invalid type",
-			registry: &models.Registry{Name: "test", Type: "invalid", Port: 5172, Lifecycle: "persistent"},
+			registry: &models.Registry{Name: "test", Type: "invalid", Port: 5172, Storage: "/data/registry", Lifecycle: "persistent"},
 			wantErr:  true,
 		},
 		{
 			name:     "invalid port",
-			registry: &models.Registry{Name: "test", Type: "zot", Port: 100, Lifecycle: "persistent"},
+			registry: &models.Registry{Name: "test", Type: "zot", Port: 100, Storage: "/data/registry", Lifecycle: "persistent"},
 			wantErr:  true,
 		},
 		{
 			name:     "invalid lifecycle",
-			registry: &models.Registry{Name: "test", Type: "zot", Port: 5173, Lifecycle: "always-on"},
+			registry: &models.Registry{Name: "test", Type: "zot", Port: 5173, Storage: "/data/registry", Lifecycle: "always-on"},
+			wantErr:  true,
+		},
+		{
+			name:     "missing storage",
+			registry: &models.Registry{Name: "test", Type: "zot", Port: 5174, Storage: "", Lifecycle: "persistent"},
 			wantErr:  true,
 		},
 	}
@@ -460,8 +468,11 @@ func createTestSchema(driver db.Driver) error {
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		name TEXT NOT NULL UNIQUE,
 		type TEXT NOT NULL,
+		enabled INTEGER NOT NULL DEFAULT 1,
 		port INTEGER NOT NULL,
 		lifecycle TEXT NOT NULL DEFAULT 'manual',
+		storage TEXT NOT NULL DEFAULT '',
+		idle_timeout INTEGER DEFAULT 0,
 		description TEXT,
 		config TEXT,
 		status TEXT DEFAULT 'stopped',

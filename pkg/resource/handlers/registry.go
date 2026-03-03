@@ -55,6 +55,9 @@ func (h *RegistryHandler) Apply(ctx resource.Context, data []byte) (resource.Res
 	reg := &models.Registry{}
 	reg.FromYAML(regYAML)
 
+	// Apply defaults for any missing fields (port, storage, idle_timeout)
+	reg.ApplyDefaults()
+
 	// Validate
 	if err := reg.Validate(); err != nil {
 		return nil, err
