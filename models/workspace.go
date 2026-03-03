@@ -64,6 +64,7 @@ type WorkspaceSpec struct {
 	SSHKey    SSHKeyConfig      `yaml:"sshKey,omitempty"`
 	Env       map[string]string `yaml:"env,omitempty"`
 	Container ContainerConfig   `yaml:"container"`
+	GitRepo   string            `yaml:"gitrepo,omitempty"` // Name of GitRepo resource to clone
 }
 
 // ImageConfig defines the container image configuration
@@ -90,9 +91,12 @@ type DevStageConfig struct {
 
 // TerminalConfig defines terminal multiplexer configuration
 type TerminalConfig struct {
-	Type       string `yaml:"type,omitempty"`       // tmux, zellij, screen
-	ConfigPath string `yaml:"configPath,omitempty"` // Path to config file to mount
-	Autostart  bool   `yaml:"autostart,omitempty"`  // Start on attach
+	Type       string   `yaml:"type,omitempty"`       // tmux, zellij, screen
+	ConfigPath string   `yaml:"configPath,omitempty"` // Path to config file to mount
+	Autostart  bool     `yaml:"autostart,omitempty"`  // Start on attach
+	Prompt     string   `yaml:"prompt,omitempty"`     // Terminal prompt name (e.g., "starship")
+	Plugins    []string `yaml:"plugins,omitempty"`    // Terminal plugins to install
+	Package    string   `yaml:"package,omitempty"`    // Reference to a terminal package by name
 }
 
 // ShellConfig defines shell configuration
@@ -147,7 +151,7 @@ type ResourceLimits struct {
 }
 
 // ToYAML converts a Workspace to YAML format
-func (w *Workspace) ToYAML(appName string) WorkspaceYAML {
+func (w *Workspace) ToYAML(appName string, gitRepoName string) WorkspaceYAML {
 	description := ""
 	if w.Description.Valid {
 		description = w.Description.String
@@ -173,8 +177,40 @@ func (w *Workspace) ToYAML(appName string) WorkspaceYAML {
 		nvimConfig.Theme = w.Theme.String
 	}
 
+	// Parse terminal config from database
+	terminalConfig := TerminalConfig{}
+	if w.TerminalPrompt.Valid {
+		terminalConfig.Prompt = w.TerminalPrompt.String
+	}
+	if w.TerminalPlugins.Valid {
+		terminalConfig.Plugins = w.GetTerminalPlugins()
+	}
+	if w.TerminalPackage.Valid {
+		terminalConfig.Package = w.TerminalPackage.String
+	}
+
 	// Create default spec with minimal configuration
 	// This will be enhanced when we implement config storage in DB
+	spec := WorkspaceSpec{
+		Image: ImageConfig{
+			Name: w.ImageName,
+		},
+		Nvim:     nvimConfig,
+		Terminal: terminalConfig,
+		Container: ContainerConfig{
+			User:       "dev",
+			UID:        1000,
+			GID:        1000,
+			WorkingDir: "/workspace",
+			Command:    []string{"/bin/zsh", "-l"},
+		},
+	}
+
+	// Add gitrepo if provided
+	if gitRepoName != "" {
+		spec.GitRepo = gitRepoName
+	}
+
 	return WorkspaceYAML{
 		APIVersion: "devopsmaestro.io/v1",
 		Kind:       "Workspace",
@@ -184,19 +220,7 @@ func (w *Workspace) ToYAML(appName string) WorkspaceYAML {
 			Labels:      make(map[string]string),
 			Annotations: annotations,
 		},
-		Spec: WorkspaceSpec{
-			Image: ImageConfig{
-				Name: w.ImageName,
-			},
-			Nvim: nvimConfig,
-			Container: ContainerConfig{
-				User:       "dev",
-				UID:        1000,
-				GID:        1000,
-				WorkingDir: "/workspace",
-				Command:    []string{"/bin/zsh", "-l"},
-			},
-		},
+		Spec: spec,
 	}
 }
 
@@ -210,10 +234,29 @@ func (w *Workspace) FromYAML(yaml WorkspaceYAML) {
 		w.Description = sql.NullString{String: desc, Valid: true}
 	}
 
-	// Read theme from nvim config section
+	// Nvim configuration
 	if yaml.Spec.Nvim.Theme != "" {
 		w.Theme = sql.NullString{String: yaml.Spec.Nvim.Theme, Valid: true}
 	}
+	if yaml.Spec.Nvim.Structure != "" {
+		w.NvimStructure = sql.NullString{String: yaml.Spec.Nvim.Structure, Valid: true}
+	}
+	if len(yaml.Spec.Nvim.Plugins) > 0 {
+		w.NvimPlugins = sql.NullString{String: strings.Join(yaml.Spec.Nvim.Plugins, ","), Valid: true}
+	}
+	// Note: PluginPackage is stored in YAML but needs separate handling (package lookup or store as name)
+
+	// Terminal configuration
+	if yaml.Spec.Terminal.Prompt != "" {
+		w.TerminalPrompt = sql.NullString{String: yaml.Spec.Terminal.Prompt, Valid: true}
+	}
+	if len(yaml.Spec.Terminal.Plugins) > 0 {
+		w.SetTerminalPlugins(yaml.Spec.Terminal.Plugins)
+	}
+	if yaml.Spec.Terminal.Package != "" {
+		w.TerminalPackage = sql.NullString{String: yaml.Spec.Terminal.Package, Valid: true}
+	}
+	// Note: GitRepo resolution (name→ID) happens in the handler, not here
 }
 
 // GetTerminalPlugins returns the list of terminal plugins configured for this workspace.

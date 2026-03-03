@@ -344,7 +344,17 @@ func getWorkspaces(cmd *cobra.Command) error {
 				if app != nil {
 					appName = app.Name
 				}
-				workspacesYAML[i] = ws.ToYAML(appName)
+
+				// Resolve GitRepo name if GitRepoID is set
+				gitRepoName := ""
+				if ws.GitRepoID.Valid {
+					gitRepo, err := sqlDS.GetGitRepoByID(ws.GitRepoID.Int64)
+					if err == nil && gitRepo != nil {
+						gitRepoName = gitRepo.Name
+					}
+				}
+
+				workspacesYAML[i] = ws.ToYAML(appName, gitRepoName)
 			}
 			return render.OutputWith(getOutputFormat, workspacesYAML, render.Options{})
 		}
@@ -460,7 +470,15 @@ func getWorkspaces(cmd *cobra.Command) error {
 		if getOutputFormat == "json" || getOutputFormat == "yaml" {
 			workspacesYAML := make([]models.WorkspaceYAML, len(results))
 			for i, wh := range results {
-				workspacesYAML[i] = wh.Workspace.ToYAML(wh.App.Name)
+				// Resolve GitRepo name if GitRepoID is set
+				gitRepoName := ""
+				if wh.Workspace.GitRepoID.Valid {
+					gitRepo, err := sqlDS.GetGitRepoByID(wh.Workspace.GitRepoID.Int64)
+					if err == nil && gitRepo != nil {
+						gitRepoName = gitRepo.Name
+					}
+				}
+				workspacesYAML[i] = wh.Workspace.ToYAML(wh.App.Name, gitRepoName)
 			}
 			return render.OutputWith(getOutputFormat, workspacesYAML, render.Options{})
 		}
@@ -583,7 +601,15 @@ func getWorkspaces(cmd *cobra.Command) error {
 	if getOutputFormat == "json" || getOutputFormat == "yaml" {
 		workspacesYAML := make([]models.WorkspaceYAML, len(workspaces))
 		for i, ws := range workspaces {
-			workspacesYAML[i] = ws.ToYAML(appName)
+			// Resolve GitRepo name if GitRepoID is set
+			gitRepoName := ""
+			if ws.GitRepoID.Valid {
+				gitRepo, err := sqlDS.GetGitRepoByID(ws.GitRepoID.Int64)
+				if err == nil && gitRepo != nil {
+					gitRepoName = gitRepo.Name
+				}
+			}
+			workspacesYAML[i] = ws.ToYAML(appName, gitRepoName)
 		}
 		return render.OutputWith(getOutputFormat, workspacesYAML, render.Options{})
 	}
@@ -737,7 +763,15 @@ func getWorkspace(cmd *cobra.Command, name string) error {
 
 	// For JSON/YAML, output the model data directly
 	if getOutputFormat == "json" || getOutputFormat == "yaml" {
-		return render.OutputWith(getOutputFormat, workspace.ToYAML(appName), render.Options{})
+		// Resolve GitRepo name if GitRepoID is set
+		gitRepoName := ""
+		if workspace.GitRepoID.Valid {
+			gitRepo, err := sqlDS.GetGitRepoByID(workspace.GitRepoID.Int64)
+			if err == nil && gitRepo != nil {
+				gitRepoName = gitRepo.Name
+			}
+		}
+		return render.OutputWith(getOutputFormat, workspace.ToYAML(appName, gitRepoName), render.Options{})
 	}
 
 	// For human output, show detail view

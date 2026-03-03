@@ -66,14 +66,40 @@ func (h *WorkspaceHandler) Apply(ctx resource.Context, data []byte) (resource.Re
 	}
 	workspace.FromYAML(wsYAML)
 
+	// Resolve GitRepo if specified in YAML
+	if wsYAML.Spec.GitRepo != "" {
+		gitRepo, err := ds.GetGitRepoByName(wsYAML.Spec.GitRepo)
+		if err != nil {
+			return nil, fmt.Errorf("gitrepo '%s' not found: %w", wsYAML.Spec.GitRepo, err)
+		}
+		workspace.GitRepoID = sql.NullInt64{Int64: int64(gitRepo.ID), Valid: true}
+	}
+
 	// Check if workspace exists
 	existing, _ := ds.GetWorkspaceByName(app.ID, workspace.Name)
 	if existing != nil {
 		// Update existing
 		workspace.ID = existing.ID
 		workspace.ContainerID = existing.ContainerID // Preserve container ID
-		workspace.NvimStructure = existing.NvimStructure
-		workspace.NvimPlugins = existing.NvimPlugins
+		// Don't overwrite these fields if they weren't provided in YAML
+		if !workspace.NvimStructure.Valid {
+			workspace.NvimStructure = existing.NvimStructure
+		}
+		if !workspace.NvimPlugins.Valid {
+			workspace.NvimPlugins = existing.NvimPlugins
+		}
+		if !workspace.TerminalPrompt.Valid {
+			workspace.TerminalPrompt = existing.TerminalPrompt
+		}
+		if !workspace.TerminalPlugins.Valid {
+			workspace.TerminalPlugins = existing.TerminalPlugins
+		}
+		if !workspace.TerminalPackage.Valid {
+			workspace.TerminalPackage = existing.TerminalPackage
+		}
+		if !workspace.GitRepoID.Valid {
+			workspace.GitRepoID = existing.GitRepoID
+		}
 		if err := ds.UpdateWorkspace(workspace); err != nil {
 			return nil, fmt.Errorf("failed to update workspace: %w", err)
 		}
@@ -89,7 +115,11 @@ func (h *WorkspaceHandler) Apply(ctx resource.Context, data []byte) (resource.Re
 		}
 	}
 
-	return &WorkspaceResource{workspace: workspace, appName: appName}, nil
+	return &WorkspaceResource{
+		workspace:   workspace,
+		appName:     appName,
+		gitRepoName: wsYAML.Spec.GitRepo, // Store gitrepo name from YAML
+	}, nil
 }
 
 // Get retrieves a workspace by name.
@@ -121,7 +151,20 @@ func (h *WorkspaceHandler) Get(ctx resource.Context, name string) (resource.Reso
 		appName = app.Name
 	}
 
-	return &WorkspaceResource{workspace: workspace, appName: appName}, nil
+	// Resolve GitRepo name if GitRepoID is set
+	gitRepoName := ""
+	if workspace.GitRepoID.Valid {
+		gitRepo, err := ds.GetGitRepoByID(workspace.GitRepoID.Int64)
+		if err == nil && gitRepo != nil {
+			gitRepoName = gitRepo.Name
+		}
+	}
+
+	return &WorkspaceResource{
+		workspace:   workspace,
+		appName:     appName,
+		gitRepoName: gitRepoName,
+	}, nil
 }
 
 // List returns all workspaces in the active app.
@@ -155,7 +198,21 @@ func (h *WorkspaceHandler) List(ctx resource.Context) ([]resource.Resource, erro
 		if app != nil {
 			appName = app.Name
 		}
-		result[i] = &WorkspaceResource{workspace: ws, appName: appName}
+
+		// Resolve GitRepo name if GitRepoID is set
+		gitRepoName := ""
+		if ws.GitRepoID.Valid {
+			gitRepo, err := ds.GetGitRepoByID(ws.GitRepoID.Int64)
+			if err == nil && gitRepo != nil {
+				gitRepoName = gitRepo.Name
+			}
+		}
+
+		result[i] = &WorkspaceResource{
+			workspace:   ws,
+			appName:     appName,
+			gitRepoName: gitRepoName,
+		}
 	}
 	return result, nil
 }
@@ -192,7 +249,7 @@ func (h *WorkspaceHandler) ToYAML(res resource.Resource) ([]byte, error) {
 		return nil, fmt.Errorf("expected WorkspaceResource, got %T", res)
 	}
 
-	yamlDoc := wr.workspace.ToYAML(wr.appName)
+	yamlDoc := wr.workspace.ToYAML(wr.appName, wr.gitRepoName)
 	return yaml.Marshal(yamlDoc)
 }
 
@@ -212,8 +269,9 @@ func (h *WorkspaceHandler) getDataStore(ctx resource.Context) (db.DataStore, err
 
 // WorkspaceResource wraps a models.Workspace to implement resource.Resource.
 type WorkspaceResource struct {
-	workspace *models.Workspace
-	appName   string
+	workspace   *models.Workspace
+	appName     string
+	gitRepoName string // Name of the GitRepo, if any
 }
 
 func (r *WorkspaceResource) GetKind() string {
@@ -249,7 +307,11 @@ func (r *WorkspaceResource) AppName() string {
 
 // NewWorkspaceResource creates a new WorkspaceResource from a model.
 func NewWorkspaceResource(workspace *models.Workspace, appName string) *WorkspaceResource {
-	return &WorkspaceResource{workspace: workspace, appName: appName}
+	return &WorkspaceResource{
+		workspace:   workspace,
+		appName:     appName,
+		gitRepoName: "", // GitRepo name will be resolved when needed
+	}
 }
 
 // NewWorkspaceFromModel creates a Workspace model from parameters.

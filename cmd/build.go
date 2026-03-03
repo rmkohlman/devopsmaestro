@@ -261,7 +261,15 @@ func buildWorkspace(cmd *cobra.Command) error {
 	}
 
 	// Step 4: Generate workspace spec (for now, use defaults)
-	workspaceYAML := workspace.ToYAML(appName)
+	// Resolve GitRepo name if GitRepoID is set
+	gitRepoName := ""
+	if workspace.GitRepoID.Valid {
+		gitRepo, err := sqlDS.GetGitRepoByID(workspace.GitRepoID.Int64)
+		if err == nil && gitRepo != nil {
+			gitRepoName = gitRepo.Name
+		}
+	}
+	workspaceYAML := workspace.ToYAML(appName, gitRepoName)
 
 	// Set some sensible defaults if not configured
 	if workspaceYAML.Spec.Shell.Type == "" {

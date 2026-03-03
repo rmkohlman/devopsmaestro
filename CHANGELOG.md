@@ -52,6 +52,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixes: GitHub Issue #9 (Critical)
   - Files changed: `pkg/mirror/git_manager.go`
 
+#### YAML Apply Workspace Fields
+- **`dvm apply -f workspace.yaml` command** - Fixed incomplete YAML field parsing
+  - All workspace fields now properly parsed and persisted during YAML apply
+  - Added fields to `TerminalConfig`: `prompt`, `plugins`, `package`
+  - Added `gitrepo` field to `WorkspaceSpec`
+  - `FromYAML()` now maps: nvim.structure, nvim.plugins, terminal.prompt, terminal.plugins, terminal.package
+  - Handler now resolves `gitrepo` name to `GitRepoID` via database lookup
+  - Fixes: GitHub Issue #10 (Medium)
+  - Files changed: `models/workspace.go`, `pkg/resource/handlers/workspace.go`
+
+#### Workspace YAML Serialization
+- **`dvm get workspace -o yaml` command** - Fixed incomplete YAML output
+  - Workspace YAML output now includes all terminal configuration fields
+  - GitRepo name now resolved from ID and included in output
+  - `ToYAML()` method updated to serialize: terminal.prompt, terminal.plugins, terminal.package, gitrepo
+  - All `ToYAML()` call sites updated to resolve GitRepo name
+  - Fixes: GitHub Issue #11 (Medium)
+  - Files changed: `models/workspace.go`, `pkg/resource/handlers/workspace.go`, `cmd/get.go`, `cmd/build.go`, `cmd/set_theme.go`
+
 ---
 
 ## [0.30.0] - 2026-03-02

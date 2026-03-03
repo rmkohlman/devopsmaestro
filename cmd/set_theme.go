@@ -408,6 +408,12 @@ func setWorkspaceTheme(cmd *cobra.Command, ctx resource.Context, workspaceName, 
 	workspace := workspaceRes.Workspace()
 	appName := workspaceRes.AppName()
 
+	// Get the datastore for GitRepo resolution
+	sqlDS, ok := ctx.DataStore.(db.DataStore)
+	if !ok {
+		return nil, fmt.Errorf("invalid DataStore type: %T", ctx.DataStore)
+	}
+
 	// Get previous theme from workspace.Theme field (stored in dedicated column)
 	var previousTheme string
 	if workspace.Theme.Valid {
@@ -427,7 +433,15 @@ func setWorkspaceTheme(cmd *cobra.Command, ctx resource.Context, workspaceName, 
 
 	// Create workspace YAML with the new theme
 	// ToYAML() will include the current theme, so we update it after
-	workspaceYAML := workspace.ToYAML(appName)
+	// Resolve GitRepo name if GitRepoID is set
+	gitRepoName := ""
+	if workspace.GitRepoID.Valid {
+		gitRepo, err := sqlDS.GetGitRepoByID(workspace.GitRepoID.Int64)
+		if err == nil && gitRepo != nil {
+			gitRepoName = gitRepo.Name
+		}
+	}
+	workspaceYAML := workspace.ToYAML(appName, gitRepoName)
 	workspaceYAML.Spec.Nvim.Theme = themeName
 
 	// Marshal to YAML for Apply
