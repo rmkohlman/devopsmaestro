@@ -525,7 +525,7 @@ func init() {
 	createCmd.AddCommand(createAppCmd)
 	getCmd.AddCommand(getAppsCmd)
 	getCmd.AddCommand(getAppCmd)
-	useCmd.AddCommand(useAppCmd)
+	// Note: useAppCmd is registered in cmd/use.go to avoid duplicate registration
 
 	// Check if deleteCmd exists before adding
 	if deleteCmd != nil {

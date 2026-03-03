@@ -71,6 +71,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixes: GitHub Issue #11 (Medium)
   - Files changed: `models/workspace.go`, `pkg/resource/handlers/workspace.go`, `cmd/get.go`, `cmd/build.go`, `cmd/set_theme.go`
 
+#### CLI Help Output
+- **`dvm use --help` command** - Fixed duplicate 'app' in Available Commands
+  - Removed duplicate `useCmd.AddCommand(useAppCmd)` registration in `cmd/app.go`
+  - Command was already registered in `cmd/use.go`
+  - Fixes: GitHub Issue #12 (Low)
+  - Files changed: `cmd/app.go`
+
 ---
 
 ## [0.30.0] - 2026-03-02
