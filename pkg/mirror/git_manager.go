@@ -206,7 +206,8 @@ func (g *GitMirrorManager) CloneToWorkspace(mirrorSlug string, destPath string, 
 		defer cancel2()
 
 		// Try checkout as-is first (works for tags and local branches)
-		cmd = exec.CommandContext(ctx2, "git", "-C", destPath, "checkout", "--", ref)
+		// Note: Do NOT use "--" as it causes git to interpret the ref as a pathspec (file path)
+		cmd = exec.CommandContext(ctx2, "git", "-C", destPath, "checkout", ref)
 		cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
 
 		output, err = cmd.CombinedOutput()

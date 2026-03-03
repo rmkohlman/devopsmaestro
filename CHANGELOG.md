@@ -34,6 +34,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixes: GitHub Issue #7 (High)
   - Files changed: `cmd/use.go`
 
+#### Library Show Commands
+- **`dvm library show` commands** - Fixed table output for library resources
+  - Commands `dvm library show nvim-plugin/theme/terminal-prompt/plugin` now display properly in table format
+  - Root cause: `render.OutputWith()` TableRenderer silently returned nil for unrecognized struct types
+  - Solution: Convert library structs to key-value maps before rendering in table format
+  - YAML and JSON output formats continue to work with raw structs
+  - Fixes: GitHub Issue #6 (High)
+  - Files changed: `cmd/library.go`
+
+#### Git Checkout in Workspace Creation
+- **`dvm create workspace --repo` command** - Fixed git checkout failure
+  - Workspace creation with `--repo` flag and default branch now works correctly
+  - Root cause: Git checkout used `--` separator which caused branch name to be interpreted as file path
+  - `git checkout -- main` fails with "pathspec 'main' did not match any file(s)"
+  - `git checkout main` succeeds as expected
+  - Fixes: GitHub Issue #9 (Critical)
+  - Files changed: `pkg/mirror/git_manager.go`
+
 ---
 
 ## [0.30.0] - 2026-03-02

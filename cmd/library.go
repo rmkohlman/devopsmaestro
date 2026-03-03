@@ -345,7 +345,22 @@ func showNvimPlugin(cmd *cobra.Command, name string, outputFormat string) error 
 		return fmt.Errorf("plugin not found: %s", name)
 	}
 
-	return render.OutputWith(outputFormat, plugin, render.Options{})
+	// For structured formats (yaml/json), pass the raw struct
+	if outputFormat == "yaml" || outputFormat == "json" {
+		return render.OutputWith(outputFormat, plugin, render.Options{})
+	}
+
+	// For table format, convert to key-value display
+	kvData := map[string]string{
+		"Name":        plugin.Name,
+		"Description": plugin.Description,
+		"Repository":  plugin.Repo,
+		"Branch":      plugin.Branch,
+		"Version":     plugin.Version,
+		"Lazy":        fmt.Sprintf("%t", plugin.Lazy),
+	}
+
+	return render.OutputWith(outputFormat, kvData, render.Options{})
 }
 
 // showNvimTheme shows details of a specific nvim theme
@@ -355,7 +370,22 @@ func showNvimTheme(cmd *cobra.Command, name string, outputFormat string) error {
 		return fmt.Errorf("theme not found: %s", name)
 	}
 
-	return render.OutputWith(outputFormat, theme, render.Options{})
+	// For structured formats (yaml/json), pass the raw struct
+	if outputFormat == "yaml" || outputFormat == "json" {
+		return render.OutputWith(outputFormat, theme, render.Options{})
+	}
+
+	// For table format, convert to key-value display
+	kvData := map[string]string{
+		"Name":        theme.Name,
+		"Description": theme.Description,
+		"Author":      theme.Author,
+		"Category":    theme.Category,
+		"Style":       theme.Style,
+		"Repository":  theme.Plugin.Repo,
+	}
+
+	return render.OutputWith(outputFormat, kvData, render.Options{})
 }
 
 // showTerminalPrompt shows details of a specific terminal prompt
@@ -370,7 +400,20 @@ func showTerminalPrompt(cmd *cobra.Command, name string, outputFormat string) er
 		return fmt.Errorf("prompt not found: %s", name)
 	}
 
-	return render.OutputWith(outputFormat, prompt, render.Options{})
+	// For structured formats (yaml/json), pass the raw struct
+	if outputFormat == "yaml" || outputFormat == "json" {
+		return render.OutputWith(outputFormat, prompt, render.Options{})
+	}
+
+	// For table format, convert to key-value display
+	kvData := map[string]string{
+		"Name":        prompt.Name,
+		"Description": prompt.Description,
+		"Type":        string(prompt.Type),
+		"Palette":     prompt.Palette,
+	}
+
+	return render.OutputWith(outputFormat, kvData, render.Options{})
 }
 
 // showTerminalPlugin shows details of a specific terminal plugin
@@ -385,7 +428,20 @@ func showTerminalPlugin(cmd *cobra.Command, name string, outputFormat string) er
 		return fmt.Errorf("plugin not found: %s", name)
 	}
 
-	return render.OutputWith(outputFormat, plugin, render.Options{})
+	// For structured formats (yaml/json), pass the raw struct
+	if outputFormat == "yaml" || outputFormat == "json" {
+		return render.OutputWith(outputFormat, plugin, render.Options{})
+	}
+
+	// For table format, convert to key-value display
+	kvData := map[string]string{
+		"Name":        plugin.Name,
+		"Description": plugin.Description,
+		"Repository":  plugin.Repo,
+		"Manager":     string(plugin.Manager),
+	}
+
+	return render.OutputWith(outputFormat, kvData, render.Options{})
 }
 
 func init() {
