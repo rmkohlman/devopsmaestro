@@ -2,10 +2,13 @@ package cmd
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"devopsmaestro/db"
+	"devopsmaestro/models"
 	"devopsmaestro/operators"
 
 	"github.com/spf13/cobra"
@@ -373,4 +376,65 @@ func TestUseAppCommandShortDescription(t *testing.T) {
 // TestUseWorkspaceCommandShortDescription verifies short description
 func TestUseWorkspaceCommandShortDescription(t *testing.T) {
 	assert.NotEmpty(t, useWorkspaceCmd.Short, "useWorkspaceCmd should have Short description")
+}
+
+// ========== Terminal Package Validation Tests (Issue #7) ==========
+
+// TestValidateTerminalPackageExists_LibraryPackage verifies that validation
+// checks the embedded library when package is not in database.
+// This test FAILS with current code - validateTerminalPackageExists only checks database.
+func TestValidateTerminalPackageExists_LibraryPackage(t *testing.T) {
+	// Create a mock DataStore that does NOT have the package
+	mockDS := &mockDataStoreForValidation{
+		getTerminalPackageFunc: func(name string) (*models.TerminalPackageDB, error) {
+			return nil, fmt.Errorf("package not found in database")
+		},
+	}
+
+	// Try to validate "rmkohlman" - a package that exists in the library
+	err := validateTerminalPackageExists("rmkohlman", mockDS)
+
+	// Should NOT error - package exists in library
+	assert.NoError(t, err, "Should find 'rmkohlman' package in embedded library")
+}
+
+// TestValidateTerminalPackageExists_DatabasePackage verifies database packages are found
+func TestValidateTerminalPackageExists_DatabasePackage(t *testing.T) {
+	// Create a mock DataStore that HAS the package
+	mockDS := &mockDataStoreForValidation{
+		getTerminalPackageFunc: func(name string) (*models.TerminalPackageDB, error) {
+			return &models.TerminalPackageDB{Name: "my-custom-package"}, nil
+		},
+	}
+
+	// Should find package in database
+	err := validateTerminalPackageExists("my-custom-package", mockDS)
+	assert.NoError(t, err, "Should find package in database")
+}
+
+// TestValidateTerminalPackageExists_NotFound verifies error when package doesn't exist
+func TestValidateTerminalPackageExists_NotFound(t *testing.T) {
+	// Create a mock DataStore that does NOT have the package
+	mockDS := &mockDataStoreForValidation{
+		getTerminalPackageFunc: func(name string) (*models.TerminalPackageDB, error) {
+			return nil, fmt.Errorf("package not found in database")
+		},
+	}
+
+	// Try non-existent package
+	err := validateTerminalPackageExists("nonexistent-package", mockDS)
+	assert.Error(t, err, "Should error for non-existent package")
+}
+
+// mockDataStoreForValidation is a minimal mock for testing validation functions
+type mockDataStoreForValidation struct {
+	db.DataStore           // Embed to satisfy interface
+	getTerminalPackageFunc func(string) (*models.TerminalPackageDB, error)
+}
+
+func (m *mockDataStoreForValidation) GetTerminalPackage(name string) (*models.TerminalPackageDB, error) {
+	if m.getTerminalPackageFunc != nil {
+		return m.getTerminalPackageFunc(name)
+	}
+	return nil, fmt.Errorf("package not found")
 }

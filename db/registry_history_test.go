@@ -24,6 +24,7 @@ func TestDataStore_CreateRegistryHistory(t *testing.T) {
 		Type:      "zot",
 		Port:      5100,
 		Lifecycle: "persistent",
+		Storage:   "/var/lib/zot",
 	}
 	err := ds.CreateRegistry(reg)
 	require.NoError(t, err)
@@ -173,6 +174,7 @@ func TestDataStore_GetRegistryHistory(t *testing.T) {
 		Type:      "zot",
 		Port:      5200,
 		Lifecycle: "persistent",
+		Storage:   "/var/lib/zot",
 	}
 	err := ds.CreateRegistry(reg)
 	require.NoError(t, err)
@@ -279,6 +281,7 @@ func TestDataStore_GetLatestRegistryHistory(t *testing.T) {
 		Type:      "athens",
 		Port:      3200,
 		Lifecycle: "on-demand",
+		Storage:   "/var/lib/default",
 	}
 	err := ds.CreateRegistry(reg)
 	require.NoError(t, err)
@@ -360,6 +363,7 @@ func TestDataStore_ListRegistryHistory(t *testing.T) {
 		Type:      "zot",
 		Port:      5300,
 		Lifecycle: "persistent",
+		Storage:   "/var/lib/zot",
 	}
 	err := ds.CreateRegistry(reg1)
 	require.NoError(t, err)
@@ -369,6 +373,7 @@ func TestDataStore_ListRegistryHistory(t *testing.T) {
 		Type:      "athens",
 		Port:      3300,
 		Lifecycle: "on-demand",
+		Storage:   "/var/lib/default",
 	}
 	err = ds.CreateRegistry(reg2)
 	require.NoError(t, err)
@@ -471,6 +476,7 @@ func TestDataStore_GetNextRevisionNumber(t *testing.T) {
 		Type:      "zot",
 		Port:      5400,
 		Lifecycle: "persistent",
+		Storage:   "/var/lib/zot",
 	}
 	err := ds.CreateRegistry(reg1)
 	require.NoError(t, err)
@@ -480,6 +486,7 @@ func TestDataStore_GetNextRevisionNumber(t *testing.T) {
 		Type:      "athens",
 		Port:      3400,
 		Lifecycle: "on-demand",
+		Storage:   "/var/lib/default",
 	}
 	err = ds.CreateRegistry(reg2)
 	require.NoError(t, err)
@@ -565,6 +572,7 @@ func TestDataStore_RegistryHistory_CompletedAt(t *testing.T) {
 		Type:      "zot",
 		Port:      5500,
 		Lifecycle: "persistent",
+		Storage:   "/var/lib/zot",
 	}
 	err := ds.CreateRegistry(reg)
 	require.NoError(t, err)
@@ -651,6 +659,7 @@ func TestDataStore_RegistryHistory_EdgeCases(t *testing.T) {
 		Type:      "zot",
 		Port:      5600,
 		Lifecycle: "persistent",
+		Storage:   "/var/lib/zot",
 	}
 	err := ds.CreateRegistry(reg)
 	require.NoError(t, err)

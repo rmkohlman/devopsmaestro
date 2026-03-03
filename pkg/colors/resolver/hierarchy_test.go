@@ -445,6 +445,36 @@ func (m *MockDataStore) GetWorkspaceRepoPath(workspaceID int) (string, error) {
 	return "", sql.ErrNoRows
 }
 
+// CRD Operations (stub implementations for interface compliance)
+func (m *MockDataStore) CreateCRD(crd *models.CustomResourceDefinition) error { return nil }
+func (m *MockDataStore) GetCRDByKind(kind string) (*models.CustomResourceDefinition, error) {
+	return nil, nil
+}
+func (m *MockDataStore) GetCRDByID(id int) (*models.CustomResourceDefinition, error) { return nil, nil }
+func (m *MockDataStore) UpdateCRD(crd *models.CustomResourceDefinition) error        { return nil }
+func (m *MockDataStore) DeleteCRD(kind string) error                                 { return nil }
+func (m *MockDataStore) ListCRDs() ([]*models.CustomResourceDefinition, error)       { return nil, nil }
+func (m *MockDataStore) ListCRDsByScope(scope string) ([]*models.CustomResourceDefinition, error) {
+	return nil, nil
+}
+
+// Custom Resource Operations (stub implementations for interface compliance)
+func (m *MockDataStore) CreateCustomResource(resource *models.CustomResource) error { return nil }
+func (m *MockDataStore) GetCustomResource(kind, name, namespace string) (*models.CustomResource, error) {
+	return nil, nil
+}
+func (m *MockDataStore) GetCustomResourceByID(id int) (*models.CustomResource, error) {
+	return nil, nil
+}
+func (m *MockDataStore) UpdateCustomResource(resource *models.CustomResource) error { return nil }
+func (m *MockDataStore) DeleteCustomResource(kind, name, namespace string) error    { return nil }
+func (m *MockDataStore) ListCustomResources(kind string) ([]*models.CustomResource, error) {
+	return nil, nil
+}
+func (m *MockDataStore) ListCustomResourcesByNamespace(kind, namespace string) ([]*models.CustomResource, error) {
+	return nil, nil
+}
+
 // MockThemeStore implements theme.Store for testing
 type MockThemeStore struct {
 	themes   map[string]*theme.Theme

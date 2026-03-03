@@ -187,6 +187,11 @@ func (r *Registry) Validate() error {
 		return err
 	}
 
+	// Validate storage path is not empty
+	if r.Storage == "" {
+		return fmt.Errorf("storage path is required (NOT NULL constraint)")
+	}
+
 	// Validate config JSON if present
 	if r.Config.Valid && r.Config.String != "" {
 		var config map[string]interface{}

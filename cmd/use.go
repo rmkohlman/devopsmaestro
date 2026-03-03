@@ -4,6 +4,7 @@ import (
 	"devopsmaestro/db"
 	"devopsmaestro/operators"
 	"devopsmaestro/pkg/nvimops/package/library"
+	terminalpkglib "devopsmaestro/pkg/terminalops/package/library"
 	"devopsmaestro/render"
 	"fmt"
 
@@ -400,18 +401,25 @@ Examples:
 	},
 }
 
-// validateTerminalPackageExists checks if a terminal package exists in database
+// validateTerminalPackageExists checks if a terminal package exists in database or library
 func validateTerminalPackageExists(packageName string, ds db.DataStore) error {
-	// Check if package exists in database (user packages)
+	// First check if package exists in database (user packages)
 	_, err := ds.GetTerminalPackage(packageName)
 	if err == nil {
 		return nil // Found in database
 	}
 
-	// Note: Terminal package library system may be added in the future
-	// For now, only check database packages
+	// If not in database, check library packages
+	lib, err := terminalpkglib.NewLibrary()
+	if err != nil {
+		return fmt.Errorf("failed to load package library: %w", err)
+	}
 
-	return fmt.Errorf("package not found in database")
+	if _, ok := lib.Get(packageName); ok {
+		return nil // Found in library
+	}
+
+	return fmt.Errorf("package not found in database or library")
 }
 
 // Initializes the 'use' command and links subcommands

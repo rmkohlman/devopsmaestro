@@ -284,6 +284,7 @@ func createRegistry(cmd *cobra.Command, name string) error {
 		Type:      registryType,
 		Port:      registryPort,
 		Lifecycle: registryLifecycle,
+		Enabled:   true, // Default to enabled
 		Status:    "stopped",
 		CreatedAt: time.Now().Format(time.RFC3339),
 		UpdatedAt: time.Now().Format(time.RFC3339),
@@ -294,10 +295,8 @@ func createRegistry(cmd *cobra.Command, name string) error {
 		registry.Description = sql.NullString{String: registryDescription, Valid: true}
 	}
 
-	// Apply defaults
-	if registry.Port == 0 {
-		registry.Port = registry.GetDefaultPort()
-	}
+	// Apply defaults for Port, Storage, and IdleTimeout
+	registry.ApplyDefaults()
 	if registry.Lifecycle == "" {
 		registry.Lifecycle = "manual"
 	}

@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🐛 Fixed
+
+#### Database Schema Completeness
+- **Registry database queries** - Fixed missing columns in 8 registry database functions
+  - Added `storage`, `enabled`, `idle_timeout` columns to INSERT/SELECT/UPDATE/Scan operations
+  - Resolves `NOT NULL constraint failed: registries.storage` error
+  - Functions updated: `CreateRegistry`, `GetRegistryByName`, `GetRegistryByType`, `ListRegistries`, `UpdateRegistry`, `DeleteRegistry`, `GetRegistryByID`, `ListRegistriesByType`
+  - Fixes: GitHub Issue #5 (Critical)
+  - Files changed: `db/store.go`, `db/store_test.go`, `db/registry_test.go`, `models/registry.go`
+
+- **Workspace database queries** - Fixed missing terminal configuration columns in 6 workspace functions
+  - Added `terminal_prompt`, `terminal_plugins`, `terminal_package` columns to INSERT/SELECT/UPDATE/Scan operations
+  - Resolves `dvm set terminal prompt` not persisting to database
+  - Functions updated: `CreateWorkspace`, `UpdateWorkspace`, `GetWorkspaceByName`, `GetWorkspaceByID`, `ListWorkspaces`, `ListWorkspacesByApp`
+  - Fixes: GitHub Issue #8 (High)
+  - Files changed: `db/store.go`, `db/store_test.go`, `db/integration_test.go`
+
+#### Terminal Package Validation
+- **`dvm use terminal package` command** - Fixed package validation logic
+  - Now checks database first, then embedded library (matching nvim package pattern)
+  - Previously only checked database, causing "package not found" errors for embedded packages
+  - Resolves `dvm use terminal package rmkohlman` failing despite package existing in library
+  - Fixes: GitHub Issue #7 (High)
+  - Files changed: `cmd/use.go`
+
 ---
 
 ## [0.30.0] - 2026-03-02
