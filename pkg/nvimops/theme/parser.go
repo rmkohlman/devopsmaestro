@@ -26,15 +26,16 @@ func ParseYAML(data []byte) (*Theme, error) {
 	// If empty, the theme will be treated as standalone
 
 	theme := &Theme{
-		Name:        themeYAML.Metadata.Name,
-		Description: themeYAML.Metadata.Description,
-		Author:      themeYAML.Metadata.Author,
-		Category:    themeYAML.Metadata.Category,
-		Plugin:      themeYAML.Spec.Plugin,
-		Style:       themeYAML.Spec.Style,
-		Transparent: themeYAML.Spec.Transparent,
-		Colors:      themeYAML.Spec.Colors,
-		Options:     themeYAML.Spec.Options,
+		Name:         themeYAML.Metadata.Name,
+		Description:  themeYAML.Metadata.Description,
+		Author:       themeYAML.Metadata.Author,
+		Category:     themeYAML.Metadata.Category,
+		Plugin:       themeYAML.Spec.Plugin,
+		Style:        themeYAML.Spec.Style,
+		Transparent:  themeYAML.Spec.Transparent,
+		Colors:       themeYAML.Spec.Colors,
+		PromptColors: themeYAML.Spec.PromptColors,
+		Options:      themeYAML.Spec.Options,
 	}
 
 	return theme, nil
@@ -52,11 +53,12 @@ func (t *Theme) ToYAML() ([]byte, error) {
 			Category:    t.Category,
 		},
 		Spec: ThemeSpec{
-			Plugin:      t.Plugin,
-			Style:       t.Style,
-			Transparent: t.Transparent,
-			Colors:      t.Colors,
-			Options:     t.Options,
+			Plugin:       t.Plugin,
+			Style:        t.Style,
+			Transparent:  t.Transparent,
+			Colors:       t.Colors,
+			PromptColors: t.PromptColors,
+			Options:      t.Options,
 		},
 	}
 

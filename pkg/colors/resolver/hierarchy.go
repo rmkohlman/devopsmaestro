@@ -187,7 +187,13 @@ func (r *HierarchyThemeResolver) resolveAtLevel(ctx context.Context, level Hiera
 		return r.resolveEcosystemTheme(ctx, objectID, step)
 	case LevelGlobal:
 		step.Name = "global default"
-		step.ThemeName = r.defaultTheme
+		// Query database for global default theme first
+		if dbDefault, err := r.dataStore.GetDefault("theme"); err == nil && dbDefault != "" {
+			step.ThemeName = dbDefault
+		} else {
+			// Fall back to hardcoded default if database doesn't have one
+			step.ThemeName = r.defaultTheme
+		}
 		step.Found = true
 		return step
 	default:
@@ -206,16 +212,14 @@ func (r *HierarchyThemeResolver) resolveWorkspaceTheme(ctx context.Context, work
 
 	step.Name = workspace.Name
 
-	// Parse workspace's NvimStructure to get theme configuration
-	// In the current implementation, we need to check if there's theme info
-	// This is a simplified approach - in a full implementation, we'd parse the NvimConfig YAML
-	if workspace.NvimStructure.Valid && workspace.NvimStructure.String != "" {
-		// TODO: Parse NvimConfig YAML to extract theme
-		// For now, we'll assume no workspace-level theme override
-		step.Found = false
+	// Check workspace.Theme field first (stored in dedicated column)
+	if workspace.Theme.Valid && workspace.Theme.String != "" {
+		step.ThemeName = workspace.Theme.String
+		step.Found = true
 		return step
 	}
 
+	// No theme set at workspace level
 	step.Found = false
 	return step
 }

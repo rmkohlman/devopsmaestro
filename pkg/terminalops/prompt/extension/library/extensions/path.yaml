@@ -1,0 +1,30 @@
+apiVersion: devopsmaestro.io/v1
+kind: PromptExtension
+metadata:
+  name: path
+  description: Directory path with icon substitutions
+  category: navigation
+  tags:
+    - directory
+    - path
+    - navigation
+spec:
+  segment: path
+  provides:
+    - directory
+  modules:
+    directory:
+      style: "bg:peach fg:crust"
+      format: "[$path ]($style)"
+      options:
+        substitutions:
+          Desktop: " "
+          Documents: " "
+          Downloads: "  "
+          Music: "󰝚 "
+          Pictures: "  "
+          Developer: "  "
+          Library: " "
+          gitlab: "󰮠"
+          github: ""
+          bitbucket: ""

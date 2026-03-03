@@ -12,13 +12,13 @@ spec:
   style: ocean
   transparent: false
   colors:
-    # Nvim colors (exact from user's config)
-    bg: "#011628"           # Main background
-    bg_dark: "#011423"      # Darker background  
+    # Terminal colors (exact from wezterm config)
+    bg: "#011423"           # Main background (matches wezterm background)
+    bg_dark: "#011423"      # Same as bg for consistency
     bg_highlight: "#143652" # Selection highlight
     bg_search: "#0A64AC"    # Search highlight
-    bg_visual: "#275378"    # Visual selection
-    fg: "#CBE0F0"           # Main foreground
+    bg_visual: "#033259"    # Visual selection (matches wezterm selection_bg)
+    fg: "#CBE0F0"           # Main foreground (matches wezterm foreground)
     fg_dark: "#B4D0E9"      # Darker foreground
     fg_gutter: "#627E97"    # Gutter text
     border: "#547998"       # Border color
@@ -52,11 +52,11 @@ spec:
     ansi_bright_cyan: "#24EAF7"
     ansi_bright_white: "#24EAF7"
     
-    # Terminal UI colors
-    cursor: "#47FF9C"       # Green cursor
-    cursor_text: "#011423"  # Same as bg_dark
-    selection: "#033259"    # Darker than bg_visual
-    selection_text: "#CBE0F0" # Same as fg
+    # Terminal UI colors (exact from wezterm config)
+    cursor: "#47FF9C"       # cursor_bg
+    cursor_text: "#011423"  # cursor_fg
+    selection: "#033259"    # selection_bg
+    selection_text: "#CBE0F0" # selection_fg
     
     # Diagnostic colors
     error: "#E52E2E"        # Same as red
@@ -64,6 +64,28 @@ spec:
     info: "#0FC5ED"         # Same as blue
     hint: "#44FFB1"         # Same as green
     success: "#44FFB1"      # Same as green
+  
+  # Prompt colors for Starship segments (blue gradient)
+  # These override the default Catppuccin mappings for a cohesive look
+  promptColors:
+    # Segment background colors (dark to light blue gradient)
+    red: "#0d2a3d"          # OS/username segment (darkest)
+    sky: "#1a4d6b"          # Kubernetes/git segment
+    sapphire: "#1f5a7a"     # Colima segment
+    peach: "#1f5a7a"        # Directory segment
+    green: "#256689"        # Languages segment
+    lavender: "#2b7298"     # Time segment (lightest)
+    # Text color on blue backgrounds (light for readability)
+    crust: "#CBE0F0"        # Light text on colored segments
+    text: "#CBE0F0"         # Same as crust
+    subtext0: "#CBE0F0"     # cmd_duration text
+    # Surface colors for subtle elements
+    surface0: "#143652"
+    surface1: "#1a4d6b"
+    surface2: "#1f5a7a"
+    mantle: "#143652"
+    base: "#1a4d6b"
+
   options:
     styles:
       comments: italic

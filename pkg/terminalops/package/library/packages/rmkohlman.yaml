@@ -13,13 +13,22 @@ metadata:
   labels:
     theme: coolnight-ocean
 spec:
+  promptStyle: powerline-segments
+  promptExtensions:
+    - identity
+    - kubernetes
+    - colima
+    - path
+    - git-detailed
+    - languages-all
+    - conda
+    - time
+    - character
   plugins:
     - zsh-autosuggestions
     - zsh-syntax-highlighting
     - zsh-completions
     - fzf
-  prompts:
-    - starship-default
   profiles:
     - tmux-style
   wezterm:

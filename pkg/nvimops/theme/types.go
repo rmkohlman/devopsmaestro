@@ -7,15 +7,16 @@ import (
 
 // Theme represents a Neovim colorscheme configuration.
 type Theme struct {
-	Name        string            `yaml:"name" json:"name"`
-	Description string            `yaml:"description,omitempty" json:"description,omitempty"`
-	Author      string            `yaml:"author,omitempty" json:"author,omitempty"`
-	Category    string            `yaml:"category,omitempty" json:"category,omitempty"`
-	Plugin      ThemePlugin       `yaml:"plugin" json:"plugin"`
-	Style       string            `yaml:"style,omitempty" json:"style,omitempty"`
-	Transparent bool              `yaml:"transparent,omitempty" json:"transparent,omitempty"`
-	Colors      map[string]string `yaml:"colors,omitempty" json:"colors,omitempty"`
-	Options     map[string]any    `yaml:"options,omitempty" json:"options,omitempty"`
+	Name         string            `yaml:"name" json:"name"`
+	Description  string            `yaml:"description,omitempty" json:"description,omitempty"`
+	Author       string            `yaml:"author,omitempty" json:"author,omitempty"`
+	Category     string            `yaml:"category,omitempty" json:"category,omitempty"`
+	Plugin       ThemePlugin       `yaml:"plugin" json:"plugin"`
+	Style        string            `yaml:"style,omitempty" json:"style,omitempty"`
+	Transparent  bool              `yaml:"transparent,omitempty" json:"transparent,omitempty"`
+	Colors       map[string]string `yaml:"colors,omitempty" json:"colors,omitempty"`
+	PromptColors map[string]string `yaml:"promptColors,omitempty" json:"promptColors,omitempty"` // Starship segment colors
+	Options      map[string]any    `yaml:"options,omitempty" json:"options,omitempty"`
 }
 
 // ThemePlugin defines the colorscheme plugin to use.
@@ -43,11 +44,12 @@ type ThemeMetadata struct {
 
 // ThemeSpec contains the theme specification.
 type ThemeSpec struct {
-	Plugin      ThemePlugin       `yaml:"plugin"`
-	Style       string            `yaml:"style,omitempty"`
-	Transparent bool              `yaml:"transparent,omitempty"`
-	Colors      map[string]string `yaml:"colors,omitempty"`
-	Options     map[string]any    `yaml:"options,omitempty"`
+	Plugin       ThemePlugin       `yaml:"plugin"`
+	Style        string            `yaml:"style,omitempty"`
+	Transparent  bool              `yaml:"transparent,omitempty"`
+	Colors       map[string]string `yaml:"colors,omitempty"`
+	PromptColors map[string]string `yaml:"promptColors,omitempty"` // Starship prompt segment colors
+	Options      map[string]any    `yaml:"options,omitempty"`
 }
 
 // =============================================================================
@@ -150,6 +152,14 @@ func (t *Theme) ToPalette() *palette.Palette {
 		p.Colors = make(map[string]string, len(t.Colors))
 		for k, v := range t.Colors {
 			p.Colors[k] = v
+		}
+	}
+
+	// Copy prompt colors (for Starship segment overrides)
+	if t.PromptColors != nil {
+		p.PromptColors = make(map[string]string, len(t.PromptColors))
+		for k, v := range t.PromptColors {
+			p.PromptColors[k] = v
 		}
 	}
 

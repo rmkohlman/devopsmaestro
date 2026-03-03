@@ -45,6 +45,11 @@ type Package struct {
 	Prompts  []string `json:"prompts,omitempty" yaml:"prompts,omitempty"`   // Prompt names
 	Profiles []string `json:"profiles,omitempty" yaml:"profiles,omitempty"` // Profile preset names
 
+	// Modular prompt configuration (v0.19.0+)
+	PromptStyle      string   `json:"prompt_style,omitempty" yaml:"prompt_style,omitempty"`           // Style name (e.g., "powerline-segments")
+	PromptExtensions []string `json:"prompt_extensions,omitempty" yaml:"prompt_extensions,omitempty"` // Extension names
+	Theme            string   `json:"theme,omitempty" yaml:"theme,omitempty"`                         // Theme name for colors (e.g., "coolnight-ocean")
+
 	// Optional embedded configuration
 	WezTerm *WezTermConfig `json:"wezterm,omitempty" yaml:"wezterm,omitempty"`
 
@@ -90,6 +95,10 @@ type PackageSpec struct {
 	Profiles StringOrSlice  `yaml:"profiles,omitempty"`
 	WezTerm  *WezTermConfig `yaml:"wezterm,omitempty"`
 	Enabled  *bool          `yaml:"enabled,omitempty"` // Pointer to distinguish unset from false
+
+	// Modular prompt configuration (v0.19.0+)
+	PromptStyle      string        `yaml:"promptStyle,omitempty"`      // Style name
+	PromptExtensions StringOrSlice `yaml:"promptExtensions,omitempty"` // Extension names
 }
 
 // NewPackage creates a new Package with default values.
@@ -128,16 +137,25 @@ func (py *PackageYAML) ToPackage() *Package {
 	}
 
 	p := &Package{
-		Name:        py.Metadata.Name,
-		Description: py.Metadata.Description,
-		Category:    py.Metadata.Category,
-		Tags:        py.Metadata.Tags,
-		Extends:     py.Spec.Extends,
-		Plugins:     []string(py.Spec.Plugins),
-		Prompts:     []string(py.Spec.Prompts),
-		Profiles:    []string(py.Spec.Profiles),
-		WezTerm:     py.Spec.WezTerm,
-		Enabled:     enabled,
+		Name:             py.Metadata.Name,
+		Description:      py.Metadata.Description,
+		Category:         py.Metadata.Category,
+		Tags:             py.Metadata.Tags,
+		Extends:          py.Spec.Extends,
+		Plugins:          []string(py.Spec.Plugins),
+		Prompts:          []string(py.Spec.Prompts),
+		Profiles:         []string(py.Spec.Profiles),
+		WezTerm:          py.Spec.WezTerm,
+		Enabled:          enabled,
+		PromptStyle:      py.Spec.PromptStyle,
+		PromptExtensions: []string(py.Spec.PromptExtensions),
+	}
+
+	// Extract theme from labels if present
+	if py.Metadata.Labels != nil {
+		if themeName, ok := py.Metadata.Labels["theme"]; ok {
+			p.Theme = themeName
+		}
 	}
 
 	return p
@@ -161,14 +179,21 @@ func (p *Package) ToYAML() *PackageYAML {
 			Tags:        p.Tags,
 		},
 		Spec: PackageSpec{
-			Extends:  p.Extends,
-			Plugins:  StringOrSlice(p.Plugins),
-			Prompts:  StringOrSlice(p.Prompts),
-			Profiles: StringOrSlice(p.Profiles),
-			WezTerm:  p.WezTerm,
-			Enabled:  enabledPtr,
+			Extends:          p.Extends,
+			Plugins:          StringOrSlice(p.Plugins),
+			Prompts:          StringOrSlice(p.Prompts),
+			Profiles:         StringOrSlice(p.Profiles),
+			WezTerm:          p.WezTerm,
+			Enabled:          enabledPtr,
+			PromptStyle:      p.PromptStyle,
+			PromptExtensions: StringOrSlice(p.PromptExtensions),
 		},
 	}
 
 	return py
+}
+
+// UsesModularPrompt returns true if this package uses the modular prompt system.
+func (p *Package) UsesModularPrompt() bool {
+	return p.PromptStyle != "" && len(p.PromptExtensions) > 0
 }

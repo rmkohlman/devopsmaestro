@@ -3,6 +3,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 
 	"devopsmaestro/db"
@@ -169,14 +170,62 @@ func runSetTheme(cmd *cobra.Command, args []string) error {
 }
 
 // getEffectiveTheme determines what theme will be active after the change
-func getEffectiveTheme(newTheme, previousTheme string) string {
-	if newTheme == "" {
-		if previousTheme == "" {
-			return resolver.DefaultTheme
-		}
-		return previousTheme // Will inherit from parent
+// When clearing a theme (newTheme == ""), it resolves the hierarchy to find the effective theme
+func getEffectiveTheme(ctx resource.Context, level resolver.HierarchyLevel, objectID int, newTheme string) string {
+	// If setting a specific theme, that's the effective theme
+	if newTheme != "" {
+		return newTheme
 	}
-	return newTheme
+
+	// Theme is being cleared - resolve hierarchy to find what will be effective
+	// Create resolver
+	sqlDS, ok := ctx.DataStore.(db.DataStore)
+	if !ok {
+		// Fallback to default if we can't get datastore
+		return resolver.DefaultTheme
+	}
+
+	themeResolver := resolver.NewHierarchyThemeResolver(sqlDS, nil)
+
+	// Resolve from parent level (since current level is being cleared)
+	// We need to get the parent level and parent ID
+	parentID, parentLevel := getParentLevelAndID(sqlDS, level, objectID)
+
+	resolution, err := themeResolver.Resolve(context.Background(), parentLevel, parentID)
+	if err != nil {
+		// If resolution fails, use default
+		return resolver.DefaultTheme
+	}
+
+	return resolution.GetEffectiveThemeName()
+}
+
+// getParentLevelAndID returns the parent hierarchy level and object ID
+func getParentLevelAndID(ds db.DataStore, level resolver.HierarchyLevel, objectID int) (int, resolver.HierarchyLevel) {
+	switch level {
+	case resolver.LevelWorkspace:
+		// Get workspace's app ID
+		if workspace, err := ds.GetWorkspaceByID(objectID); err == nil {
+			return workspace.AppID, resolver.LevelApp
+		}
+		return 0, resolver.LevelGlobal
+	case resolver.LevelApp:
+		// Get app's domain ID
+		if app, err := ds.GetAppByID(objectID); err == nil {
+			return app.DomainID, resolver.LevelDomain
+		}
+		return 0, resolver.LevelGlobal
+	case resolver.LevelDomain:
+		// Get domain's ecosystem ID
+		if domain, err := ds.GetDomainByID(objectID); err == nil {
+			return domain.EcosystemID, resolver.LevelEcosystem
+		}
+		return 0, resolver.LevelGlobal
+	case resolver.LevelEcosystem:
+		return 0, resolver.LevelGlobal
+	default:
+		return 0, resolver.LevelGlobal
+	}
 }
 
 // buildCascadeInfo builds cascade information for the result
@@ -232,7 +281,7 @@ func setEcosystemTheme(cmd *cobra.Command, ctx resource.Context, ecosystemName, 
 			ObjectName:     ecosystemName,
 			Theme:          themeName,
 			PreviousTheme:  previousTheme,
-			EffectiveTheme: getEffectiveTheme(themeName, previousTheme),
+			EffectiveTheme: getEffectiveTheme(ctx, resolver.LevelEcosystem, ecosystem.ID, themeName),
 		}, nil
 	}
 
@@ -262,7 +311,7 @@ func setEcosystemTheme(cmd *cobra.Command, ctx resource.Context, ecosystemName, 
 		ObjectName:     ecosystemName,
 		Theme:          themeName,
 		PreviousTheme:  previousTheme,
-		EffectiveTheme: getEffectiveTheme(themeName, previousTheme),
+		EffectiveTheme: getEffectiveTheme(ctx, resolver.LevelEcosystem, ecosystem.ID, themeName),
 	}, nil
 }
 
@@ -290,7 +339,7 @@ func setDomainTheme(cmd *cobra.Command, ctx resource.Context, domainName, themeN
 			ObjectName:     domainName,
 			Theme:          themeName,
 			PreviousTheme:  previousTheme,
-			EffectiveTheme: getEffectiveTheme(themeName, previousTheme),
+			EffectiveTheme: getEffectiveTheme(ctx, resolver.LevelDomain, domain.ID, themeName),
 		}, nil
 	}
 
@@ -327,7 +376,7 @@ func setDomainTheme(cmd *cobra.Command, ctx resource.Context, domainName, themeN
 		ObjectName:     domainName,
 		Theme:          themeName,
 		PreviousTheme:  previousTheme,
-		EffectiveTheme: getEffectiveTheme(themeName, previousTheme),
+		EffectiveTheme: getEffectiveTheme(ctx, resolver.LevelDomain, domain.ID, themeName),
 	}, nil
 }
 
@@ -355,7 +404,7 @@ func setAppTheme(cmd *cobra.Command, ctx resource.Context, appName, themeName st
 			ObjectName:     appName,
 			Theme:          themeName,
 			PreviousTheme:  previousTheme,
-			EffectiveTheme: getEffectiveTheme(themeName, previousTheme),
+			EffectiveTheme: getEffectiveTheme(ctx, resolver.LevelApp, app.ID, themeName),
 		}, nil
 	}
 
@@ -392,7 +441,7 @@ func setAppTheme(cmd *cobra.Command, ctx resource.Context, appName, themeName st
 		ObjectName:     appName,
 		Theme:          themeName,
 		PreviousTheme:  previousTheme,
-		EffectiveTheme: getEffectiveTheme(themeName, previousTheme),
+		EffectiveTheme: getEffectiveTheme(ctx, resolver.LevelApp, app.ID, themeName),
 	}, nil
 }
 
@@ -427,7 +476,7 @@ func setWorkspaceTheme(cmd *cobra.Command, ctx resource.Context, workspaceName, 
 			ObjectName:     workspaceName,
 			Theme:          themeName,
 			PreviousTheme:  previousTheme,
-			EffectiveTheme: getEffectiveTheme(themeName, previousTheme),
+			EffectiveTheme: getEffectiveTheme(ctx, resolver.LevelWorkspace, workspace.ID, themeName),
 		}, nil
 	}
 
@@ -461,7 +510,7 @@ func setWorkspaceTheme(cmd *cobra.Command, ctx resource.Context, workspaceName, 
 		ObjectName:     workspaceName,
 		Theme:          themeName,
 		PreviousTheme:  previousTheme,
-		EffectiveTheme: getEffectiveTheme(themeName, previousTheme),
+		EffectiveTheme: getEffectiveTheme(ctx, resolver.LevelWorkspace, workspace.ID, themeName),
 	}, nil
 }
 
@@ -477,12 +526,17 @@ func setGlobalDefaultTheme(cmd *cobra.Command, ctx resource.Context, themeName s
 
 	// Handle dry run
 	if setThemeDryRun {
+		effectiveTheme := themeName
+		if themeName == "" {
+			// Global default being cleared falls back to hardcoded default
+			effectiveTheme = resolver.DefaultTheme
+		}
 		return &ThemeSetResult{
 			Level:          "global",
 			ObjectName:     "global-defaults",
 			Theme:          themeName,
 			PreviousTheme:  previousTheme,
-			EffectiveTheme: getEffectiveTheme(themeName, previousTheme),
+			EffectiveTheme: effectiveTheme,
 		}, nil
 	}
 
@@ -499,11 +553,17 @@ func setGlobalDefaultTheme(cmd *cobra.Command, ctx resource.Context, themeName s
 		}
 	}
 
+	effectiveTheme := themeName
+	if themeName == "" {
+		// Global default being cleared falls back to hardcoded default
+		effectiveTheme = resolver.DefaultTheme
+	}
+
 	return &ThemeSetResult{
 		Level:          "global",
 		ObjectName:     "global-defaults",
 		Theme:          themeName,
 		PreviousTheme:  previousTheme,
-		EffectiveTheme: getEffectiveTheme(themeName, previousTheme),
+		EffectiveTheme: effectiveTheme,
 	}, nil
 }

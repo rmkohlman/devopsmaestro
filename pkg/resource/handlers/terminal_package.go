@@ -4,6 +4,7 @@ package handlers
 
 import (
 	"fmt"
+	"strings"
 
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/resource"
@@ -231,6 +232,15 @@ func (h *TerminalPackageHandler) toDBModel(pkg *terminalpkg.Package) (*models.Te
 		labels["enabled"] = "false"
 	}
 
+	// Store modular prompt config in labels (workaround until schema migration)
+	// This allows the build.go loadTerminalPackage() to retrieve these fields
+	if pkg.PromptStyle != "" {
+		labels["promptStyle"] = pkg.PromptStyle
+	}
+	if len(pkg.PromptExtensions) > 0 {
+		labels["promptExtensions"] = strings.Join(pkg.PromptExtensions, ",")
+	}
+
 	if err := dbPkg.SetLabels(labels); err != nil {
 		return nil, fmt.Errorf("failed to set labels: %w", err)
 	}
@@ -291,6 +301,14 @@ func (h *TerminalPackageHandler) fromDBModel(dbPkg *models.TerminalPackageDB) (*
 
 	if enabledStr, exists := labels["enabled"]; exists && enabledStr == "false" {
 		pkg.Enabled = false
+	}
+
+	// Extract modular prompt config from labels (workaround until schema migration)
+	if promptStyle, exists := labels["promptStyle"]; exists && promptStyle != "" {
+		pkg.PromptStyle = promptStyle
+	}
+	if promptExts, exists := labels["promptExtensions"]; exists && promptExts != "" {
+		pkg.PromptExtensions = strings.Split(promptExts, ",")
 	}
 
 	// Set timestamps if available

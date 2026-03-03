@@ -63,6 +63,28 @@ spec:
     info: "#ed0f1e"         # Same as blue
     hint: "#44FFB1"         # Same as green
     success: "#44FFB1"      # Same as green
+  
+  # Prompt colors for Starship segments (ember red-orange gradient)
+  # These override the default Catppuccin mappings for a cohesive look
+  promptColors:
+    # Segment background colors (dark to light red-orange gradient)
+    red: "#33140a"          # OS/username segment (darkest ember)
+    sky: "#5a2a1a"          # Kubernetes/git segment
+    sapphire: "#6b3321"     # Colima segment
+    peach: "#7d3c28"        # Directory segment
+    green: "#8e452f"        # Languages segment
+    lavender: "#a04e36"     # Time segment (lightest ember)
+    # Text color on ember backgrounds (light for readability)
+    crust: "#f0d1cb"        # Light text on colored segments (same as fg)
+    text: "#f0d1cb"         # Same as crust
+    subtext0: "#f0d1cb"     # cmd_duration text
+    # Surface colors for subtle elements
+    surface0: "#522014"     # Same as bg_highlight
+    surface1: "#5a2a1a"
+    surface2: "#6b3321"
+    mantle: "#522014"
+    base: "#5a2a1a"
+
   options:
     styles:
       comments: italic

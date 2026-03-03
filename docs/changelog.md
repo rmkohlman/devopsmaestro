@@ -10,6 +10,51 @@ Multi-registry support with database-backed resources. Breaking changes to regis
 
 ## Latest Releases
 
+### v0.30.2 (2026-03-03)
+
+**🐛 Bug Fixes - Theme & Terminal Package Integration**
+
+Four critical fixes for workspace theme inheritance and terminal package prompt generation:
+
+**Theme Inheritance Hierarchy Fix:**
+- `dvm build` now properly walks Workspace → App → Domain → Ecosystem → Global hierarchy when resolving themes
+- Previously bypassed hierarchy and always used global default theme
+- Workspaces now correctly inherit themes from their parent resources
+
+**Terminal Package Prompt Composition Fix:**
+- `generateShellConfig()` now loads terminal packages from library and composes prompts from style + extensions
+- Previously ignored workspace's `terminal-package` setting, always generating default prompts
+- Custom terminal packages like `rmkohlman` now generate rich prompts as designed
+
+**CoolNight Theme Prompt Colors:**
+- Added monochromatic `promptColors` gradients to all 21 CoolNight theme variants (except ocean)
+- Previously missing `promptColors` section caused harsh ANSI fallback colors
+- Terminal prompts now have smooth, cohesive color gradients matching the workspace theme
+
+**Neovim Colorscheme Generation:**
+- `dvm build` now generates `theme/colorscheme.lua` containing `vim.api.nvim_set_hl()` calls
+- Previously only generated 3 theme files, missing the colorscheme file
+- Neovim inside workspaces now displays correct theme colors matching the terminal prompt
+
+**Testing:**
+- Added `cmd/build_terminal_package_test.go` (9 tests)
+- Added `cmd/build_theme_test.go` (5 tests)
+- Added `cmd/set_theme_test.go` (theme setting tests)
+
+### v0.30.1 (2026-03-03)
+
+**🐛 Bug Fixes - Database Schema & YAML Completeness**
+
+Seven critical fixes for database schema completeness and YAML field parsing:
+
+- **Registry database queries** - Fixed missing `storage`, `enabled`, `idle_timeout` columns (GitHub Issue #5)
+- **Workspace database queries** - Fixed missing terminal configuration columns (GitHub Issue #8)
+- **Terminal package validation** - Now checks database + embedded library (GitHub Issue #7)
+- **Library show commands** - Fixed table output for library resources (GitHub Issue #6)
+- **Git checkout** - Fixed workspace creation with `--repo` flag (GitHub Issue #9)
+- **YAML apply workspace fields** - Fixed incomplete field parsing (GitHub Issue #10)
+- **Workspace YAML serialization** - Fixed incomplete YAML output (GitHub Issue #11)
+
 ### v0.24.0 (2026-03-01)
 
 **🔄 Registry Resources - Multi-Registry Support**

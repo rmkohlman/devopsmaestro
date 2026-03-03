@@ -63,6 +63,28 @@ spec:
     info: "#ed6e0f"         # Same as blue
     hint: "#44FFB1"         # Same as green
     success: "#44FFB1"      # Same as green
+  
+  # Prompt colors for Starship segments (gold yellow gradient)
+  # These override the default Catppuccin mappings for a cohesive look
+  promptColors:
+    # Segment background colors (dark to light gold gradient)
+    red: "#33280a"          # OS/username segment (darkest gold)
+    sky: "#5a491a"          # Kubernetes/git segment
+    sapphire: "#6b5721"     # Colima segment
+    peach: "#7d6528"        # Directory segment
+    green: "#8e732f"        # Languages segment
+    lavender: "#a08136"     # Time segment (lightest gold)
+    # Text color on gold backgrounds (light for readability)
+    crust: "#f0e4cb"        # Light text on colored segments (same as fg)
+    text: "#f0e4cb"         # Same as crust
+    subtext0: "#f0e4cb"     # cmd_duration text
+    # Surface colors for subtle elements
+    surface0: "#523f14"     # Same as bg_highlight
+    surface1: "#5a491a"
+    surface2: "#6b5721"
+    mantle: "#523f14"
+    base: "#5a491a"
+
   options:
     styles:
       comments: italic

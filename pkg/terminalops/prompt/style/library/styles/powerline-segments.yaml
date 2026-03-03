@@ -1,0 +1,80 @@
+apiVersion: devopsmaestro.io/v1
+kind: PromptStyle
+metadata:
+  name: powerline-segments
+  description: Full powerline prompt with all segments (identity, k8s, colima, path, git, languages, conda, time)
+  category: powerline
+  tags:
+    - powerline
+    - nerd-fonts
+    - full
+spec:
+  segments:
+    - name: identity
+      position: 1
+      startTransition: "[](red)"
+      endColor: red
+      modules:
+        - os
+        - username
+    - name: kubernetes
+      position: 2
+      startColor: sky
+      endColor: sky
+      modules:
+        - kubernetes
+        - custom.kubernetes_version
+    - name: colima
+      position: 3
+      startColor: sapphire
+      endColor: sapphire
+      modules:
+        - custom.colima_profile
+    - name: path
+      position: 4
+      startColor: peach
+      endColor: peach
+      modules:
+        - directory
+    - name: git
+      position: 5
+      startColor: sky
+      endColor: sky
+      modules:
+        - git_branch
+        - git_status
+    - name: languages
+      position: 6
+      startColor: green
+      endColor: green
+      modules:
+        - c
+        - rust
+        - golang
+        - nodejs
+        - php
+        - java
+        - kotlin
+        - haskell
+        - python
+        - custom.db
+    - name: conda
+      position: 7
+      startColor: sapphire
+      endColor: sapphire
+      modules:
+        - conda
+    - name: time
+      position: 8
+      startColor: lavender
+      endColor: lavender
+      modules:
+        - time
+        - cmd_duration
+    - name: character
+      position: 9
+      startTransition: "[](fg:lavender)"
+      modules:
+        - line_break
+        - character
+  suffix: ""

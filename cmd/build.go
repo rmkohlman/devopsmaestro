@@ -7,6 +7,7 @@ import (
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/operators"
+	colorresolver "devopsmaestro/pkg/colors/resolver"
 	nvimconfig "devopsmaestro/pkg/nvimops/config"
 	"devopsmaestro/pkg/nvimops/library"
 	nvimpackage "devopsmaestro/pkg/nvimops/package"
@@ -16,10 +17,16 @@ import (
 	"devopsmaestro/pkg/nvimops/theme"
 	"devopsmaestro/pkg/palette"
 	"devopsmaestro/pkg/resolver"
-	"devopsmaestro/pkg/resource"
 	"devopsmaestro/pkg/resource/handlers"
+	terminalpkg "devopsmaestro/pkg/terminalops/package"
+	terminalpkglib "devopsmaestro/pkg/terminalops/package/library"
 	terminalplugin "devopsmaestro/pkg/terminalops/plugin"
 	"devopsmaestro/pkg/terminalops/prompt"
+	"devopsmaestro/pkg/terminalops/prompt/composer"
+	promptextension "devopsmaestro/pkg/terminalops/prompt/extension"
+	extlib "devopsmaestro/pkg/terminalops/prompt/extension/library"
+	promptstyle "devopsmaestro/pkg/terminalops/prompt/style"
+	stylelib "devopsmaestro/pkg/terminalops/prompt/style/library"
 	"devopsmaestro/pkg/terminalops/wezterm"
 	"devopsmaestro/render"
 	"devopsmaestro/utils"
@@ -34,7 +41,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -291,7 +297,7 @@ func buildWorkspace(cmd *cobra.Command) error {
 	// Step 5: Prepare staging directory and generate shell config (ALWAYS)
 	// This must happen before Dockerfile generation so configs are available
 	stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", filepath.Base(app.Path))
-	if err := prepareStagingDirectory(stagingDir, app.Path, appName, workspaceName, sqlDS); err != nil {
+	if err := prepareStagingDirectory(stagingDir, app.Path, appName, workspaceName, sqlDS, workspace); err != nil {
 		return err
 	}
 
@@ -506,7 +512,7 @@ func getPlatformInstallHint() string {
 // prepareStagingDirectory creates and populates the staging directory for container builds.
 // This includes copying app source and generating shell configuration (starship.toml, .zshrc).
 // This function is ALWAYS called during build, regardless of nvim configuration.
-func prepareStagingDirectory(stagingDir, appPath, appName, workspaceName string, ds db.DataStore) error {
+func prepareStagingDirectory(stagingDir, appPath, appName, workspaceName string, ds db.DataStore, workspace *models.Workspace) error {
 	render.Progress("Preparing build staging directory...")
 
 	// Clean and recreate staging directory
@@ -526,7 +532,7 @@ func prepareStagingDirectory(stagingDir, appPath, appName, workspaceName string,
 
 	// Generate shell configuration files (.zshrc and starship.toml)
 	// This is done here to ensure shell config is ALWAYS generated, even without nvim
-	if err := generateShellConfig(stagingDir, appName, workspaceName, ds); err != nil {
+	if err := generateShellConfig(stagingDir, appName, workspaceName, ds, workspace); err != nil {
 		return fmt.Errorf("failed to generate shell config: %w", err)
 	}
 
@@ -663,39 +669,50 @@ func generateNvimConfig(workspacePlugins []string, stagingDir, homeDir string, d
 		return fmt.Errorf("failed to generate nvim config: %w", err)
 	}
 
-	// Generate theme if active
-	themeDir := filepath.Join(nvpDir, "themes")
-	if _, statErr := os.Stat(themeDir); statErr == nil {
-		themeStore := theme.NewFileStore(nvpDir)
-		if activeTheme, _ := themeStore.GetActive(); activeTheme != nil {
-			themeGen := theme.NewGenerator()
-			generated, err := themeGen.Generate(activeTheme)
-			if err == nil {
-				ns := cfg.Namespace
-				if ns == "" {
-					ns = "workspace"
-				}
+	// Generate theme from hierarchy (not global ~/.nvp/active-theme)
+	themeStore := theme.NewFileStore(nvpDir)
+	themeCtx := context.Background()
+	resolvedTheme, themeErr := resolveWorkspaceTheme(themeCtx, ds, themeStore, workspace)
+	if themeErr != nil {
+		slog.Debug("no theme resolved for nvim config", "error", themeErr)
+	}
 
-				// Write theme files
-				themeFiles := map[string]string{
-					filepath.Join(nvimConfigPath, "lua", "theme", "palette.lua"):           generated.PaletteLua,
-					filepath.Join(nvimConfigPath, "lua", "theme", "init.lua"):              generated.InitLua,
-					filepath.Join(nvimConfigPath, "lua", ns, "plugins", "colorscheme.lua"): generated.PluginLua,
-				}
-
-				for path, content := range themeFiles {
-					dir := filepath.Dir(path)
-					if err := os.MkdirAll(dir, 0755); err != nil {
-						slog.Warn("failed to create theme dir", "path", dir, "error", err)
-						continue
-					}
-					if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-						slog.Warn("failed to write theme file", "path", path, "error", err)
-						continue
-					}
-				}
-				slog.Debug("generated theme", "name", activeTheme.Name)
+	if resolvedTheme != nil {
+		themeGen := theme.NewGenerator()
+		generated, err := themeGen.Generate(resolvedTheme)
+		if err == nil {
+			ns := cfg.Namespace
+			if ns == "" {
+				ns = "workspace"
 			}
+
+			// Write theme files
+			themeFiles := map[string]string{
+				filepath.Join(nvimConfigPath, "lua", "theme", "palette.lua"):           generated.PaletteLua,
+				filepath.Join(nvimConfigPath, "lua", "theme", "init.lua"):              generated.InitLua,
+				filepath.Join(nvimConfigPath, "lua", ns, "plugins", "colorscheme.lua"): generated.PluginLua,
+			}
+
+			// Add standalone colorscheme implementation for standalone themes
+			// This file contains the actual vim.api.nvim_set_hl() calls that apply the colors
+			if generated.ColorschemeLua != "" {
+				themeFiles[filepath.Join(nvimConfigPath, "lua", "theme", "colorscheme.lua")] = generated.ColorschemeLua
+			}
+
+			for path, content := range themeFiles {
+				dir := filepath.Dir(path)
+				if err := os.MkdirAll(dir, 0755); err != nil {
+					slog.Warn("failed to create theme dir", "path", dir, "error", err)
+					continue
+				}
+				if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+					slog.Warn("failed to write theme file", "path", path, "error", err)
+					continue
+				}
+			}
+			slog.Debug("generated theme from hierarchy", "theme", resolvedTheme.Name, "workspace", workspace.Name)
+		} else {
+			slog.Warn("failed to generate theme", "error", err)
 		}
 	}
 
@@ -920,8 +937,140 @@ func copyFile(src, dst string, mode os.FileMode) error {
 	return os.Chmod(dst, mode)
 }
 
+// TerminalPackageStore provides access to terminal packages.
+type TerminalPackageStore interface {
+	Get(name string) (*terminalpkg.Package, bool)
+}
+
+// PromptStyleStore provides access to prompt styles.
+type PromptStyleStore interface {
+	Get(name string) (*promptstyle.PromptStyle, error)
+}
+
+// PromptExtensionStore provides access to prompt extensions.
+type PromptExtensionStore interface {
+	Get(name string) (*promptextension.PromptExtension, error)
+}
+
+// getPromptFromPackageOrDefault returns a PromptYAML either from the configured terminal package
+// or falls back to createDefaultTerminalPrompt().
+//
+// Logic:
+// 1. Check ds.GetDefault("terminal-package")
+// 2. If not set → fall back to createDefaultTerminalPrompt()
+// 3. If set → load package from pkgStore
+// 4. Check UsesModularPrompt() - if false, fall back
+// 5. Load style from styleStore
+// 6. Load extensions from extStore
+// 7. Compose using composer.NewStarshipComposer().Compose()
+// 8. Convert ComposedPrompt to PromptYAML
+// 9. Set prompt name to dvm-pkg-{packageName}-{appName}-{workspaceName}
+// 10. Set Spec.Palette to "theme"
+func getPromptFromPackageOrDefault(
+	ctx context.Context,
+	ds db.DataStore,
+	pkgStore TerminalPackageStore,
+	styleStore PromptStyleStore,
+	extStore PromptExtensionStore,
+	appName, workspaceName string,
+) (*prompt.PromptYAML, error) {
+	// Step 1: Check for terminal-package default
+	packageName, err := ds.GetDefault("terminal-package")
+	if err != nil || packageName == "" {
+		// No terminal package set, use default
+		slog.Debug("no terminal-package default set, using hardcoded default")
+		return createDefaultTerminalPrompt(appName, workspaceName), nil
+	}
+
+	slog.Debug("found terminal-package default", "package", packageName)
+
+	// Step 2: Load package from store
+	pkg, found := pkgStore.Get(packageName)
+	if !found {
+		slog.Warn("terminal package not found, falling back to default", "package", packageName)
+		return createDefaultTerminalPrompt(appName, workspaceName), nil
+	}
+
+	// Step 3: Check if package uses modular prompt system
+	if !pkg.UsesModularPrompt() {
+		slog.Debug("terminal package does not use modular prompt system, falling back to default", "package", packageName)
+		return createDefaultTerminalPrompt(appName, workspaceName), nil
+	}
+
+	slog.Debug("composing prompt from terminal package",
+		"package", packageName,
+		"style", pkg.PromptStyle,
+		"extensions", pkg.PromptExtensions)
+
+	// Step 4: Load style
+	style, err := styleStore.Get(pkg.PromptStyle)
+	if err != nil {
+		slog.Warn("failed to load prompt style, falling back to default",
+			"package", packageName,
+			"style", pkg.PromptStyle,
+			"error", err)
+		return createDefaultTerminalPrompt(appName, workspaceName), nil
+	}
+
+	// Step 5: Load extensions (skip missing ones, continue with what we have)
+	var extensions []*promptextension.PromptExtension
+	for _, extName := range pkg.PromptExtensions {
+		ext, err := extStore.Get(extName)
+		if err != nil {
+			slog.Warn("failed to load prompt extension, skipping",
+				"package", packageName,
+				"extension", extName,
+				"error", err)
+			continue
+		}
+		extensions = append(extensions, ext)
+	}
+
+	// If no extensions loaded successfully, fall back
+	if len(extensions) == 0 {
+		slog.Warn("no prompt extensions loaded successfully, falling back to default", "package", packageName)
+		return createDefaultTerminalPrompt(appName, workspaceName), nil
+	}
+
+	// Step 6: Compose prompt
+	starshipComposer := composer.NewStarshipComposer()
+	composedPrompt, err := starshipComposer.Compose(style, extensions)
+	if err != nil {
+		slog.Warn("failed to compose prompt, falling back to default",
+			"package", packageName,
+			"error", err)
+		return createDefaultTerminalPrompt(appName, workspaceName), nil
+	}
+
+	// Step 7: Convert ComposedPrompt to PromptYAML
+	promptName := fmt.Sprintf("dvm-pkg-%s-%s-%s", packageName, appName, workspaceName)
+	promptYAML := prompt.NewTerminalPrompt(promptName)
+	promptYAML.Metadata.Description = fmt.Sprintf("Composed from terminal package '%s'", packageName)
+	promptYAML.Spec.Format = composedPrompt.Format
+	promptYAML.Spec.Palette = "theme" // Use theme colors
+
+	// Convert composer.ModuleConfig to prompt.ModuleConfig
+	promptYAML.Spec.Modules = make(map[string]prompt.ModuleConfig)
+	for moduleName, moduleConfig := range composedPrompt.Modules {
+		promptYAML.Spec.Modules[moduleName] = prompt.ModuleConfig{
+			Disabled: moduleConfig.Disabled,
+			Symbol:   moduleConfig.Symbol,
+			Format:   moduleConfig.Format,
+			Style:    moduleConfig.Style,
+			Options:  moduleConfig.Options,
+		}
+	}
+
+	slog.Debug("successfully composed prompt from terminal package",
+		"package", packageName,
+		"prompt", promptName,
+		"modules", len(promptYAML.Spec.Modules))
+
+	return promptYAML, nil
+}
+
 // generateShellConfig creates .zshrc and starship.toml files in staging directory
-func generateShellConfig(stagingDir, appName, workspaceName string, ds db.DataStore) error {
+func generateShellConfig(stagingDir, appName, workspaceName string, ds db.DataStore, workspace *models.Workspace) error {
 	// Create .config directory for starship.toml
 	configDir := filepath.Join(stagingDir, ".config")
 	if err := os.MkdirAll(configDir, 0755); err != nil {
@@ -962,75 +1111,63 @@ compinit
 	// Ensure handlers are registered (idempotent)
 	handlers.RegisterAll()
 
-	// Use Resource/Handler pattern to get or create default prompt
-	ctx := resource.Context{DataStore: ds}
-	defaultPromptName := fmt.Sprintf("dvm-default-%s-%s", appName, workspaceName)
-
-	// Declare promptYAML variable
-	var promptYAML *prompt.PromptYAML
-
-	// Try to get existing prompt first
-	res, err := resource.Get(ctx, prompt.KindTerminalPrompt, defaultPromptName)
+	// Create library stores for terminal packages, styles, and extensions
+	pkgLib, err := terminalpkglib.NewLibrary()
 	if err != nil {
-		// Prompt doesn't exist, create default and apply it
-		slog.Debug("creating default terminal prompt", "name", defaultPromptName, "app", appName, "workspace", workspaceName)
-
-		promptYAML = createDefaultTerminalPrompt(appName, workspaceName)
-		yamlData, err := yaml.Marshal(promptYAML)
-		if err != nil {
-			// If YAML marshaling fails, fall back to hardcoded config
-			slog.Warn("failed to marshal default prompt, using direct creation", "error", err)
-			promptYAML = createDefaultTerminalPrompt(appName, workspaceName)
-		} else {
-			// Apply to database
-			res, err = resource.Apply(ctx, yamlData, "build-default")
-			if err != nil {
-				// If database fails, fall back to direct creation
-				slog.Warn("failed to apply default prompt to database, using direct creation", "error", err)
-				promptYAML = createDefaultTerminalPrompt(appName, workspaceName)
-			} else {
-				// Successfully applied to database, extract the prompt
-				promptRes, ok := res.(*handlers.TerminalPromptResource)
-				if !ok {
-					slog.Warn("unexpected resource type from handler, using direct creation")
-					promptYAML = createDefaultTerminalPrompt(appName, workspaceName)
-				} else {
-					actualPrompt := promptRes.Prompt()
-					promptYAML = actualPrompt.ToYAML()
-					slog.Debug("applied default prompt to database", "name", defaultPromptName)
-				}
-			}
-		}
-	} else {
-		// Always regenerate default prompt to ensure latest template changes
-		// This fixes issue with stale prompts that have old double-quote format
-		slog.Debug("regenerating default prompt to ensure latest template", "name", defaultPromptName)
-		promptYAML = createDefaultTerminalPrompt(appName, workspaceName)
-
-		// Update the database with the fresh prompt
-		yamlData, err := yaml.Marshal(promptYAML)
-		if err != nil {
-			slog.Warn("failed to marshal updated prompt", "error", err)
-			// Continue with the fresh prompt anyway
-		} else {
-			// Apply updated prompt to database
-			_, err = resource.Apply(ctx, yamlData, "build-refresh")
-			if err != nil {
-				slog.Warn("failed to update prompt in database", "error", err)
-				// Continue anyway - we have the fresh prompt to use
-			} else {
-				slog.Debug("updated prompt in database with latest template", "name", defaultPromptName)
-			}
-		}
+		slog.Warn("failed to load terminal package library", "error", err)
+		pkgLib = nil
 	}
 
-	// Create a default palette for now (future: get from theme system)
-	defaultPalette := createDefaultPalette()
+	styleLibrary, err := stylelib.NewStyleLibrary()
+	if err != nil {
+		slog.Warn("failed to load prompt style library", "error", err)
+		styleLibrary = nil
+	}
+
+	extLibrary, err := extlib.NewExtensionLibrary()
+	if err != nil {
+		slog.Warn("failed to load prompt extension library", "error", err)
+		extLibrary = nil
+	}
+
+	// Get prompt from package or default
+	ctx := context.Background()
+	promptYAML, err := getPromptFromPackageOrDefault(ctx, ds, pkgLib, styleLibrary, extLibrary, appName, workspaceName)
+	if err != nil {
+		slog.Warn("failed to get prompt from package, using hardcoded default", "error", err)
+		promptYAML = createDefaultTerminalPrompt(appName, workspaceName)
+	}
+
+	// Resolve theme from hierarchy (workspace → app → domain → ecosystem → global)
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+	nvpDir := filepath.Join(homeDir, ".nvp")
+	themeStore := theme.NewFileStore(nvpDir)
+
+	themeCtx := context.Background()
+	resolvedTheme, themeErr := resolveWorkspaceTheme(themeCtx, ds, themeStore, workspace)
+	if themeErr != nil {
+		slog.Warn("failed to resolve theme from hierarchy, using default palette", "error", themeErr)
+		// Fall back to default palette if resolution fails
+		resolvedTheme = nil
+	}
+
+	// Convert theme to palette, or use default if resolution failed
+	var themePalette *palette.Palette
+	if resolvedTheme != nil {
+		themePalette = resolvedTheme.ToPalette()
+		slog.Debug("using hierarchy-resolved theme for shell config", "theme", resolvedTheme.Name)
+	} else {
+		themePalette = createDefaultPalette()
+		slog.Debug("using default palette for shell config")
+	}
 
 	// Use the new renderer to generate starship.toml
 	renderer := prompt.NewRenderer()
 	starshipPath := filepath.Join(configDir, "starship.toml")
-	if err := renderer.RenderToFile(promptYAML, defaultPalette, starshipPath); err != nil {
+	if err := renderer.RenderToFile(promptYAML, themePalette, starshipPath); err != nil {
 		return fmt.Errorf("failed to render starship.toml: %w", err)
 	}
 
@@ -1140,6 +1277,37 @@ func createDefaultPalette() *palette.Palette {
 			palette.ColorAccent:    "#7dcfff",
 		},
 	}
+}
+
+// resolveWorkspaceTheme resolves the theme for a workspace using hierarchy resolution.
+// It walks the hierarchy: workspace → app → domain → ecosystem → global default.
+// If workspace is nil, it returns the global default theme from the database.
+// On any error, it falls back to the database default.
+func resolveWorkspaceTheme(ctx context.Context, ds db.DataStore, themeStore theme.Store, workspace *models.Workspace) (*theme.Theme, error) {
+	// Create resolver
+	resolverInst := colorresolver.NewHierarchyThemeResolver(ds, themeStore)
+
+	// Handle nil workspace - return global default from database
+	if workspace == nil {
+		resolution, err := resolverInst.ResolveDefault()
+		if err != nil {
+			return nil, err
+		}
+		return resolution.Theme, nil
+	}
+
+	// Resolve theme starting from workspace level
+	resolution, err := resolverInst.Resolve(ctx, colorresolver.LevelWorkspace, workspace.ID)
+	if err != nil {
+		// Fall back to default on error
+		defaultResolution, defaultErr := resolverInst.ResolveDefault()
+		if defaultErr != nil {
+			return nil, defaultErr
+		}
+		return defaultResolution.Theme, nil
+	}
+
+	return resolution.Theme, nil
 }
 
 // appendPluginLoading appends terminal plugin loading configuration to the .zshrc file.

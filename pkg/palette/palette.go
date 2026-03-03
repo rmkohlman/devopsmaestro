@@ -21,6 +21,12 @@ type Palette struct {
 
 	// Colors maps semantic color names to hex values
 	Colors map[string]string `yaml:"colors,omitempty" json:"colors,omitempty"`
+
+	// PromptColors provides optional overrides for Starship prompt segments.
+	// These override the default Catppuccin-style mappings when generating
+	// starship.toml palettes. Keys are Catppuccin names (red, peach, sky, etc.)
+	// and values are hex colors.
+	PromptColors map[string]string `yaml:"promptColors,omitempty" json:"promptColors,omitempty"`
 }
 
 // Category represents the type of color palette.
@@ -228,6 +234,20 @@ func (p *Palette) Has(key string) bool {
 	return ok
 }
 
+// GetPromptColor returns a prompt-specific color override if available,
+// otherwise returns empty string. Use this for Catppuccin-style segment colors.
+func (p *Palette) GetPromptColor(key string) string {
+	if p.PromptColors == nil {
+		return ""
+	}
+	return p.PromptColors[key]
+}
+
+// HasPromptColors returns true if the palette has any prompt color overrides.
+func (p *Palette) HasPromptColors() bool {
+	return p.PromptColors != nil && len(p.PromptColors) > 0
+}
+
 // Merge combines another palette's colors into this one.
 // Existing colors are not overwritten unless overwrite is true.
 func (p *Palette) Merge(other *Palette, overwrite bool) {
@@ -259,6 +279,12 @@ func (p *Palette) Clone() *Palette {
 		clone.Colors = make(map[string]string, len(p.Colors))
 		for k, v := range p.Colors {
 			clone.Colors[k] = v
+		}
+	}
+	if p.PromptColors != nil {
+		clone.PromptColors = make(map[string]string, len(p.PromptColors))
+		for k, v := range p.PromptColors {
+			clone.PromptColors[k] = v
 		}
 	}
 	return clone

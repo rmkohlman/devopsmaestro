@@ -80,6 +80,7 @@ func (h *WorkspaceHandler) Apply(ctx resource.Context, data []byte) (resource.Re
 	if existing != nil {
 		// Update existing
 		workspace.ID = existing.ID
+		workspace.Slug = existing.Slug               // Preserve slug (has UNIQUE constraint)
 		workspace.ContainerID = existing.ContainerID // Preserve container ID
 		// Don't overwrite these fields if they weren't provided in YAML
 		if !workspace.NvimStructure.Valid {

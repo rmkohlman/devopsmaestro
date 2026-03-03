@@ -20,6 +20,7 @@ type MockDataStore struct {
 	domains    map[int]*models.Domain
 	apps       map[int]*models.App
 	workspaces map[int]*models.Workspace
+	defaults   map[string]string
 
 	// Error simulation
 	getEcosystemError bool
@@ -34,6 +35,7 @@ func NewMockDataStore() *MockDataStore {
 		domains:    make(map[int]*models.Domain),
 		apps:       make(map[int]*models.App),
 		workspaces: make(map[int]*models.Workspace),
+		defaults:   make(map[string]string),
 	}
 }
 
@@ -261,10 +263,23 @@ func (m *MockDataStore) Driver() db.Driver { return nil }
 func (m *MockDataStore) Ping() error { return nil }
 
 // Defaults methods
-func (m *MockDataStore) GetDefault(key string) (string, error)    { return "", nil }
-func (m *MockDataStore) SetDefault(key, value string) error       { return nil }
-func (m *MockDataStore) DeleteDefault(key string) error           { return nil }
-func (m *MockDataStore) ListDefaults() (map[string]string, error) { return nil, nil }
+func (m *MockDataStore) GetDefault(key string) (string, error) {
+	if val, ok := m.defaults[key]; ok {
+		return val, nil
+	}
+	return "", nil
+}
+func (m *MockDataStore) SetDefault(key, value string) error {
+	m.defaults[key] = value
+	return nil
+}
+func (m *MockDataStore) DeleteDefault(key string) error {
+	delete(m.defaults, key)
+	return nil
+}
+func (m *MockDataStore) ListDefaults() (map[string]string, error) {
+	return m.defaults, nil
+}
 
 // Registry operations (stub implementations - these tests don't use registries)
 func (m *MockDataStore) CreateRegistry(registry *models.Registry) error { return nil }
@@ -1090,4 +1105,229 @@ func TestHierarchyThemeResolver_LoadTheme_NilThemeStore(t *testing.T) {
 // Helper function to create string pointers
 func stringPtr(s string) *string {
 	return &s
+}
+
+// ==============================================================================
+// BUG EXPOSURE TESTS (TDD Phase 2 - RED)
+// These tests expose bugs identified in GitHub Issue #14
+// ==============================================================================
+
+// TestBug1_WorkspaceThemeFieldIsRead tests that workspace.Theme field is read
+// Bug: resolveWorkspaceTheme() doesn't check workspace.Theme field (hierarchy.go:199-221)
+func TestBug1_WorkspaceThemeFieldIsRead(t *testing.T) {
+	dataStore := NewMockDataStore()
+	themeStore := NewMockThemeStore()
+
+	// Set up hierarchy with theme at workspace level
+	ecosystemThemeName := "ecosystem-default"
+	workspaceThemeName := "workspace-override"
+
+	dataStore.AddEcosystem(1, "test-ecosystem", stringPtr(ecosystemThemeName))
+	dataStore.AddDomain(1, 1, "test-domain", nil)
+	dataStore.AddApp(1, 1, "test-app", nil)
+
+	// Add workspace WITH a theme set
+	workspace := &models.Workspace{
+		ID:    1,
+		AppID: 1,
+		Name:  "test-workspace",
+		Theme: sql.NullString{String: workspaceThemeName, Valid: true},
+	}
+	dataStore.workspaces[1] = workspace
+
+	// Add themes to store
+	workspaceTheme := &theme.Theme{Name: workspaceThemeName}
+	ecosystemTheme := &theme.Theme{Name: ecosystemThemeName}
+	themeStore.AddTheme(workspaceThemeName, workspaceTheme)
+	themeStore.AddTheme(ecosystemThemeName, ecosystemTheme)
+
+	resolver := NewHierarchyThemeResolver(dataStore, themeStore)
+	ctx := context.Background()
+
+	// EXPECTED: Should resolve to workspace theme
+	// ACTUAL (BUG): Currently skips workspace.Theme and returns ecosystem theme
+	resolution, err := resolver.Resolve(ctx, LevelWorkspace, 1)
+
+	require.NoError(t, err)
+	require.NotNil(t, resolution)
+	require.NotNil(t, resolution.Theme)
+
+	// THIS WILL FAIL until Bug #1 is fixed
+	assert.Equal(t, workspaceThemeName, resolution.Theme.Name,
+		"Bug #1: workspace.Theme field should be read and used")
+	assert.Equal(t, LevelWorkspace, resolution.Source,
+		"Bug #1: resolution should come from workspace level")
+	assert.Equal(t, "test-workspace", resolution.SourceName,
+		"Bug #1: source name should be workspace name")
+}
+
+// TestBug2_GlobalDefaultUsesDatabase tests that global default comes from database
+// Bug: LevelGlobal uses hardcoded constant instead of database (hierarchy.go:188-192)
+func TestBug2_GlobalDefaultUsesDatabase(t *testing.T) {
+	dataStore := NewMockDataStore()
+	themeStore := NewMockThemeStore()
+
+	// Set up database with custom global default
+	customGlobalTheme := "custom-global-default"
+	dataStore.defaults = map[string]string{
+		"theme": customGlobalTheme,
+	}
+
+	// Set up hierarchy with NO themes at any level
+	dataStore.AddEcosystem(1, "test-ecosystem", nil)
+	dataStore.AddDomain(1, 1, "test-domain", nil)
+	dataStore.AddApp(1, 1, "test-app", nil)
+
+	// Add custom theme to store
+	customTheme := &theme.Theme{Name: customGlobalTheme}
+	themeStore.AddTheme(customGlobalTheme, customTheme)
+
+	// Also add hardcoded default in case it falls back
+	hardcodedDefault := &theme.Theme{Name: DefaultTheme}
+	themeStore.AddTheme(DefaultTheme, hardcodedDefault)
+
+	resolver := NewHierarchyThemeResolver(dataStore, themeStore)
+	ctx := context.Background()
+
+	// EXPECTED: Should resolve to custom global default from database
+	// ACTUAL (BUG): Currently returns hardcoded DefaultTheme constant
+	resolution, err := resolver.Resolve(ctx, LevelApp, 1)
+
+	require.NoError(t, err)
+	require.NotNil(t, resolution)
+	require.NotNil(t, resolution.Theme)
+
+	// THIS WILL FAIL until Bug #2 is fixed
+	assert.Equal(t, customGlobalTheme, resolution.Theme.Name,
+		"Bug #2: global default should come from database, not hardcoded constant")
+	assert.Equal(t, LevelGlobal, resolution.Source)
+}
+
+// TestBug3_FullHierarchyWalk tests complete hierarchy traversal
+// Bug: getEffectiveTheme() in cmd/set_theme.go doesn't use hierarchy resolver
+// This test verifies the EXPECTED behavior once Bug #3 is fixed
+func TestBug3_FullHierarchyWalk(t *testing.T) {
+	dataStore := NewMockDataStore()
+	themeStore := NewMockThemeStore()
+
+	// Set up the exact scenario from GitHub Issue #14
+	// Workspace dev: (none)
+	// App fastapi-test: (none)
+	// Domain python-apps: (none)
+	// Ecosystem sandbox: coolnight-synthwave
+	// Global: coolnight-ocean
+
+	ecosystemThemeName := "coolnight-synthwave"
+	globalThemeName := "coolnight-ocean"
+
+	dataStore.AddEcosystem(1, "sandbox", stringPtr(ecosystemThemeName))
+	dataStore.AddDomain(1, 1, "python-apps", nil) // No theme
+	dataStore.AddApp(1, 1, "fastapi-test", nil)   // No theme
+	dataStore.AddWorkspace(1, 1, "dev")           // No theme
+
+	// Set global default
+	dataStore.defaults = map[string]string{
+		"theme": globalThemeName,
+	}
+
+	// Add themes to store
+	ecosystemTheme := &theme.Theme{Name: ecosystemThemeName}
+	globalTheme := &theme.Theme{Name: globalThemeName}
+	themeStore.AddTheme(ecosystemThemeName, ecosystemTheme)
+	themeStore.AddTheme(globalThemeName, globalTheme)
+
+	resolver := NewHierarchyThemeResolver(dataStore, themeStore)
+	ctx := context.Background()
+
+	// EXPECTED: Should walk workspace → app → domain → ecosystem and find theme at ecosystem
+	// Should NOT reach global level
+	resolution, err := resolver.Resolve(ctx, LevelWorkspace, 1)
+
+	require.NoError(t, err)
+	require.NotNil(t, resolution)
+	require.NotNil(t, resolution.Theme)
+
+	// THIS WILL FAIL until hierarchy traversal is correct
+	assert.Equal(t, ecosystemThemeName, resolution.Theme.Name,
+		"Bug #3: should resolve to ecosystem theme (coolnight-synthwave), not global")
+	assert.Equal(t, LevelEcosystem, resolution.Source,
+		"Bug #3: resolution should come from ecosystem level")
+	assert.Equal(t, "sandbox", resolution.SourceName,
+		"Bug #3: source name should be ecosystem name")
+
+	// Verify the resolution path shows the walk
+	require.NotEmpty(t, resolution.Path)
+
+	// Should have steps for: workspace, app, domain, ecosystem
+	// Should NOT have global step (stopped at ecosystem)
+	assert.GreaterOrEqual(t, len(resolution.Path), 4,
+		"Bug #3: path should include workspace, app, domain, ecosystem")
+
+	// Verify each step in the path
+	pathLevels := make([]HierarchyLevel, 0)
+	for _, step := range resolution.Path {
+		pathLevels = append(pathLevels, step.Level)
+	}
+
+	assert.Contains(t, pathLevels, LevelWorkspace, "Path should include workspace level")
+	assert.Contains(t, pathLevels, LevelApp, "Path should include app level")
+	assert.Contains(t, pathLevels, LevelDomain, "Path should include domain level")
+	assert.Contains(t, pathLevels, LevelEcosystem, "Path should include ecosystem level")
+
+	// Ecosystem step should be marked as found
+	var ecosystemStep *ThemeStep
+	for i := range resolution.Path {
+		if resolution.Path[i].Level == LevelEcosystem {
+			ecosystemStep = &resolution.Path[i]
+			break
+		}
+	}
+	require.NotNil(t, ecosystemStep, "Should have ecosystem step in path")
+	assert.True(t, ecosystemStep.Found, "Ecosystem step should be marked as found")
+	assert.Equal(t, ecosystemThemeName, ecosystemStep.ThemeName)
+}
+
+// TestBug3_GetResolutionPathTraversal tests GetResolutionPath with hierarchy
+func TestBug3_GetResolutionPathTraversal(t *testing.T) {
+	dataStore := NewMockDataStore()
+	themeStore := NewMockThemeStore()
+
+	// Set up hierarchy with theme at domain level
+	domainThemeName := "domain-theme"
+
+	dataStore.AddEcosystem(1, "test-ecosystem", nil)
+	dataStore.AddDomain(1, 1, "test-domain", stringPtr(domainThemeName))
+	dataStore.AddApp(1, 1, "test-app", nil)
+	dataStore.AddWorkspace(1, 1, "test-workspace")
+
+	resolver := NewHierarchyThemeResolver(dataStore, themeStore)
+	ctx := context.Background()
+
+	// GetResolutionPath should trace the hierarchy without loading themes
+	resolution, err := resolver.GetResolutionPath(ctx, LevelWorkspace, 1)
+
+	require.NoError(t, err)
+	require.NotNil(t, resolution)
+
+	// Should identify domain as the source
+	assert.Equal(t, LevelDomain, resolution.Source)
+	assert.Equal(t, "test-domain", resolution.SourceName)
+	assert.Equal(t, 1, resolution.SourceID)
+
+	// Should have walked: workspace → app → domain (stopped)
+	require.Len(t, resolution.Path, 3)
+
+	// Verify path order
+	assert.Equal(t, LevelWorkspace, resolution.Path[0].Level)
+	assert.Equal(t, "test-workspace", resolution.Path[0].Name)
+	assert.False(t, resolution.Path[0].Found)
+
+	assert.Equal(t, LevelApp, resolution.Path[1].Level)
+	assert.Equal(t, "test-app", resolution.Path[1].Name)
+	assert.False(t, resolution.Path[1].Found)
+
+	assert.Equal(t, LevelDomain, resolution.Path[2].Level)
+	assert.Equal(t, "test-domain", resolution.Path[2].Name)
+	assert.True(t, resolution.Path[2].Found)
+	assert.Equal(t, domainThemeName, resolution.Path[2].ThemeName)
 }

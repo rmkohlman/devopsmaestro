@@ -1,0 +1,39 @@
+apiVersion: devopsmaestro.io/v1
+kind: PromptStyle
+metadata:
+  name: powerline-minimal
+  description: Minimal powerline prompt with identity, path, git, and character only
+  category: powerline
+  tags:
+    - powerline
+    - nerd-fonts
+    - minimal
+spec:
+  segments:
+    - name: identity
+      position: 1
+      startTransition: "[](red)"
+      endColor: red
+      modules:
+        - os
+        - username
+    - name: path
+      position: 2
+      startColor: peach
+      endColor: peach
+      modules:
+        - directory
+    - name: git
+      position: 3
+      startColor: sky
+      endColor: sky
+      modules:
+        - git_branch
+        - git_status
+    - name: character
+      position: 4
+      startTransition: "[](fg:sky)"
+      modules:
+        - line_break
+        - character
+  suffix: ""

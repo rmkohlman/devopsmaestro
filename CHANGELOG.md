@@ -9,6 +9,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.30.2] - 2026-03-03
+
+### 🐛 Fixed
+
+#### Theme Inheritance Hierarchy
+- **`dvm build` theme resolution** - Fixed theme resolution bypassing hierarchy
+  - Theme resolution now properly walks Workspace → App → Domain → Ecosystem → Global hierarchy
+  - Previously always used global default theme, ignoring workspace-specific settings
+  - Added `resolveWorkspaceTheme()` helper for proper hierarchical theme lookup
+  - Workspaces now correctly inherit themes from their parent resources
+  - Files changed: `cmd/build.go`
+
+#### Terminal Package Prompt Composition
+- **`dvm build` terminal prompt generation** - Fixed prompt composition ignoring terminal-package setting
+  - `generateShellConfig()` now loads terminal packages from library and composes prompts from style + extensions
+  - Previously always called `createDefaultTerminalPrompt()`, ignoring workspace's `terminal-package` setting
+  - Added `getPromptFromPackageOrDefault()` helper that loads packages and composes rich prompts
+  - Custom terminal packages like `rmkohlman` now generate rich prompts instead of hardcoded defaults
+  - Files changed: `cmd/build.go`, `pkg/terminalops/prompt/renderer.go`
+
+#### CoolNight Theme Prompt Colors
+- **CoolNight theme variants** - Added missing `promptColors` sections
+  - All 21 CoolNight theme variants (except ocean) now have monochromatic `promptColors` gradients
+  - Previously had no `promptColors` section, causing harsh ANSI fallback colors in terminal prompts
+  - Each variant now has smooth color gradients matching their base color palette
+  - Terminal prompts now have cohesive colors matching the workspace theme
+  - Files changed: `pkg/nvimops/theme/library/themes/coolnight-*.yaml` (21 files)
+
+#### Neovim Colorscheme Generation
+- **`dvm build` theme file generation** - Fixed missing `colorscheme.lua` generation
+  - Build now generates `theme/colorscheme.lua` alongside `palette.lua` and `init.lua`
+  - Previously generated only 3 theme files, missing the colorscheme file containing `vim.api.nvim_set_hl()` calls
+  - Neovim inside workspaces now displays correct theme colors matching the terminal prompt
+  - Files changed: `cmd/build.go`
+
+### 🧪 Testing
+
+- **New test files added**:
+  - `cmd/build_terminal_package_test.go` - 9 tests for terminal package prompt composition
+  - `cmd/build_theme_test.go` - 5 tests for theme resolution hierarchy
+  - `cmd/set_theme_test.go` - Theme setting tests
+
+---
+
+## [0.30.1] - 2026-03-03
+
 ### 🐛 Fixed
 
 #### Database Schema Completeness
