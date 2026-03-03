@@ -435,6 +435,13 @@ dvm rollout status registry <name>   # Show rollout status
 dvm rollout history registry <name>  # Show rollout history
 dvm rollout undo registry <name>     # Rollback (not yet implemented)
 
+# Registry Defaults (v0.30.0+)
+dvm registry enable <type> --lifecycle <mode>     # Enable registry type (oci, pypi, npm, go, http)
+dvm registry disable <type>                       # Disable registry type
+dvm registry set-default <type> <registry-name>   # Set default registry for type
+dvm registry get-defaults                         # Show all configured defaults
+dvm registry get-defaults -o yaml                 # Output as YAML
+
 # Git Repository Management (v0.20.0+)
 dvm create gitrepo <name> --url <git-url>         # Create git repository mirror
 dvm create gitrepo <name> --url <url> --auth-type ssh --credential <name>  # With authentication
@@ -871,6 +878,127 @@ dvm rollout status registry gomodules
 dvm stop registry images
 ```
 
+### Registry Defaults (v0.30.0+)
+
+DevOpsMaestro now supports registry type aliases and automatic environment variable injection for simplified registry management.
+
+#### Type Aliases
+
+Registry types can be referenced by intuitive aliases:
+
+| Alias | Registry Type | Purpose |
+|-------|---------------|---------|
+| `oci` | Zot | OCI container images |
+| `pypi` | devpi | Python packages |
+| `npm` | Verdaccio | npm packages |
+| `go` | Athens | Go modules |
+| `http` | Squid | HTTP proxy cache |
+
+#### Enable/Disable Registry Types
+
+```bash
+# Enable a registry type with lifecycle mode
+dvm registry enable pypi --lifecycle auto       # Starts when needed, stays running
+dvm registry enable npm --lifecycle on-demand   # Starts/stops as needed
+dvm registry enable oci --lifecycle manual      # User controlled
+
+# Disable a registry type (stops if running)
+dvm registry disable pypi
+```
+
+#### Lifecycle Modes
+
+| Mode | Behavior | Use Case |
+|------|----------|----------|
+| `auto` | Starts when needed, stays running | Development workstations |
+| `on-demand` | Starts when needed, stops after idle | Resource-constrained systems |
+| `manual` | User explicitly controls | Production-like environments |
+
+#### Set Default Registries
+
+Associate a concrete registry with a type alias:
+
+```bash
+# Create a registry
+dvm create registry my-python-cache --type devpi --port 3141
+
+# Set as default for pypi type
+dvm registry set-default pypi my-python-cache
+
+# Now all pypi operations use my-python-cache
+```
+
+#### View Registry Defaults
+
+```bash
+# Show all configured defaults
+dvm registry get-defaults
+
+# Output as YAML
+dvm registry get-defaults -o yaml
+
+# Example output:
+# pypi: my-python-cache (auto)
+# npm: my-npm-proxy (on-demand)
+# oci: local-images (manual)
+```
+
+#### Automatic Environment Injection
+
+When you attach to a workspace, DevOpsMaestro automatically injects environment variables for enabled registries:
+
+| Registry Type | Environment Variables | Purpose |
+|---------------|----------------------|---------|
+| `pypi` (devpi) | `PIP_INDEX_URL`, `PIP_TRUSTED_HOST` | Points pip to local cache |
+| `npm` (verdaccio) | `NPM_CONFIG_REGISTRY` | Points npm to local cache |
+| `go` (athens) | `GOPROXY` | Points Go to local proxy |
+| `http` (squid) | `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY` | Routes HTTP through proxy |
+
+**Example workflow:**
+
+```bash
+# Enable PyPI registry
+dvm registry enable pypi --lifecycle auto
+
+# Create and set default registry
+dvm create registry my-pypi --type devpi --port 3141
+dvm registry set-default pypi my-pypi
+
+# Start the registry
+dvm start registry my-pypi
+
+# Attach to workspace (environment variables automatically set)
+dvm attach
+# Inside container:
+# → PIP_INDEX_URL=http://host.docker.internal:3141/root/pypi/+simple/
+# → PIP_TRUSTED_HOST=host.docker.internal
+
+# pip install now uses local cache automatically!
+pip install requests
+```
+
+#### Pre-flight Checks
+
+DevOpsMaestro validates registry health before build and attach operations:
+
+```bash
+# Pre-flight checks run automatically
+dvm build    # Validates enabled registries are healthy
+dvm attach   # Validates enabled registries are healthy
+
+# Warnings are non-fatal - operations continue if registry is unreachable
+# [WARN] Registry 'my-pypi' is unreachable, continuing without cache
+```
+
+#### Security Features
+
+Registry URLs are validated for security:
+
+- **Scheme validation** - Only http://, https://, localhost allowed
+- **No embedded credentials** - Rejects user:password@ format
+- **External registry warnings** - Warns about non-localhost registries
+- **Path traversal protection** - Blocks directory traversal attempts
+
 ### Troubleshooting
 
 **Registry won't start:**
@@ -900,6 +1028,18 @@ dvm get registries
 
 # Check status of each registry
 dvm rollout status registry myregistry
+```
+
+**Environment variables not set:**
+```bash
+# Verify registry type is enabled
+dvm registry get-defaults
+
+# Verify registry is running
+dvm rollout status registry myregistry
+
+# Check pre-flight status
+dvm build  # Check for pre-flight warnings
 ```
 
 ---

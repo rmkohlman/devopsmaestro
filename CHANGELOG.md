@@ -11,6 +11,223 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.30.0] - 2026-03-02
+
+### ✨ Added
+
+#### Registry Defaults System
+
+##### Registry Type Aliases
+- **Simplified registry management** - Type aliases provide intuitive shorthand for registry types
+  - `oci` → OCI container images (Zot)
+  - `pypi` → Python package index (devpi)
+  - `npm` → npm package proxy (Verdaccio)
+  - `go` → Go module proxy (Athens)
+  - `http` → HTTP proxy cache (Squid)
+  - Works alongside concrete registry types for flexibility
+
+##### Registry Management Commands
+- **`dvm registry enable <type>`** - Enable a registry type with optional lifecycle configuration
+  - `--lifecycle auto|on-demand|manual` - Set registry lifecycle mode
+  - `auto` - Starts when needed, stays running until manually stopped
+  - `on-demand` - Starts when needed, stops after idle timeout
+  - `manual` - User explicitly controls start/stop
+  - Example: `dvm registry enable pypi --lifecycle auto`
+- **`dvm registry disable <type>`** - Disable a registry type
+  - Stops running registry if active
+  - Removes from enabled registries list
+- **`dvm registry set-default <type> <registry-name>`** - Set default registry for a type
+  - Associates a concrete registry with a type alias
+  - Example: `dvm registry set-default pypi my-python-cache`
+- **`dvm registry get-defaults`** - Show all configured registry defaults
+  - Displays type → registry name mappings
+  - Shows lifecycle mode for each enabled type
+  - Output formats: table, yaml, json
+
+##### Environment Variable Injection
+- **Automatic environment configuration** - Workspace attach injects registry environment variables
+  - `PIP_INDEX_URL` - Points pip to local devpi registry
+  - `PIP_TRUSTED_HOST` - Trusts local devpi host
+  - `NPM_CONFIG_REGISTRY` - Points npm to local Verdaccio registry
+  - `GOPROXY` - Points Go to local Athens proxy
+  - `HTTP_PROXY` / `HTTPS_PROXY` - Points HTTP clients to local Squid proxy
+  - `NO_PROXY` - Configures bypass for local addresses
+  - **Automatic injection** - Environment variables set when attaching to workspaces
+  - **Registry-aware** - Only injects variables for enabled registry types
+  - **Build integration** - Environment variables also available during `dvm build`
+
+##### Pre-flight Check System
+- **Registry health validation** - Pre-flight checks ensure registries are healthy before operations
+  - Checks registry availability before build/attach
+  - Validates registry endpoints are reachable
+  - Automatic retry with exponential backoff
+  - Health check reports for debugging
+  - **Build integration** - Pre-flight checks run before `dvm build`
+  - **Attach integration** - Pre-flight checks run before `dvm attach`
+  - **Graceful degradation** - Warnings for unhealthy registries, not fatal errors
+
+##### URL Validation & Security
+- **Comprehensive URL validation** - Security checks prevent malicious registry configurations
+  - **Scheme validation** - Only allows http://, https://, and localhost URLs
+  - **No embedded credentials** - Rejects URLs with user:password@ format
+  - **External registry warnings** - Warns when using non-localhost registries
+  - **Path traversal protection** - Blocks directory traversal sequences
+  - **Shell metacharacter detection** - Prevents command injection
+  - **Validation on creation** - Registry URLs validated when creating registry resources
+  - **Validation on enable** - URLs validated when enabling registry types
+
+### 🏗️ Technical
+
+#### New Packages
+- **`pkg/registry/envinjector/`** - Environment variable injection for workspace attach
+  - `EnvironmentInjector` interface for registry environment configuration
+  - `DefaultEnvironmentInjector` implementation with registry resolver
+  - Support for PIP, NPM, Go, HTTP proxy environment variables
+  - Registry-type-aware injection (only enabled types)
+- **`pkg/preflight/`** - Pre-flight check system for registry health validation
+  - `PreFlightChecker` interface for health checks
+  - `DefaultPreFlightChecker` implementation with retry logic
+  - Exponential backoff for transient failures
+  - Health check reporting and logging
+
+#### New Interfaces
+- **`RegistryResolver`** - Resolve registry type aliases to concrete registries
+  - `Resolve(typeAlias string) (Registry, error)` - Get registry for type alias
+  - `GetDefault(typeAlias string) (string, error)` - Get default registry name for type
+  - `SetDefault(typeAlias, registryName string) error` - Set default registry
+  - `ListDefaults() (map[string]string, error)` - List all defaults
+- **`LifecycleManager`** - Manage registry lifecycle modes
+  - `GetLifecycle(typeAlias string) (string, error)` - Get lifecycle mode
+  - `SetLifecycle(typeAlias, mode string) error` - Set lifecycle mode
+  - `Enable(typeAlias string, lifecycle string) error` - Enable registry type
+  - `Disable(typeAlias string) error` - Disable registry type
+- **`EnvironmentInjector`** - Inject registry environment variables
+  - `GetEnvironment(registryType string) (map[string]string, error)` - Get env vars
+  - `InjectAll() (map[string]string, error)` - Get all enabled registry env vars
+
+### 🧪 Testing
+
+- **82 total test cases** for registry defaults implementation
+  - 23 registry resolver tests (type alias resolution, defaults management)
+  - 19 lifecycle manager tests (enable/disable, lifecycle modes)
+  - 18 environment injector tests (PIP, NPM, Go, HTTP proxy env vars)
+  - 14 pre-flight checker tests (health checks, retry logic, reporting)
+  - 8 URL validation tests (scheme validation, credential detection, security)
+- **TDD workflow** - All tests written before implementation (RED → GREEN → REFACTOR)
+- **100% test success rate** - All tests passing before release
+
+### 📦 Files Changed
+
+#### New Files
+```
+pkg/registry/envinjector/injector.go         # Environment variable injection
+pkg/registry/envinjector/injector_test.go    # 18 environment injection tests
+pkg/preflight/checker.go                     # Pre-flight health checker
+pkg/preflight/checker_test.go                # 14 pre-flight check tests
+pkg/registry/resolver.go                     # Registry type resolver
+pkg/registry/resolver_test.go                # 23 resolver tests
+pkg/registry/lifecycle.go                    # Lifecycle manager
+pkg/registry/lifecycle_test.go               # 19 lifecycle tests
+pkg/registry/validation.go                   # URL validation
+pkg/registry/validation_test.go              # 8 validation tests
+cmd/registry_enable.go                       # Registry enable command
+cmd/registry_disable.go                      # Registry disable command
+cmd/registry_defaults.go                     # Registry defaults commands
+```
+
+#### Modified Files
+```
+cmd/attach.go                                # Added environment injection
+cmd/build.go                                 # Added pre-flight checks
+pkg/registry/interfaces.go                   # Added new interfaces
+models/registry.go                           # Added Lifecycle field
+db/datastore.go                              # Added registry defaults methods
+db/registry.go                               # Implemented defaults methods
+```
+
+### Usage
+
+#### Enable a Registry Type
+
+```bash
+# Enable PyPI registry with auto lifecycle (starts when needed, stays running)
+dvm registry enable pypi --lifecycle auto
+
+# Enable npm registry with on-demand lifecycle (starts/stops as needed)
+dvm registry enable npm --lifecycle on-demand
+
+# Enable OCI registry with manual lifecycle (user controlled)
+dvm registry enable oci --lifecycle manual
+```
+
+#### Set Default Registry for Type
+
+```bash
+# Create a registry
+dvm create registry my-python-cache --type devpi --port 3141
+
+# Set as default for pypi type
+dvm registry set-default pypi my-python-cache
+
+# Now `pypi` type resolves to `my-python-cache` registry
+```
+
+#### View Registry Defaults
+
+```bash
+# Show all configured defaults
+dvm registry get-defaults
+
+# Output as YAML
+dvm registry get-defaults -o yaml
+
+# Output as JSON
+dvm registry get-defaults -o json
+```
+
+#### Disable a Registry Type
+
+```bash
+# Disable PyPI registry (stops if running)
+dvm registry disable pypi
+```
+
+#### Automatic Environment Injection
+
+```bash
+# Environment variables are automatically injected when attaching to workspaces
+
+# If pypi registry is enabled:
+dvm attach
+# → PIP_INDEX_URL and PIP_TRUSTED_HOST are set inside container
+
+# If npm registry is enabled:
+dvm attach
+# → NPM_CONFIG_REGISTRY is set inside container
+
+# If http registry is enabled:
+dvm attach
+# → HTTP_PROXY and HTTPS_PROXY are set inside container
+```
+
+#### Pre-flight Checks
+
+```bash
+# Pre-flight checks run automatically before build
+dvm build
+# → Validates enabled registries are healthy
+# → Warns if registry is unreachable
+# → Continues build (non-fatal warnings)
+
+# Pre-flight checks run automatically before attach
+dvm attach
+# → Validates enabled registries are healthy
+# → Warns if registry is unreachable
+# → Continues attach (non-fatal warnings)
+```
+
+---
+
 ## [0.29.0] - 2026-03-01
 
 ### ✨ Added
