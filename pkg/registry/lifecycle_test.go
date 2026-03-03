@@ -143,6 +143,7 @@ func TestLifecycleManager_RecordActivity(t *testing.T) {
 		Lifecycle:   "on-demand",
 		Status:      "running",
 		IdleTimeout: 1800,
+		Storage:     "/tmp/active-zot",
 	}
 
 	// Create registry in DB
@@ -212,6 +213,7 @@ func TestLifecycleManager_IdleTimeoutReset(t *testing.T) {
 		Lifecycle:   "on-demand",
 		Status:      "running",
 		IdleTimeout: 1800, // 30 minutes
+		Storage:     "/tmp/active-zot",
 	}
 
 	// Create registry

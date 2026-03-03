@@ -64,6 +64,7 @@ func TestRegistryResolver_ResolveCLIOverride(t *testing.T) {
 					Enabled: true,
 					Port:    5000,
 					Status:  "running",
+					Storage: "/tmp/" + tt.defaultValue,
 				}
 				err := mockDB.CreateRegistry(registry)
 				require.NoError(t, err)
@@ -102,6 +103,7 @@ func TestRegistryResolver_ResolveDefault(t *testing.T) {
 		Enabled: true,
 		Port:    5000,
 		Status:  "running",
+		Storage: "/tmp/default-zot",
 	}
 	err := mockDB.CreateRegistry(registry)
 	require.NoError(t, err)
@@ -138,10 +140,10 @@ func TestRegistryResolver_ResolveAll(t *testing.T) {
 
 	// Create multiple enabled registries
 	registries := []*models.Registry{
-		{Name: "zot-1", Type: "zot", Enabled: true, Port: 5000, Status: "running"},
-		{Name: "devpi-1", Type: "devpi", Enabled: true, Port: 3141, Status: "running"},
-		{Name: "verdaccio-1", Type: "verdaccio", Enabled: true, Port: 4873, Status: "stopped"},
-		{Name: "zot-2", Type: "zot", Enabled: false, Port: 5001, Status: "stopped"}, // Disabled
+		{Name: "zot-1", Type: "zot", Enabled: true, Port: 5000, Status: "running", Storage: "/tmp/zot-1"},
+		{Name: "devpi-1", Type: "devpi", Enabled: true, Port: 3141, Status: "running", Storage: "/tmp/devpi-1"},
+		{Name: "verdaccio-1", Type: "verdaccio", Enabled: true, Port: 4873, Status: "stopped", Storage: "/tmp/verdaccio-1"},
+		{Name: "zot-2", Type: "zot", Enabled: false, Port: 5001, Status: "stopped", Storage: "/tmp/zot-2"}, // Disabled
 	}
 
 	for _, reg := range registries {
@@ -240,6 +242,7 @@ func TestRegistryResolver_ResolveByType(t *testing.T) {
 		Enabled: true,
 		Port:    5000,
 		Status:  "running",
+		Storage: "/tmp/my-zot",
 	}
 	err := mockDB.CreateRegistry(registry)
 	require.NoError(t, err)
@@ -282,6 +285,7 @@ func TestRegistryResolver_DisabledRegistry(t *testing.T) {
 		Enabled: false, // Disabled
 		Port:    5000,
 		Status:  "stopped",
+		Storage: "/tmp/disabled-zot",
 	}
 	err := mockDB.CreateRegistry(registry)
 	require.NoError(t, err)

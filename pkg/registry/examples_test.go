@@ -19,6 +19,7 @@ func ExampleServiceFactory_CreateManager_fromDatabase() {
 		Port:      5001,
 		Lifecycle: "on-demand",
 		Status:    "stopped",
+		Storage:   "/tmp/my-cache",
 	}
 
 	// Create factory
@@ -87,9 +88,10 @@ func ExampleZotStrategy_CreateManager() {
 
 	// Create manager
 	reg := &models.Registry{
-		Name: "zot-registry",
-		Type: "zot",
-		Port: 5001,
+		Name:    "zot-registry",
+		Type:    "zot",
+		Port:    5001,
+		Storage: "/tmp/zot-registry",
 	}
 
 	manager, err := strategy.CreateManager(reg)
@@ -112,9 +114,10 @@ func ExampleRegistryStrategy_ValidateConfig() {
 
 	// Valid config
 	reg := &models.Registry{
-		Name: "configured-zot",
-		Type: "zot",
-		Port: 5001,
+		Name:    "configured-zot",
+		Type:    "zot",
+		Port:    5001,
+		Storage: "/custom/path",
 		Config: sql.NullString{
 			Valid:  true,
 			String: `{"storage": "/custom/path"}`,
@@ -131,9 +134,10 @@ func ExampleRegistryStrategy_ValidateConfig() {
 
 	// Invalid config (malformed JSON)
 	regInvalid := &models.Registry{
-		Name: "invalid",
-		Type: "zot",
-		Port: 5001,
+		Name:    "invalid",
+		Type:    "zot",
+		Port:    5001,
+		Storage: "/tmp/invalid",
 		Config: sql.NullString{
 			Valid:  true,
 			String: `{invalid json}`,
@@ -207,8 +211,9 @@ func ExampleServiceFactory_errorHandling() {
 
 	// Invalid registry (missing name)
 	invalidReg := &models.Registry{
-		Type: "zot",
-		Port: 5000,
+		Type:    "zot",
+		Port:    5000,
+		Storage: "/tmp/invalid",
 	}
 	_, err = factory.CreateManager(invalidReg)
 	if err != nil {
@@ -237,6 +242,7 @@ func Example_cliRegistryStart() {
 		Port:      5001,
 		Lifecycle: "on-demand",
 		Status:    "stopped",
+		Storage:   "/tmp/my-cache",
 	}
 
 	// 2. Create service manager (use mock for example)

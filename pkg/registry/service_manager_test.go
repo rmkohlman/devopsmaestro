@@ -185,10 +185,11 @@ func TestServiceFactory(t *testing.T) {
 
 	t.Run("CreateManager for zot registry", func(t *testing.T) {
 		reg := &models.Registry{
-			ID:   1,
-			Name: "my-zot",
-			Type: "zot",
-			Port: 5001,
+			ID:      1,
+			Name:    "my-zot",
+			Type:    "zot",
+			Port:    5001,
+			Storage: "/tmp/my-zot",
 		}
 
 		manager, err := factory.CreateManager(reg)
@@ -202,10 +203,11 @@ func TestServiceFactory(t *testing.T) {
 
 	t.Run("CreateManager for athens registry", func(t *testing.T) {
 		reg := &models.Registry{
-			ID:   2,
-			Name: "my-athens",
-			Type: "athens",
-			Port: 3001,
+			ID:      2,
+			Name:    "my-athens",
+			Type:    "athens",
+			Port:    3001,
+			Storage: "/tmp/my-athens",
 		}
 
 		manager, err := factory.CreateManager(reg)
