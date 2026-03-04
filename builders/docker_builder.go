@@ -7,10 +7,13 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"devopsmaestro/operators"
 )
+
+// WatchdogRunner is a function type for running commands with a watchdog.
+// This allows injection of mock watchdogs for testing.
+type WatchdogRunner func(ctx context.Context, cmd *exec.Cmd, checkCondition func(ctx context.Context) bool, cfg WatchdogConfig) (WatchdogResult, error)
 
 // DockerBuilder builds container images using the Docker CLI.
 // Works with: OrbStack, Docker Desktop, Podman, Colima (docker mode)
@@ -23,6 +26,14 @@ type DockerBuilder struct {
 	appPath    string
 	imageName  string
 	dockerfile string
+
+	// WatchdogConfig allows customizing the build watchdog behavior.
+	// If zero, DefaultWatchdogConfig() is used.
+	WatchdogConfig WatchdogConfig
+
+	// WatchdogRunner allows injecting a custom watchdog for testing.
+	// If nil, RunWithWatchdog is used.
+	WatchdogRunner WatchdogRunner
 }
 
 // NewDockerBuilder creates a new Docker CLI-based image builder.
@@ -110,74 +121,53 @@ func (b *DockerBuilder) Build(ctx context.Context, opts BuildOptions) error {
 
 	fmt.Printf("Command: docker %s\n\n", strings.Join(args, " "))
 
-	// Create a cancellable context for the docker build
-	// This allows us to kill the process when the watchdog detects the image
-	buildCtx, cancelBuild := context.WithCancel(ctx)
-	defer cancelBuild()
-
-	// Execute docker build
-	cmd := exec.CommandContext(buildCtx, "docker", args...)
+	// Prepare docker build command
+	cmd := exec.Command("docker", args...)
 	cmd.Dir = b.appPath
 	cmd.Env = append(os.Environ(), "DOCKER_HOST=unix://"+b.platform.SocketPath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	// Channel to receive build result
-	buildDone := make(chan error, 1)
+	// Use watchdog config (defaults if not set)
+	cfg := b.WatchdogConfig
+	if cfg.PollInterval == 0 && cfg.Timeout == 0 {
+		cfg = DefaultWatchdogConfig()
+	}
 
-	// Start the build in a goroutine
-	go func() {
-		buildDone <- cmd.Run()
-	}()
+	// Use injected watchdog runner or default
+	runner := b.WatchdogRunner
+	if runner == nil {
+		runner = RunWithWatchdog
+	}
 
-	// Watchdog: poll for image existence every 2 seconds
-	// This handles the Docker buildx + Colima hang where the build completes
-	// but the process doesn't exit
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
+	// Run build with watchdog to handle Docker buildx + Colima hang
+	// where the build completes but the process doesn't exit
+	result, err := runner(ctx, cmd, func(checkCtx context.Context) bool {
+		exists, _ := b.ImageExists(checkCtx)
+		return exists
+	}, cfg)
 
-	// Overall timeout of 30 minutes for the build
-	timeout := time.NewTimer(30 * time.Minute)
-	defer timeout.Stop()
-
-	for {
-		select {
-		case err := <-buildDone:
-			// Build completed normally
-			if err != nil {
-				// Check if we cancelled it (which is success)
-				if buildCtx.Err() == context.Canceled {
-					fmt.Printf("\n✓ Image built successfully: %s\n", b.imageName)
-					return nil
-				}
-				return fmt.Errorf("failed to build image: %w", err)
-			}
-			fmt.Printf("\n✓ Image built successfully: %s\n", b.imageName)
-			return nil
-
-		case <-ticker.C:
-			// Check if the image exists (build completed but process hung)
-			exists, err := b.ImageExists(ctx)
-			if err == nil && exists {
-				fmt.Printf("\n[watchdog] Image detected, terminating hung build process...\n")
-				cancelBuild() // Kill the hung docker process
-				// Wait briefly for process cleanup
-				select {
-				case <-buildDone:
-				case <-time.After(5 * time.Second):
-				}
-				fmt.Printf("✓ Image built successfully: %s\n", b.imageName)
-				return nil
-			}
-
-		case <-timeout.C:
-			cancelBuild()
-			return fmt.Errorf("build timed out after 30 minutes")
-
-		case <-ctx.Done():
-			cancelBuild()
-			return ctx.Err()
+	switch result {
+	case WatchdogCompleted:
+		if err != nil {
+			return fmt.Errorf("failed to build image: %w", err)
 		}
+		fmt.Printf("\n✓ Image built successfully: %s\n", b.imageName)
+		return nil
+
+	case WatchdogDetected:
+		fmt.Printf("\n[watchdog] Image detected, terminating hung build process...\n")
+		fmt.Printf("✓ Image built successfully: %s\n", b.imageName)
+		return nil
+
+	case WatchdogTimedOut:
+		return fmt.Errorf("build timed out after %v", cfg.Timeout)
+
+	case WatchdogCancelled:
+		return err
+
+	default:
+		return fmt.Errorf("unexpected watchdog result: %v", result)
 	}
 }
 

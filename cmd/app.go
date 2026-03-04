@@ -665,7 +665,10 @@ func resolveOrCreateGitRepo(ds db.DataStore, repo string) (*int, string, string,
 		}
 
 		// Check if a GitRepo with this slug name exists
-		existingBySlug, _ := ds.GetGitRepoByName(slug)
+		existingBySlug, err := ds.GetGitRepoByName(slug)
+		if err != nil && !strings.Contains(err.Error(), "not found") {
+			return nil, "", "", fmt.Errorf("failed to check existing GitRepo: %w", err)
+		}
 		if existingBySlug != nil {
 			// Use existing GitRepo if URL matches
 			if existingBySlug.URL == repo {
@@ -673,8 +676,15 @@ func resolveOrCreateGitRepo(ds db.DataStore, repo string) (*int, string, string,
 				path := getGitRepoPath(existingBySlug.Slug)
 				return &id, existingBySlug.Name, path, nil
 			}
-			// Different URL, need a unique name
-			slug = slug + "-" + fmt.Sprintf("%d", time.Now().Unix())
+			// Different URL - require user intervention instead of auto-generating name
+			return nil, "", "", fmt.Errorf(
+				"GitRepo name '%s' already exists with different URL\n\n"+
+					"  Existing URL: %s\n"+
+					"  Provided URL: %s\n\n"+
+					"To create with custom name:\n"+
+					"  dvm create gitrepo <custom-name> --url %s\n"+
+					"  dvm create app <app-name> --repo <custom-name>",
+				slug, existingBySlug.URL, repo, repo)
 		}
 
 		// Create new GitRepo
@@ -728,7 +738,14 @@ func resolveOrCreateGitRepo(ds db.DataStore, repo string) (*int, string, string,
 	// Not a URL - look up existing GitRepo by name
 	existingRepo, err := ds.GetGitRepoByName(repo)
 	if err != nil || existingRepo == nil {
-		return nil, "", "", fmt.Errorf("GitRepo '%s' not found (hint: use a URL to auto-create, or create with 'dvm create gitrepo')", repo)
+		return nil, "", "", fmt.Errorf(
+			"GitRepo '%s' not found\n\n"+
+				"To auto-create from URL:\n"+
+				"  dvm create app <app-name> --repo https://github.com/user/repo.git\n\n"+
+				"Or create GitRepo first:\n"+
+				"  dvm create gitrepo %s --url <url>\n"+
+				"  dvm create app <app-name> --repo %s",
+			repo, repo, repo)
 	}
 
 	id := existingRepo.ID

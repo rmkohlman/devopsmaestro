@@ -11,6 +11,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.32.1] - 2026-03-04
+
+### 🐛 Fixed
+
+#### Error Handling in --repo Flag
+- **Error message check** - Fixed error message check that caused legitimate "not found" errors to be treated as database errors
+  - Fixed error shadowing in `resolveOrCreateGitRepo` function
+  - Improved error message clarity for GitRepo not found scenarios
+  - Added helpful examples in error messages
+  - Files changed: `cmd/app.go`
+
+#### Slug Conflict Errors
+- **Error messages** - Improved slug conflict error message clarity
+  - Removed confusing timestamp suffix from error messages
+  - Made error messages more explicit with repository URLs
+  - Files changed: `cmd/app.go`
+
+### ♻️ Refactored
+
+#### Watchdog Helper Extraction
+- **`builders/watchdog.go`** - Extracted watchdog helper for Docker build hang detection
+  - Added `WatchdogConfig` struct with configurable timeouts (PollInterval, Timeout, CleanupWait)
+  - Added `WatchdogRunner` injection pattern for improved testability
+  - Moved watchdog logic from `docker_builder.go` to dedicated module
+  - Files changed: `builders/watchdog.go`, `builders/docker_builder.go`
+
+### ✅ Tests
+
+#### New Test Coverage
+- **Watchdog tests** - Added comprehensive test coverage for `RunWithWatchdog` (11 tests)
+  - Tests for normal completion, condition detection, timeouts, cancellation
+  - Tests for command failures, cleanup behavior, poll interval
+  - File added: `builders/watchdog_test.go`
+
+- **GitRepo resolution tests** - Added comprehensive test coverage for `resolveOrCreateGitRepo` (11 tests)
+  - Tests for URL patterns, existing repo lookup, duplicate detection
+  - Tests for error scenarios and edge cases
+  - File added: `cmd/resolve_gitrepo_test.go`
+
+#### Test Fixes
+- **Unskipped tests** - Unskipped 4 previously skipped tests after bug fix
+  - Tests now pass after error handling improvements
+  - Files changed: `cmd/resolve_gitrepo_test.go`
+
+---
+
 ## [0.32.0] - 2026-03-04
 
 ### ✨ Added

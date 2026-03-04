@@ -10,6 +10,18 @@ Multi-registry support with database-backed resources. Breaking changes to regis
 
 ## Latest Releases
 
+### v0.32.1 (2026-03-04)
+
+**🐛 Bug Fixes & Refactoring**
+
+Fixed error handling in `--repo` flag and extracted watchdog helper:
+
+- **Error handling** - Fixed error message check causing "not found" errors to be misclassified as database errors
+- **Error messages** - Improved slug conflict and GitRepo not found error messages with helpful examples
+- **Watchdog refactor** - Extracted watchdog helper to dedicated module with `WatchdogConfig` and injection pattern
+- **Test coverage** - Added 22 new tests (11 for watchdog, 11 for GitRepo resolution)
+- **Test fixes** - Unskipped 4 previously skipped tests after error handling improvements
+
 ### v0.32.0 (2026-03-04)
 
 **✨ Feature - `--repo` Flag for App Creation**
