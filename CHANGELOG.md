@@ -11,6 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.30.4] - 2026-03-03
+
+### 🐛 Fixed
+
+#### Attach Mount Path for GitRepo-backed Workspaces
+- **`dvm attach` mount path bug** - Fixed container mounting wrong directory for GitRepo-backed workspaces
+  - When a workspace is created with `--repo` flag (has `GitRepoID`), the source code lives in `~/.devopsmaestro/workspaces/{slug}/repo/`, not in `app.Path`
+  - `dvm attach` was passing `app.Path` directly to `StartWorkspace`, causing the container to mount an empty directory
+  - Added `getMountPath()` helper function that checks `workspace.GitRepoID.Valid` and returns the correct path
+  - Container mounts now correctly use workspace repo path for GitRepo-backed workspaces
+  - Mirrors the fix applied to `dvm build` in v0.30.1 (Bug #1)
+  - Files changed: `cmd/attach.go`, `cmd/attach_mount_path_test.go`
+
+---
+
 ## [0.30.3] - 2026-03-03
 
 ### 🐛 Fixed

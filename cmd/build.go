@@ -296,8 +296,13 @@ func buildWorkspace(cmd *cobra.Command) error {
 
 	// Step 5: Prepare staging directory and generate shell config (ALWAYS)
 	// This must happen before Dockerfile generation so configs are available
-	stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", filepath.Base(app.Path))
-	if err := prepareStagingDirectory(stagingDir, app.Path, appName, workspaceName, sqlDS, workspace); err != nil {
+	// Get the correct source path (workspace repo path if GitRepoID set, else app.Path)
+	sourcePath, err := getBuildSourcePath(sqlDS, workspace, app.Path)
+	if err != nil {
+		return fmt.Errorf("failed to determine build source path: %w", err)
+	}
+	stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", filepath.Base(sourcePath))
+	if err := prepareStagingDirectory(stagingDir, sourcePath, appName, workspaceName, sqlDS, workspace); err != nil {
 		return err
 	}
 
@@ -459,6 +464,21 @@ func buildWorkspace(cmd *cobra.Command) error {
 	render.Info("Next: Attach to your workspace with: dvm attach")
 
 	return nil
+}
+
+// getBuildSourcePath determines the source path for building a workspace.
+// When a workspace has a GitRepoID (created with --repo flag), the source code
+// is in the workspace repo path (~/.devopsmaestro/workspaces/{slug}/repo/),
+// not in the original app.Path. This function returns the correct path to use.
+func getBuildSourcePath(ds db.DataStore, workspace *models.Workspace, appPath string) (string, error) {
+	if workspace.GitRepoID.Valid {
+		repoPath, err := ds.GetWorkspaceRepoPath(workspace.ID)
+		if err != nil {
+			return "", fmt.Errorf("failed to get workspace repo path: %w", err)
+		}
+		return repoPath, nil
+	}
+	return appPath, nil
 }
 
 // detectPlatform detects and validates the container platform

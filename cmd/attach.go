@@ -201,6 +201,12 @@ func runAttach(cmd *cobra.Command) error {
 	// Start workspace (handles existing containers automatically)
 	render.Progress("Starting workspace container...")
 
+	// Get correct mount path (workspace repo path if GitRepoID set, else app.Path)
+	mountPath, err := getMountPath(ds, workspace, app.Path)
+	if err != nil {
+		return fmt.Errorf("failed to get mount path: %w", err)
+	}
+
 	containerID, err := runtime.StartWorkspace(context.Background(), operators.StartOptions{
 		ImageName:     imageName,
 		WorkspaceName: workspaceName,
@@ -208,7 +214,7 @@ func runAttach(cmd *cobra.Command) error {
 		AppName:       appName,
 		EcosystemName: ecosystemName,
 		DomainName:    domainName,
-		AppPath:       app.Path,
+		AppPath:       mountPath,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to start workspace: %w", err)
@@ -320,6 +326,21 @@ func loadThemeEnvVars(themeName string) (map[string]string, error) {
 	}
 
 	return theme.TerminalEnvVars(), nil
+}
+
+// getMountPath determines the source path for mounting into a workspace container.
+// When a workspace has a GitRepoID (created with --repo flag), the source code
+// is in the workspace repo path (~/.devopsmaestro/workspaces/{slug}/repo/),
+// not in the original app.Path. This function returns the correct path to mount.
+func getMountPath(ds db.DataStore, workspace *models.Workspace, appPath string) (string, error) {
+	if workspace.GitRepoID.Valid {
+		repoPath, err := ds.GetWorkspaceRepoPath(workspace.ID)
+		if err != nil {
+			return "", fmt.Errorf("failed to get workspace repo path: %w", err)
+		}
+		return repoPath, nil
+	}
+	return appPath, nil
 }
 
 // Initializes the attach command
