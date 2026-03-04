@@ -64,6 +64,7 @@ func createTestSchema(driver db.Driver) error {
 			theme TEXT,
 			language TEXT,
 			build_config TEXT,
+			git_repo_id INTEGER,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (domain_id) REFERENCES domains(id),

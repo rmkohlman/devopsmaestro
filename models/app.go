@@ -21,6 +21,7 @@ type App struct {
 	// Language and build config stored as JSON in database
 	Language    sql.NullString `db:"language" json:"language,omitempty" yaml:"-"`
 	BuildConfig sql.NullString `db:"build_config" json:"build_config,omitempty" yaml:"-"`
+	GitRepoID   sql.NullInt64  `db:"git_repo_id" json:"git_repo_id,omitempty" yaml:"-"`
 	CreatedAt   time.Time      `db:"created_at" json:"created_at" yaml:"-"`
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at" yaml:"-"`
 }

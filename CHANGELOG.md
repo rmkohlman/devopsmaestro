@@ -11,6 +11,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.30.3] - 2026-03-03
+
+### 🐛 Fixed
+
+#### Database Schema Drift
+- **App model missing GitRepoID field** - Fixed schema drift where migration 003 added `git_repo_id` column to `apps` table but Go code was never updated
+  - Added `GitRepoID sql.NullInt64` field to `models/app.go` struct
+  - Updated all 7 App DataStore methods to include `git_repo_id` in SQL queries:
+    - `CreateApp()` - INSERT now includes git_repo_id
+    - `GetAppByName()` - SELECT and Scan now include git_repo_id
+    - `GetAppByNameGlobal()` - SELECT and Scan now include git_repo_id
+    - `GetAppByID()` - SELECT and Scan now include git_repo_id
+    - `UpdateApp()` - UPDATE SET now includes git_repo_id
+    - `ListAppsByDomain()` - SELECT and Scan now include git_repo_id
+    - `ListAllApps()` - SELECT and Scan now include git_repo_id
+  - Fixed test schema in `cmd/completion_resources_test.go` to include `git_repo_id` column
+  - Prerequisite for v0.32.0 Remote-Only Workspaces feature
+  - Files changed: `models/app.go`, `db/store.go`, `cmd/completion_resources_test.go`
+
+---
+
 ## [0.30.2] - 2026-03-03
 
 ### 🐛 Fixed
