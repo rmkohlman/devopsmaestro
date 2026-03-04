@@ -11,6 +11,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.32.5] - 2026-03-04
+
+### 🐛 Fixed
+
+#### Zot Registry Configuration (v2.0 Compatibility)
+- **Fixed `urls` format** - Zot v2.0+ expects `"urls": [...]` array, not `"url": "..."`
+  - Registry sync configuration now uses correct array format
+  - Files changed: `pkg/registry/config.go`
+
+- **Fixed address/port format** - Zot v2.0+ expects separate address and port fields
+  - Changed from `"address": "0.0.0.0:5050"` + `"port": 5050` (caused `0.0.0.0:5050:5050` error)
+  - Now correctly uses `"address": "0.0.0.0"` + `"port": "5050"` (port as string)
+  - Files changed: `pkg/registry/config.go`
+
+### ✨ Added
+
+#### OSC 52 Clipboard Support for Containers
+- **Clipboard yanking to host** - Yank operations in container Neovim now copy to host clipboard
+  - Uses OSC 52 terminal escape sequences
+  - Works with modern terminals: WezTerm, iTerm2, Kitty, Alacritty, Windows Terminal
+  - Automatically enabled when `DVM_WORKSPACE` environment variable is set (all dvm containers)
+  - Also works over SSH connections (`SSH_TTY` detection)
+  - Files changed: `templates/nvim/lua/workspace/core/options.lua`, `templates/minimal/init.lua`
+
+### 📦 Files Changed
+
+#### Modified Files
+```
+pkg/registry/config.go                         # Zot v2.0 config format fixes
+pkg/registry/config_test.go                    # Updated tests for new format
+templates/nvim/lua/workspace/core/options.lua  # OSC 52 clipboard provider
+templates/minimal/init.lua                     # OSC 52 clipboard provider
+```
+
+---
+
 ## [0.32.4] - 2026-03-04
 
 ### 🐛 Fixed

@@ -65,8 +65,14 @@ func TestZotConfig_DefaultMirrors(t *testing.T) {
 	foundDockerHub := false
 	for _, reg := range registries {
 		regMap := reg.(map[string]interface{})
-		if regMap["url"] == "https://index.docker.io" {
-			foundDockerHub = true
+		// Zot v2.0+ uses "urls" (array) instead of "url"
+		if urls, ok := regMap["urls"].([]string); ok {
+			for _, url := range urls {
+				if url == "https://index.docker.io" {
+					foundDockerHub = true
+					break
+				}
+			}
 		}
 	}
 	assert.True(t, foundDockerHub, "docker.io should be in default mirrors")
@@ -94,10 +100,10 @@ func TestZotConfig_CustomPort(t *testing.T) {
 			zotConfig, err := GenerateZotConfig(dvmConfig)
 			require.NoError(t, err)
 
-			// Verify port in config
+			// Verify port in config (Zot v2.0+ uses port as string, separate from address)
 			http := zotConfig["http"].(map[string]interface{})
-			address := http["address"].(string)
-			assert.Contains(t, address, strconv.Itoa(tt.port), "Config should contain specified port")
+			port := http["port"].(string)
+			assert.Equal(t, strconv.Itoa(tt.port), port, "Config should have specified port")
 		})
 	}
 }
@@ -170,16 +176,18 @@ func TestZotConfig_MultipleUpstreams(t *testing.T) {
 
 	assert.Len(t, registries, 3, "Should have 3 configured mirrors")
 
-	// Verify each mirror
-	urls := []string{}
+	// Verify each mirror - Zot v2.0+ uses "urls" (array)
+	allUrls := []string{}
 	for _, reg := range registries {
 		regMap := reg.(map[string]interface{})
-		urls = append(urls, regMap["url"].(string))
+		if urls, ok := regMap["urls"].([]string); ok {
+			allUrls = append(allUrls, urls...)
+		}
 	}
 
-	assert.Contains(t, urls, "https://index.docker.io")
-	assert.Contains(t, urls, "https://ghcr.io")
-	assert.Contains(t, urls, "https://quay.io")
+	assert.Contains(t, allUrls, "https://index.docker.io")
+	assert.Contains(t, allUrls, "https://ghcr.io")
+	assert.Contains(t, allUrls, "https://quay.io")
 }
 
 func TestZotConfig_ValidJSON(t *testing.T) {

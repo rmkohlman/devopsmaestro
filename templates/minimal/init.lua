@@ -24,6 +24,30 @@ vim.opt.undofile = true         -- Save undo history
 vim.opt.updatetime = 250        -- Faster completion (default 4000ms)
 vim.opt.timeoutlen = 300        -- Faster mapped sequences
 
+-- OSC 52 clipboard provider for containers
+-- This allows yanking to host clipboard over terminal escape sequences
+-- Works with: WezTerm, iTerm2, Kitty, Alacritty, Windows Terminal
+if os.getenv("CONTAINER") or os.getenv("SSH_TTY") or os.getenv("DVM_WORKSPACE") then
+  local function paste()
+    return {
+      vim.fn.split(vim.fn.getreg(""), "\n"),
+      vim.fn.getregtype(""),
+    }
+  end
+
+  vim.g.clipboard = {
+    name = "OSC 52",
+    copy = {
+      ["+"] = require("vim.ui.clipboard.osc52").copy("+"),
+      ["*"] = require("vim.ui.clipboard.osc52").copy("*"),
+    },
+    paste = {
+      ["+"] = paste,
+      ["*"] = paste,
+    },
+  }
+end
+
 -- Search
 vim.opt.ignorecase = true       -- Case-insensitive search
 vim.opt.smartcase = true        -- Unless uppercase in search term

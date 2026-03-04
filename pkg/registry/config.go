@@ -20,11 +20,12 @@ func GenerateZotConfig(cfg RegistryConfig) (map[string]interface{}, error) {
 	}
 
 	// Build Zot config structure
+	// Note: Zot v2.0+ expects address as just IP, port as string
 	config := map[string]interface{}{
 		"distSpecVersion": "1.1.0",
 		"http": map[string]interface{}{
-			"address": fmt.Sprintf("0.0.0.0:%d", cfg.Port),
-			"port":    cfg.Port,
+			"address": "0.0.0.0",
+			"port":    fmt.Sprintf("%d", cfg.Port),
 		},
 		"storage": map[string]interface{}{
 			"rootDirectory": cfg.Storage,
@@ -41,7 +42,7 @@ func GenerateZotConfig(cfg RegistryConfig) (map[string]interface{}, error) {
 		registries := make([]interface{}, 0, len(mirrors))
 		for _, mirror := range mirrors {
 			reg := map[string]interface{}{
-				"url":      mirror.URL,
+				"urls":     []string{mirror.URL}, // Zot v2.0+ expects "urls" array
 				"onDemand": mirror.OnDemand,
 			}
 
