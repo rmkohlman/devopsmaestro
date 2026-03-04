@@ -10,6 +10,28 @@ Multi-registry support with database-backed resources. Breaking changes to regis
 
 ## Latest Releases
 
+### v0.32.0 (2026-03-04)
+
+**✨ Feature - `--repo` Flag for App Creation**
+
+Streamlined GitRepo-backed app creation with new `--repo` flag:
+
+- **Accept URL** - `dvm create app my-app --repo https://github.com/user/repo.git`
+- **Accept name** - `dvm create app my-app --repo my-existing-repo`
+- **Auto-create GitRepo** - Automatically creates GitRepo resource when given a URL
+- **Detect duplicates** - Reuses existing GitRepos by URL to avoid duplicates
+- **Mutually exclusive** - Cannot use with `--path` or `--from-cwd` flags
+
+**🐛 Bug Fix - Docker Build Hang on Colima**
+
+Fixed Docker buildx + Colima hang where build completes but process doesn't exit:
+
+- **Watchdog mechanism** - Polls for image existence during build
+- **Context cancellation** - Terminates hung docker process when image is detected
+- **Goroutine execution** - Runs docker build in background for parallel monitoring
+- **Timeout protection** - 30-minute overall timeout as fallback
+- **Reliable Colima builds** - Enables reliable builds on Colima with Docker runtime (non-containerd)
+
 ### v0.31.0 (2026-03-03)
 
 **✨ Feature - Lazygit in Containers**
