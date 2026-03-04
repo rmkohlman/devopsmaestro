@@ -11,6 +11,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.32.3] - 2026-03-04
+
+### ✨ Added
+
+#### Build-Time Tool Installation
+- **Mason LSP installation at build time** - LSPs are now pre-installed during Docker image build
+  - Reduces first-attach startup time significantly
+  - Language-specific LSPs: pyright/ruff-lsp (Python), gopls (Go), rust-analyzer (Rust), typescript-language-server (Node.js), etc.
+  - Files changed: `builders/dockerfile_generator.go`
+
+- **Treesitter parser installation at build time** - Parsers are now pre-installed during Docker image build
+  - Includes base parsers (lua, vim, markdown, bash, json, yaml) plus language-specific ones
+  - Files changed: `builders/dockerfile_generator.go`
+
+### 📝 Documentation
+
+- **Fixed `dvm init` command references** - Corrected to `dvm admin init` across all documentation (24 occurrences in 11 files)
+- **Updated version references** - Changed v0.32.1 to v0.32.2 in user-facing docs
+
+---
+
 ## [0.32.2] - 2026-03-04
 
 ### 🐛 Fixed

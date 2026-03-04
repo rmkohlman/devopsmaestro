@@ -4,6 +4,23 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.32.3 (2026-03-04)
+
+**✨ Build Optimization**
+
+Pre-install development tools at Docker image build time for faster workspace startup:
+
+- **Mason LSP installation** - Language servers (pyright, gopls, rust-analyzer, etc.) now installed during build
+- **Treesitter parsers** - Syntax parsers pre-installed per language during build
+- **Documentation fixes** - Corrected `dvm init` → `dvm admin init` across all docs
+
+### v0.32.2 (2026-03-04)
+
+**🐛 Bug Fixes**
+
+- **GitRepo inheritance** - Workspaces now inherit GitRepo from parent app
+- **Nvim config path** - Fixed nvim configuration not being copied for GitRepo-backed workspaces
+
 ### v0.32.1 (2026-03-04)
 
 **🐛 Bug Fixes & Refactoring**
