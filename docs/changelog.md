@@ -300,7 +300,7 @@ This is a major breaking release that requires a fresh database. **You must back
 1. Backup: `dvm get <resources> -o yaml > backup.yaml`
 2. Delete database: `rm ~/.devopsmaestro/devopsmaestro.db`
 3. Upgrade: `brew upgrade devopsmaestro`
-4. Re-initialize: `dvm init`
+4. Re-initialize: `dvm admin init`
 5. Re-apply resources: `dvm apply -f backup.yaml`
 
 See the [full migration guide](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md#migration-guide) for detailed instructions.

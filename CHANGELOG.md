@@ -1751,7 +1751,7 @@ sudo mv dvm /usr/local/bin/
 #### Step 4: Re-create Resources
 ```bash
 # Re-initialize with fresh database
-dvm init
+dvm admin init
 
 # Re-apply your resources
 dvm apply -f ecosystems.yaml
@@ -3533,7 +3533,7 @@ docs/
 - 🎯 kubectl-style commands (projects and workspaces)
 
 #### Commands Implemented
-- `dvm init` - Initialize development environment
+- `dvm admin init` - Initialize development environment
 - `dvm project create/list/delete` - Project management
 - `dvm workspace create/list/delete` - Workspace management
 - `dvm get projects/workspaces` - Resource listing

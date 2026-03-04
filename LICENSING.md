@@ -52,7 +52,7 @@ You **must purchase** a commercial license if:
 
 ```bash
 # Individual developers
-$ dvm init  # Use for personal projects - FREE!
+$ dvm admin init  # Use for personal projects - FREE!
 
 # Open source projects
 $ git clone your-oss-project
@@ -177,7 +177,7 @@ See [LICENSE-COMMERCIAL.txt](LICENSE-COMMERCIAL.txt) for detailed terms.
 ```bash
 # Personal side project
 $ cd my-personal-app
-$ dvm init
+$ dvm admin init
 $ dvm workspace create main
 # 100% free, use all features!
 
@@ -196,7 +196,7 @@ $ dvm get plugins
 
 ```bash
 # At your company
-Company LLC$ dvm init
+Company LLC$ dvm admin init
 # ⚠️ Need commercial license - contact us!
 
 # Proprietary SaaS product

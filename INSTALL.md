@@ -43,7 +43,7 @@ sudo mv dvm /usr/local/bin/
 
 ```bash
 # Initialize
-dvm init
+dvm admin init
 
 # Create an app
 dvm create app myapp --from-cwd
@@ -265,7 +265,7 @@ make install-dev
 
 Initialize the database:
 ```bash
-dvm init
+dvm admin init
 ```
 
 ### macOS Gatekeeper warning
@@ -284,7 +284,7 @@ Or right-click the binary in Finder and select "Open" to allow it.
 
 After installation:
 
-1. Initialize your environment: `dvm init`
+1. Initialize your environment: `dvm admin init`
 2. Check status: `dvm status`
 3. Create an app: `dvm create app myapp --from-cwd`
 4. Build container: `dvm build`

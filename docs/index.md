@@ -67,7 +67,7 @@ DevOpsMaestro organizes your development environments using a clear hierarchy th
     # Or install NvimOps only (no containers needed)
     brew install nvimops
     
-    # Verify installation (should show v0.32.1)
+    # Verify installation (should show v0.32.2)
     dvm version && nvp version
     ```
 
@@ -89,7 +89,7 @@ DevOpsMaestro organizes your development environments using a clear hierarchy th
 
 ```bash
 # Create organizational structure (one-time setup)
-dvm init                                    # Initialize dvm
+dvm admin init                                    # Initialize dvm
 dvm create ecosystem mycompany              # Top-level platform
 dvm create domain mycompany/backend         # Bounded context  
 dvm create app mycompany/backend/api-service  # Your application

@@ -63,7 +63,7 @@ func main() {
 EOF
 
 # 4. Add to DevOpsMaestro
-dvm init  # Only needed once per machine
+dvm admin init  # Only needed once per machine
 dvm create ecosystem mycompany
 dvm create domain backend-services  
 dvm create app go-user-api --from-cwd --description "User management API"
@@ -143,7 +143,7 @@ if __name__ == "__main__":
 EOF
 
 # 3. Add to DevOpsMaestro
-dvm init  # Only needed once
+dvm admin init  # Only needed once
 dvm create ecosystem personal
 dvm create domain webapps
 dvm create app python-fastapi-app --from-cwd --description "FastAPI web service"
@@ -250,7 +250,7 @@ npm pkg set scripts.dev="nodemon --exec ts-node src/app.ts"
 npm pkg set scripts.build="tsc"
 
 # 6. Add to DevOpsMaestro
-dvm init
+dvm admin init
 dvm create ecosystem personal  
 dvm create domain webapps
 dvm create app node-typescript-api --from-cwd --description "TypeScript Express API"
@@ -358,7 +358,7 @@ async fn main() {
 EOF
 
 # 4. Add to DevOpsMaestro
-dvm init
+dvm admin init
 dvm create ecosystem personal
 dvm create domain systems
 dvm create app rust-cli-tool --from-cwd --description "High-performance CLI tool"

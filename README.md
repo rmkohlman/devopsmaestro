@@ -44,7 +44,7 @@ brew install devopsmaestro
 brew install nvimops
 
 # Verify installation
-dvm version   # Should show v0.32.1
+dvm version   # Should show v0.32.2
 nvp version
 ```
 
@@ -188,7 +188,7 @@ Already have a codebase on your laptop? Add it to dvm:
 
 ```bash
 # Initialize dvm (one-time setup)
-dvm init    # Auto-migrates database to latest schema
+dvm admin init    # Auto-migrates database to latest schema
 
 # Set up the hierarchy (one-time or when starting new projects)
 dvm create ecosystem my-platform    # Top-level grouping
@@ -223,7 +223,7 @@ Starting fresh? Create a new directory for your app:
 
 ```bash
 # Initialize dvm (one-time setup)
-dvm init    # Auto-migrates database to latest schema
+dvm admin init    # Auto-migrates database to latest schema
 
 # Set up the hierarchy (one-time or when starting new projects)
 dvm create ecosystem my-platform    # Top-level grouping
@@ -253,7 +253,7 @@ dvm attach
 
 ```bash
 cd ~/Developer/my-app
-dvm init                                # One-time setup (auto-migrates database)
+dvm admin init                          # One-time setup (auto-migrates database)
 dvm create eco my-platform              # Create ecosystem (one-time)
 dvm create dom backend                  # Create domain (one-time)
 dvm create app myapp --from-cwd         # Create app

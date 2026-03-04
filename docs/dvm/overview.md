@@ -158,7 +158,7 @@ Commands operate on the active context by default.
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│  1. dvm init           Initialize dvm (one-time)    │
+│  1. dvm admin init     Initialize dvm (one-time)    │
 └─────────────────────────────────────────────────────┘
                           │
                           ▼
@@ -204,7 +204,7 @@ For teams managing multiple apps across domains:
 
 ```bash
 # 1. Initialize and set up organization structure
-dvm init
+dvm admin init
 dvm create ecosystem mycompany --description "My Company Platform"
 dvm create domain backend -e mycompany --description "Backend services"
 dvm create domain frontend -e mycompany --description "Frontend applications"

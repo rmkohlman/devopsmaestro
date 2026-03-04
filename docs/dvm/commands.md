@@ -33,12 +33,12 @@ These flags work with any command:
 
 ## Initialization
 
-### `dvm init`
+### `dvm admin init`
 
 Initialize DevOpsMaestro (creates database).
 
 ```bash
-dvm init
+dvm admin init
 ```
 
 Creates `~/.devopsmaestro/devopsmaestro.db`.
@@ -703,7 +703,7 @@ dvm version
 
 ```bash
 # 1. Initialize
-dvm init
+dvm admin init
 
 # 2. Set up hierarchy (new path-based approach)
 dvm create ecosystem my-platform

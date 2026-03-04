@@ -154,7 +154,7 @@ graph TD
 Run this **once** to set up the database:
 
 ```bash
-dvm init
+dvm admin init
 ```
 
 This creates `~/.devopsmaestro/devopsmaestro.db` with your workspace configurations.
