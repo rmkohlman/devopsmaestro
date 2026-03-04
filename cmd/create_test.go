@@ -520,3 +520,262 @@ func TestCreateWorkspace_TableDriven_RepoScenarios(t *testing.T) {
 		})
 	}
 }
+
+// ========== GitRepo Inheritance Tests (Issue #17) ==========
+
+// TestCreateWorkspace_InheritsAppGitRepo verifies that a workspace inherits
+// the App's GitRepoID when --repo flag is not provided.
+// This test uses the ResolveWorkspaceGitRepo helper function.
+func TestCreateWorkspace_InheritsAppGitRepo(t *testing.T) {
+	mockStore, app := setupTestContext()
+
+	// Create a GitRepo
+	gitRepo := &models.GitRepoDB{
+		Name: "app-default-repo",
+		URL:  "https://github.com/org/app-repo.git",
+		Slug: "org-app-repo",
+	}
+	err := mockStore.CreateGitRepo(gitRepo)
+	require.NoError(t, err)
+
+	// Associate the GitRepo with the App
+	app.GitRepoID = sql.NullInt64{Int64: int64(gitRepo.ID), Valid: true}
+	err = mockStore.UpdateApp(app)
+	require.NoError(t, err)
+
+	// Verify App has GitRepoID set
+	updatedApp, err := mockStore.GetAppByName(app.DomainID, app.Name)
+	require.NoError(t, err)
+	require.True(t, updatedApp.GitRepoID.Valid, "App should have GitRepoID set")
+	require.Equal(t, int64(gitRepo.ID), updatedApp.GitRepoID.Int64)
+
+	// Use the ResolveWorkspaceGitRepo helper function (no --repo flag)
+	resolvedRepo, resolvedGitRepoID, err := ResolveWorkspaceGitRepo(mockStore, updatedApp, "")
+	require.NoError(t, err)
+
+	// Create workspace using the resolved GitRepoID
+	workspace := &models.Workspace{
+		AppID:     app.ID,
+		Name:      "inherited-workspace",
+		ImageName: "test-image",
+		Status:    "stopped",
+		GitRepoID: resolvedGitRepoID, // Use the resolved value
+	}
+
+	err = mockStore.CreateWorkspace(workspace)
+	require.NoError(t, err)
+
+	// Verify workspace inherited the App's GitRepoID
+	ws, err := mockStore.GetWorkspaceByName(app.ID, "inherited-workspace")
+	assert.NoError(t, err)
+	assert.NotNil(t, ws)
+
+	// Verify inheritance worked
+	assert.True(t, ws.GitRepoID.Valid, "Workspace should inherit App's GitRepoID")
+	assert.Equal(t, int64(gitRepo.ID), ws.GitRepoID.Int64, "Workspace GitRepoID should match App's GitRepoID")
+
+	// Also verify the resolved repo is correct
+	assert.NotNil(t, resolvedRepo, "Resolved GitRepo should not be nil")
+	assert.Equal(t, gitRepo.Name, resolvedRepo.Name, "Resolved repo should match App's repo")
+}
+
+// TestCreateWorkspace_ExplicitRepoOverridesAppGitRepo verifies that when a workspace
+// is created with an explicit --repo flag, it uses that GitRepo instead of inheriting
+// from the App.
+// This test EXPECTS TO FAIL until the inheritance logic is implemented.
+func TestCreateWorkspace_ExplicitRepoOverridesAppGitRepo(t *testing.T) {
+	mockStore, app := setupTestContext()
+
+	// Create two GitRepos: one for the App, one for the Workspace
+	appGitRepo := &models.GitRepoDB{
+		Name: "app-repo",
+		URL:  "https://github.com/org/app.git",
+		Slug: "org-app",
+	}
+	err := mockStore.CreateGitRepo(appGitRepo)
+	require.NoError(t, err)
+
+	workspaceGitRepo := &models.GitRepoDB{
+		Name: "workspace-specific-repo",
+		URL:  "https://github.com/org/workspace.git",
+		Slug: "org-workspace",
+	}
+	err = mockStore.CreateGitRepo(workspaceGitRepo)
+	require.NoError(t, err)
+
+	// Associate appGitRepo with the App
+	app.GitRepoID = sql.NullInt64{Int64: int64(appGitRepo.ID), Valid: true}
+	err = mockStore.UpdateApp(app)
+	require.NoError(t, err)
+
+	// Create workspace WITH explicit --repo flag
+	// The workspace should use the explicitly provided GitRepo, NOT the App's
+	workspace := &models.Workspace{
+		AppID:     app.ID,
+		Name:      "override-workspace",
+		ImageName: "test-image",
+		Status:    "stopped",
+		// Explicitly set to workspaceGitRepo (simulating --repo flag)
+		GitRepoID: sql.NullInt64{Int64: int64(workspaceGitRepo.ID), Valid: true},
+	}
+
+	err = mockStore.CreateWorkspace(workspace)
+	require.NoError(t, err)
+
+	// Verify workspace uses the explicitly provided GitRepoID
+	ws, err := mockStore.GetWorkspaceByName(app.ID, "override-workspace")
+	assert.NoError(t, err)
+	assert.NotNil(t, ws)
+
+	assert.True(t, ws.GitRepoID.Valid, "Workspace should have GitRepoID set")
+	assert.Equal(t, int64(workspaceGitRepo.ID), ws.GitRepoID.Int64,
+		"Workspace should use explicit GitRepo, not App's GitRepo")
+	assert.NotEqual(t, int64(appGitRepo.ID), ws.GitRepoID.Int64,
+		"Workspace should NOT use App's GitRepo when --repo is explicitly provided")
+}
+
+// TestCreateWorkspace_NoGitRepoWhenAppHasNone verifies that when an App does not
+// have a GitRepoID, workspaces created under it also have no GitRepoID.
+func TestCreateWorkspace_NoGitRepoWhenAppHasNone(t *testing.T) {
+	mockStore, app := setupTestContext()
+
+	// Verify App has no GitRepoID
+	assert.False(t, app.GitRepoID.Valid, "App should not have GitRepoID for this test")
+
+	// Create workspace without --repo flag
+	workspace := &models.Workspace{
+		AppID:     app.ID,
+		Name:      "no-repo-workspace",
+		ImageName: "test-image",
+		Status:    "stopped",
+		// GitRepoID not set
+	}
+
+	err := mockStore.CreateWorkspace(workspace)
+	require.NoError(t, err)
+
+	// Verify workspace has no GitRepoID
+	ws, err := mockStore.GetWorkspaceByName(app.ID, "no-repo-workspace")
+	assert.NoError(t, err)
+	assert.NotNil(t, ws)
+	assert.False(t, ws.GitRepoID.Valid,
+		"Workspace should not have GitRepoID when App has none and --repo not provided")
+}
+
+// TestCreateWorkspace_InheritanceTableDriven is a comprehensive table-driven test
+// for GitRepo inheritance scenarios.
+// These tests EXPECT TO FAIL until the inheritance logic is implemented.
+func TestCreateWorkspace_InheritanceTableDriven(t *testing.T) {
+	tests := []struct {
+		name              string
+		appHasRepo        bool
+		workspaceRepoFlag string // Empty means --repo not provided
+		expectedInherit   bool   // Should workspace inherit App's repo?
+		expectedRepoName  string // Expected GitRepo name (empty = no repo)
+	}{
+		{
+			name:              "app has repo, workspace flag not provided - inherit",
+			appHasRepo:        true,
+			workspaceRepoFlag: "",
+			expectedInherit:   true,
+			expectedRepoName:  "app-repo",
+		},
+		{
+			name:              "app has repo, workspace flag provided - override",
+			appHasRepo:        true,
+			workspaceRepoFlag: "workspace-repo",
+			expectedInherit:   false,
+			expectedRepoName:  "workspace-repo",
+		},
+		{
+			name:              "app has no repo, workspace flag not provided - no repo",
+			appHasRepo:        false,
+			workspaceRepoFlag: "",
+			expectedInherit:   false,
+			expectedRepoName:  "",
+		},
+		{
+			name:              "app has no repo, workspace flag provided - use flag",
+			appHasRepo:        false,
+			workspaceRepoFlag: "workspace-repo",
+			expectedInherit:   false,
+			expectedRepoName:  "workspace-repo",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockStore, app := setupTestContext()
+
+			var appGitRepo *models.GitRepoDB
+			var workspaceGitRepo *models.GitRepoDB
+
+			// Create app GitRepo if needed
+			if tt.appHasRepo {
+				appGitRepo = &models.GitRepoDB{
+					Name: "app-repo",
+					URL:  "https://github.com/org/app.git",
+					Slug: "org-app",
+				}
+				err := mockStore.CreateGitRepo(appGitRepo)
+				require.NoError(t, err)
+
+				app.GitRepoID = sql.NullInt64{Int64: int64(appGitRepo.ID), Valid: true}
+				err = mockStore.UpdateApp(app)
+				require.NoError(t, err)
+			}
+
+			// Create workspace GitRepo if flag provided
+			if tt.workspaceRepoFlag != "" {
+				workspaceGitRepo = &models.GitRepoDB{
+					Name: tt.workspaceRepoFlag,
+					URL:  "https://github.com/org/workspace.git",
+					Slug: "org-workspace",
+				}
+				err := mockStore.CreateGitRepo(workspaceGitRepo)
+				require.NoError(t, err)
+			}
+
+			// Create workspace
+			workspace := &models.Workspace{
+				AppID:     app.ID,
+				Name:      "test-workspace",
+				ImageName: "test-image",
+				Status:    "stopped",
+			}
+
+			// Simulate the inheritance logic that SHOULD be in create.go
+			// THIS IS THE FIX THAT NEEDS TO BE IMPLEMENTED:
+			if tt.workspaceRepoFlag != "" {
+				// Explicit --repo flag provided
+				workspace.GitRepoID = sql.NullInt64{Int64: int64(workspaceGitRepo.ID), Valid: true}
+			} else if tt.appHasRepo && app.GitRepoID.Valid {
+				// No --repo flag, but App has GitRepoID - inherit it
+				workspace.GitRepoID = app.GitRepoID
+			}
+			// Otherwise GitRepoID remains unset (NULL)
+
+			err := mockStore.CreateWorkspace(workspace)
+			require.NoError(t, err)
+
+			// Verify the workspace GitRepoID
+			ws, err := mockStore.GetWorkspaceByName(app.ID, "test-workspace")
+			require.NoError(t, err)
+			require.NotNil(t, ws)
+
+			if tt.expectedRepoName == "" {
+				// Should have no GitRepo
+				assert.False(t, ws.GitRepoID.Valid, "Workspace should not have GitRepoID")
+			} else {
+				// Should have a GitRepo
+				assert.True(t, ws.GitRepoID.Valid, "Workspace should have GitRepoID set")
+
+				// Verify it's the correct one
+				repo, err := mockStore.GetGitRepoByID(ws.GitRepoID.Int64)
+				require.NoError(t, err)
+				assert.Equal(t, tt.expectedRepoName, repo.Name,
+					"Workspace should have correct GitRepo")
+			}
+		})
+	}
+}

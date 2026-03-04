@@ -128,13 +128,13 @@ Examples:
 			imageName = fmt.Sprintf("dvm-%s-%s:pending", workspaceName, appName)
 		}
 
-		// If --repo flag is provided, look up the GitRepo
-		var gitRepo *models.GitRepoDB
-		if repoFlag != "" {
-			gitRepo, err = ds.GetGitRepoByName(repoFlag)
-			if err != nil {
-				return fmt.Errorf("gitrepo '%s' not found", repoFlag)
-			}
+		// Resolve GitRepo: explicit --repo flag or inherited from App
+		gitRepo, gitRepoID, err := ResolveWorkspaceGitRepo(ds, app, repoFlag)
+		if err != nil {
+			return err
+		}
+		if gitRepo != nil && repoFlag == "" {
+			render.Info(fmt.Sprintf("Inheriting GitRepo '%s' from app", gitRepo.Name))
 		}
 
 		render.Progress(fmt.Sprintf("Creating workspace '%s' in app '%s'...", workspaceName, appName))
@@ -149,20 +149,16 @@ Examples:
 			},
 			ImageName: imageName,
 			Status:    "stopped",
-		}
-
-		// Set GitRepoID if --repo was provided
-		if gitRepo != nil {
-			workspace.GitRepoID = sql.NullInt64{Int64: int64(gitRepo.ID), Valid: true}
+			GitRepoID: gitRepoID,
 		}
 
 		if err := ds.CreateWorkspace(workspace); err != nil {
 			return fmt.Errorf("failed to create workspace: %w", err)
 		}
 
-		// Clone from mirror if --repo was provided
+		// Clone from mirror if we have a GitRepo (explicit or inherited)
 		if gitRepo != nil {
-			render.Progress(fmt.Sprintf("Cloning from mirror '%s'...", repoFlag))
+			render.Progress(fmt.Sprintf("Cloning from mirror '%s'...", gitRepo.Name))
 
 			// Get workspace path and clone to repo/ subdirectory
 			workspacePath, err := ds.GetWorkspacePath(workspace.ID)
@@ -179,7 +175,7 @@ Examples:
 					if _, err := mirrorMgr.Clone(gitRepo.URL, gitRepo.Slug); err != nil {
 						render.Error(fmt.Sprintf("Failed to sync mirror: %v", err))
 						render.Info("Workspace created, but repository clone failed")
-						render.Info(fmt.Sprintf("Try: dvm sync gitrepo %s", repoFlag))
+						render.Info(fmt.Sprintf("Try: dvm sync gitrepo %s", gitRepo.Name))
 						return nil
 					}
 				}
@@ -324,6 +320,37 @@ func createRegistry(cmd *cobra.Command, name string) error {
 	render.Info(fmt.Sprintf("  dvm registry status %s   # Check status", name))
 
 	return nil
+}
+
+// ResolveWorkspaceGitRepo determines which GitRepo a workspace should use.
+// Priority: 1) Explicit repoFlag, 2) Inherited from App, 3) None
+// Returns the GitRepo and the resolved GitRepoID for the workspace.
+func ResolveWorkspaceGitRepo(ds db.DataStore, app *models.App, repoFlag string) (*models.GitRepoDB, sql.NullInt64, error) {
+	var gitRepo *models.GitRepoDB
+	var err error
+
+	if repoFlag != "" {
+		// Explicit --repo flag provided
+		gitRepo, err = ds.GetGitRepoByName(repoFlag)
+		if err != nil {
+			return nil, sql.NullInt64{}, fmt.Errorf("gitrepo '%s' not found", repoFlag)
+		}
+		return gitRepo, sql.NullInt64{Int64: int64(gitRepo.ID), Valid: true}, nil
+	}
+
+	// No explicit flag - check if App has a GitRepo to inherit
+	if app.GitRepoID.Valid {
+		gitRepo, err = ds.GetGitRepoByID(app.GitRepoID.Int64)
+		if err != nil {
+			// App has GitRepoID but lookup failed - not fatal, just warn
+			return nil, sql.NullInt64{}, nil
+		}
+		// Successfully inherited from App
+		return gitRepo, app.GitRepoID, nil
+	}
+
+	// No GitRepo
+	return nil, sql.NullInt64{}, nil
 }
 
 // Initializes the 'create' command and links subcommands

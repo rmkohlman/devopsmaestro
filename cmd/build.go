@@ -322,7 +322,7 @@ func buildWorkspace(cmd *cobra.Command) error {
 		workspaceYAML.Spec,
 		languageName,
 		version,
-		app.Path,
+		sourcePath, // Use sourcePath (not app.Path) so nvim config staging dir is found correctly (Issue #18)
 		dockerfilePath,
 	)
 

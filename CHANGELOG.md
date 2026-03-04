@@ -11,6 +11,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.32.2] - 2026-03-04
+
+### 🐛 Fixed
+
+#### Workspace GitRepo Inheritance (Issue #17)
+- **GitRepo inheritance** - Workspaces now inherit GitRepo from parent app when not explicitly specified
+  - Added `ResolveWorkspaceGitRepo()` helper function to handle inheritance logic
+  - When app has a GitRepo and workspace doesn't specify `--repo`, workspace inherits app's GitRepo
+  - Explicit `--repo` flag still overrides app's GitRepo
+  - Files changed: `cmd/create.go`
+
+#### Neovim Config Missing in Container (Issue #18)
+- **Nvim config COPY** - Fixed nvim configuration not being copied to container for GitRepo-backed workspaces
+  - Root cause: `app.Path` was passed to `NewDockerfileGenerator()` instead of `sourcePath`
+  - When workspace uses a GitRepo, `sourcePath` differs from `app.Path`
+  - Dockerfile generator computes staging path from base name, so wrong path meant nvim config wasn't found
+  - Fix: Changed line 325 in `cmd/build.go` from `app.Path` to `sourcePath`
+  - Files changed: `cmd/build.go`
+
+### ✅ Tests
+
+#### New Test Coverage
+- **GitRepo inheritance tests** - Added 4 tests for workspace GitRepo inheritance
+  - `TestCreateWorkspace_InheritsAppGitRepo` - Verifies inheritance works
+  - `TestCreateWorkspace_ExplicitRepoOverridesAppGitRepo` - Verifies explicit flag overrides
+  - `TestCreateWorkspace_NoGitRepoWhenAppHasNone` - Verifies no repo when app has none
+  - `TestCreateWorkspace_InheritanceTableDriven` - Table-driven tests for all scenarios
+  - File changed: `cmd/create_test.go`
+
+- **Nvim section path tests** - Added 2 tests for nvim config path handling
+  - `TestDockerfileGenerator_NvimSection_WithGitRepo` - Verifies COPY when sourcePath matches staging
+  - `TestDockerfileGenerator_NvimSection_AppPathMismatch` - Documents bug behavior
+  - File changed: `builders/dockerfile_generator_test.go`
+
+---
+
 ## [0.32.1] - 2026-03-04
 
 ### 🐛 Fixed

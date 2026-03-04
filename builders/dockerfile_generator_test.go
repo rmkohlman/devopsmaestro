@@ -1,6 +1,8 @@
 package builders
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -521,5 +523,120 @@ func TestNewDockerfileGenerator(t *testing.T) {
 	}
 	if gen.baseDockerfile != "/app/path/Dockerfile" {
 		t.Errorf("baseDockerfile = %q, want %q", gen.baseDockerfile, "/app/path/Dockerfile")
+	}
+}
+
+// TestDockerfileGenerator_NvimSection_WithGitRepo tests that nvim config is found
+// when the appPath matches the staging directory path (Issue #18).
+// This test verifies the fix for the bug where app.Path was passed instead of sourcePath.
+func TestDockerfileGenerator_NvimSection_WithGitRepo(t *testing.T) {
+	// Setup: Create a temporary staging directory structure
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("failed to get home dir: %v", err)
+	}
+
+	// Simulate a GitRepo source path (different from app.Path)
+	repoName := "test-git-repo"
+	stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", repoName)
+	nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
+
+	// Create the nvim config directory to simulate generateNvimConfig having run
+	if err := os.MkdirAll(nvimConfigPath, 0755); err != nil {
+		t.Fatalf("failed to create nvim config dir: %v", err)
+	}
+	defer os.RemoveAll(stagingDir)
+
+	// Create a dummy init.lua to make it a valid nvim config
+	initLuaPath := filepath.Join(nvimConfigPath, "init.lua")
+	if err := os.WriteFile(initLuaPath, []byte("-- test config"), 0644); err != nil {
+		t.Fatalf("failed to create init.lua: %v", err)
+	}
+
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{
+		Nvim: models.NvimConfig{
+			Structure: "custom", // Enable nvim section
+		},
+	}
+
+	// KEY TEST: Pass the sourcePath (git repo path) NOT app.Path
+	// This simulates the correct behavior after the fix
+	sourcePath := filepath.Join("/tmp", "dvm-clone-xyz", repoName)
+
+	gen := NewDockerfileGenerator(ws, wsYAML, "python", "3.11", sourcePath, "")
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// The generated Dockerfile should include COPY command for nvim config
+	if !strings.Contains(dockerfile, "COPY .config/nvim /home/dev/.config/nvim") {
+		t.Errorf("Generate() should include nvim COPY command when sourcePath matches staging dir basename.\nGenerated Dockerfile:\n%s", dockerfile)
+	}
+}
+
+// TestDockerfileGenerator_NvimSection_AppPathMismatch demonstrates the bug (Issue #18)
+// where passing app.Path instead of sourcePath causes nvim config to not be found.
+func TestDockerfileGenerator_NvimSection_AppPathMismatch(t *testing.T) {
+	// Setup: Create a temporary staging directory structure
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("failed to get home dir: %v", err)
+	}
+
+	// The ACTUAL staging dir uses the git repo name
+	repoName := "test-git-repo"
+	stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", repoName)
+	nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
+
+	// Create the nvim config directory
+	if err := os.MkdirAll(nvimConfigPath, 0755); err != nil {
+		t.Fatalf("failed to create nvim config dir: %v", err)
+	}
+	defer os.RemoveAll(stagingDir)
+
+	// Create a dummy init.lua
+	initLuaPath := filepath.Join(nvimConfigPath, "init.lua")
+	if err := os.WriteFile(initLuaPath, []byte("-- test config"), 0644); err != nil {
+		t.Fatalf("failed to create init.lua: %v", err)
+	}
+
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{
+		Nvim: models.NvimConfig{
+			Structure: "custom",
+		},
+	}
+
+	// BUG SCENARIO: Pass the app.Path (which is different from staging dir basename)
+	// This is the buggy behavior: app.Path = "/path/to/my-app" but staging uses "test-git-repo"
+	appPath := "/Users/test/apps/my-app" // Different basename than "test-git-repo"
+
+	gen := NewDockerfileGenerator(ws, wsYAML, "python", "3.11", appPath, "")
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// With the bug, the COPY command should NOT be present because the generator
+	// looks for staging dir based on "my-app" but the nvim config is in "test-git-repo"
+	if strings.Contains(dockerfile, "COPY .config/nvim /home/dev/.config/nvim") {
+		t.Errorf("BUG TEST: When appPath doesn't match staging dir, nvim COPY should NOT be found.\nThis test documents the bug - it should fail when appPath != sourcePath")
+	}
+
+	// It should have the skip comment instead
+	if !strings.Contains(dockerfile, "Skipping Neovim configuration") {
+		t.Errorf("Expected 'Skipping Neovim configuration' comment when nvim config not found")
 	}
 }
