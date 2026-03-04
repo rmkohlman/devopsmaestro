@@ -83,6 +83,32 @@ func shouldSkipAutoMigration(cmd *cobra.Command) bool {
 	return false
 }
 
+// commandRequiresDatabase returns true for commands that require database access.
+// These commands will fail fast if database initialization fails.
+func commandRequiresDatabase(cmd *cobra.Command) bool {
+	// Get the full command path (e.g., "package install", "sync", etc.)
+	commandPath := cmd.CommandPath()
+	commandName := cmd.Name()
+
+	// Commands that require database
+	switch {
+	case strings.Contains(commandPath, "package install"):
+		return true
+	case commandName == "install" && cmd.Parent() != nil && cmd.Parent().Name() == "package":
+		return true
+	case commandName == "sync":
+		return true
+	case commandName == "get" && cmd.Parent() != nil && cmd.Parent().Name() == "nvp":
+		// "nvp get" reads from DB if available, but can fall back to file store
+		return false
+	case commandName == "list" && cmd.Parent() != nil && cmd.Parent().Name() == "nvp":
+		// "nvp list" reads from DB if available, but can fall back to file store
+		return false
+	default:
+		return false
+	}
+}
+
 // setupDatabaseConfig configures database settings for nvp
 func setupDatabaseConfig() {
 	// Get home directory
@@ -182,6 +208,16 @@ func init() {
 			// Create DataStore instance
 			dataStore, err := db.CreateDataStore()
 			if err != nil {
+				// Check if this command requires database
+				if commandRequiresDatabase(cmd) {
+					// Fail fast with clear error message
+					slog.Error("Database required but unavailable", "error", err)
+					fmt.Fprintf(os.Stderr, "Error: Database required but unavailable\n")
+					fmt.Fprintf(os.Stderr, "Run 'dvm admin init' to initialize the database, or check ~/.devopsmaestro/devopsmaestro.db exists\n")
+					fmt.Fprintf(os.Stderr, "Details: %v\n", err)
+					os.Exit(1)
+				}
+				// For optional DB commands, just warn and continue
 				slog.Warn("Failed to initialize database (using file-based storage)", "error", err)
 				return // Continue without database - nvp can work with file-based storage
 			}

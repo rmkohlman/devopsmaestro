@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"devopsmaestro/models"
+	"devopsmaestro/pkg/nvimops/plugin"
 )
 
 func TestDockerfileGenerator_GenerateBaseStage_Python(t *testing.T) {
@@ -638,5 +639,155 @@ func TestDockerfileGenerator_NvimSection_AppPathMismatch(t *testing.T) {
 	// It should have the skip comment instead
 	if !strings.Contains(dockerfile, "Skipping Neovim configuration") {
 		t.Errorf("Expected 'Skipping Neovim configuration' comment when nvim config not found")
+	}
+}
+
+// TestDockerfileGenerator_PluginManifest tests conditional Mason/Treesitter pre-install
+func TestDockerfileGenerator_PluginManifest(t *testing.T) {
+	// Import needed for manifest
+	// "devopsmaestro/pkg/nvimops/plugin"
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("failed to get home dir: %v", err)
+	}
+
+	// Create staging directory
+	stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", "test-manifest")
+	nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
+	if err := os.MkdirAll(nvimConfigPath, 0755); err != nil {
+		t.Fatalf("failed to create nvim config dir: %v", err)
+	}
+	defer os.RemoveAll(stagingDir)
+
+	// Create init.lua so nvim config is detected
+	initLuaPath := filepath.Join(nvimConfigPath, "init.lua")
+	if err := os.WriteFile(initLuaPath, []byte("-- test"), 0644); err != nil {
+		t.Fatalf("failed to create init.lua: %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		manifest  *plugin.PluginManifest
+		wantMason string
+		noMason   string
+		wantTS    string
+		noTS      string
+	}{
+		{
+			name: "with Mason and Treesitter",
+			manifest: &plugin.PluginManifest{
+				Features: plugin.PluginFeatures{
+					HasMason:      true,
+					HasTreesitter: true,
+				},
+			},
+			wantMason: "RUN nvim --headless -c \"MasonInstall",
+			noMason:   "Mason not installed - skipping LSP pre-install",
+			wantTS:    "RUN nvim --headless -c \"TSInstall!",
+			noTS:      "Treesitter not installed - skipping parser pre-install",
+		},
+		{
+			name: "without Mason or Treesitter",
+			manifest: &plugin.PluginManifest{
+				Features: plugin.PluginFeatures{
+					HasMason:      false,
+					HasTreesitter: false,
+				},
+			},
+			wantMason: "Mason not installed - skipping LSP pre-install",
+			noMason:   "RUN nvim --headless -c \"MasonInstall",
+			wantTS:    "Treesitter not installed - skipping parser pre-install",
+			noTS:      "RUN nvim --headless -c \"TSInstall!",
+		},
+		{
+			name: "with Mason only",
+			manifest: &plugin.PluginManifest{
+				Features: plugin.PluginFeatures{
+					HasMason:      true,
+					HasTreesitter: false,
+				},
+			},
+			wantMason: "RUN nvim --headless -c \"MasonInstall",
+			noMason:   "Mason not installed - skipping LSP pre-install",
+			wantTS:    "Treesitter not installed - skipping parser pre-install",
+			noTS:      "RUN nvim --headless -c \"TSInstall!",
+		},
+		{
+			name: "with Treesitter only",
+			manifest: &plugin.PluginManifest{
+				Features: plugin.PluginFeatures{
+					HasMason:      false,
+					HasTreesitter: true,
+				},
+			},
+			wantMason: "Mason not installed - skipping LSP pre-install",
+			noMason:   "RUN nvim --headless -c \"MasonInstall",
+			wantTS:    "RUN nvim --headless -c \"TSInstall!",
+			noTS:      "Treesitter not installed - skipping parser pre-install",
+		},
+		{
+			name:      "nil manifest (backward compatibility)",
+			manifest:  nil,
+			wantMason: "RUN nvim --headless -c \"MasonInstall",
+			noMason:   "",
+			wantTS:    "RUN nvim --headless -c \"TSInstall!",
+			noTS:      "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws := &models.Workspace{
+				ID:        1,
+				Name:      "test-ws",
+				ImageName: "test:latest",
+			}
+			wsYAML := models.WorkspaceSpec{
+				Nvim: models.NvimConfig{
+					Structure: "custom",
+				},
+			}
+
+			gen := NewDockerfileGenerator(ws, wsYAML, "python", "3.11", stagingDir, "")
+
+			// Set manifest if provided
+			if tt.manifest != nil {
+				gen.SetPluginManifest(tt.manifest)
+			}
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			// Check Mason expectations
+			if tt.wantMason != "" && !strings.Contains(dockerfile, tt.wantMason) {
+				t.Errorf("Missing expected Mason content: %q", tt.wantMason)
+			}
+			if tt.noMason != "" && strings.Contains(dockerfile, tt.noMason) {
+				t.Errorf("Unexpected Mason content found: %q", tt.noMason)
+			}
+
+			// Check Treesitter expectations
+			if tt.wantTS != "" && !strings.Contains(dockerfile, tt.wantTS) {
+				t.Errorf("Missing expected Treesitter content: %q", tt.wantTS)
+			}
+			if tt.noTS != "" && strings.Contains(dockerfile, tt.noTS) {
+				t.Errorf("Unexpected Treesitter content found: %q", tt.noTS)
+			}
+
+			// Ensure no "|| true" fallback on Mason/Treesitter commands (should fail fast)
+			// Check line-by-line to avoid false positives from user creation commands
+			lines := strings.Split(dockerfile, "\n")
+			for _, line := range lines {
+				if strings.Contains(line, "MasonInstall") && strings.Contains(line, "|| true") {
+					t.Errorf("MasonInstall should not use '|| true' fallback: %s", line)
+				}
+				if strings.Contains(line, "TSInstall") && strings.Contains(line, "|| true") {
+					t.Errorf("TSInstall should not use '|| true' fallback: %s", line)
+				}
+			}
+		})
 	}
 }

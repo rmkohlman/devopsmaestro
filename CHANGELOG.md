@@ -11,6 +11,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.32.4] - 2026-03-04
+
+### 🐛 Fixed
+
+#### Build Fallback for Unconfigured Workspaces
+- **Core package fallback** - When building a workspace with no plugins configured and empty database, now falls back to embedded core package
+  - Ensures Mason LSPs and Treesitter parsers can be pre-installed at build time
+  - Includes essential plugins: treesitter, telescope, lspconfig, mason, mason-lspconfig
+  - Prevents build failures when workspace has minimal nvim configuration
+  - Files changed: `cmd/build.go`
+
+#### nvp Database Error Handling
+- **Fail-fast database check** - `nvp package install` now shows clear error when database not initialized
+  - Replaced confusing "dataStore not found in context" error
+  - Added command-aware database requirement check
+  - Error message guides user to run `dvm admin init`
+  - Improves first-run user experience
+  - Files changed: `cmd/nvp/root.go`
+
+#### CLI Command Alias Conflict
+- **Removed 'app' alias from getAppsCmd** - Fixed singular/plural command routing conflict
+  - `dvm get app <name>` now correctly returns single app instead of all apps
+  - Cobra command routing issue: both `getAppsCmd` (plural) and `getAppCmd` (singular) had "app" alias
+  - Removed "app" alias from `getAppsCmd` to resolve conflict
+  - Singular command `getAppCmd` retains "app" alias for intuitive usage
+  - Files changed: `cmd/app.go`
+
+### ✨ Added
+
+#### Git Branch Selection for Workspaces
+- **`--branch` flag for workspace creation** - Specify git branch to checkout when creating workspace
+  - New flag: `dvm create workspace <name> --repo <repo-name> --branch <branch-name>`
+  - Defaults to GitRepo's DefaultRef if not specified
+  - Validates that --branch requires --repo (cannot use with local-only workspaces)
+  - Example: `dvm create workspace feature-x --repo my-repo --branch feature/new-api`
+  - Enables feature branch workflows and version-specific development environments
+  - Files changed: `cmd/create.go`
+
+### 📦 Files Changed
+
+#### Modified Files
+```
+cmd/build.go                  # Core package fallback logic
+cmd/nvp/root.go               # Database requirement validation
+cmd/nvp/root_test.go          # Test coverage for database check
+cmd/app.go                    # Removed alias conflict
+cmd/aliases_test.go           # Updated test expectations
+cmd/create.go                 # Added --branch flag support
+```
+
+---
+
 ## [0.32.3] - 2026-03-04
 
 ### ✨ Added

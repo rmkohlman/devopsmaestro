@@ -11,6 +11,8 @@ import (
 	"devopsmaestro/pkg/resource"
 	"devopsmaestro/pkg/resource/handlers"
 	"devopsmaestro/pkg/source"
+
+	"github.com/spf13/cobra"
 )
 
 // Note: handlers.RegisterAll() is called in the main package's init(),
@@ -289,5 +291,72 @@ func TestGetConfigDir(t *testing.T) {
 	expected := filepath.Join(home, ".nvp")
 	if dir != expected {
 		t.Errorf("expected %s, got %s", expected, dir)
+	}
+}
+
+// Test commandRequiresDatabase identifies commands correctly
+func TestCommandRequiresDatabase(t *testing.T) {
+	tests := []struct {
+		name        string
+		cmd         *cobra.Command
+		parent      *cobra.Command
+		wantRequire bool
+	}{
+		{
+			name:        "package install requires DB",
+			cmd:         &cobra.Command{Use: "install"},
+			parent:      &cobra.Command{Use: "package"},
+			wantRequire: true,
+		},
+		{
+			name:        "sync requires DB",
+			cmd:         &cobra.Command{Use: "sync"},
+			parent:      &cobra.Command{Use: "nvp"},
+			wantRequire: true,
+		},
+		{
+			name:        "get does not require DB (file store fallback)",
+			cmd:         &cobra.Command{Use: "get"},
+			parent:      &cobra.Command{Use: "nvp"},
+			wantRequire: false,
+		},
+		{
+			name:        "list does not require DB (file store fallback)",
+			cmd:         &cobra.Command{Use: "list"},
+			parent:      &cobra.Command{Use: "nvp"},
+			wantRequire: false,
+		},
+		{
+			name:        "version does not require DB",
+			cmd:         &cobra.Command{Use: "version"},
+			parent:      &cobra.Command{Use: "nvp"},
+			wantRequire: false,
+		},
+		{
+			name:        "generate does not require DB",
+			cmd:         &cobra.Command{Use: "generate"},
+			parent:      &cobra.Command{Use: "nvp"},
+			wantRequire: false,
+		},
+		{
+			name:        "library install does not require DB",
+			cmd:         &cobra.Command{Use: "install"},
+			parent:      &cobra.Command{Use: "library"},
+			wantRequire: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set up parent relationship
+			if tt.parent != nil {
+				tt.parent.AddCommand(tt.cmd)
+			}
+
+			got := commandRequiresDatabase(tt.cmd)
+			if got != tt.wantRequire {
+				t.Errorf("commandRequiresDatabase() = %v, want %v", got, tt.wantRequire)
+			}
+		})
 	}
 }

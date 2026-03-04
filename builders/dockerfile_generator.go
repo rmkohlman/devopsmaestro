@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"devopsmaestro/models"
+	"devopsmaestro/pkg/nvimops/plugin"
 	"devopsmaestro/utils"
 )
 
@@ -18,6 +19,7 @@ type DockerfileGenerator struct {
 	version        string
 	appPath        string
 	baseDockerfile string
+	pluginManifest *plugin.PluginManifest
 }
 
 // NewDockerfileGenerator creates a new Dockerfile generator
@@ -30,6 +32,12 @@ func NewDockerfileGenerator(ws *models.Workspace, wsYAML models.WorkspaceSpec, l
 		appPath:        appPath,
 		baseDockerfile: baseDockerfile,
 	}
+}
+
+// SetPluginManifest sets the plugin manifest for conditional feature detection.
+// This should be called before Generate() to enable plugin-aware Dockerfile generation.
+func (g *DockerfileGenerator) SetPluginManifest(manifest *plugin.PluginManifest) {
+	g.pluginManifest = manifest
 }
 
 // Generate creates a Dockerfile.dvm with dev stage
@@ -602,6 +610,12 @@ func (g *DockerfileGenerator) getMasonLSPsForLanguage() []string {
 
 // installMasonLSPs installs language servers via Mason at build time
 func (g *DockerfileGenerator) installMasonLSPs(dockerfile *strings.Builder) {
+	// Check if Mason is installed via manifest
+	if g.pluginManifest != nil && !g.pluginManifest.Features.HasMason {
+		dockerfile.WriteString("# Mason not installed - skipping LSP pre-install\n\n")
+		return
+	}
+
 	lsps := g.getMasonLSPsForLanguage()
 	if len(lsps) == 0 {
 		return
@@ -610,7 +624,7 @@ func (g *DockerfileGenerator) installMasonLSPs(dockerfile *strings.Builder) {
 	dockerfile.WriteString("# Install LSPs via Mason at build time\n")
 	// Install all LSPs in a single nvim command for efficiency
 	lspList := strings.Join(lsps, " ")
-	dockerfile.WriteString(fmt.Sprintf("RUN nvim --headless -c \"MasonInstall %s\" -c \"qa\" 2>&1 | tee /tmp/mason-install.log || true\n\n", lspList))
+	dockerfile.WriteString(fmt.Sprintf("RUN nvim --headless -c \"MasonInstall %s\" -c \"qa\" 2>&1 | tee /tmp/mason-install.log\n\n", lspList))
 }
 
 // getTreesitterParsersForLanguage returns Treesitter parsers for the detected language
@@ -640,6 +654,12 @@ func (g *DockerfileGenerator) getTreesitterParsersForLanguage() []string {
 
 // installTreesitterParsers installs Treesitter parsers at build time
 func (g *DockerfileGenerator) installTreesitterParsers(dockerfile *strings.Builder) {
+	// Check if Treesitter is installed via manifest
+	if g.pluginManifest != nil && !g.pluginManifest.Features.HasTreesitter {
+		dockerfile.WriteString("# Treesitter not installed - skipping parser pre-install\n\n")
+		return
+	}
+
 	parsers := g.getTreesitterParsersForLanguage()
 	if len(parsers) == 0 {
 		return
@@ -648,7 +668,7 @@ func (g *DockerfileGenerator) installTreesitterParsers(dockerfile *strings.Build
 	dockerfile.WriteString("# Install Treesitter parsers at build time\n")
 	// TSInstall can install multiple parsers at once
 	parserList := strings.Join(parsers, " ")
-	dockerfile.WriteString(fmt.Sprintf("RUN nvim --headless -c \"TSInstall! %s\" -c \"qa\" 2>&1 | tee /tmp/ts-install.log || true\n\n", parserList))
+	dockerfile.WriteString(fmt.Sprintf("RUN nvim --headless -c \"TSInstall! %s\" -c \"qa\" 2>&1 | tee /tmp/ts-install.log\n\n", parserList))
 }
 
 // installNvimConfig adds commands to install and configure Neovim with the full setup

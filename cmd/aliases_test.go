@@ -15,7 +15,7 @@ func TestResourceAliases(t *testing.T) {
 		expected []string
 	}{
 		// Get command aliases (Apps replaced Projects)
-		{"get apps", getAppsCmd, []string{"app", "application", "applications"}},
+		{"get apps", getAppsCmd, []string{"application", "applications"}},
 		{"get app", getAppCmd, []string{"application"}},
 		{"get workspaces", getWorkspacesCmd, []string{"ws"}},
 		{"get workspace", getWorkspaceCmd, []string{"ws"}},
@@ -85,7 +85,7 @@ func TestAliasReference(t *testing.T) {
 	// Format: full name → alias
 	// NOTE: Apps replaced Projects in the migration
 	aliases := map[string]string{
-		"apps":       "app, application, applications",
+		"apps":       "application, applications",
 		"app":        "application",
 		"workspaces": "ws",
 		"workspace":  "ws",
@@ -113,7 +113,7 @@ func TestAliasCommandExecution(t *testing.T) {
 		parent *cobra.Command
 		alias  string
 	}{
-		{getCmd, "app"},
+		{getCmd, "application"}, // Changed from "app" - "app" is now only for getAppCmd (singular)
 		{getCmd, "ws"},
 		{getCmd, "ctx"},
 		{getCmd, "plat"},

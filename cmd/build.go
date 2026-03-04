@@ -307,10 +307,13 @@ func buildWorkspace(cmd *cobra.Command) error {
 	}
 
 	// Step 5b: Generate nvim config BEFORE Dockerfile (so Dockerfile generator can see .config/nvim/)
+	var pluginManifest *plugin.PluginManifest
 	if workspaceYAML.Spec.Nvim.Structure != "" && workspaceYAML.Spec.Nvim.Structure != "none" {
-		if err := generateNvimConfig(workspaceYAML.Spec.Nvim.Plugins, stagingDir, homeDir, sqlDS, app, workspace, appName, workspaceName); err != nil {
+		manifest, err := generateNvimConfig(workspaceYAML.Spec.Nvim.Plugins, stagingDir, homeDir, sqlDS, app, workspace, appName, workspaceName)
+		if err != nil {
 			return err
 		}
+		pluginManifest = manifest
 	}
 
 	// Step 6: Generate Dockerfile (after nvim config so it can detect .config/nvim/)
@@ -325,6 +328,11 @@ func buildWorkspace(cmd *cobra.Command) error {
 		sourcePath, // Use sourcePath (not app.Path) so nvim config staging dir is found correctly (Issue #18)
 		dockerfilePath,
 	)
+
+	// Set plugin manifest for conditional feature detection
+	if pluginManifest != nil {
+		generator.SetPluginManifest(pluginManifest)
+	}
 
 	dockerfileContent, err := generator.Generate()
 	if err != nil {
@@ -563,12 +571,13 @@ func prepareStagingDirectory(stagingDir, appPath, appName, workspaceName string,
 // generateNvimConfig generates nvim configuration and copies to staging directory.
 // It filters plugins based on the workspace's configured plugin list.
 // Reads plugin data from the database (source of truth).
-func generateNvimConfig(workspacePlugins []string, stagingDir, homeDir string, ds db.DataStore, app *models.App, workspace *models.Workspace, appName, workspaceName string) error {
+// Returns a PluginManifest for use by Dockerfile generator.
+func generateNvimConfig(workspacePlugins []string, stagingDir, homeDir string, ds db.DataStore, app *models.App, workspace *models.Workspace, appName, workspaceName string) (*plugin.PluginManifest, error) {
 	render.Progress("Generating Neovim configuration...")
 
 	nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
 	if err := os.MkdirAll(nvimConfigPath, 0755); err != nil {
-		return fmt.Errorf("failed to create nvim config directory: %w", err)
+		return nil, fmt.Errorf("failed to create nvim config directory: %w", err)
 	}
 
 	// Load core config from ~/.nvp/core.yaml or use defaults
@@ -679,6 +688,19 @@ func generateNvimConfig(workspacePlugins []string, stagingDir, homeDir string, d
 			}
 			slog.Debug("no default package or resolution failed, using all enabled plugins", "count", len(enabledPlugins))
 		}
+
+		// Final fallback: if still no plugins, load "core" package from embedded library
+		// This ensures essential plugins (treesitter, mason/lspconfig, telescope) are always available
+		if len(enabledPlugins) == 0 && pluginLibrary != nil {
+			corePluginNames := []string{"treesitter", "telescope", "which-key", "lspconfig", "nvim-cmp", "gitsigns"}
+			for _, pluginName := range corePluginNames {
+				if libPlugin, found := pluginLibrary.Get(pluginName); found {
+					enabledPlugins = append(enabledPlugins, libPlugin)
+				}
+			}
+			slog.Info("no plugins configured, using embedded core package", "count", len(enabledPlugins))
+			render.Info("No plugins configured - using default core package (treesitter, telescope, lsp, etc.)")
+		}
 	}
 
 	slog.Debug("loaded nvp config", "plugins", len(enabledPlugins), "core_config", coreConfigPath)
@@ -686,8 +708,11 @@ func generateNvimConfig(workspacePlugins []string, stagingDir, homeDir string, d
 	// Generate the full nvim config structure
 	gen := nvimconfig.NewGenerator()
 	if err := gen.WriteToDirectory(cfg, enabledPlugins, nvimConfigPath); err != nil {
-		return fmt.Errorf("failed to generate nvim config: %w", err)
+		return nil, fmt.Errorf("failed to generate nvim config: %w", err)
 	}
+
+	// Create plugin manifest for Dockerfile generator
+	manifest := plugin.ResolveManifest(enabledPlugins)
 
 	// Generate theme from hierarchy (not global ~/.nvp/active-theme)
 	themeStore := theme.NewFileStore(nvpDir)
@@ -738,7 +763,7 @@ func generateNvimConfig(workspacePlugins []string, stagingDir, homeDir string, d
 
 	render.Success(fmt.Sprintf("Neovim configuration generated (%d plugins)", len(enabledPlugins)))
 
-	return nil
+	return manifest, nil
 }
 
 // copyImageToNamespace copies the built image from buildkit namespace to devopsmaestro namespace

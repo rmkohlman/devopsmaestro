@@ -4,6 +4,17 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.32.4 (2026-03-04)
+
+**🐛 Bug Fixes & Features**
+
+Critical fixes for workspace builds, database errors, and CLI routing:
+
+- **Build fallback** - Workspaces with no plugins configured now fall back to embedded core package (treesitter, telescope, lspconfig, mason)
+- **nvp error handling** - `nvp package install` shows clear error when database not initialized (guides user to run `dvm admin init`)
+- **CLI routing** - Fixed `dvm get app <name>` to return single app (removed alias conflict)
+- **Branch selection** - New `--branch` flag for `dvm create workspace --repo <name> --branch <branch>` enables feature branch workflows
+
 ### v0.32.3 (2026-03-04)
 
 **✨ Build Optimization**

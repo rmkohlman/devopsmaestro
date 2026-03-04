@@ -220,7 +220,7 @@ Next Steps:
 // getAppsCmd lists all apps
 var getAppsCmd = &cobra.Command{
 	Use:     "apps",
-	Aliases: []string{"app", "application", "applications"},
+	Aliases: []string{"application", "applications"},
 	Short:   "List all apps",
 	Long: `List all apps, optionally filtered by domain.
 

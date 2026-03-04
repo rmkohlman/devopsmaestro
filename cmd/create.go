@@ -35,6 +35,7 @@ var (
 	workspaceDescription string
 	workspaceImage       string
 	workspaceRepo        string
+	workspaceBranch      string
 )
 
 // createWorkspaceCmd creates a new workspace in the current app
@@ -59,6 +60,9 @@ Examples:
   dvm create workspace feature-x --repo my-repo
   dvm create workspace feature-x --app myapp --repo my-repo
   
+  # Clone from a GitRepo mirror on a specific branch
+  dvm create workspace feature-x --repo my-repo --branch feature/new-api
+  
   # Create with description
   dvm create workspace feature-auth --description "Auth feature branch"
   
@@ -76,6 +80,13 @@ Examples:
 		// Get app from flag or context
 		appFlag, _ := cmd.Flags().GetString("app")
 		repoFlag, _ := cmd.Flags().GetString("repo")
+
+		// Validate --branch requires --repo
+		if workspaceBranch != "" && repoFlag == "" {
+			render.Error("--branch requires --repo to be specified")
+			render.Info("Hint: Specify a GitRepo: --repo <repo-name>")
+			return nil
+		}
 
 		contextMgr, err := operators.NewContextManager()
 		if err != nil {
@@ -137,6 +148,17 @@ Examples:
 			render.Info(fmt.Sprintf("Inheriting GitRepo '%s' from app", gitRepo.Name))
 		}
 
+		// Determine branch to checkout
+		branchToCheckout := ""
+		if gitRepo != nil {
+			if workspaceBranch != "" {
+				branchToCheckout = workspaceBranch
+				// TODO: Validate branch exists in mirror
+			} else {
+				branchToCheckout = gitRepo.DefaultRef
+			}
+		}
+
 		render.Progress(fmt.Sprintf("Creating workspace '%s' in app '%s'...", workspaceName, appName))
 
 		// Create workspace
@@ -181,7 +203,7 @@ Examples:
 				}
 
 				// Clone from local mirror to workspace
-				if err := mirrorMgr.CloneToWorkspace(gitRepo.Slug, repoPath, gitRepo.DefaultRef); err != nil {
+				if err := mirrorMgr.CloneToWorkspace(gitRepo.Slug, repoPath, branchToCheckout); err != nil {
 					render.Error(fmt.Sprintf("Failed to clone to workspace: %v", err))
 					render.Info("Workspace created, but repository clone failed")
 					return nil
@@ -363,6 +385,7 @@ func init() {
 	createWorkspaceCmd.Flags().StringVar(&workspaceImage, "image", "", "Custom image name (default: dvm-<workspace>-<app>:<timestamp>)")
 	createWorkspaceCmd.Flags().StringP("app", "a", "", "App name (defaults to active app)")
 	createWorkspaceCmd.Flags().StringVar(&workspaceRepo, "repo", "", "GitRepo to clone into workspace (see: dvm get gitrepos)")
+	createWorkspaceCmd.Flags().StringVar(&workspaceBranch, "branch", "", "Git branch to checkout (default: repo's DefaultRef)")
 
 	// Registry command
 	createCmd.AddCommand(createRegistryCmd)
