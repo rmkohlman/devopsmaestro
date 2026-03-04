@@ -568,7 +568,87 @@ func (g *DockerfileGenerator) generateNvimSection(dockerfile *strings.Builder) {
 	dockerfile.WriteString("# Bootstrap lazy.nvim and install plugins\n")
 	dockerfile.WriteString("RUN nvim --headless \"+Lazy! sync\" +qa 2>&1 | tee /tmp/nvim-install.log || \\\n")
 	dockerfile.WriteString("    (cat /tmp/nvim-install.log && exit 1)\n\n")
+
+	// Install Treesitter parsers at build time (reduces first-attach startup time)
+	g.installTreesitterParsers(dockerfile)
+
+	// Install Mason LSPs at build time (reduces first-attach startup time)
+	g.installMasonLSPs(dockerfile)
+
 	dockerfile.WriteString("USER root\n\n")
+}
+
+// getMasonLSPsForLanguage returns the Mason LSP package names for the detected language
+func (g *DockerfileGenerator) getMasonLSPsForLanguage() []string {
+	switch g.language {
+	case "python":
+		return []string{"pyright", "ruff-lsp", "black", "isort"}
+	case "golang":
+		return []string{"gopls", "golangci-lint-langserver"}
+	case "nodejs":
+		return []string{"typescript-language-server", "eslint-lsp", "prettier"}
+	case "rust":
+		return []string{"rust-analyzer"}
+	case "ruby":
+		return []string{"solargraph"}
+	case "java":
+		return []string{"jdtls"}
+	case "gleam":
+		return []string{"gleam"} // Gleam LSP is installed via Mason
+	default:
+		return []string{}
+	}
+}
+
+// installMasonLSPs installs language servers via Mason at build time
+func (g *DockerfileGenerator) installMasonLSPs(dockerfile *strings.Builder) {
+	lsps := g.getMasonLSPsForLanguage()
+	if len(lsps) == 0 {
+		return
+	}
+
+	dockerfile.WriteString("# Install LSPs via Mason at build time\n")
+	// Install all LSPs in a single nvim command for efficiency
+	lspList := strings.Join(lsps, " ")
+	dockerfile.WriteString(fmt.Sprintf("RUN nvim --headless -c \"MasonInstall %s\" -c \"qa\" 2>&1 | tee /tmp/mason-install.log || true\n\n", lspList))
+}
+
+// getTreesitterParsersForLanguage returns Treesitter parsers for the detected language
+func (g *DockerfileGenerator) getTreesitterParsersForLanguage() []string {
+	// Base parsers always included for a good editing experience
+	base := []string{"lua", "vim", "vimdoc", "query", "markdown", "markdown_inline", "bash", "json", "yaml"}
+
+	switch g.language {
+	case "python":
+		return append(base, "python", "toml", "dockerfile", "gitignore")
+	case "golang":
+		return append(base, "go", "gomod", "gosum", "gowork", "dockerfile", "gitignore")
+	case "nodejs":
+		return append(base, "javascript", "typescript", "tsx", "html", "css", "dockerfile", "gitignore")
+	case "rust":
+		return append(base, "rust", "toml", "dockerfile", "gitignore")
+	case "ruby":
+		return append(base, "ruby", "dockerfile", "gitignore")
+	case "java":
+		return append(base, "java", "xml", "dockerfile", "gitignore")
+	case "gleam":
+		return append(base, "gleam", "erlang", "elixir", "toml", "dockerfile", "gitignore")
+	default:
+		return base
+	}
+}
+
+// installTreesitterParsers installs Treesitter parsers at build time
+func (g *DockerfileGenerator) installTreesitterParsers(dockerfile *strings.Builder) {
+	parsers := g.getTreesitterParsersForLanguage()
+	if len(parsers) == 0 {
+		return
+	}
+
+	dockerfile.WriteString("# Install Treesitter parsers at build time\n")
+	// TSInstall can install multiple parsers at once
+	parserList := strings.Join(parsers, " ")
+	dockerfile.WriteString(fmt.Sprintf("RUN nvim --headless -c \"TSInstall! %s\" -c \"qa\" 2>&1 | tee /tmp/ts-install.log || true\n\n", parserList))
 }
 
 // installNvimConfig adds commands to install and configure Neovim with the full setup
