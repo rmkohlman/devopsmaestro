@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"devopsmaestro/operators"
 )
@@ -46,6 +47,7 @@ func NewDockerBuilder(cfg BuilderConfig) (*DockerBuilder, error) {
 }
 
 // Build builds the container image using Docker CLI.
+// Includes a watchdog to handle Docker buildx hang issue on Colima.
 func (b *DockerBuilder) Build(ctx context.Context, opts BuildOptions) error {
 	fmt.Printf("Building image: %s\n", b.imageName)
 	fmt.Printf("Using Docker CLI (%s)\n", b.platform.Name)
@@ -108,19 +110,75 @@ func (b *DockerBuilder) Build(ctx context.Context, opts BuildOptions) error {
 
 	fmt.Printf("Command: docker %s\n\n", strings.Join(args, " "))
 
+	// Create a cancellable context for the docker build
+	// This allows us to kill the process when the watchdog detects the image
+	buildCtx, cancelBuild := context.WithCancel(ctx)
+	defer cancelBuild()
+
 	// Execute docker build
-	cmd := exec.CommandContext(ctx, "docker", args...)
+	cmd := exec.CommandContext(buildCtx, "docker", args...)
 	cmd.Dir = b.appPath
 	cmd.Env = append(os.Environ(), "DOCKER_HOST=unix://"+b.platform.SocketPath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to build image: %w", err)
-	}
+	// Channel to receive build result
+	buildDone := make(chan error, 1)
 
-	fmt.Printf("\n✓ Image built successfully: %s\n", b.imageName)
-	return nil
+	// Start the build in a goroutine
+	go func() {
+		buildDone <- cmd.Run()
+	}()
+
+	// Watchdog: poll for image existence every 2 seconds
+	// This handles the Docker buildx + Colima hang where the build completes
+	// but the process doesn't exit
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	// Overall timeout of 30 minutes for the build
+	timeout := time.NewTimer(30 * time.Minute)
+	defer timeout.Stop()
+
+	for {
+		select {
+		case err := <-buildDone:
+			// Build completed normally
+			if err != nil {
+				// Check if we cancelled it (which is success)
+				if buildCtx.Err() == context.Canceled {
+					fmt.Printf("\n✓ Image built successfully: %s\n", b.imageName)
+					return nil
+				}
+				return fmt.Errorf("failed to build image: %w", err)
+			}
+			fmt.Printf("\n✓ Image built successfully: %s\n", b.imageName)
+			return nil
+
+		case <-ticker.C:
+			// Check if the image exists (build completed but process hung)
+			exists, err := b.ImageExists(ctx)
+			if err == nil && exists {
+				fmt.Printf("\n[watchdog] Image detected, terminating hung build process...\n")
+				cancelBuild() // Kill the hung docker process
+				// Wait briefly for process cleanup
+				select {
+				case <-buildDone:
+				case <-time.After(5 * time.Second):
+				}
+				fmt.Printf("✓ Image built successfully: %s\n", b.imageName)
+				return nil
+			}
+
+		case <-timeout.C:
+			cancelBuild()
+			return fmt.Errorf("build timed out after 30 minutes")
+
+		case <-ctx.Done():
+			cancelBuild()
+			return ctx.Err()
+		}
+	}
 }
 
 // ImageExists checks if an image already exists using docker CLI.

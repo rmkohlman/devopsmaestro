@@ -11,6 +11,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.32.0] - 2026-03-04
+
+### ✨ Added
+
+#### `--repo` Flag for App Creation
+- **`dvm create app --repo`** - Streamlined GitRepo-backed app creation
+  - Accepts GitRepo URL: `dvm create app my-app --repo https://github.com/user/repo.git`
+  - Accepts existing GitRepo name: `dvm create app my-app --repo my-existing-repo`
+  - Automatically creates GitRepo resource when given a URL
+  - Detects existing GitRepos by URL to avoid duplicates
+  - Mutually exclusive with `--path` and `--from-cwd` flags
+  - Files changed: `cmd/app.go`, `cmd/create_app_repo_test.go`
+
+### 🐛 Fixed
+
+#### Docker Build Hang on Colima
+- **`dvm build` hang fix** - Fixed Docker buildx + Colima hang where build completes but process doesn't exit
+  - Added watchdog mechanism that polls for image existence during build
+  - When image is detected but docker process is hung, cancels context to terminate
+  - Starts docker build in goroutine to allow parallel monitoring
+  - 30-minute overall timeout as fallback protection
+  - Enables reliable builds on Colima with Docker runtime (non-containerd)
+  - Files changed: `builders/docker_builder.go`
+
+---
+
 ## [0.31.0] - 2026-03-03
 
 ### ✨ Added

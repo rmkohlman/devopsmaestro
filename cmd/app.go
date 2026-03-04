@@ -1,13 +1,17 @@
 package cmd
 
 import (
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	themeresolver "devopsmaestro/pkg/colors/resolver"
+	"devopsmaestro/pkg/mirror"
 	"devopsmaestro/pkg/resource"
 	"devopsmaestro/pkg/resource/handlers"
 	"devopsmaestro/render"
@@ -20,6 +24,7 @@ var (
 	appDomain      string
 	appPath        string
 	appFromCwd     bool
+	appRepo        string
 )
 
 // createAppCmd creates a new app
@@ -30,7 +35,11 @@ var createAppCmd = &cobra.Command{
 	Long: `Create a new app within a domain.
 
 An app represents a codebase/application: Ecosystem -> Domain -> App -> Workspace.
-Apps have a path to source code and can run in dev mode (Workspace) or live mode (Operator).
+
+Source Location (choose one):
+  --from-cwd          Use current directory as source
+  --path <path>       Use local filesystem path
+  --repo <url|name>   Use git repository (URL or GitRepo name)
 
 Examples:
   # Create an app from the current directory
@@ -42,8 +51,20 @@ Examples:
   # Create an app in a specific domain
   dvm create app my-api --from-cwd --domain backend
   
+  # Create from git URL (auto-creates GitRepo)
+  dvm create app golang-app --repo https://github.com/rmkohlman/dvm-test-golang.git
+  
+  # Create using existing GitRepo
+  dvm create app golang-app --repo my-gitrepo
+  
   # Create with description
-  dvm create app my-api --from-cwd --description "REST API service"`,
+  dvm create app my-api --from-cwd --description "REST API service"
+
+Next Steps:
+  1. Create a workspace for this app:
+     dvm create workspace main
+  2. Build and attach:
+     dvm build && dvm attach`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		appName := args[0]
@@ -58,6 +79,30 @@ Examples:
 			return err
 		}
 
+		// Count how many source flags are set
+		flagsSet := 0
+		if appFromCwd {
+			flagsSet++
+		}
+		if appPath != "" {
+			flagsSet++
+		}
+		if appRepo != "" {
+			flagsSet++
+		}
+
+		// Validate mutually exclusive flags
+		if flagsSet == 0 {
+			return fmt.Errorf("must specify one of: --from-cwd, --path, or --repo")
+		}
+		if flagsSet > 1 {
+			return fmt.Errorf("flags --from-cwd, --path, and --repo are mutually exclusive")
+		}
+
+		// Variables to track GitRepo if using --repo
+		var gitRepoID *int
+		var gitRepoName string
+
 		// Determine app path
 		var path string
 		if appFromCwd {
@@ -65,19 +110,25 @@ Examples:
 			if err != nil {
 				return fmt.Errorf("failed to get current directory: %w", err)
 			}
+			// Verify path exists
+			if _, err := os.Stat(path); os.IsNotExist(err) {
+				return fmt.Errorf("path does not exist: %s", path)
+			}
 		} else if appPath != "" {
 			path, err = filepath.Abs(appPath)
 			if err != nil {
 				return fmt.Errorf("invalid path: %w", err)
 			}
-		} else {
-			render.Error("Must specify either --from-cwd or --path")
-			return nil
-		}
-
-		// Verify path exists
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			return fmt.Errorf("path does not exist: %s", path)
+			// Verify path exists
+			if _, err := os.Stat(path); os.IsNotExist(err) {
+				return fmt.Errorf("path does not exist: %s", path)
+			}
+		} else if appRepo != "" {
+			// Handle --repo flag: either URL or existing GitRepo name
+			gitRepoID, gitRepoName, path, err = resolveOrCreateGitRepo(ds, appRepo)
+			if err != nil {
+				return err
+			}
 		}
 
 		// Get domain - from flag or active context
@@ -110,7 +161,7 @@ Examples:
 			ecosystemName = ecosystem.Name
 		}
 
-		render.Progress(fmt.Sprintf("Creating app '%s' in domain '%s' at %s...", appName, domain.Name, path))
+		render.Progress(fmt.Sprintf("Creating app '%s' in domain '%s'...", appName, domain.Name))
 
 		// Check if app already exists
 		existing, _ := ds.GetAppByName(domain.ID, appName)
@@ -120,6 +171,11 @@ Examples:
 
 		// Create app using handler helper
 		app := handlers.NewAppFromModel(appName, domain.ID, path, appDescription)
+
+		// Link GitRepo if using --repo
+		if gitRepoID != nil {
+			app.GitRepoID = sql.NullInt64{Int64: int64(*gitRepoID), Valid: true}
+		}
 
 		if err := ds.CreateApp(app); err != nil {
 			return fmt.Errorf("failed to create app: %w", err)
@@ -134,7 +190,11 @@ Examples:
 		render.Success(fmt.Sprintf("App '%s' created successfully (ID: %d)", appName, createdApp.ID))
 		render.Info(fmt.Sprintf("Ecosystem: %s", ecosystemName))
 		render.Info(fmt.Sprintf("Domain: %s", domain.Name))
-		render.Info(fmt.Sprintf("Path: %s", path))
+		if gitRepoName != "" {
+			render.Info(fmt.Sprintf("GitRepo: %s", gitRepoName))
+		} else {
+			render.Info(fmt.Sprintf("Path: %s", path))
+		}
 
 		// Set app as active context
 		if err := ds.SetActiveApp(&createdApp.ID); err != nil {
@@ -146,7 +206,11 @@ Examples:
 		fmt.Println()
 		render.Info("Next steps:")
 		render.Info("  1. Create a workspace for this app:")
-		render.Info("     dvm create workspace main")
+		if gitRepoName != "" {
+			render.Info(fmt.Sprintf("     dvm create workspace main --repo %s", gitRepoName))
+		} else {
+			render.Info("     dvm create workspace main")
+		}
 		render.Info("  2. Build and attach:")
 		render.Info("     dvm build && dvm attach")
 		return nil
@@ -537,6 +601,7 @@ func init() {
 	createAppCmd.Flags().StringVar(&appDomain, "domain", "", "Domain name (defaults to active domain)")
 	createAppCmd.Flags().StringVar(&appPath, "path", "", "Path to the app source code")
 	createAppCmd.Flags().BoolVar(&appFromCwd, "from-cwd", false, "Use current working directory as app path")
+	createAppCmd.Flags().StringVar(&appRepo, "repo", "", "Git repository (URL or existing GitRepo name)")
 
 	// App get/delete flags
 	getAppsCmd.Flags().StringP("domain", "d", "", "Domain name (defaults to active domain)")
@@ -564,4 +629,115 @@ func getActiveApp(ds db.DataStore) (*models.App, error) {
 	}
 
 	return app, nil
+}
+
+// resolveOrCreateGitRepo handles the --repo flag logic:
+// - If repo is a URL, auto-create a GitRepo (or reuse existing by URL)
+// - If repo is a name, look up existing GitRepo
+// Returns: gitRepoID, gitRepoName, path (for app), error
+func resolveOrCreateGitRepo(ds db.DataStore, repo string) (*int, string, string, error) {
+	// Check if repo looks like a URL
+	isURL := strings.Contains(repo, "://") || strings.HasPrefix(repo, "git@")
+
+	if isURL {
+		// Validate the URL
+		if err := mirror.ValidateGitURL(repo); err != nil {
+			return nil, "", "", fmt.Errorf("invalid git URL: %w", err)
+		}
+
+		// Generate slug from URL
+		slug, err := mirror.GenerateSlug(repo)
+		if err != nil {
+			return nil, "", "", fmt.Errorf("failed to generate slug from URL: %w", err)
+		}
+
+		// Check if a GitRepo with this URL already exists
+		existingRepos, err := ds.ListGitRepos()
+		if err == nil {
+			for _, r := range existingRepos {
+				if r.URL == repo {
+					// Reuse existing GitRepo
+					id := r.ID
+					path := getGitRepoPath(r.Slug)
+					return &id, r.Name, path, nil
+				}
+			}
+		}
+
+		// Check if a GitRepo with this slug name exists
+		existingBySlug, _ := ds.GetGitRepoByName(slug)
+		if existingBySlug != nil {
+			// Use existing GitRepo if URL matches
+			if existingBySlug.URL == repo {
+				id := existingBySlug.ID
+				path := getGitRepoPath(existingBySlug.Slug)
+				return &id, existingBySlug.Name, path, nil
+			}
+			// Different URL, need a unique name
+			slug = slug + "-" + fmt.Sprintf("%d", time.Now().Unix())
+		}
+
+		// Create new GitRepo
+		render.Progress(fmt.Sprintf("Creating GitRepo '%s' from URL...", slug))
+
+		gitRepo := &models.GitRepoDB{
+			Name:                slug,
+			URL:                 repo,
+			Slug:                slug,
+			DefaultRef:          "main",
+			AuthType:            "none",
+			AutoSync:            true,
+			SyncIntervalMinutes: 60,
+			SyncStatus:          "pending",
+			CreatedAt:           time.Now(),
+			UpdatedAt:           time.Now(),
+		}
+
+		if err := ds.CreateGitRepo(gitRepo); err != nil {
+			return nil, "", "", fmt.Errorf("failed to create GitRepo: %w", err)
+		}
+
+		// Clone the repository
+		baseDir := getGitRepoBaseDir()
+		mirrorMgr := mirror.NewGitMirrorManager(baseDir)
+		if _, err := mirrorMgr.Clone(repo, slug); err != nil {
+			// Update sync status to failed but continue
+			gitRepo.SyncStatus = "failed"
+			gitRepo.SyncError = sql.NullString{String: err.Error(), Valid: true}
+			ds.UpdateGitRepo(gitRepo)
+			render.Warning(fmt.Sprintf("Created GitRepo '%s' but initial sync failed: %v", slug, err))
+		} else {
+			// Update sync status to synced
+			gitRepo.LastSyncedAt = sql.NullTime{Time: time.Now(), Valid: true}
+			gitRepo.SyncStatus = "synced"
+			ds.UpdateGitRepo(gitRepo)
+		}
+
+		// Get the created repo to get its ID
+		createdRepo, err := ds.GetGitRepoByName(slug)
+		if err != nil {
+			return nil, "", "", fmt.Errorf("failed to retrieve created GitRepo: %w", err)
+		}
+
+		render.Success(fmt.Sprintf("Created GitRepo '%s'", slug))
+		id := createdRepo.ID
+		path := getGitRepoPath(slug)
+		return &id, slug, path, nil
+	}
+
+	// Not a URL - look up existing GitRepo by name
+	existingRepo, err := ds.GetGitRepoByName(repo)
+	if err != nil || existingRepo == nil {
+		return nil, "", "", fmt.Errorf("GitRepo '%s' not found (hint: use a URL to auto-create, or create with 'dvm create gitrepo')", repo)
+	}
+
+	id := existingRepo.ID
+	path := getGitRepoPath(existingRepo.Slug)
+	return &id, existingRepo.Name, path, nil
+}
+
+// getGitRepoPath returns the local path for a GitRepo's mirror
+func getGitRepoPath(slug string) string {
+	baseDir := getGitRepoBaseDir()
+	return filepath.Join(baseDir, slug)
 }
