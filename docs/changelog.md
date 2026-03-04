@@ -10,6 +10,31 @@ Multi-registry support with database-backed resources. Breaking changes to regis
 
 ## Latest Releases
 
+### v0.31.0 (2026-03-03)
+
+**✨ Feature - Lazygit in Containers**
+
+All development containers now include lazygit for terminal-based git operations:
+
+- **Automatic installation** - Lazygit installed from GitHub releases during container builds
+- **Multi-architecture** - Supports x86_64 and ARM64 architectures
+- **Multi-distro** - Works with Alpine (musl) and Debian-based images
+- **Stable release** - Downloads latest stable version from jesseduffield/lazygit
+
+Every workspace now has `lazygit` available at `/usr/local/bin/lazygit`.
+
+### v0.30.4 (2026-03-03)
+
+**🐛 Bug Fix - Attach Mount Path for GitRepo-backed Workspaces**
+
+Fixed `dvm attach` mounting wrong directory for GitRepo-backed workspaces. Container now correctly mounts workspace repo path instead of empty app path.
+
+### v0.30.3 (2026-03-03)
+
+**🐛 Bug Fix - Database Schema Drift**
+
+Fixed schema drift where `apps.git_repo_id` column existed in database but not in Go code. All 7 App DataStore methods now include `git_repo_id` field.
+
 ### v0.30.2 (2026-03-03)
 
 **🐛 Bug Fixes - Theme & Terminal Package Integration**

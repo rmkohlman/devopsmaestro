@@ -11,6 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.31.0] - 2026-03-03
+
+### ✨ Added
+
+#### Lazygit in All Development Containers
+- **Container builds** - Added lazygit installation to all development containers
+  - Installs lazygit from GitHub releases during container builds
+  - Supports both Alpine (musl) and Debian-based images
+  - Automatic architecture detection for x86_64 and ARM64
+  - Downloads and extracts latest stable release from jesseduffield/lazygit
+  - Installed to `/usr/local/bin/lazygit` for all development workspaces
+  - Files changed: `builders/dockerfile_generator.go`, `builders/neovim_installation_test.go`
+
+---
+
 ## [0.30.4] - 2026-03-03
 
 ### 🐛 Fixed

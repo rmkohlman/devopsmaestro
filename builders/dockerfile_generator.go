@@ -278,6 +278,9 @@ func (g *DockerfileGenerator) generateDevStage(dockerfile *strings.Builder) {
 	// Install Neovim from GitHub releases before other tools
 	g.installNeovim(dockerfile)
 
+	// Install lazygit from GitHub releases
+	g.installLazygit(dockerfile)
+
 	// Install language-specific tools
 	if len(languageTools) > 0 {
 		g.installLanguageTools(dockerfile, languageTools)
@@ -383,6 +386,44 @@ func (g *DockerfileGenerator) installNeovim(dockerfile *strings.Builder) {
 	dockerfile.WriteString("    tar -C /opt -xzf \"${NVIM_ARCH}.tar.gz\" && \\\n")
 	dockerfile.WriteString("    ln -sf \"/opt/${NVIM_ARCH}/bin/nvim\" /usr/local/bin/nvim && \\\n")
 	dockerfile.WriteString("    rm \"${NVIM_ARCH}.tar.gz\"\n\n")
+}
+
+// installLazygit installs lazygit from GitHub releases (works on all base images)
+func (g *DockerfileGenerator) installLazygit(dockerfile *strings.Builder) {
+	dockerfile.WriteString("# Install lazygit from GitHub releases\n")
+
+	// Detect if this is an Alpine-based image
+	isAlpine := g.language == "golang" || strings.Contains(g.workspace.ImageName, "alpine")
+
+	if isAlpine {
+		// Alpine uses uname -m for architecture detection
+		dockerfile.WriteString("RUN ARCH=$(uname -m) && \\\n")
+		dockerfile.WriteString("    if [ \"$ARCH\" = \"aarch64\" ]; then \\\n")
+		dockerfile.WriteString("        LG_ARCH=\"arm64\"; \\\n")
+		dockerfile.WriteString("    elif [ \"$ARCH\" = \"x86_64\" ]; then \\\n")
+		dockerfile.WriteString("        LG_ARCH=\"x86_64\"; \\\n")
+		dockerfile.WriteString("    else \\\n")
+		dockerfile.WriteString("        LG_ARCH=\"x86_64\"; \\\n")
+		dockerfile.WriteString("    fi && \\\n")
+	} else {
+		// Debian/Ubuntu uses dpkg architecture detection with fallback to uname
+		dockerfile.WriteString("RUN ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m) && \\\n")
+		dockerfile.WriteString("    if [ \"$ARCH\" = \"arm64\" ] || [ \"$ARCH\" = \"aarch64\" ]; then \\\n")
+		dockerfile.WriteString("        LG_ARCH=\"arm64\"; \\\n")
+		dockerfile.WriteString("    elif [ \"$ARCH\" = \"amd64\" ] || [ \"$ARCH\" = \"x86_64\" ]; then \\\n")
+		dockerfile.WriteString("        LG_ARCH=\"x86_64\"; \\\n")
+		dockerfile.WriteString("    else \\\n")
+		dockerfile.WriteString("        LG_ARCH=\"x86_64\"; \\\n")
+		dockerfile.WriteString("    fi && \\\n")
+	}
+
+	// Download and install lazygit
+	// Get latest version from GitHub API, download the appropriate tarball
+	dockerfile.WriteString("    LAZYGIT_VERSION=$(curl -s \"https://api.github.com/repos/jesseduffield/lazygit/releases/latest\" | grep -Po '\"tag_name\": \"v\\K[^\"]*') && \\\n")
+	dockerfile.WriteString("    curl -Lo lazygit.tar.gz \"https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LAZYGIT_VERSION}_Linux_${LG_ARCH}.tar.gz\" && \\\n")
+	dockerfile.WriteString("    tar xf lazygit.tar.gz lazygit && \\\n")
+	dockerfile.WriteString("    install lazygit /usr/local/bin && \\\n")
+	dockerfile.WriteString("    rm lazygit lazygit.tar.gz\n\n")
 }
 
 func (g *DockerfileGenerator) getDefaultLanguageTools() []string {

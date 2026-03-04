@@ -127,3 +127,106 @@ func TestNeovimInstallation_GolangAlpine(t *testing.T) {
 		}
 	})
 }
+
+func TestLazygitInstallation_PythonSlim(t *testing.T) {
+	// Test that lazygit is installed from GitHub releases
+	ws := &models.Workspace{
+		Name:      "test-python-lazygit",
+		ImageName: "python:3.11-slim",
+	}
+
+	wsYAML := models.WorkspaceSpec{
+		Container: models.ContainerConfig{
+			WorkingDir: "/workspace",
+			UID:        1000,
+			GID:        1000,
+			User:       "dev",
+		},
+		Build: models.DevBuildConfig{
+			DevStage: models.DevStageConfig{},
+		},
+		Nvim: models.NvimConfig{
+			Structure: "custom",
+		},
+		Shell: models.ShellConfig{
+			Theme: "starship",
+		},
+	}
+
+	generator := NewDockerfileGenerator(ws, wsYAML, "python", "3.11", "/tmp/test", "")
+
+	dockerfile, err := generator.Generate()
+	if err != nil {
+		t.Fatalf("Error generating Dockerfile: %v", err)
+	}
+
+	t.Run("has_lazygit_github_installation", func(t *testing.T) {
+		if !strings.Contains(dockerfile, "Install lazygit from GitHub releases") {
+			t.Error("Dockerfile should contain GitHub lazygit installation section")
+		}
+	})
+
+	t.Run("has_lazygit_architecture_detection", func(t *testing.T) {
+		if !strings.Contains(dockerfile, "LG_ARCH") {
+			t.Error("Dockerfile should contain lazygit architecture detection variable")
+		}
+	})
+
+	t.Run("downloads_from_github", func(t *testing.T) {
+		if !strings.Contains(dockerfile, "jesseduffield/lazygit") {
+			t.Error("Dockerfile should download lazygit from GitHub")
+		}
+	})
+
+	t.Run("installs_to_usr_local_bin", func(t *testing.T) {
+		if !strings.Contains(dockerfile, "install lazygit /usr/local/bin") {
+			t.Error("Dockerfile should install lazygit to /usr/local/bin")
+		}
+	})
+}
+
+func TestLazygitInstallation_GolangAlpine(t *testing.T) {
+	// Test that lazygit is installed on Alpine (Go images)
+	ws := &models.Workspace{
+		Name:      "test-golang-lazygit",
+		ImageName: "golang:1.22-alpine",
+	}
+
+	wsYAML := models.WorkspaceSpec{
+		Container: models.ContainerConfig{
+			WorkingDir: "/workspace",
+			UID:        1000,
+			GID:        1000,
+			User:       "dev",
+		},
+		Build: models.DevBuildConfig{
+			DevStage: models.DevStageConfig{},
+		},
+		Nvim: models.NvimConfig{
+			Structure: "custom",
+		},
+		Shell: models.ShellConfig{
+			Theme: "starship",
+		},
+	}
+
+	generator := NewDockerfileGenerator(ws, wsYAML, "golang", "1.22", "/tmp/test", "")
+
+	dockerfile, err := generator.Generate()
+	if err != nil {
+		t.Fatalf("Error generating Dockerfile: %v", err)
+	}
+
+	t.Run("has_lazygit_installation", func(t *testing.T) {
+		if !strings.Contains(dockerfile, "Install lazygit from GitHub releases") {
+			t.Error("Dockerfile should contain lazygit installation section")
+		}
+	})
+
+	t.Run("has_alpine_architecture_detection_for_lazygit", func(t *testing.T) {
+		// Alpine uses uname -m, and we should see the LG_ARCH variable set
+		if !strings.Contains(dockerfile, "LG_ARCH") {
+			t.Error("Dockerfile should contain LG_ARCH variable for lazygit")
+		}
+	})
+}
