@@ -44,7 +44,7 @@ brew install devopsmaestro
 brew install nvimops
 
 # Verify installation
-dvm version   # Should show v0.26.0
+dvm version   # Should show v0.32.1
 nvp version
 ```
 

@@ -2,12 +2,6 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
-## Upcoming Changes
-
-**v0.24.0 - Registry Resource Refactor** (Coming soon)
-
-Multi-registry support with database-backed resources. Breaking changes to registry commands.
-
 ## Latest Releases
 
 ### v0.32.1 (2026-03-04)
@@ -526,6 +520,14 @@ See the [full migration guide](https://github.com/rmkohlman/devopsmaestro/blob/m
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **0.32.1** | 2026-03-04 | Error handling fixes, watchdog refactor, improved GitRepo resolution |
+| **0.32.0** | 2026-03-04 | `--repo` flag for app creation, Docker build hang fix on Colima |
+| **0.31.0** | 2026-03-03 | Lazygit in containers, multi-architecture support |
+| **0.30.4** | 2026-03-03 | Attach mount path fix for GitRepo-backed workspaces |
+| **0.30.3** | 2026-03-03 | Database schema drift fix (git_repo_id column) |
+| **0.30.2** | 2026-03-03 | Theme inheritance & terminal package prompt fixes, colorscheme generation |
+| **0.30.1** | 2026-03-03 | Database schema completeness, YAML field parsing fixes |
+| **0.24.0** | 2026-03-01 | Registry resource refactor, multi-registry support (BREAKING) |
 | **0.22.0** | 2026-02-28 | Library browsing (dvm library), terminal configuration (dvm set terminal), integration |
 | **0.21.0** | 2026-02-28 | Local OCI registry (Zot), pull-through cache, offline builds, registry CLI commands |
 | **0.20.1** | 2026-02-28 | GitRepo-Workspace integration (--repo flag, --no-sync flag, auto-sync on attach) |
