@@ -817,6 +817,203 @@ func TestLibraryOutputCounts(t *testing.T) {
 	}
 }
 
+// ========== Bug Fix Tests (TDD Phase 2 - RED) ==========
+
+// TestNormalizeResourceType_QuotedSpaceArgs tests Bug #1:
+// normalizeResourceType doesn't handle single args containing spaces
+// (e.g., when Cobra passes `"nvim packages"` as a single arg after quoting).
+// These tests FAIL until the fix is implemented in normalizeResourceType.
+func TestNormalizeResourceType_QuotedSpaceArgs(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     []string
+		expected string
+	}{
+		{
+			name:     "single arg with space: nvim packages",
+			args:     []string{"nvim packages"},
+			expected: "nvim-packages",
+		},
+		{
+			name:     "single arg with space: terminal plugins",
+			args:     []string{"terminal plugins"},
+			expected: "terminal-plugins",
+		},
+		{
+			name:     "single arg with space: terminal prompts",
+			args:     []string{"terminal prompts"},
+			expected: "terminal-prompts",
+		},
+		{
+			name:     "single arg with space: terminal packages",
+			args:     []string{"terminal packages"},
+			expected: "terminal-packages",
+		},
+		{
+			name:     "single arg with space: terminal prompt (show command)",
+			args:     []string{"terminal prompt"},
+			expected: "terminal-prompt",
+		},
+		{
+			name:     "single arg with space: terminal plugin (show command)",
+			args:     []string{"terminal plugin"},
+			expected: "terminal-plugin",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := normalizeResourceType(tt.args)
+			assert.Equal(t, tt.expected, result,
+				"normalizeResourceType(%v) = %q, want %q", tt.args, result, tt.expected)
+		})
+	}
+}
+
+// TestLibraryShowNvimPackage tests Bug #2:
+// runLibraryShow switch is missing "nvim-package" case.
+// These tests use the real runLibraryShow and FAIL until the case is added.
+func TestLibraryShowNvimPackage(t *testing.T) {
+	tests := []struct {
+		name         string
+		args         []string
+		wantErr      bool
+		wantContains []string
+		wantNotFound bool
+	}{
+		{
+			name:         "show nvim-package core",
+			args:         []string{"library", "show", "nvim-package", "core"},
+			wantErr:      false,
+			wantContains: []string{"core"},
+		},
+		{
+			name:         "show nvim-package core with yaml",
+			args:         []string{"library", "show", "nvim-package", "core", "-o", "yaml"},
+			wantErr:      false,
+			wantContains: []string{"name:", "core"},
+		},
+		{
+			name:         "show nvim-package core with json",
+			args:         []string{"library", "show", "nvim-package", "core", "-o", "json"},
+			wantErr:      false,
+			wantContains: []string{`"name"`, `"core"`},
+		},
+		{
+			name:         "show unknown nvim-package returns error",
+			args:         []string{"library", "show", "nvim-package", "unknown-package-xyz"},
+			wantErr:      true,
+			wantNotFound: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := createTestRealLibraryCommand()
+			cmd.SetArgs(tt.args)
+
+			buf := new(bytes.Buffer)
+			cmd.SetOut(buf)
+			cmd.SetErr(buf)
+
+			err := cmd.Execute()
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.wantNotFound {
+					output := buf.String()
+					errStr := ""
+					if err != nil {
+						errStr = err.Error()
+					}
+					combined := output + errStr
+					assert.Contains(t, combined, "not found", "error should indicate resource not found")
+				}
+				return
+			}
+
+			require.NoError(t, err)
+			output := buf.String()
+
+			for _, want := range tt.wantContains {
+				assert.Contains(t, output, want)
+			}
+		})
+	}
+}
+
+// TestLibraryShowTerminalPackage tests Bug #2:
+// runLibraryShow switch is missing "terminal-package" case.
+// These tests use the real runLibraryShow and FAIL until the case is added.
+func TestLibraryShowTerminalPackage(t *testing.T) {
+	tests := []struct {
+		name         string
+		args         []string
+		wantErr      bool
+		wantContains []string
+		wantNotFound bool
+	}{
+		{
+			name:         "show terminal-package core",
+			args:         []string{"library", "show", "terminal-package", "core"},
+			wantErr:      false,
+			wantContains: []string{"core"},
+		},
+		{
+			name:         "show terminal-package core with yaml",
+			args:         []string{"library", "show", "terminal-package", "core", "-o", "yaml"},
+			wantErr:      false,
+			wantContains: []string{"name:", "core"},
+		},
+		{
+			name:         "show terminal-package core with json",
+			args:         []string{"library", "show", "terminal-package", "core", "-o", "json"},
+			wantErr:      false,
+			wantContains: []string{`"name"`, `"core"`},
+		},
+		{
+			name:         "show unknown terminal-package returns error",
+			args:         []string{"library", "show", "terminal-package", "unknown-package-xyz"},
+			wantErr:      true,
+			wantNotFound: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := createTestRealLibraryCommand()
+			cmd.SetArgs(tt.args)
+
+			buf := new(bytes.Buffer)
+			cmd.SetOut(buf)
+			cmd.SetErr(buf)
+
+			err := cmd.Execute()
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.wantNotFound {
+					output := buf.String()
+					errStr := ""
+					if err != nil {
+						errStr = err.Error()
+					}
+					combined := output + errStr
+					assert.Contains(t, combined, "not found", "error should indicate resource not found")
+				}
+				return
+			}
+
+			require.NoError(t, err)
+			output := buf.String()
+
+			for _, want := range tt.wantContains {
+				assert.Contains(t, output, want)
+			}
+		})
+	}
+}
+
 // ========== Test Helpers ==========
 
 // createTestLibraryCommand creates a test library command structure
@@ -870,6 +1067,59 @@ func createTestLibraryCommand() *cobra.Command {
 	libraryCmd.AddCommand(listCmd)
 	libraryCmd.AddCommand(showCmd)
 	rootCmd.AddCommand(libraryCmd)
+
+	return rootCmd
+}
+
+// createTestRealLibraryCommand creates a test command structure that uses the REAL
+// runLibraryList and runLibraryShow handlers. Used for Bug #2 tests where we need
+// to exercise the actual switch statement logic.
+func createTestRealLibraryCommand() *cobra.Command {
+	// Root command
+	rootCmd := &cobra.Command{
+		Use:           "dvm",
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		Run: func(cmd *cobra.Command, args []string) {
+			// No-op for testing
+		},
+	}
+
+	// Library command with alias — mirrors the real libraryCmd
+	libCmd := &cobra.Command{
+		Use:     "library",
+		Aliases: []string{"lib"},
+		Short:   "Browse library resources",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmd.Help()
+		},
+	}
+
+	// List command with alias — uses REAL runLibraryList handler
+	listCmd := &cobra.Command{
+		Use:     "list [resource-type]",
+		Aliases: []string{"ls"},
+		Short:   "List library resources",
+		Args:    cobra.MinimumNArgs(1),
+		RunE:    runLibraryList,
+	}
+
+	// Show command — uses REAL runLibraryShow handler
+	showCmd := &cobra.Command{
+		Use:   "show [resource-type] [name]",
+		Short: "Show library resource details",
+		Args:  cobra.MinimumNArgs(2),
+		RunE:  runLibraryShow,
+	}
+
+	// Add output format flag
+	listCmd.Flags().StringP("output", "o", "table", "Output format (table|yaml|json)")
+	showCmd.Flags().StringP("output", "o", "table", "Output format (table|yaml|json)")
+
+	// Assemble command hierarchy
+	libCmd.AddCommand(listCmd)
+	libCmd.AddCommand(showCmd)
+	rootCmd.AddCommand(libCmd)
 
 	return rootCmd
 }

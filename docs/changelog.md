@@ -4,6 +4,21 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.32.8 (2026-03-05)
+
+**🐛 Bug Fixes & Integration Confirmations**
+
+Targeted fixes for library commands, `set theme` flag handling, and workspace branch creation:
+
+- **library list** - `dvm library list "nvim packages"` now works; quoted space-separated type args are normalised to hyphenated equivalents alongside `nvim-packages`
+- **library show** - `dvm library show nvim-package <name>` and `dvm library show terminal-package <name>` now display correctly in table format
+- **set theme** - `--workspace` and `--app` can now be combined on `dvm set theme`; overly restrictive Cobra mutual exclusivity replaced with manual flag validation
+- **create branch** - New `dvm create branch <name>` command and `--create-branch` flag for `dvm create workspace`; clone vs checkout errors differentiated via `ClonePhaseError` sentinel types
+- **language detection** - `getLanguageFromApp` correctly uses workspace source path for accurate language detection
+- **library import** - `dvm library import` confirmed working (no code changes required)
+
+New test files: `cmd/library_test.go`, `cmd/set_theme_test.go`, `cmd/create_test.go`, `cmd/build_language_test.go`, `cmd/library_import_test.go`, `utils/language_detector_test.go`
+
 ### v0.32.4 (2026-03-04)
 
 **🐛 Bug Fixes & Features**
@@ -548,6 +563,7 @@ See the [full migration guide](https://github.com/rmkohlman/devopsmaestro/blob/m
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **0.32.8** | 2026-03-05 | library list quoted args fix, library show nvim/terminal-package, set theme flag fix, create branch command |
 | **0.32.1** | 2026-03-04 | Error handling fixes, watchdog refactor, improved GitRepo resolution |
 | **0.32.0** | 2026-03-04 | `--repo` flag for app creation, Docker build hang fix on Colima |
 | **0.31.0** | 2026-03-03 | Lazygit in containers, multi-architecture support |

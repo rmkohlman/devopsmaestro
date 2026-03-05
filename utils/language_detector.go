@@ -23,6 +23,7 @@ func DetectLanguage(appPath string) (*Language, error) {
 		"rust":   {"Cargo.toml", "Cargo.lock", "*.rs"},
 		"ruby":   {"Gemfile", "Gemfile.lock", "*.rb"},
 		"java":   {"pom.xml", "build.gradle", "*.java"},
+		"gleam":  {"gleam.toml", "*.gleam"},
 	}
 
 	detected := make(map[string]int)

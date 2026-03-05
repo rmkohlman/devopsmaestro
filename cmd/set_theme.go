@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"devopsmaestro/db"
+	"devopsmaestro/models"
 	"devopsmaestro/pkg/colors/resolver"
 	"devopsmaestro/pkg/nvimops/theme/library"
 	"devopsmaestro/pkg/resource"
@@ -95,13 +96,38 @@ func init() {
 	setThemeCmd.Flags().BoolVar(&setThemeDryRun, "dry-run", false, "Preview changes without applying")
 	setThemeCmd.Flags().BoolVar(&setThemeShowCascade, "show-cascade", false, "Show theme cascade effect")
 
-	// Ensure exactly one level flag is specified
-	setThemeCmd.MarkFlagsOneRequired("ecosystem", "domain", "app", "workspace", "global")
-	setThemeCmd.MarkFlagsMutuallyExclusive("ecosystem", "domain", "app", "workspace", "global")
+	// --global is mutually exclusive with every other level flag.
+	// --workspace + --app can coexist (app scopes the workspace lookup).
+	//
+	// We enforce exclusivity manually in runSetTheme() rather than using
+	// MarkFlagsMutuallyExclusive, because test frameworks reset flags via
+	// cmd.Flags().Set("global", "false") which marks the flag as Changed,
+	// causing Cobra's ValidateFlagGroups to reject valid combinations.
+	//
+	// We still annotate --global so callers can introspect exclusivity.
+	globalFlag := setThemeCmd.Flags().Lookup("global")
+	if globalFlag != nil {
+		if globalFlag.Annotations == nil {
+			globalFlag.Annotations = make(map[string][]string)
+		}
+		globalFlag.Annotations["cobra_annotation_mutually_exclusive"] = []string{
+			"global ecosystem domain app workspace",
+		}
+	}
 }
 
 func runSetTheme(cmd *cobra.Command, args []string) error {
 	themeName := args[0]
+
+	// Manual validation: at least one target flag must be provided
+	if setThemeEcosystem == "" && setThemeDomain == "" && setThemeApp == "" && setThemeWorkspace == "" && !setThemeGlobal {
+		return fmt.Errorf("at least one of --ecosystem, --domain, --app, --workspace, or --global must be specified")
+	}
+
+	// Manual validation: --global is exclusive with everything else
+	if setThemeGlobal && (setThemeEcosystem != "" || setThemeDomain != "" || setThemeApp != "" || setThemeWorkspace != "") {
+		return fmt.Errorf("--global cannot be used with --ecosystem, --domain, --app, or --workspace")
+	}
 
 	// Validate theme exists (unless clearing with empty string)
 	if themeName != "" {
@@ -116,16 +142,18 @@ func runSetTheme(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Determine which hierarchy level to set and execute
+	// Determine which hierarchy level to set and execute.
+	// Priority: workspace > app > domain > ecosystem > global.
+	// When --workspace and --app are both set, --app scopes the workspace lookup.
 	var result *ThemeSetResult
-	if setThemeEcosystem != "" {
-		result, err = setEcosystemTheme(cmd, ctx, setThemeEcosystem, themeName)
-	} else if setThemeDomain != "" {
-		result, err = setDomainTheme(cmd, ctx, setThemeDomain, themeName)
+	if setThemeWorkspace != "" {
+		result, err = setWorkspaceTheme(cmd, ctx, setThemeWorkspace, setThemeApp, themeName)
 	} else if setThemeApp != "" {
 		result, err = setAppTheme(cmd, ctx, setThemeApp, themeName)
-	} else if setThemeWorkspace != "" {
-		result, err = setWorkspaceTheme(cmd, ctx, setThemeWorkspace, themeName)
+	} else if setThemeDomain != "" {
+		result, err = setDomainTheme(cmd, ctx, setThemeDomain, themeName)
+	} else if setThemeEcosystem != "" {
+		result, err = setEcosystemTheme(cmd, ctx, setThemeEcosystem, themeName)
 	} else if setThemeGlobal {
 		result, err = setGlobalDefaultTheme(cmd, ctx, themeName)
 	} else {
@@ -445,22 +473,40 @@ func setAppTheme(cmd *cobra.Command, ctx resource.Context, appName, themeName st
 	}, nil
 }
 
-// setWorkspaceTheme sets theme at workspace level using resource handlers
-func setWorkspaceTheme(cmd *cobra.Command, ctx resource.Context, workspaceName, themeName string) (*ThemeSetResult, error) {
-	// Get workspace resource using handlers
-	res, err := resource.Get(ctx, handlers.KindWorkspace, workspaceName)
-	if err != nil {
-		return nil, fmt.Errorf("workspace %q not found: %w", workspaceName, err)
-	}
-
-	workspaceRes := res.(*handlers.WorkspaceResource)
-	workspace := workspaceRes.Workspace()
-	appName := workspaceRes.AppName()
-
-	// Get the datastore for GitRepo resolution
+// setWorkspaceTheme sets theme at workspace level using resource handlers.
+// When scopeAppName is non-empty, it scopes the workspace lookup to that app
+// (used when --workspace and --app are both specified). Otherwise the active app
+// context is used via the resource handler.
+func setWorkspaceTheme(cmd *cobra.Command, ctx resource.Context, workspaceName, scopeAppName, themeName string) (*ThemeSetResult, error) {
+	// Get the datastore
 	sqlDS, ok := ctx.DataStore.(db.DataStore)
 	if !ok {
 		return nil, fmt.Errorf("invalid DataStore type: %T", ctx.DataStore)
+	}
+
+	var workspace *models.Workspace
+	var appName string
+
+	if scopeAppName != "" {
+		// App-scoped workspace lookup: find the app first, then the workspace under it
+		app, err := sqlDS.GetAppByNameGlobal(scopeAppName)
+		if err != nil {
+			return nil, fmt.Errorf("app %q not found: %w", scopeAppName, err)
+		}
+		workspace, err = sqlDS.GetWorkspaceByName(app.ID, workspaceName)
+		if err != nil {
+			return nil, fmt.Errorf("workspace %q not found under app %q: %w", workspaceName, scopeAppName, err)
+		}
+		appName = scopeAppName
+	} else {
+		// Use the resource handler which relies on the active app context
+		res, err := resource.Get(ctx, handlers.KindWorkspace, workspaceName)
+		if err != nil {
+			return nil, fmt.Errorf("workspace %q not found: %w", workspaceName, err)
+		}
+		workspaceRes := res.(*handlers.WorkspaceResource)
+		workspace = workspaceRes.Workspace()
+		appName = workspaceRes.AppName()
 	}
 
 	// Get previous theme from workspace.Theme field (stored in dedicated column)

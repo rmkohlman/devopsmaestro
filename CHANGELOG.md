@@ -11,6 +11,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.32.8] - 2026-03-05
+
+### 🐛 Fixed
+
+#### Library List — Quoted Space-Separated Type Args
+- **`normalizeResourceType` fix** - `dvm library list "nvim packages"` now works alongside `dvm library list nvim-packages`
+  - Quoted space-separated type arguments (e.g., `"nvim packages"`, `"terminal packages"`) are now normalised to their hyphenated equivalents before lookup
+  - Prevents "unknown resource type" errors when users quote multi-word type names
+  - Files changed: `cmd/library.go`
+
+#### Library Show — nvim-package and terminal-package Support
+- **Added resource types to `dvm library show`** - `nvim-package` and `terminal-package` resource types are now handled
+  - `dvm library show nvim-package <name>` displays nvim package details
+  - `dvm library show terminal-package <name>` displays terminal package details
+  - Renders output in the same table format as other library show commands
+  - Files changed: `cmd/library.go`
+
+#### Set Theme — Overly Restrictive Flag Mutual Exclusivity Removed
+- **`dvm set theme` flag validation** - `--workspace` and `--app` can now be combined to scope workspace lookups
+  - Removed Cobra mutual exclusivity that prevented combining `--workspace` with `--app`
+  - Manual flag validation replaces Cobra's built-in exclusivity to allow scoped lookups without switching context
+  - Example: `dvm set theme <name> --workspace dev --app my-app` now works as intended
+  - Files changed: `cmd/set_theme.go`
+
+### ✨ Added (Confirmed During Integration Testing)
+
+#### `dvm create branch` Command
+- **New `dvm create branch <name>` command** - Create git branches in workspaces without dropping to raw git
+  - Creates a new local branch in the workspace's git repository
+  - Works alongside the existing `--create-branch` flag on `dvm create workspace`
+  - Files changed: `cmd/create.go`
+
+#### `--create-branch` Flag for `dvm create workspace`
+- **New `--create-branch` flag** - Create a new local branch during workspace creation
+  - `dvm create workspace <name> --repo <repo> --create-branch <branch>` creates the workspace and checks out a new branch in one step
+  - Clone vs checkout errors now differentiated via `ClonePhaseError` sentinel types for clearer error messages
+  - Files changed: `cmd/create.go`, `pkg/mirror/errors.go`, `pkg/mirror/git_manager.go`
+
+#### `dvm library import` Command
+- **`dvm library import` confirmed working** - Command existed and was verified during integration testing
+  - No code changes required
+
+#### Language Detection Source Path
+- **`getLanguageFromApp` uses workspace source path** - Language detection now correctly uses the workspace source path
+  - Ensures language is detected from the cloned repository root, not the app config directory
+  - Files changed: `cmd/build.go`, `utils/language_detector.go`
+
+### ✅ Tests
+
+#### New Test Coverage
+- **`cmd/library_test.go`** - Tests for `normalizeResourceType`, `showNvimPackage`, `showTerminalPackage`
+- **`cmd/set_theme_test.go`** - Tests for manual flag validation replacing Cobra mutual exclusivity
+- **`cmd/create_test.go`** - Tests for `createBranchCmd`, `--create-branch` flag, `ClonePhaseError` differentiation
+- **`cmd/build_language_test.go`** - Tests for language detection with correct source path
+- **`cmd/library_import_test.go`** - Tests confirming `dvm library import` works end-to-end
+- **`utils/language_detector_test.go`** - Unit tests for language detection improvements
+
+### 📦 Files Changed
+
+#### Modified Files
+```
+cmd/library.go                    # normalizeResourceType fix, showNvimPackage, showTerminalPackage
+cmd/set_theme.go                  # Manual flag validation replacing Cobra mutual exclusivity
+cmd/create.go                     # createBranchCmd, --create-branch flag, checkout error differentiation
+cmd/build.go                      # Language detection source path fix
+pkg/mirror/errors.go              # New ClonePhaseError sentinel type
+pkg/mirror/git_manager.go         # Phase-specific error returns
+utils/language_detector.go        # Language detection improvements
+```
+
+#### New Test Files
+```
+cmd/library_test.go               # Library list/show tests
+cmd/set_theme_test.go             # Set theme flag validation tests
+cmd/create_test.go                # Create branch and --create-branch tests
+cmd/build_language_test.go        # Build language detection tests
+cmd/library_import_test.go        # Library import tests
+utils/language_detector_test.go   # Language detector unit tests
+```
+
+---
+
 ## [0.32.6] - 2026-03-04
 
 ### ⚡ Performance

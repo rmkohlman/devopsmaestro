@@ -194,10 +194,10 @@ func (g *GitMirrorManager) CloneToWorkspace(mirrorSlug string, destPath string, 
 
 	output, err := cmd.CombinedOutput()
 	if ctx.Err() == context.DeadlineExceeded {
-		return fmt.Errorf("git clone timed out after 5 minutes")
+		return &ClonePhaseError{Phase: "clone", Ref: ref, Wrapped: fmt.Errorf("git clone timed out after 5 minutes")}
 	}
 	if err != nil {
-		return fmt.Errorf("git clone failed: %w: %s", err, sanitizeGitOutput(output))
+		return &ClonePhaseError{Phase: "clone", Ref: ref, Wrapped: fmt.Errorf("git clone failed: %w: %s", err, sanitizeGitOutput(output))}
 	}
 
 	// If ref is provided, checkout that ref
@@ -219,11 +219,11 @@ func (g *GitMirrorManager) CloneToWorkspace(mirrorSlug string, destPath string, 
 
 			_, err2 := cmd2.CombinedOutput()
 			if err2 != nil {
-				// Both failed - return original error with more context
+				// Both failed - return checkout phase error
 				if ctx2.Err() == context.DeadlineExceeded {
-					return fmt.Errorf("git checkout timed out after 1 minute")
+					return &ClonePhaseError{Phase: "checkout", Ref: ref, Wrapped: fmt.Errorf("git checkout timed out after 1 minute")}
 				}
-				return fmt.Errorf("git checkout failed: %w: %s (also tried origin/%s)", err, sanitizeGitOutput(output), ref)
+				return &ClonePhaseError{Phase: "checkout", Ref: ref, Wrapped: fmt.Errorf("git checkout failed: %w: %s (also tried origin/%s)", err, sanitizeGitOutput(output), ref)}
 			}
 		}
 	}
@@ -231,7 +231,7 @@ func (g *GitMirrorManager) CloneToWorkspace(mirrorSlug string, destPath string, 
 	// Set remote URL to original
 	originalURL, err := g.getOriginalURL(mirrorPath)
 	if err != nil {
-		return fmt.Errorf("failed to get original URL: %w", err)
+		return &ClonePhaseError{Phase: "remote-set-url", Ref: ref, Wrapped: fmt.Errorf("failed to get original URL: %w", err)}
 	}
 
 	ctx3, cancel3 := context.WithTimeout(context.Background(), 30*time.Second)
@@ -242,10 +242,10 @@ func (g *GitMirrorManager) CloneToWorkspace(mirrorSlug string, destPath string, 
 
 	output, err = cmd.CombinedOutput()
 	if ctx3.Err() == context.DeadlineExceeded {
-		return fmt.Errorf("git remote set-url timed out after 30 seconds")
+		return &ClonePhaseError{Phase: "remote-set-url", Ref: ref, Wrapped: fmt.Errorf("git remote set-url timed out after 30 seconds")}
 	}
 	if err != nil {
-		return fmt.Errorf("git remote set-url failed: %w: %s", err, sanitizeGitOutput(output))
+		return &ClonePhaseError{Phase: "remote-set-url", Ref: ref, Wrapped: fmt.Errorf("git remote set-url failed: %w: %s", err, sanitizeGitOutput(output))}
 	}
 
 	return nil

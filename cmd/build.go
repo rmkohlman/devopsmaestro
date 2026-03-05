@@ -231,30 +231,7 @@ func buildWorkspace(cmd *cobra.Command) error {
 		render.Info("Continuing build without registry cache")
 	}
 
-	// Step 2: Detect language (use App.Language if set, fall back to auto-detection)
-	fmt.Println()
-	render.Progress("Detecting app language...")
-	languageName, version, wasDetected := getLanguageFromApp(app)
-
-	if !wasDetected {
-		render.Info(fmt.Sprintf("Language: %s (from app config)", languageName))
-		if version != "" {
-			render.Info(fmt.Sprintf("Version: %s", version))
-		}
-		slog.Debug("using language from app config", "language", languageName, "version", version)
-	} else if languageName != "unknown" {
-		if version != "" {
-			render.Info(fmt.Sprintf("Language: %s (version: %s)", languageName, version))
-		} else {
-			render.Info(fmt.Sprintf("Language: %s", languageName))
-		}
-		slog.Debug("detected language", "language", languageName, "version", version)
-	} else {
-		render.Info("Language: Unknown (will use generic base)")
-		slog.Debug("language detection failed, using generic base")
-	}
-
-	// Step 3: Check for existing Dockerfile
+	// Step 2: Check for existing Dockerfile
 	fmt.Println()
 	render.Progress("Checking for Dockerfile...")
 	hasDockerfile, dockerfilePath := utils.HasDockerfile(app.Path)
@@ -266,7 +243,7 @@ func buildWorkspace(cmd *cobra.Command) error {
 		slog.Debug("no Dockerfile found, will generate")
 	}
 
-	// Step 4: Generate workspace spec (for now, use defaults)
+	// Step 3: Generate workspace spec (for now, use defaults)
 	// Resolve GitRepo name if GitRepoID is set
 	gitRepoName := ""
 	if workspace.GitRepoID.Valid {
@@ -294,13 +271,39 @@ func buildWorkspace(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	// Step 5: Prepare staging directory and generate shell config (ALWAYS)
+	// Step 4: Prepare staging directory and generate shell config (ALWAYS)
 	// This must happen before Dockerfile generation so configs are available
 	// Get the correct source path (workspace repo path if GitRepoID set, else app.Path)
 	sourcePath, err := getBuildSourcePath(sqlDS, workspace, app.Path)
 	if err != nil {
 		return fmt.Errorf("failed to determine build source path: %w", err)
 	}
+
+	// Step 4b: Detect language (use App.Language if set, fall back to auto-detection)
+	// This must happen AFTER sourcePath is computed so detection uses the worktree
+	// checkout (sourcePath) instead of the bare git mirror (app.Path).
+	fmt.Println()
+	render.Progress("Detecting app language...")
+	languageName, version, wasDetected := getLanguageFromApp(app, sourcePath)
+
+	if !wasDetected {
+		render.Info(fmt.Sprintf("Language: %s (from app config)", languageName))
+		if version != "" {
+			render.Info(fmt.Sprintf("Version: %s", version))
+		}
+		slog.Debug("using language from app config", "language", languageName, "version", version)
+	} else if languageName != "unknown" {
+		if version != "" {
+			render.Info(fmt.Sprintf("Language: %s (version: %s)", languageName, version))
+		} else {
+			render.Info(fmt.Sprintf("Language: %s", languageName))
+		}
+		slog.Debug("detected language", "language", languageName, "version", version)
+	} else {
+		render.Info("Language: Unknown (will use generic base)")
+		slog.Debug("language detection failed, using generic base")
+	}
+
 	stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", filepath.Base(sourcePath))
 	if err := prepareStagingDirectory(stagingDir, sourcePath, appName, workspaceName, sqlDS, workspace); err != nil {
 		return err
@@ -505,23 +508,24 @@ func detectPlatform() (*operators.Platform, error) {
 }
 
 // getLanguageFromApp extracts language config from App, falls back to detection.
+// sourcePath is used for auto-detection (should be the worktree checkout, not the bare mirror).
 // Returns (languageName, version, wasDetected) - wasDetected is true if we fell back to auto-detection.
-func getLanguageFromApp(app *models.App) (langName, version string, detected bool) {
+func getLanguageFromApp(app *models.App, sourcePath string) (langName, version string, detected bool) {
 	// Try App.Language first (uses model's GetLanguageConfig method)
 	if langConfig := app.GetLanguageConfig(); langConfig != nil {
 		slog.Debug("using language from app model", "language", langConfig.Name, "version", langConfig.Version)
 		return langConfig.Name, langConfig.Version, false
 	}
 
-	// Fall back to auto-detection
-	lang, err := utils.DetectLanguage(app.Path)
+	// Fall back to auto-detection using sourcePath (worktree checkout)
+	lang, err := utils.DetectLanguage(sourcePath)
 	if err != nil {
 		slog.Debug("language detection error", "error", err)
 		return "unknown", "", true
 	}
 
 	if lang != nil {
-		ver := utils.DetectVersion(lang.Name, app.Path)
+		ver := utils.DetectVersion(lang.Name, sourcePath)
 		return lang.Name, ver, true
 	}
 

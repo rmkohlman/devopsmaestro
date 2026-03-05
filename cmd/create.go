@@ -8,7 +8,9 @@ import (
 	"devopsmaestro/pkg/mirror"
 	"devopsmaestro/render"
 	"fmt"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -32,10 +34,11 @@ Examples:
 }
 
 var (
-	workspaceDescription string
-	workspaceImage       string
-	workspaceRepo        string
-	workspaceBranch      string
+	workspaceDescription  string
+	workspaceImage        string
+	workspaceRepo         string
+	workspaceBranch       string
+	workspaceCreateBranch string
 )
 
 // createWorkspaceCmd creates a new workspace in the current app
@@ -86,6 +89,18 @@ Examples:
 			render.Error("--branch requires --repo to be specified")
 			render.Info("Hint: Specify a GitRepo: --repo <repo-name>")
 			return nil
+		}
+
+		// Validate --create-branch requires --repo
+		if workspaceCreateBranch != "" && repoFlag == "" {
+			render.Error("--create-branch requires --repo to be specified")
+			render.Info("Hint: Specify a GitRepo: --repo <repo-name>")
+			return nil
+		}
+
+		// Validate --branch and --create-branch are mutually exclusive
+		if workspaceBranch != "" && workspaceCreateBranch != "" {
+			return fmt.Errorf("--branch and --create-branch are mutually exclusive")
 		}
 
 		contextMgr, err := operators.NewContextManager()
@@ -204,7 +219,12 @@ Examples:
 
 				// Clone from local mirror to workspace
 				if err := mirrorMgr.CloneToWorkspace(gitRepo.Slug, repoPath, branchToCheckout); err != nil {
-					render.Error(fmt.Sprintf("Failed to clone to workspace: %v", err))
+					errClass := classifyMirrorError(err)
+					if errClass == "checkout" {
+						render.Error(fmt.Sprintf("Failed to checkout branch '%s': %v", branchToCheckout, err))
+					} else {
+						render.Error(fmt.Sprintf("Failed to clone repository: %v", err))
+					}
 					render.Info("Workspace created, but repository clone failed")
 					return nil
 				}
@@ -375,6 +395,129 @@ func ResolveWorkspaceGitRepo(ds db.DataStore, app *models.App, repoFlag string) 
 	return nil, sql.NullInt64{}, nil
 }
 
+// classifyMirrorError determines whether a CloneToWorkspace error is a clone
+// failure or a checkout failure. Uses mirror.IsCheckoutFailure for typed errors,
+// and falls back to string matching for untyped errors.
+// Returns "checkout" for checkout failures, "clone" for everything else.
+func classifyMirrorError(err error) string {
+	if mirror.IsCheckoutFailure(err) {
+		return "checkout"
+	}
+	// Fallback: check error message text for untyped errors
+	if strings.Contains(err.Error(), "git checkout") {
+		return "checkout"
+	}
+	return "clone"
+}
+
+// =============================================================================
+// Create Branch Command (dvm create branch <name>)
+// =============================================================================
+
+var (
+	createBranchWorkspace string
+	createBranchApp       string
+	createBranchFrom      string
+)
+
+// createBranchCmd creates a new git branch in a workspace repo
+var createBranchCmd = &cobra.Command{
+	Use:   "branch <name>",
+	Short: "Create a new git branch in a workspace",
+	Long: `Create a new git branch in a workspace's repository.
+
+Uses the active workspace by default, or specify with --workspace.
+
+Examples:
+  # Create branch in active workspace
+  dvm create branch feature-auth
+
+  # Create branch in specific workspace
+  dvm create branch feature-auth --workspace dev
+
+  # Create branch from a specific ref
+  dvm create branch hotfix-123 --from v1.2.0
+
+  # Create branch in a specific app's workspace
+  dvm create branch feature-x --workspace dev --app myapi`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		branchName := args[0]
+
+		if err := ValidateResourceName(branchName, "branch"); err != nil {
+			return err
+		}
+
+		contextMgr, err := operators.NewContextManager()
+		if err != nil {
+			return fmt.Errorf("failed to initialize context manager: %w", err)
+		}
+
+		// Resolve app name
+		appName := createBranchApp
+		if appName == "" {
+			appName, err = contextMgr.GetActiveApp()
+			if err != nil {
+				render.Error("No app specified")
+				render.Info("Hint: Use --app <name> or 'dvm use app <name>' to select an app first")
+				return nil
+			}
+		}
+
+		// Resolve workspace name
+		wsName := createBranchWorkspace
+		if wsName == "" {
+			wsName, err = contextMgr.GetActiveWorkspace()
+			if err != nil {
+				render.Error("No workspace specified")
+				render.Info("Hint: Use --workspace <name> or 'dvm use workspace <name>' to select one first")
+				return nil
+			}
+		}
+
+		// Get datastore from context
+		ctx := cmd.Context()
+		dataStore := ctx.Value("dataStore").(*db.DataStore)
+		if dataStore == nil {
+			return fmt.Errorf("DataStore not initialized")
+		}
+		ds := *dataStore
+
+		// Get app
+		app, err := ds.GetAppByNameGlobal(appName)
+		if err != nil {
+			return fmt.Errorf("app '%s' not found: %w", appName, err)
+		}
+
+		// Get workspace
+		workspace, err := ds.GetWorkspaceByName(app.ID, wsName)
+		if err != nil {
+			return fmt.Errorf("workspace '%s' not found in app '%s': %w", wsName, appName, err)
+		}
+
+		// Get workspace repo path
+		repoPath, err := ds.GetWorkspaceRepoPath(workspace.ID)
+		if err != nil {
+			return fmt.Errorf("failed to get workspace repo path: %w", err)
+		}
+
+		// Build git checkout -b command
+		gitArgs := []string{"-C", repoPath, "checkout", "-b", branchName}
+		if createBranchFrom != "" {
+			gitArgs = append(gitArgs, createBranchFrom)
+		}
+
+		gitCmd := exec.Command("git", gitArgs...)
+		output, err := gitCmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("failed to create branch '%s': %s", branchName, strings.TrimSpace(string(output)))
+		}
+
+		render.Success(fmt.Sprintf("Created branch '%s' in workspace '%s'", branchName, wsName))
+		return nil
+	},
+}
+
 // Initializes the 'create' command and links subcommands
 func init() {
 	rootCmd.AddCommand(createCmd)
@@ -386,6 +529,10 @@ func init() {
 	createWorkspaceCmd.Flags().StringP("app", "a", "", "App name (defaults to active app)")
 	createWorkspaceCmd.Flags().StringVar(&workspaceRepo, "repo", "", "GitRepo to clone into workspace (see: dvm get gitrepos)")
 	createWorkspaceCmd.Flags().StringVar(&workspaceBranch, "branch", "", "Git branch to checkout (default: repo's DefaultRef)")
+	createWorkspaceCmd.Flags().StringVar(&workspaceCreateBranch, "create-branch", "", "Create a new local branch in the workspace repo")
+
+	// --branch and --create-branch are mutually exclusive
+	createWorkspaceCmd.MarkFlagsMutuallyExclusive("branch", "create-branch")
 
 	// Registry command
 	createCmd.AddCommand(createRegistryCmd)
@@ -395,4 +542,12 @@ func init() {
 	createRegistryCmd.Flags().IntVarP(&registryPort, "port", "p", 0, "Port number (default: type-specific)")
 	createRegistryCmd.Flags().StringVarP(&registryLifecycle, "lifecycle", "l", "", "Lifecycle mode: persistent, on-demand, manual (default)")
 	createRegistryCmd.Flags().StringVarP(&registryDescription, "description", "d", "", "Registry description")
+
+	// Branch command
+	createCmd.AddCommand(createBranchCmd)
+
+	// Branch creation flags
+	createBranchCmd.Flags().StringVarP(&createBranchWorkspace, "workspace", "w", "", "Workspace name (uses active if not specified)")
+	createBranchCmd.Flags().StringVarP(&createBranchApp, "app", "a", "", "App name (uses active if not specified)")
+	createBranchCmd.Flags().StringVar(&createBranchFrom, "from", "", "Base ref to branch from (default: HEAD)")
 }
