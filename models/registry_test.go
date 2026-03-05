@@ -663,7 +663,7 @@ func TestRegistry_ApplyDefaults(t *testing.T) {
 				Type: "zot",
 				Port: 0,
 			},
-			wantPort:        5000,
+			wantPort:        5001,
 			wantStorage:     "/var/lib/zot",
 			wantIdleTimeout: 0, // Not on-demand, no default timeout
 		},
@@ -711,7 +711,7 @@ func TestRegistry_ApplyDefaults(t *testing.T) {
 				Lifecycle:   "on-demand",
 				IdleTimeout: 0,
 			},
-			wantPort:        5000,
+			wantPort:        5001,
 			wantStorage:     "/var/lib/zot",
 			wantIdleTimeout: 1800, // Should set default timeout for on-demand
 		},
@@ -766,4 +766,27 @@ func TestRegistry_ApplyDefaults(t *testing.T) {
 			assert.Equal(t, tt.wantIdleTimeout, reg.IdleTimeout, "IdleTimeout mismatch")
 		})
 	}
+}
+
+// =============================================================================
+// Zot Port Fix Tests (TDD Phase 2 - RED)
+// Zot default port must be 5001 (not 5000) to avoid macOS AirPlay conflict.
+// See: pkg/registry/strategy.go for the correct value.
+// These tests FAIL until defaultPorts["zot"] is corrected to 5001.
+// =============================================================================
+
+func TestDefaultPorts_ZotIs5001(t *testing.T) {
+	r := &Registry{Type: "zot"}
+	assert.Equal(t, 5001, r.GetDefaultPort(), "Zot default port should be 5001 to avoid macOS AirPlay conflict on 5000")
+}
+
+func TestApplyDefaults_ZotPort5001(t *testing.T) {
+	r := &Registry{
+		Name:    "test-zot",
+		Type:    "zot",
+		Port:    0,
+		Storage: "/tmp/test-zot",
+	}
+	r.ApplyDefaults()
+	assert.Equal(t, 5001, r.Port, "Zot registry ApplyDefaults() should set port to 5001")
 }

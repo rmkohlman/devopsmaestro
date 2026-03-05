@@ -16,6 +16,8 @@ import (
 	"devopsmaestro/pkg/nvimops/store"
 	"devopsmaestro/pkg/nvimops/theme"
 	"devopsmaestro/pkg/palette"
+	"devopsmaestro/pkg/registry"
+	"devopsmaestro/pkg/registry/envinjector"
 	"devopsmaestro/pkg/resolver"
 	"devopsmaestro/pkg/resource/handlers"
 	terminalpkg "devopsmaestro/pkg/terminalops/package"
@@ -221,14 +223,31 @@ func buildWorkspace(cmd *cobra.Command) error {
 	render.Info(fmt.Sprintf("Platform: %s", platform.Name))
 	slog.Info("detected platform", "name", platform.Name, "type", platform.Type, "socket", platform.SocketPath)
 
-	// Step 1.5: Ensure registry is running if enabled
+	// Step 1.5: Ensure registries are running if enabled
 	var registryEndpoint string
+	var registryEnvVars map[string]string
+	ctx := context.Background()
 	if config.IsRegistryEnabled() {
-		// TODO(v0.21.0): Update to use ServiceFactory pattern with registry resources
-		// For now, registry auto-start is disabled - manually start with: dvm registry start <name>
-		render.Warning("Registry auto-start not yet updated for multi-registry support")
-		render.Info("Manually start registry with: dvm registry start <name>")
-		render.Info("Continuing build without registry cache")
+		coordinator := registry.NewBuildRegistryCoordinator(
+			sqlDS,
+			registry.NewServiceFactory(),
+			envinjector.NewEnvironmentInjector(),
+		)
+		regResult, regErr := coordinator.Prepare(ctx)
+		if regErr != nil {
+			render.Warning(fmt.Sprintf("Registry preparation failed: %v", regErr))
+			render.Info("Continuing build without registry cache")
+			slog.Warn("registry preparation failed", "error", regErr)
+		} else {
+			registryEndpoint = regResult.OCIEndpoint
+			registryEnvVars = regResult.EnvVars
+			for _, w := range regResult.Warnings {
+				render.Warning(w)
+			}
+			if len(regResult.Managers) > 0 {
+				render.Info(fmt.Sprintf("Started %d registry cache(s)", len(regResult.Managers)))
+			}
+		}
 	}
 
 	// Step 2: Check for existing Dockerfile
@@ -384,7 +403,6 @@ func buildWorkspace(cmd *cobra.Command) error {
 	defer builder.Close()
 
 	// Check if image exists (skip if --force)
-	ctx := context.Background()
 	if !buildForce {
 		exists, err := builder.ImageExists(ctx)
 		if err == nil && exists {
@@ -396,9 +414,18 @@ func buildWorkspace(cmd *cobra.Command) error {
 	}
 
 	// Prepare build args (from environment and config)
+	// Priority (lowest to highest): registry env vars → app config → credentials
 	buildArgs := make(map[string]string)
 
-	// First, merge App's build args (lowest priority - can be overridden)
+	// Layer 1: Registry env vars (lowest priority - can be overridden by app config)
+	if registryEnvVars != nil {
+		for k, v := range registryEnvVars {
+			buildArgs[k] = v
+			slog.Debug("using registry env var", "key", k)
+		}
+	}
+
+	// Layer 2: App's build args (can be overridden by credentials)
 	if buildConfig := app.GetBuildConfig(); buildConfig != nil {
 		for k, v := range buildConfig.Args {
 			buildArgs[k] = v
@@ -406,7 +433,7 @@ func buildWorkspace(cmd *cobra.Command) error {
 		}
 	}
 
-	// Load and resolve credentials from the hierarchy
+	// Layer 3: Credentials from hierarchy (highest priority)
 	resolvedCreds := loadBuildCredentials(sqlDS, app, workspace)
 	for k, v := range resolvedCreds {
 		buildArgs[k] = v

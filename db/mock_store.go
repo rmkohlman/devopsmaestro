@@ -2621,6 +2621,10 @@ func (m *MockDataStore) DeleteRegistry(name string) error {
 }
 
 func (m *MockDataStore) ListRegistries() ([]*models.Registry, error) {
+	m.recordCall("ListRegistries")
+	if m.ListRegistriesErr != nil {
+		return nil, m.ListRegistriesErr
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

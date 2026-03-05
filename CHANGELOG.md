@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ✨ Added
+
+#### Shared Health-Check HTTP Client (`health_check.go`)
+- **New `pkg/registry/health_check.go`** — Centralises the HTTP client used by all registry `waitForReady` implementations
+  - `healthCheckClient` is a package-level `*http.Client` configured with a 2-second timeout
+  - Eliminates duplicated timeout logic across Zot, Verdaccio, Athens, and Devpi managers
+
+#### Build-Time Registry Integration (`BuildRegistryCoordinator`)
+- **`dvm build` now automatically starts and wires registries** — `BuildRegistryCoordinator` replaces the previous TODO stub in the registry integration block
+  - On-demand and persistent registries are started before the Docker build begins
+  - `GOPROXY`, `PIP_INDEX_URL`, `NPM_CONFIG_REGISTRY`, and `HTTP_PROXY` are injected as Docker build args automatically
+  - Warnings from registry startup are surfaced to the user without failing the build
+- **`ManagerFactory` interface** — New interface in `pkg/registry/` enables testable creation of registry managers without real process spawning
+- **`BuildRegistryResult` type** — Captures the full result of a registry coordination call: active managers, injected env vars, OCI endpoint URL, and any startup warnings
+- **Three-layer build arg priority** — Registry env vars (lowest priority) → app config overrides → credentials (highest priority); later layers win without clobbering earlier ones
+
+### ♻️ Changed
+
+#### `dvm build` Registry Integration Block
+- **Replaced TODO stub with working `BuildRegistryCoordinator` call** — The registry integration block in `cmd/build.go` previously contained a `// TODO: integrate registries` placeholder; it now calls the coordinator and merges the resulting env vars into the build arg set
+
 ### 🐛 Fixed
 
 #### B1: Zot Version Mismatch
@@ -58,12 +79,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - All callers switched to `http.NewRequestWithContext` backed by the new shared `healthCheckClient`
   - Files changed: `pkg/registry/zot_manager.go`, `pkg/registry/verdaccio_manager.go`, `pkg/registry/athens_manager.go`, `pkg/registry/devpi_manager.go`
 
-### ✨ Added
-
-#### Shared Health-Check HTTP Client (`health_check.go`)
-- **New `pkg/registry/health_check.go`** — Centralises the HTTP client used by all registry `waitForReady` implementations
-  - `healthCheckClient` is a package-level `*http.Client` configured with a 2-second timeout
-  - Eliminates duplicated timeout logic across Zot, Verdaccio, Athens, and Devpi managers
+#### B11: Zot Default Port in `models/registry.go`
+- **Default port corrected from 5000 → 5001** — `models/registry.go` still referenced port 5000 as the Zot default, inconsistent with the fix already applied in `pkg/registry/strategy.go` and `config/registry.go`
+  - Files changed: `models/registry.go`
 
 ### ✅ Tests
 
@@ -71,6 +89,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`pkg/registry/strategy_zot_test.go`** — Covers B1 (version string), B2 (port 5001), B9 (nil-guard in `CreateManager`)
 - **`pkg/registry/security_bugs_test.go`** — Covers B3 (HTTP prefix), B4 (ProcessManager mutex / race detector), B8 (localhost-only binding)
 - **`pkg/registry/b10_health_check_client_test.go`** — Covers B10 (timeout behaviour); build tag `//go:build b10`
+- **`pkg/registry/build_coordinator_test.go`** — Covers `BuildRegistryCoordinator`, `ManagerFactory`, `BuildRegistryResult`, and three-layer build arg priority
 
 #### Updated Test Files
 - **`pkg/registry/lifecycle_test.go`** — Added tests for `StopIfIdle` "not implemented" error; removed 2 tests that asserted the old broken no-op behaviour
@@ -80,15 +99,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`pkg/registry/service_manager_test.go`** — Expectations updated for B2 (port 5001) and B3 (HTTP prefix)
 - **`pkg/registry/examples_test.go`** — Example output updated for B2/B3 changes
 - **`pkg/registry/config_athens_test.go`** — Updated for B8 (`127.0.0.1` binding)
+- **`cmd/build_registry_test.go`** — Tests for three-layer build arg priority and coordinator integration in `dvm build`
 
 ### 📦 Files Changed
 
 #### New Files
 ```
 pkg/registry/health_check.go                  # Shared HTTP client with 2s timeout (B10)
+pkg/registry/build_coordinator.go             # BuildRegistryCoordinator, ManagerFactory, BuildRegistryResult
 pkg/registry/strategy_zot_test.go             # Tests for B1, B2, B9
 pkg/registry/security_bugs_test.go            # Tests for B3, B4, B8
 pkg/registry/b10_health_check_client_test.go  # Tests for B10 (build tag: b10)
+pkg/registry/build_coordinator_test.go        # Tests for Chunk 2 coordinator
+cmd/build_registry_test.go                    # Tests for three-layer build arg priority
 ```
 
 #### Modified Source Files
@@ -107,6 +130,8 @@ pkg/registry/verdaccio_manager.go # B8: 0.0.0.0 → 127.0.0.1; B10: healthCheckC
 pkg/registry/squid_manager.go     # B8: 0.0.0.0 → 127.0.0.1
 pkg/registry/athens_manager.go    # B10: healthCheckClient
 pkg/registry/devpi_manager.go     # B10: healthCheckClient
+models/registry.go                # B11: Zot default port 5000 → 5001
+cmd/build.go                      # Chunk 2: replaced TODO stub with BuildRegistryCoordinator call
 ```
 
 #### Modified Test Files

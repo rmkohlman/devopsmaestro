@@ -62,7 +62,7 @@ var validLifecycles = map[string]bool{
 
 // Default ports for each registry type
 var defaultPorts = map[string]int{
-	"zot":       5000,
+	"zot":       5001,
 	"athens":    3000,
 	"devpi":     3141,
 	"verdaccio": 4873,
