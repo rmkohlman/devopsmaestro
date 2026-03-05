@@ -30,6 +30,8 @@ SESSION_STATE.md
 CONTEXT.md
 .agent-memory.md
 .envrc
+TEST_IMPACT_REPORT*.md
+TDD_PHASE*_SUMMARY.md
 
 # Test project directories (cloned repos for testing)
 dvm-test-fastapi/
@@ -42,6 +44,7 @@ tests/manual/nvim-manager/testrunner.go
 /dvm
 /nvp
 /dvt
+/devopsmaestro
 
 # Build/release artifacts
 /dist/

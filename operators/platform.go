@@ -2,12 +2,24 @@ package operators
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"time"
 
 	"github.com/spf13/viper"
 )
+
+// validProfileName matches safe Colima profile names: alphanumeric start,
+// then alphanumeric, dots, hyphens, or underscores. No path traversal.
+var validProfileName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
+
+// isValidColimaProfileName returns true if name is a safe Colima profile name.
+func isValidColimaProfileName(name string) bool {
+	return validProfileName.MatchString(name) && !strings.Contains(name, "..")
+}
 
 // PlatformType identifies which container platform is being used
 type PlatformType string
@@ -89,16 +101,30 @@ func (pd *PlatformDetector) detectSpecific(platformType PlatformType) (*Platform
 
 // autoDetect finds the first available platform
 func (pd *PlatformDetector) autoDetect() (*Platform, error) {
-	detectors := []func() *Platform{
-		pd.detectOrbStack,
-		pd.detectColima,
+	// Check non-Colima detectors and Colima separately so we can
+	// enumerate all Colima profiles while keeping other detectors as-is.
+
+	// OrbStack first (highest priority)
+	if platform := pd.detectOrbStack(); platform != nil && platform.IsReachable() {
+		return platform, nil
+	}
+
+	// All Colima profiles
+	for _, platform := range pd.detectAllColima() {
+		if platform.IsReachable() {
+			return platform, nil
+		}
+	}
+
+	// Remaining detectors in priority order
+	remainingDetectors := []func() *Platform{
 		pd.detectDockerDesktop,
 		pd.detectPodman,
 		pd.detectLinuxNative,
 	}
 
-	for _, detect := range detectors {
-		if platform := detect(); platform != nil {
+	for _, detect := range remainingDetectors {
+		if platform := detect(); platform != nil && platform.IsReachable() {
 			return platform, nil
 		}
 	}
@@ -106,25 +132,48 @@ func (pd *PlatformDetector) autoDetect() (*Platform, error) {
 	return nil, fmt.Errorf("no container runtime found. Please install one of: OrbStack, Colima, Docker Desktop, or Podman")
 }
 
-// DetectAll finds all available container platforms
+// DetectAll finds all installed container platforms (socket files on disk).
+// This returns platforms regardless of whether they are currently running.
+// Use DetectReachable() to get only platforms that are actively listening.
 func (pd *PlatformDetector) DetectAll() []*Platform {
 	var platforms []*Platform
 
-	detectors := []func() *Platform{
-		pd.detectOrbStack,
-		pd.detectColima,
+	// OrbStack
+	if platform := pd.detectOrbStack(); platform != nil {
+		platforms = append(platforms, platform)
+	}
+
+	// All Colima profiles
+	platforms = append(platforms, pd.detectAllColima()...)
+
+	// Remaining single-platform detectors
+	remainingDetectors := []func() *Platform{
 		pd.detectDockerDesktop,
 		pd.detectPodman,
 		pd.detectLinuxNative,
 	}
 
-	for _, detect := range detectors {
+	for _, detect := range remainingDetectors {
 		if platform := detect(); platform != nil {
 			platforms = append(platforms, platform)
 		}
 	}
 
 	return platforms
+}
+
+// DetectReachable finds all container platforms that are actively listening.
+// This calls DetectAll() and then filters to only platforms where the socket
+// is reachable, i.e., the runtime is currently running.
+func (pd *PlatformDetector) DetectReachable() []*Platform {
+	all := pd.DetectAll()
+	reachable := make([]*Platform, 0, len(all))
+	for _, p := range all {
+		if p.IsReachable() {
+			reachable = append(reachable, p)
+		}
+	}
+	return reachable
 }
 
 func (pd *PlatformDetector) detectOrbStack() *Platform {
@@ -171,37 +220,88 @@ func (pd *PlatformDetector) detectOrbStack() *Platform {
 }
 
 func (pd *PlatformDetector) detectColima() *Platform {
-	// Get Colima profile from environment
-	profile := os.Getenv("COLIMA_DOCKER_PROFILE")
-	if profile == "" {
-		profile = os.Getenv("COLIMA_ACTIVE_PROFILE")
+	platforms := pd.detectAllColima()
+	if len(platforms) > 0 {
+		return platforms[0]
 	}
-	if profile == "" {
-		profile = "default"
+	return nil
+}
+
+// detectAllColima enumerates all Colima profiles and returns platforms for each.
+// If COLIMA_DOCKER_PROFILE or COLIMA_ACTIVE_PROFILE is set, only that profile is checked.
+// Otherwise, all profile directories under ~/.colima/ are scanned.
+func (pd *PlatformDetector) detectAllColima() []*Platform {
+	// If an env var is set, only check that specific profile
+	if profile := os.Getenv("COLIMA_DOCKER_PROFILE"); profile != "" {
+		if !isValidColimaProfileName(profile) {
+			// Invalid profile name in env var — fall through to enumeration
+		} else {
+			return pd.detectColimaProfile(profile)
+		}
+	}
+	if profile := os.Getenv("COLIMA_ACTIVE_PROFILE"); profile != "" {
+		if !isValidColimaProfileName(profile) {
+			// Invalid profile name in env var — fall through to enumeration
+		} else {
+			return pd.detectColimaProfile(profile)
+		}
 	}
 
-	// Check for docker socket first
-	dockerSock := filepath.Join(pd.homeDir, ".colima", profile, "docker.sock")
+	// Enumerate all profile directories under ~/.colima/
+	colimaDir := filepath.Join(pd.homeDir, ".colima")
+	entries, err := os.ReadDir(colimaDir)
+	if err != nil {
+		return nil
+	}
+
+	var platforms []*Platform
+	for _, entry := range entries {
+		// Skip non-directories and symlinks (explicit symlink check for safety)
+		if !entry.IsDir() || entry.Type()&os.ModeSymlink != 0 {
+			continue
+		}
+		name := entry.Name()
+		// Skip internal directories (prefixed with _) and hidden directories (prefixed with .)
+		if strings.HasPrefix(name, "_") || strings.HasPrefix(name, ".") {
+			continue
+		}
+		// Validate profile name to prevent path traversal or injection
+		if !isValidColimaProfileName(name) {
+			continue
+		}
+		platforms = append(platforms, pd.detectColimaProfile(name)...)
+	}
+
+	return platforms
+}
+
+// detectColimaProfile checks a single Colima profile for docker.sock and containerd.sock.
+// If both exist, docker.sock is preferred (matches existing behavior).
+func (pd *PlatformDetector) detectColimaProfile(profile string) []*Platform {
+	profileDir := filepath.Join(pd.homeDir, ".colima", profile)
+
+	// Check for docker socket first (preferred)
+	dockerSock := filepath.Join(profileDir, "docker.sock")
 	if _, err := os.Stat(dockerSock); err == nil {
-		return &Platform{
+		return []*Platform{{
 			Type:       PlatformColima,
 			SocketPath: dockerSock,
 			Profile:    profile,
 			Name:       fmt.Sprintf("Colima (profile: %s)", profile),
 			HomeDir:    pd.homeDir,
-		}
+		}}
 	}
 
 	// Check for containerd socket
-	containerdSock := filepath.Join(pd.homeDir, ".colima", profile, "containerd.sock")
+	containerdSock := filepath.Join(profileDir, "containerd.sock")
 	if _, err := os.Stat(containerdSock); err == nil {
-		return &Platform{
+		return []*Platform{{
 			Type:       PlatformColima,
 			SocketPath: containerdSock,
 			Profile:    profile,
 			Name:       fmt.Sprintf("Colima containerd (profile: %s)", profile),
 			HomeDir:    pd.homeDir,
-		}
+		}}
 	}
 
 	return nil
@@ -339,6 +439,17 @@ func (p *Platform) IsContainerd() bool {
 		return filepath.Base(p.SocketPath) == "containerd.sock"
 	}
 	return false
+}
+
+// IsReachable returns true if the platform's socket is actually listening.
+// This is a lightweight dial check — no Docker or containerd API calls are made.
+func (p *Platform) IsReachable() bool {
+	conn, err := net.DialTimeout("unix", p.SocketPath, 150*time.Millisecond)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
 }
 
 // IsDockerCompatible returns true if this platform supports the Docker API

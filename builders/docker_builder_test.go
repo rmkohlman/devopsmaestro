@@ -3,6 +3,7 @@ package builders
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -44,6 +45,9 @@ func TestDockerBuilder_Close(t *testing.T) {
 
 // Integration tests requiring actual Docker runtime
 
+// requireDockerPlatform uses `docker info` rather than Platform.IsReachable() because
+// integration tests need to verify the full Docker API is responding, not just
+// that a socket is listening.
 func requireDockerPlatform(t *testing.T) *operators.Platform {
 	t.Helper()
 
@@ -55,11 +59,22 @@ func requireDockerPlatform(t *testing.T) *operators.Platform {
 	platforms := detector.DetectAll()
 	for _, p := range platforms {
 		if p.IsDockerCompatible() {
+			// Verify the Docker daemon is actually reachable, not just that
+			// the socket file exists. A stale socket (e.g., Docker Desktop
+			// stopped but socket remains) would cause tests to fail rather
+			// than skip.
+			dockerHost := "unix://" + p.SocketPath
+			cmd := exec.Command("docker", "info")
+			cmd.Env = append(os.Environ(), "DOCKER_HOST="+dockerHost)
+			if err := cmd.Run(); err != nil {
+				t.Logf("Skipping platform %s: daemon not reachable at %s", p.Name, p.SocketPath)
+				continue
+			}
 			return p
 		}
 	}
 
-	t.Skip("No Docker-compatible platform available")
+	t.Skip("No Docker-compatible platform available (no reachable daemon)")
 	return nil
 }
 
