@@ -77,7 +77,7 @@ func TestDockerfileGenerator_GenerateBaseStage_Golang(t *testing.T) {
 			version: "",
 			wantContain: []string{
 				"FROM golang:1.22-alpine AS base",
-				"apk add --no-cache git",
+				"apk add git",
 			},
 		},
 		{
@@ -343,7 +343,7 @@ func TestDockerfileGenerator_DevUser(t *testing.T) {
 			wsYAML: models.WorkspaceSpec{},
 			wantContain: []string{
 				"groupadd -g 1000 dev",
-				"useradd -m -u 1000 -g 1000 -s /bin/zsh dev",
+				"useradd -m -u 1000 -g dev -s /bin/zsh dev",
 			},
 		},
 		{
@@ -356,7 +356,7 @@ func TestDockerfileGenerator_DevUser(t *testing.T) {
 			},
 			wantContain: []string{
 				"groupadd -g 501 dev",
-				"useradd -m -u 501 -g 501 -s /bin/zsh dev",
+				"useradd -m -u 501 -g dev -s /bin/zsh dev",
 			},
 		},
 		{
@@ -368,7 +368,7 @@ func TestDockerfileGenerator_DevUser(t *testing.T) {
 			},
 			wantContain: []string{
 				"groupadd -g 1000 myuser",
-				"useradd -m -u 1000 -g 1000 -s /bin/zsh myuser",
+				"useradd -m -u 1000 -g myuser -s /bin/zsh myuser",
 			},
 		},
 	}
@@ -388,6 +388,43 @@ func TestDockerfileGenerator_DevUser(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestDockerfileGenerator_DevUserAlpine(t *testing.T) {
+	// Test that Alpine-based images (golang) use addgroup/adduser
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+
+	gen := NewDockerfileGenerator(ws, models.WorkspaceSpec{}, "golang", "1.23", "/tmp/test", "")
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// Alpine uses addgroup/adduser
+	wantContain := []string{
+		"addgroup -g 1000 dev",
+		"adduser -D -u 1000 -G dev -s /bin/zsh dev",
+	}
+	wantNotContain := []string{
+		"groupadd",
+		"useradd",
+	}
+
+	for _, want := range wantContain {
+		if !strings.Contains(dockerfile, want) {
+			t.Errorf("Generate() missing for Alpine: %q", want)
+		}
+	}
+	for _, notWant := range wantNotContain {
+		if strings.Contains(dockerfile, notWant) {
+			t.Errorf("Generate() should not contain for Alpine: %q", notWant)
+		}
 	}
 }
 
@@ -684,7 +721,7 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 			},
 			wantMason: "RUN nvim --headless -c \"MasonInstall",
 			noMason:   "Mason not installed - skipping LSP pre-install",
-			wantTS:    "RUN nvim --headless -c \"TSInstall!",
+			wantTS:    "RUN nvim --headless -c \"lua require('nvim-treesitter').install",
 			noTS:      "Treesitter not installed - skipping parser pre-install",
 		},
 		{
@@ -698,7 +735,7 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 			wantMason: "Mason not installed - skipping LSP pre-install",
 			noMason:   "RUN nvim --headless -c \"MasonInstall",
 			wantTS:    "Treesitter not installed - skipping parser pre-install",
-			noTS:      "RUN nvim --headless -c \"TSInstall!",
+			noTS:      "RUN nvim --headless -c \"lua require('nvim-treesitter').install",
 		},
 		{
 			name: "with Mason only",
@@ -711,7 +748,7 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 			wantMason: "RUN nvim --headless -c \"MasonInstall",
 			noMason:   "Mason not installed - skipping LSP pre-install",
 			wantTS:    "Treesitter not installed - skipping parser pre-install",
-			noTS:      "RUN nvim --headless -c \"TSInstall!",
+			noTS:      "RUN nvim --headless -c \"lua require('nvim-treesitter').install",
 		},
 		{
 			name: "with Treesitter only",
@@ -723,7 +760,7 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 			},
 			wantMason: "Mason not installed - skipping LSP pre-install",
 			noMason:   "RUN nvim --headless -c \"MasonInstall",
-			wantTS:    "RUN nvim --headless -c \"TSInstall!",
+			wantTS:    "RUN nvim --headless -c \"lua require('nvim-treesitter').install",
 			noTS:      "Treesitter not installed - skipping parser pre-install",
 		},
 		{
@@ -731,7 +768,7 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 			manifest:  nil,
 			wantMason: "RUN nvim --headless -c \"MasonInstall",
 			noMason:   "",
-			wantTS:    "RUN nvim --headless -c \"TSInstall!",
+			wantTS:    "RUN nvim --headless -c \"lua require('nvim-treesitter').install",
 			noTS:      "",
 		},
 	}
@@ -784,8 +821,8 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 				if strings.Contains(line, "MasonInstall") && strings.Contains(line, "|| true") {
 					t.Errorf("MasonInstall should not use '|| true' fallback: %s", line)
 				}
-				if strings.Contains(line, "TSInstall") && strings.Contains(line, "|| true") {
-					t.Errorf("TSInstall should not use '|| true' fallback: %s", line)
+				if strings.Contains(line, "nvim-treesitter") && strings.Contains(line, "|| true") {
+					t.Errorf("nvim-treesitter install should not use '|| true' fallback: %s", line)
 				}
 			}
 		})

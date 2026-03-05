@@ -11,6 +11,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.32.6] - 2026-03-04
+
+### ⚡ Performance
+
+#### BuildKit Parallel Multi-Stage Builds
+- **Parallel builder stages** - Binary downloads (Neovim, lazygit, starship, tree-sitter CLI, Go tools) now run in independent Docker stages that BuildKit executes concurrently
+  - `neovim-builder` (Debian only — GitHub releases are glibc-linked, Alpine uses `apk`)
+  - `lazygit-builder` (matches base image OS family)
+  - `starship-builder` (Debian — install script requires bash)
+  - `treesitter-builder` (Alpine — static binary, small image)
+  - `go-tools-builder` (golang workspaces only — gopls, dlv via `go install`)
+  - All binaries are `COPY --from=` into the dev stage
+  - Files changed: `builders/dockerfile_generator.go`
+
+#### BuildKit Cache Mounts
+- **Cache mounts for package managers** - `--mount=type=cache` for apt, apk, pip, go modules, and npm
+  - Removes redundant `apt-get clean`, `rm -rf /var/lib/apt/lists/*`, `--no-cache`, `--no-cache-dir`
+  - Subsequent builds reuse cached package indexes and downloads
+  - Cache mounts only on dev stage (builder stages are short-lived and throwaway)
+  - Files changed: `builders/dockerfile_generator.go`
+
+#### Merged Package Installs
+- **Single package install per OS** - Consolidated 3-4 separate `apt-get update`/`apk update` calls into one
+  - Dev packages, nvim dependencies, and Mason toolchains merged with `appendUnique()` deduplication
+  - Alpine: neovim + neovim-doc included in merged `apk add` (correct for musl)
+  - Debian: neovim comes from parallel builder stage (GitHub releases, glibc-linked)
+  - Files changed: `builders/dockerfile_generator.go`
+
+### 🐛 Fixed
+
+#### Treesitter Plugin Configuration
+- **Fixed treesitter parser installation** - Removed inline `require("nvim-treesitter").install({...})` call that caused startup issues
+  - Parser installation now handled by `:TSUpdate` build hook during image build
+  - Simplified config to use `FileType` autocmds for highlighting and indentation
+  - Files changed: `pkg/nvimops/library/plugins/03-treesitter.yaml`, `pkg/nvimops/library/plugins/04-treesitter-textobjects.yaml`
+
+### 🧹 Maintenance
+
+- **Removed 6 dead methods** (~170 lines) from `dockerfile_generator.go`: `installNeovim`, `installLazygit`, `installNvimDependencies`, `installMasonToolchains`, `installTreeSitterCLI`, `installNvimConfig`
+- **Added `# syntax=docker/dockerfile:1` header** to generated Dockerfiles for BuildKit frontend
+- **Extracted shared helper methods**: `hasGoToolsBuilder()`, `getGoToolsList()`, `effectiveGoVersion()`, `appendUnique()`
+- **Updated tests** to match new parallel builder stage patterns and cache mount behavior
+
+### 📦 Files Changed
+
+#### Modified Files
+```
+builders/dockerfile_generator.go          # BuildKit parallel stages, cache mounts, merged installs
+builders/dockerfile_generator_test.go     # Updated assertions for new patterns
+builders/neovim_installation_test.go      # Updated for parallel builder + Alpine neovim via apk
+pkg/nvimops/library/plugins/03-treesitter.yaml       # Simplified treesitter config
+pkg/nvimops/library/plugins/04-treesitter-textobjects.yaml  # Updated textobjects config
+```
+
+---
+
 ## [0.32.5] - 2026-03-04
 
 ### 🐛 Fixed

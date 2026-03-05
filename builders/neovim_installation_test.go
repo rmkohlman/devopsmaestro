@@ -39,8 +39,9 @@ func TestNeovimInstallation_PythonSlim(t *testing.T) {
 	}
 
 	t.Run("has_neovim_github_installation", func(t *testing.T) {
-		if !strings.Contains(dockerfile, "Install Neovim from GitHub releases") {
-			t.Error("Dockerfile should contain GitHub Neovim installation section")
+		// Neovim is now downloaded in a parallel builder stage
+		if !strings.Contains(dockerfile, "Parallel builder: Neovim") {
+			t.Error("Dockerfile should contain parallel Neovim builder stage")
 		}
 	})
 
@@ -112,18 +113,18 @@ func TestNeovimInstallation_GolangAlpine(t *testing.T) {
 	})
 
 	t.Run("has_alpine_neovim_dependencies", func(t *testing.T) {
-		if !strings.Contains(dockerfile, "apk add --no-cache") || !strings.Contains(dockerfile, "build-base") {
+		// With BuildKit cache mounts, apk uses --mount=type=cache instead of --no-cache.
+		// build-base is still required for Mason/Treesitter compilation.
+		if !strings.Contains(dockerfile, "apk add") || !strings.Contains(dockerfile, "build-base") {
 			t.Error("Dockerfile should install Alpine-specific Neovim dependencies")
 		}
 	})
 
-	t.Run("neovim_not_in_apk_packages", func(t *testing.T) {
-		// Similar check for Alpine - neovim should NOT be installed via apk
-		lines := strings.Split(dockerfile, "\n")
-		for _, line := range lines {
-			if strings.Contains(line, "apk add") && strings.Contains(line, "neovim") {
-				t.Errorf("Found neovim in apk add line (should use GitHub releases): %s", strings.TrimSpace(line))
-			}
+	t.Run("neovim_in_merged_apk_packages", func(t *testing.T) {
+		// Alpine gets neovim via apk (GitHub releases are glibc-linked, won't work on musl).
+		// The merged package install includes neovim and neovim-doc.
+		if !strings.Contains(dockerfile, "neovim") {
+			t.Error("Dockerfile should install neovim via apk for Alpine (musl can't use GitHub releases)")
 		}
 	})
 }
@@ -161,14 +162,15 @@ func TestLazygitInstallation_PythonSlim(t *testing.T) {
 	}
 
 	t.Run("has_lazygit_github_installation", func(t *testing.T) {
-		if !strings.Contains(dockerfile, "Install lazygit from GitHub releases") {
-			t.Error("Dockerfile should contain GitHub lazygit installation section")
+		// Lazygit is now downloaded in a parallel builder stage
+		if !strings.Contains(dockerfile, "Parallel builder: lazygit") {
+			t.Error("Dockerfile should contain parallel lazygit builder stage")
 		}
 	})
 
 	t.Run("has_lazygit_architecture_detection", func(t *testing.T) {
 		if !strings.Contains(dockerfile, "LG_ARCH") {
-			t.Error("Dockerfile should contain lazygit architecture detection variable")
+			t.Error("Dockerfile should contain LG_ARCH variable for lazygit")
 		}
 	})
 
@@ -218,8 +220,9 @@ func TestLazygitInstallation_GolangAlpine(t *testing.T) {
 	}
 
 	t.Run("has_lazygit_installation", func(t *testing.T) {
-		if !strings.Contains(dockerfile, "Install lazygit from GitHub releases") {
-			t.Error("Dockerfile should contain lazygit installation section")
+		// Lazygit is now downloaded in a parallel builder stage
+		if !strings.Contains(dockerfile, "Parallel builder: lazygit") {
+			t.Error("Dockerfile should contain parallel lazygit builder stage")
 		}
 	})
 

@@ -9,28 +9,21 @@ spec:
   repo: nvim-treesitter/nvim-treesitter
   build: ":TSUpdate"
   config: |
-    -- Setup nvim-treesitter (new API for main branch, requires Neovim 0.11+)
-    require("nvim-treesitter").setup({})
+    -- nvim-treesitter configuration
+    -- NOTE: Parser installation is handled by the :TSUpdate build hook
+    -- DO NOT auto-install parsers here - it causes issues during nvim startup
 
-    -- Install parsers
-    require("nvim-treesitter").install({
-      "json", "javascript", "typescript", "tsx", "yaml", "html", "http",
-      "css", "prisma", "python", "markdown", "markdown_inline", "svelte",
-      "graphql", "bash", "lua", "vim", "dockerfile", "helm", "c_sharp",
-      "gitignore", "csv", "query", "go", "ocaml", "php", "puppet",
-      "vimdoc", "regex", "ruby", "rust", "scss", "sql", "yang", "c",
-      "ssh_config", "requirements", "promql",
-    })
-
-    -- Enable highlighting via built-in Neovim API
+    -- Enable syntax highlighting via FileType autocmd
     vim.api.nvim_create_autocmd("FileType", {
+      pattern = "*",
       callback = function()
         pcall(vim.treesitter.start)
       end,
     })
 
-    -- Enable tree-sitter based indentation
+    -- Enable indentation
     vim.api.nvim_create_autocmd("FileType", {
+      pattern = "*",
       callback = function()
         vim.bo.indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
       end,
@@ -40,11 +33,9 @@ spec:
     vim.keymap.set("n", "<C-space>", function()
       require("nvim-treesitter.incremental_selection").init_selection()
     end, { desc = "Init treesitter selection" })
-
     vim.keymap.set("x", "<C-space>", function()
       require("nvim-treesitter.incremental_selection").node_incremental()
     end, { desc = "Increment treesitter selection" })
-
     vim.keymap.set("x", "<bs>", function()
       require("nvim-treesitter.incremental_selection").node_decremental()
     end, { desc = "Decrement treesitter selection" })
