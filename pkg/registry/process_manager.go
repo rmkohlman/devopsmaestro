@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -17,10 +18,14 @@ type DefaultProcessManager struct {
 	config ProcessConfig
 	cmd    *exec.Cmd
 	pid    int
+	mu     sync.RWMutex
 }
 
 // Start spawns a new process with the given binary and arguments.
 func (p *DefaultProcessManager) Start(ctx context.Context, binary string, args []string, config ProcessConfig) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	// Check context first
 	select {
 	case <-ctx.Done():
@@ -29,7 +34,7 @@ func (p *DefaultProcessManager) Start(ctx context.Context, binary string, args [
 	}
 
 	// Check if already running
-	if p.IsRunning() {
+	if p.isRunningLocked() {
 		return fmt.Errorf("%w", ErrProcessAlreadyRunning)
 	}
 
@@ -104,8 +109,11 @@ func (p *DefaultProcessManager) Start(ctx context.Context, binary string, args [
 
 // Stop stops the process gracefully.
 func (p *DefaultProcessManager) Stop(ctx context.Context) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	// If not running, this is idempotent
-	if !p.IsRunning() {
+	if !p.isRunningLocked() {
 		return nil
 	}
 
@@ -155,8 +163,8 @@ func (p *DefaultProcessManager) Stop(ctx context.Context) error {
 	return nil
 }
 
-// IsRunning checks if the process is currently running.
-func (p *DefaultProcessManager) IsRunning() bool {
+// isRunningLocked checks if the process is running. Caller must hold at least p.mu.RLock.
+func (p *DefaultProcessManager) isRunningLocked() bool {
 	if p.cmd == nil || p.cmd.Process == nil {
 		return false
 	}
@@ -197,9 +205,18 @@ func (p *DefaultProcessManager) IsRunning() bool {
 	return true
 }
 
+// IsRunning checks if the process is currently running.
+func (p *DefaultProcessManager) IsRunning() bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.isRunningLocked()
+}
+
 // GetPID returns the process ID, or 0 if not running.
 func (p *DefaultProcessManager) GetPID() int {
-	if !p.IsRunning() {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if p.cmd == nil || p.cmd.Process == nil {
 		return 0
 	}
 	return p.pid

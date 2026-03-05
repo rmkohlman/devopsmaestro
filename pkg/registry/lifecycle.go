@@ -55,14 +55,6 @@ func (lm *LifecycleManager) EnsureRunning(ctx context.Context, registry *models.
 	return nil
 }
 
-// RecordActivity updates the last access time for a registry
-func (lm *LifecycleManager) RecordActivity(ctx context.Context, registryID int) error {
-	// For now, this is a no-op as we don't have a last_accessed_at field yet
-	// In the future, this would update a timestamp in the database
-	// Example: return lm.store.UpdateRegistryLastAccess(registryID, time.Now())
-	return nil
-}
-
 // ShouldStop checks if a registry should be stopped due to idle timeout
 func (lm *LifecycleManager) ShouldStop(ctx context.Context, registry *models.Registry, lastAccess time.Time) (bool, error) {
 	// Only on-demand registries should auto-stop
@@ -78,34 +70,10 @@ func (lm *LifecycleManager) ShouldStop(ctx context.Context, registry *models.Reg
 	return idleDuration > timeout, nil
 }
 
-// StopIfIdle stops a registry if it has exceeded idle timeout
+// StopIfIdle is not yet implemented — idle-timeout auto-stop requires
+// last_accessed_at tracking in the database (deferred to a future release).
 func (lm *LifecycleManager) StopIfIdle(ctx context.Context, registry *models.Registry) error {
-	// Only process on-demand registries
-	if registry.Lifecycle != LifecycleOnDemand {
-		return nil
-	}
-
-	// Check if registry is running
-	if !lm.manager.IsRunning(ctx) {
-		return nil
-	}
-
-	// For testing, use a recent time to check if should stop
-	// In production, this would query the last access time from database
-	lastAccess := time.Now().Add(-time.Duration(registry.IdleTimeout) * time.Second)
-
-	shouldStop, err := lm.ShouldStop(ctx, registry, lastAccess)
-	if err != nil {
-		return fmt.Errorf("failed to check idle timeout: %w", err)
-	}
-
-	if shouldStop {
-		if err := lm.manager.Stop(ctx); err != nil {
-			return fmt.Errorf("failed to stop idle registry: %w", err)
-		}
-	}
-
-	return nil
+	return fmt.Errorf("idle-timeout auto-stop not yet implemented: requires last_accessed_at tracking in database")
 }
 
 // GetEffectiveTimeout returns the effective timeout for a registry (registry-specific or global default)

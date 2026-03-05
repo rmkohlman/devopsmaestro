@@ -24,7 +24,7 @@ func GenerateZotConfig(cfg RegistryConfig) (map[string]interface{}, error) {
 	config := map[string]interface{}{
 		"distSpecVersion": "1.1.0",
 		"http": map[string]interface{}{
-			"address": "0.0.0.0",
+			"address": "127.0.0.1",
 			"port":    fmt.Sprintf("%d", cfg.Port),
 		},
 		"storage": map[string]interface{}{

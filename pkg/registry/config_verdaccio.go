@@ -197,7 +197,7 @@ func GenerateVerdaccioConfig(cfg NpmProxyConfig) (string, error) {
 				"proxy":   []string{},
 			},
 		},
-		"listen": fmt.Sprintf("0.0.0.0:%d", cfg.Port),
+		"listen": fmt.Sprintf("127.0.0.1:%d", cfg.Port),
 	}
 
 	// Add max_body_size if specified

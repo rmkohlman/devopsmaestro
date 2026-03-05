@@ -2,6 +2,7 @@ package registry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -175,10 +176,22 @@ func (m *NpmBinaryManager) ensureNpmInstalled(ctx context.Context) error {
 // isPackageInstalled checks if the package is already installed globally.
 func (m *NpmBinaryManager) isPackageInstalled(ctx context.Context) (bool, error) {
 	cmd := exec.CommandContext(ctx, "npm", "list", "-g", m.packageName, "--depth=0")
-	output, _ := cmd.CombinedOutput()
+	output, err := cmd.CombinedOutput()
 
-	// npm list returns exit code 1 if package not found, but still outputs text
-	// Check if package name appears in output
+	if err != nil {
+		// npm list exits with code 1 when the package is not found — that is
+		// expected and means "not installed". Any other error (signal, code 2+,
+		// missing binary, context cancellation) is a real failure.
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+			// Exit code 1: package not found — check output as before
+			return strings.Contains(string(output), m.packageName), nil
+		}
+		// Non-exit-code-1 error: propagate it
+		return false, fmt.Errorf("npm list failed: %w", err)
+	}
+
+	// npm list succeeded (exit 0): package is installed if its name appears in output
 	return strings.Contains(string(output), m.packageName), nil
 }
 

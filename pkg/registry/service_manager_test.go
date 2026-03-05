@@ -40,8 +40,8 @@ func TestZotStrategy(t *testing.T) {
 		assert.Error(t, err)
 	})
 
-	t.Run("GetDefaultPort returns 5000", func(t *testing.T) {
-		assert.Equal(t, 5000, strategy.GetDefaultPort())
+	t.Run("GetDefaultPort returns 5001", func(t *testing.T) {
+		assert.Equal(t, 5001, strategy.GetDefaultPort())
 	})
 
 	t.Run("GetDefaultStorage returns zot path", func(t *testing.T) {
@@ -160,7 +160,7 @@ func TestServiceFactory(t *testing.T) {
 		strategy, err := factory.GetStrategy("zot")
 		require.NoError(t, err)
 		assert.NotNil(t, strategy)
-		assert.Equal(t, 5000, strategy.GetDefaultPort())
+		assert.Equal(t, 5001, strategy.GetDefaultPort())
 	})
 
 	t.Run("GetStrategy for athens", func(t *testing.T) {
@@ -198,7 +198,7 @@ func TestServiceFactory(t *testing.T) {
 
 		// Verify endpoint
 		endpoint := manager.GetEndpoint()
-		assert.Equal(t, "localhost:5001", endpoint)
+		assert.Equal(t, "http://localhost:5001", endpoint)
 	})
 
 	t.Run("CreateManager for athens registry", func(t *testing.T) {

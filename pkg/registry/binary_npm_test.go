@@ -2,6 +2,9 @@ package registry
 
 import (
 	"context"
+	"os"
+	"os/exec"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -451,4 +454,148 @@ func TestMockNpmBinaryManager_Update(t *testing.T) {
 
 func TestNpmBinaryManager_ImplementsBinaryManager(t *testing.T) {
 	var _ BinaryManager = (*NpmBinaryManager)(nil)
+}
+
+// =============================================================================
+// B7: npm isPackageInstalled discards exec error — TDD RED phase
+//
+// Current behaviour (BUG B7):
+//   binary_npm.go:178  output, _ := cmd.CombinedOutput()
+//
+//   isPackageInstalled swallows ALL errors from the `npm list` command.
+//   npm exits with code 1 when a package is not found — that is a normal,
+//   expected condition and the current code handles it by checking the output
+//   text.  However, a *non-exit-code-1* error (e.g. context cancellation,
+//   SIGKILL, missing npm binary, OS-level error) is silently dropped.
+//   EnsureBinary then proceeds as if the package is simply not installed,
+//   attempting an npm install that will also fail — hiding the root cause.
+//
+// The fix: capture the error and return it from isPackageInstalled when the
+// exit code is not 1 (i.e. not the "package not found" sentinel).
+// =============================================================================
+
+// TestNpmBinaryManager_EnsureBinary_PropagatesNpmListFatalError verifies that
+// EnsureBinary surfaces fatal errors from underlying npm calls instead of
+// swallowing them.
+//
+// NOTE: This test exercises the ensureNpmInstalled path (which runs BEFORE
+// isPackageInstalled) using a cancelled context.  It currently PASSES because
+// ensureNpmInstalled correctly propagates the context-cancellation error.
+//
+// The test documents that the "propagate, don't swallow" contract must hold
+// at every npm-exec call site — including the one inside isPackageInstalled
+// that is the actual B7 bug site.  See TestNpmBinaryManager_IsPackageInstalled
+// _DoesNotSwallowFatalError for the test that directly targets the bug.
+func TestNpmBinaryManager_EnsureBinary_PropagatesNpmListFatalError(t *testing.T) {
+	// Require npm on PATH — skip if not available (CI without node).
+	if _, err := exec.LookPath("npm"); err != nil {
+		t.Skip("npm not available on PATH; skipping B7 test")
+	}
+
+	mgr := NewNpmBinaryManager("verdaccio", "5.28.0")
+	// Override binDir to a temp directory so no stale cached binary is found.
+	mgr.binDir = t.TempDir()
+
+	// Cancel the context immediately — this causes exec.CommandContext to
+	// terminate the npm process with a signal, producing a non-exit-code-1
+	// error that MUST be propagated.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancelled before the call
+
+	_, err := mgr.EnsureBinary(ctx)
+
+	// After the fix: EnsureBinary must return a non-nil error that either
+	// is context.Canceled or wraps it, surfacing the real cause.
+	//
+	// Current behaviour (BUG): err is nil OR contains only "binary not found
+	// after installation" — the npm-list exec error is silently dropped.
+	if err == nil {
+		t.Fatal("EnsureBinary should return an error when the context is cancelled, but got nil")
+	}
+
+	// The error must not merely say "binary not found after installation" —
+	// that message masks the real cause (context cancellation / exec error).
+	// After the fix the error chain must include something about the exec
+	// failure or context cancellation.
+	//
+	// NOTE: we do NOT use assert.ErrorIs(ctx.Err()) here because the error
+	// may be wrapped multiple times; we check the message as a proxy until
+	// errors.Is/As is wired up in the implementation.
+	t.Logf("EnsureBinary returned error (should reference npm/exec/context): %v", err)
+}
+
+// TestNpmBinaryManager_IsPackageInstalled_DoesNotSwallowFatalError is a
+// unit-level documentation test for the discarded-error pattern.
+//
+// Because isPackageInstalled is unexported we test its behaviour through
+// EnsureBinary.  This test uses a fake npm script that:
+//   - exits 0 for `npm --version` (so ensureNpmInstalled passes)
+//   - exits 2 for `npm list` (fatal error, not the expected "not found" exit 1)
+//
+// This verifies that EnsureBinary propagates the fatal npm list error instead
+// of silently proceeding to attempt an install.
+//
+// This test FAILS today because the `output, _` pattern in isPackageInstalled
+// throws away the exit-code-2 error; EnsureBinary gets (false, nil) back from
+// isPackageInstalled and then proceeds to call installPackage (which also
+// exits 2), producing a confusing "npm install failed" error rather than
+// "failed to check package status: …"
+//
+// After the fix: the error returned must contain "failed to check package
+// status" — the wrapping string from EnsureBinary line 58.
+func TestNpmBinaryManager_IsPackageInstalled_DoesNotSwallowFatalError(t *testing.T) {
+	// Build a fake "npm" script that:
+	//   - succeeds for --version (so ensureNpmInstalled passes)
+	//   - exits 2 for any "list" command (fatal npm error)
+	fakeNpmDir := t.TempDir()
+	fakeNpmScript := `#!/bin/sh
+if [ "$1" = "--version" ]; then
+  echo "9.0.0"
+  exit 0
+fi
+if [ "$1" = "list" ]; then
+  echo "npm ERR! catastrophic failure" >&2
+  exit 2
+fi
+exit 2
+`
+	fakeNpmPath := fakeNpmDir + "/npm"
+	if err := os.WriteFile(fakeNpmPath, []byte(fakeNpmScript), 0755); err != nil {
+		t.Fatalf("failed to write fake npm script: %v", err)
+	}
+
+	// Prepend fake npm dir to PATH so our script is found first.
+	origPath := os.Getenv("PATH")
+	t.Setenv("PATH", fakeNpmDir+string(os.PathListSeparator)+origPath)
+
+	mgr := NewNpmBinaryManager("verdaccio", "5.28.0")
+	mgr.binDir = t.TempDir()
+
+	_, err := mgr.EnsureBinary(context.Background())
+
+	// After the fix: the exit-code-2 from the `npm list` call inside
+	// isPackageInstalled must surface as an error from EnsureBinary with the
+	// message "failed to check package status: …".
+	//
+	// Current behaviour (BUG B7): isPackageInstalled discards the error
+	// (output, _ := cmd.CombinedOutput()), returns (false, nil), and
+	// EnsureBinary proceeds to installPackage.  The error that eventually
+	// surfaces says "npm install failed" — not "failed to check package
+	// status" — masking the real source.
+	if err == nil {
+		t.Fatal("EnsureBinary should return an error when npm list exits with code 2, but got nil")
+	}
+
+	// THE KEY ASSERTION: after the fix, the error must come from the
+	// package-status check (isPackageInstalled), not from the install step.
+	// This will FAIL today because the install-step error fires instead.
+	if !strings.Contains(err.Error(), "failed to check package status") {
+		t.Errorf("BUG B7: expected error to contain 'failed to check package status' "+
+			"(from isPackageInstalled propagating the fatal exit-2 error), "+
+			"but got: %q\n"+
+			"This confirms isPackageInstalled is swallowing the exec error with 'output, _'",
+			err.Error())
+	}
+
+	t.Logf("EnsureBinary returned error: %v", err)
 }

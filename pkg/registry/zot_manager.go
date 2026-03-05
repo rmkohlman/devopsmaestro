@@ -163,7 +163,7 @@ func (z *ZotManager) IsRunning(ctx context.Context) bool {
 func (z *ZotManager) GetEndpoint() string {
 	// Reset idle timer on access
 	z.resetIdleTimer()
-	return fmt.Sprintf("localhost:%d", z.config.Port)
+	return fmt.Sprintf("http://localhost:%d", z.config.Port)
 }
 
 // Prune removes unused images from the registry.
@@ -256,7 +256,11 @@ func (z *ZotManager) waitForReady(ctx context.Context) error {
 			return fmt.Errorf("registry did not become ready within timeout")
 		case <-ticker.C:
 			// Try to connect
-			resp, err := http.Get(endpoint)
+			req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
+			if err != nil {
+				continue
+			}
+			resp, err := healthCheckClient.Do(req)
 			if err == nil {
 				resp.Body.Close()
 				if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusUnauthorized {

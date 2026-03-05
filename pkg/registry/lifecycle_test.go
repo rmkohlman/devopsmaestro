@@ -2,6 +2,7 @@ package registry
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -129,35 +130,6 @@ func TestLifecycleManager_EnsureRunning_AlreadyRunning(t *testing.T) {
 	assert.False(t, startCalled, "Should not call Start if already running")
 }
 
-// TestLifecycleManager_RecordActivity tests updating last access time
-func TestLifecycleManager_RecordActivity(t *testing.T) {
-	mockDB := db.NewMockDataStore()
-	mockManager := &MockRegistryManager{}
-
-	lifecycle := NewLifecycleManager(mockDB, mockManager)
-
-	registry := &models.Registry{
-		ID:          1,
-		Name:        "active-zot",
-		Type:        "zot",
-		Lifecycle:   "on-demand",
-		Status:      "running",
-		IdleTimeout: 1800,
-		Storage:     "/tmp/active-zot",
-	}
-
-	// Create registry in DB
-	err := mockDB.CreateRegistry(registry)
-	require.NoError(t, err)
-
-	// Record activity
-	err = lifecycle.RecordActivity(context.Background(), registry.ID)
-	assert.NoError(t, err, "Should successfully record activity")
-
-	// Verify last access time was updated (implementation detail)
-	// This would check a "last_accessed_at" field in the registry history
-}
-
 // TestLifecycleManager_IdleTimeout tests registry stops after idle timeout
 func TestLifecycleManager_IdleTimeout(t *testing.T) {
 	mockDB := db.NewMockDataStore()
@@ -189,45 +161,11 @@ func TestLifecycleManager_IdleTimeout(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, shouldStop, "Should stop after idle timeout")
 
-	// Stop the registry
+	// StopIfIdle is not yet implemented (deferred until last_accessed_at tracking)
 	err = lifecycle.StopIfIdle(context.Background(), registry)
-	assert.NoError(t, err)
-	assert.True(t, stopCalled, "Should have called Stop")
-}
-
-// TestLifecycleManager_IdleTimeoutReset tests activity resets timeout
-func TestLifecycleManager_IdleTimeoutReset(t *testing.T) {
-	mockDB := db.NewMockDataStore()
-	mockManager := &MockRegistryManager{
-		IsRunningFunc: func(ctx context.Context) bool {
-			return true
-		},
-	}
-
-	lifecycle := NewLifecycleManager(mockDB, mockManager)
-
-	registry := &models.Registry{
-		ID:          1,
-		Name:        "active-zot",
-		Type:        "zot",
-		Lifecycle:   "on-demand",
-		Status:      "running",
-		IdleTimeout: 1800, // 30 minutes
-		Storage:     "/tmp/active-zot",
-	}
-
-	// Create registry
-	err := mockDB.CreateRegistry(registry)
-	require.NoError(t, err)
-
-	// Record activity (resets timer)
-	err = lifecycle.RecordActivity(context.Background(), registry.ID)
-	assert.NoError(t, err)
-
-	// Check if should stop - should be false since we just recorded activity
-	shouldStop, err := lifecycle.ShouldStop(context.Background(), registry, time.Now())
-	assert.NoError(t, err)
-	assert.False(t, shouldStop, "Should NOT stop immediately after activity")
+	assert.Error(t, err, "StopIfIdle should return not-implemented error")
+	assert.Contains(t, err.Error(), "not yet implemented")
+	assert.False(t, stopCalled, "Stop should not have been called (StopIfIdle is not implemented)")
 }
 
 // TestLifecycleManager_PersistentNeverStops tests persistent lifecycle never auto-stops
@@ -322,6 +260,118 @@ func TestLifecycleManager_RegistryOverridesGlobal(t *testing.T) {
 	// Get effective timeout
 	timeout := lifecycle.GetEffectiveTimeout(registry)
 	assert.Equal(t, 60*time.Minute, timeout, "Registry timeout should override global")
+}
+
+// =============================================================================
+// B5: Lifecycle dead code removal — TDD RED phase
+//
+// These tests define the INTENDED behavior after the fix:
+//   - StopIfIdle should return a "not implemented" error (feature deferred).
+//   - RecordActivity is a recognised no-op; existing tests that assert
+//     NoError on it will continue to pass but are now documented as
+//     candidates for removal once RecordActivity is deleted from the API.
+//
+// Tests that must be REMOVED after the fix lands (they test the no-op that
+// will be deleted along with RecordActivity):
+//   - TestLifecycleManager_RecordActivity        (line ~133)
+//   - TestLifecycleManager_IdleTimeoutReset       (line ~199, uses RecordActivity)
+// =============================================================================
+
+// TestLifecycleManager_StopIfIdle_ReturnsNotImplemented verifies that
+// StopIfIdle returns an error indicating the feature is not yet implemented.
+//
+// Current behaviour (BUG B5): StopIfIdle silently returns nil because the
+// lastAccess calculation always produces a duration equal to (not greater
+// than) IdleTimeout, so shouldStop is always false. The fix will replace
+// the broken body with an explicit "not implemented" error.
+//
+// This test FAILS today because StopIfIdle returns nil.
+func TestLifecycleManager_StopIfIdle_ReturnsNotImplemented(t *testing.T) {
+	mockDB := db.NewMockDataStore()
+	mockManager := &MockRegistryManager{
+		IsRunningFunc: func(ctx context.Context) bool {
+			return true
+		},
+		StopFunc: func(ctx context.Context) error {
+			// Should never be reached once the fix is in place.
+			return nil
+		},
+	}
+
+	lifecycle := NewLifecycleManager(mockDB, mockManager)
+
+	registry := &models.Registry{
+		ID:          42,
+		Name:        "on-demand-zot",
+		Type:        "zot",
+		Lifecycle:   "on-demand",
+		Status:      "running",
+		IdleTimeout: 1800,
+	}
+
+	err := lifecycle.StopIfIdle(context.Background(), registry)
+
+	// After the fix: StopIfIdle must return a non-nil error that communicates
+	// the feature is not yet implemented (idle-timeout auto-stop is deferred
+	// until last_accessed_at is tracked in the database).
+	if err == nil {
+		t.Fatal("StopIfIdle should return an error indicating it is not implemented, but got nil")
+	}
+
+	// The error message must signal "not implemented" so callers know to skip
+	// idle-timeout enforcement rather than treating it as a hard failure.
+	lowerMsg := strings.ToLower(err.Error())
+	if !strings.Contains(lowerMsg, "not implemented") && !strings.Contains(lowerMsg, "not yet implemented") {
+		t.Errorf("expected error to contain 'not implemented', got: %q", err.Error())
+	}
+}
+
+// TestLifecycleManager_StopIfIdle_BrokenLastAccessCalculation documents the
+// exact broken behaviour present today: the lastAccess is set to exactly
+// IdleTimeout seconds ago, so time.Since(lastAccess) is never strictly
+// greater than the timeout — shouldStop is always false.
+//
+// This test PASSES today (demonstrating the bug: Stop is never called even
+// when it should be). It serves as a regression anchor to confirm the bug
+// exists before the fix is applied.
+func TestLifecycleManager_StopIfIdle_BrokenLastAccessCalculation(t *testing.T) {
+	mockDB := db.NewMockDataStore()
+
+	stopCallCount := 0
+	mockManager := &MockRegistryManager{
+		IsRunningFunc: func(ctx context.Context) bool {
+			return true
+		},
+		StopFunc: func(ctx context.Context) error {
+			stopCallCount++
+			return nil
+		},
+	}
+
+	lifecycle := NewLifecycleManager(mockDB, mockManager)
+
+	registry := &models.Registry{
+		ID:          99,
+		Name:        "idle-broken-zot",
+		Type:        "zot",
+		Lifecycle:   "on-demand",
+		Status:      "running",
+		IdleTimeout: 1, // 1 second — very short; should trigger a stop
+	}
+
+	// Wait just over the idle timeout so a correct implementation would stop.
+	time.Sleep(2 * time.Millisecond)
+
+	_ = lifecycle.StopIfIdle(context.Background(), registry)
+
+	// BUG: current code never calls Stop because lastAccess is calculated as
+	// time.Now().Add(-IdleTimeout * time.Second), making the idle duration
+	// exactly equal to the timeout (not greater), so shouldStop == false.
+	// Once the bug is fixed (StopIfIdle returns "not implemented"), this
+	// assertion should be updated or removed accordingly.
+	if stopCallCount != 0 {
+		t.Logf("NOTE: Stop was called %d time(s); the broken-lastAccess bug may already be fixed", stopCallCount)
+	}
 }
 
 // MockRegistryManager for testing

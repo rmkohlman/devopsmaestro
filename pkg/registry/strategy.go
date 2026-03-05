@@ -40,6 +40,10 @@ func (s *ZotStrategy) ValidateConfig(config json.RawMessage) error {
 
 // CreateManager creates a ZotManager from a Registry resource.
 func (s *ZotStrategy) CreateManager(reg *models.Registry) (ServiceManager, error) {
+	if reg == nil {
+		return nil, fmt.Errorf("registry cannot be nil")
+	}
+
 	// Convert Registry to RegistryConfig
 	config := RegistryConfig{
 		Enabled:     true,
@@ -78,9 +82,9 @@ func (s *ZotStrategy) CreateManager(reg *models.Registry) (ServiceManager, error
 	return manager, nil
 }
 
-// GetDefaultPort returns the default Zot port (5000).
+// GetDefaultPort returns the default Zot port (5001).
 func (s *ZotStrategy) GetDefaultPort() int {
-	return 5000
+	return 5001
 }
 
 // GetDefaultStorage returns the default Zot storage path.
@@ -133,6 +137,10 @@ func (s *AthensStrategy) ValidateConfig(config json.RawMessage) error {
 
 // CreateManager creates an AthensManagerAdapter from a Registry resource.
 func (s *AthensStrategy) CreateManager(reg *models.Registry) (ServiceManager, error) {
+	if reg == nil {
+		return nil, fmt.Errorf("registry cannot be nil")
+	}
+
 	// Convert Registry to GoModuleConfig
 	config := GoModuleConfig{
 		Enabled:     true,

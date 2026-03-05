@@ -101,7 +101,7 @@ func (m *VerdaccioManager) Start(ctx context.Context) error {
 	configFile := filepath.Join(m.config.Storage, "config.yaml")
 	args := []string{
 		"--config", configFile,
-		"--listen", fmt.Sprintf("0.0.0.0:%d", m.config.Port),
+		"--listen", fmt.Sprintf("127.0.0.1:%d", m.config.Port),
 	}
 
 	// Start verdaccio process
@@ -295,7 +295,11 @@ func (m *VerdaccioManager) waitForReady(ctx context.Context) error {
 			return fmt.Errorf("proxy did not become ready within timeout")
 		case <-ticker.C:
 			// Try to connect
-			resp, err := http.Get(endpoint)
+			req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
+			if err != nil {
+				continue
+			}
+			resp, err := healthCheckClient.Do(req)
 			if err == nil {
 				resp.Body.Close()
 				if resp.StatusCode == http.StatusOK {

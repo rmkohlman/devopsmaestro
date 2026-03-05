@@ -19,7 +19,7 @@ func NewZotManager(config RegistryConfig) *ZotManager {
 	binDir := filepath.Join(config.Storage, "bin")
 	return NewZotManagerWithDeps(
 		config,
-		NewBinaryManager(binDir, "1.4.3"),
+		NewBinaryManager(binDir, "2.0.0"),
 		NewProcessManager(ProcessConfig{
 			PIDFile: filepath.Join(config.Storage, "zot.pid"),
 			LogFile: filepath.Join(config.Storage, "zot.log"),

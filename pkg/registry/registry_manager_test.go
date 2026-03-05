@@ -358,12 +358,12 @@ func TestZotManager_GetEndpoint_ReturnsCorrectFormat(t *testing.T) {
 		{
 			name:    "default port 5001",
 			port:    5001,
-			wantFmt: "localhost:5001",
+			wantFmt: "http://localhost:5001",
 		},
 		{
 			name:    "custom port 5555",
 			port:    5555,
-			wantFmt: "localhost:5555",
+			wantFmt: "http://localhost:5555",
 		},
 	}
 

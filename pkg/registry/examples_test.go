@@ -103,9 +103,9 @@ func ExampleZotStrategy_CreateManager() {
 	fmt.Printf("Manager endpoint: %s\n", manager.GetEndpoint())
 
 	// Output:
-	// Default port: 5000
+	// Default port: 5001
 	// Default storage: /var/lib/zot
-	// Manager endpoint: localhost:5001
+	// Manager endpoint: http://localhost:5001
 }
 
 // Example: Configuration validation

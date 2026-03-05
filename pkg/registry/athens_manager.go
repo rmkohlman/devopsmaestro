@@ -270,7 +270,11 @@ func (m *AthensManager) waitForReady(ctx context.Context) error {
 			return fmt.Errorf("proxy did not become ready within timeout")
 		case <-ticker.C:
 			// Try to connect
-			resp, err := http.Get(endpoint)
+			req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
+			if err != nil {
+				continue
+			}
+			resp, err := healthCheckClient.Do(req)
 			if err == nil {
 				resp.Body.Close()
 				if resp.StatusCode == http.StatusOK {

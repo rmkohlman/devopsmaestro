@@ -9,6 +9,117 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🐛 Fixed
+
+#### B1: Zot Version Mismatch
+- **`factory.go` version string corrected** — `factory.go:22` declared Zot version `"1.4.3"` but the project ships Zot v2.0; updated to `"2.0.0"`
+  - Files changed: `pkg/registry/factory.go`
+
+#### B2: Default Registry Port Conflict with macOS AirPlay
+- **Port changed from 5000 → 5001** — `strategy.go:83` used port 5000, which macOS AirPlay Receiver binds on macOS 12+; changed to `5001` to avoid silent startup failures
+  - Files changed: `pkg/registry/strategy.go`
+
+#### B3: Missing `http://` Prefix in Endpoint URLs
+- **`GetEndpoint()` now returns a valid URL** — `zot_manager.go:166` returned `localhost:5001` (no scheme), causing HTTP client failures; now returns `http://localhost:5001`
+  - Files changed: `pkg/registry/zot_manager.go`
+
+#### B4: Race Condition in ProcessManager
+- **Added `sync.RWMutex` to ProcessManager** — `process_manager.go` had no mutex protecting the `cmd`/`pid` fields; concurrent goroutines (start/stop/status) could race on those fields
+  - Added `isRunningLocked()` helper that assumes the caller already holds the lock
+  - Files changed: `pkg/registry/process_manager.go`
+
+#### B5: Lifecycle Dead Code Removed
+- **`lifecycle.go` cleaned up** — `RecordActivity()` was a no-op stub and `StopIfIdle()` had broken timeout logic that never fired correctly
+  - Removed both no-op implementations; `StopIfIdle` now returns an explicit `"not implemented"` error so callers are not silently misled
+  - Files changed: `pkg/registry/lifecycle.go`
+
+#### B6: Fragile String-Based Error Detection
+- **`binary_manager.go` uses sentinel errors** — `binary_manager.go:73` detected missing binaries via `strings.Contains(err.Error(), ...)`, which breaks on localized or wrapped errors
+  - Changed to `errors.Is(ErrBinaryNotFound)` for robust, idiomatic sentinel error matching
+  - Files changed: `pkg/registry/binary_manager.go`
+
+#### B7: Swallowed Error in npm Package Check
+- **`binary_npm.go` propagates errors correctly** — `isPackageInstalled` at line 178 silently discarded errors from the npm command; failures appeared as "package not installed" rather than surfacing the real cause
+  - Errors now propagate via the `ExitError` pattern
+  - Files changed: `pkg/registry/binary_npm.go`
+
+#### B8: Network Exposure — Registries Bound to All Interfaces ⚠️ Security Fix
+- **All registry managers restricted to `127.0.0.1`** — Five files bound registry listeners to `0.0.0.0`, exposing local registries on all network interfaces (including LAN/VPN)
+  - Changed ALL occurrences to `127.0.0.1` (localhost only); registries are local development tools and must never be reachable from outside the host
+  - Files changed: `pkg/registry/config.go`, `pkg/registry/config_athens.go`, `pkg/registry/config_verdaccio.go`, `pkg/registry/verdaccio_manager.go`, `pkg/registry/squid_manager.go`
+
+#### B9: Nil Pointer Risk in `CreateManager()`
+- **Added nil guards in Zot and Athens strategy** — `strategy.go` `CreateManager()` paths for Zot and Athens could return a nil manager without an error, causing a nil-pointer dereference at the call site
+  - Added nil checks before returning; callers now always receive either a valid manager or a non-nil error
+  - Files changed: `pkg/registry/strategy.go`
+
+#### B10: HTTP Clients Without Timeouts in Health Checks
+- **All health-check HTTP calls use a shared client with a 2s timeout** — Four manager files called `http.Get()` or `http.NewRequest` without a context or deadline; a hung registry process would block `waitForReady` indefinitely
+  - All callers switched to `http.NewRequestWithContext` backed by the new shared `healthCheckClient`
+  - Files changed: `pkg/registry/zot_manager.go`, `pkg/registry/verdaccio_manager.go`, `pkg/registry/athens_manager.go`, `pkg/registry/devpi_manager.go`
+
+### ✨ Added
+
+#### Shared Health-Check HTTP Client (`health_check.go`)
+- **New `pkg/registry/health_check.go`** — Centralises the HTTP client used by all registry `waitForReady` implementations
+  - `healthCheckClient` is a package-level `*http.Client` configured with a 2-second timeout
+  - Eliminates duplicated timeout logic across Zot, Verdaccio, Athens, and Devpi managers
+
+### ✅ Tests
+
+#### New Test Files
+- **`pkg/registry/strategy_zot_test.go`** — Covers B1 (version string), B2 (port 5001), B9 (nil-guard in `CreateManager`)
+- **`pkg/registry/security_bugs_test.go`** — Covers B3 (HTTP prefix), B4 (ProcessManager mutex / race detector), B8 (localhost-only binding)
+- **`pkg/registry/b10_health_check_client_test.go`** — Covers B10 (timeout behaviour); build tag `//go:build b10`
+
+#### Updated Test Files
+- **`pkg/registry/lifecycle_test.go`** — Added tests for `StopIfIdle` "not implemented" error; removed 2 tests that asserted the old broken no-op behaviour
+- **`pkg/registry/binary_manager_test.go`** — Updated for B6 sentinel-error matching
+- **`pkg/registry/binary_npm_test.go`** — Updated for B7 error propagation
+- **`pkg/registry/registry_manager_test.go`** — Expectations updated for B3 (`http://` prefix)
+- **`pkg/registry/service_manager_test.go`** — Expectations updated for B2 (port 5001) and B3 (HTTP prefix)
+- **`pkg/registry/examples_test.go`** — Example output updated for B2/B3 changes
+- **`pkg/registry/config_athens_test.go`** — Updated for B8 (`127.0.0.1` binding)
+
+### 📦 Files Changed
+
+#### New Files
+```
+pkg/registry/health_check.go                  # Shared HTTP client with 2s timeout (B10)
+pkg/registry/strategy_zot_test.go             # Tests for B1, B2, B9
+pkg/registry/security_bugs_test.go            # Tests for B3, B4, B8
+pkg/registry/b10_health_check_client_test.go  # Tests for B10 (build tag: b10)
+```
+
+#### Modified Source Files
+```
+pkg/registry/factory.go           # B1: Zot version string 1.4.3 → 2.0.0
+pkg/registry/strategy.go          # B2: default port 5000 → 5001; B9: nil guards
+pkg/registry/zot_manager.go       # B3: http:// prefix; B10: healthCheckClient
+pkg/registry/process_manager.go   # B4: sync.RWMutex, isRunningLocked()
+pkg/registry/lifecycle.go         # B5: removed dead code, StopIfIdle returns error
+pkg/registry/binary_manager.go    # B6: errors.Is(ErrBinaryNotFound)
+pkg/registry/binary_npm.go        # B7: ExitError propagation
+pkg/registry/config.go            # B8: 0.0.0.0 → 127.0.0.1
+pkg/registry/config_athens.go     # B8: 0.0.0.0 → 127.0.0.1
+pkg/registry/config_verdaccio.go  # B8: 0.0.0.0 → 127.0.0.1
+pkg/registry/verdaccio_manager.go # B8: 0.0.0.0 → 127.0.0.1; B10: healthCheckClient
+pkg/registry/squid_manager.go     # B8: 0.0.0.0 → 127.0.0.1
+pkg/registry/athens_manager.go    # B10: healthCheckClient
+pkg/registry/devpi_manager.go     # B10: healthCheckClient
+```
+
+#### Modified Test Files
+```
+pkg/registry/lifecycle_test.go          # B5: updated assertions
+pkg/registry/binary_manager_test.go     # B6: updated assertions
+pkg/registry/binary_npm_test.go         # B7: updated assertions
+pkg/registry/registry_manager_test.go   # B3: updated HTTP prefix expectations
+pkg/registry/service_manager_test.go    # B2/B3: updated port + HTTP prefix expectations
+pkg/registry/examples_test.go           # B2/B3: updated example output
+pkg/registry/config_athens_test.go      # B8: updated bind address assertions
+```
+
 ---
 
 ## [0.32.8] - 2026-03-05

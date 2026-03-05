@@ -321,7 +321,7 @@ func GenerateSquidConfig(cfg HttpProxyConfig) (string, error) {
 # Squid HTTP proxy configuration
 
 # Listen port
-http_port %d
+http_port 127.0.0.1:%d
 
 # Cache settings
 cache_dir ufs %s %d 16 256

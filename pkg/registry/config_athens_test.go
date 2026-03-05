@@ -144,7 +144,7 @@ func TestAthensConfig_CustomPort(t *testing.T) {
 			require.NoError(t, err)
 
 			// Verify port in TOML config string
-			expectedPort := `Port = ":` + strconv.Itoa(tt.port) + `"`
+			expectedPort := `Port = "127.0.0.1:` + strconv.Itoa(tt.port) + `"`
 			assert.Contains(t, athensConfig, expectedPort, "Config should contain specified port")
 		})
 	}
