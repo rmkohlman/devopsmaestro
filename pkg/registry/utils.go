@@ -12,6 +12,11 @@ import (
 	"time"
 )
 
+// healthCheckClient is the shared HTTP client for health-check requests in
+// waitForReady methods.  It has a short timeout to prevent hung requests from
+// blocking service startup indefinitely.
+var healthCheckClient = &http.Client{Timeout: 2 * time.Second}
+
 // IsPortAvailable checks if a TCP port is available for binding.
 func IsPortAvailable(port int) bool {
 	// Validate port range - exclude privileged ports (< 1024)
@@ -32,17 +37,12 @@ func IsPortAvailable(port int) bool {
 }
 
 // WaitForReady polls an HTTP endpoint until it returns an accepted status code.
+// It uses the shared healthCheckClient (2s per-request timeout) and a configurable
+// overall timeout.
 func WaitForReady(ctx context.Context, endpoint string, acceptedStatuses []int, timeout time.Duration) error {
-	// Create a context with timeout
 	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	// Create HTTP client
-	client := &http.Client{
-		Timeout: 1 * time.Second,
-	}
-
-	// Polling interval
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -51,20 +51,16 @@ func WaitForReady(ctx context.Context, endpoint string, acceptedStatuses []int, 
 		case <-timeoutCtx.Done():
 			return fmt.Errorf("timeout waiting for endpoint to be ready: %w", timeoutCtx.Err())
 		case <-ticker.C:
-			// Create a request with the context
 			req, err := http.NewRequestWithContext(timeoutCtx, "GET", endpoint, nil)
 			if err != nil {
 				continue
 			}
 
-			// Perform the request
-			resp, err := client.Do(req)
+			resp, err := healthCheckClient.Do(req)
 			if err != nil {
-				// Connection error - keep polling
 				continue
 			}
 
-			// Check if status code is in accepted list
 			statusCode := resp.StatusCode
 			resp.Body.Close()
 
@@ -73,8 +69,29 @@ func WaitForReady(ctx context.Context, endpoint string, acceptedStatuses []int, 
 					return nil
 				}
 			}
+		}
+	}
+}
 
-			// Status code not accepted - keep polling
+// WaitForReadyTCP polls a TCP endpoint until a connection can be established.
+// Used for services like Squid that do not expose an HTTP health endpoint.
+func WaitForReadyTCP(ctx context.Context, address string, timeout time.Duration) error {
+	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeoutCtx.Done():
+			return fmt.Errorf("timeout waiting for endpoint to be ready: %w", timeoutCtx.Err())
+		case <-ticker.C:
+			conn, err := net.DialTimeout("tcp", address, 100*time.Millisecond)
+			if err == nil {
+				conn.Close()
+				return nil
+			}
 		}
 	}
 }

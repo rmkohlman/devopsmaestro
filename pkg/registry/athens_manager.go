@@ -3,7 +3,6 @@ package registry
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -217,33 +216,8 @@ func (m *AthensManager) writeConfigFile(path string, config string) error {
 
 // waitForReady waits for the proxy to become ready.
 func (m *AthensManager) waitForReady(ctx context.Context) error {
-	// Athens health check endpoint
 	endpoint := fmt.Sprintf("http://localhost:%d/healthz", m.config.Port)
-	timeout := time.After(10 * time.Second)
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-timeout:
-			return fmt.Errorf("proxy did not become ready within timeout")
-		case <-ticker.C:
-			// Try to connect
-			req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
-			if err != nil {
-				continue
-			}
-			resp, err := healthCheckClient.Do(req)
-			if err == nil {
-				resp.Body.Close()
-				if resp.StatusCode == http.StatusOK {
-					return nil // Proxy is ready
-				}
-			}
-		}
-	}
+	return WaitForReady(ctx, endpoint, []int{200}, 10*time.Second)
 }
 
 // getProxyStats counts modules and disk usage.
@@ -269,73 +243,4 @@ func (m *AthensManager) getProxyStats(ctx context.Context) (int, int64) {
 	})
 
 	return moduleCount, diskUsage
-}
-
-// MockGoModuleProxy is a mock implementation of GoModuleProxy for testing.
-type MockGoModuleProxy struct {
-	StartFunc         func(ctx context.Context) error
-	StopFunc          func(ctx context.Context) error
-	StatusFunc        func(ctx context.Context) (*GoModuleProxyStatus, error)
-	EnsureRunningFunc func(ctx context.Context) error
-	IsRunningFunc     func(ctx context.Context) bool
-	GetEndpointFunc   func() string
-	GetGoEnvFunc      func() map[string]string
-}
-
-// Start calls the mock's StartFunc.
-func (m *MockGoModuleProxy) Start(ctx context.Context) error {
-	if m.StartFunc != nil {
-		return m.StartFunc(ctx)
-	}
-	return nil
-}
-
-// Stop calls the mock's StopFunc.
-func (m *MockGoModuleProxy) Stop(ctx context.Context) error {
-	if m.StopFunc != nil {
-		return m.StopFunc(ctx)
-	}
-	return nil
-}
-
-// Status calls the mock's StatusFunc.
-func (m *MockGoModuleProxy) Status(ctx context.Context) (*GoModuleProxyStatus, error) {
-	if m.StatusFunc != nil {
-		return m.StatusFunc(ctx)
-	}
-	return &GoModuleProxyStatus{}, nil
-}
-
-// EnsureRunning calls the mock's EnsureRunningFunc.
-func (m *MockGoModuleProxy) EnsureRunning(ctx context.Context) error {
-	if m.EnsureRunningFunc != nil {
-		return m.EnsureRunningFunc(ctx)
-	}
-	return nil
-}
-
-// IsRunning calls the mock's IsRunningFunc.
-func (m *MockGoModuleProxy) IsRunning(ctx context.Context) bool {
-	if m.IsRunningFunc != nil {
-		return m.IsRunningFunc(ctx)
-	}
-	return false
-}
-
-// GetEndpoint calls the mock's GetEndpointFunc.
-func (m *MockGoModuleProxy) GetEndpoint() string {
-	if m.GetEndpointFunc != nil {
-		return m.GetEndpointFunc()
-	}
-	return "http://localhost:3000"
-}
-
-// GetGoEnv calls the mock's GetGoEnvFunc.
-func (m *MockGoModuleProxy) GetGoEnv() map[string]string {
-	if m.GetGoEnvFunc != nil {
-		return m.GetGoEnvFunc()
-	}
-	return map[string]string{
-		"GOPROXY": "http://localhost:3000",
-	}
 }

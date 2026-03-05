@@ -3,7 +3,6 @@ package registry
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -242,33 +241,8 @@ func (m *VerdaccioManager) generateConfig() error {
 
 // waitForReady waits for the proxy to become ready.
 func (m *VerdaccioManager) waitForReady(ctx context.Context) error {
-	// Verdaccio health check endpoint
 	endpoint := fmt.Sprintf("http://localhost:%d/-/ping", m.config.Port)
-	timeout := time.After(10 * time.Second)
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-timeout:
-			return fmt.Errorf("proxy did not become ready within timeout")
-		case <-ticker.C:
-			// Try to connect
-			req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
-			if err != nil {
-				continue
-			}
-			resp, err := healthCheckClient.Do(req)
-			if err == nil {
-				resp.Body.Close()
-				if resp.StatusCode == http.StatusOK {
-					return nil // Proxy is ready
-				}
-			}
-		}
-	}
+	return WaitForReady(ctx, endpoint, []int{200}, 10*time.Second)
 }
 
 // getProxyStats counts packages and disk usage.

@@ -207,31 +207,7 @@ func (z *ZotManager) writeConfigFile(path string, config map[string]interface{})
 // waitForReady waits for the registry to become ready.
 func (z *ZotManager) waitForReady(ctx context.Context) error {
 	endpoint := fmt.Sprintf("http://localhost:%d/v2/", z.config.Port)
-	timeout := time.After(10 * time.Second)
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-timeout:
-			return fmt.Errorf("registry did not become ready within timeout")
-		case <-ticker.C:
-			// Try to connect
-			req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
-			if err != nil {
-				continue
-			}
-			resp, err := healthCheckClient.Do(req)
-			if err == nil {
-				resp.Body.Close()
-				if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusUnauthorized {
-					return nil // Registry is ready
-				}
-			}
-		}
-	}
+	return WaitForReady(ctx, endpoint, []int{http.StatusOK, http.StatusUnauthorized}, 10*time.Second)
 }
 
 // getRegistryStats queries the registry API for image count and disk usage.

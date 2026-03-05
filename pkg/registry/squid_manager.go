@@ -3,7 +3,6 @@ package registry
 import (
 	"context"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -267,27 +266,8 @@ func (m *SquidManager) initializeCacheDir(ctx context.Context, binaryPath, confi
 
 // waitForReady waits for the proxy to become ready.
 func (m *SquidManager) waitForReady(ctx context.Context) error {
-	// Try connecting to the squid port
-	endpoint := fmt.Sprintf("localhost:%d", m.config.Port)
-	timeout := time.After(10 * time.Second)
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-timeout:
-			return fmt.Errorf("proxy did not become ready within timeout")
-		case <-ticker.C:
-			// Try to connect to the port
-			conn, err := net.DialTimeout("tcp", endpoint, 100*time.Millisecond)
-			if err == nil {
-				conn.Close()
-				return nil // Proxy is ready
-			}
-		}
-	}
+	address := fmt.Sprintf("localhost:%d", m.config.Port)
+	return WaitForReadyTCP(ctx, address, 10*time.Second)
 }
 
 // GenerateSquidConfig generates a squid configuration from an HttpProxyConfig.

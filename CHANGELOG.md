@@ -27,6 +27,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ♻️ Changed
 
+#### Mock Cleanup — Move Production Mocks to Test Files (Chunk 4)
+- **Moved 6 mock structs out of production code into `_test.go` files** — `MockBinaryManager`, `MockAthensBinaryManager`, `MockBrewBinaryManager`, `MockNpmBinaryManager`, `MockPipxBinaryManager`, and `MockGoModuleProxy` were all compiled into the production binary despite being test-only code; now live in `mock_helpers_test.go`
+- **Deleted 5 standalone `mock_*.go` production files** — `mock_binary_manager.go`, `mock_athens_binary_manager.go`, `mock_brew_binary_manager.go`, `mock_npm_binary_manager.go`, `mock_pipx_binary_manager.go` removed entirely
+- **Removed dead `MockAthensBinaryManager`** — Was defined but never referenced anywhere in the codebase; deleted along with its companion `StartMockAthensServer` helper
+- **Removed `MockGoModuleProxy` from `athens_manager.go`** — Moved to test file; production `athens_manager.go` reduced from 341 to 272 lines
+  - Files changed: `pkg/registry/mock_helpers_test.go` (NEW), `pkg/registry/athens_manager.go`; 5 files deleted
+
+#### Unify `waitForReady()` via Shared Helpers (Chunk 4)
+- **4 HTTP managers now delegate to `WaitForReady()` from `utils.go`** — Zot, Athens, Verdaccio, and Devpi managers replaced ~25-line polling loops with one-line calls to the shared function, parameterized by endpoint URL and accepted HTTP status codes
+- **New `WaitForReadyTCP()` function in `utils.go`** — Polls a TCP endpoint until a connection succeeds; used by Squid (which has no HTTP health endpoint)
+- **Merged `health_check.go` into `utils.go`** — The `healthCheckClient` variable (shared `*http.Client` with 2s timeout) moved to `utils.go`; `health_check.go` deleted
+- **Removed unused `"net/http"` import from 3 managers** — Athens, Verdaccio, and Devpi no longer import `"net/http"` directly; Squid no longer imports `"net"`
+  - Files changed: `pkg/registry/utils.go`, `pkg/registry/zot_manager.go`, `pkg/registry/athens_manager.go`, `pkg/registry/verdaccio_manager.go`, `pkg/registry/devpi_manager.go`, `pkg/registry/squid_manager.go`; `pkg/registry/health_check.go` deleted
+
 #### Embed `BaseServiceManager` in All Registry Managers (Chunk 3)
 - **All 5 concrete managers now embed `BaseServiceManager`** — Zot, Athens, Devpi, Verdaccio, and Squid managers embed the shared base struct instead of duplicating fields (`mu`, `startTime`, `lastAccessTime`, `idleTimer`, `idleTimeout`), eliminating ~280 lines of duplicated code
 - **Added `*Locked` helper methods to `BaseServiceManager`** — `RecordStartLocked()`, `StopIdleTimerLocked()`, and `ResetIdleTimerLocked()` allow callers that already hold `mu` to use base functionality without deadlocking; existing locking methods (`RecordStart`, `StopIdleTimer`, `ResetIdleTimer`, `SetupIdleTimer`) now delegate to the `*Locked` variants internally

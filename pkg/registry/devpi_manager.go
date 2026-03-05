@@ -3,7 +3,6 @@ package registry
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -261,33 +260,8 @@ func (m *DevpiManager) initializeDevpiServer(ctx context.Context, serverDir stri
 
 // waitForReady waits for the proxy to become ready.
 func (m *DevpiManager) waitForReady(ctx context.Context) error {
-	// Devpi health check endpoint (root page)
 	endpoint := fmt.Sprintf("http://localhost:%d/", m.config.Port)
-	timeout := time.After(10 * time.Second)
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-timeout:
-			return fmt.Errorf("proxy did not become ready within timeout")
-		case <-ticker.C:
-			// Try to connect
-			req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
-			if err != nil {
-				continue
-			}
-			resp, err := healthCheckClient.Do(req)
-			if err == nil {
-				resp.Body.Close()
-				if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusFound {
-					return nil // Proxy is ready
-				}
-			}
-		}
-	}
+	return WaitForReady(ctx, endpoint, []int{200, 302}, 10*time.Second)
 }
 
 // getProxyStats counts packages and disk usage.
