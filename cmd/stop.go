@@ -84,6 +84,11 @@ func runStopRegistry(cmd *cobra.Command, args []string) error {
 
 	// Check if running
 	if !mgr.IsRunning(ctx) {
+		// Ensure DB status is consistent
+		if reg.Status != "stopped" {
+			reg.Status = "stopped"
+			_ = store.UpdateRegistry(reg)
+		}
 		render.Info(fmt.Sprintf("Registry '%s' is not running", name))
 		return nil
 	}
@@ -98,6 +103,12 @@ func runStopRegistry(cmd *cobra.Command, args []string) error {
 
 	if err := mgr.Stop(ctx); err != nil {
 		return fmt.Errorf("failed to stop registry: %w", err)
+	}
+
+	// Update DB status to stopped
+	reg.Status = "stopped"
+	if err := store.UpdateRegistry(reg); err != nil {
+		render.Warning(fmt.Sprintf("Registry stopped but failed to update status: %v", err))
 	}
 
 	render.Success(fmt.Sprintf("Registry '%s' stopped", name))

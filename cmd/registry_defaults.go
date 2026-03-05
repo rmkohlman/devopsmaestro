@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 
 	"devopsmaestro/pkg/registry"
@@ -145,10 +146,7 @@ func runRegistryGetDefaults(cmd *cobra.Command, args []string) error {
 			} else {
 				registryDisplay = reg.Name
 				endpoint = fmt.Sprintf("http://localhost:%d", reg.Port)
-				status = reg.Status
-				if status == "" {
-					status = "stopped"
-				}
+				status = registryLiveStatus(context.Background(), reg)
 			}
 		}
 

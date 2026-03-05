@@ -103,6 +103,12 @@ func runStartRegistry(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to start registry: %w", err)
 	}
 
+	// Update DB status to running
+	reg.Status = "running"
+	if err := store.UpdateRegistry(reg); err != nil {
+		render.Warning(fmt.Sprintf("Registry started but failed to update status: %v", err))
+	}
+
 	render.Success(fmt.Sprintf("Registry '%s' started", name))
 	render.Info(fmt.Sprintf("Endpoint: %s", mgr.GetEndpoint()))
 

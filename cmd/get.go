@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 
 	"devopsmaestro/builders"
@@ -11,6 +12,7 @@ import (
 	"devopsmaestro/pkg/nvimops"
 	"devopsmaestro/pkg/nvimops/plugin"
 	"devopsmaestro/pkg/nvimops/theme"
+	"devopsmaestro/pkg/registry"
 	"devopsmaestro/pkg/resolver"
 	"devopsmaestro/pkg/resource"
 	"devopsmaestro/pkg/resource/handlers"
@@ -1386,11 +1388,8 @@ func getRegistries(cmd *cobra.Command) error {
 	}
 
 	for i, r := range registries {
-		// Status display
-		status := r.Status
-		if status == "" {
-			status = "stopped"
-		}
+		// Live status check via ServiceManager (reads PID file, not just DB)
+		status := registryLiveStatus(context.Background(), r)
 
 		// Uptime placeholder (would be from runtime status)
 		uptime := "-"
@@ -1451,10 +1450,7 @@ func getRegistry(cmd *cobra.Command, name string) error {
 		desc = registry.Description.String
 	}
 
-	status := registry.Status
-	if status == "" {
-		status = "stopped"
-	}
+	status := registryLiveStatus(cmd.Context(), registry)
 
 	kvData := render.NewOrderedKeyValueData(
 		render.KeyValue{Key: "Name", Value: registry.Name},
@@ -1470,4 +1466,23 @@ func getRegistry(cmd *cobra.Command, name string) error {
 		Type:  render.TypeKeyValue,
 		Title: "Registry Details",
 	})
+}
+
+// registryLiveStatus checks whether a registry process is actually running
+// by creating a ServiceManager and checking the PID file, rather than trusting
+// the DB status field which may be stale across CLI invocations.
+func registryLiveStatus(ctx context.Context, reg *models.Registry) string {
+	factory := registry.NewServiceFactory()
+	mgr, err := factory.CreateManager(reg)
+	if err != nil {
+		// Can't create manager — fall back to DB status
+		if reg.Status != "" {
+			return reg.Status
+		}
+		return "stopped"
+	}
+	if mgr.IsRunning(ctx) {
+		return "running"
+	}
+	return "stopped"
 }

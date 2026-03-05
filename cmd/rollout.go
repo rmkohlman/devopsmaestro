@@ -207,6 +207,9 @@ func runRolloutRestartRegistry(cmd *cobra.Command, args []string) error {
 		if err := mgr.Stop(ctx); err != nil {
 			return fmt.Errorf("failed to stop registry: %w", err)
 		}
+		// Update DB status for the stop phase
+		reg.Status = "stopped"
+		_ = store.UpdateRegistry(reg)
 		// Small delay to ensure clean shutdown
 		time.Sleep(500 * time.Millisecond)
 	}
@@ -222,6 +225,12 @@ func runRolloutRestartRegistry(cmd *cobra.Command, args []string) error {
 			CreatedAt:  time.Now(),
 		})
 		return fmt.Errorf("failed to start registry: %w", err)
+	}
+
+	// Update DB status to running
+	reg.Status = "running"
+	if err := store.UpdateRegistry(reg); err != nil {
+		render.Warning(fmt.Sprintf("Registry restarted but failed to update status: %v", err))
 	}
 
 	// Record successful restart in history

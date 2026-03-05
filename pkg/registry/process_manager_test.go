@@ -3,6 +3,7 @@ package registry
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"syscall"
@@ -467,4 +468,299 @@ func TestProcessManager_LogFile_CapturesOutput(t *testing.T) {
 
 func TestDefaultProcessManager_ImplementsProcessManager(t *testing.T) {
 	var _ ProcessManager = (*DefaultProcessManager)(nil)
+}
+
+// =============================================================================
+// PID File Fallback Tests (cross-CLI-invocation behavior)
+// =============================================================================
+
+// startSleepProcess starts a "sleep 300" subprocess, returning the cmd
+// (for PID access and Wait), and a cleanup function that kills it.
+// It is the caller's responsibility to invoke cleanup even if the test fails.
+func startSleepProcess(t *testing.T) (cmd *exec.Cmd, cleanup func()) {
+	t.Helper()
+	cmd = exec.Command("sleep", "300")
+	require.NoError(t, cmd.Start(), "failed to start sleep subprocess")
+	cleanup = func() {
+		// Best-effort: process may already be dead.
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+	}
+	return cmd, cleanup
+}
+
+func TestProcessManager_IsRunning_PIDFileFallback(t *testing.T) {
+	// Start one real process so we always have a live PID to test with.
+	aliveCmd, killAlive := startSleepProcess(t)
+	t.Cleanup(killAlive)
+	alivePID := aliveCmd.Process.Pid
+
+	tests := []struct {
+		name         string
+		setupPIDFile func(t *testing.T, pidFile string)
+		wantRunning  bool
+	}{
+		{
+			name: "pid file with running process returns true",
+			setupPIDFile: func(t *testing.T, pidFile string) {
+				t.Helper()
+				require.NoError(t, os.WriteFile(pidFile, []byte(strconv.Itoa(alivePID)), 0644))
+			},
+			wantRunning: true,
+		},
+		{
+			name: "pid file with dead process returns false",
+			setupPIDFile: func(t *testing.T, pidFile string) {
+				t.Helper()
+				// Use a PID that is almost certainly not alive: PID 1 is init on
+				// Linux but on macOS signal(0) to PID 1 returns EPERM which is NOT
+				// nil, so isProcessAlive returns false as we need. Use a very large
+				// PID that is exceedingly unlikely to exist instead.
+				require.NoError(t, os.WriteFile(pidFile, []byte("2147483647"), 0644))
+			},
+			wantRunning: false,
+		},
+		{
+			name: "missing pid file returns false",
+			setupPIDFile: func(t *testing.T, pidFile string) {
+				t.Helper()
+				// Deliberately do NOT create the file.
+			},
+			wantRunning: false,
+		},
+		{
+			name: "pid file with non-numeric content returns false",
+			setupPIDFile: func(t *testing.T, pidFile string) {
+				t.Helper()
+				require.NoError(t, os.WriteFile(pidFile, []byte("not-a-pid"), 0644))
+			},
+			wantRunning: false,
+		},
+		{
+			name: "pid file with empty content returns false",
+			setupPIDFile: func(t *testing.T, pidFile string) {
+				t.Helper()
+				require.NoError(t, os.WriteFile(pidFile, []byte(""), 0644))
+			},
+			wantRunning: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			pidFile := filepath.Join(dir, "test.pid")
+
+			tt.setupPIDFile(t, pidFile)
+
+			// Create a ProcessManager with cmd == nil (simulates fresh CLI invocation).
+			mgr := NewProcessManager(ProcessConfig{
+				PIDFile: pidFile,
+				LogFile: filepath.Join(dir, "test.log"),
+			})
+
+			assert.Equal(t, tt.wantRunning, mgr.IsRunning())
+		})
+	}
+}
+
+// TestProcessManager_IsRunning_InMemoryCmdStillWorks verifies the original
+// in-memory behavior (p.cmd != nil) is not broken by the PID-file fallback.
+func TestProcessManager_IsRunning_InMemoryCmdStillWorks(t *testing.T) {
+	dir := t.TempDir()
+	config := ProcessConfig{
+		PIDFile: filepath.Join(dir, "test.pid"),
+		LogFile: filepath.Join(dir, "test.log"),
+	}
+
+	mgr := NewProcessManager(config)
+	ctx := context.Background()
+
+	require.NoError(t, mgr.Start(ctx, "sleep", []string{"300"}, config))
+	t.Cleanup(func() { _ = mgr.Stop(ctx) })
+
+	assert.True(t, mgr.IsRunning(), "in-memory cmd path: IsRunning should return true")
+}
+
+func TestProcessManager_GetPID_PIDFileFallback(t *testing.T) {
+	tests := []struct {
+		name         string
+		pidFileValue string
+		writePIDFile bool
+		wantPID      int
+	}{
+		{
+			name:         "pid file with valid pid returns that pid",
+			writePIDFile: true,
+			pidFileValue: "12345",
+			wantPID:      12345,
+		},
+		{
+			name:         "missing pid file returns 0",
+			writePIDFile: false,
+			wantPID:      0,
+		},
+		{
+			name:         "pid file with non-numeric content returns 0",
+			writePIDFile: true,
+			pidFileValue: "notapid",
+			wantPID:      0,
+		},
+		{
+			name:         "pid file with whitespace-padded pid returns that pid",
+			writePIDFile: true,
+			pidFileValue: "  99  \n",
+			wantPID:      99,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			pidFile := filepath.Join(dir, "test.pid")
+
+			if tt.writePIDFile {
+				require.NoError(t, os.WriteFile(pidFile, []byte(tt.pidFileValue), 0644))
+			}
+
+			// p.cmd is nil – simulates fresh CLI invocation.
+			mgr := NewProcessManager(ProcessConfig{
+				PIDFile: pidFile,
+				LogFile: filepath.Join(dir, "test.log"),
+			})
+
+			assert.Equal(t, tt.wantPID, mgr.GetPID())
+		})
+	}
+}
+
+// TestProcessManager_GetPID_NilCmdNoPIDFile is a simple sanity test confirming
+// the zero-value case.
+func TestProcessManager_GetPID_NilCmdNoPIDFile(t *testing.T) {
+	mgr := NewProcessManager(ProcessConfig{
+		PIDFile: filepath.Join(t.TempDir(), "test.pid"),
+		LogFile: filepath.Join(t.TempDir(), "test.log"),
+	})
+	assert.Equal(t, 0, mgr.GetPID(), "GetPID should return 0 when no process and no pid file")
+}
+
+// TestProcessManager_Stop_PIDFileBased verifies that Stop() can terminate a
+// process it did NOT start in the current CLI invocation (p.cmd == nil) by
+// reading the PID from the PID file.
+func TestProcessManager_Stop_PIDFileBased(t *testing.T) {
+	dir := t.TempDir()
+	pidFile := filepath.Join(dir, "test.pid")
+
+	// Start a real process independently (simulates a process started by a
+	// previous CLI invocation).
+	sleepCmd, killIfStillAlive := startSleepProcess(t)
+	t.Cleanup(killIfStillAlive)
+	pid := sleepCmd.Process.Pid
+
+	// Write its PID to the PID file.
+	require.NoError(t, os.WriteFile(pidFile, []byte(strconv.Itoa(pid)), 0644))
+
+	// Create a fresh ProcessManager with cmd == nil but PIDFile pointing at the
+	// file we just wrote.
+	mgr := NewProcessManager(ProcessConfig{
+		PIDFile:         pidFile,
+		LogFile:         filepath.Join(dir, "test.log"),
+		ShutdownTimeout: 5 * time.Second,
+	})
+
+	// Confirm we can see the process as running via PID file.
+	require.True(t, mgr.IsRunning(), "process should be visible via PID file before Stop")
+
+	// Stop via PID file.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err := mgr.Stop(ctx)
+	require.NoError(t, err, "Stop should succeed when stopping via PID file")
+
+	// Reap the child process so it is no longer a zombie. Without this, the
+	// kernel still shows the process in the process table (as a zombie) and
+	// signal(0) succeeds, making isProcessAlive return true even though the
+	// process has been terminated.
+	_ = sleepCmd.Wait()
+
+	// Process should be dead.
+	assert.False(t, isProcessAlive(pid), "process should no longer be alive after PID-file-based Stop")
+
+	// PID file should be removed.
+	assert.NoFileExists(t, pidFile, "PID file should be removed after Stop")
+}
+
+// TestProcessManager_ReadPIDFileLocked exercises the readPIDFileLocked helper
+// via the public GetPID() API (which calls it when p.cmd == nil).
+func TestProcessManager_ReadPIDFileLocked(t *testing.T) {
+	tests := []struct {
+		name        string
+		fileContent string
+		createFile  bool
+		wantPID     int
+		wantZero    bool // true means we expect 0 returned
+	}{
+		{
+			name:        "valid pid file returns correct pid",
+			createFile:  true,
+			fileContent: "42",
+			wantPID:     42,
+			wantZero:    false,
+		},
+		{
+			name:       "missing file returns 0",
+			createFile: false,
+			wantZero:   true,
+		},
+		{
+			name:        "empty file returns 0",
+			createFile:  true,
+			fileContent: "",
+			wantZero:    true,
+		},
+		{
+			name:        "non-numeric content returns 0",
+			createFile:  true,
+			fileContent: "abc",
+			wantZero:    true,
+		},
+		{
+			name:        "whitespace-only content returns 0",
+			createFile:  true,
+			fileContent: "   \n",
+			wantZero:    true,
+		},
+		{
+			name:        "pid with surrounding whitespace is parsed correctly",
+			createFile:  true,
+			fileContent: "  1234\n",
+			wantPID:     1234,
+			wantZero:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			pidFile := filepath.Join(dir, "test.pid")
+
+			if tt.createFile {
+				require.NoError(t, os.WriteFile(pidFile, []byte(tt.fileContent), 0644))
+			}
+
+			// Access readPIDFileLocked indirectly via GetPID() with cmd == nil.
+			mgr := NewProcessManager(ProcessConfig{
+				PIDFile: pidFile,
+			})
+
+			got := mgr.GetPID()
+
+			if tt.wantZero {
+				assert.Equal(t, 0, got, "expected PID 0 for case %q", tt.name)
+			} else {
+				assert.Equal(t, tt.wantPID, got, "expected PID %d for case %q", tt.wantPID, tt.name)
+			}
+		})
+	}
 }

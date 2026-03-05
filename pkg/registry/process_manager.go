@@ -117,9 +117,19 @@ func (p *DefaultProcessManager) Stop(ctx context.Context) error {
 		return nil
 	}
 
+	// If we have the in-memory cmd, use it directly
+	if p.cmd != nil && p.cmd.Process != nil {
+		return p.stopInMemoryProcess(ctx)
+	}
+
+	// Fallback: stop process discovered via PID file
+	return p.stopFromPIDFile(ctx)
+}
+
+// stopInMemoryProcess stops a process we spawned in this CLI invocation.
+func (p *DefaultProcessManager) stopInMemoryProcess(ctx context.Context) error {
 	// Send SIGTERM first
 	if err := p.cmd.Process.Signal(syscall.SIGTERM); err != nil {
-		// Process might have already exited
 		if !strings.Contains(err.Error(), "process already finished") {
 			return fmt.Errorf("failed to send SIGTERM: %w", err)
 		}
@@ -144,9 +154,8 @@ func (p *DefaultProcessManager) Stop(ctx context.Context) error {
 		if err := p.cmd.Process.Signal(syscall.SIGKILL); err != nil {
 			return fmt.Errorf("failed to send SIGKILL: %w", err)
 		}
-		<-done // Wait for process to actually die
+		<-done
 	case <-ctx.Done():
-		// Context cancelled - force kill immediately
 		p.cmd.Process.Signal(syscall.SIGKILL)
 		return ctx.Err()
 	}
@@ -163,46 +172,136 @@ func (p *DefaultProcessManager) Stop(ctx context.Context) error {
 	return nil
 }
 
+// stopFromPIDFile stops a process discovered via PID file (from a previous CLI invocation).
+func (p *DefaultProcessManager) stopFromPIDFile(ctx context.Context) error {
+	pid := p.readPIDFileLocked()
+	if pid <= 0 {
+		return nil
+	}
+
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return fmt.Errorf("failed to find process %d: %w", pid, err)
+	}
+
+	// Send SIGTERM first
+	if err := proc.Signal(syscall.SIGTERM); err != nil {
+		if !strings.Contains(err.Error(), "process already finished") {
+			return fmt.Errorf("failed to send SIGTERM to process %d: %w", pid, err)
+		}
+		// Process already gone, just clean up
+		p.removePIDFile()
+		return nil
+	}
+
+	// Wait for process to exit or timeout
+	timeout := p.config.ShutdownTimeout
+	if timeout == 0 {
+		timeout = 10 * time.Second
+	}
+
+	deadline := time.After(timeout)
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-deadline:
+			// Force kill
+			if err := proc.Signal(syscall.SIGKILL); err == nil {
+				// Wait briefly for SIGKILL to take effect
+				time.Sleep(200 * time.Millisecond)
+			}
+			p.removePIDFile()
+			return nil
+		case <-ctx.Done():
+			proc.Signal(syscall.SIGKILL)
+			p.removePIDFile()
+			return ctx.Err()
+		case <-ticker.C:
+			if !isProcessAlive(pid) {
+				p.removePIDFile()
+				return nil
+			}
+		}
+	}
+}
+
+// removePIDFile removes the configured PID file.
+func (p *DefaultProcessManager) removePIDFile() {
+	if p.config.PIDFile != "" {
+		os.Remove(p.config.PIDFile)
+	}
+	p.pid = 0
+}
+
 // isRunningLocked checks if the process is running. Caller must hold at least p.mu.RLock.
 func (p *DefaultProcessManager) isRunningLocked() bool {
-	if p.cmd == nil || p.cmd.Process == nil {
-		return false
-	}
-
-	// Check if process has already been waited on
-	if p.cmd.ProcessState != nil {
-		// Process has exited and Wait() was called
-		return false
-	}
-
-	// Try to get process state without blocking
-	// Send signal 0 to check if process exists
-	err := p.cmd.Process.Signal(syscall.Signal(0))
-	if err != nil {
-		// Process doesn't exist or we can't signal it
-		return false
-	}
-
-	// Signal succeeded, but process might be a zombie
-	// Try a non-blocking wait to reap the zombie
-	var status syscall.WaitStatus
-	pid, err := syscall.Wait4(p.cmd.Process.Pid, &status, syscall.WNOHANG, nil)
-	if err != nil {
-		// If we get ECHILD, the process doesn't exist or isn't our child
-		if err == syscall.ECHILD {
+	// If we have the in-memory cmd, check it directly
+	if p.cmd != nil && p.cmd.Process != nil {
+		// Check if process has already been waited on
+		if p.cmd.ProcessState != nil {
 			return false
 		}
-		// Other errors - assume process is still running
+
+		err := p.cmd.Process.Signal(syscall.Signal(0))
+		if err != nil {
+			return false
+		}
+
+		// Signal succeeded, but process might be a zombie
+		var status syscall.WaitStatus
+		pid, err := syscall.Wait4(p.cmd.Process.Pid, &status, syscall.WNOHANG, nil)
+		if err != nil {
+			if err == syscall.ECHILD {
+				return false
+			}
+			return true
+		}
+		if pid == p.cmd.Process.Pid {
+			return false
+		}
 		return true
 	}
 
-	if pid == p.cmd.Process.Pid {
-		// Process has exited (we just reaped it)
+	// Fallback: check PID file for processes started by a previous CLI invocation
+	return p.isRunningFromPIDFile()
+}
+
+// isRunningFromPIDFile checks if a process is alive by reading the PID file.
+func (p *DefaultProcessManager) isRunningFromPIDFile() bool {
+	pid := p.readPIDFileLocked()
+	if pid <= 0 {
 		return false
 	}
+	return isProcessAlive(pid)
+}
 
-	// pid == 0 means process is still running (WNOHANG returned immediately)
-	return true
+// readPIDFileLocked reads the PID from the configured PID file. Returns 0 if not found/invalid.
+// Caller must hold at least p.mu.RLock.
+func (p *DefaultProcessManager) readPIDFileLocked() int {
+	if p.config.PIDFile == "" {
+		return 0
+	}
+	data, err := os.ReadFile(p.config.PIDFile)
+	if err != nil {
+		return 0
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil {
+		return 0
+	}
+	return pid
+}
+
+// isProcessAlive checks if a process with the given PID is running.
+func isProcessAlive(pid int) bool {
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+	err = proc.Signal(syscall.Signal(0))
+	return err == nil
 }
 
 // IsRunning checks if the process is currently running.
@@ -216,10 +315,11 @@ func (p *DefaultProcessManager) IsRunning() bool {
 func (p *DefaultProcessManager) GetPID() int {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	if p.cmd == nil || p.cmd.Process == nil {
-		return 0
+	if p.cmd != nil && p.cmd.Process != nil {
+		return p.pid
 	}
-	return p.pid
+	// Fallback: read from PID file
+	return p.readPIDFileLocked()
 }
 
 // writePIDFile writes the process ID to a file.
