@@ -4,24 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
 )
 
 // ZotManager implements RegistryManager for Zot registry.
 type ZotManager struct {
-	config         RegistryConfig
-	binaryManager  BinaryManager
-	processManager ProcessManager
-
-	mu             sync.RWMutex
-	startTime      time.Time
-	idleTimer      *time.Timer
-	lastAccessTime time.Time
+	BaseServiceManager
+	config RegistryConfig
 }
 
 // Start starts the registry process.
@@ -53,7 +45,7 @@ func (z *ZotManager) Start(ctx context.Context) error {
 	}
 
 	// Check if port is available
-	if !z.isPortAvailable(z.config.Port) {
+	if !IsPortAvailable(z.config.Port) {
 		return fmt.Errorf("%w: port %d is already in use", ErrPortInUse, z.config.Port)
 	}
 
@@ -72,13 +64,14 @@ func (z *ZotManager) Start(ctx context.Context) error {
 	}
 
 	// Record start time
-	z.startTime = time.Now()
-	z.lastAccessTime = z.startTime
+	z.RecordStartLocked()
 
 	// Setup idle timer if on-demand mode
-	if z.config.Lifecycle == "on-demand" && z.config.IdleTimeout > 0 {
-		z.resetIdleTimer()
-	}
+	z.ResetIdleTimerLocked(z.config.Lifecycle, z.config.IdleTimeout, func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		z.Stop(ctx)
+	})
 
 	// Wait for registry to be ready
 	if err := z.waitForReady(ctx); err != nil {
@@ -95,10 +88,7 @@ func (z *ZotManager) Stop(ctx context.Context) error {
 	defer z.mu.Unlock()
 
 	// Stop idle timer if running
-	if z.idleTimer != nil {
-		z.idleTimer.Stop()
-		z.idleTimer = nil
-	}
+	z.StopIdleTimerLocked()
 
 	// Stop process (idempotent)
 	return z.processManager.Stop(ctx)
@@ -162,7 +152,13 @@ func (z *ZotManager) IsRunning(ctx context.Context) bool {
 // GetEndpoint returns the registry endpoint.
 func (z *ZotManager) GetEndpoint() string {
 	// Reset idle timer on access
-	z.resetIdleTimer()
+	if z.config.Lifecycle == "on-demand" && z.config.IdleTimeout > 0 {
+		z.ResetIdleTimer(z.config.Lifecycle, z.config.IdleTimeout, func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			z.Stop(ctx)
+		})
+	}
 	return fmt.Sprintf("http://localhost:%d", z.config.Port)
 }
 
@@ -191,28 +187,6 @@ func (z *ZotManager) Prune(ctx context.Context, opts PruneOptions) (*PruneResult
 	return result, nil
 }
 
-// resetIdleTimer resets the idle shutdown timer.
-func (z *ZotManager) resetIdleTimer() {
-	if z.config.Lifecycle != "on-demand" || z.config.IdleTimeout == 0 {
-		return
-	}
-
-	z.mu.Lock()
-	defer z.mu.Unlock()
-
-	z.lastAccessTime = time.Now()
-
-	if z.idleTimer != nil {
-		z.idleTimer.Stop()
-	}
-
-	z.idleTimer = time.AfterFunc(z.config.IdleTimeout, func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		z.Stop(ctx)
-	})
-}
-
 // writeConfigFile writes the Zot config to a file.
 func (z *ZotManager) writeConfigFile(path string, config map[string]interface{}) error {
 	// Ensure directory exists
@@ -228,17 +202,6 @@ func (z *ZotManager) writeConfigFile(path string, config map[string]interface{})
 
 	// Write to file
 	return os.WriteFile(path, data, 0644)
-}
-
-// isPortAvailable checks if a port is available for binding.
-func (z *ZotManager) isPortAvailable(port int) bool {
-	addr := fmt.Sprintf(":%d", port)
-	listener, err := net.Listen("tcp", addr)
-	if err != nil {
-		return false
-	}
-	listener.Close()
-	return true
 }
 
 // waitForReady waits for the registry to become ready.

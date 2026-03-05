@@ -27,6 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ♻️ Changed
 
+#### Embed `BaseServiceManager` in All Registry Managers (Chunk 3)
+- **All 5 concrete managers now embed `BaseServiceManager`** — Zot, Athens, Devpi, Verdaccio, and Squid managers embed the shared base struct instead of duplicating fields (`mu`, `startTime`, `lastAccessTime`, `idleTimer`, `idleTimeout`), eliminating ~280 lines of duplicated code
+- **Added `*Locked` helper methods to `BaseServiceManager`** — `RecordStartLocked()`, `StopIdleTimerLocked()`, and `ResetIdleTimerLocked()` allow callers that already hold `mu` to use base functionality without deadlocking; existing locking methods (`RecordStart`, `StopIdleTimer`, `ResetIdleTimer`, `SetupIdleTimer`) now delegate to the `*Locked` variants internally
+- **Replaced duplicated `isPortAvailable()` receiver methods** — All 5 managers had identical `isPortAvailable()` receiver methods that duplicated `utils.go:IsPortAvailable()`; replaced with calls to the shared package-level function and removed redundant `"net"` imports from 4 files
+- **Fixed latent deadlock in `Start()` methods** — In all 4 idle-timer managers, `Start()` held `mu.Lock()` then called `resetIdleTimer()` which also tried to acquire `mu.Lock()`; this was masked by early-return conditions but would deadlock on any on-demand lifecycle path; now uses `ResetIdleTimerLocked()` instead
+  - Files changed: `pkg/registry/base_manager.go`, `pkg/registry/zot_manager.go`, `pkg/registry/athens_manager.go`, `pkg/registry/devpi_manager.go`, `pkg/registry/verdaccio_manager.go`, `pkg/registry/squid_manager.go`, `pkg/registry/factory.go`, `pkg/registry/strategy.go`
+
 #### `dvm build` Registry Integration Block
 - **Replaced TODO stub with working `BuildRegistryCoordinator` call** — The registry integration block in `cmd/build.go` previously contained a `// TODO: integrate registries` placeholder; it now calls the coordinator and merges the resulting env vars into the build arg set
 

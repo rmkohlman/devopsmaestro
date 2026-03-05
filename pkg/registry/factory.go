@@ -31,9 +31,8 @@ func NewZotManager(config RegistryConfig) *ZotManager {
 // This is useful for testing with mock dependencies.
 func NewZotManagerWithDeps(config RegistryConfig, binaryMgr BinaryManager, processMgr ProcessManager) *ZotManager {
 	return &ZotManager{
-		config:         config,
-		binaryManager:  binaryMgr,
-		processManager: processMgr,
+		BaseServiceManager: NewBaseServiceManager(binaryMgr, processMgr),
+		config:             config,
 	}
 }
 

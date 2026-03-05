@@ -74,9 +74,8 @@ func (s *ZotStrategy) CreateManager(reg *models.Registry) (ServiceManager, error
 
 	// Create and return ZotManager wrapped as ServiceManager
 	manager := &ZotManager{
-		config:         config,
-		binaryManager:  binaryManager,
-		processManager: processManager,
+		BaseServiceManager: NewBaseServiceManager(binaryManager, processManager),
+		config:             config,
 	}
 
 	return manager, nil

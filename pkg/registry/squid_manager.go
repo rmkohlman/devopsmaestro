@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sync"
 	"time"
 )
 
@@ -42,12 +41,8 @@ type HttpProxy interface {
 
 // SquidManager manages squid HTTP proxy lifecycle.
 type SquidManager struct {
-	config         HttpProxyConfig
-	binaryManager  BinaryManager
-	processManager ProcessManager
-
-	mu        sync.RWMutex
-	startTime time.Time
+	BaseServiceManager
+	config HttpProxyConfig
 }
 
 // NewSquidManager creates a new SquidManager with the given configuration.
@@ -63,9 +58,8 @@ func NewSquidManager(config HttpProxyConfig) *SquidManager {
 	})
 
 	return &SquidManager{
-		config:         config,
-		binaryManager:  binaryManager,
-		processManager: processManager,
+		BaseServiceManager: NewBaseServiceManager(binaryManager, processManager),
+		config:             config,
 	}
 }
 
@@ -75,9 +69,8 @@ func NewSquidManagerWithDeps(config HttpProxyConfig, binaryManager BinaryManager
 	config.ApplyDefaults()
 
 	return &SquidManager{
-		config:         config,
-		binaryManager:  binaryManager,
-		processManager: processManager,
+		BaseServiceManager: NewBaseServiceManager(binaryManager, processManager),
+		config:             config,
 	}
 }
 
@@ -110,7 +103,7 @@ func (m *SquidManager) Start(ctx context.Context) error {
 	}
 
 	// Check if port is available
-	if !m.isPortAvailable(m.config.Port) {
+	if !IsPortAvailable(m.config.Port) {
 		return fmt.Errorf("%w: port %d is already in use", ErrPortInUse, m.config.Port)
 	}
 
@@ -152,7 +145,7 @@ func (m *SquidManager) Start(ctx context.Context) error {
 	}
 
 	// Record start time
-	m.startTime = time.Now()
+	m.RecordStartLocked()
 
 	// Wait for proxy to be ready
 	if err := m.waitForReady(ctx); err != nil {
@@ -238,17 +231,6 @@ func (m *SquidManager) GetProxyEnv() map[string]string {
 		"NO_PROXY":    "localhost,127.0.0.1",
 		"no_proxy":    "localhost,127.0.0.1",
 	}
-}
-
-// isPortAvailable checks if a port is available for binding.
-func (m *SquidManager) isPortAvailable(port int) bool {
-	addr := fmt.Sprintf(":%d", port)
-	listener, err := net.Listen("tcp", addr)
-	if err != nil {
-		return false
-	}
-	listener.Close()
-	return true
 }
 
 // generateConfig generates the squid.conf file and writes it to the specified path.

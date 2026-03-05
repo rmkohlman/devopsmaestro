@@ -27,11 +27,15 @@ func NewBaseServiceManager(binary BinaryManager, process ProcessManager) BaseSer
 	}
 }
 
-// RecordStart records the start time (call from Start() with lock held)
+// RecordStart records the start time.
 func (b *BaseServiceManager) RecordStart() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	b.RecordStartLocked()
+}
 
+// RecordStartLocked sets start time. Caller must hold mu.
+func (b *BaseServiceManager) RecordStartLocked() {
 	now := time.Now()
 	b.startTime = now
 	b.lastAccessTime = now
@@ -80,39 +84,35 @@ func (b *BaseServiceManager) GetVersion(ctx context.Context) (string, error) {
 
 // SetupIdleTimer configures auto-shutdown for on-demand mode.
 func (b *BaseServiceManager) SetupIdleTimer(lifecycle string, timeout time.Duration, stopFunc func()) {
-	// Only activate timer for on-demand lifecycle
 	if lifecycle != "on-demand" {
 		return
 	}
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
-
-	// Stop existing timer if any
-	if b.idleTimer != nil {
-		b.idleTimer.Stop()
-	}
-
-	// Create new timer
-	b.idleTimer = time.AfterFunc(timeout, stopFunc)
+	b.ResetIdleTimerLocked(lifecycle, timeout, stopFunc)
 }
 
 // ResetIdleTimer resets the idle timer, extending the shutdown deadline.
 func (b *BaseServiceManager) ResetIdleTimer(lifecycle string, timeout time.Duration, stopFunc func()) {
-	// Only reset timer for on-demand lifecycle
 	if lifecycle != "on-demand" {
 		return
 	}
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	b.ResetIdleTimerLocked(lifecycle, timeout, stopFunc)
+}
 
-	// Stop existing timer if any
+// ResetIdleTimerLocked resets idle timer. Caller must hold mu.
+func (b *BaseServiceManager) ResetIdleTimerLocked(lifecycle string, timeout time.Duration, stopFunc func()) {
+	if lifecycle != "on-demand" {
+		return
+	}
+	b.lastAccessTime = time.Now()
 	if b.idleTimer != nil {
 		b.idleTimer.Stop()
 	}
-
-	// Create new timer
 	b.idleTimer = time.AfterFunc(timeout, stopFunc)
 }
 
@@ -120,7 +120,11 @@ func (b *BaseServiceManager) ResetIdleTimer(lifecycle string, timeout time.Durat
 func (b *BaseServiceManager) StopIdleTimer() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	b.StopIdleTimerLocked()
+}
 
+// StopIdleTimerLocked stops idle timer. Caller must hold mu.
+func (b *BaseServiceManager) StopIdleTimerLocked() {
 	if b.idleTimer != nil {
 		b.idleTimer.Stop()
 		b.idleTimer = nil

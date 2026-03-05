@@ -3,24 +3,16 @@ package registry
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
 )
 
 // AthensManager manages an Athens Go module proxy instance.
 type AthensManager struct {
-	config         GoModuleConfig
-	binaryManager  BinaryManager
-	processManager ProcessManager
-
-	mu             sync.RWMutex
-	startTime      time.Time
-	idleTimer      *time.Timer
-	lastAccessTime time.Time
+	BaseServiceManager
+	config GoModuleConfig
 }
 
 // NewAthensManager creates a new AthensManager with the given configuration.
@@ -38,9 +30,8 @@ func NewAthensManager(config GoModuleConfig) *AthensManager {
 	})
 
 	return &AthensManager{
-		config:         config,
-		binaryManager:  binaryManager,
-		processManager: processManager,
+		BaseServiceManager: NewBaseServiceManager(binaryManager, processManager),
+		config:             config,
 	}
 }
 
@@ -51,9 +42,8 @@ func NewAthensManagerWithDeps(config GoModuleConfig, binary BinaryManager, proce
 	}
 
 	return &AthensManager{
-		config:         config,
-		binaryManager:  binary,
-		processManager: process,
+		BaseServiceManager: NewBaseServiceManager(binary, process),
+		config:             config,
 	}
 }
 
@@ -86,7 +76,7 @@ func (m *AthensManager) Start(ctx context.Context) error {
 	}
 
 	// Check if port is available
-	if !m.isPortAvailable(m.config.Port) {
+	if !IsPortAvailable(m.config.Port) {
 		return fmt.Errorf("%w: port %d is already in use", ErrPortInUse, m.config.Port)
 	}
 
@@ -106,13 +96,14 @@ func (m *AthensManager) Start(ctx context.Context) error {
 	}
 
 	// Record start time
-	m.startTime = time.Now()
-	m.lastAccessTime = m.startTime
+	m.RecordStartLocked()
 
 	// Setup idle timer if on-demand mode
-	if m.config.Lifecycle == "on-demand" && m.config.IdleTimeout > 0 {
-		m.resetIdleTimer()
-	}
+	m.ResetIdleTimerLocked(m.config.Lifecycle, m.config.IdleTimeout, func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		m.Stop(ctx)
+	})
 
 	// Wait for proxy to be ready
 	if err := m.waitForReady(ctx); err != nil {
@@ -129,10 +120,7 @@ func (m *AthensManager) Stop(ctx context.Context) error {
 	defer m.mu.Unlock()
 
 	// Stop idle timer if running
-	if m.idleTimer != nil {
-		m.idleTimer.Stop()
-		m.idleTimer = nil
-	}
+	m.StopIdleTimerLocked()
 
 	// Stop process (idempotent)
 	return m.processManager.Stop(ctx)
@@ -196,7 +184,13 @@ func (m *AthensManager) IsRunning(ctx context.Context) bool {
 // GetEndpoint returns the Athens proxy endpoint.
 func (m *AthensManager) GetEndpoint() string {
 	// Reset idle timer on access
-	m.resetIdleTimer()
+	if m.config.Lifecycle == "on-demand" && m.config.IdleTimeout > 0 {
+		m.ResetIdleTimer(m.config.Lifecycle, m.config.IdleTimeout, func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			m.Stop(ctx)
+		})
+	}
 	return fmt.Sprintf("http://localhost:%d", m.config.Port)
 }
 
@@ -210,28 +204,6 @@ func (m *AthensManager) GetGoEnv() map[string]string {
 	}
 }
 
-// resetIdleTimer resets the idle shutdown timer.
-func (m *AthensManager) resetIdleTimer() {
-	if m.config.Lifecycle != "on-demand" || m.config.IdleTimeout == 0 {
-		return
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	m.lastAccessTime = time.Now()
-
-	if m.idleTimer != nil {
-		m.idleTimer.Stop()
-	}
-
-	m.idleTimer = time.AfterFunc(m.config.IdleTimeout, func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		m.Stop(ctx)
-	})
-}
-
 // writeConfigFile writes the Athens config to a TOML file.
 func (m *AthensManager) writeConfigFile(path string, config string) error {
 	// Ensure directory exists
@@ -241,17 +213,6 @@ func (m *AthensManager) writeConfigFile(path string, config string) error {
 
 	// Write to file
 	return os.WriteFile(path, []byte(config), 0644)
-}
-
-// isPortAvailable checks if a port is available for binding.
-func (m *AthensManager) isPortAvailable(port int) bool {
-	addr := fmt.Sprintf(":%d", port)
-	listener, err := net.Listen("tcp", addr)
-	if err != nil {
-		return false
-	}
-	listener.Close()
-	return true
 }
 
 // waitForReady waits for the proxy to become ready.

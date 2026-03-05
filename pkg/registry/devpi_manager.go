@@ -3,27 +3,19 @@ package registry
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 )
 
 // DevpiManager manages a devpi PyPI proxy instance.
 type DevpiManager struct {
-	config         PyPIProxyConfig
-	binaryManager  BinaryManager
-	processManager ProcessManager
-
-	mu             sync.RWMutex
-	startTime      time.Time
-	idleTimer      *time.Timer
-	lastAccessTime time.Time
-	initialized    bool
+	BaseServiceManager
+	config      PyPIProxyConfig
+	initialized bool
 }
 
 // NewDevpiManager creates a new DevpiManager with the given configuration.
@@ -41,9 +33,8 @@ func NewDevpiManager(config PyPIProxyConfig) *DevpiManager {
 	})
 
 	return &DevpiManager{
-		config:         config,
-		binaryManager:  binaryManager,
-		processManager: processManager,
+		BaseServiceManager: NewBaseServiceManager(binaryManager, processManager),
+		config:             config,
 	}
 }
 
@@ -54,9 +45,8 @@ func NewDevpiManagerWithDeps(config PyPIProxyConfig, binary BinaryManager, proce
 	}
 
 	return &DevpiManager{
-		config:         config,
-		binaryManager:  binary,
-		processManager: process,
+		BaseServiceManager: NewBaseServiceManager(binary, process),
+		config:             config,
 	}
 }
 
@@ -77,7 +67,7 @@ func (m *DevpiManager) Start(ctx context.Context) error {
 	}
 
 	// Check if port is available
-	if !m.isPortAvailable(m.config.Port) {
+	if !IsPortAvailable(m.config.Port) {
 		return fmt.Errorf("%w: port %d is already in use", ErrPortInUse, m.config.Port)
 	}
 
@@ -116,13 +106,14 @@ func (m *DevpiManager) Start(ctx context.Context) error {
 	}
 
 	// Record start time
-	m.startTime = time.Now()
-	m.lastAccessTime = m.startTime
+	m.RecordStartLocked()
 
 	// Setup idle timer if on-demand mode
-	if m.config.Lifecycle == "on-demand" && m.config.IdleTimeout > 0 {
-		m.resetIdleTimer()
-	}
+	m.ResetIdleTimerLocked(m.config.Lifecycle, m.config.IdleTimeout, func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		m.Stop(ctx)
+	})
 
 	// Wait for proxy to be ready
 	if err := m.waitForReady(ctx); err != nil {
@@ -139,10 +130,7 @@ func (m *DevpiManager) Stop(ctx context.Context) error {
 	defer m.mu.Unlock()
 
 	// Stop idle timer if running
-	if m.idleTimer != nil {
-		m.idleTimer.Stop()
-		m.idleTimer = nil
-	}
+	m.StopIdleTimerLocked()
 
 	// Stop process (idempotent)
 	return m.processManager.Stop(ctx)
@@ -206,7 +194,13 @@ func (m *DevpiManager) IsRunning(ctx context.Context) bool {
 // GetEndpoint returns the devpi proxy endpoint.
 func (m *DevpiManager) GetEndpoint() string {
 	// Reset idle timer on access
-	m.resetIdleTimer()
+	if m.config.Lifecycle == "on-demand" && m.config.IdleTimeout > 0 {
+		m.ResetIdleTimer(m.config.Lifecycle, m.config.IdleTimeout, func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			m.Stop(ctx)
+		})
+	}
 	return fmt.Sprintf("http://localhost:%d", m.config.Port)
 }
 
@@ -232,39 +226,6 @@ func (m *DevpiManager) GetPipConfig() string {
 index-url = %s
 trusted-host = localhost
 `, indexURL)
-}
-
-// resetIdleTimer resets the idle shutdown timer.
-func (m *DevpiManager) resetIdleTimer() {
-	if m.config.Lifecycle != "on-demand" || m.config.IdleTimeout == 0 {
-		return
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	m.lastAccessTime = time.Now()
-
-	if m.idleTimer != nil {
-		m.idleTimer.Stop()
-	}
-
-	m.idleTimer = time.AfterFunc(m.config.IdleTimeout, func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		m.Stop(ctx)
-	})
-}
-
-// isPortAvailable checks if a port is available for binding.
-func (m *DevpiManager) isPortAvailable(port int) bool {
-	addr := fmt.Sprintf(":%d", port)
-	listener, err := net.Listen("tcp", addr)
-	if err != nil {
-		return false
-	}
-	listener.Close()
-	return true
 }
 
 // initializeDevpiServer runs devpi-init if the server hasn't been initialized.
