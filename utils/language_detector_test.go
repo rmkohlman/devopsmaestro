@@ -130,3 +130,98 @@ func TestDetectLanguage_BareRepo(t *testing.T) {
 		t.Errorf("expected nil for bare repo dir, got %+v", lang)
 	}
 }
+
+// TestDetectLanguage_NodeJS verifies that a directory containing package.json is detected as "nodejs".
+func TestDetectLanguage_NodeJS(t *testing.T) {
+	dir := t.TempDir()
+
+	err := os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{"name":"test","version":"1.0.0"}`+"\n"), 0644)
+	if err != nil {
+		t.Fatalf("failed to write package.json: %v", err)
+	}
+
+	lang, err := DetectLanguage(dir)
+	if err != nil {
+		t.Fatalf("DetectLanguage returned error: %v", err)
+	}
+	if lang == nil {
+		t.Fatal("DetectLanguage returned nil, expected *Language")
+	}
+	if lang.Name != "nodejs" {
+		t.Errorf("expected Name == %q, got %q", "nodejs", lang.Name)
+	}
+}
+
+// TestDetectLanguage_Ruby verifies that a directory containing Gemfile is detected as "ruby".
+func TestDetectLanguage_Ruby(t *testing.T) {
+	dir := t.TempDir()
+
+	err := os.WriteFile(filepath.Join(dir, "Gemfile"), []byte("source 'https://rubygems.org'\n"), 0644)
+	if err != nil {
+		t.Fatalf("failed to write Gemfile: %v", err)
+	}
+
+	lang, err := DetectLanguage(dir)
+	if err != nil {
+		t.Fatalf("DetectLanguage returned error: %v", err)
+	}
+	if lang == nil {
+		t.Fatal("DetectLanguage returned nil, expected *Language")
+	}
+	if lang.Name != "ruby" {
+		t.Errorf("expected Name == %q, got %q", "ruby", lang.Name)
+	}
+}
+
+// TestDetectLanguage_Java verifies that a directory containing pom.xml is detected as "java".
+func TestDetectLanguage_Java(t *testing.T) {
+	dir := t.TempDir()
+
+	err := os.WriteFile(filepath.Join(dir, "pom.xml"), []byte("<project></project>\n"), 0644)
+	if err != nil {
+		t.Fatalf("failed to write pom.xml: %v", err)
+	}
+
+	lang, err := DetectLanguage(dir)
+	if err != nil {
+		t.Fatalf("DetectLanguage returned error: %v", err)
+	}
+	if lang == nil {
+		t.Fatal("DetectLanguage returned nil, expected *Language")
+	}
+	if lang.Name != "java" {
+		t.Errorf("expected Name == %q, got %q", "java", lang.Name)
+	}
+}
+
+// TestDetectLanguage_MultipleIndicators_GoWins verifies that when a directory contains
+// multiple Go indicators (go.mod, go.sum, and .go files) with no other language indicators,
+// the language with the most matched files wins and "golang" is detected.
+func TestDetectLanguage_MultipleIndicators_GoWins(t *testing.T) {
+	dir := t.TempDir()
+
+	// Write go.mod, go.sum, and 3 .go files — 5 golang indicators total
+	files := map[string]string{
+		"go.mod":  "module test\ngo 1.22\n",
+		"go.sum":  "// empty\n",
+		"main.go": "package main\n",
+		"foo.go":  "package main\n",
+		"bar.go":  "package main\n",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0644); err != nil {
+			t.Fatalf("failed to write %s: %v", name, err)
+		}
+	}
+
+	lang, err := DetectLanguage(dir)
+	if err != nil {
+		t.Fatalf("DetectLanguage returned error: %v", err)
+	}
+	if lang == nil {
+		t.Fatal("DetectLanguage returned nil, expected *Language")
+	}
+	if lang.Name != "golang" {
+		t.Errorf("expected Name == %q, got %q", "golang", lang.Name)
+	}
+}
