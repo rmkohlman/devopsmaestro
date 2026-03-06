@@ -217,8 +217,10 @@ func runRolloutRestartRegistry(cmd *cobra.Command, args []string) error {
 	// Start the registry
 	if err := mgr.Start(ctx); err != nil {
 		// Record failure in history
+		failRev, _ := store.GetNextRevisionNumber(reg.ID)
 		_ = store.CreateRegistryHistory(&models.RegistryHistory{
 			RegistryID: reg.ID,
+			Revision:   failRev,
 			Action:     "restart",
 			Status:     "failed",
 			Config:     mustMarshalJSON(reg),
@@ -234,8 +236,10 @@ func runRolloutRestartRegistry(cmd *cobra.Command, args []string) error {
 	}
 
 	// Record successful restart in history
+	nextRev, _ := store.GetNextRevisionNumber(reg.ID)
 	if err := store.CreateRegistryHistory(&models.RegistryHistory{
 		RegistryID: reg.ID,
+		Revision:   nextRev,
 		Action:     "restart",
 		Status:     "success",
 		Config:     mustMarshalJSON(reg),
@@ -286,30 +290,71 @@ func runRolloutStatusRegistry(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get history: %w", err)
 	}
 
-	// Build status data
-	status := map[string]interface{}{
-		"name":     reg.Name,
-		"enabled":  reg.Enabled,
-		"running":  mgr.IsRunning(ctx),
-		"endpoint": mgr.GetEndpoint(),
-		"config": map[string]interface{}{
-			"lifecycle":    reg.Lifecycle,
-			"port":         reg.Port,
-			"storage":      reg.Storage,
-			"idle_timeout": reg.IdleTimeout,
-		},
+	// Build human-readable status
+	running := mgr.IsRunning(ctx)
+	runningStr := "stopped"
+	if running {
+		runningStr = "running"
 	}
 
+	// Get latest history info
+	var latestRevision, latestAction, latestStatus, lastUpdated string
 	if len(history) > 0 {
 		latest := history[0]
-		status["latest_revision"] = latest.Revision
-		status["latest_action"] = latest.Action
-		status["latest_status"] = latest.Status
-		status["last_updated"] = latest.CreatedAt
+		latestRevision = fmt.Sprintf("%d", latest.Revision)
+		latestAction = latest.Action
+		latestStatus = latest.Status
+		lastUpdated = latest.CreatedAt.Format(time.RFC3339)
+	} else {
+		latestRevision = "-"
+		latestAction = "-"
+		latestStatus = "-"
+		lastUpdated = "-"
 	}
 
-	// Output based on format
-	return outputData(ctx, format, status)
+	// For JSON/YAML, use the map form
+	switch format {
+	case "json", "yaml":
+		statusMap := map[string]interface{}{
+			"name":     reg.Name,
+			"enabled":  reg.Enabled,
+			"running":  running,
+			"endpoint": mgr.GetEndpoint(),
+			"config": map[string]interface{}{
+				"lifecycle":    reg.Lifecycle,
+				"port":         reg.Port,
+				"storage":      reg.Storage,
+				"idle_timeout": reg.IdleTimeout,
+			},
+		}
+		if len(history) > 0 {
+			latest := history[0]
+			statusMap["latest_revision"] = latest.Revision
+			statusMap["latest_action"] = latest.Action
+			statusMap["latest_status"] = latest.Status
+			statusMap["last_updated"] = latest.CreatedAt
+		}
+		return outputData(ctx, format, statusMap)
+	default:
+		// Human-readable key-value display
+		kvData := render.NewOrderedKeyValueData(
+			render.KeyValue{Key: "Name", Value: reg.Name},
+			render.KeyValue{Key: "Enabled", Value: fmt.Sprintf("%v", reg.Enabled)},
+			render.KeyValue{Key: "Running", Value: runningStr},
+			render.KeyValue{Key: "Endpoint", Value: mgr.GetEndpoint()},
+			render.KeyValue{Key: "Lifecycle", Value: reg.Lifecycle},
+			render.KeyValue{Key: "Port", Value: fmt.Sprintf("%d", reg.Port)},
+			render.KeyValue{Key: "Storage", Value: reg.Storage},
+			render.KeyValue{Key: "Latest Revision", Value: latestRevision},
+			render.KeyValue{Key: "Latest Action", Value: latestAction},
+			render.KeyValue{Key: "Latest Status", Value: latestStatus},
+			render.KeyValue{Key: "Last Updated", Value: lastUpdated},
+		)
+		return render.OutputWith("", kvData, render.Options{
+			Type:  render.TypeKeyValue,
+			Title: "Rollout Status",
+		})
+	}
 }
 
 // runRolloutHistoryRegistry implements the rollout history registry command
@@ -342,8 +387,32 @@ func runRolloutHistoryRegistry(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Output based on format
-	return outputData(ctx, format, history)
+	switch format {
+	case "json", "yaml":
+		return outputData(ctx, format, history)
+	default:
+		// Build table for human-readable output
+		tableData := render.TableData{
+			Headers: []string{"REVISION", "ACTION", "STATUS", "CREATED", "COMPLETED"},
+			Rows:    make([][]string, len(history)),
+		}
+		for i, h := range history {
+			completed := "-"
+			if h.CompletedAt.Valid {
+				completed = h.CompletedAt.Time.Format(time.RFC3339)
+			}
+			tableData.Rows[i] = []string{
+				fmt.Sprintf("%d", h.Revision),
+				h.Action,
+				h.Status,
+				h.CreatedAt.Format(time.RFC3339),
+				completed,
+			}
+		}
+		return render.OutputWith("", tableData, render.Options{
+			Type: render.TypeTable,
+		})
+	}
 }
 
 // runRolloutUndoRegistry implements the rollout undo registry command
