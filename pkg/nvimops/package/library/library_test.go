@@ -191,7 +191,7 @@ func TestLibraryCount(t *testing.T) {
 	require.NoError(t, err)
 
 	count := lib.Count()
-	assert.Equal(t, 5, count) // core, go-dev, python-dev, full, rmkohlman
+	assert.Equal(t, 12, count) // core, full, maestro, go-dev, python-dev, maestro-go, maestro-python, maestro-rust, maestro-node, maestro-java, maestro-gleam, maestro-dotnet
 }
 
 func TestPackageExtensions(t *testing.T) {

@@ -211,7 +211,7 @@ func TestExpectedEmulators(t *testing.T) {
 	}
 
 	expectedEmulators := []string{
-		"rmkohlman",
+		"maestro",
 		"minimal",
 		"developer",
 		"alacritty-minimal",

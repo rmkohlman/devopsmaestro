@@ -391,11 +391,11 @@ func TestValidateTerminalPackageExists_LibraryPackage(t *testing.T) {
 		},
 	}
 
-	// Try to validate "rmkohlman" - a package that exists in the library
-	err := validateTerminalPackageExists("rmkohlman", mockDS)
+	// Try to validate "maestro" - a package that exists in the library
+	err := validateTerminalPackageExists("maestro", mockDS)
 
 	// Should NOT error - package exists in library
-	assert.NoError(t, err, "Should find 'rmkohlman' package in embedded library")
+	assert.NoError(t, err, "Should find 'maestro' package in embedded library")
 }
 
 // TestValidateTerminalPackageExists_DatabasePackage verifies database packages are found

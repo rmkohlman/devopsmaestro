@@ -96,9 +96,9 @@ func (m *MockPromptExtensionStore) Get(name string) (*promptextension.PromptExte
 // package, NOT the hardcoded default.
 
 func TestGetPromptFromPackage_WithPackageSet(t *testing.T) {
-	// Setup: Database has terminal-package default set to "rmkohlman"
+	// Setup: Database has terminal-package default set to "maestro"
 	ds := NewMockDataStoreForBuild()
-	ds.defaults["terminal-package"] = "rmkohlman"
+	ds.defaults["terminal-package"] = "maestro"
 
 	// Create mock stores
 	pkgStore := NewMockTerminalPackageStore()
@@ -124,18 +124,18 @@ func TestGetPromptFromPackage_WithPackageSet(t *testing.T) {
 		extStore.extensions[name] = ext
 	}
 
-	// Create terminal package "rmkohlman" with modular prompt config
-	rmkohlmanPkg := &terminalpkg.Package{
-		Name:             "rmkohlman",
+	// Create terminal package "maestro" with modular prompt config
+	maestroPkg := &terminalpkg.Package{
+		Name:             "maestro",
 		Description:      "Rich prompt configuration",
 		PromptStyle:      "powerline-segments",
 		PromptExtensions: []string{"kubernetes", "colima", "git-detailed"},
 		Enabled:          true,
 	}
-	pkgStore.packages["rmkohlman"] = rmkohlmanPkg
+	pkgStore.packages["maestro"] = maestroPkg
 
 	// Verify package uses modular prompt system
-	assert.True(t, rmkohlmanPkg.UsesModularPrompt(), "Package should use modular prompt system")
+	assert.True(t, maestroPkg.UsesModularPrompt(), "Package should use modular prompt system")
 
 	ctx := context.Background()
 	appName := "test-app"
@@ -149,8 +149,8 @@ func TestGetPromptFromPackage_WithPackageSet(t *testing.T) {
 	require.NotNil(t, promptYAML)
 
 	// Assertions: Verify prompt was composed from package, not default
-	assert.Contains(t, promptYAML.Metadata.Name, "dvm-pkg-rmkohlman",
-		"Prompt name should indicate it came from package 'rmkohlman'")
+	assert.Contains(t, promptYAML.Metadata.Name, "dvm-pkg-maestro",
+		"Prompt name should indicate it came from package 'maestro'")
 
 	// Verify format is NOT the hardcoded 3-module default
 	defaultFormat := `$custom\
@@ -431,7 +431,7 @@ func TestGetPromptFromPackage_WithThemePalette(t *testing.T) {
 
 	// Setup similar to Test 1
 	ds := NewMockDataStoreForBuild()
-	ds.defaults["terminal-package"] = "rmkohlman"
+	ds.defaults["terminal-package"] = "maestro"
 
 	pkgStore := NewMockTerminalPackageStore()
 	styleStore := NewMockPromptStyleStore()
@@ -451,13 +451,13 @@ func TestGetPromptFromPackage_WithThemePalette(t *testing.T) {
 	require.NoError(t, err)
 	extStore.extensions["git-detailed"] = gitExt
 
-	rmkohlmanPkg := &terminalpkg.Package{
-		Name:             "rmkohlman",
+	maestroPkg := &terminalpkg.Package{
+		Name:             "maestro",
 		PromptStyle:      "powerline-segments",
 		PromptExtensions: []string{"git-detailed"},
 		Enabled:          true,
 	}
-	pkgStore.packages["rmkohlman"] = rmkohlmanPkg
+	pkgStore.packages["maestro"] = maestroPkg
 
 	ctx := context.Background()
 	appName := "test-app"
@@ -498,10 +498,10 @@ func TestGetPromptFromPackage_PromptNamingConvention(t *testing.T) {
 	}{
 		{
 			name:            "standard package prompt",
-			packageName:     "rmkohlman",
+			packageName:     "maestro",
 			appName:         "test-app",
 			workspaceName:   "dev",
-			wantNamePattern: "dvm-pkg-rmkohlman-test-app-dev",
+			wantNamePattern: "dvm-pkg-maestro-test-app-dev",
 		},
 		{
 			name:            "package with hyphens",

@@ -142,7 +142,7 @@ func TestWorkspace_TerminalPackagePersistence(t *testing.T) {
 	require.NoError(t, ds.CreateWorkspace(workspace))
 
 	// Set terminal_package and update
-	workspace.TerminalPackage = sql.NullString{String: "rmkohlman", Valid: true}
+	workspace.TerminalPackage = sql.NullString{String: "maestro", Valid: true}
 	err := ds.UpdateWorkspace(workspace)
 	require.NoError(t, err, "UpdateWorkspace should succeed")
 
@@ -150,7 +150,7 @@ func TestWorkspace_TerminalPackagePersistence(t *testing.T) {
 	retrieved, err := ds.GetWorkspaceByID(workspace.ID)
 	require.NoError(t, err)
 	assert.True(t, retrieved.TerminalPackage.Valid, "terminal_package should be valid")
-	assert.Equal(t, "rmkohlman", retrieved.TerminalPackage.String, "terminal_package should match")
+	assert.Equal(t, "maestro", retrieved.TerminalPackage.String, "terminal_package should match")
 }
 
 // TestWorkspace_AllTerminalFieldsPersistence verifies all terminal fields persist together
@@ -286,7 +286,7 @@ func TestListAllWorkspaces_IncludesTerminalFields(t *testing.T) {
 		ImageName:       "test-image",
 		Slug:            "test-app-test-workspace",
 		TerminalPrompt:  sql.NullString{String: "powerlevel10k", Valid: true},
-		TerminalPackage: sql.NullString{String: "rmkohlman", Valid: true},
+		TerminalPackage: sql.NullString{String: "maestro", Valid: true},
 	}
 	workspace.SetTerminalPlugins([]string{"eza", "bat"})
 	require.NoError(t, ds.CreateWorkspace(workspace))
@@ -314,5 +314,5 @@ func TestListAllWorkspaces_IncludesTerminalFields(t *testing.T) {
 	assert.Equal(t, []string{"eza", "bat"}, ws.GetTerminalPlugins(), "terminal_plugins should match")
 
 	assert.True(t, ws.TerminalPackage.Valid, "terminal_package should be valid")
-	assert.Equal(t, "rmkohlman", ws.TerminalPackage.String, "terminal_package should match")
+	assert.Equal(t, "maestro", ws.TerminalPackage.String, "terminal_package should match")
 }

@@ -1,0 +1,15 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPackage
+metadata:
+  name: maestro-go
+  description: "Maestro IDE for Go — full IDE + Delve debugger, neotest, gopher.nvim"
+  category: language
+  tags: ["maestro", "golang", "ide", "complete"]
+spec:
+  extends: maestro
+  plugins:
+    - nvim-dap
+    - nvim-dap-go
+    - neotest
+    - neotest-go
+    - gopher-nvim

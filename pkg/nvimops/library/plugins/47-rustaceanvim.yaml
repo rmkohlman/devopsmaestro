@@ -1,0 +1,19 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: rustaceanvim
+  description: "Rust development tools powered by rust-analyzer"
+  category: language
+  tags: ["rust", "lsp", "rust-analyzer"]
+spec:
+  repo: mrcjkb/rustaceanvim
+  config: |
+    -- rustaceanvim configures itself automatically via ftplugin
+    -- No explicit setup() call needed
+    vim.g.rustaceanvim = {
+      tools = {
+        hover_actions = {
+          auto_focus = true,
+        },
+      },
+    }

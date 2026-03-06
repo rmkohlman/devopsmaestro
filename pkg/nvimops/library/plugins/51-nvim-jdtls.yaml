@@ -1,0 +1,12 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: nvim-jdtls
+  description: "Java development tools using Eclipse JDT Language Server"
+  category: language
+  tags: ["java", "jdtls", "lsp"]
+spec:
+  repo: mfussenegger/nvim-jdtls
+  config: |
+    -- nvim-jdtls is configured via ftplugin/java.lua
+    -- Auto-starts when opening .java files

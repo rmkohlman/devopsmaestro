@@ -208,7 +208,7 @@ var emulatorInstallCmd = &cobra.Command{
 	Long: `Install a terminal emulator configuration from the built-in library.
 
 Examples:
-  dvt emulator install rmkohlman          # Install rmkohlman emulator
+  dvt emulator install maestro          # Install maestro emulator
   dvt emulator install minimal --force    # Overwrite if exists
   dvt emulator install developer --dry-run # Preview installation`,
 	Args: cobra.ExactArgs(1),
@@ -326,7 +326,7 @@ var emulatorLibraryCmd = &cobra.Command{
 Examples:
   dvt emulator library list                  # List all library emulators
   dvt emulator library list --type wezterm   # Filter by emulator type
-  dvt emulator library show rmkohlman        # Show library emulator details`,
+  dvt emulator library show maestro        # Show library emulator details`,
 }
 
 // emulatorLibraryListCmd lists library emulators
@@ -369,7 +369,7 @@ var emulatorLibraryShowCmd = &cobra.Command{
 	Long: `Show details of a specific emulator from the built-in library.
 
 Examples:
-  dvt emulator library show rmkohlman
+  dvt emulator library show maestro
   dvt emulator library show minimal -o yaml`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {

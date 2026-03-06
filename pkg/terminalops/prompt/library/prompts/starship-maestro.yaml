@@ -1,8 +1,8 @@
 apiVersion: devopsmaestro.io/v1
 kind: TerminalPrompt
 metadata:
-  name: starship-rmkohlman
-  description: Robert's CoolNight Ocean powerline prompt with Kubernetes, Colima, and language detection
+  name: starship-maestro
+  description: Maestro CoolNight Ocean powerline prompt with Kubernetes, Colima, and language detection
   category: personal
   tags:
     - powerline

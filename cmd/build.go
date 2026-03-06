@@ -8,6 +8,7 @@ import (
 	"devopsmaestro/models"
 	"devopsmaestro/operators"
 	colorresolver "devopsmaestro/pkg/colors/resolver"
+	"devopsmaestro/pkg/nvimops"
 	nvimconfig "devopsmaestro/pkg/nvimops/config"
 	"devopsmaestro/pkg/nvimops/library"
 	nvimpackage "devopsmaestro/pkg/nvimops/package"
@@ -331,7 +332,7 @@ func buildWorkspace(cmd *cobra.Command) error {
 	// Step 5b: Generate nvim config BEFORE Dockerfile (so Dockerfile generator can see .config/nvim/)
 	var pluginManifest *plugin.PluginManifest
 	if workspaceYAML.Spec.Nvim.Structure != "" && workspaceYAML.Spec.Nvim.Structure != "none" {
-		manifest, err := generateNvimConfig(workspaceYAML.Spec.Nvim.Plugins, stagingDir, homeDir, sqlDS, app, workspace, appName, workspaceName)
+		manifest, err := generateNvimConfig(workspaceYAML.Spec.Nvim.Plugins, stagingDir, homeDir, sqlDS, app, workspace, appName, workspaceName, languageName)
 		if err != nil {
 			return err
 		}
@@ -603,7 +604,7 @@ func prepareStagingDirectory(stagingDir, appPath, appName, workspaceName string,
 // It filters plugins based on the workspace's configured plugin list.
 // Reads plugin data from the database (source of truth).
 // Returns a PluginManifest for use by Dockerfile generator.
-func generateNvimConfig(workspacePlugins []string, stagingDir, homeDir string, ds db.DataStore, app *models.App, workspace *models.Workspace, appName, workspaceName string) (*plugin.PluginManifest, error) {
+func generateNvimConfig(workspacePlugins []string, stagingDir, homeDir string, ds db.DataStore, app *models.App, workspace *models.Workspace, appName, workspaceName, language string) (*plugin.PluginManifest, error) {
 	render.Progress("Generating Neovim configuration...")
 
 	nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
@@ -710,14 +711,42 @@ func generateNvimConfig(workspacePlugins []string, stagingDir, homeDir string, d
 			}
 		}
 
-		// If no default package or resolution failed, fall back to all enabled plugins
+		// If no default package, try language-aware package selection
+		if len(enabledPlugins) == 0 && language != "" && language != "unknown" {
+			langPkg := nvimops.GetLanguagePackage(language)
+			if langPkg != "" {
+				langPlugins, err := resolveDefaultPackagePlugins(langPkg, ds)
+				if err == nil {
+					for _, pluginName := range langPlugins {
+						if p, ok := pluginMap[pluginName]; ok {
+							enabledPlugins = append(enabledPlugins, p)
+						} else if pluginLibrary != nil {
+							if libPlugin, found := pluginLibrary.Get(pluginName); found {
+								enabledPlugins = append(enabledPlugins, libPlugin)
+								slog.Debug("loaded language package plugin from library", "plugin", pluginName, "package", langPkg)
+							} else {
+								slog.Warn("language package references unknown plugin", "plugin", pluginName, "package", langPkg)
+							}
+						}
+					}
+					if len(enabledPlugins) > 0 {
+						slog.Info("auto-selected language package", "package", langPkg, "language", language, "plugins", len(enabledPlugins))
+						render.Info(fmt.Sprintf("Auto-selected '%s' package for %s workspace", langPkg, language))
+					}
+				} else {
+					slog.Debug("failed to resolve language package", "package", langPkg, "error", err)
+				}
+			}
+		}
+
+		// If no default package or language package resolved, fall back to all enabled plugins
 		if len(enabledPlugins) == 0 {
 			for _, p := range allPlugins {
 				if p.Enabled {
 					enabledPlugins = append(enabledPlugins, p)
 				}
 			}
-			slog.Debug("no default package or resolution failed, using all enabled plugins", "count", len(enabledPlugins))
+			slog.Debug("no package resolved, using all enabled plugins", "count", len(enabledPlugins))
 		}
 
 		// Final fallback: if still no plugins, load "core" package from embedded library

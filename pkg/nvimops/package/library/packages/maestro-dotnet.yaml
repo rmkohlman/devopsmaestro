@@ -1,0 +1,12 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPackage
+metadata:
+  name: maestro-dotnet
+  description: "Maestro IDE for .NET/C# — full IDE + DAP, neotest"
+  category: language
+  tags: ["maestro", "dotnet", "csharp", "ide", "complete"]
+spec:
+  extends: maestro
+  plugins:
+    - nvim-dap
+    - neotest

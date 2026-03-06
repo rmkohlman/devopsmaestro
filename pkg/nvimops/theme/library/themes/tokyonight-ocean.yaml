@@ -3,7 +3,7 @@ kind: NvimTheme
 metadata:
   name: tokyonight-ocean
   description: Tokyo Night Ocean - Deep navy blue variant with oceanic tones
-  author: rmkohlman
+  author: maestro
   category: dark
 spec:
   plugin:

@@ -24,3 +24,41 @@ func TestDefaultConstants(t *testing.T) {
 	assert.Equal(t, "lazyvim", DefaultStructure)
 	assert.Equal(t, "core", DefaultPackage)
 }
+
+func TestGetLanguagePackage(t *testing.T) {
+	tests := []struct {
+		name     string
+		language string
+		want     string
+	}{
+		{"golang maps to maestro-go", "golang", "maestro-go"},
+		{"python maps to maestro-python", "python", "maestro-python"},
+		{"rust maps to maestro-rust", "rust", "maestro-rust"},
+		{"nodejs maps to maestro-node", "nodejs", "maestro-node"},
+		{"java maps to maestro-java", "java", "maestro-java"},
+		{"gleam maps to maestro-gleam", "gleam", "maestro-gleam"},
+		{"dotnet maps to maestro-dotnet", "dotnet", "maestro-dotnet"},
+		{"ruby maps to base maestro", "ruby", "maestro"},
+		{"unknown language returns empty", "cobol", ""},
+		{"empty string returns empty", "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := GetLanguagePackage(tt.language)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestLanguagePackageMap_AllExpectedLanguages(t *testing.T) {
+	// Verify every expected language has a mapping
+	expectedLanguages := []string{"golang", "python", "rust", "nodejs", "java", "gleam", "dotnet", "ruby"}
+	for _, lang := range expectedLanguages {
+		_, ok := LanguagePackageMap[lang]
+		assert.True(t, ok, "LanguagePackageMap should contain mapping for %q", lang)
+	}
+	// Verify exact count (no unexpected entries)
+	assert.Equal(t, len(expectedLanguages), len(LanguagePackageMap),
+		"LanguagePackageMap should have exactly %d entries", len(expectedLanguages))
+}

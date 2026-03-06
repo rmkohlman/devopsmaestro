@@ -25,13 +25,13 @@ spec:
   nvim:
     structure: lazyvim
     theme: tokyonight-night
-    pluginPackage: rmkohlman
+    pluginPackage: maestro
     plugins:
       - nvim-treesitter
       - telescope.nvim
   terminal:
     prompt: starship
-    package: rmkohlman
+    package: maestro
     plugins:
       - zsh-syntax-highlighting
       - zsh-autosuggestions
@@ -75,7 +75,7 @@ spec:
 	assert.Equal(t, "starship", workspace.TerminalPrompt.String)
 
 	require.True(t, workspace.TerminalPackage.Valid)
-	assert.Equal(t, "rmkohlman", workspace.TerminalPackage.String)
+	assert.Equal(t, "maestro", workspace.TerminalPackage.String)
 
 	require.True(t, workspace.TerminalPlugins.Valid)
 	termPlugins := workspace.GetTerminalPlugins()

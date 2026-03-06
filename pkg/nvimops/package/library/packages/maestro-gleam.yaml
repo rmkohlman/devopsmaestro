@@ -1,0 +1,10 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPackage
+metadata:
+  name: maestro-gleam
+  description: "Maestro IDE for Gleam — full IDE with treesitter and LSP support"
+  category: language
+  tags: ["maestro", "gleam", "ide", "complete"]
+spec:
+  extends: maestro
+  plugins: []

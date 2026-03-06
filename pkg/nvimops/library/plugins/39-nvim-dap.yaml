@@ -1,0 +1,45 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: nvim-dap
+  description: "Debug Adapter Protocol client for Neovim"
+  category: debug
+  tags: ["debug", "dap", "breakpoints"]
+spec:
+  repo: mfussenegger/nvim-dap
+  dependencies:
+    - repo: rcarriga/nvim-dap-ui
+      dependencies:
+        - repo: nvim-neotest/nvim-nio
+    - repo: theHamsta/nvim-dap-virtual-text
+  config: |
+    local dap = require("dap")
+    local dapui = require("dapui")
+
+    dapui.setup()
+    require("nvim-dap-virtual-text").setup()
+
+    -- Auto open/close DAP UI
+    dap.listeners.after.event_initialized["dapui_config"] = function()
+      dapui.open()
+    end
+    dap.listeners.before.event_terminated["dapui_config"] = function()
+      dapui.close()
+    end
+    dap.listeners.before.event_exited["dapui_config"] = function()
+      dapui.close()
+    end
+
+    -- Keymaps
+    local keymap = vim.keymap
+    keymap.set("n", "<leader>db", dap.toggle_breakpoint, { desc = "Toggle breakpoint" })
+    keymap.set("n", "<leader>dc", dap.continue, { desc = "Debug continue" })
+    keymap.set("n", "<leader>di", dap.step_into, { desc = "Debug step into" })
+    keymap.set("n", "<leader>do", dap.step_over, { desc = "Debug step over" })
+    keymap.set("n", "<leader>dO", dap.step_out, { desc = "Debug step out" })
+    keymap.set("n", "<leader>dr", dap.repl.open, { desc = "Debug REPL" })
+    keymap.set("n", "<leader>dl", dap.run_last, { desc = "Debug run last" })
+    keymap.set("n", "<leader>du", dapui.toggle, { desc = "Toggle DAP UI" })
+    keymap.set("n", "<leader>dB", function()
+      dap.set_breakpoint(vim.fn.input("Breakpoint condition: "))
+    end, { desc = "Conditional breakpoint" })

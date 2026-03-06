@@ -1,0 +1,13 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPackage
+metadata:
+  name: maestro-java
+  description: "Maestro IDE for Java — full IDE + nvim-jdtls, DAP"
+  category: language
+  tags: ["maestro", "java", "ide", "complete"]
+spec:
+  extends: maestro
+  plugins:
+    - nvim-dap
+    - nvim-jdtls
+    - neotest

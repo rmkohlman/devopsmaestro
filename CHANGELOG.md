@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.34.0] - 2026-03-06 — Package Rename & Language Auto-Detection
+
+### ✨ Added
+
+#### Language-Specific Maestro Nvim Packages
+- **7 new language-specific nvim packages** — Each extends the full `maestro` base (37 IDE plugins) and adds language-specific DAP, neotest, and tooling plugins:
+  - `maestro-go` — nvim-dap, nvim-dap-go, neotest, neotest-go, gopher-nvim
+  - `maestro-python` — nvim-dap, nvim-dap-python, neotest, neotest-python, venv-selector
+  - `maestro-rust` — nvim-dap, rustaceanvim, crates-nvim, neotest, neotest-rust
+  - `maestro-node` — nvim-dap, neotest, neotest-jest
+  - `maestro-java` — nvim-dap, nvim-jdtls, neotest
+  - `maestro-gleam` — No additional plugins (Gleam support via treesitter + LSP already in maestro)
+  - `maestro-dotnet` — nvim-dap, neotest
+
+#### 13 New Plugin YAML Definitions
+- **New plugins added to the embedded library** — `nvim-dap`, `neotest`, `nvim-dap-go`, `neotest-go`, `gopher-nvim`, `nvim-dap-python`, `neotest-python`, `venv-selector`, `rustaceanvim`, `crates-nvim`, `neotest-rust`, `neotest-jest`, `nvim-jdtls`
+  - Files: `pkg/nvimops/library/plugins/39-nvim-dap.yaml` through `51-nvim-jdtls.yaml`
+
+#### Language-Aware Build Fallback
+- **`dvm build` now auto-selects the right nvim package based on detected language** — When no explicit nvim package is set on the workspace or via user defaults, the build pipeline detects the app language and maps it to the corresponding `maestro-<lang>` package
+  - New `LanguagePackageMap` in `pkg/nvimops/defaults.go` maps 8 languages (golang, python, rust, nodejs, java, gleam, dotnet, ruby) to their packages
+  - New `GetLanguagePackage()` function returns the recommended package for a detected language
+  - Detection cascade in `cmd/build.go`: workspace plugins → user-set default package → **language-aware package** → all enabled plugins → core fallback
+
+### ♻️ Changed
+
+#### Package Rename: rmkohlman → maestro
+- **All "rmkohlman" package names renamed to "maestro"** across all package types:
+  - Nvim package: `rmkohlman.yaml` → `maestro.yaml` (name, description, author updated)
+  - Terminal package: `rmkohlman.yaml` → `maestro.yaml`
+  - Starship prompt: `starship-rmkohlman.yaml` → `starship-maestro.yaml`
+  - Terminal emulator: `rmkohlman.yaml` → `maestro.yaml`
+  - Theme author fields updated in `tokyonight-ocean.yaml` and `tokyonight-custom.yaml`
+- **CLI help text updated** — `cmd/dvt/emulator.go` references updated from rmkohlman to maestro
+- **Existing packages updated** — `go-dev.yaml` and `python-dev.yaml` descriptions now reference their maestro counterparts
+
+#### Nvim Package Library Expanded
+- **Package count increased from 5 to 12** — core, full, maestro, go-dev, python-dev, maestro-go, maestro-python, maestro-rust, maestro-node, maestro-java, maestro-gleam, maestro-dotnet
+- **Plugin count increased from 38 to 51** — 13 new language-specific plugins added
+
+### 🧪 Tests
+
+- Updated 8 test files with rmkohlman → maestro renames (function names, string literals, assertions)
+- Package count assertions updated from 5 to 12 across integration and library tests
+- Added 12 new tests for `GetLanguagePackage()` (table-driven, 10 language cases + map completeness check)
+- Description assertion in integration test updated to match new maestro description
+
+---
+
 ## [v0.33.0] - 2026-03-05 — Registry Integration
 
 ### ✨ Added

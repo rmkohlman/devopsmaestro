@@ -1,6 +1,6 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.33.3  
+> **Version**: v0.34.0  
 > **Last Updated**: March 2026
 
 ---
@@ -666,6 +666,146 @@ dvm delete registry verdaccio-test
 
 ---
 
+## Part 5: Package Rename & Language Auto-Detection (v0.34.0)
+
+These scenarios cover the package rename from `rmkohlman` to `maestro` and the new language-specific nvim packages with auto-detection during workspace builds.
+
+**Prerequisites:**
+- `dvm` and `nvp` binaries built from v0.34.0+
+- At least one app configured in DevOpsMaestro
+
+---
+
+### Scenario 14: Package Rename Verification
+
+Verify that all packages previously named `rmkohlman` are now named `maestro` and that the total package count reflects the new language-specific additions.
+
+```bash
+# List all nvp packages — should show "maestro" not "rmkohlman"
+nvp get packages
+
+# Count total packages (expect 12)
+nvp get packages | grep -c '^'
+
+# Set terminal package using new name
+dvm use terminal-package maestro
+
+# List emulator entries — should show "maestro" not "rmkohlman"
+dvt emulator list
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `nvp get packages` shows "maestro" | No "rmkohlman" entries in list | |
+| Total package count | 12 packages listed | |
+| `dvm use terminal-package maestro` | Command succeeds, no error | |
+| `dvt emulator list` shows "maestro" | No "rmkohlman" entries in emulator list | |
+
+---
+
+### Scenario 15: Language-Specific Package Listing
+
+Verify all 12 packages are present and that language-specific packages have the correct metadata and plugin composition.
+
+```bash
+# List all packages — verify all 12 are present
+nvp get packages
+
+# Inspect the maestro-go package
+nvp get package maestro-go
+
+# Inspect maestro-go in yaml for full detail
+nvp get package maestro-go -o yaml
+```
+
+**Expected package list (12 total):**
+
+| Package | Type |
+|---------|------|
+| `core` | Base package |
+| `full` | Full package |
+| `maestro` | Renamed from rmkohlman |
+| `go-dev` | Go development |
+| `python-dev` | Python development |
+| `maestro-go` | Language-specific (new) |
+| `maestro-python` | Language-specific (new) |
+| `maestro-rust` | Language-specific (new) |
+| `maestro-node` | Language-specific (new) |
+| `maestro-java` | Language-specific (new) |
+| `maestro-gleam` | Language-specific (new) |
+| `maestro-dotnet` | Language-specific (new) |
+
+| Test | Expected | Result |
+|------|----------|--------|
+| All 12 packages listed | Exactly 12 rows in `nvp get packages` | |
+| `maestro-go` exists | Package appears in list | |
+| `maestro-go` extends maestro | `extends: maestro` field present in yaml output | |
+| `maestro-go` has Go-specific plugins | `nvim-dap-go`, `neotest-go`, `gopher-nvim` present in plugin list | |
+| All 7 language packages present | maestro-go, maestro-python, maestro-rust, maestro-node, maestro-java, maestro-gleam, maestro-dotnet all listed | |
+
+---
+
+### Scenario 16: Language Auto-Detection in Build
+
+Verify that `dvm build` selects the correct language-specific nvim package automatically based on the detected app language, and that an explicit `pluginPackage` override takes precedence.
+
+```bash
+# --- Test 1: Go app auto-selects maestro-go ---
+
+# Create a Go app workspace (assumes a Go app is registered in DevOpsMaestro)
+dvm create workspace go-autodetect-ws --app <your-go-app>
+
+# Build — auto-detection should select maestro-go
+dvm build --workspace go-autodetect-ws
+
+# Inspect the built workspace config to confirm package selection
+dvm get workspace go-autodetect-ws -o yaml
+```
+
+```bash
+# --- Test 2: Python app auto-selects maestro-python ---
+
+# Create a Python app workspace
+dvm create workspace py-autodetect-ws --app <your-python-app>
+
+# Build — auto-detection should select maestro-python
+dvm build --workspace py-autodetect-ws
+
+# Inspect the built workspace config
+dvm get workspace py-autodetect-ws -o yaml
+```
+
+```bash
+# --- Test 3: Explicit pluginPackage overrides auto-detection ---
+
+# Create a Go app workspace with an explicit pluginPackage set
+dvm create workspace go-explicit-ws --app <your-go-app> --plugin-package maestro
+
+# Build — should use "maestro", NOT auto-detect "maestro-go"
+dvm build --workspace go-explicit-ws
+
+# Confirm the explicit package was used
+dvm get workspace go-explicit-ws -o yaml
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Go workspace build auto-detects language | Build output mentions language detection | |
+| Go workspace uses `maestro-go` package | `pluginPackage: maestro-go` in workspace yaml | |
+| Python workspace build auto-detects language | Build output mentions language detection | |
+| Python workspace uses `maestro-python` package | `pluginPackage: maestro-python` in workspace yaml | |
+| Explicit `pluginPackage` skips auto-detection | `pluginPackage: maestro` used, not `maestro-go` | |
+| No error when fallback package used | Build completes without error for explicit override | |
+
+**Cleanup:**
+```bash
+dvm delete workspace go-autodetect-ws
+dvm delete workspace py-autodetect-ws
+dvm delete workspace go-explicit-ws
+```
+
+---
+
 ## Test Results Summary
 
 | Section | Tests | Pass | Fail |
@@ -677,6 +817,7 @@ dvm delete registry verdaccio-test
 | Part 2: Post-Attach | 5 segments | | |
 | Part 3: Namespaced Commands | 5 checks | | |
 | Part 4: Registry System | 13 scenarios | | |
+| Part 5: Package Rename & Auto-Detection | 3 scenarios | | |
 
 ---
 
@@ -729,5 +870,5 @@ colima nerdctl -- --namespace devopsmaestro images
 
 **Tested by:** ________________  
 **Date:** ________________  
-**Version:** v0.33.3  
+**Version:** v0.34.0  
 **Platform:** ________________

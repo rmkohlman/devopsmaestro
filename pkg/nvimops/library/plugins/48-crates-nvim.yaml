@@ -1,0 +1,18 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: crates-nvim
+  description: "Cargo.toml crate version management and completion"
+  category: language
+  tags: ["rust", "cargo", "crates"]
+spec:
+  repo: saecki/crates.nvim
+  event: ["BufRead Cargo.toml"]
+  config: |
+    require("crates").setup({
+      completion = {
+        cmp = {
+          enabled = true,
+        },
+      },
+    })

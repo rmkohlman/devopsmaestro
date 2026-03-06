@@ -1,0 +1,13 @@
+apiVersion: devopsmaestro.io/v1
+kind: NvimPackage
+metadata:
+  name: maestro-node
+  description: "Maestro IDE for Node.js/TypeScript — full IDE + neotest-jest, DAP"
+  category: language
+  tags: ["maestro", "nodejs", "typescript", "ide", "complete"]
+spec:
+  extends: maestro
+  plugins:
+    - nvim-dap
+    - neotest
+    - neotest-jest

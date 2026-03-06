@@ -1,11 +1,11 @@
 apiVersion: devopsmaestro.io/v1
 kind: TerminalEmulator
 metadata:
-  name: rmkohlman
-  description: Robert's personal WezTerm configuration
+  name: maestro
+  description: Maestro WezTerm configuration
   category: personal
   labels:
-    author: rmkohlman
+    author: maestro
     style: developer
 spec:
   type: wezterm

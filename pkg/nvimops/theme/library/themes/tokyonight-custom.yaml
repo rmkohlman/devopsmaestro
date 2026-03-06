@@ -2,8 +2,8 @@ apiVersion: devopsmaestro.io/v1
 kind: NvimTheme
 metadata:
   name: tokyonight-custom
-  description: Custom Tokyo Night with deeper blues - based on rmkohlman/nvim-config
-  author: rmkohlman
+  description: Custom Tokyo Night with deeper blues - based on maestro/nvim-config
+  author: maestro
   category: dark
 spec:
   plugin:

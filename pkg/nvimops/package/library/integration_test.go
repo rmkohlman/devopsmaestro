@@ -7,26 +7,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestRmkohlmanPackage tests the complete rmkohlman package
-func TestRmkohlmanPackage(t *testing.T) {
+// TestMaestroPackage tests the complete maestro package
+func TestMaestroPackage(t *testing.T) {
 	lib, err := NewLibrary()
 	require.NoError(t, err)
 
 	// Test package exists
-	assert.True(t, lib.Has("rmkohlman"))
+	assert.True(t, lib.Has("maestro"))
 
 	// Test package can be retrieved
-	pkg, ok := lib.Get("rmkohlman")
+	pkg, ok := lib.Get("maestro")
 	require.True(t, ok)
 	require.NotNil(t, pkg)
 
 	// Test basic metadata
-	assert.Equal(t, "rmkohlman", pkg.Name)
+	assert.Equal(t, "maestro", pkg.Name)
 	assert.Equal(t, "complete", pkg.Category)
 	assert.Contains(t, pkg.Tags, "complete")
 	assert.Contains(t, pkg.Tags, "ide")
 	assert.Contains(t, pkg.Tags, "enhanced")
-	assert.Contains(t, pkg.Description, "Robert's complete Neovim IDE setup")
+	assert.Contains(t, pkg.Description, "Maestro complete Neovim IDE setup")
 
 	// Test plugin count (should be 37 plugins)
 	assert.Len(t, pkg.Plugins, 37)
@@ -74,8 +74,8 @@ func TestRmkohlmanPackage(t *testing.T) {
 	assert.Contains(t, pluginNames, "obsidian")
 }
 
-// TestRmkohlmanPackageInLibraryList tests that the package appears in library listings
-func TestRmkohlmanPackageInLibraryList(t *testing.T) {
+// TestMaestroPackageInLibraryList tests that the package appears in library listings
+func TestMaestroPackageInLibraryList(t *testing.T) {
 	lib, err := NewLibrary()
 	require.NoError(t, err)
 
@@ -83,62 +83,62 @@ func TestRmkohlmanPackageInLibraryList(t *testing.T) {
 	packages := lib.List()
 	var found bool
 	for _, pkg := range packages {
-		if pkg.Name == "rmkohlman" {
+		if pkg.Name == "maestro" {
 			found = true
 			assert.Equal(t, "complete", pkg.Category)
 			break
 		}
 	}
-	assert.True(t, found, "rmkohlman should be in package list")
+	assert.True(t, found, "maestro should be in package list")
 
 	// Test package appears in complete category
 	completePackages := lib.ListByCategory("complete")
 	found = false
 	for _, pkg := range completePackages {
-		if pkg.Name == "rmkohlman" {
+		if pkg.Name == "maestro" {
 			found = true
 			break
 		}
 	}
-	assert.True(t, found, "rmkohlman should be in complete category")
+	assert.True(t, found, "maestro should be in complete category")
 
 	// Test package appears when searching by tags
 	idePackages := lib.ListByTag("ide")
 	found = false
 	for _, pkg := range idePackages {
-		if pkg.Name == "rmkohlman" {
+		if pkg.Name == "maestro" {
 			found = true
 			break
 		}
 	}
-	assert.True(t, found, "rmkohlman should be found by 'ide' tag")
+	assert.True(t, found, "maestro should be found by 'ide' tag")
 
-	// Test library count includes rmkohlman
+	// Test library count includes maestro
 	count := lib.Count()
-	assert.Equal(t, 5, count) // core, go-dev, python-dev, full, rmkohlman
+	assert.Equal(t, 12, count) // core, full, maestro, go-dev, python-dev, maestro-go, maestro-python, maestro-rust, maestro-node, maestro-java, maestro-gleam, maestro-dotnet
 }
 
-// TestRmkohlmanPackageInfo tests package info functionality
-func TestRmkohlmanPackageInfo(t *testing.T) {
+// TestMaestroPackageInfo tests package info functionality
+func TestMaestroPackageInfo(t *testing.T) {
 	lib, err := NewLibrary()
 	require.NoError(t, err)
 
 	// Test package info
 	info := lib.Info()
 
-	var rmkohlmanInfo *PackageInfo
+	var maestroInfo *PackageInfo
 	for _, pkg := range info {
-		if pkg.Name == "rmkohlman" {
-			rmkohlmanInfo = &pkg
+		if pkg.Name == "maestro" {
+			maestroInfo = &pkg
 			break
 		}
 	}
 
-	require.NotNil(t, rmkohlmanInfo, "rmkohlman should appear in package info")
-	assert.Equal(t, "rmkohlman", rmkohlmanInfo.Name)
-	assert.Equal(t, "complete", rmkohlmanInfo.Category)
-	assert.Equal(t, 37, rmkohlmanInfo.PluginCount)
-	assert.Contains(t, rmkohlmanInfo.Tags, "complete")
-	assert.Contains(t, rmkohlmanInfo.Tags, "ide")
-	assert.Contains(t, rmkohlmanInfo.Tags, "enhanced")
+	require.NotNil(t, maestroInfo, "maestro should appear in package info")
+	assert.Equal(t, "maestro", maestroInfo.Name)
+	assert.Equal(t, "complete", maestroInfo.Category)
+	assert.Equal(t, 37, maestroInfo.PluginCount)
+	assert.Contains(t, maestroInfo.Tags, "complete")
+	assert.Contains(t, maestroInfo.Tags, "ide")
+	assert.Contains(t, maestroInfo.Tags, "enhanced")
 }
