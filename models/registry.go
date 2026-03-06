@@ -26,10 +26,17 @@ type Registry struct {
 
 // RegistryYAML represents the YAML structure for a Registry resource
 type RegistryYAML struct {
-	APIVersion string           `yaml:"apiVersion"`
-	Kind       string           `yaml:"kind"`
-	Metadata   RegistryMetadata `yaml:"metadata"`
-	Spec       RegistrySpec     `yaml:"spec"`
+	APIVersion string              `yaml:"apiVersion" json:"apiVersion"`
+	Kind       string              `yaml:"kind" json:"kind"`
+	Metadata   RegistryMetadata    `yaml:"metadata" json:"metadata"`
+	Spec       RegistrySpec        `yaml:"spec" json:"spec"`
+	Status     *RegistryStatusYAML `yaml:"status,omitempty" json:"status,omitempty"`
+}
+
+// RegistryStatusYAML represents the live status section of a Registry resource
+type RegistryStatusYAML struct {
+	State    string `yaml:"state" json:"state"`
+	Endpoint string `yaml:"endpoint" json:"endpoint"`
 }
 
 type RegistryMetadata struct {

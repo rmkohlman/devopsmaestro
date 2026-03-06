@@ -389,7 +389,12 @@ func runRolloutHistoryRegistry(cmd *cobra.Command, args []string) error {
 
 	switch format {
 	case "json", "yaml":
-		return outputData(ctx, format, history)
+		// Convert to clean DTOs without sql.Null* wrappers
+		historyYAML := make([]models.RegistryHistoryYAML, len(history))
+		for i, h := range history {
+			historyYAML[i] = h.ToYAML()
+		}
+		return outputData(ctx, format, historyYAML)
 	default:
 		// Build table for human-readable output
 		tableData := render.TableData{

@@ -1,7 +1,7 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.6.0  
-> **Last Updated**: February 2025
+> **Version**: v0.33.3  
+> **Last Updated**: March 2026
 
 ---
 
@@ -278,6 +278,394 @@ dvm plugin list      # Should show error: unknown command
 
 ---
 
+## Part 4: Registry System
+
+These scenarios cover the full lifecycle of the registry subsystem introduced in v0.33.x. Run them from a clean state (`rm -rf ~/.devopsmaestro/registries` or equivalent) unless a scenario explicitly depends on prior state.
+
+**Prerequisites:**
+- `dvm` binary built from v0.33.3+
+- `zot` binary available in PATH (for zot-type registry tests)
+- Ports 5000, 5001, 5100 available
+
+---
+
+### Scenario 1: Multi-Registry Lifecycle
+
+Full create → start → stop → delete sequence for a single registry.
+
+```bash
+# Create
+dvm create registry my-registry --type zot --port 5000
+
+# List (should show status: stopped)
+dvm get registries
+
+# Start
+dvm start registry my-registry
+
+# List (should show status: running, PID populated)
+dvm get registries
+
+# Stop
+dvm stop registry my-registry
+
+# List (should show status: stopped)
+dvm get registries
+
+# Delete
+dvm delete registry my-registry
+
+# List (should be empty)
+dvm get registries
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Create succeeds | No error, registry appears in list | |
+| Start succeeds | Status changes to "running", PID shown | |
+| Stop succeeds | Status changes to "stopped", PID cleared | |
+| Delete succeeds | Registry no longer appears in list | |
+
+---
+
+### Scenario 2: Concurrent Registries
+
+Two zot registries running simultaneously on different ports.
+
+```bash
+dvm create registry reg-a --type zot --port 5000
+dvm create registry reg-b --type zot --port 5001
+
+dvm start registry reg-a
+dvm start registry reg-b
+
+# Both should appear as running
+dvm get registries
+
+dvm stop registry reg-a
+dvm stop registry reg-b
+
+dvm delete registry reg-a
+dvm delete registry reg-b
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Both start without conflict | Two entries, both status "running" | |
+| Both appear in `get registries` | Table shows two rows | |
+| Both stop cleanly | Both status "stopped" | |
+
+---
+
+### Scenario 3: Force Stop
+
+Verify `--force` sends SIGKILL instead of SIGTERM.
+
+```bash
+dvm create registry force-test --type zot --port 5000
+dvm start registry force-test
+
+# Force kill
+dvm stop registry force-test --force
+
+# Should be stopped
+dvm get registries
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `--force` flag accepted | No "unknown flag" error | |
+| Registry stops | Status "stopped" after force stop | |
+
+---
+
+### Scenario 4: Rapid Start/Stop Cycling
+
+Start and stop the same registry three times in succession.
+
+```bash
+dvm create registry cycle-test --type zot --port 5000
+
+for i in 1 2 3; do
+  echo "--- Cycle $i ---"
+  dvm start registry cycle-test
+  dvm get registries
+  dvm stop registry cycle-test
+  dvm get registries
+done
+
+dvm delete registry cycle-test
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Cycle 1: start/stop | Clean state transitions | |
+| Cycle 2: start/stop | Clean state transitions | |
+| Cycle 3: start/stop | Clean state transitions | |
+| No orphan processes | `ps aux | grep zot` shows nothing after final stop | |
+
+---
+
+### Scenario 5: Delete Running Registry
+
+A running registry must be auto-stopped before deletion. (Regression test for Bug 4.)
+
+```bash
+dvm create registry live-delete --type zot --port 5000
+dvm start registry live-delete
+
+# Confirm it is running
+dvm get registries
+
+# Delete without stopping first
+dvm delete registry live-delete
+
+# Should be gone, no orphan process
+dvm get registries
+ps aux | grep zot
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Delete while running | Command succeeds (auto-stops first) | |
+| Registry removed from list | No entry in `get registries` | |
+| No orphan process | `ps aux` shows no leftover zot process | |
+
+---
+
+### Scenario 6: Duplicate Registry Name
+
+Attempting to create a registry with an already-used name should produce a clean error.
+
+```bash
+dvm create registry dup-test --type zot --port 5000
+dvm create registry dup-test --type zot --port 5001
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Second create fails | Clear error: name already exists | |
+| Error is not a panic | No stack trace, just error message | |
+| First registry unaffected | Still present in `get registries` | |
+
+**Cleanup:**
+```bash
+dvm delete registry dup-test
+```
+
+---
+
+### Scenario 7: Port Conflict
+
+Attempting to create a registry on a port already assigned to another registry should fail cleanly.
+
+```bash
+dvm create registry port-a --type zot --port 5000
+dvm create registry port-b --type zot --port 5000
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Second create fails | Clear error: port already in use | |
+| Error is not a panic | No stack trace, just error message | |
+| First registry unaffected | Still present in `get registries` | |
+
+**Cleanup:**
+```bash
+dvm delete registry port-a
+```
+
+---
+
+### Scenario 8: Set Default and Get Defaults with Live Status
+
+Verify `registry set-default` and `registry get-defaults` work correctly, including the `-o` output flag. (Regression test for Bug 5.)
+
+```bash
+dvm create registry default-test --type zot --port 5000
+dvm start registry default-test
+
+# Set as default
+dvm registry set-default default-test
+
+# Get defaults (table)
+dvm registry get-defaults
+
+# Get defaults with output flags (Bug 5: -o flag was missing)
+dvm registry get-defaults -o yaml
+dvm registry get-defaults -o json
+
+dvm stop registry default-test
+dvm delete registry default-test
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `set-default` succeeds | No error | |
+| `get-defaults` (table) shows registry | Name, type, port, status visible | |
+| `get-defaults -o yaml` | Valid YAML, no error | |
+| `get-defaults -o json` | Valid JSON, no error | |
+| Live status reflected | Running registry shows status "running" | |
+
+---
+
+### Scenario 9: Rollout Undo (Not Yet Implemented)
+
+Verify that `rollout undo` returns a clean "not yet implemented" error rather than panicking or silently doing nothing.
+
+```bash
+dvm create registry rollout-test --type zot --port 5000
+dvm start registry rollout-test
+
+dvm rollout undo registry rollout-test
+
+dvm stop registry rollout-test
+dvm delete registry rollout-test
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Command accepted (no "unknown command" error) | Reaches handler | |
+| Returns "not yet implemented" message | Clear informational error | |
+| No panic | Clean exit, non-zero exit code | |
+
+---
+
+### Scenario 10: Output Formats Across Registry Commands
+
+Verify `-o json` and `-o yaml` produce clean, parseable output for all registry commands. (Regression test for Bugs 6 and 7.)
+
+```bash
+dvm create registry fmt-test --type zot --port 5000
+dvm start registry fmt-test
+
+# get registries output formats (Bug 7: status field was missing)
+dvm get registries -o json
+dvm get registries -o yaml
+dvm get registries -o wide
+
+# rollout history output formats (Bug 6: sql.Null types leaked)
+dvm rollout history registry fmt-test -o json
+dvm rollout history registry fmt-test -o yaml
+
+# get-defaults output formats (Bug 5: -o flag was missing)
+dvm registry get-defaults -o json
+dvm registry get-defaults -o yaml
+
+dvm stop registry fmt-test
+dvm delete registry fmt-test
+```
+
+**For JSON validation:**
+```bash
+dvm get registries -o json | python3 -m json.tool
+dvm rollout history registry fmt-test -o json | python3 -m json.tool
+dvm registry get-defaults -o json | python3 -m json.tool
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `get registries -o json` parses cleanly | Valid JSON, no sql.Null types (e.g., `{"Valid":true,"String":"..."}`) | |
+| `get registries -o json` has status field | `.status` section present (Bug 7) | |
+| `get registries -o yaml` parses cleanly | Valid YAML | |
+| `get registries -o wide` shows extra columns | Wider table with additional fields | |
+| `rollout history -o json` parses cleanly | Valid JSON, no raw sql.Null types (Bug 6) | |
+| `rollout history -o yaml` parses cleanly | Valid YAML | |
+| `get-defaults -o json` accepted | No "unknown flag" error (Bug 5) | |
+| `get-defaults -o yaml` accepted | No "unknown flag" error (Bug 5) | |
+
+---
+
+### Scenario 11: Process Crash Recovery
+
+Simulate a crash (kill -9 the registry process) and verify that a subsequent `start` detects the stale PID and recovers cleanly.
+
+```bash
+dvm create registry crash-test --type zot --port 5000
+dvm start registry crash-test
+
+# Get the PID
+dvm get registries
+
+# Kill the process hard (replace <PID> with actual PID from above)
+kill -9 <PID>
+
+# Wait a moment
+sleep 2
+
+# Attempt to start again - should detect stale PID and recover
+dvm start registry crash-test
+
+# Confirm it is running again
+dvm get registries
+
+dvm stop registry crash-test
+dvm delete registry crash-test
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `kill -9` kills the process | `ps aux` no longer shows the PID | |
+| Second `start` succeeds | No error about PID file or "already running" | |
+| Registry running after recovery | Status "running" with a new PID | |
+
+---
+
+### Scenario 12: Verbose Mode
+
+Verify `-v` / `--verbose` flag produces debug output for registry commands.
+
+```bash
+dvm create registry verbose-test --type zot --port 5000
+
+dvm start registry verbose-test -v
+dvm get registries -v
+dvm stop registry verbose-test -v
+
+dvm delete registry verbose-test
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `-v` flag accepted on `start` | No "unknown flag" error | |
+| `-v` produces debug output | Additional log lines visible (e.g., config path, PID file path) | |
+| `-v` flag accepted on `get registries` | No "unknown flag" error | |
+| `-v` flag accepted on `stop` | No "unknown flag" error | |
+
+---
+
+### Scenario 13: Non-Zot Registry Types
+
+Verify that athens, devpi, and verdaccio registry types are recognized and created without error. (Full start/stop requires those binaries; creation and listing can be tested standalone.)
+
+```bash
+# Create registries of each type
+dvm create registry athens-test --type athens --port 5100
+dvm create registry devpi-test --type devpi --port 5101
+dvm create registry verdaccio-test --type verdaccio --port 5102
+
+# All should appear in list with correct type
+dvm get registries
+dvm get registries -o yaml
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `--type athens` accepted | Registry created, type "athens" in list | |
+| `--type devpi` accepted | Registry created, type "devpi" in list | |
+| `--type verdaccio` accepted | Registry created, type "verdaccio" in list | |
+| All three appear in `get registries` | Three rows visible | |
+| `-o yaml` shows correct types | type field matches what was specified | |
+
+**Cleanup:**
+```bash
+dvm delete registry athens-test
+dvm delete registry devpi-test
+dvm delete registry verdaccio-test
+```
+
+---
+
 ## Test Results Summary
 
 | Section | Tests | Pass | Fail |
@@ -288,6 +676,7 @@ dvm plugin list      # Should show error: unknown command
 | Interactive: Neovim | 2 checks | | |
 | Part 2: Post-Attach | 5 segments | | |
 | Part 3: Namespaced Commands | 5 checks | | |
+| Part 4: Registry System | 13 scenarios | | |
 
 ---
 
@@ -340,5 +729,5 @@ colima nerdctl -- --namespace devopsmaestro images
 
 **Tested by:** ________________  
 **Date:** ________________  
-**Version:** v0.6.0  
+**Version:** v0.33.3  
 **Platform:** ________________

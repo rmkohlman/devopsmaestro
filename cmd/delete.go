@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 
 	"devopsmaestro/db"
 	"devopsmaestro/operators"
+	"devopsmaestro/pkg/registry"
 	"devopsmaestro/pkg/resource"
 	"devopsmaestro/pkg/resource/handlers"
 	"devopsmaestro/render"
@@ -315,8 +317,8 @@ func deleteRegistry(cmd *cobra.Command, name string) error {
 	}
 	ds := *dataStore
 
-	// Check if registry exists
-	registry, err := ds.GetRegistryByName(name)
+	// Check if registry exists (for confirmation prompt display)
+	reg, err := ds.GetRegistryByName(name)
 	if err != nil {
 		return fmt.Errorf("registry '%s' not found", name)
 	}
@@ -324,7 +326,7 @@ func deleteRegistry(cmd *cobra.Command, name string) error {
 	// Confirm deletion
 	force, _ := cmd.Flags().GetBool("force")
 	if !force {
-		fmt.Printf("Delete registry '%s' (type: %s)? (y/N): ", name, registry.Type)
+		fmt.Printf("Delete registry '%s' (type: %s)? (y/N): ", name, reg.Type)
 		var response string
 		fmt.Scanln(&response)
 		if response != "y" && response != "Y" {
@@ -333,7 +335,41 @@ func deleteRegistry(cmd *cobra.Command, name string) error {
 		}
 	}
 
-	// Delete the registry
+	// Use the core function with auto-stop logic
+	factory := registry.NewServiceFactory()
+	if err := deleteRegistryCore(ctx, ds, factory, name, force); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// deleteRegistryCore is the testable core of registry deletion.
+// It checks if the registry is running and stops it before deleting the DB record.
+// If Stop() fails, the DB record is NOT deleted and an error is returned.
+func deleteRegistryCore(ctx context.Context, ds db.DataStore, factory registry.ManagerFactory, name string, force bool) error {
+	// Get registry from DB
+	reg, err := ds.GetRegistryByName(name)
+	if err != nil {
+		return fmt.Errorf("registry '%s' not found", name)
+	}
+
+	// Create a service manager from the factory
+	mgr, err := factory.CreateManager(reg)
+	if err != nil {
+		return fmt.Errorf("failed to create registry manager: %w", err)
+	}
+
+	// Check if running and auto-stop (Option C: always auto-stop)
+	if mgr.IsRunning(ctx) {
+		render.Progress(fmt.Sprintf("Stopping running registry '%s'...", name))
+		if err := mgr.Stop(ctx); err != nil {
+			return fmt.Errorf("failed to stop registry '%s': %w", name, err)
+		}
+		render.Success(fmt.Sprintf("Registry '%s' stopped", name))
+	}
+
+	// Delete the DB record
 	if err := ds.DeleteRegistry(name); err != nil {
 		return fmt.Errorf("failed to delete registry: %w", err)
 	}

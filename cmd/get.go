@@ -1366,7 +1366,13 @@ func getRegistries(cmd *cobra.Command) error {
 	if getOutputFormat == "json" || getOutputFormat == "yaml" {
 		registriesYAML := make([]models.RegistryYAML, len(registries))
 		for i, r := range registries {
-			registriesYAML[i] = r.ToYAML()
+			ry := r.ToYAML()
+			status := registryLiveStatus(context.Background(), r)
+			ry.Status = &models.RegistryStatusYAML{
+				State:    status,
+				Endpoint: fmt.Sprintf("http://localhost:%d", r.Port),
+			}
+			registriesYAML[i] = ry
 		}
 		return render.OutputWith(getOutputFormat, registriesYAML, render.Options{})
 	}
@@ -1441,7 +1447,13 @@ func getRegistry(cmd *cobra.Command, name string) error {
 
 	// For JSON/YAML, output the model data directly
 	if getOutputFormat == "json" || getOutputFormat == "yaml" {
-		return render.OutputWith(getOutputFormat, registry.ToYAML(), render.Options{})
+		ry := registry.ToYAML()
+		status := registryLiveStatus(cmd.Context(), registry)
+		ry.Status = &models.RegistryStatusYAML{
+			State:    status,
+			Endpoint: fmt.Sprintf("http://localhost:%d", registry.Port),
+		}
+		return render.OutputWith(getOutputFormat, ry, render.Options{})
 	}
 
 	// For human output, show detail view

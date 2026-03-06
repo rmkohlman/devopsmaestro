@@ -92,7 +92,7 @@ func (m *MockProcessManagerForBase) GetPID() int {
 // =============================================================================
 
 // setupBaseServiceManager creates a BaseServiceManager with mocks for testing.
-func setupBaseServiceManager(t *testing.T) (BaseServiceManager, *MockBinaryManagerForBase, *MockProcessManagerForBase) {
+func setupBaseServiceManager(t *testing.T) (*BaseServiceManager, *MockBinaryManagerForBase, *MockProcessManagerForBase) {
 	t.Helper()
 
 	mockBinary := &MockBinaryManagerForBase{}
@@ -100,7 +100,7 @@ func setupBaseServiceManager(t *testing.T) (BaseServiceManager, *MockBinaryManag
 
 	mgr := NewBaseServiceManager(mockBinary, mockProcess)
 
-	return mgr, mockBinary, mockProcess
+	return &mgr, mockBinary, mockProcess
 }
 
 // =============================================================================
@@ -146,7 +146,7 @@ func TestNewBaseServiceManager(t *testing.T) {
 				// Implementation should validate dependencies
 				t.Skip("Constructor validation not yet implemented")
 			} else {
-				assert.NotNil(t, mgr, "NewBaseServiceManager should return valid instance")
+				assert.NotNil(t, &mgr, "NewBaseServiceManager should return valid instance")
 			}
 		})
 	}
@@ -160,7 +160,7 @@ func TestNewBaseServiceManager_StoresReferences(t *testing.T) {
 
 	// Verify internal state was initialized correctly
 	// (This tests internal fields are properly set)
-	assert.NotNil(t, mgr, "Manager should store dependencies")
+	assert.NotNil(t, &mgr, "Manager should store dependencies")
 }
 
 // =============================================================================

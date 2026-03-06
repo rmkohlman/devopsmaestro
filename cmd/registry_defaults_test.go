@@ -110,3 +110,26 @@ func TestRegistryGetDefaultsCmd_HasRunE(t *testing.T) {
 	assert.NotNil(t, getDefaultsCmd)
 	assert.NotNil(t, getDefaultsCmd.RunE, "should have RunE function")
 }
+
+// =============================================================================
+// TDD Phase 2 (RED): Bug 5 — get-defaults missing -o/--output flag
+// =============================================================================
+// registryGetDefaultsCmd lives under registryCmd, NOT under getCmd.
+// It does NOT inherit the --output flag from getCmd.PersistentFlags().
+// This test fails until --output/-o is explicitly added to registryGetDefaultsCmd.
+// =============================================================================
+
+func TestRegistryGetDefaultsCmd_HasOutputFlag(t *testing.T) {
+	// Test that get-defaults has its own -o/--output flag
+	// (it lives under `registry`, not `get`, so it doesn't inherit getCmd's flag)
+	getDefaultsCmd := findSubcommand(registryCmd, "get-defaults")
+	assert.NotNil(t, getDefaultsCmd, "registryCmd should have 'get-defaults' subcommand")
+
+	// The -o/--output flag must be explicitly registered on this command
+	outputFlag := getDefaultsCmd.Flags().Lookup("output")
+	assert.NotNil(t, outputFlag, "get-defaults should have --output flag (Bug 5: flag is missing)")
+
+	// Verify short form -o is also registered
+	outputShortFlag := getDefaultsCmd.Flags().ShorthandLookup("o")
+	assert.NotNil(t, outputShortFlag, "get-defaults should have -o short flag (Bug 5: shorthand missing)")
+}

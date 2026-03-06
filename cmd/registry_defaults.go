@@ -36,6 +36,9 @@ func init() {
 	// Register set-default and get-defaults subcommands
 	registryCmd.AddCommand(registrySetDefaultCmd)
 	registryCmd.AddCommand(registryGetDefaultsCmd)
+
+	// Add output flag to get-defaults (not inherited from getCmd since it's under registryCmd)
+	registryGetDefaultsCmd.Flags().StringVarP(&getOutputFormat, "output", "o", "", "Output format: json, yaml, wide")
 }
 
 // runRegistrySetDefault implements the set-default command

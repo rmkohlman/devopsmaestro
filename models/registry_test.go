@@ -2,6 +2,7 @@ package models
 
 import (
 	"database/sql"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -789,4 +790,65 @@ func TestApplyDefaults_ZotPort5001(t *testing.T) {
 	}
 	r.ApplyDefaults()
 	assert.Equal(t, 5001, r.Port, "Zot registry ApplyDefaults() should set port to 5001")
+}
+
+// =============================================================================
+// TDD Phase 2 (RED): Bug 7 — RegistryStatusYAML in get registries JSON/YAML
+// =============================================================================
+// RegistryYAML currently has NO Status field. The `dvm get registries` output
+// omits live process state (running/stopped, endpoint).
+//
+// These tests FAIL until:
+//   1. RegistryStatusYAML struct is added to models/registry.go
+//   2. Status *RegistryStatusYAML field is added to RegistryYAML (with omitempty)
+// =============================================================================
+
+// TestRegistryYAML_IncludesStatusSection verifies that when RegistryYAML.Status
+// is populated, JSON serialization produces a "status" block with "state" and
+// "endpoint" fields.
+func TestRegistryYAML_IncludesStatusSection(t *testing.T) {
+	regYAML := RegistryYAML{
+		APIVersion: "devopsmaestro.io/v1",
+		Kind:       "Registry",
+		Metadata:   RegistryMetadata{Name: "my-zot"},
+		Spec:       RegistrySpec{Type: "zot", Port: 5001},
+		Status: &RegistryStatusYAML{
+			State:    "running",
+			Endpoint: "localhost:5001",
+		},
+	}
+
+	data, err := json.Marshal(regYAML)
+	assert.NoError(t, err, "JSON marshal should succeed")
+
+	jsonStr := string(data)
+
+	// The "status" key must be present
+	assert.Contains(t, jsonStr, `"status"`, "JSON should include 'status' section (Bug 7: Status field missing)")
+
+	// The "state" and "endpoint" fields must be present inside status
+	assert.Contains(t, jsonStr, `"state"`, "status section should have 'state' field")
+	assert.Contains(t, jsonStr, `"running"`, "state should be 'running'")
+	assert.Contains(t, jsonStr, `"endpoint"`, "status section should have 'endpoint' field")
+	assert.Contains(t, jsonStr, `"localhost:5001"`, "endpoint should be 'localhost:5001'")
+}
+
+// TestRegistryYAML_StatusOmittedWhenNil verifies that when Status is nil,
+// the JSON output does NOT include a "status" key (omitempty behavior).
+func TestRegistryYAML_StatusOmittedWhenNil(t *testing.T) {
+	regYAML := RegistryYAML{
+		APIVersion: "devopsmaestro.io/v1",
+		Kind:       "Registry",
+		Metadata:   RegistryMetadata{Name: "my-zot"},
+		Spec:       RegistrySpec{Type: "zot", Port: 5001},
+		// Status intentionally nil
+	}
+
+	data, err := json.Marshal(regYAML)
+	assert.NoError(t, err, "JSON marshal should succeed")
+
+	jsonStr := string(data)
+
+	// When nil, "status" must NOT appear in JSON (omitempty)
+	assert.NotContains(t, jsonStr, `"status"`, "JSON should NOT include 'status' when Status is nil (omitempty)")
 }
