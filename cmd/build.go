@@ -164,14 +164,8 @@ func buildWorkspace(cmd *cobra.Command) error {
 
 		render.Info(fmt.Sprintf("Resolved: %s", result.FullPath()))
 	} else {
-		// Fall back to existing context-based behavior
-		ctxMgr, err := operators.NewContextManager()
-		if err != nil {
-			slog.Error("failed to create context manager", "error", err)
-			return fmt.Errorf("failed to create context manager: %w", err)
-		}
-
-		appName, err = ctxMgr.GetActiveApp()
+		// Fall back to existing context-based behavior (DB-backed)
+		appName, err = getActiveAppFromContext(sqlDS)
 		if err != nil {
 			slog.Debug("no active app set")
 			render.Info("Hint: Set active app with: dvm use app <name>")
@@ -179,7 +173,7 @@ func buildWorkspace(cmd *cobra.Command) error {
 			return fmt.Errorf("no active app set. Use 'dvm use app <name>' first")
 		}
 
-		workspaceName, err = ctxMgr.GetActiveWorkspace()
+		workspaceName, err = getActiveWorkspaceFromContext(sqlDS)
 		if err != nil {
 			slog.Debug("no active workspace set")
 			render.Info("Hint: Set active workspace with: dvm use workspace <name>")

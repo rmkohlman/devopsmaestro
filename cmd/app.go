@@ -139,7 +139,7 @@ Next Steps:
 			if err != nil {
 				render.Error("No active ecosystem set")
 				render.Info("Hint: Set active ecosystem first with: dvm use ecosystem <name>")
-				return nil
+				return errSilent
 			}
 			domain, err = ds.GetDomainByName(ecosystem.ID, appDomain)
 			if err != nil {
@@ -150,7 +150,7 @@ Next Steps:
 			if err != nil {
 				render.Error("No domain specified")
 				render.Info("Hint: Use --domain <name> or 'dvm use domain <name>' to select a domain first")
-				return nil
+				return errSilent
 			}
 		}
 
@@ -277,7 +277,7 @@ func getApps(cmd *cobra.Command) error {
 			if err != nil {
 				render.Error("No active ecosystem set")
 				render.Info("Hint: Use --all, or set active ecosystem first with: dvm use ecosystem <name>")
-				return nil
+				return errSilent
 			}
 			domain, err = ds.GetDomainByName(ecosystem.ID, domainFlag)
 			if err != nil {
@@ -288,7 +288,7 @@ func getApps(cmd *cobra.Command) error {
 			if err != nil {
 				render.Error("No domain specified")
 				render.Info("Hint: Use --domain <name>, --all, or 'dvm use domain <name>' first")
-				return nil
+				return errSilent
 			}
 		}
 
@@ -320,7 +320,7 @@ func getApps(cmd *cobra.Command) error {
 
 	// For JSON/YAML, output the model data directly
 	if getOutputFormat == "json" || getOutputFormat == "yaml" {
-		// Need to get domain names for YAML output
+		// Need to get domain names and workspace names for YAML output
 		appsYAML := make([]models.AppYAML, len(apps))
 		for i, a := range apps {
 			dom, _ := ds.GetDomainByID(a.DomainID)
@@ -328,7 +328,12 @@ func getApps(cmd *cobra.Command) error {
 			if dom != nil {
 				domName = dom.Name
 			}
-			appsYAML[i] = a.ToYAML(domName)
+			workspaces, _ := ds.ListWorkspacesByApp(a.ID)
+			wsNames := make([]string, len(workspaces))
+			for j, w := range workspaces {
+				wsNames[j] = w.Name
+			}
+			appsYAML[i] = a.ToYAML(domName, wsNames)
 		}
 		return render.OutputWith(getOutputFormat, appsYAML, render.Options{})
 	}
@@ -442,7 +447,7 @@ func getApp(cmd *cobra.Command, name string) error {
 		if err != nil {
 			render.Error("No active ecosystem set")
 			render.Info("Hint: Set active ecosystem first with: dvm use ecosystem <name>")
-			return nil
+			return errSilent
 		}
 		domain, err = ds.GetDomainByName(ecosystem.ID, domainFlag)
 		if err != nil {
@@ -455,7 +460,7 @@ func getApp(cmd *cobra.Command, name string) error {
 		if err != nil {
 			render.Error("No domain specified")
 			render.Info("Hint: Use --domain <name> or 'dvm use domain <name>' first")
-			return nil
+			return errSilent
 		}
 	}
 
@@ -475,7 +480,12 @@ func getApp(cmd *cobra.Command, name string) error {
 
 	// For JSON/YAML, output the model data directly
 	if getOutputFormat == "json" || getOutputFormat == "yaml" {
-		return render.OutputWith(getOutputFormat, app.ToYAML(domain.Name), render.Options{})
+		workspaces, _ := ds.ListWorkspacesByApp(app.ID)
+		wsNames := make([]string, len(workspaces))
+		for j, w := range workspaces {
+			wsNames[j] = w.Name
+		}
+		return render.OutputWith(getOutputFormat, app.ToYAML(domain.Name, wsNames), render.Options{})
 	}
 
 	// For human output, show detail view
@@ -556,7 +566,7 @@ Examples:
 			if err != nil {
 				render.Error("No active ecosystem set")
 				render.Info("Hint: Set active ecosystem first with: dvm use ecosystem <name>")
-				return nil
+				return errSilent
 			}
 			domain, err = ds.GetDomainByName(ecosystem.ID, domainFlag)
 			if err != nil {
@@ -569,7 +579,7 @@ Examples:
 			if err != nil {
 				render.Error("No domain specified")
 				render.Info("Hint: Use --domain <name> or 'dvm use domain <name>' first")
-				return nil
+				return errSilent
 			}
 		}
 

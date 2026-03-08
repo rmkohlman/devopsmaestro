@@ -39,8 +39,9 @@ type EcosystemSpec struct {
 	Domains []string `yaml:"domains,omitempty"`
 }
 
-// ToYAML converts an Ecosystem to YAML format
-func (e *Ecosystem) ToYAML() EcosystemYAML {
+// ToYAML converts an Ecosystem to YAML format.
+// domainNames should contain the names of child domains (pass nil for empty).
+func (e *Ecosystem) ToYAML(domainNames []string) EcosystemYAML {
 	description := ""
 	if e.Description.Valid {
 		description = e.Description.String
@@ -66,7 +67,7 @@ func (e *Ecosystem) ToYAML() EcosystemYAML {
 		},
 		Spec: EcosystemSpec{
 			Theme:   theme,
-			Domains: []string{},
+			Domains: domainNames,
 		},
 	}
 }

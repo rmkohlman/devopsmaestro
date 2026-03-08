@@ -157,7 +157,7 @@ func runSetNvimPlugin(cmd *cobra.Command, args []string) error {
 	if len(globalPlugins) == 0 {
 		render.Error("No plugins found in database")
 		render.Info("Import plugins first with: nvp library install --all")
-		return nil
+		return errSilent
 	}
 
 	// Determine which plugins to add
@@ -283,7 +283,7 @@ func runSetGlobalDefaultPlugins(cmd *cobra.Command, args []string) error {
 	if len(availablePlugins) == 0 {
 		render.Error("No plugins found in database")
 		render.Info("Import plugins first with: nvp library install --all")
-		return nil
+		return errSilent
 	}
 
 	// Determine which plugins to set as defaults

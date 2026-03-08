@@ -113,20 +113,16 @@ func runAttach(cmd *cobra.Command) error {
 
 		render.Info(fmt.Sprintf("Resolved: %s", result.FullPath()))
 	} else {
-		// Fall back to existing context-based behavior
-		contextMgr, err := operators.NewContextManager()
-		if err != nil {
-			return fmt.Errorf("failed to initialize context manager: %w", err)
-		}
-
-		appName, err = contextMgr.GetActiveApp()
+		// Fall back to existing context-based behavior (DB-backed)
+		var err error
+		appName, err = getActiveAppFromContext(ds)
 		if err != nil {
 			render.Info("Hint: Set active app with: dvm use app <name>")
 			render.Info("      Or use flags: dvm attach -a <app>")
 			return err
 		}
 
-		workspaceName, err = contextMgr.GetActiveWorkspace()
+		workspaceName, err = getActiveWorkspaceFromContext(ds)
 		if err != nil {
 			render.Info("Hint: Set active workspace with: dvm use workspace <name>")
 			render.Info("      Or use flags: dvm attach -w <workspace>")

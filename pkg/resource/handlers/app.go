@@ -189,7 +189,7 @@ func (h *AppHandler) ToYAML(res resource.Resource) ([]byte, error) {
 		return nil, fmt.Errorf("expected AppResource, got %T", res)
 	}
 
-	yamlDoc := ar.app.ToYAML(ar.domainName)
+	yamlDoc := ar.app.ToYAML(ar.domainName, nil)
 	return yaml.Marshal(yamlDoc)
 }
 

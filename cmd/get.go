@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"devopsmaestro/builders"
 	"devopsmaestro/db"
@@ -255,29 +256,68 @@ func getDataStore(cmd *cobra.Command) (db.DataStore, error) {
 
 // ContextOutput represents context for output formatting
 type ContextOutput struct {
+	CurrentEcosystem string `yaml:"currentEcosystem" json:"currentEcosystem"`
+	CurrentDomain    string `yaml:"currentDomain" json:"currentDomain"`
 	CurrentApp       string `yaml:"currentApp" json:"currentApp"`
 	CurrentWorkspace string `yaml:"currentWorkspace" json:"currentWorkspace"`
 }
 
 func getContext(cmd *cobra.Command) error {
-	ctxMgr, err := operators.NewContextManager()
+	// Read from database context (authoritative source for all 4 hierarchy levels)
+	ds, err := getDataStore(cmd)
 	if err != nil {
-		return fmt.Errorf("failed to create context manager: %w", err)
+		return fmt.Errorf("failed to get data store: %w", err)
 	}
 
-	ctx, err := ctxMgr.LoadContext()
+	dbCtx, err := ds.GetContext()
 	if err != nil {
 		return fmt.Errorf("failed to load context: %w", err)
 	}
 
+	// Resolve IDs to names
+	var ecosystemName, domainName, appName, workspaceName string
+
+	if dbCtx != nil {
+		if dbCtx.ActiveEcosystemID != nil {
+			if eco, err := ds.GetEcosystemByID(*dbCtx.ActiveEcosystemID); err == nil {
+				ecosystemName = eco.Name
+			}
+		}
+		if dbCtx.ActiveDomainID != nil {
+			if dom, err := ds.GetDomainByID(*dbCtx.ActiveDomainID); err == nil {
+				domainName = dom.Name
+			}
+		}
+		if dbCtx.ActiveAppID != nil {
+			if app, err := ds.GetAppByID(*dbCtx.ActiveAppID); err == nil {
+				appName = app.Name
+			}
+		}
+		if dbCtx.ActiveWorkspaceID != nil {
+			if ws, err := ds.GetWorkspaceByID(*dbCtx.ActiveWorkspaceID); err == nil {
+				workspaceName = ws.Name
+			}
+		}
+	}
+
+	// Check env var overrides (DVM_APP, DVM_WORKSPACE)
+	if envApp := os.Getenv("DVM_APP"); envApp != "" {
+		appName = envApp
+	}
+	if envWorkspace := os.Getenv("DVM_WORKSPACE"); envWorkspace != "" {
+		workspaceName = envWorkspace
+	}
+
 	// Build structured data
 	data := ContextOutput{
-		CurrentApp:       ctx.CurrentApp,
-		CurrentWorkspace: ctx.CurrentWorkspace,
+		CurrentEcosystem: ecosystemName,
+		CurrentDomain:    domainName,
+		CurrentApp:       appName,
+		CurrentWorkspace: workspaceName,
 	}
 
 	// Check if empty
-	isEmpty := ctx.CurrentApp == ""
+	isEmpty := ecosystemName == "" && domainName == "" && appName == "" && workspaceName == ""
 
 	// For structured output (JSON/YAML), always output the data structure
 	// For human output, show nice key-value display
@@ -291,20 +331,27 @@ func getContext(cmd *cobra.Command) error {
 			Empty:        true,
 			EmptyMessage: "No active context",
 			EmptyHints: []string{
+				"dvm use ecosystem <name>",
+				"dvm use domain <name>",
 				"dvm use app <name>",
 				"dvm use workspace <name>",
 			},
 		})
 	}
 
-	workspace := ctx.CurrentWorkspace
-	if workspace == "" {
-		workspace = "(none)"
+	// Build key-value pairs, showing "(none)" for unset levels
+	displayOrNone := func(s string) string {
+		if s == "" {
+			return "(none)"
+		}
+		return s
 	}
 
 	kvData := render.NewOrderedKeyValueData(
-		render.KeyValue{Key: "App", Value: ctx.CurrentApp},
-		render.KeyValue{Key: "Workspace", Value: workspace},
+		render.KeyValue{Key: "Ecosystem", Value: displayOrNone(ecosystemName)},
+		render.KeyValue{Key: "Domain", Value: displayOrNone(domainName)},
+		render.KeyValue{Key: "App", Value: displayOrNone(appName)},
+		render.KeyValue{Key: "Workspace", Value: displayOrNone(workspaceName)},
 	)
 
 	return render.OutputWith(getOutputFormat, kvData, render.Options{
@@ -561,23 +608,14 @@ func getWorkspaces(cmd *cobra.Command) error {
 		})
 	}
 
-	// Fall back to existing context-based behavior
-	ctxMgr, err := operators.NewContextManager()
-	if err != nil {
-		return fmt.Errorf("failed to create context manager: %w", err)
-	}
-
-	appName, err := ctxMgr.GetActiveApp()
+	// Fall back to existing context-based behavior (DB-backed)
+	appName, err := getActiveAppFromContext(sqlDS)
 	if err != nil {
 		return fmt.Errorf("no app specified. Use -a <name> or 'dvm use app <name>' first")
 	}
 
-	// Get active workspace (only relevant if viewing active app)
-	var activeWorkspace string
-	activeApp, _ := ctxMgr.GetActiveApp()
-	if activeApp == appName {
-		activeWorkspace, _ = ctxMgr.GetActiveWorkspace()
-	}
+	// Get active workspace (only relevant if viewing active app - for marking with ●)
+	activeWorkspace, _ := getActiveWorkspaceFromContext(sqlDS)
 
 	// Get app to get its ID (search globally across all domains)
 	app, err := sqlDS.GetAppByNameGlobal(appName)
@@ -742,13 +780,9 @@ func getWorkspace(cmd *cobra.Command, name string) error {
 			// Continue anyway - this is not fatal
 		}
 	} else {
-		// Fall back to existing context-based behavior
-		ctxMgr, err := operators.NewContextManager()
-		if err != nil {
-			return fmt.Errorf("failed to create context manager: %w", err)
-		}
-
-		appName, err = ctxMgr.GetActiveApp()
+		// Fall back to existing context-based behavior (DB-backed)
+		var err error
+		appName, err = getActiveAppFromContext(sqlDS)
 		if err != nil {
 			return fmt.Errorf("no app specified. Use -a <name> or 'dvm use app <name>' first")
 		}
@@ -777,12 +811,8 @@ func getWorkspace(cmd *cobra.Command, name string) error {
 	}
 
 	// For human output, show detail view
-	ctxMgr, _ := operators.NewContextManager()
-	var activeWorkspace string
-	activeApp, _ := ctxMgr.GetActiveApp()
-	if activeApp == appName {
-		activeWorkspace, _ = ctxMgr.GetActiveWorkspace()
-	}
+	// Check if this workspace is the active one (DB-backed)
+	activeWorkspace, _ := getActiveWorkspaceFromContext(sqlDS)
 
 	isActive := workspace.Name == activeWorkspace
 	nameDisplay := workspace.Name

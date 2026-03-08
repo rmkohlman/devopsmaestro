@@ -121,14 +121,9 @@ func detachActiveWorkspace(cmd *cobra.Command, runtime operators.ContainerRuntim
 
 		render.Info(fmt.Sprintf("Resolved: %s", result.FullPath()))
 	} else {
-		// Fall back to existing context-based behavior
-		contextMgr, err := operators.NewContextManager()
-		if err != nil {
-			return fmt.Errorf("failed to initialize context manager: %w", err)
-		}
-
-		// Get active app and workspace
-		appName, err = contextMgr.GetActiveApp()
+		// Fall back to existing context-based behavior (DB-backed)
+		var err error
+		appName, err = getActiveAppFromContext(ds)
 		if err != nil {
 			render.Warning("No active app set")
 			render.Info("Set active app with: dvm use app <name>")
@@ -136,7 +131,7 @@ func detachActiveWorkspace(cmd *cobra.Command, runtime operators.ContainerRuntim
 			return nil
 		}
 
-		workspaceName, err = contextMgr.GetActiveWorkspace()
+		workspaceName, err = getActiveWorkspaceFromContext(ds)
 		if err != nil {
 			render.Warning("No active workspace set")
 			render.Info("Set active workspace with: dvm use workspace <name>")

@@ -323,7 +323,7 @@ func setEcosystemTheme(cmd *cobra.Command, ctx resource.Context, ecosystemName, 
 	}
 
 	// Update using resource handler pattern (need to create YAML and apply)
-	ecosystemYAML := ecosystem.ToYAML()
+	ecosystemYAML := ecosystem.ToYAML(nil)
 	yamlData, err := yaml.Marshal(ecosystemYAML)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal ecosystem YAML: %w", err)
@@ -388,7 +388,7 @@ func setDomainTheme(cmd *cobra.Command, ctx resource.Context, domainName, themeN
 		return nil, fmt.Errorf("failed to get ecosystem for domain: %w", err)
 	}
 
-	domainYAML := domain.ToYAML(ecosystem.Name)
+	domainYAML := domain.ToYAML(ecosystem.Name, nil)
 	yamlData, err := yaml.Marshal(domainYAML)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal domain YAML: %w", err)
@@ -453,7 +453,7 @@ func setAppTheme(cmd *cobra.Command, ctx resource.Context, appName, themeName st
 		return nil, fmt.Errorf("failed to get domain for app: %w", err)
 	}
 
-	appYAML := app.ToYAML(domain.Name)
+	appYAML := app.ToYAML(domain.Name, nil)
 	yamlData, err := yaml.Marshal(appYAML)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal app YAML: %w", err)

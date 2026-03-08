@@ -109,7 +109,7 @@ Examples:
 		if err != nil {
 			render.Error(fmt.Sprintf("App '%s' not found: %v", appName, err))
 			render.Info("Hint: List available apps with: dvm get apps")
-			return nil
+			return errSilent
 		}
 
 		// Set app as active in context manager
@@ -177,20 +177,6 @@ Examples:
 			return nil
 		}
 
-		// Get context manager
-		contextMgr, err := operators.NewContextManager()
-		if err != nil {
-			return fmt.Errorf("failed to initialize context manager: %v", err)
-		}
-
-		// Get active app
-		appName, err := contextMgr.GetActiveApp()
-		if err != nil {
-			render.Error("No active app set")
-			render.Info("Hint: Set active app first with: dvm use app <name>")
-			return nil
-		}
-
 		// Get datastore from context
 		ctx := cmd.Context()
 		dataStore := ctx.Value("dataStore").(*db.DataStore)
@@ -199,6 +185,14 @@ Examples:
 		}
 
 		ds := *dataStore
+
+		// Get active app (DB-backed)
+		appName, err := getActiveAppFromContext(ds)
+		if err != nil {
+			render.Error("No active app set")
+			render.Info("Hint: Set active app first with: dvm use app <name>")
+			return errSilent
+		}
 
 		// Get app to get its ID
 		app, err := ds.GetAppByNameGlobal(appName)
@@ -211,10 +205,14 @@ Examples:
 		if err != nil {
 			render.Error(fmt.Sprintf("Workspace '%s' not found in app '%s': %v", workspaceName, appName, err))
 			render.Info("Hint: List available workspaces with: dvm get workspaces")
-			return nil
+			return errSilent
 		}
 
-		// Set workspace as active in context manager
+		// Set workspace as active in context manager (file-based write)
+		contextMgr, err := operators.NewContextManager()
+		if err != nil {
+			return fmt.Errorf("failed to initialize context manager: %v", err)
+		}
 		if err := contextMgr.SetWorkspace(workspaceName); err != nil {
 			return fmt.Errorf("failed to set active workspace: %v", err)
 		}
@@ -291,7 +289,7 @@ Examples:
 		if err := validatePackageExists(packageName, ds); err != nil {
 			render.Error(fmt.Sprintf("Package '%s' not found: %v", packageName, err))
 			render.Info("Hint: List available packages with: nvp package list")
-			return nil
+			return errSilent
 		}
 
 		// Set the default package
@@ -387,7 +385,7 @@ Examples:
 		if err := validateTerminalPackageExists(packageName, ds); err != nil {
 			render.Error(fmt.Sprintf("Package '%s' not found: %v", packageName, err))
 			render.Info("Hint: List available packages with the terminal package list command")
-			return nil
+			return errSilent
 		}
 
 		// Set the default package

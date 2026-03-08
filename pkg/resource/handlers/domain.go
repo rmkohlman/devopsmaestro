@@ -179,7 +179,7 @@ func (h *DomainHandler) ToYAML(res resource.Resource) ([]byte, error) {
 		return nil, fmt.Errorf("expected DomainResource, got %T", res)
 	}
 
-	yamlDoc := dr.domain.ToYAML(dr.ecosystemName)
+	yamlDoc := dr.domain.ToYAML(dr.ecosystemName, nil)
 	return yaml.Marshal(yamlDoc)
 }
 

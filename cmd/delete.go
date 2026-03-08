@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"devopsmaestro/db"
-	"devopsmaestro/operators"
 	"devopsmaestro/pkg/registry"
 	"devopsmaestro/pkg/resource"
 	"devopsmaestro/pkg/resource/handlers"
@@ -214,25 +213,6 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		workspaceName := args[0]
 
-		// Get app from flag or context
-		appFlag, _ := cmd.Flags().GetString("app")
-
-		ctxMgr, err := operators.NewContextManager()
-		if err != nil {
-			return fmt.Errorf("failed to create context manager: %v", err)
-		}
-
-		var appName string
-		if appFlag != "" {
-			appName = appFlag
-		} else {
-			// Fall back to active app context
-			appName, err = ctxMgr.GetActiveApp()
-			if err != nil {
-				return fmt.Errorf("no app specified. Use --app <name> or 'dvm use app <name>' first")
-			}
-		}
-
 		// Get datastore from context
 		ctx := cmd.Context()
 		dataStore := ctx.Value("dataStore").(*db.DataStore)
@@ -240,6 +220,21 @@ Examples:
 			return fmt.Errorf("dataStore not initialized")
 		}
 		ds := *dataStore
+
+		// Get app from flag or context
+		appFlag, _ := cmd.Flags().GetString("app")
+
+		var appName string
+		if appFlag != "" {
+			appName = appFlag
+		} else {
+			// Fall back to active app context (DB-backed)
+			var err error
+			appName, err = getActiveAppFromContext(ds)
+			if err != nil {
+				return fmt.Errorf("no app specified. Use --app <name> or 'dvm use app <name>' first")
+			}
+		}
 
 		// Get app to get its ID (search globally across all domains)
 		app, err := ds.GetAppByNameGlobal(appName)
@@ -271,10 +266,10 @@ Examples:
 		}
 
 		// Clear context if this was the active workspace in the active app
-		activeApp, _ := ctxMgr.GetActiveApp()
-		activeWorkspace, _ := ctxMgr.GetActiveWorkspace()
+		activeApp, _ := getActiveAppFromContext(ds)
+		activeWorkspace, _ := getActiveWorkspaceFromContext(ds)
 		if activeApp == appName && activeWorkspace == workspaceName {
-			ctxMgr.ClearWorkspace()
+			ds.SetActiveWorkspace(nil)
 			render.Info("Cleared active workspace context")
 		}
 

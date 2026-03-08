@@ -124,7 +124,7 @@ func (h *EcosystemHandler) ToYAML(res resource.Resource) ([]byte, error) {
 		return nil, fmt.Errorf("expected EcosystemResource, got %T", res)
 	}
 
-	yamlDoc := er.ecosystem.ToYAML()
+	yamlDoc := er.ecosystem.ToYAML(nil)
 	return yaml.Marshal(yamlDoc)
 }
 

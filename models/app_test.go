@@ -132,7 +132,7 @@ func TestAppToYAML_WithLanguageAndBuild(t *testing.T) {
 		BuildConfig: sql.NullString{String: `{"dockerfile":"Dockerfile","args":{"DEBUG":"true"}}`, Valid: true},
 	}
 
-	yaml := app.ToYAML("test-domain")
+	yaml := app.ToYAML("test-domain", nil)
 
 	assert.Equal(t, "devopsmaestro.io/v1", yaml.APIVersion)
 	assert.Equal(t, "App", yaml.Kind)
@@ -197,7 +197,7 @@ func TestAppRoundTrip_ToYAML_FromYAML(t *testing.T) {
 	}
 
 	// Convert to YAML
-	yaml := original.ToYAML("my-domain")
+	yaml := original.ToYAML("my-domain", nil)
 
 	// Convert back
 	restored := &App{}

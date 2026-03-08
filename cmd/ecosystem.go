@@ -161,7 +161,7 @@ Examples:
 		if err != nil {
 			render.Error(fmt.Sprintf("Ecosystem '%s' not found: %v", ecosystemName, err))
 			render.Info("Hint: List available ecosystems with: dvm get ecosystems")
-			return nil
+			return errSilent
 		}
 
 		// Set ecosystem as active
@@ -221,7 +221,12 @@ func getEcosystems(cmd *cobra.Command) error {
 	if getOutputFormat == "json" || getOutputFormat == "yaml" {
 		ecosystemsYAML := make([]models.EcosystemYAML, len(ecosystems))
 		for i, e := range ecosystems {
-			ecosystemsYAML[i] = e.ToYAML()
+			domains, _ := ds.ListDomainsByEcosystem(e.ID)
+			domainNames := make([]string, len(domains))
+			for j, d := range domains {
+				domainNames[j] = d.Name
+			}
+			ecosystemsYAML[i] = e.ToYAML(domainNames)
 		}
 		return render.OutputWith(getOutputFormat, ecosystemsYAML, render.Options{})
 	}
@@ -324,7 +329,16 @@ func getEcosystem(cmd *cobra.Command, name string) error {
 
 	// For JSON/YAML, output the model data directly
 	if getOutputFormat == "json" || getOutputFormat == "yaml" {
-		return render.OutputWith(getOutputFormat, ecosystem.ToYAML(), render.Options{})
+		ds, _ := getDataStore(cmd)
+		var domainNames []string
+		if ds != nil {
+			domains, _ := ds.ListDomainsByEcosystem(ecosystem.ID)
+			domainNames = make([]string, len(domains))
+			for j, d := range domains {
+				domainNames[j] = d.Name
+			}
+		}
+		return render.OutputWith(getOutputFormat, ecosystem.ToYAML(domainNames), render.Options{})
 	}
 
 	// For human output, show detail view

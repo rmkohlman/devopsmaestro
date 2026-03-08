@@ -41,8 +41,9 @@ type DomainSpec struct {
 	Apps  []string `yaml:"apps,omitempty"`
 }
 
-// ToYAML converts a Domain to YAML format
-func (d *Domain) ToYAML(ecosystemName string) DomainYAML {
+// ToYAML converts a Domain to YAML format.
+// appNames should contain the names of child apps (pass nil for empty).
+func (d *Domain) ToYAML(ecosystemName string, appNames []string) DomainYAML {
 	description := ""
 	if d.Description.Valid {
 		description = d.Description.String
@@ -69,7 +70,7 @@ func (d *Domain) ToYAML(ecosystemName string) DomainYAML {
 		},
 		Spec: DomainSpec{
 			Theme: theme,
-			Apps:  []string{},
+			Apps:  appNames,
 		},
 	}
 }

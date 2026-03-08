@@ -86,8 +86,9 @@ type AppServiceConfig struct {
 	Env     map[string]string `yaml:"env,omitempty"`     // Service environment variables
 }
 
-// ToYAML converts an App to YAML format
-func (a *App) ToYAML(domainName string) AppYAML {
+// ToYAML converts an App to YAML format.
+// workspaceNames should contain the names of child workspaces (pass nil for empty).
+func (a *App) ToYAML(domainName string, workspaceNames []string) AppYAML {
 	description := ""
 	if a.Description.Valid {
 		description = a.Description.String
@@ -129,7 +130,7 @@ func (a *App) ToYAML(domainName string) AppYAML {
 			Theme:      theme,
 			Language:   langConfig,
 			Build:      buildConfig,
-			Workspaces: []string{},
+			Workspaces: workspaceNames,
 		},
 	}
 }

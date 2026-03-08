@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"devopsmaestro/models"
-	"devopsmaestro/operators"
 	nvimpkg "devopsmaestro/pkg/nvimops/package"
 	"devopsmaestro/pkg/nvimops/plugin"
 	"devopsmaestro/pkg/resource"
@@ -237,24 +236,19 @@ func runGetNvimPlugins(cmd *cobra.Command, args []string) error {
 
 // getWorkspaceForPlugins resolves the workspace from flags or context
 func getWorkspaceForPlugins(cmd *cobra.Command, appFlag, workspaceFlag string) (*models.Workspace, string, error) {
-	ctxMgr, err := operators.NewContextManager()
+	// Get datastore
+	ds, err := getDataStore(cmd)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to create context manager: %w", err)
+		return nil, "", err
 	}
 
 	// Resolve app name
 	appName := appFlag
 	if appName == "" {
-		appName, err = ctxMgr.GetActiveApp()
+		appName, err = getActiveAppFromContext(ds)
 		if err != nil {
 			return nil, "", fmt.Errorf("no app specified. Use -a <app> or 'dvm use app <name>' first")
 		}
-	}
-
-	// Get datastore
-	ds, err := getDataStore(cmd)
-	if err != nil {
-		return nil, "", err
 	}
 
 	// Get app (v0.8.0+ uses App model with GetAppByNameGlobal)

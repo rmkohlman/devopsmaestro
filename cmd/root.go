@@ -20,6 +20,10 @@ var (
 	noColor bool
 )
 
+// errSilent is returned by commands that have already displayed their error
+// via render.Error(). It causes Cobra to set exit code 1 without double-printing.
+var errSilent = fmt.Errorf("")
+
 var rootCmd = &cobra.Command{
 	Use:   "dvm",
 	Short: "DevOpsMaestro CLI",
@@ -83,7 +87,10 @@ func Execute(dataStore *db.DataStore, executor *Executor, migrationsFS fs.FS) {
 	}
 
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		// errSilent means the command already displayed the error via render.Error()
+		if err != errSilent {
+			fmt.Println(err)
+		}
 		os.Exit(1)
 	}
 }

@@ -69,13 +69,13 @@ func runStatus(cmd *cobra.Command) error {
 		Containers: []ContainerInfo{},
 	}
 
-	// Get context
-	contextMgr, err := operators.NewContextManager()
+	// Get context (DB-backed)
+	ds, err := getDataStore(cmd)
 	if err != nil {
-		slog.Debug("failed to get context manager", "error", err)
+		slog.Debug("failed to get data store", "error", err)
 	} else {
-		app, _ := contextMgr.GetActiveApp()
-		workspace, _ := contextMgr.GetActiveWorkspace()
+		app, _ := getActiveAppFromContext(ds)
+		workspace, _ := getActiveWorkspaceFromContext(ds)
 		status.Context = ContextInfo{
 			App:       app,
 			Workspace: workspace,

@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"devopsmaestro/db"
 	"devopsmaestro/models"
-	"devopsmaestro/operators"
 	"devopsmaestro/pkg/mirror"
 	"devopsmaestro/render"
 	"fmt"
@@ -88,36 +87,19 @@ Examples:
 		if workspaceBranch != "" && repoFlag == "" {
 			render.Error("--branch requires --repo to be specified")
 			render.Info("Hint: Specify a GitRepo: --repo <repo-name>")
-			return nil
+			return errSilent
 		}
 
 		// Validate --create-branch requires --repo
 		if workspaceCreateBranch != "" && repoFlag == "" {
 			render.Error("--create-branch requires --repo to be specified")
 			render.Info("Hint: Specify a GitRepo: --repo <repo-name>")
-			return nil
+			return errSilent
 		}
 
 		// Validate --branch and --create-branch are mutually exclusive
 		if workspaceBranch != "" && workspaceCreateBranch != "" {
 			return fmt.Errorf("--branch and --create-branch are mutually exclusive")
-		}
-
-		contextMgr, err := operators.NewContextManager()
-		if err != nil {
-			return fmt.Errorf("failed to initialize context manager: %w", err)
-		}
-
-		var appName string
-		if appFlag != "" {
-			appName = appFlag
-		} else {
-			appName, err = contextMgr.GetActiveApp()
-			if err != nil {
-				render.Error("No app specified")
-				render.Info("Hint: Use --app <name> or 'dvm use app <name>' to select an app first")
-				return nil
-			}
 		}
 
 		// Get datastore from context
@@ -129,12 +111,25 @@ Examples:
 
 		ds := *dataStore
 
+		var appName string
+		if appFlag != "" {
+			appName = appFlag
+		} else {
+			var err error
+			appName, err = getActiveAppFromContext(ds)
+			if err != nil {
+				render.Error("No app specified")
+				render.Info("Hint: Use --app <name> or 'dvm use app <name>' to select an app first")
+				return errSilent
+			}
+		}
+
 		// Get app to get its ID (search globally across all domains)
 		app, err := ds.GetAppByNameGlobal(appName)
 		if err != nil {
 			render.Error(fmt.Sprintf("App '%s' not found: %v", appName, err))
 			render.Info("Hint: List available apps with: dvm get apps --all")
-			return nil
+			return errSilent
 		}
 
 		// Check if workspace already exists
@@ -213,7 +208,7 @@ Examples:
 						render.Error(fmt.Sprintf("Failed to sync mirror: %v", err))
 						render.Info("Workspace created, but repository clone failed")
 						render.Info(fmt.Sprintf("Try: dvm sync gitrepo %s", gitRepo.Name))
-						return nil
+						return errSilent
 					}
 				}
 
@@ -226,7 +221,7 @@ Examples:
 						render.Error(fmt.Sprintf("Failed to clone repository: %v", err))
 					}
 					render.Info("Workspace created, but repository clone failed")
-					return nil
+					return errSilent
 				}
 				render.Success("Cloned repository to workspace")
 			}
@@ -448,33 +443,6 @@ Examples:
 			return err
 		}
 
-		contextMgr, err := operators.NewContextManager()
-		if err != nil {
-			return fmt.Errorf("failed to initialize context manager: %w", err)
-		}
-
-		// Resolve app name
-		appName := createBranchApp
-		if appName == "" {
-			appName, err = contextMgr.GetActiveApp()
-			if err != nil {
-				render.Error("No app specified")
-				render.Info("Hint: Use --app <name> or 'dvm use app <name>' to select an app first")
-				return nil
-			}
-		}
-
-		// Resolve workspace name
-		wsName := createBranchWorkspace
-		if wsName == "" {
-			wsName, err = contextMgr.GetActiveWorkspace()
-			if err != nil {
-				render.Error("No workspace specified")
-				render.Info("Hint: Use --workspace <name> or 'dvm use workspace <name>' to select one first")
-				return nil
-			}
-		}
-
 		// Get datastore from context
 		ctx := cmd.Context()
 		dataStore := ctx.Value("dataStore").(*db.DataStore)
@@ -482,6 +450,30 @@ Examples:
 			return fmt.Errorf("DataStore not initialized")
 		}
 		ds := *dataStore
+
+		// Resolve app name
+		appName := createBranchApp
+		if appName == "" {
+			var err error
+			appName, err = getActiveAppFromContext(ds)
+			if err != nil {
+				render.Error("No app specified")
+				render.Info("Hint: Use --app <name> or 'dvm use app <name>' to select an app first")
+				return errSilent
+			}
+		}
+
+		// Resolve workspace name
+		wsName := createBranchWorkspace
+		if wsName == "" {
+			var err error
+			wsName, err = getActiveWorkspaceFromContext(ds)
+			if err != nil {
+				render.Error("No workspace specified")
+				render.Info("Hint: Use --workspace <name> or 'dvm use workspace <name>' to select one first")
+				return errSilent
+			}
+		}
 
 		// Get app
 		app, err := ds.GetAppByNameGlobal(appName)
