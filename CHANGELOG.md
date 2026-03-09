@@ -7,6 +7,108 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.34.3] - 2026-03-09 — Architecture Cleanup Sprint 2: God File Decomposition
+
+### ♻️ Refactored
+
+> **Internal structural refactoring only — no user-facing behavioral changes.**
+
+#### `db/store.go` → 19 Domain Files + Helpers (3,524 → 52 lines)
+- **`db/store.go` decomposed into 20 focused files** — The monolithic store file has been split into single-responsibility domain modules; `store.go` now contains only the `Store` struct, constructor, `Close()`, and `Ping()`
+  - Each entity domain follows the `store_{domain}.go` naming convention
+  - Files added:
+    - `store_ecosystem.go`, `store_domain.go`, `store_app.go`, `store_workspace.go`, `store_context.go`
+    - `store_plugin.go`, `store_theme.go`, `store_credential.go`, `store_defaults.go`
+    - `store_terminal_prompt.go`, `store_terminal_profile.go`, `store_terminal_plugin.go`, `store_terminal_emulator.go`
+    - `store_nvim_package.go`, `store_terminal_package.go`
+    - `store_registry.go`, `store_registry_history.go`, `store_custom_resource.go`
+    - `store_helpers.go` — shared `joinStrings` helper
+  - Files changed: `db/store.go` (3,524 → 52 lines)
+
+#### `cmd/get.go` → 6 Focused Files (1,530 → 226 lines)
+- **`cmd/get.go` decomposed into 6 display-domain files** — Cobra command definitions and init wiring remain in `get.go`; all display logic extracted into domain-specific handlers
+  - Files added:
+    - `get_workspace.go` (496 lines) — Workspace display functions
+    - `get_resources.go` (284 lines) — Context, platform, and defaults display
+    - `get_plugins.go` (126 lines) — Plugin list/detail display
+    - `get_themes.go` (218 lines) — Theme list/detail/resolution display
+    - `get_registry.go` (218 lines) — Registry display functions
+    - `context_helpers.go` — `getDataStore()` cross-cutting helper extracted
+  - Files changed: `cmd/get.go` (1,530 → 226 lines)
+
+#### `cmd/build.go` → 7 Build-Phase Files (2,017 → 73 lines)
+- **`cmd/build.go` decomposed into 7 phase-specific files** — Cobra command, init, and flags remain in `build.go`; orchestration and generation logic extracted into dedicated modules
+  - Files added:
+    - `build_orchestrator.go` (406 lines) — Main build orchestration logic
+    - `build_nvim.go` (384 lines) — Neovim config generation
+    - `build_terminal.go` (396 lines) — Terminal config generation
+    - `build_wezterm.go` (296 lines) — Wezterm config generation
+    - `build_packages.go` (144 lines) — Package resolution
+    - `build_helpers.go` (378 lines) — Shared build helpers
+  - Files changed: `cmd/build.go` (2,017 → 73 lines)
+
+#### `cmd/library.go` → 3 Focused Files (998 → 120 lines)
+- **`cmd/library.go` decomposed into 3 responsibility-scoped files** — Cobra command definitions and init remain in `library.go`; import and list logic extracted separately
+  - Files added:
+    - `library_import.go` (430 lines) — Library import logic
+    - `library_list.go` (468 lines) — Library list/show display
+  - Files changed: `cmd/library.go` (998 → 120 lines)
+
+### ✅ Tests
+
+- **All 57 packages pass tests** — Zero behavioral changes; full test suite green post-decomposition
+- **Both binaries build cleanly** — `dvm` and `nvp` produce identical artifacts before and after decomposition
+- **`go vet` clean** — No issues across all packages
+
+### 📦 Files Changed
+
+#### New Files
+```
+db/store_ecosystem.go
+db/store_domain.go
+db/store_app.go
+db/store_workspace.go
+db/store_context.go
+db/store_plugin.go
+db/store_theme.go
+db/store_credential.go
+db/store_defaults.go
+db/store_terminal_prompt.go
+db/store_terminal_profile.go
+db/store_terminal_plugin.go
+db/store_terminal_emulator.go
+db/store_nvim_package.go
+db/store_terminal_package.go
+db/store_registry.go
+db/store_registry_history.go
+db/store_custom_resource.go
+db/store_helpers.go
+cmd/get_workspace.go
+cmd/get_resources.go
+cmd/get_plugins.go
+cmd/get_themes.go
+cmd/get_registry.go
+cmd/context_helpers.go
+cmd/build_orchestrator.go
+cmd/build_nvim.go
+cmd/build_terminal.go
+cmd/build_wezterm.go
+cmd/build_packages.go
+cmd/build_helpers.go
+cmd/library_import.go
+cmd/library_list.go
+```
+
+#### Modified Source Files
+```
+db/store.go        # 3,524 → 52 lines; struct, constructor, Close, Ping only
+cmd/get.go         # 1,530 → 226 lines; Cobra definitions + init only
+cmd/build.go       # 2,017 →  73 lines; Cobra command + init + flags only
+cmd/library.go     #   998 → 120 lines; Cobra definitions + init only
+```
+
+---
+
 ## [v0.34.2] - 2026-03-09 — Architecture Cleanup Sprint 1: Bugs + Dead Code Purge
 
 ### 🐛 Fixed

@@ -5,7 +5,20 @@ import (
 	"os"
 
 	"devopsmaestro/db"
+
+	"github.com/spf13/cobra"
 )
+
+// getDataStore extracts the DataStore from the cobra command context.
+func getDataStore(cmd *cobra.Command) (db.DataStore, error) {
+	ctx := cmd.Context()
+	dataStore := ctx.Value("dataStore").(*db.DataStore)
+	if dataStore == nil {
+		return nil, fmt.Errorf("dataStore not initialized")
+	}
+
+	return *dataStore, nil
+}
 
 // getActiveAppFromContext returns the active app name from DB context, with env var override.
 // Precedence: DVM_APP env var > DB context (active_app_id) > error
