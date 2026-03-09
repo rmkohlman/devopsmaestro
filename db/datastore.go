@@ -483,9 +483,6 @@ type DataStore interface {
 	// GetCRDByKind retrieves a CRD by its kind name.
 	GetCRDByKind(kind string) (*models.CustomResourceDefinition, error)
 
-	// GetCRDByID retrieves a CRD by its ID.
-	GetCRDByID(id int) (*models.CustomResourceDefinition, error)
-
 	// UpdateCRD updates an existing CRD.
 	UpdateCRD(crd *models.CustomResourceDefinition) error
 
@@ -495,9 +492,6 @@ type DataStore interface {
 	// ListCRDs retrieves all CRDs.
 	ListCRDs() ([]*models.CustomResourceDefinition, error)
 
-	// ListCRDsByScope retrieves CRDs filtered by scope.
-	ListCRDsByScope(scope string) ([]*models.CustomResourceDefinition, error)
-
 	// Custom Resource Operations (instances of CRDs)
 
 	// CreateCustomResource inserts a new custom resource instance.
@@ -505,9 +499,6 @@ type DataStore interface {
 
 	// GetCustomResource retrieves a custom resource by kind, name, and namespace.
 	GetCustomResource(kind, name, namespace string) (*models.CustomResource, error)
-
-	// GetCustomResourceByID retrieves a custom resource by its ID.
-	GetCustomResourceByID(id int) (*models.CustomResource, error)
 
 	// UpdateCustomResource updates an existing custom resource.
 	UpdateCustomResource(resource *models.CustomResource) error
@@ -517,9 +508,6 @@ type DataStore interface {
 
 	// ListCustomResources retrieves all custom resources of a given kind.
 	ListCustomResources(kind string) ([]*models.CustomResource, error)
-
-	// ListCustomResourcesByNamespace retrieves custom resources filtered by namespace.
-	ListCustomResourcesByNamespace(kind, namespace string) ([]*models.CustomResource, error)
 
 	// Driver Access
 

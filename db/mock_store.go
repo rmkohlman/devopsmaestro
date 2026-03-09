@@ -194,18 +194,14 @@ type MockDataStore struct {
 	GetNextRevisionNumberErr            error
 	CreateCRDErr                        error
 	GetCRDByKindErr                     error
-	GetCRDByIDErr                       error
 	UpdateCRDErr                        error
 	DeleteCRDErr                        error
 	ListCRDsErr                         error
-	ListCRDsByScopeErr                  error
 	CreateCustomResourceErr             error
 	GetCustomResourceErr                error
-	GetCustomResourceByIDErr            error
 	UpdateCustomResourceErr             error
 	DeleteCustomResourceErr             error
 	ListCustomResourcesErr              error
-	ListCustomResourcesByNamespaceErr   error
 	CloseErr                            error
 	PingErr                             error
 
@@ -2834,25 +2830,6 @@ func (m *MockDataStore) GetCRDByKind(kind string) (*models.CustomResourceDefinit
 	return &crdCopy, nil
 }
 
-func (m *MockDataStore) GetCRDByID(id int) (*models.CustomResourceDefinition, error) {
-	m.recordCall("GetCRDByID", id)
-	if m.GetCRDByIDErr != nil {
-		return nil, m.GetCRDByIDErr
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	for _, crd := range m.CRDs {
-		if crd.ID == id {
-			// Return a copy to avoid external mutations
-			crdCopy := *crd
-			return &crdCopy, nil
-		}
-	}
-
-	return nil, fmt.Errorf("CRD not found: %d", id)
-}
-
 func (m *MockDataStore) UpdateCRD(crd *models.CustomResourceDefinition) error {
 	m.recordCall("UpdateCRD", crd)
 	if m.UpdateCRDErr != nil {
@@ -2898,30 +2875,6 @@ func (m *MockDataStore) ListCRDs() ([]*models.CustomResourceDefinition, error) {
 	for _, crd := range m.CRDs {
 		crdCopy := *crd
 		crds = append(crds, &crdCopy)
-	}
-
-	// Sort by kind for deterministic results
-	sort.Slice(crds, func(i, j int) bool {
-		return crds[i].Kind < crds[j].Kind
-	})
-
-	return crds, nil
-}
-
-func (m *MockDataStore) ListCRDsByScope(scope string) ([]*models.CustomResourceDefinition, error) {
-	m.recordCall("ListCRDsByScope", scope)
-	if m.ListCRDsByScopeErr != nil {
-		return nil, m.ListCRDsByScopeErr
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	var crds []*models.CustomResourceDefinition
-	for _, crd := range m.CRDs {
-		if crd.Scope == scope {
-			crdCopy := *crd
-			crds = append(crds, &crdCopy)
-		}
 	}
 
 	// Sort by kind for deterministic results
@@ -2982,25 +2935,6 @@ func (m *MockDataStore) GetCustomResource(kind, name, namespace string) (*models
 	return &resourceCopy, nil
 }
 
-func (m *MockDataStore) GetCustomResourceByID(id int) (*models.CustomResource, error) {
-	m.recordCall("GetCustomResourceByID", id)
-	if m.GetCustomResourceByIDErr != nil {
-		return nil, m.GetCustomResourceByIDErr
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	for _, resource := range m.CustomResources {
-		if resource.ID == id {
-			// Return a copy to avoid external mutations
-			resourceCopy := *resource
-			return &resourceCopy, nil
-		}
-	}
-
-	return nil, fmt.Errorf("custom resource not found: %d", id)
-}
-
 func (m *MockDataStore) UpdateCustomResource(resource *models.CustomResource) error {
 	m.recordCall("UpdateCustomResource", resource)
 	if m.UpdateCustomResourceErr != nil {
@@ -3052,35 +2986,6 @@ func (m *MockDataStore) ListCustomResources(kind string) ([]*models.CustomResour
 	var resources []*models.CustomResource
 	for _, resource := range m.CustomResources {
 		if resource.Kind == kind {
-			resourceCopy := *resource
-			resources = append(resources, &resourceCopy)
-		}
-	}
-
-	// Sort by name for deterministic results
-	sort.Slice(resources, func(i, j int) bool {
-		return resources[i].Name < resources[j].Name
-	})
-
-	return resources, nil
-}
-
-func (m *MockDataStore) ListCustomResourcesByNamespace(kind, namespace string) ([]*models.CustomResource, error) {
-	m.recordCall("ListCustomResourcesByNamespace", kind, namespace)
-	if m.ListCustomResourcesByNamespaceErr != nil {
-		return nil, m.ListCustomResourcesByNamespaceErr
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	var resources []*models.CustomResource
-	for _, resource := range m.CustomResources {
-		resourceNS := ""
-		if resource.Namespace.Valid {
-			resourceNS = resource.Namespace.String
-		}
-
-		if resource.Kind == kind && resourceNS == namespace {
 			resourceCopy := *resource
 			resources = append(resources, &resourceCopy)
 		}

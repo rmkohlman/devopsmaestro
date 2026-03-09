@@ -7,6 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.34.2] - 2026-03-09 — Architecture Cleanup Sprint 1: Bugs + Dead Code Purge
+
+### 🐛 Fixed
+
+#### DB: `ListAllCredentials` SQL Column Reference
+- **`ListAllCredentials` no longer crashes at runtime** — SQL query referenced a removed `value` column that no longer exists in the schema
+  - Removed the stale column reference from the SELECT statement
+  - Files changed: `db/store.go`
+
+#### DB: Fragile Error String Comparison in `GetDefault()`
+- **`GetDefault()` uses `errors.Is()` instead of string matching** — Previous implementation detected "no rows" conditions by comparing `err.Error()` against a hard-coded string, which breaks on wrapped or localized errors
+  - Replaced with idiomatic `errors.Is(err, sql.ErrNoRows)` sentinel check
+  - Files changed: `db/store.go`
+
+#### Colors: `makeKey` Rune Overflow in Mock Color Resolver
+- **`makeKey` no longer produces wrong keys for `objectID > 9`** — Integer-to-rune cast overflowed for object IDs greater than 9, generating incorrect color cache keys in the mock resolver
+  - Fixed the rune conversion to handle multi-digit IDs correctly
+  - Files changed: `pkg/colors/resolver/mock.go`
+
+### 🧹 Dead Code Removed (~4,600 lines)
+
+#### `templates/` Package Deleted
+- **Removed entire `templates/` package** — 65 files, ~3,710 lines; zero imports found anywhere in the codebase
+  - Package was never wired into any production code path
+  - Files deleted: `templates/` (entire directory)
+
+#### `operators/containerd_runtime.go` Deleted
+- **Removed v1 containerd runtime** — 566 lines; superseded by the v2 implementation
+  - Files deleted: `operators/containerd_runtime.go`
+
+#### `builders/nerdctl_builder.go` Deleted
+- **Removed nerdctl builder** — 124 lines; never wired into the builder factory
+  - Files deleted: `builders/nerdctl_builder.go`
+
+#### Dead Functions Removed from `builders/helpers.go`
+- **Removed `GetColimaProfile` and `IsColimaRunning`** — 18 lines; both functions were unreferenced across the codebase
+  - Files changed: `builders/helpers.go`
+
+#### Empty Command Stubs Deleted
+- **Removed `cmd/list.go` and `cmd/release.go`** — 6 lines total; both were empty stubs with no implementation
+  - Files deleted: `cmd/list.go`, `cmd/release.go`
+
+#### Dead Render Methods Removed
+- **Removed 3 render methods superseded by `WithStyles` variants** — 12 lines; old methods had zero callers
+  - Files changed: render package
+
+#### `TerminalColorMapping` Removed from Palette
+- **Removed unused `TerminalColorMapping` variable** — 27 lines; declared but never read anywhere
+  - Files changed: palette package
+
+#### Dead DataStore Interface Methods Removed
+- **Removed 4 dead methods from the `DataStore` interface** — `GetCRDByID`, `ListCRDsByScope`, `GetCustomResourceByID`, `ListCustomResourcesByNamespace`, plus their implementations and mocks (~150 lines)
+  - Methods were defined on the interface but never called anywhere in the codebase
+  - Files changed: `db/datastore.go`, `db/store.go`, mock files
+
+### ✅ Tests
+
+#### New Credential / Default Tests
+- **5 new tests in `db/credential_test.go`** — Cover `ListAllCredentials` SQL correctness and `GetDefault()` sentinel-error behavior
+
+#### New `makeKey` Tests
+- **3 new tests in `pkg/colors/resolver/mock_test.go`** — Cover `makeKey` output for single-digit IDs, double-digit IDs, and the boundary case at ID = 10
+
+---
+
 ## [v0.34.0] - 2026-03-06 — Package Rename & Language Auto-Detection
 
 ### ✨ Added

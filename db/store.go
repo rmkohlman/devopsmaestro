@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/nvimops"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -2375,7 +2376,7 @@ func (ds *SQLDataStore) ListCredentialsByScope(scopeType models.CredentialScopeT
 
 // ListAllCredentials retrieves all credentials across all scopes.
 func (ds *SQLDataStore) ListAllCredentials() ([]*models.CredentialDB, error) {
-	query := `SELECT id, scope_type, scope_id, name, source, service, env_var, value, description, created_at, updated_at 
+	query := `SELECT id, scope_type, scope_id, name, source, service, env_var, description, created_at, updated_at 
 		FROM credentials ORDER BY scope_type, scope_id, name`
 
 	rows, err := ds.driver.Query(query)
@@ -2423,7 +2424,7 @@ func (ds *SQLDataStore) GetDefault(key string) (string, error) {
 	var value string
 	err := ds.driver.QueryRow(query, key).Scan(&value)
 	if err != nil {
-		if err.Error() == "sql: no rows in result set" {
+		if errors.Is(err, sql.ErrNoRows) {
 			return "", nil // Not found, return empty string (not an error)
 		}
 		return "", fmt.Errorf("failed to get default for key %s: %w", key, err)
@@ -3325,23 +3326,6 @@ func (ds *SQLDataStore) GetCRDByKind(kind string) (*models.CustomResourceDefinit
 	return crd, nil
 }
 
-// GetCRDByID retrieves a CRD by its ID.
-func (ds *SQLDataStore) GetCRDByID(id int) (*models.CustomResourceDefinition, error) {
-	crd := &models.CustomResourceDefinition{}
-	query := `SELECT id, kind, "group", singular, plural, short_names, scope, versions, created_at, updated_at 
-		FROM custom_resource_definitions WHERE id = ?`
-
-	row := ds.driver.QueryRow(query, id)
-	if err := row.Scan(&crd.ID, &crd.Kind, &crd.Group, &crd.Singular, &crd.Plural, &crd.ShortNames, &crd.Scope, &crd.Versions, &crd.CreatedAt, &crd.UpdatedAt); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("CRD not found: %d", id)
-		}
-		return nil, fmt.Errorf("failed to scan CRD: %w", err)
-	}
-
-	return crd, nil
-}
-
 // UpdateCRD updates an existing CRD.
 func (ds *SQLDataStore) UpdateCRD(crd *models.CustomResourceDefinition) error {
 	query := fmt.Sprintf(`UPDATE custom_resource_definitions SET 
@@ -3390,33 +3374,6 @@ func (ds *SQLDataStore) ListCRDs() ([]*models.CustomResourceDefinition, error) {
 	rows, err := ds.driver.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list CRDs: %w", err)
-	}
-	defer rows.Close()
-
-	var crds []*models.CustomResourceDefinition
-	for rows.Next() {
-		crd := &models.CustomResourceDefinition{}
-		if err := rows.Scan(&crd.ID, &crd.Kind, &crd.Group, &crd.Singular, &crd.Plural, &crd.ShortNames, &crd.Scope, &crd.Versions, &crd.CreatedAt, &crd.UpdatedAt); err != nil {
-			return nil, fmt.Errorf("failed to scan CRD: %w", err)
-		}
-		crds = append(crds, crd)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating over CRDs: %w", err)
-	}
-
-	return crds, nil
-}
-
-// ListCRDsByScope retrieves CRDs filtered by scope.
-func (ds *SQLDataStore) ListCRDsByScope(scope string) ([]*models.CustomResourceDefinition, error) {
-	query := `SELECT id, kind, "group", singular, plural, short_names, scope, versions, created_at, updated_at 
-		FROM custom_resource_definitions WHERE scope = ? ORDER BY kind`
-
-	rows, err := ds.driver.Query(query, scope)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list CRDs by scope: %w", err)
 	}
 	defer rows.Close()
 
@@ -3491,23 +3448,6 @@ func (ds *SQLDataStore) GetCustomResource(kind, name, namespace string) (*models
 	return resource, nil
 }
 
-// GetCustomResourceByID retrieves a custom resource by its ID.
-func (ds *SQLDataStore) GetCustomResourceByID(id int) (*models.CustomResource, error) {
-	resource := &models.CustomResource{}
-	query := `SELECT id, kind, name, namespace, spec, status, created_at, updated_at 
-		FROM custom_resources WHERE id = ?`
-
-	row := ds.driver.QueryRow(query, id)
-	if err := row.Scan(&resource.ID, &resource.Kind, &resource.Name, &resource.Namespace, &resource.Spec, &resource.Status, &resource.CreatedAt, &resource.UpdatedAt); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("custom resource not found: %d", id)
-		}
-		return nil, fmt.Errorf("failed to scan custom resource: %w", err)
-	}
-
-	return resource, nil
-}
-
 // UpdateCustomResource updates an existing custom resource.
 func (ds *SQLDataStore) UpdateCustomResource(resource *models.CustomResource) error {
 	query := fmt.Sprintf(`UPDATE custom_resources SET 
@@ -3561,33 +3501,6 @@ func (ds *SQLDataStore) ListCustomResources(kind string) ([]*models.CustomResour
 	rows, err := ds.driver.Query(query, kind)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list custom resources: %w", err)
-	}
-	defer rows.Close()
-
-	var resources []*models.CustomResource
-	for rows.Next() {
-		resource := &models.CustomResource{}
-		if err := rows.Scan(&resource.ID, &resource.Kind, &resource.Name, &resource.Namespace, &resource.Spec, &resource.Status, &resource.CreatedAt, &resource.UpdatedAt); err != nil {
-			return nil, fmt.Errorf("failed to scan custom resource: %w", err)
-		}
-		resources = append(resources, resource)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating over custom resources: %w", err)
-	}
-
-	return resources, nil
-}
-
-// ListCustomResourcesByNamespace retrieves custom resources filtered by namespace.
-func (ds *SQLDataStore) ListCustomResourcesByNamespace(kind, namespace string) ([]*models.CustomResource, error) {
-	query := `SELECT id, kind, name, namespace, spec, status, created_at, updated_at 
-		FROM custom_resources WHERE kind = ? AND (namespace = ? OR (namespace IS NULL AND ? = '')) ORDER BY name`
-
-	rows, err := ds.driver.Query(query, kind, namespace, namespace)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list custom resources by namespace: %w", err)
 	}
 	defer rows.Close()
 

@@ -199,10 +199,6 @@ func (r *ColoredRenderer) RenderWithContext(ctx context.Context, w io.Writer, da
 	return nil
 }
 
-func (r *ColoredRenderer) renderKeyValue(w io.Writer, kv KeyValueData) error {
-	return r.renderKeyValueWithStyles(w, kv, r.styles)
-}
-
 func (r *ColoredRenderer) renderKeyValueWithStyles(w io.Writer, kv KeyValueData, styles styles) error {
 	for _, pair := range kv.Pairs {
 		key := styles.key.Render(pair.Key + ":")
@@ -210,10 +206,6 @@ func (r *ColoredRenderer) renderKeyValueWithStyles(w io.Writer, kv KeyValueData,
 		fmt.Fprintf(w, "%s %s\n", key, value)
 	}
 	return nil
-}
-
-func (r *ColoredRenderer) renderTable(w io.Writer, t TableData) error {
-	return r.renderTableWithStyles(w, t, r.styles)
 }
 
 func (r *ColoredRenderer) renderTableWithStyles(w io.Writer, t TableData, styles styles) error {
@@ -261,10 +253,6 @@ func (r *ColoredRenderer) renderTableWithStyles(w io.Writer, t TableData, styles
 	}
 
 	return nil
-}
-
-func (r *ColoredRenderer) renderList(w io.Writer, list ListData) error {
-	return r.renderListWithStyles(w, list, r.styles)
 }
 
 func (r *ColoredRenderer) renderListWithStyles(w io.Writer, list ListData, styles styles) error {

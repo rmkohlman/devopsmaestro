@@ -167,33 +167,6 @@ const (
 	TermSelectionText = "selection_text"
 )
 
-// TerminalColorMapping defines how theme colors map to terminal ANSI colors.
-// This allows a single theme palette to be used for both editor and terminal.
-var TerminalColorMapping = map[string]string{
-	TermBlack:   ColorBgDark, // or "black" if present
-	TermRed:     ColorRed,
-	TermGreen:   ColorGreen,
-	TermYellow:  ColorYellow,
-	TermBlue:    ColorBlue,
-	TermMagenta: ColorMagenta,
-	TermCyan:    ColorCyan,
-	TermWhite:   ColorFg,
-
-	TermBrightBlack:   ColorComment,
-	TermBrightRed:     ColorError,
-	TermBrightGreen:   ColorGreen,
-	TermBrightYellow:  ColorWarning,
-	TermBrightBlue:    ColorInfo,
-	TermBrightMagenta: ColorMagenta,
-	TermBrightCyan:    ColorCyan,
-	TermBrightWhite:   ColorFgDark,
-
-	TermCursor:        ColorFg,
-	TermCursorText:    ColorBg,
-	TermSelection:     ColorBgVisual,
-	TermSelectionText: ColorFg,
-}
-
 // =============================================================================
 // Palette Methods
 // =============================================================================
@@ -291,8 +264,8 @@ func (p *Palette) Clone() *Palette {
 }
 
 // ToTerminalColors extracts ANSI 16-color terminal palette from theme colors.
-// It uses TerminalColorMapping to map semantic theme colors to terminal colors,
-// with fallbacks for missing colors.
+// It maps semantic theme colors to terminal ANSI colors with fallbacks for
+// missing colors.
 func (p *Palette) ToTerminalColors() map[string]string {
 	if p == nil {
 		return nil

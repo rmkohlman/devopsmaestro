@@ -3,6 +3,7 @@ package resolver
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"devopsmaestro/pkg/nvimops/theme"
@@ -119,5 +120,5 @@ func (m *MockThemeResolver) GetResolutionPath(ctx context.Context, level Hierarc
 
 // makeKey creates a unique key for level and object ID combinations
 func (m *MockThemeResolver) makeKey(level HierarchyLevel, objectID int) string {
-	return level.String() + ":" + string(rune('0'+objectID))
+	return fmt.Sprintf("%s:%d", level.String(), objectID)
 }

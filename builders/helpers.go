@@ -3,7 +3,6 @@ package builders
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 )
 
@@ -18,21 +17,4 @@ func SaveDockerfile(content, appPath string) (string, error) {
 
 	fmt.Printf("✓ Generated Dockerfile: %s\n", dockerfilePath)
 	return dockerfilePath, nil
-}
-
-// GetColimaProfile returns the active Colima profile from environment or default.
-func GetColimaProfile() string {
-	if profile := os.Getenv("COLIMA_ACTIVE_PROFILE"); profile != "" {
-		return profile
-	}
-	if profile := os.Getenv("COLIMA_DOCKER_PROFILE"); profile != "" {
-		return profile
-	}
-	return "default"
-}
-
-// IsColimaRunning checks if Colima is running with the specified profile.
-func IsColimaRunning(profile string) bool {
-	cmd := exec.Command("colima", "status", "--profile", profile)
-	return cmd.Run() == nil
 }
