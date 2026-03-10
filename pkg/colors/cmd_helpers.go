@@ -15,15 +15,15 @@ import (
 //   - noColor: Whether to disable colors (--no-color flag)
 //
 // Returns:
-//   - context.Context with ColorProvider injected
-//   - error if theme initialization fails (falls back to default on error)
+//   - context.Context with ColorProvider injected (always has a usable provider)
+//   - error if active theme loading fails (provider is still usable default)
 //
 // Behavior:
 //   - If noColor is true or NO_COLOR env var is set, returns NoColorProvider
 //   - If provider is nil, returns DefaultColorProvider
 //   - Tries to load active theme from provider
 //   - Falls back to default colors if no active theme or on error
-//   - Never returns an error (always provides some ColorProvider)
+//   - Always provides a usable ColorProvider; error is informational for logging
 func InitColorProviderForCommand(ctx context.Context, provider PaletteProvider, noColor bool) (context.Context, error) {
 	// Check for no-color mode first
 	if noColor || os.Getenv("NO_COLOR") != "" {
@@ -41,12 +41,9 @@ func InitColorProviderForCommand(ctx context.Context, provider PaletteProvider, 
 
 	// Try to create provider from active theme
 	colorProvider, err := factory.CreateFromActive()
-	if err != nil {
-		// Fall back to default on any error (no active theme, invalid theme, etc.)
-		colorProvider = NewDefaultColorProvider()
-	}
+	// colorProvider is always usable (factory returns default on error)
 
-	return WithProvider(ctx, colorProvider), nil
+	return WithProvider(ctx, colorProvider), err
 }
 
 // InitColorProviderWithTheme initializes ColorProvider for a specific theme.

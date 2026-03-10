@@ -14,38 +14,7 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/database/sqlite"
 	_ "github.com/golang-migrate/migrate/v4/database/sqlite3"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
-	"github.com/spf13/viper"
 )
-
-// InitializeDriver creates and connects a driver based on viper configuration.
-func InitializeDriver() (Driver, error) {
-	dbType := viper.GetString("database.type")
-	if dbType == "" {
-		dbType = "sqlite"
-	}
-
-	cfg := DriverConfig{
-		Type:     DriverType(dbType),
-		Path:     viper.GetString("database.path"),
-		Host:     viper.GetString("database.host"),
-		Port:     viper.GetString("database.port"),
-		Database: viper.GetString("database.name"),
-		Username: viper.GetString("database.username"),
-		Password: viper.GetString("database.password"),
-		SSLMode:  viper.GetString("database.sslmode"),
-	}
-
-	driver, err := NewDriver(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create driver: %w", err)
-	}
-
-	if err := driver.Connect(); err != nil {
-		return nil, fmt.Errorf("failed to connect to database: %w", err)
-	}
-
-	return driver, nil
-}
 
 // CheckPendingMigrations checks if there are pending migrations without applying them.
 // Returns true if migrations are pending, false if database is current.

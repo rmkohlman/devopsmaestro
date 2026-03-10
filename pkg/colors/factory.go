@@ -1,6 +1,8 @@
 package colors
 
 import (
+	"fmt"
+
 	"devopsmaestro/pkg/palette"
 )
 
@@ -52,8 +54,8 @@ func (f *providerFactory) CreateFromActive() (ColorProvider, error) {
 
 	p, err := f.paletteProvider.GetActivePalette()
 	if err != nil {
-		// Return default on error (no active theme, etc.)
-		return NewDefaultColorProvider(), nil
+		// Return usable default AND the error so callers can log it
+		return NewDefaultColorProvider(), fmt.Errorf("loading active theme: %w", err)
 	}
 
 	return NewThemeColorProvider(p), nil

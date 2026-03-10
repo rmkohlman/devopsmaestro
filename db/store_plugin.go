@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"devopsmaestro/models"
 	"fmt"
+	"strings"
 )
 
 // =============================================================================
@@ -102,19 +103,7 @@ func (ds *SQLDataStore) UpdatePlugin(plugin *models.NvimPluginDB) error {
 
 // DeletePlugin removes a plugin by name.
 func (ds *SQLDataStore) DeletePlugin(name string) error {
-	query := `DELETE FROM nvim_plugins WHERE name = ?`
-	result, err := ds.driver.Execute(query, name)
-	if err != nil {
-		return fmt.Errorf("failed to delete plugin: %w", err)
-	}
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to check rows affected: %w", err)
-	}
-	if rowsAffected == 0 {
-		return NewErrNotFound("plugin", name)
-	}
-	return nil
+	return ds.deleteByName("nvim_plugins", "plugin", name)
 }
 
 // UpsertPlugin creates or updates a plugin (by name).
@@ -215,7 +204,7 @@ func (ds *SQLDataStore) ListPluginsByTags(tags []string) ([]*models.NvimPluginDB
 		conditions = append(conditions, "tags LIKE ?")
 		args = append(args, "%"+tag+"%")
 	}
-	query += "(" + joinStrings(conditions, " OR ") + ") ORDER BY name"
+	query += "(" + strings.Join(conditions, " OR ") + ") ORDER BY name"
 
 	rows, err := ds.driver.Query(query, args...)
 	if err != nil {

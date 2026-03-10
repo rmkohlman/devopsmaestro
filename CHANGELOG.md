@@ -7,6 +7,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.34.5] - 2026-03-10 — Architecture Cleanup Sprint 4.1: Quick Wins + Foundation
+
+### ♻️ Refactored
+
+> **Internal structural refactoring only — no user-facing behavioral changes.**
+
+#### Wave 1: Stdlib Replacements, Storage Path Extraction, Render Improvements (1A-1D)
+
+##### 1A: Replace Custom Helpers with stdlib
+- **`pkg/resource/handlers/nvim_package.go`** — Deleted `splitAndTrim()` and `trimSpace()`, replaced with `strings.Split` + `strings.TrimSpace`
+- **`pkg/resource/handlers/terminal_package.go`** — Inlined `strings.Split` + `strings.TrimSpace` for tag splitting
+- **`db/store_plugin.go`** — Replaced `joinStrings()` with `strings.Join`
+- **`db/store_helpers.go`** — **Deleted** (only contained `joinStrings`)
+
+##### 1B: Extract Shared `resolveStoragePath()`
+- **`pkg/registry/strategy.go`** — Consolidated 5 copies of `getStoragePath()` into single `resolveStoragePath()` (59 lines saved)
+
+##### 1C: Render Thread Safety + CompactRenderer Extraction
+- **`render/registry.go`** — Added `sync.RWMutex` to `defaultWriter`; all access now through `GetWriter()`
+- **`render/renderer_compact.go`** — **Created** — `CompactRenderer` extracted from `renderer_table.go` into own file (144 lines)
+
+##### 1D: Render Convenience API
+- **`render/convenience.go`** — **Created** — 11 convenience functions: `Blank()`, `Successf/Infof/Warningf/Errorf/Progressf`, `InfoToStderr/WarningToStderr/ErrorToStderr`, `StderrMsg`
+- **`render/convenience_test.go`** — **Created** — 9 tests for convenience functions
+
+#### Wave 2: DB Deduplication, Error Fix, Dead Code Removal (2A-2D)
+
+##### 2A: Extract `deleteByName()` Helper — 9 Methods Consolidated
+- **`db/store_helpers.go`** — **Created** — Private `deleteByName(table, resourceLabel, name)` helper on `*SQLDataStore`
+- **9 store files** — `DeleteEcosystem`, `DeletePlugin`, `DeleteTheme`, `DeleteTerminalPlugin`, `DeleteTerminalEmulator`, `DeleteTerminalProfile`, `DeleteTerminalPrompt`, `DeleteTerminalPackage`, `DeletePackage` reduced to one-liner delegations (~78 net lines eliminated)
+- **`DeleteRegistry`** left as-is (different pattern with pre-check)
+
+##### 2B: Extract Scan Row Helpers — 13 Scan Blocks Consolidated
+- **`db/store_terminal_plugin.go`** — `scanTerminalPlugin()` helper replaces 5 identical scan blocks (15 fields each)
+- **`db/store_terminal_prompt.go`** — `scanTerminalPrompt()` helper replaces 4 identical scan blocks (17 fields each)
+- **`db/store_terminal_emulator.go`** — `scanTerminalEmulator()` helper replaces 4 identical scan blocks (12 fields each)
+
+##### 2C: Fix `CreateFromActive()` Error Swallowing
+- **`pkg/colors/factory.go`** — `CreateFromActive()` now returns wrapped error alongside default provider (was silently returning nil error)
+- **`pkg/colors/cmd_helpers.go`** — `InitColorProviderForCommand()` propagates error to callers; removed redundant fallback
+- **`pkg/colors/colors_test.go`** — Added `TestProviderFactory_CreateFromActive_Error` verifying error propagation + usable default provider
+- Callers (`cmd/root.go`, `cmd/nvp/root.go`) already had `slog.Warn` logging that now actually fires
+
+##### 2D: Remove Dead `InitializeDriver()`
+- **`db/database.go`** — Removed `InitializeDriver()` function (zero callers, duplicated `DriverFactory()` + `Connect()`)
+- Cleaned up orphaned `viper` import
+
+#### Wave 3: Interface Segregation Principle (ISP) Narrowing — 14 Consumer Sites
+
+##### 3A: pkg/ Constructor Narrowing (5 files)
+- **`pkg/registry/build_support.go`** — `db.DataStore` → `db.RegistryStore` (only calls `ListRegistries`)
+- **`pkg/registry/lifecycle.go`** — `db.DataStore` → `db.DefaultsStore` (only calls `GetDefault`)
+- **`pkg/registry/defaults.go`** — `db.DataStore` → `db.DefaultsStore` (calls `GetDefault`, `SetDefault`, `DeleteDefault`)
+- **`pkg/crd/store_adapter.go`** — `db.DataStore` → `db.CustomResourceStore` (10 CRD methods)
+- **`pkg/crd/init.go`** — `db.DataStore` → `db.CustomResourceStore` (pass-through to adapter)
+
+##### 3B: cmd/ Function Narrowing (3 files, 8 functions)
+- **`cmd/build_packages.go`** — `resolveDefaultPackagePlugins` → `db.NvimPackageStore`
+- **`cmd/build_wezterm.go`** — `generateWezTermConfig` → local `weztermConfigStore` (composed `TerminalEmulatorStore` + `DefaultsStore`)
+- **`cmd/library_import.go`** — 6 import functions each narrowed to domain-specific store (`PluginStore`, `ThemeStore`, `NvimPackageStore`, `TerminalPromptStore`, `TerminalPluginStore`, `TerminalPackageStore`)
+
+##### 3C: cmd/ Helper Narrowing (3 files, 3 functions)
+- **`cmd/delete.go`** — `deleteRegistryCore` → `db.RegistryStore`
+- **`cmd/create.go`** — `ResolveWorkspaceGitRepo` → `db.GitRepoStore`
+- **`cmd/nvim_set.go`** — `clearGlobalDefaultPlugins` → `db.DefaultsStore`
+
+### 📊 Sprint 4.1 Summary
+
+| Metric | Value |
+|--------|-------|
+| Files modified | 30 |
+| Files created | 3 |
+| Net lines eliminated | ~355 |
+| Duplicate code patterns removed | 22 (9 delete + 13 scan) |
+| ISP narrowing sites | 14 |
+| Bug fixed (error swallowing) | 1 |
+| Dead code removed | 2 (InitializeDriver + joinStrings/splitAndTrim/trimSpace) |
+| New tests | 10 |
+| All tests pass | ✅ (57 packages) |
+
+---
+
 ## [v0.34.4] - 2026-03-10 — Architecture Cleanup Sprint 3: Interface & Pattern Compliance
 
 ### ♻️ Refactored

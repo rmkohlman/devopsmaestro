@@ -10,7 +10,7 @@ import (
 
 // resolveDefaultPackagePlugins resolves plugins from a default package name.
 // It first checks the embedded library, then falls back to database packages.
-func resolveDefaultPackagePlugins(packageName string, ds db.DataStore) ([]string, error) {
+func resolveDefaultPackagePlugins(packageName string, ds db.NvimPackageStore) ([]string, error) {
 	// First, try to load from embedded library
 	lib, err := packagelibrary.NewLibrary()
 	if err != nil {

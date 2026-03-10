@@ -9,8 +9,14 @@ import (
 	"path/filepath"
 )
 
+// weztermConfigStore is the narrow interface needed for WezTerm config generation.
+type weztermConfigStore interface {
+	db.TerminalEmulatorStore
+	db.DefaultsStore
+}
+
 // generateWezTermConfig creates a WezTerm configuration file if a terminal emulator config exists in database
-func generateWezTermConfig(stagingDir, appName, workspaceName string, ds db.DataStore) error {
+func generateWezTermConfig(stagingDir, appName, workspaceName string, ds weztermConfigStore) error {
 	// 1. Look for workspace-specific emulator first
 	//    Pattern: "{app}-{workspace}" or "{workspace}"
 	workspaceEmulatorName := fmt.Sprintf("%s-%s", appName, workspaceName)

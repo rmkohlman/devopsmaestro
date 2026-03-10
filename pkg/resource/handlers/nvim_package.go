@@ -4,6 +4,7 @@ package handlers
 
 import (
 	"fmt"
+	"strings"
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
@@ -264,10 +265,11 @@ func (h *NvimPackageHandler) fromDBModel(dbPkg *models.NvimPackageDB) (*nvimpkg.
 	labels := dbPkg.GetLabels()
 	if tagStr, exists := labels["tags"]; exists && tagStr != "" {
 		// Split comma-separated tags
-		tags := []string{}
-		for _, tag := range splitAndTrim(tagStr, ",") {
-			if tag != "" {
-				tags = append(tags, tag)
+		parts := strings.Split(tagStr, ",")
+		tags := make([]string, 0, len(parts))
+		for _, p := range parts {
+			if trimmed := strings.TrimSpace(p); trimmed != "" {
+				tags = append(tags, trimmed)
 			}
 		}
 		pkg.Tags = tags
@@ -286,49 +288,6 @@ func (h *NvimPackageHandler) fromDBModel(dbPkg *models.NvimPackageDB) (*nvimpkg.
 	}
 
 	return pkg, nil
-}
-
-// splitAndTrim splits a string by delimiter and trims whitespace from each part.
-func splitAndTrim(s, delim string) []string {
-	if s == "" {
-		return []string{}
-	}
-
-	parts := []string{}
-	current := ""
-	for _, char := range s {
-		if string(char) == delim {
-			if trimmed := trimSpace(current); trimmed != "" {
-				parts = append(parts, trimmed)
-			}
-			current = ""
-		} else {
-			current += string(char)
-		}
-	}
-	if trimmed := trimSpace(current); trimmed != "" {
-		parts = append(parts, trimmed)
-	}
-	return parts
-}
-
-// trimSpace trims leading and trailing whitespace.
-func trimSpace(s string) string {
-	// Simple trim implementation without importing strings
-	start := 0
-	end := len(s)
-
-	// Trim leading whitespace
-	for start < end && (s[start] == ' ' || s[start] == '\t' || s[start] == '\n' || s[start] == '\r') {
-		start++
-	}
-
-	// Trim trailing whitespace
-	for end > start && (s[end-1] == ' ' || s[end-1] == '\t' || s[end-1] == '\n' || s[end-1] == '\r') {
-		end--
-	}
-
-	return s[start:end]
 }
 
 // NvimPackageResource wraps a nvimpkg.Package to implement resource.Resource.

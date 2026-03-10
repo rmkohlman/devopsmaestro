@@ -17,7 +17,7 @@ type ManagerFactory interface {
 
 // BuildRegistryCoordinator prepares registries for build operations.
 type BuildRegistryCoordinator struct {
-	store    db.DataStore
+	store    db.RegistryStore
 	factory  ManagerFactory
 	injector *envinjector.EnvironmentInjector
 }
@@ -32,7 +32,7 @@ type BuildRegistryResult struct {
 }
 
 // NewBuildRegistryCoordinator creates a new BuildRegistryCoordinator.
-func NewBuildRegistryCoordinator(store db.DataStore, factory ManagerFactory, injector *envinjector.EnvironmentInjector) *BuildRegistryCoordinator {
+func NewBuildRegistryCoordinator(store db.RegistryStore, factory ManagerFactory, injector *envinjector.EnvironmentInjector) *BuildRegistryCoordinator {
 	return &BuildRegistryCoordinator{
 		store:    store,
 		factory:  factory,

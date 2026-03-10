@@ -88,19 +88,7 @@ func (ds *SQLDataStore) UpsertTerminalProfile(profile *models.TerminalProfileDB)
 
 // DeleteTerminalProfile removes a terminal profile by name.
 func (ds *SQLDataStore) DeleteTerminalProfile(name string) error {
-	query := `DELETE FROM terminal_profiles WHERE name = ?`
-	result, err := ds.driver.Execute(query, name)
-	if err != nil {
-		return fmt.Errorf("failed to delete terminal profile: %w", err)
-	}
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to check rows affected: %w", err)
-	}
-	if rowsAffected == 0 {
-		return NewErrNotFound("terminal profile", name)
-	}
-	return nil
+	return ds.deleteByName("terminal_profiles", "terminal profile", name)
 }
 
 // ListTerminalProfiles retrieves all terminal profiles.

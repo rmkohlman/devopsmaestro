@@ -10,6 +10,19 @@ import (
 // Terminal Emulator Operations
 // =============================================================================
 
+// scanTerminalEmulator scans a single row into a TerminalEmulatorDB struct.
+func scanTerminalEmulator(s interface{ Scan(dest ...any) error }) (*models.TerminalEmulatorDB, error) {
+	emulator := &models.TerminalEmulatorDB{}
+	if err := s.Scan(
+		&emulator.ID, &emulator.Name, &emulator.Description, &emulator.Type, &emulator.Config,
+		&emulator.ThemeRef, &emulator.Category, &emulator.Labels, &emulator.Workspace,
+		&emulator.Enabled, &emulator.CreatedAt, &emulator.UpdatedAt,
+	); err != nil {
+		return nil, err
+	}
+	return emulator, nil
+}
+
 // CreateTerminalEmulator inserts a new terminal emulator config.
 func (ds *SQLDataStore) CreateTerminalEmulator(emulator *models.TerminalEmulatorDB) error {
 	// Ensure required JSON fields have proper defaults
@@ -46,13 +59,9 @@ func (ds *SQLDataStore) GetTerminalEmulator(name string) (*models.TerminalEmulat
 	query := `SELECT id, name, description, type, config, theme_ref, category, labels, workspace, enabled, created_at, updated_at
 		FROM terminal_emulators WHERE name = ?`
 
-	emulator := &models.TerminalEmulatorDB{}
 	row := ds.driver.QueryRow(query, name)
-	if err := row.Scan(
-		&emulator.ID, &emulator.Name, &emulator.Description, &emulator.Type, &emulator.Config,
-		&emulator.ThemeRef, &emulator.Category, &emulator.Labels, &emulator.Workspace,
-		&emulator.Enabled, &emulator.CreatedAt, &emulator.UpdatedAt,
-	); err != nil {
+	emulator, err := scanTerminalEmulator(row)
+	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("terminal emulator not found: %s", name)
 		}
@@ -100,19 +109,7 @@ func (ds *SQLDataStore) UpsertTerminalEmulator(emulator *models.TerminalEmulator
 
 // DeleteTerminalEmulator removes a terminal emulator by name.
 func (ds *SQLDataStore) DeleteTerminalEmulator(name string) error {
-	query := `DELETE FROM terminal_emulators WHERE name = ?`
-	result, err := ds.driver.Execute(query, name)
-	if err != nil {
-		return fmt.Errorf("failed to delete terminal emulator: %w", err)
-	}
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to check rows affected: %w", err)
-	}
-	if rowsAffected == 0 {
-		return NewErrNotFound("terminal emulator", name)
-	}
-	return nil
+	return ds.deleteByName("terminal_emulators", "terminal emulator", name)
 }
 
 // ListTerminalEmulators retrieves all terminal emulators.
@@ -128,12 +125,8 @@ func (ds *SQLDataStore) ListTerminalEmulators() ([]*models.TerminalEmulatorDB, e
 
 	var emulators []*models.TerminalEmulatorDB
 	for rows.Next() {
-		emulator := &models.TerminalEmulatorDB{}
-		if err := rows.Scan(
-			&emulator.ID, &emulator.Name, &emulator.Description, &emulator.Type, &emulator.Config,
-			&emulator.ThemeRef, &emulator.Category, &emulator.Labels, &emulator.Workspace,
-			&emulator.Enabled, &emulator.CreatedAt, &emulator.UpdatedAt,
-		); err != nil {
+		emulator, err := scanTerminalEmulator(rows)
+		if err != nil {
 			return nil, fmt.Errorf("failed to scan terminal emulator: %w", err)
 		}
 		emulators = append(emulators, emulator)
@@ -159,12 +152,8 @@ func (ds *SQLDataStore) ListTerminalEmulatorsByType(emulatorType string) ([]*mod
 
 	var emulators []*models.TerminalEmulatorDB
 	for rows.Next() {
-		emulator := &models.TerminalEmulatorDB{}
-		if err := rows.Scan(
-			&emulator.ID, &emulator.Name, &emulator.Description, &emulator.Type, &emulator.Config,
-			&emulator.ThemeRef, &emulator.Category, &emulator.Labels, &emulator.Workspace,
-			&emulator.Enabled, &emulator.CreatedAt, &emulator.UpdatedAt,
-		); err != nil {
+		emulator, err := scanTerminalEmulator(rows)
+		if err != nil {
 			return nil, fmt.Errorf("failed to scan terminal emulator: %w", err)
 		}
 		emulators = append(emulators, emulator)
@@ -190,12 +179,8 @@ func (ds *SQLDataStore) ListTerminalEmulatorsByWorkspace(workspace string) ([]*m
 
 	var emulators []*models.TerminalEmulatorDB
 	for rows.Next() {
-		emulator := &models.TerminalEmulatorDB{}
-		if err := rows.Scan(
-			&emulator.ID, &emulator.Name, &emulator.Description, &emulator.Type, &emulator.Config,
-			&emulator.ThemeRef, &emulator.Category, &emulator.Labels, &emulator.Workspace,
-			&emulator.Enabled, &emulator.CreatedAt, &emulator.UpdatedAt,
-		); err != nil {
+		emulator, err := scanTerminalEmulator(rows)
+		if err != nil {
 			return nil, fmt.Errorf("failed to scan terminal emulator: %w", err)
 		}
 		emulators = append(emulators, emulator)

@@ -10,6 +10,20 @@ import (
 // Terminal Plugin Operations
 // =============================================================================
 
+// scanTerminalPlugin scans a single row into a TerminalPluginDB struct.
+func scanTerminalPlugin(s interface{ Scan(dest ...any) error }) (*models.TerminalPluginDB, error) {
+	plugin := &models.TerminalPluginDB{}
+	if err := s.Scan(
+		&plugin.ID, &plugin.Name, &plugin.Description, &plugin.Repo, &plugin.Category,
+		&plugin.Shell, &plugin.Manager, &plugin.LoadCommand, &plugin.SourceFile,
+		&plugin.Dependencies, &plugin.EnvVars, &plugin.Labels, &plugin.Enabled,
+		&plugin.CreatedAt, &plugin.UpdatedAt,
+	); err != nil {
+		return nil, err
+	}
+	return plugin, nil
+}
+
 // CreateTerminalPlugin inserts a new terminal plugin.
 func (ds *SQLDataStore) CreateTerminalPlugin(plugin *models.TerminalPluginDB) error {
 	// Ensure required JSON fields have proper defaults
@@ -53,18 +67,13 @@ func (ds *SQLDataStore) CreateTerminalPlugin(plugin *models.TerminalPluginDB) er
 
 // GetTerminalPlugin retrieves a terminal plugin by its name.
 func (ds *SQLDataStore) GetTerminalPlugin(name string) (*models.TerminalPluginDB, error) {
-	plugin := &models.TerminalPluginDB{}
 	query := `SELECT id, name, description, repo, category, shell, manager, load_command, 
 		source_file, dependencies, env_vars, labels, enabled, created_at, updated_at
 		FROM terminal_plugins WHERE name = ?`
 
 	row := ds.driver.QueryRow(query, name)
-	if err := row.Scan(
-		&plugin.ID, &plugin.Name, &plugin.Description, &plugin.Repo, &plugin.Category,
-		&plugin.Shell, &plugin.Manager, &plugin.LoadCommand, &plugin.SourceFile,
-		&plugin.Dependencies, &plugin.EnvVars, &plugin.Labels, &plugin.Enabled,
-		&plugin.CreatedAt, &plugin.UpdatedAt,
-	); err != nil {
+	plugin, err := scanTerminalPlugin(row)
+	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("terminal plugin not found: %s", name)
 		}
@@ -108,19 +117,7 @@ func (ds *SQLDataStore) UpsertTerminalPlugin(plugin *models.TerminalPluginDB) er
 
 // DeleteTerminalPlugin removes a terminal plugin by name.
 func (ds *SQLDataStore) DeleteTerminalPlugin(name string) error {
-	query := `DELETE FROM terminal_plugins WHERE name = ?`
-	result, err := ds.driver.Execute(query, name)
-	if err != nil {
-		return fmt.Errorf("failed to delete terminal plugin: %w", err)
-	}
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to check rows affected: %w", err)
-	}
-	if rowsAffected == 0 {
-		return NewErrNotFound("terminal plugin", name)
-	}
-	return nil
+	return ds.deleteByName("terminal_plugins", "terminal plugin", name)
 }
 
 // ListTerminalPlugins retrieves all terminal plugins.
@@ -137,13 +134,8 @@ func (ds *SQLDataStore) ListTerminalPlugins() ([]*models.TerminalPluginDB, error
 
 	var plugins []*models.TerminalPluginDB
 	for rows.Next() {
-		plugin := &models.TerminalPluginDB{}
-		if err := rows.Scan(
-			&plugin.ID, &plugin.Name, &plugin.Description, &plugin.Repo, &plugin.Category,
-			&plugin.Shell, &plugin.Manager, &plugin.LoadCommand, &plugin.SourceFile,
-			&plugin.Dependencies, &plugin.EnvVars, &plugin.Labels, &plugin.Enabled,
-			&plugin.CreatedAt, &plugin.UpdatedAt,
-		); err != nil {
+		plugin, err := scanTerminalPlugin(rows)
+		if err != nil {
 			return nil, fmt.Errorf("failed to scan terminal plugin: %w", err)
 		}
 		plugins = append(plugins, plugin)
@@ -170,13 +162,8 @@ func (ds *SQLDataStore) ListTerminalPluginsByCategory(category string) ([]*model
 
 	var plugins []*models.TerminalPluginDB
 	for rows.Next() {
-		plugin := &models.TerminalPluginDB{}
-		if err := rows.Scan(
-			&plugin.ID, &plugin.Name, &plugin.Description, &plugin.Repo, &plugin.Category,
-			&plugin.Shell, &plugin.Manager, &plugin.LoadCommand, &plugin.SourceFile,
-			&plugin.Dependencies, &plugin.EnvVars, &plugin.Labels, &plugin.Enabled,
-			&plugin.CreatedAt, &plugin.UpdatedAt,
-		); err != nil {
+		plugin, err := scanTerminalPlugin(rows)
+		if err != nil {
 			return nil, fmt.Errorf("failed to scan terminal plugin: %w", err)
 		}
 		plugins = append(plugins, plugin)
@@ -203,13 +190,8 @@ func (ds *SQLDataStore) ListTerminalPluginsByShell(shell string) ([]*models.Term
 
 	var plugins []*models.TerminalPluginDB
 	for rows.Next() {
-		plugin := &models.TerminalPluginDB{}
-		if err := rows.Scan(
-			&plugin.ID, &plugin.Name, &plugin.Description, &plugin.Repo, &plugin.Category,
-			&plugin.Shell, &plugin.Manager, &plugin.LoadCommand, &plugin.SourceFile,
-			&plugin.Dependencies, &plugin.EnvVars, &plugin.Labels, &plugin.Enabled,
-			&plugin.CreatedAt, &plugin.UpdatedAt,
-		); err != nil {
+		plugin, err := scanTerminalPlugin(rows)
+		if err != nil {
 			return nil, fmt.Errorf("failed to scan terminal plugin: %w", err)
 		}
 		plugins = append(plugins, plugin)
@@ -236,13 +218,8 @@ func (ds *SQLDataStore) ListTerminalPluginsByManager(manager string) ([]*models.
 
 	var plugins []*models.TerminalPluginDB
 	for rows.Next() {
-		plugin := &models.TerminalPluginDB{}
-		if err := rows.Scan(
-			&plugin.ID, &plugin.Name, &plugin.Description, &plugin.Repo, &plugin.Category,
-			&plugin.Shell, &plugin.Manager, &plugin.LoadCommand, &plugin.SourceFile,
-			&plugin.Dependencies, &plugin.EnvVars, &plugin.Labels, &plugin.Enabled,
-			&plugin.CreatedAt, &plugin.UpdatedAt,
-		); err != nil {
+		plugin, err := scanTerminalPlugin(rows)
+		if err != nil {
 			return nil, fmt.Errorf("failed to scan terminal plugin: %w", err)
 		}
 		plugins = append(plugins, plugin)

@@ -357,7 +357,7 @@ func createRegistry(cmd *cobra.Command, name string) error {
 // ResolveWorkspaceGitRepo determines which GitRepo a workspace should use.
 // Priority: 1) Explicit repoFlag, 2) Inherited from App, 3) None
 // Returns the GitRepo and the resolved GitRepoID for the workspace.
-func ResolveWorkspaceGitRepo(ds db.DataStore, app *models.App, repoFlag string) (*models.GitRepoDB, sql.NullInt64, error) {
+func ResolveWorkspaceGitRepo(ds db.GitRepoStore, app *models.App, repoFlag string) (*models.GitRepoDB, sql.NullInt64, error) {
 	var gitRepo *models.GitRepoDB
 	var err error
 

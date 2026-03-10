@@ -74,19 +74,7 @@ func (ds *SQLDataStore) UpdateEcosystem(ecosystem *models.Ecosystem) error {
 
 // DeleteEcosystem removes an ecosystem by name.
 func (ds *SQLDataStore) DeleteEcosystem(name string) error {
-	query := `DELETE FROM ecosystems WHERE name = ?`
-	result, err := ds.driver.Execute(query, name)
-	if err != nil {
-		return fmt.Errorf("failed to delete ecosystem: %w", err)
-	}
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to check rows affected: %w", err)
-	}
-	if rowsAffected == 0 {
-		return NewErrNotFound("ecosystem", name)
-	}
-	return nil
+	return ds.deleteByName("ecosystems", "ecosystem", name)
 }
 
 // ListEcosystems retrieves all ecosystems.

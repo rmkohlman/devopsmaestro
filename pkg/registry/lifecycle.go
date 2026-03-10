@@ -19,12 +19,12 @@ const (
 
 // LifecycleManager manages registry lifecycle (auto-start, idle timeout)
 type LifecycleManager struct {
-	store   db.DataStore
+	store   db.DefaultsStore
 	manager RegistryManager
 }
 
 // NewLifecycleManager creates a new LifecycleManager
-func NewLifecycleManager(store db.DataStore, manager RegistryManager) *LifecycleManager {
+func NewLifecycleManager(store db.DefaultsStore, manager RegistryManager) *LifecycleManager {
 	return &LifecycleManager{
 		store:   store,
 		manager: manager,

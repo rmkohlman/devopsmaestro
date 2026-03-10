@@ -1,17 +1,21 @@
 package db
 
-// =============================================================================
-// Helper Functions
-// =============================================================================
+import "fmt"
 
-// joinStrings joins strings with a separator (to avoid importing strings package)
-func joinStrings(strs []string, sep string) string {
-	if len(strs) == 0 {
-		return ""
+// deleteByName removes a row from the given table where name matches.
+// It returns ErrNotFound if no row was affected.
+func (ds *SQLDataStore) deleteByName(table, resourceLabel, name string) error {
+	query := fmt.Sprintf(`DELETE FROM %s WHERE name = ?`, table)
+	result, err := ds.driver.Execute(query, name)
+	if err != nil {
+		return fmt.Errorf("failed to delete %s: %w", resourceLabel, err)
 	}
-	result := strs[0]
-	for i := 1; i < len(strs); i++ {
-		result += sep + strs[i]
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
 	}
-	return result
+	if rowsAffected == 0 {
+		return NewErrNotFound(resourceLabel, name)
+	}
+	return nil
 }

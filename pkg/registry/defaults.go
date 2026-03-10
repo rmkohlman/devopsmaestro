@@ -19,11 +19,11 @@ const (
 
 // RegistryDefaults provides type-safe access to registry default settings.
 type RegistryDefaults struct {
-	store db.DataStore
+	store db.DefaultsStore
 }
 
 // NewRegistryDefaults creates a new RegistryDefaults instance.
-func NewRegistryDefaults(store db.DataStore) *RegistryDefaults {
+func NewRegistryDefaults(store db.DefaultsStore) *RegistryDefaults {
 	return &RegistryDefaults{store: store}
 }
 

@@ -80,7 +80,7 @@ func runLibraryImport(cmd *cobra.Command, args []string) error {
 }
 
 // importNvimPlugins loads plugins from the library and upserts them into the DB.
-func importNvimPlugins(ds db.DataStore) error {
+func importNvimPlugins(ds db.PluginStore) error {
 	lib, err := nvimpluginlib.NewLibrary()
 	if err != nil {
 		return fmt.Errorf("failed to load plugin library: %w", err)
@@ -168,7 +168,7 @@ func importNvimPlugins(ds db.DataStore) error {
 }
 
 // importNvimThemes loads themes from the library and creates them in the DB.
-func importNvimThemes(ds db.DataStore) error {
+func importNvimThemes(ds db.ThemeStore) error {
 	themeInfos, err := nvimthemelib.List()
 	if err != nil {
 		return fmt.Errorf("failed to load theme library: %w", err)
@@ -225,7 +225,7 @@ func importNvimThemes(ds db.DataStore) error {
 }
 
 // importNvimPackages loads packages from the library and upserts them into the DB.
-func importNvimPackages(ds db.DataStore) error {
+func importNvimPackages(ds db.NvimPackageStore) error {
 	lib, err := nvimpkglib.NewLibrary()
 	if err != nil {
 		return fmt.Errorf("failed to load package library: %w", err)
@@ -258,7 +258,7 @@ func importNvimPackages(ds db.DataStore) error {
 }
 
 // importTerminalPrompts loads prompts from the library and upserts them into the DB.
-func importTerminalPrompts(ds db.DataStore) error {
+func importTerminalPrompts(ds db.TerminalPromptStore) error {
 	lib, err := terminalpromptlib.NewPromptLibrary()
 	if err != nil {
 		return fmt.Errorf("failed to load prompt library: %w", err)
@@ -320,7 +320,7 @@ func importTerminalPrompts(ds db.DataStore) error {
 }
 
 // importTerminalPlugins loads terminal plugins from the library and upserts them into the DB.
-func importTerminalPlugins(ds db.DataStore) error {
+func importTerminalPlugins(ds db.TerminalPluginStore) error {
 	lib, err := terminalpluginlib.NewPluginLibrary()
 	if err != nil {
 		return fmt.Errorf("failed to load terminal plugin library: %w", err)
@@ -380,7 +380,7 @@ func importTerminalPlugins(ds db.DataStore) error {
 }
 
 // importTerminalPackages loads terminal packages from the library and upserts them into the DB.
-func importTerminalPackages(ds db.DataStore) error {
+func importTerminalPackages(ds db.TerminalPackageStore) error {
 	lib, err := terminalpkglib.NewLibrary()
 	if err != nil {
 		return fmt.Errorf("failed to load terminal package library: %w", err)

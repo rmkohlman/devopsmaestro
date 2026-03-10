@@ -11,6 +11,24 @@ import (
 	"devopsmaestro/models"
 )
 
+// resolveStoragePath extracts the storage path from a registry's config,
+// falling back to the default ~/.devopsmaestro/registries/{name} path.
+// The configKey parameter specifies which JSON key to look up (e.g. "storage", "cacheDir").
+func resolveStoragePath(reg *models.Registry, configKey string) string {
+	if reg.Config.Valid && reg.Config.String != "" {
+		var configMap map[string]interface{}
+		if err := json.Unmarshal([]byte(reg.Config.String), &configMap); err == nil {
+			if val, ok := configMap[configKey].(string); ok && val != "" {
+				return val
+			}
+		}
+	}
+
+	// Otherwise use default path under ~/.devopsmaestro
+	homeDir, _ := os.UserHomeDir()
+	return filepath.Join(homeDir, ".devopsmaestro", "registries", reg.Name)
+}
+
 // --- Zot Strategy ---
 
 // ZotStrategy implements RegistryStrategy for Zot container registry.
@@ -49,7 +67,7 @@ func (s *ZotStrategy) CreateManager(reg *models.Registry) (ServiceManager, error
 		Enabled:     true,
 		Lifecycle:   reg.Lifecycle,
 		Port:        reg.Port,
-		Storage:     s.getStoragePath(reg),
+		Storage:     resolveStoragePath(reg, "storage"),
 		IdleTimeout: 30 * time.Minute,
 	}
 
@@ -85,23 +103,6 @@ func (s *ZotStrategy) GetDefaultPort() int {
 // GetDefaultStorage returns the default Zot storage path.
 func (s *ZotStrategy) GetDefaultStorage() string {
 	return "/var/lib/zot"
-}
-
-// getStoragePath determines the storage path for a registry.
-func (s *ZotStrategy) getStoragePath(reg *models.Registry) string {
-	// If config specifies storage, use it
-	if reg.Config.Valid && reg.Config.String != "" {
-		var configMap map[string]interface{}
-		if err := json.Unmarshal([]byte(reg.Config.String), &configMap); err == nil {
-			if storage, ok := configMap["storage"].(string); ok && storage != "" {
-				return storage
-			}
-		}
-	}
-
-	// Otherwise use default path under ~/.devopsmaestro
-	homeDir, _ := os.UserHomeDir()
-	return filepath.Join(homeDir, ".devopsmaestro", "registries", reg.Name)
 }
 
 // --- Athens Strategy ---
@@ -141,7 +142,7 @@ func (s *AthensStrategy) CreateManager(reg *models.Registry) (ServiceManager, er
 		Enabled:     true,
 		Lifecycle:   reg.Lifecycle,
 		Port:        reg.Port,
-		Storage:     s.getStoragePath(reg),
+		Storage:     resolveStoragePath(reg, "storage"),
 		IdleTimeout: 30 * time.Minute,
 		Upstreams:   defaultUpstreams(),
 	}
@@ -167,23 +168,6 @@ func (s *AthensStrategy) GetDefaultPort() int {
 // GetDefaultStorage returns the default Athens storage path.
 func (s *AthensStrategy) GetDefaultStorage() string {
 	return "/var/lib/athens"
-}
-
-// getStoragePath determines the storage path for a registry.
-func (s *AthensStrategy) getStoragePath(reg *models.Registry) string {
-	// If config specifies storage, use it
-	if reg.Config.Valid && reg.Config.String != "" {
-		var configMap map[string]interface{}
-		if err := json.Unmarshal([]byte(reg.Config.String), &configMap); err == nil {
-			if storage, ok := configMap["storage"].(string); ok && storage != "" {
-				return storage
-			}
-		}
-	}
-
-	// Otherwise use default path under ~/.devopsmaestro
-	homeDir, _ := os.UserHomeDir()
-	return filepath.Join(homeDir, ".devopsmaestro", "registries", reg.Name)
 }
 
 // AthensManagerAdapter adapts AthensManager to ServiceManager interface.
@@ -249,7 +233,7 @@ func (s *DevpiStrategy) CreateManager(reg *models.Registry) (ServiceManager, err
 		Enabled:     true,
 		Lifecycle:   reg.Lifecycle,
 		Port:        reg.Port,
-		Storage:     s.getStoragePath(reg),
+		Storage:     resolveStoragePath(reg, "storage"),
 		IdleTimeout: 30 * time.Minute,
 		Upstreams:   defaultPyPIUpstreams(),
 	}
@@ -275,23 +259,6 @@ func (s *DevpiStrategy) GetDefaultPort() int {
 // GetDefaultStorage returns the default devpi storage path.
 func (s *DevpiStrategy) GetDefaultStorage() string {
 	return "/var/lib/devpi"
-}
-
-// getStoragePath determines the storage path for a registry.
-func (s *DevpiStrategy) getStoragePath(reg *models.Registry) string {
-	// If config specifies storage, use it
-	if reg.Config.Valid && reg.Config.String != "" {
-		var configMap map[string]interface{}
-		if err := json.Unmarshal([]byte(reg.Config.String), &configMap); err == nil {
-			if storage, ok := configMap["storage"].(string); ok && storage != "" {
-				return storage
-			}
-		}
-	}
-
-	// Otherwise use default path under ~/.devopsmaestro
-	homeDir, _ := os.UserHomeDir()
-	return filepath.Join(homeDir, ".devopsmaestro", "registries", reg.Name)
 }
 
 // DevpiManagerAdapter adapts DevpiManager to ServiceManager interface.
@@ -356,7 +323,7 @@ func (s *VerdaccioStrategy) CreateManager(reg *models.Registry) (ServiceManager,
 		Enabled:     true,
 		Lifecycle:   reg.Lifecycle,
 		Port:        reg.Port,
-		Storage:     s.getStoragePath(reg),
+		Storage:     resolveStoragePath(reg, "storage"),
 		IdleTimeout: 30 * time.Minute,
 		Upstreams:   defaultNpmUpstreams(),
 	}
@@ -387,23 +354,6 @@ func (s *VerdaccioStrategy) GetDefaultPort() int {
 // GetDefaultStorage returns the default verdaccio storage path.
 func (s *VerdaccioStrategy) GetDefaultStorage() string {
 	return "/var/lib/verdaccio"
-}
-
-// getStoragePath determines the storage path for a registry.
-func (s *VerdaccioStrategy) getStoragePath(reg *models.Registry) string {
-	// If config specifies storage, use it
-	if reg.Config.Valid && reg.Config.String != "" {
-		var configMap map[string]interface{}
-		if err := json.Unmarshal([]byte(reg.Config.String), &configMap); err == nil {
-			if storage, ok := configMap["storage"].(string); ok && storage != "" {
-				return storage
-			}
-		}
-	}
-
-	// Otherwise use default path under ~/.devopsmaestro
-	homeDir, _ := os.UserHomeDir()
-	return filepath.Join(homeDir, ".devopsmaestro", "registries", reg.Name)
 }
 
 // VerdaccioManagerAdapter adapts VerdaccioManager to ServiceManager interface.
@@ -511,7 +461,15 @@ func (s *SquidStrategy) CreateManager(reg *models.Registry) (ServiceManager, err
 	}
 
 	// Determine storage path - override defaults if not set in custom config
-	storagePath := s.getStoragePath(reg)
+	// For Squid, if "cacheDir" is specified in config, use its parent directory
+	// as the base storage path. Otherwise fall back to the default registry path.
+	homeDir, _ := os.UserHomeDir()
+	defaultPath := filepath.Join(homeDir, ".devopsmaestro", "registries", reg.Name)
+	storagePath := resolveStoragePath(reg, "cacheDir")
+	if storagePath != defaultPath {
+		// cacheDir was found in config — use its parent as the storage root
+		storagePath = filepath.Dir(storagePath)
+	}
 	if config.CacheDir == "" || config.CacheDir == DefaultHttpProxyConfig().CacheDir {
 		config.CacheDir = filepath.Join(storagePath, "cache")
 	}
@@ -538,21 +496,4 @@ func (s *SquidStrategy) GetDefaultPort() int {
 // GetDefaultStorage returns the default squid storage path.
 func (s *SquidStrategy) GetDefaultStorage() string {
 	return "/var/cache/squid"
-}
-
-// getStoragePath determines the storage path for a registry.
-func (s *SquidStrategy) getStoragePath(reg *models.Registry) string {
-	// If config specifies cacheDir, use its parent as storage
-	if reg.Config.Valid && reg.Config.String != "" {
-		var configMap map[string]interface{}
-		if err := json.Unmarshal([]byte(reg.Config.String), &configMap); err == nil {
-			if cacheDir, ok := configMap["cacheDir"].(string); ok && cacheDir != "" {
-				return filepath.Dir(cacheDir)
-			}
-		}
-	}
-
-	// Otherwise use default path under ~/.devopsmaestro
-	homeDir, _ := os.UserHomeDir()
-	return filepath.Join(homeDir, ".devopsmaestro", "registries", reg.Name)
 }

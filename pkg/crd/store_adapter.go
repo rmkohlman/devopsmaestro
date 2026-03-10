@@ -10,14 +10,14 @@ import (
 	"devopsmaestro/models"
 )
 
-// DataStoreAdapter adapts db.DataStore to CRDStore and CustomResourceStore interfaces.
-// This allows the CRD system to work with the database through the standard DataStore interface.
+// DataStoreAdapter adapts db.CustomResourceStore to CRDStore and CustomResourceStore interfaces.
+// This allows the CRD system to work with the database through the narrowest required interface.
 type DataStoreAdapter struct {
-	ds db.DataStore
+	ds db.CustomResourceStore
 }
 
 // NewDataStoreAdapter creates a new adapter
-func NewDataStoreAdapter(ds db.DataStore) *DataStoreAdapter {
+func NewDataStoreAdapter(ds db.CustomResourceStore) *DataStoreAdapter {
 	return &DataStoreAdapter{ds: ds}
 }
 

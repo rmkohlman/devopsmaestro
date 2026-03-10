@@ -63,22 +63,7 @@ func (ds *SQLDataStore) UpsertPackage(pkg *models.NvimPackageDB) error {
 
 // DeletePackage removes a package by name.
 func (ds *SQLDataStore) DeletePackage(name string) error {
-	query := `DELETE FROM nvim_packages WHERE name = ?`
-
-	result, err := ds.driver.Execute(query, name)
-	if err != nil {
-		return fmt.Errorf("failed to delete package: %w", err)
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to check rows affected: %w", err)
-	}
-	if rowsAffected == 0 {
-		return NewErrNotFound("package", name)
-	}
-
-	return nil
+	return ds.deleteByName("nvim_packages", "package", name)
 }
 
 // GetPackage retrieves a package by its name.

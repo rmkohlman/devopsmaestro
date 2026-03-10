@@ -383,7 +383,7 @@ func runSetGlobalDefaultPlugins(cmd *cobra.Command, args []string) error {
 }
 
 // clearGlobalDefaultPlugins removes the global default plugins setting
-func clearGlobalDefaultPlugins(cmd *cobra.Command, ds db.DataStore) error {
+func clearGlobalDefaultPlugins(cmd *cobra.Command, ds db.DefaultsStore) error {
 	// Get current defaults for reporting
 	currentPluginsJSON, err := ds.GetDefault("plugins")
 	if err != nil {

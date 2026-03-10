@@ -2,6 +2,8 @@ package colors_test
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 
 	"devopsmaestro/pkg/colors"
@@ -277,6 +279,39 @@ func TestProviderFactory_CreateFromActive_WithProvider(t *testing.T) {
 	}
 	if provider.Name() != "tokyo-night" {
 		t.Errorf("Name() = %q, want %q", provider.Name(), "tokyo-night")
+	}
+}
+
+func TestProviderFactory_CreateFromActive_Error(t *testing.T) {
+	pp := &mockPaletteProvider{
+		activeErr: errors.New("theme store corrupted"),
+	}
+
+	factory := colors.NewProviderFactory(pp)
+
+	provider, err := factory.CreateFromActive()
+
+	// Error should be propagated (not swallowed)
+	if err == nil {
+		t.Fatal("CreateFromActive() error = nil, want error when GetActivePalette fails")
+	}
+	if !strings.Contains(err.Error(), "loading active theme") {
+		t.Errorf("error message %q should contain %q", err.Error(), "loading active theme")
+	}
+	if !strings.Contains(err.Error(), "theme store corrupted") {
+		t.Errorf("error message %q should wrap original error %q", err.Error(), "theme store corrupted")
+	}
+
+	// Provider should still be usable (default fallback)
+	if provider == nil {
+		t.Fatal("CreateFromActive() returned nil provider, want usable default")
+	}
+	if provider.Name() != "default" {
+		t.Errorf("Name() = %q, want %q (default fallback)", provider.Name(), "default")
+	}
+	// Verify it has actual colors (is functional)
+	if provider.Primary() == "" {
+		t.Error("Primary() returned empty string, want default color")
 	}
 }
 

@@ -97,19 +97,7 @@ func (ds *SQLDataStore) UpdateTheme(theme *models.NvimThemeDB) error {
 
 // DeleteTheme removes a theme by name.
 func (ds *SQLDataStore) DeleteTheme(name string) error {
-	query := `DELETE FROM nvim_themes WHERE name = ?`
-	result, err := ds.driver.Execute(query, name)
-	if err != nil {
-		return fmt.Errorf("failed to delete theme: %w", err)
-	}
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to check rows affected: %w", err)
-	}
-	if rowsAffected == 0 {
-		return NewErrNotFound("theme", name)
-	}
-	return nil
+	return ds.deleteByName("nvim_themes", "theme", name)
 }
 
 // ListThemes retrieves all themes.

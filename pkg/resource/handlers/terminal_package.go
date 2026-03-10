@@ -269,10 +269,11 @@ func (h *TerminalPackageHandler) fromDBModel(dbPkg *models.TerminalPackageDB) (*
 	labels := dbPkg.GetLabels()
 	if tagStr, exists := labels["tags"]; exists && tagStr != "" {
 		// Split comma-separated tags
-		tags := []string{}
-		for _, tag := range splitAndTrim(tagStr, ",") {
-			if tag != "" {
-				tags = append(tags, tag)
+		parts := strings.Split(tagStr, ",")
+		tags := make([]string, 0, len(parts))
+		for _, p := range parts {
+			if trimmed := strings.TrimSpace(p); trimmed != "" {
+				tags = append(tags, trimmed)
 			}
 		}
 		pkg.Tags = tags
@@ -300,8 +301,6 @@ func (h *TerminalPackageHandler) fromDBModel(dbPkg *models.TerminalPackageDB) (*
 
 	return pkg, nil
 }
-
-// Helper functions splitAndTrim and trimSpace are already defined in nvim_package.go
 
 // TerminalPackageResource wraps a terminalpkg.Package to implement resource.Resource.
 type TerminalPackageResource struct {

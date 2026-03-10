@@ -63,22 +63,7 @@ func (ds *SQLDataStore) UpsertTerminalPackage(pkg *models.TerminalPackageDB) err
 
 // DeleteTerminalPackage removes a terminal package by name.
 func (ds *SQLDataStore) DeleteTerminalPackage(name string) error {
-	query := `DELETE FROM terminal_packages WHERE name = ?`
-
-	result, err := ds.driver.Execute(query, name)
-	if err != nil {
-		return fmt.Errorf("failed to delete terminal package: %w", err)
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to check rows affected: %w", err)
-	}
-	if rowsAffected == 0 {
-		return NewErrNotFound("terminal package", name)
-	}
-
-	return nil
+	return ds.deleteByName("terminal_packages", "terminal package", name)
 }
 
 // GetTerminalPackage retrieves a terminal package by its name.

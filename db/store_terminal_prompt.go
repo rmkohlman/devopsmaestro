@@ -10,6 +10,20 @@ import (
 // Terminal Prompt Operations
 // =============================================================================
 
+// scanTerminalPrompt scans a single row into a TerminalPromptDB struct.
+func scanTerminalPrompt(s interface{ Scan(dest ...any) error }) (*models.TerminalPromptDB, error) {
+	prompt := &models.TerminalPromptDB{}
+	if err := s.Scan(
+		&prompt.ID, &prompt.Name, &prompt.Description, &prompt.Type, &prompt.AddNewline,
+		&prompt.Palette, &prompt.Format, &prompt.Modules, &prompt.Character, &prompt.PaletteRef,
+		&prompt.Colors, &prompt.RawConfig, &prompt.Category, &prompt.Tags, &prompt.Enabled,
+		&prompt.CreatedAt, &prompt.UpdatedAt,
+	); err != nil {
+		return nil, err
+	}
+	return prompt, nil
+}
+
 // CreateTerminalPrompt inserts a new terminal prompt.
 func (ds *SQLDataStore) CreateTerminalPrompt(prompt *models.TerminalPromptDB) error {
 	query := fmt.Sprintf(`INSERT INTO terminal_prompts (name, description, type, add_newline, palette, format,
@@ -36,18 +50,13 @@ func (ds *SQLDataStore) CreateTerminalPrompt(prompt *models.TerminalPromptDB) er
 
 // GetTerminalPromptByName retrieves a terminal prompt by its name.
 func (ds *SQLDataStore) GetTerminalPromptByName(name string) (*models.TerminalPromptDB, error) {
-	prompt := &models.TerminalPromptDB{}
 	query := `SELECT id, name, description, type, add_newline, palette, format, modules, character, 
 		palette_ref, colors, raw_config, category, tags, enabled, created_at, updated_at
 		FROM terminal_prompts WHERE name = ?`
 
 	row := ds.driver.QueryRow(query, name)
-	if err := row.Scan(
-		&prompt.ID, &prompt.Name, &prompt.Description, &prompt.Type, &prompt.AddNewline,
-		&prompt.Palette, &prompt.Format, &prompt.Modules, &prompt.Character, &prompt.PaletteRef,
-		&prompt.Colors, &prompt.RawConfig, &prompt.Category, &prompt.Tags, &prompt.Enabled,
-		&prompt.CreatedAt, &prompt.UpdatedAt,
-	); err != nil {
+	prompt, err := scanTerminalPrompt(row)
+	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("terminal prompt not found: %s", name)
 		}
@@ -91,19 +100,7 @@ func (ds *SQLDataStore) UpsertTerminalPrompt(prompt *models.TerminalPromptDB) er
 
 // DeleteTerminalPrompt removes a terminal prompt by name.
 func (ds *SQLDataStore) DeleteTerminalPrompt(name string) error {
-	query := `DELETE FROM terminal_prompts WHERE name = ?`
-	result, err := ds.driver.Execute(query, name)
-	if err != nil {
-		return fmt.Errorf("failed to delete terminal prompt: %w", err)
-	}
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to check rows affected: %w", err)
-	}
-	if rowsAffected == 0 {
-		return NewErrNotFound("terminal prompt", name)
-	}
-	return nil
+	return ds.deleteByName("terminal_prompts", "terminal prompt", name)
 }
 
 // ListTerminalPrompts retrieves all terminal prompts.
@@ -120,13 +117,8 @@ func (ds *SQLDataStore) ListTerminalPrompts() ([]*models.TerminalPromptDB, error
 
 	var prompts []*models.TerminalPromptDB
 	for rows.Next() {
-		prompt := &models.TerminalPromptDB{}
-		if err := rows.Scan(
-			&prompt.ID, &prompt.Name, &prompt.Description, &prompt.Type, &prompt.AddNewline,
-			&prompt.Palette, &prompt.Format, &prompt.Modules, &prompt.Character, &prompt.PaletteRef,
-			&prompt.Colors, &prompt.RawConfig, &prompt.Category, &prompt.Tags, &prompt.Enabled,
-			&prompt.CreatedAt, &prompt.UpdatedAt,
-		); err != nil {
+		prompt, err := scanTerminalPrompt(rows)
+		if err != nil {
 			return nil, fmt.Errorf("failed to scan terminal prompt: %w", err)
 		}
 		prompts = append(prompts, prompt)
@@ -153,13 +145,8 @@ func (ds *SQLDataStore) ListTerminalPromptsByType(promptType string) ([]*models.
 
 	var prompts []*models.TerminalPromptDB
 	for rows.Next() {
-		prompt := &models.TerminalPromptDB{}
-		if err := rows.Scan(
-			&prompt.ID, &prompt.Name, &prompt.Description, &prompt.Type, &prompt.AddNewline,
-			&prompt.Palette, &prompt.Format, &prompt.Modules, &prompt.Character, &prompt.PaletteRef,
-			&prompt.Colors, &prompt.RawConfig, &prompt.Category, &prompt.Tags, &prompt.Enabled,
-			&prompt.CreatedAt, &prompt.UpdatedAt,
-		); err != nil {
+		prompt, err := scanTerminalPrompt(rows)
+		if err != nil {
 			return nil, fmt.Errorf("failed to scan terminal prompt: %w", err)
 		}
 		prompts = append(prompts, prompt)
@@ -186,13 +173,8 @@ func (ds *SQLDataStore) ListTerminalPromptsByCategory(category string) ([]*model
 
 	var prompts []*models.TerminalPromptDB
 	for rows.Next() {
-		prompt := &models.TerminalPromptDB{}
-		if err := rows.Scan(
-			&prompt.ID, &prompt.Name, &prompt.Description, &prompt.Type, &prompt.AddNewline,
-			&prompt.Palette, &prompt.Format, &prompt.Modules, &prompt.Character, &prompt.PaletteRef,
-			&prompt.Colors, &prompt.RawConfig, &prompt.Category, &prompt.Tags, &prompt.Enabled,
-			&prompt.CreatedAt, &prompt.UpdatedAt,
-		); err != nil {
+		prompt, err := scanTerminalPrompt(rows)
+		if err != nil {
 			return nil, fmt.Errorf("failed to scan terminal prompt: %w", err)
 		}
 		prompts = append(prompts, prompt)

@@ -338,7 +338,7 @@ func deleteRegistry(cmd *cobra.Command, name string) error {
 // deleteRegistryCore is the testable core of registry deletion.
 // It checks if the registry is running and stops it before deleting the DB record.
 // If Stop() fails, the DB record is NOT deleted and an error is returned.
-func deleteRegistryCore(ctx context.Context, ds db.DataStore, factory registry.ManagerFactory, name string, force bool) error {
+func deleteRegistryCore(ctx context.Context, ds db.RegistryStore, factory registry.ManagerFactory, name string, force bool) error {
 	// Get registry from DB
 	reg, err := ds.GetRegistryByName(name)
 	if err != nil {

@@ -17,6 +17,7 @@ var (
 
 	// Default writer (can be changed for testing)
 	defaultWriter io.Writer = os.Stdout
+	writerMu      sync.RWMutex
 )
 
 // Register adds a renderer to the global registry.
@@ -69,11 +70,15 @@ func SetDefault(name RendererName) {
 
 // SetWriter sets the default output writer (useful for testing)
 func SetWriter(w io.Writer) {
+	writerMu.Lock()
+	defer writerMu.Unlock()
 	defaultWriter = w
 }
 
 // GetWriter returns the current default writer
 func GetWriter() io.Writer {
+	writerMu.RLock()
+	defer writerMu.RUnlock()
 	return defaultWriter
 }
 
@@ -120,12 +125,12 @@ func ResolveRenderer(override string) Renderer {
 // OutputWithContext renders data using the resolved renderer to the default writer with context.
 // This is the new context-aware entry point for commands to output data.
 func OutputWithContext(ctx context.Context, data any, opts Options) error {
-	return OutputToWithContext(ctx, defaultWriter, "", data, opts)
+	return OutputToWithContext(ctx, GetWriter(), "", data, opts)
 }
 
 // OutputWithContextAndRenderer renders data using a specific renderer (by name or from flag) with context.
 func OutputWithContextAndRenderer(ctx context.Context, rendererOverride string, data any, opts Options) error {
-	return OutputToWithContext(ctx, defaultWriter, rendererOverride, data, opts)
+	return OutputToWithContext(ctx, GetWriter(), rendererOverride, data, opts)
 }
 
 // OutputToWithContext renders data to a specific writer with optional renderer override and context.
@@ -140,12 +145,12 @@ func OutputToWithContext(ctx context.Context, w io.Writer, rendererOverride stri
 // Output renders data using the resolved renderer to the default writer.
 // This is the main entry point for commands to output data.
 func Output(data any, opts Options) error {
-	return OutputTo(defaultWriter, "", data, opts)
+	return OutputTo(GetWriter(), "", data, opts)
 }
 
 // OutputWith renders data using a specific renderer (by name or from flag).
 func OutputWith(rendererOverride string, data any, opts Options) error {
-	return OutputTo(defaultWriter, rendererOverride, data, opts)
+	return OutputTo(GetWriter(), rendererOverride, data, opts)
 }
 
 // OutputTo renders data to a specific writer with optional renderer override.
@@ -159,12 +164,12 @@ func OutputTo(w io.Writer, rendererOverride string, data any, opts Options) erro
 
 // MsgWithContext outputs a status message using the resolved renderer with context.
 func MsgWithContext(ctx context.Context, level MessageLevel, content string) error {
-	return MsgToWithContext(ctx, defaultWriter, "", Message{Level: level, Content: content})
+	return MsgToWithContext(ctx, GetWriter(), "", Message{Level: level, Content: content})
 }
 
 // MsgWithContextAndRenderer outputs a status message with a specific renderer and context.
 func MsgWithContextAndRenderer(ctx context.Context, rendererOverride string, level MessageLevel, content string) error {
-	return MsgToWithContext(ctx, defaultWriter, rendererOverride, Message{Level: level, Content: content})
+	return MsgToWithContext(ctx, GetWriter(), rendererOverride, Message{Level: level, Content: content})
 }
 
 // MsgToWithContext outputs a status message to a specific writer with context.
@@ -178,12 +183,12 @@ func MsgToWithContext(ctx context.Context, w io.Writer, rendererOverride string,
 
 // Message outputs a status message using the resolved renderer.
 func Msg(level MessageLevel, content string) error {
-	return MsgTo(defaultWriter, "", Message{Level: level, Content: content})
+	return MsgTo(GetWriter(), "", Message{Level: level, Content: content})
 }
 
 // MsgWith outputs a status message with a specific renderer.
 func MsgWith(rendererOverride string, level MessageLevel, content string) error {
-	return MsgTo(defaultWriter, rendererOverride, Message{Level: level, Content: content})
+	return MsgTo(GetWriter(), rendererOverride, Message{Level: level, Content: content})
 }
 
 // MsgTo outputs a status message to a specific writer.
