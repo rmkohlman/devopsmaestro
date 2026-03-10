@@ -26,6 +26,20 @@ func Register(h Handler) {
 	handlers[kind] = h
 }
 
+// RegisterSafe adds a handler to the registry, returning an error on duplicate.
+// Prefer this over Register() when called outside of init() functions.
+func RegisterSafe(h Handler) error {
+	mu.Lock()
+	defer mu.Unlock()
+
+	kind := h.Kind()
+	if _, exists := handlers[kind]; exists {
+		return fmt.Errorf("resource handler already registered for kind: %s", kind)
+	}
+	handlers[kind] = h
+	return nil
+}
+
 // SetFallbackHandler sets a handler to use for unknown kinds.
 // This is typically the DynamicHandler for custom resources.
 func SetFallbackHandler(h Handler) {

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/operators"
 	"devopsmaestro/pkg/resolver"
@@ -70,12 +69,10 @@ func runDetach(cmd *cobra.Command) error {
 
 func detachActiveWorkspace(cmd *cobra.Command, runtime operators.ContainerRuntime) error {
 	// Get datastore from context
-	ctx := cmd.Context()
-	dataStore := ctx.Value("dataStore").(*db.DataStore)
-	if dataStore == nil {
-		return fmt.Errorf("dataStore not initialized")
+	ds, err := getDataStore(cmd)
+	if err != nil {
+		return fmt.Errorf("dataStore not initialized: %w", err)
 	}
-	ds := *dataStore
 
 	var app *models.App
 	var workspace *models.Workspace

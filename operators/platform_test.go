@@ -15,7 +15,7 @@ func TestNewPlatformDetector(t *testing.T) {
 	if detector == nil {
 		t.Fatal("NewPlatformDetector() returned nil")
 	}
-	if detector.homeDir == "" {
+	if detector.(*DefaultPlatformDetector).homeDir == "" {
 		t.Error("NewPlatformDetector() homeDir is empty")
 	}
 }
@@ -481,7 +481,7 @@ func TestIntegration_OrbStackDetection(t *testing.T) {
 		t.Fatalf("NewPlatformDetector() error = %v", err)
 	}
 
-	platform := detector.detectOrbStack()
+	platform := detector.(*DefaultPlatformDetector).detectOrbStack()
 	if platform == nil {
 		t.Skip("OrbStack not available")
 	}
@@ -507,7 +507,7 @@ func TestIntegration_ColimaDetection(t *testing.T) {
 		t.Fatalf("NewPlatformDetector() error = %v", err)
 	}
 
-	platform := detector.detectColima()
+	platform := detector.(*DefaultPlatformDetector).detectColima()
 	if platform == nil {
 		t.Skip("Colima not available")
 	}
@@ -534,7 +534,7 @@ func TestIntegration_PodmanDetection(t *testing.T) {
 		t.Fatalf("NewPlatformDetector() error = %v", err)
 	}
 
-	platform := detector.detectPodman()
+	platform := detector.(*DefaultPlatformDetector).detectPodman()
 	if platform == nil {
 		t.Skip("Podman not available")
 	}
@@ -678,7 +678,7 @@ func TestPlatformDetector_DetectAllColima(t *testing.T) {
 				defer os.Setenv("COLIMA_DOCKER_PROFILE", oldVal)
 			}
 
-			detector := &PlatformDetector{homeDir: tempHome}
+			detector := &DefaultPlatformDetector{homeDir: tempHome}
 			platforms := detector.detectAllColima()
 
 			if len(platforms) != tt.wantCount {
@@ -892,7 +892,7 @@ func TestPlatformDetector_DetectAllColima_SymlinksSkipped(t *testing.T) {
 		t.Fatalf("create docker.sock in legitimate: %v", err)
 	}
 
-	detector := &PlatformDetector{homeDir: tempHome}
+	detector := &DefaultPlatformDetector{homeDir: tempHome}
 	platforms := detector.detectAllColima()
 
 	// The symlinked entry must be skipped; only "legitimate" should be returned.
@@ -947,7 +947,7 @@ func TestPlatformDetector_DetectAllColima_InvalidProfileNames(t *testing.T) {
 		t.Fatalf("create docker.sock in valid-profile: %v", err)
 	}
 
-	detector := &PlatformDetector{homeDir: tempHome}
+	detector := &DefaultPlatformDetector{homeDir: tempHome}
 	platforms := detector.detectAllColima()
 
 	// Only "valid-profile" should survive; all invalid-name dirs must be skipped.

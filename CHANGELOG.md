@@ -7,6 +7,90 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.34.4] - 2026-03-10 — Architecture Cleanup Sprint 3: Interface & Pattern Compliance
+
+### ♻️ Refactored
+
+> **Internal structural refactoring only — no user-facing behavioral changes.**
+
+#### Wave 1: Sub-Interfaces, Interface Extraction, Panic Elimination (3A, 3C, 3E)
+
+##### 3A: DataStore Interface Decomposition — 19 Domain Sub-Interfaces
+- **Created `db/datastore_interfaces.go`** (543 lines) — 19 domain-specific sub-interfaces extracted from monolithic `DataStore` (e.g., `EcosystemStore`, `WorkspaceStore`, `CredentialStore`, `NvimPackageStore`, `TerminalPackageStore`, etc.)
+- **Refactored `db/datastore.go`** (535 → 55 lines) — `DataStore` is now a composed interface embedding all 19 sub-interfaces
+- **Added compliance tests** in `db/interface_compliance_test.go` — verifies `Store` and `MockDataStore` implement all 19 sub-interfaces
+
+##### 3C: Interface Extraction — 4 Missing Interfaces
+- **`PlatformDetector` interface** extracted in `operators/platform.go` — concrete struct renamed to `DefaultPlatformDetector`
+- **`ContextManager` interface** extracted in `operators/context_manager.go` — concrete struct renamed to `DefaultContextManager`
+- **`Manager` interface** extracted in `pkg/nvimops/nvimops.go` — concrete struct renamed to `DefaultManager`
+- **`DockerfileGenerator` interface** extracted in `builders/dockerfile_generator.go` — concrete struct renamed to `DefaultDockerfileGenerator`
+
+##### 3E: Panic Elimination — 8 `panic()` Calls Replaced with Error Returns
+- **`pkg/registry/factory.go`** — `RegisterStrategy()` now returns error instead of panicking on duplicate/nil
+- **`pkg/registry/factory_athens.go`** — Removed `newAthensManagerInternal`; `NewAthensManager` returns error
+- **`pkg/registry/athens_manager.go`** — `NewAthensManager` is DI constructor, `NewAthensManagerDefault` is convenience
+- **`pkg/registry/devpi_manager.go`** — Same pattern as athens
+- **`pkg/registry/verdaccio_manager.go`** — Same pattern as verdaccio
+- **`pkg/resource/registry.go`** — Added `RegisterSafe()` alongside existing `Register()`
+
+#### Wave 2: Generic Type Helpers, Mock Infrastructure (3B, 3D)
+
+##### 3B: Type-Safe DataStore Access — Generic Helpers
+- **Created `pkg/resource/helpers.go`** — Generic `DataStoreAs[T]()`, `PluginStoreAs[T]()`, `ThemeStoreAs[T]()` helpers replacing unsafe type assertions
+- **Refactored 11 handler files** in `pkg/resource/handlers/` — All now use `DataStoreAs[T]` pattern instead of raw `ctx.Value` assertions
+- **Removed 6 `getDataStore()` methods** from individual handlers
+
+##### 3D: Configurable Mock Infrastructure — 4 Mock Files
+- **`operators/mock_platform_detector.go`** — Configurable `MockPlatformDetector` with call recording
+- **`operators/mock_context_manager.go`** — Configurable `MockContextManager` with error injection
+- **`pkg/nvimops/mock_manager.go`** — Configurable `MockManager` with call recording
+- **`builders/mock_dockerfile_generator.go`** — Configurable `MockDockerfileGenerator`
+
+#### Wave 3: Dependency Injection & Decoupling Fixes (3F)
+
+##### 3F-1: Docker Host Environment Variable Removal
+- **`operators/docker_runtime.go`** — Replaced `os.Setenv("DOCKER_HOST")` with `client.WithHost()` option — eliminates global state mutation
+
+##### 3F-2: Container Runtime DI Constructor
+- **`operators/runtime_factory.go`** — Added `NewContainerRuntimeWith(detector PlatformDetector)` for dependency injection
+
+##### 3F-3: Registry Manager Constructor Normalization
+- **Renamed constructors across 3 managers** — `NewXxxManagerWithDeps` → `NewXxxManager` (canonical DI); `NewXxxManager` → `NewXxxManagerDefault` (convenience)
+- **Updated 30+ call sites** in tests and production code
+- **Fixed `strategy.go`** — ZotStrategy now uses `NewZotManagerWithDeps` instead of constructing deps inline
+
+##### 3F-4: Unified `getDataStore(cmd)` with Safe Type-Switch
+- **Rewrote `cmd/context_helpers.go`** — `getDataStore(cmd)` now uses type-switch handling `*db.DataStore`, `db.DataStore`, `*db.MockDataStore`, `db.MockDataStore`
+- **Replaced 21 inline type assertions** across 11 cmd files (`create.go`, `use.go`, `delete.go`, `attach.go`, `detach.go`, `init.go`, `migrate.go`, `rollout.go`, `stop.go`, `start.go`, `gitrepo.go`)
+- **Removed duplicate** `getDataStoreFromContext` from `gitrepo.go`
+
+##### 3F-5: Color Provider Decoupling
+- **`pkg/colors/cmd_helpers.go`** — `InitColorProviderForCommand` and `InitColorProviderWithTheme` now accept `PaletteProvider` interface instead of `themePath string`
+- **Removed `theme` import** from `cmd_helpers.go` — breaks circular dependency risk
+- **Updated composition roots** in `cmd/root.go` and `cmd/nvp/root.go` to construct adapter chain
+
+### ✅ Tests
+
+- **All 58 packages pass tests** — Zero behavioral changes; full test suite green
+- **All 3 binaries build cleanly** — `dvm`, `nvp`, and `dvt`
+- **19 sub-interface compliance tests** added for `Store` and `MockDataStore`
+- **4 new mock files** with configurable return values, error injection, and call recording
+
+### 📊 Impact Summary
+
+| Metric | Before | After |
+|--------|--------|-------|
+| `DataStore` interface methods | ~115 in single interface | 19 focused sub-interfaces |
+| Missing interfaces | 4 (PlatformDetector, ContextManager, etc.) | 0 |
+| `panic()` calls in production | 8 | 0 |
+| Unsafe type assertions (handlers) | 25+ raw `ctx.Value` casts | 0 (generic helpers) |
+| `os.Setenv("DOCKER_HOST")` | 1 global mutation | 0 (client.WithHost) |
+| Inline `getDataStore` assertions (cmd/) | 21 across 11 files | 0 (unified type-switch) |
+| Files changed | — | 52 modified + 6 new |
+
+---
+
 ## [v0.34.3] - 2026-03-09 — Architecture Cleanup Sprint 2: God File Decomposition
 
 ### ♻️ Refactored

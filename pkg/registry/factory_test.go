@@ -21,7 +21,8 @@ func TestNewRegistryManager_ReturnsZotManager(t *testing.T) {
 		Storage:   t.TempDir(),
 	}
 
-	mgr := NewRegistryManager(config)
+	mgr, err := NewRegistryManager(config)
+	require.NoError(t, err)
 	require.NotNil(t, mgr, "NewRegistryManager should return non-nil manager")
 
 	// Verify it implements RegistryManager interface
@@ -64,7 +65,8 @@ func TestNewRegistryManager_ConfiguresCorrectly(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mgr := NewRegistryManager(tt.config)
+			mgr, err := NewRegistryManager(tt.config)
+			require.NoError(t, err)
 			require.NotNil(t, mgr)
 
 			// Verify endpoint matches port
@@ -96,7 +98,8 @@ func TestNewRegistryManager_WithMirrors(t *testing.T) {
 		},
 	}
 
-	mgr := NewRegistryManager(config)
+	mgr, err := NewRegistryManager(config)
+	require.NoError(t, err)
 	require.NotNil(t, mgr)
 
 	// Factory should handle mirror configuration
@@ -112,7 +115,8 @@ func TestNewRegistryManager_WithIdleTimeout(t *testing.T) {
 		IdleTimeout: 10 * time.Minute,
 	}
 
-	mgr := NewRegistryManager(config)
+	mgr, err := NewRegistryManager(config)
+	require.NoError(t, err)
 	require.NotNil(t, mgr)
 
 	// Factory should configure idle timeout for on-demand mode
@@ -126,7 +130,7 @@ func TestNewRegistryManager_ValidatesConfig(t *testing.T) {
 	tests := []struct {
 		name      string
 		config    RegistryConfig
-		wantPanic bool
+		wantError bool
 	}{
 		{
 			name: "valid config",
@@ -136,7 +140,7 @@ func TestNewRegistryManager_ValidatesConfig(t *testing.T) {
 				Port:      5001,
 				Storage:   "/tmp/registry",
 			},
-			wantPanic: false,
+			wantError: false,
 		},
 		{
 			name: "invalid port",
@@ -146,7 +150,7 @@ func TestNewRegistryManager_ValidatesConfig(t *testing.T) {
 				Port:      -1,
 				Storage:   "/tmp/registry",
 			},
-			wantPanic: true,
+			wantError: true,
 		},
 		{
 			name: "empty storage",
@@ -156,21 +160,19 @@ func TestNewRegistryManager_ValidatesConfig(t *testing.T) {
 				Port:      5001,
 				Storage:   "",
 			},
-			wantPanic: true,
+			wantError: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.wantPanic {
-				assert.Panics(t, func() {
-					NewRegistryManager(tt.config)
-				}, "Factory should panic with invalid config")
+			mgr, err := NewRegistryManager(tt.config)
+			if tt.wantError {
+				assert.Error(t, err, "Factory should return error with invalid config")
+				assert.Nil(t, mgr)
 			} else {
-				assert.NotPanics(t, func() {
-					mgr := NewRegistryManager(tt.config)
-					assert.NotNil(t, mgr)
-				}, "Factory should not panic with valid config")
+				assert.NoError(t, err, "Factory should not return error with valid config")
+				assert.NotNil(t, mgr)
 			}
 		})
 	}
@@ -283,7 +285,8 @@ func TestFactories_Integration(t *testing.T) {
 	}
 
 	// Create registry manager
-	regMgr := NewRegistryManager(regConfig)
+	regMgr, err := NewRegistryManager(regConfig)
+	require.NoError(t, err)
 	require.NotNil(t, regMgr)
 
 	// Create binary manager
@@ -308,7 +311,8 @@ func TestFactories_DefaultConfig(t *testing.T) {
 	// Test creating manager with default config
 	config := DefaultRegistryConfig()
 
-	mgr := NewRegistryManager(config)
+	mgr, err := NewRegistryManager(config)
+	require.NoError(t, err)
 	require.NotNil(t, mgr)
 
 	// Should work with defaults

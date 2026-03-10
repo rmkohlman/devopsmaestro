@@ -144,18 +144,20 @@ func (h *NvimThemeHandler) ToYAML(res resource.Resource) ([]byte, error) {
 func (h *NvimThemeHandler) getStore(ctx resource.Context) (theme.Store, error) {
 	// If ThemeStore is directly provided, use it
 	if ctx.ThemeStore != nil {
-		if ts, ok := ctx.ThemeStore.(theme.Store); ok {
-			return ts, nil
+		ts, err := resource.ThemeStoreAs[theme.Store](ctx)
+		if err != nil {
+			return nil, fmt.Errorf("invalid ThemeStore type: %T", ctx.ThemeStore)
 		}
-		return nil, fmt.Errorf("invalid ThemeStore type: %T", ctx.ThemeStore)
+		return ts, nil
 	}
 
 	// If DataStore is provided, use DBStoreAdapter
 	if ctx.DataStore != nil {
-		if ds, ok := ctx.DataStore.(theme.ThemeDataStore); ok {
-			return theme.NewDBStoreAdapter(ds), nil
+		ds, err := resource.DataStoreAs[theme.ThemeDataStore](ctx)
+		if err != nil {
+			return nil, fmt.Errorf("DataStore does not implement ThemeDataStore: %T", ctx.DataStore)
 		}
-		return nil, fmt.Errorf("DataStore does not implement ThemeDataStore: %T", ctx.DataStore)
+		return theme.NewDBStoreAdapter(ds), nil
 	}
 
 	// If ConfigDir is provided, use FileStore

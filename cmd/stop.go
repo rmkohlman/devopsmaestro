@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"devopsmaestro/db"
 	"devopsmaestro/pkg/registry"
 	"devopsmaestro/render"
 	"fmt"
@@ -63,11 +62,10 @@ func runStopRegistry(cmd *cobra.Command, args []string) error {
 	name := args[0] // Get name from positional arg (Args validator ensures it exists)
 
 	// Get DataStore from context
-	dataStore, ok := ctx.Value("dataStore").(*db.DataStore)
-	if !ok || dataStore == nil {
-		return fmt.Errorf("database not initialized")
+	store, err := getDataStore(cmd)
+	if err != nil {
+		return fmt.Errorf("database not initialized: %w", err)
 	}
-	store := *dataStore
 
 	// Look up Registry by name
 	reg, err := store.GetRegistryByName(name)

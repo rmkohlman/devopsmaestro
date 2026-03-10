@@ -38,7 +38,7 @@ func (h *EcosystemHandler) Apply(ctx resource.Context, data []byte) (resource.Re
 	ecosystem.FromYAML(ecosystemYAML)
 
 	// Get the datastore
-	ds, err := h.getDataStore(ctx)
+	ds, err := resource.DataStoreAs[db.EcosystemStore](ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +68,7 @@ func (h *EcosystemHandler) Apply(ctx resource.Context, data []byte) (resource.Re
 
 // Get retrieves an ecosystem by name.
 func (h *EcosystemHandler) Get(ctx resource.Context, name string) (resource.Resource, error) {
-	ds, err := h.getDataStore(ctx)
+	ds, err := resource.DataStoreAs[db.EcosystemStore](ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +83,7 @@ func (h *EcosystemHandler) Get(ctx resource.Context, name string) (resource.Reso
 
 // List returns all ecosystems.
 func (h *EcosystemHandler) List(ctx resource.Context) ([]resource.Resource, error) {
-	ds, err := h.getDataStore(ctx)
+	ds, err := resource.DataStoreAs[db.EcosystemStore](ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +102,7 @@ func (h *EcosystemHandler) List(ctx resource.Context) ([]resource.Resource, erro
 
 // Delete removes an ecosystem by name.
 func (h *EcosystemHandler) Delete(ctx resource.Context, name string) error {
-	ds, err := h.getDataStore(ctx)
+	ds, err := resource.DataStoreAs[db.EcosystemStore](ctx)
 	if err != nil {
 		return err
 	}
@@ -126,20 +126,6 @@ func (h *EcosystemHandler) ToYAML(res resource.Resource) ([]byte, error) {
 
 	yamlDoc := er.ecosystem.ToYAML(nil)
 	return yaml.Marshal(yamlDoc)
-}
-
-// getDataStore returns the DataStore from the context.
-func (h *EcosystemHandler) getDataStore(ctx resource.Context) (db.DataStore, error) {
-	if ctx.DataStore == nil {
-		return nil, fmt.Errorf("DataStore not provided in context")
-	}
-
-	ds, ok := ctx.DataStore.(db.DataStore)
-	if !ok {
-		return nil, fmt.Errorf("invalid DataStore type: %T", ctx.DataStore)
-	}
-
-	return ds, nil
 }
 
 // EcosystemResource wraps a models.Ecosystem to implement resource.Resource.

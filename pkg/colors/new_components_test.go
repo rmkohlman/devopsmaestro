@@ -243,8 +243,8 @@ func TestThemeStoreAdapter_ImplementsInterface(t *testing.T) {
 func TestInitColorProviderForCommand_NoColor(t *testing.T) {
 	ctx := context.Background()
 
-	// Test with noColor flag
-	resultCtx, err := colors.InitColorProviderForCommand(ctx, "", true)
+	// Test with noColor flag (nil provider is fine since noColor short-circuits)
+	resultCtx, err := colors.InitColorProviderForCommand(ctx, nil, true)
 	if err != nil {
 		t.Errorf("InitColorProviderForCommand() error = %v, want nil", err)
 	}
@@ -271,7 +271,7 @@ func TestInitColorProviderForCommand_NoColorEnvVar(t *testing.T) {
 	}()
 
 	ctx := context.Background()
-	resultCtx, err := colors.InitColorProviderForCommand(ctx, "", false)
+	resultCtx, err := colors.InitColorProviderForCommand(ctx, nil, false)
 	if err != nil {
 		t.Errorf("InitColorProviderForCommand() error = %v, want nil", err)
 	}
@@ -287,7 +287,7 @@ func TestInitColorProviderForCommand_NoColorEnvVar(t *testing.T) {
 
 func TestInitColorProviderForCommand_NoThemePath(t *testing.T) {
 	ctx := context.Background()
-	resultCtx, err := colors.InitColorProviderForCommand(ctx, "", false)
+	resultCtx, err := colors.InitColorProviderForCommand(ctx, nil, false)
 	if err != nil {
 		t.Errorf("InitColorProviderForCommand() error = %v, want nil", err)
 	}

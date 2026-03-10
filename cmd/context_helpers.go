@@ -10,14 +10,30 @@ import (
 )
 
 // getDataStore extracts the DataStore from the cobra command context.
+// It safely handles all the ways a DataStore may have been stored:
+//   - *db.DataStore  (production: main.go passes pointer-to-interface)
+//   - db.DataStore   (tests that store the interface directly)
+//   - *db.MockDataStore / db.MockDataStore (tests with mock)
 func getDataStore(cmd *cobra.Command) (db.DataStore, error) {
 	ctx := cmd.Context()
-	dataStore := ctx.Value("dataStore").(*db.DataStore)
-	if dataStore == nil {
-		return nil, fmt.Errorf("dataStore not initialized")
+	val := ctx.Value("dataStore")
+	if val == nil {
+		return nil, fmt.Errorf("dataStore not found in context")
 	}
 
-	return *dataStore, nil
+	switch ds := val.(type) {
+	case *db.DataStore:
+		if ds == nil {
+			return nil, fmt.Errorf("dataStore not initialized")
+		}
+		return *ds, nil
+	case db.DataStore:
+		return ds, nil
+	case *db.MockDataStore:
+		return ds, nil
+	default:
+		return nil, fmt.Errorf("invalid dataStore type in context: %T", val)
+	}
 }
 
 // getActiveAppFromContext returns the active app name from DB context, with env var override.

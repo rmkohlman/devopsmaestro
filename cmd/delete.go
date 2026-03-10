@@ -214,12 +214,10 @@ Examples:
 		workspaceName := args[0]
 
 		// Get datastore from context
-		ctx := cmd.Context()
-		dataStore := ctx.Value("dataStore").(*db.DataStore)
-		if dataStore == nil {
-			return fmt.Errorf("dataStore not initialized")
+		ds, err := getDataStore(cmd)
+		if err != nil {
+			return fmt.Errorf("DataStore not initialized: %w", err)
 		}
-		ds := *dataStore
 
 		// Get app from flag or context
 		appFlag, _ := cmd.Flags().GetString("app")
@@ -305,12 +303,10 @@ Examples:
 
 func deleteRegistry(cmd *cobra.Command, name string) error {
 	// Get datastore from context
-	ctx := cmd.Context()
-	dataStore := ctx.Value("dataStore").(*db.DataStore)
-	if dataStore == nil {
-		return fmt.Errorf("DataStore not initialized")
+	ds, err := getDataStore(cmd)
+	if err != nil {
+		return fmt.Errorf("DataStore not initialized: %w", err)
 	}
-	ds := *dataStore
 
 	// Check if registry exists (for confirmation prompt display)
 	reg, err := ds.GetRegistryByName(name)
@@ -332,7 +328,7 @@ func deleteRegistry(cmd *cobra.Command, name string) error {
 
 	// Use the core function with auto-stop logic
 	factory := registry.NewServiceFactory()
-	if err := deleteRegistryCore(ctx, ds, factory, name, force); err != nil {
+	if err := deleteRegistryCore(cmd.Context(), ds, factory, name, force); err != nil {
 		return err
 	}
 

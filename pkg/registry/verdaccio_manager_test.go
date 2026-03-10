@@ -39,7 +39,9 @@ func setupTestVerdaccioManager(t *testing.T) NpmProxy {
 		LogFile: config.Storage + "/verdaccio.log",
 	})
 
-	return NewVerdaccioManagerWithDeps(config, mockBinary, mockProcess)
+	mgr, err := NewVerdaccioManager(config, mockBinary, mockProcess)
+	require.NoError(t, err)
+	return mgr
 }
 
 // =============================================================================
@@ -95,13 +97,14 @@ func TestVerdaccioManager_Start_BinaryNotFound(t *testing.T) {
 		Storage:   t.TempDir(),
 	}
 
-	mgr := NewVerdaccioManager(config)
+	mgr, err := NewVerdaccioManagerDefault(config)
+	require.NoError(t, err)
 	ctx := context.Background()
 
 	// Mock BinaryManager to return error
 	// (This test will need proper mock injection in implementation)
 
-	err := mgr.Start(ctx)
+	err = mgr.Start(ctx)
 	assert.Error(t, err, "Start should fail if binary not found")
 	assert.Contains(t, err.Error(), "binary", "Error should mention binary")
 }
@@ -124,7 +127,8 @@ func TestVerdaccioManager_Start_PortInUse(t *testing.T) {
 		Port:      14873, // Same port
 		Storage:   t.TempDir(),
 	}
-	mgr2 := NewVerdaccioManager(config)
+	mgr2, err := NewVerdaccioManagerDefault(config)
+	require.NoError(t, err)
 
 	err = mgr2.Start(ctx)
 	assert.Error(t, err, "Start should fail if port is in use")
@@ -385,7 +389,8 @@ func TestVerdaccioManager_GetEndpoint_ReturnsCorrectFormat(t *testing.T) {
 				Port:      tt.port,
 				Storage:   t.TempDir(),
 			}
-			mgr := NewVerdaccioManager(config)
+			mgr, err := NewVerdaccioManagerDefault(config)
+			require.NoError(t, err)
 
 			endpoint := mgr.GetEndpoint()
 			assert.Equal(t, tt.wantFmt, endpoint, "Endpoint format should be http://localhost:port")
@@ -404,7 +409,8 @@ func TestVerdaccioManager_GetNpmEnv_ReturnsCorrectVariables(t *testing.T) {
 		Port:      4873,
 		Storage:   t.TempDir(),
 	}
-	mgr := NewVerdaccioManager(config)
+	mgr, err := NewVerdaccioManagerDefault(config)
+	require.NoError(t, err)
 
 	npmEnv := mgr.GetNpmEnv()
 
@@ -442,7 +448,8 @@ func TestVerdaccioManager_GetNpmEnv_DifferentPorts(t *testing.T) {
 				Port:      tt.port,
 				Storage:   t.TempDir(),
 			}
-			mgr := NewVerdaccioManager(config)
+			mgr, err := NewVerdaccioManagerDefault(config)
+			require.NoError(t, err)
 
 			npmEnv := mgr.GetNpmEnv()
 
@@ -461,7 +468,8 @@ func TestVerdaccioManager_GetNpmEnv_NotRunning(t *testing.T) {
 		Port:      4873,
 		Storage:   t.TempDir(),
 	}
-	mgr := NewVerdaccioManager(config)
+	mgr, err := NewVerdaccioManagerDefault(config)
+	require.NoError(t, err)
 
 	npmEnv := mgr.GetNpmEnv()
 
@@ -481,7 +489,8 @@ func TestVerdaccioManager_GetNpmrc_ReturnsCorrectFormat(t *testing.T) {
 		Port:      4873,
 		Storage:   t.TempDir(),
 	}
-	mgr := NewVerdaccioManager(config)
+	mgr, err := NewVerdaccioManagerDefault(config)
+	require.NoError(t, err)
 
 	npmrc := mgr.GetNpmrc()
 
@@ -511,7 +520,8 @@ func TestVerdaccioManager_GetNpmrc_DifferentPorts(t *testing.T) {
 				Port:      tt.port,
 				Storage:   t.TempDir(),
 			}
-			mgr := NewVerdaccioManager(config)
+			mgr, err := NewVerdaccioManagerDefault(config)
+			require.NoError(t, err)
 
 			npmrc := mgr.GetNpmrc()
 
@@ -532,7 +542,8 @@ func TestVerdaccioManager_GetYarnConfig_ReturnsCorrectFormat(t *testing.T) {
 		Port:      4873,
 		Storage:   t.TempDir(),
 	}
-	mgr := NewVerdaccioManager(config)
+	mgr, err := NewVerdaccioManagerDefault(config)
+	require.NoError(t, err)
 
 	yarnConfig := mgr.GetYarnConfig()
 
@@ -561,7 +572,8 @@ func TestVerdaccioManager_GetYarnConfig_DifferentPorts(t *testing.T) {
 				Port:      tt.port,
 				Storage:   t.TempDir(),
 			}
-			mgr := NewVerdaccioManager(config)
+			mgr, err := NewVerdaccioManagerDefault(config)
+			require.NoError(t, err)
 
 			yarnConfig := mgr.GetYarnConfig()
 
@@ -586,11 +598,12 @@ func TestVerdaccioManager_IdleTimeout_OnDemand(t *testing.T) {
 		IdleTimeout: 500 * time.Millisecond, // Short timeout for testing
 	}
 
-	mgr := NewVerdaccioManager(config)
+	mgr, err := NewVerdaccioManagerDefault(config)
+	require.NoError(t, err)
 	ctx := context.Background()
 
 	// Start proxy
-	err := mgr.Start(ctx)
+	err = mgr.Start(ctx)
 	require.NoError(t, err)
 
 	// Verify running
@@ -614,10 +627,11 @@ func TestVerdaccioManager_IdleTimeout_ResetOnAccess(t *testing.T) {
 		IdleTimeout: 1 * time.Second,
 	}
 
-	mgr := NewVerdaccioManager(config)
+	mgr, err := NewVerdaccioManagerDefault(config)
+	require.NoError(t, err)
 	ctx := context.Background()
 
-	err := mgr.Start(ctx)
+	err = mgr.Start(ctx)
 	require.NoError(t, err)
 
 	// Access endpoint to reset timer

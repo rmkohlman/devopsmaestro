@@ -24,20 +24,6 @@ func (h *RegistryHandler) Kind() string {
 	return KindRegistry
 }
 
-// getDataStore extracts and type-asserts the DataStore from the context.
-func (h *RegistryHandler) getDataStore(ctx resource.Context) (db.DataStore, error) {
-	if ctx.DataStore == nil {
-		return nil, fmt.Errorf("DataStore not provided in context")
-	}
-
-	ds, ok := ctx.DataStore.(db.DataStore)
-	if !ok {
-		return nil, fmt.Errorf("invalid DataStore type: %T", ctx.DataStore)
-	}
-
-	return ds, nil
-}
-
 // Apply creates or updates a registry from YAML data.
 func (h *RegistryHandler) Apply(ctx resource.Context, data []byte) (resource.Resource, error) {
 	var regYAML models.RegistryYAML
@@ -46,7 +32,7 @@ func (h *RegistryHandler) Apply(ctx resource.Context, data []byte) (resource.Res
 	}
 
 	// Get the datastore
-	ds, err := h.getDataStore(ctx)
+	ds, err := resource.DataStoreAs[db.RegistryStore](ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +69,7 @@ func (h *RegistryHandler) Apply(ctx resource.Context, data []byte) (resource.Res
 
 // Get retrieves a registry by name.
 func (h *RegistryHandler) Get(ctx resource.Context, name string) (resource.Resource, error) {
-	ds, err := h.getDataStore(ctx)
+	ds, err := resource.DataStoreAs[db.RegistryStore](ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +84,7 @@ func (h *RegistryHandler) Get(ctx resource.Context, name string) (resource.Resou
 
 // List retrieves all registries.
 func (h *RegistryHandler) List(ctx resource.Context) ([]resource.Resource, error) {
-	ds, err := h.getDataStore(ctx)
+	ds, err := resource.DataStoreAs[db.RegistryStore](ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +104,7 @@ func (h *RegistryHandler) List(ctx resource.Context) ([]resource.Resource, error
 
 // Delete removes a registry by name.
 func (h *RegistryHandler) Delete(ctx resource.Context, name string) error {
-	ds, err := h.getDataStore(ctx)
+	ds, err := resource.DataStoreAs[db.RegistryStore](ctx)
 	if err != nil {
 		return err
 	}

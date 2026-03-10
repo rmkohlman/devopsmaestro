@@ -181,9 +181,14 @@ func init() {
 		// Initialize ColorProvider for nvp
 		// nvp uses its own theme path under ~/.nvp/themes
 		nvpThemePath := filepath.Join(getConfigDir(), "themes")
+		var paletteProvider colors.PaletteProvider
+		if nvpThemePath != "" {
+			store := theme.NewFileStore(nvpThemePath)
+			paletteProvider = colors.NewThemeStoreAdapter(store)
+		}
 		ctx, err := colors.InitColorProviderForCommand(
 			cmd.Context(),
-			nvpThemePath,
+			paletteProvider,
 			noColor,
 		)
 		if err != nil {
@@ -2134,7 +2139,7 @@ func getConfigDir() string {
 	return filepath.Join(home, ".nvp")
 }
 
-func getManager() (*nvimops.Manager, error) {
+func getManager() (nvimops.Manager, error) {
 	dir := getConfigDir()
 	pluginsDir := filepath.Join(dir, "plugins")
 

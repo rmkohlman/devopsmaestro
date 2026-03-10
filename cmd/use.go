@@ -83,10 +83,8 @@ Examples:
 			}
 
 			// Also clear database context
-			ctx := cmd.Context()
-			dataStore := ctx.Value("dataStore").(*db.DataStore)
-			if dataStore != nil {
-				ds := *dataStore
+			ds, err := getDataStore(cmd)
+			if err == nil {
 				ds.SetActiveApp(nil)
 				ds.SetActiveWorkspace(nil)
 			}
@@ -96,13 +94,10 @@ Examples:
 		}
 
 		// Get datastore from context
-		ctx := cmd.Context()
-		dataStore := ctx.Value("dataStore").(*db.DataStore)
-		if dataStore == nil {
-			return fmt.Errorf("dataStore not initialized")
+		ds, err := getDataStore(cmd)
+		if err != nil {
+			return fmt.Errorf("dataStore not initialized: %w", err)
 		}
-
-		ds := *dataStore
 
 		// Verify app exists (search globally across all domains)
 		app, err := ds.GetAppByNameGlobal(appName)
@@ -166,10 +161,8 @@ Examples:
 			}
 
 			// Also clear database context
-			ctx := cmd.Context()
-			dataStore := ctx.Value("dataStore").(*db.DataStore)
-			if dataStore != nil {
-				ds := *dataStore
+			ds, err := getDataStore(cmd)
+			if err == nil {
 				ds.SetActiveWorkspace(nil)
 			}
 
@@ -178,13 +171,10 @@ Examples:
 		}
 
 		// Get datastore from context
-		ctx := cmd.Context()
-		dataStore := ctx.Value("dataStore").(*db.DataStore)
-		if dataStore == nil {
-			return fmt.Errorf("dataStore not initialized")
+		ds, err := getDataStore(cmd)
+		if err != nil {
+			return fmt.Errorf("dataStore not initialized: %w", err)
 		}
-
-		ds := *dataStore
 
 		// Get active app (DB-backed)
 		appName, err := getActiveAppFromContext(ds)
@@ -267,13 +257,10 @@ Examples:
 		packageName := args[0]
 
 		// Get datastore from context
-		ctx := cmd.Context()
-		dataStore := ctx.Value("dataStore").(*db.DataStore)
-		if dataStore == nil {
-			return fmt.Errorf("dataStore not initialized")
+		ds, err := getDataStore(cmd)
+		if err != nil {
+			return fmt.Errorf("dataStore not initialized: %w", err)
 		}
-
-		ds := *dataStore
 
 		// Handle "none" to clear default
 		if packageName == "none" {
@@ -363,13 +350,10 @@ Examples:
 		packageName := args[0]
 
 		// Get datastore from context
-		ctx := cmd.Context()
-		dataStore := ctx.Value("dataStore").(*db.DataStore)
-		if dataStore == nil {
-			return fmt.Errorf("dataStore not initialized")
+		ds, err := getDataStore(cmd)
+		if err != nil {
+			return fmt.Errorf("dataStore not initialized: %w", err)
 		}
-
-		ds := *dataStore
 
 		// Handle "none" to clear default
 		if packageName == "none" {

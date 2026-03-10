@@ -207,8 +207,8 @@ func getEffectiveTheme(ctx resource.Context, level resolver.HierarchyLevel, obje
 
 	// Theme is being cleared - resolve hierarchy to find what will be effective
 	// Create resolver
-	sqlDS, ok := ctx.DataStore.(db.DataStore)
-	if !ok {
+	sqlDS, err := resource.DataStoreAs[db.DataStore](ctx)
+	if err != nil {
 		// Fallback to default if we can't get datastore
 		return resolver.DefaultTheme
 	}
@@ -382,7 +382,10 @@ func setDomainTheme(cmd *cobra.Command, ctx resource.Context, domainName, themeN
 
 	// Update using resource handler pattern
 	// Need to get ecosystem name for ToYAML
-	ds := ctx.DataStore.(db.DataStore)
+	ds, err := resource.DataStoreAs[db.DataStore](ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DataStore: %w", err)
+	}
 	ecosystem, err := ds.GetEcosystemByID(domain.EcosystemID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get ecosystem for domain: %w", err)
@@ -447,7 +450,10 @@ func setAppTheme(cmd *cobra.Command, ctx resource.Context, appName, themeName st
 
 	// Update using resource handler pattern
 	// Need to get domain name for ToYAML - extract from context or lookup
-	ds := ctx.DataStore.(db.DataStore)
+	ds, err := resource.DataStoreAs[db.DataStore](ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DataStore: %w", err)
+	}
 	domain, err := ds.GetDomainByID(app.DomainID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get domain for app: %w", err)
@@ -479,9 +485,9 @@ func setAppTheme(cmd *cobra.Command, ctx resource.Context, appName, themeName st
 // context is used via the resource handler.
 func setWorkspaceTheme(cmd *cobra.Command, ctx resource.Context, workspaceName, scopeAppName, themeName string) (*ThemeSetResult, error) {
 	// Get the datastore
-	sqlDS, ok := ctx.DataStore.(db.DataStore)
-	if !ok {
-		return nil, fmt.Errorf("invalid DataStore type: %T", ctx.DataStore)
+	sqlDS, err := resource.DataStoreAs[db.DataStore](ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DataStore: %w", err)
 	}
 
 	var workspace *models.Workspace
@@ -562,7 +568,10 @@ func setWorkspaceTheme(cmd *cobra.Command, ctx resource.Context, workspaceName, 
 
 // setGlobalDefaultTheme sets or clears the global default theme using the defaults table
 func setGlobalDefaultTheme(cmd *cobra.Command, ctx resource.Context, themeName string) (*ThemeSetResult, error) {
-	ds := ctx.DataStore.(db.DataStore)
+	ds, err := resource.DataStoreAs[db.DataStore](ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DataStore: %w", err)
+	}
 
 	// Get previous global default theme
 	previousTheme, err := ds.GetDefault("theme")

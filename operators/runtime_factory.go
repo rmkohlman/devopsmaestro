@@ -22,10 +22,22 @@ type RuntimeConfig struct {
 	Type     RuntimeType
 }
 
-// NewContainerRuntime creates the appropriate container runtime based on configuration
-// It auto-detects the platform if not specified in config
+// NewContainerRuntime creates the appropriate container runtime using a default
+// PlatformDetector. Prefer NewContainerRuntimeWith for testability.
 func NewContainerRuntime() (ContainerRuntime, error) {
-	config, err := resolveRuntimeConfig()
+	detector, err := NewPlatformDetector()
+	if err != nil {
+		return nil, err
+	}
+	return NewContainerRuntimeWith(detector)
+}
+
+// NewContainerRuntimeWith creates the appropriate container runtime using the
+// supplied PlatformDetector. This is the DI-friendly constructor — callers that
+// need control over platform detection (tests, composition roots) should use
+// this variant.
+func NewContainerRuntimeWith(detector PlatformDetector) (ContainerRuntime, error) {
+	config, err := resolveRuntimeConfig(detector)
 	if err != nil {
 		return nil, err
 	}
@@ -42,18 +54,14 @@ func NewContainerRuntime() (ContainerRuntime, error) {
 	}
 }
 
-// resolveRuntimeConfig determines which runtime and platform to use
-func resolveRuntimeConfig() (*RuntimeConfig, error) {
+// resolveRuntimeConfig determines which runtime and platform to use.
+// The PlatformDetector is accepted as a parameter rather than created
+// internally to support dependency injection.
+func resolveRuntimeConfig(detector PlatformDetector) (*RuntimeConfig, error) {
 	// Check config or environment variable for explicit runtime type
 	runtimeType := viper.GetString("runtime.type")
 	if runtimeType == "" {
 		runtimeType = os.Getenv("DVM_RUNTIME")
-	}
-
-	// Detect platform
-	detector, err := NewPlatformDetector()
-	if err != nil {
-		return nil, err
 	}
 
 	platform, err := detector.Detect()
@@ -98,27 +106,36 @@ func GetActiveRuntime() (string, error) {
 	return runtime.GetRuntimeType(), nil
 }
 
-// GetDetectedPlatformInfo returns user-friendly information about the detected platform
+// GetDetectedPlatformInfo returns user-friendly information about the detected
+// platform. Uses a default PlatformDetector.
 func GetDetectedPlatformInfo() (string, error) {
 	detector, err := NewPlatformDetector()
 	if err != nil {
 		return "", err
 	}
+	return GetDetectedPlatformInfoWith(detector)
+}
 
+// GetDetectedPlatformInfoWith returns platform info using the supplied detector.
+func GetDetectedPlatformInfoWith(detector PlatformDetector) (string, error) {
 	platform, err := detector.Detect()
 	if err != nil {
 		return "", err
 	}
-
 	return platform.Name, nil
 }
 
-// ListAvailablePlatforms returns all detected container platforms
+// ListAvailablePlatforms returns all detected container platforms.
+// Uses a default PlatformDetector.
 func ListAvailablePlatforms() ([]*Platform, error) {
 	detector, err := NewPlatformDetector()
 	if err != nil {
 		return nil, err
 	}
+	return ListAvailablePlatformsWith(detector)
+}
 
+// ListAvailablePlatformsWith returns all platforms using the supplied detector.
+func ListAvailablePlatformsWith(detector PlatformDetector) ([]*Platform, error) {
 	return detector.DetectAll(), nil
 }

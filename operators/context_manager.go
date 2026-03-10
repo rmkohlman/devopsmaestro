@@ -8,8 +8,45 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// ContextManager manages the active app/workspace context (kubectl-style)
-type ContextManager struct {
+// ContextManager defines the interface for managing the active app/workspace context (kubectl-style).
+// This enables DI and testing by allowing mock implementations.
+type ContextManager interface {
+	// GetActiveApp returns the active app name.
+	// Precedence: DVM_APP env var → context.yaml → error.
+	GetActiveApp() (string, error)
+
+	// GetActiveWorkspace returns the active workspace name.
+	// Precedence: DVM_WORKSPACE env var → context.yaml → error.
+	GetActiveWorkspace() (string, error)
+
+	// SetApp sets the active app and clears the workspace.
+	SetApp(appName string) error
+
+	// SetWorkspace sets the active workspace (requires active app).
+	SetWorkspace(workspaceName string) error
+
+	// ClearApp clears the active app and workspace.
+	ClearApp() error
+
+	// ClearWorkspace clears the active workspace (keeps app).
+	ClearWorkspace() error
+
+	// LoadContext loads the context from the YAML file.
+	LoadContext() (*ContextConfig, error)
+
+	// SaveContext saves the context to the YAML file.
+	SaveContext(ctx *ContextConfig) error
+
+	// GetContextSummary returns a human-readable summary of the current context.
+	GetContextSummary() (string, error)
+}
+
+// Compile-time interface compliance check
+var _ ContextManager = (*DefaultContextManager)(nil)
+
+// DefaultContextManager is the standard implementation of ContextManager
+// that persists context to a YAML file on disk.
+type DefaultContextManager struct {
 	contextFilePath string
 }
 
@@ -19,8 +56,9 @@ type ContextConfig struct {
 	CurrentWorkspace string `yaml:"current_workspace"`
 }
 
-// NewContextManager creates a new context manager
-func NewContextManager() (*ContextManager, error) {
+// NewContextManager creates a new context manager.
+// Returns the ContextManager interface for loose coupling.
+func NewContextManager() (ContextManager, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get home directory: %w", err)
@@ -29,14 +67,14 @@ func NewContextManager() (*ContextManager, error) {
 	dvmDir := filepath.Join(homeDir, ".devopsmaestro")
 	contextPath := filepath.Join(dvmDir, "context.yaml")
 
-	return &ContextManager{
+	return &DefaultContextManager{
 		contextFilePath: contextPath,
 	}, nil
 }
 
 // GetActiveApp returns the active app name
 // Precedence: DVM_APP env var → context.yaml → error
-func (cm *ContextManager) GetActiveApp() (string, error) {
+func (cm *DefaultContextManager) GetActiveApp() (string, error) {
 	// Check environment variable first
 	if app := os.Getenv("DVM_APP"); app != "" {
 		return app, nil
@@ -57,7 +95,7 @@ func (cm *ContextManager) GetActiveApp() (string, error) {
 
 // GetActiveWorkspace returns the active workspace name
 // Precedence: DVM_WORKSPACE env var → context.yaml → error
-func (cm *ContextManager) GetActiveWorkspace() (string, error) {
+func (cm *DefaultContextManager) GetActiveWorkspace() (string, error) {
 	// Check environment variable first
 	if workspace := os.Getenv("DVM_WORKSPACE"); workspace != "" {
 		return workspace, nil
@@ -77,7 +115,7 @@ func (cm *ContextManager) GetActiveWorkspace() (string, error) {
 }
 
 // SetApp sets the active app
-func (cm *ContextManager) SetApp(appName string) error {
+func (cm *DefaultContextManager) SetApp(appName string) error {
 	ctx, _ := cm.LoadContext() // Ignore error if file doesn't exist
 	if ctx == nil {
 		ctx = &ContextConfig{}
@@ -91,7 +129,7 @@ func (cm *ContextManager) SetApp(appName string) error {
 }
 
 // SetWorkspace sets the active workspace (requires active app)
-func (cm *ContextManager) SetWorkspace(workspaceName string) error {
+func (cm *DefaultContextManager) SetWorkspace(workspaceName string) error {
 	ctx, err := cm.LoadContext()
 	if err != nil || ctx.CurrentApp == "" {
 		return fmt.Errorf("no active app (use 'dvm use app <name>' first)")
@@ -102,7 +140,7 @@ func (cm *ContextManager) SetWorkspace(workspaceName string) error {
 }
 
 // ClearApp clears the active app and workspace
-func (cm *ContextManager) ClearApp() error {
+func (cm *DefaultContextManager) ClearApp() error {
 	ctx := &ContextConfig{
 		CurrentApp:       "",
 		CurrentWorkspace: "",
@@ -111,7 +149,7 @@ func (cm *ContextManager) ClearApp() error {
 }
 
 // ClearWorkspace clears the active workspace (keeps app)
-func (cm *ContextManager) ClearWorkspace() error {
+func (cm *DefaultContextManager) ClearWorkspace() error {
 	ctx, err := cm.LoadContext()
 	if err != nil {
 		return err
@@ -122,7 +160,7 @@ func (cm *ContextManager) ClearWorkspace() error {
 }
 
 // LoadContext loads the context from the YAML file
-func (cm *ContextManager) LoadContext() (*ContextConfig, error) {
+func (cm *DefaultContextManager) LoadContext() (*ContextConfig, error) {
 	data, err := os.ReadFile(cm.contextFilePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -141,7 +179,7 @@ func (cm *ContextManager) LoadContext() (*ContextConfig, error) {
 }
 
 // SaveContext saves the context to the YAML file
-func (cm *ContextManager) SaveContext(ctx *ContextConfig) error {
+func (cm *DefaultContextManager) SaveContext(ctx *ContextConfig) error {
 	// Ensure directory exists
 	dir := filepath.Dir(cm.contextFilePath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -163,7 +201,7 @@ func (cm *ContextManager) SaveContext(ctx *ContextConfig) error {
 }
 
 // GetContextSummary returns a human-readable summary of the current context
-func (cm *ContextManager) GetContextSummary() (string, error) {
+func (cm *DefaultContextManager) GetContextSummary() (string, error) {
 	ctx, err := cm.LoadContext()
 	if err != nil {
 		return "", err

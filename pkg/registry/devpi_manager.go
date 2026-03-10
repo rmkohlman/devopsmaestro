@@ -17,14 +17,29 @@ type DevpiManager struct {
 	initialized bool
 }
 
-// NewDevpiManager creates a new DevpiManager with the given configuration.
-func NewDevpiManager(config PyPIProxyConfig) *DevpiManager {
-	// Validate config
+// NewDevpiManager creates a DevpiManager with injected dependencies.
+// This is the canonical constructor — callers provide their own BinaryManager
+// and ProcessManager, enabling testability and explicit dependency control.
+// Returns an error if the config is invalid.
+func NewDevpiManager(config PyPIProxyConfig, binary BinaryManager, process ProcessManager) (*DevpiManager, error) {
 	if err := config.Validate(); err != nil {
-		panic(fmt.Sprintf("invalid devpi config: %v", err))
+		return nil, fmt.Errorf("invalid devpi config: %w", err)
 	}
 
-	// Create real binary and process managers
+	return &DevpiManager{
+		BaseServiceManager: NewBaseServiceManager(binary, process),
+		config:             config,
+	}, nil
+}
+
+// NewDevpiManagerDefault creates a DevpiManager with default production
+// dependencies (PipxBinaryManager for devpi-server v6.2.0, ProcessManager
+// with standard PID/log paths). Prefer NewDevpiManager for testability.
+func NewDevpiManagerDefault(config PyPIProxyConfig) (*DevpiManager, error) {
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid devpi config: %w", err)
+	}
+
 	binaryManager := NewPipxBinaryManager("devpi-server", "6.2.0")
 	processManager := NewProcessManager(ProcessConfig{
 		PIDFile: filepath.Join(config.Storage, "devpi.pid"),
@@ -34,19 +49,7 @@ func NewDevpiManager(config PyPIProxyConfig) *DevpiManager {
 	return &DevpiManager{
 		BaseServiceManager: NewBaseServiceManager(binaryManager, processManager),
 		config:             config,
-	}
-}
-
-// NewDevpiManagerWithDeps creates a DevpiManager with injected dependencies.
-func NewDevpiManagerWithDeps(config PyPIProxyConfig, binary BinaryManager, process ProcessManager) *DevpiManager {
-	if err := config.Validate(); err != nil {
-		panic(fmt.Sprintf("invalid devpi config: %v", err))
-	}
-
-	return &DevpiManager{
-		BaseServiceManager: NewBaseServiceManager(binary, process),
-		config:             config,
-	}
+	}, nil
 }
 
 // Start starts the devpi proxy process.

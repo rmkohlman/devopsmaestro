@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"database/sql"
-	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/mirror"
 	"devopsmaestro/render"
@@ -217,34 +216,6 @@ func findCommandIndex(parent *cobra.Command, name string) int {
 }
 
 // =============================================================================
-// Helper Functions
-// =============================================================================
-
-// getDataStoreFromContext extracts the DataStore from the command context.
-// It handles various types that tests might pass.
-func getDataStoreFromContext(cmd *cobra.Command) (db.DataStore, error) {
-	ctx := cmd.Context()
-	dataStoreVal := ctx.Value("dataStore")
-	if dataStoreVal == nil {
-		return nil, fmt.Errorf("dataStore not found in context")
-	}
-
-	// Handle various dataStore types that might be passed
-	switch ds := dataStoreVal.(type) {
-	case db.DataStore:
-		return ds, nil
-	case *db.DataStore:
-		return *ds, nil
-	case **db.MockDataStore:
-		return *ds, nil
-	case *db.MockDataStore:
-		return ds, nil
-	default:
-		return nil, fmt.Errorf("invalid dataStore type in context: %T", dataStoreVal)
-	}
-}
-
-// =============================================================================
 // Command Implementations
 // =============================================================================
 
@@ -285,7 +256,7 @@ func runCreateGitRepo(cmd *cobra.Command, args []string) error {
 	noSync, _ := cmd.Flags().GetBool("no-sync")
 
 	// Get dataStore from context
-	dataStore, err := getDataStoreFromContext(cmd)
+	dataStore, err := getDataStore(cmd)
 	if err != nil {
 		return err
 	}
@@ -349,7 +320,7 @@ func runCreateGitRepo(cmd *cobra.Command, args []string) error {
 // runGetGitRepos implements the get gitrepos command
 func runGetGitRepos(cmd *cobra.Command, args []string) error {
 	// Get dataStore from context
-	dataStore, err := getDataStoreFromContext(cmd)
+	dataStore, err := getDataStore(cmd)
 	if err != nil {
 		return err
 	}
@@ -432,7 +403,7 @@ func runGetGitRepo(cmd *cobra.Command, args []string) error {
 	name := args[0]
 
 	// Get dataStore from context
-	dataStore, err := getDataStoreFromContext(cmd)
+	dataStore, err := getDataStore(cmd)
 	if err != nil {
 		return err
 	}
@@ -455,7 +426,7 @@ func runDeleteGitRepo(cmd *cobra.Command, args []string) error {
 	name := args[0]
 
 	// Get dataStore from context
-	dataStore, err := getDataStoreFromContext(cmd)
+	dataStore, err := getDataStore(cmd)
 	if err != nil {
 		return err
 	}
@@ -495,7 +466,7 @@ func runSyncGitRepo(cmd *cobra.Command, args []string) error {
 	name := args[0]
 
 	// Get dataStore from context
-	dataStore, err := getDataStoreFromContext(cmd)
+	dataStore, err := getDataStore(cmd)
 	if err != nil {
 		return err
 	}
@@ -543,7 +514,7 @@ func runSyncGitRepo(cmd *cobra.Command, args []string) error {
 // runSyncGitRepos implements the sync gitrepos command
 func runSyncGitRepos(cmd *cobra.Command, args []string) error {
 	// Get dataStore from context
-	dataStore, err := getDataStoreFromContext(cmd)
+	dataStore, err := getDataStore(cmd)
 	if err != nil {
 		return err
 	}

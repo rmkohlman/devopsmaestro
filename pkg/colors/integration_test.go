@@ -46,11 +46,14 @@ func TestColorProviderIntegration(t *testing.T) {
 		t.Fatalf("Failed to set active theme: %v", err)
 	}
 
+	// Create PaletteProvider adapter for tests
+	adapter := colors.NewThemeStoreAdapter(store)
+
 	t.Run("InitColorProviderForCommand with active theme", func(t *testing.T) {
 		ctx := context.Background()
 
 		// Initialize ColorProvider using the command helper
-		ctx, err := colors.InitColorProviderForCommand(ctx, tempDir, false)
+		ctx, err := colors.InitColorProviderForCommand(ctx, adapter, false)
 		if err != nil {
 			t.Fatalf("InitColorProviderForCommand failed: %v", err)
 		}
@@ -80,7 +83,7 @@ func TestColorProviderIntegration(t *testing.T) {
 		ctx := context.Background()
 
 		// Initialize with no-color flag
-		ctx, err := colors.InitColorProviderForCommand(ctx, tempDir, true)
+		ctx, err := colors.InitColorProviderForCommand(ctx, adapter, true)
 		if err != nil {
 			t.Fatalf("InitColorProviderForCommand failed: %v", err)
 		}
@@ -118,7 +121,7 @@ func TestColorProviderIntegration(t *testing.T) {
 		ctx := context.Background()
 
 		// Initialize without no-color flag (should still respect env var)
-		ctx, err := colors.InitColorProviderForCommand(ctx, tempDir, false)
+		ctx, err := colors.InitColorProviderForCommand(ctx, adapter, false)
 		if err != nil {
 			t.Fatalf("InitColorProviderForCommand failed: %v", err)
 		}
@@ -139,7 +142,7 @@ func TestColorProviderIntegration(t *testing.T) {
 		ctx := context.Background()
 
 		// Initialize with specific theme name
-		ctx, err := colors.InitColorProviderWithTheme(ctx, tempDir, "test-theme", false)
+		ctx, err := colors.InitColorProviderWithTheme(ctx, adapter, "test-theme", false)
 		if err != nil {
 			t.Fatalf("InitColorProviderWithTheme failed: %v", err)
 		}
@@ -163,17 +166,17 @@ func TestColorProviderIntegration(t *testing.T) {
 		ctx := context.Background()
 
 		// Try to initialize with non-existent theme
-		_, err := colors.InitColorProviderWithTheme(ctx, tempDir, "non-existent", false)
+		_, err := colors.InitColorProviderWithTheme(ctx, adapter, "non-existent", false)
 		if err == nil {
 			t.Fatal("Expected error for non-existent theme, got nil")
 		}
 	})
 
 	t.Run("Fallback to default colors", func(t *testing.T) {
-		// Use empty theme path to trigger fallback
+		// Use nil provider to trigger fallback
 		ctx := context.Background()
 
-		ctx, err := colors.InitColorProviderForCommand(ctx, "", false)
+		ctx, err := colors.InitColorProviderForCommand(ctx, nil, false)
 		if err != nil {
 			t.Fatalf("InitColorProviderForCommand failed: %v", err)
 		}

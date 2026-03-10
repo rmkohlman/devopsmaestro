@@ -21,7 +21,8 @@ func TestNewGoModuleProxy_ReturnsAthensManager(t *testing.T) {
 		Storage:   t.TempDir(),
 	}
 
-	mgr := NewGoModuleProxy(config)
+	mgr, err := NewGoModuleProxy(config)
+	require.NoError(t, err)
 	require.NotNil(t, mgr, "NewGoModuleProxy should return non-nil manager")
 
 	// Verify it implements GoModuleProxy interface
@@ -64,7 +65,8 @@ func TestNewGoModuleProxy_ConfiguresCorrectly(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mgr := NewGoModuleProxy(tt.config)
+			mgr, err := NewGoModuleProxy(tt.config)
+			require.NoError(t, err)
 			require.NotNil(t, mgr)
 
 			// Verify endpoint matches port
@@ -92,7 +94,8 @@ func TestNewGoModuleProxy_WithUpstreams(t *testing.T) {
 		},
 	}
 
-	mgr := NewGoModuleProxy(config)
+	mgr, err := NewGoModuleProxy(config)
+	require.NoError(t, err)
 	require.NotNil(t, mgr)
 
 	// Factory should handle upstream configuration
@@ -109,7 +112,8 @@ func TestNewGoModuleProxy_WithIdleTimeout(t *testing.T) {
 		IdleTimeout: 10 * time.Minute,
 	}
 
-	mgr := NewGoModuleProxy(config)
+	mgr, err := NewGoModuleProxy(config)
+	require.NoError(t, err)
 	require.NotNil(t, mgr)
 
 	// Factory should configure idle timeout for on-demand mode
@@ -123,7 +127,7 @@ func TestNewGoModuleProxy_ValidatesConfig(t *testing.T) {
 	tests := []struct {
 		name      string
 		config    GoModuleConfig
-		wantPanic bool
+		wantError bool
 	}{
 		{
 			name: "valid config",
@@ -133,7 +137,7 @@ func TestNewGoModuleProxy_ValidatesConfig(t *testing.T) {
 				Port:      3000,
 				Storage:   "/tmp/athens",
 			},
-			wantPanic: false,
+			wantError: false,
 		},
 		{
 			name: "invalid port",
@@ -143,7 +147,7 @@ func TestNewGoModuleProxy_ValidatesConfig(t *testing.T) {
 				Port:      -1,
 				Storage:   "/tmp/athens",
 			},
-			wantPanic: true,
+			wantError: true,
 		},
 		{
 			name: "empty storage",
@@ -153,21 +157,19 @@ func TestNewGoModuleProxy_ValidatesConfig(t *testing.T) {
 				Port:      3000,
 				Storage:   "",
 			},
-			wantPanic: true,
+			wantError: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.wantPanic {
-				assert.Panics(t, func() {
-					NewGoModuleProxy(tt.config)
-				}, "Factory should panic with invalid config")
+			mgr, err := NewGoModuleProxy(tt.config)
+			if tt.wantError {
+				assert.Error(t, err, "Factory should return error with invalid config")
+				assert.Nil(t, mgr)
 			} else {
-				assert.NotPanics(t, func() {
-					mgr := NewGoModuleProxy(tt.config)
-					assert.NotNil(t, mgr)
-				}, "Factory should not panic with valid config")
+				assert.NoError(t, err, "Factory should not return error with valid config")
+				assert.NotNil(t, mgr)
 			}
 		})
 	}
@@ -189,7 +191,8 @@ func TestFactories_Integration_Athens(t *testing.T) {
 	}
 
 	// Create go module proxy manager
-	proxyMgr := NewGoModuleProxy(athensConfig)
+	proxyMgr, err := NewGoModuleProxy(athensConfig)
+	require.NoError(t, err)
 	require.NotNil(t, proxyMgr)
 
 	// Create binary manager (Athens binary)
@@ -214,7 +217,8 @@ func TestFactories_DefaultConfig_Athens(t *testing.T) {
 	// Test creating manager with default config
 	config := DefaultGoModuleConfig()
 
-	mgr := NewGoModuleProxy(config)
+	mgr, err := NewGoModuleProxy(config)
+	require.NoError(t, err)
 	require.NotNil(t, mgr)
 
 	// Should work with defaults
@@ -312,7 +316,7 @@ func TestNewProcessManager_Athens_ConfiguresShutdownTimeout(t *testing.T) {
 // Task 6: Factory with Dependencies Tests
 // =============================================================================
 
-func TestNewAthensManagerWithDeps_CreatesManager(t *testing.T) {
+func TestNewAthensManager_CreatesManager(t *testing.T) {
 	config := GoModuleConfig{
 		Enabled:   true,
 		Lifecycle: "manual",
@@ -327,14 +331,15 @@ func TestNewAthensManagerWithDeps_CreatesManager(t *testing.T) {
 		LogFile: config.Storage + "/athens.log",
 	})
 
-	mgr := NewAthensManagerWithDeps(config, mockBinary, mockProcess)
-	require.NotNil(t, mgr, "NewAthensManagerWithDeps should return non-nil manager")
+	mgr, err := NewAthensManager(config, mockBinary, mockProcess)
+	require.NoError(t, err)
+	require.NotNil(t, mgr, "NewAthensManager should return non-nil manager")
 
 	// Verify it implements GoModuleProxy interface
 	var _ GoModuleProxy = mgr
 }
 
-func TestNewAthensManagerWithDeps_UsesProvidedDependencies(t *testing.T) {
+func TestNewAthensManager_UsesProvidedDependencies(t *testing.T) {
 	config := GoModuleConfig{
 		Enabled:   true,
 		Lifecycle: "manual",
@@ -349,7 +354,8 @@ func TestNewAthensManagerWithDeps_UsesProvidedDependencies(t *testing.T) {
 		LogFile: config.Storage + "/custom.log",
 	})
 
-	mgr := NewAthensManagerWithDeps(config, mockBinary, mockProcess)
+	mgr, err := NewAthensManager(config, mockBinary, mockProcess)
+	require.NoError(t, err)
 	require.NotNil(t, mgr)
 
 	// Manager should use the provided dependencies

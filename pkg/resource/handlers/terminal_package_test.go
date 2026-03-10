@@ -50,9 +50,26 @@ func (m *MockTerminalPackageDataStore) ListTerminalPackages() ([]*models.Termina
 	return packages, nil
 }
 
+func (m *MockTerminalPackageDataStore) UpsertTerminalPackage(pkg *models.TerminalPackageDB) error {
+	existing, exists := m.packages[pkg.Name]
+	if exists {
+		pkg.ID = existing.ID
+	} else {
+		pkg.ID = m.nextID
+		m.nextID++
+	}
+	m.packages[pkg.Name] = pkg
+	return nil
+}
+
 func (m *MockTerminalPackageDataStore) DeleteTerminalPackage(name string) error {
 	delete(m.packages, name)
 	return nil
+}
+
+func (m *MockTerminalPackageDataStore) ListTerminalPackagesByLabel(key, value string) ([]*models.TerminalPackageDB, error) {
+	// Stub: return empty list for testing
+	return nil, nil
 }
 
 func TestTerminalPackageHandler_Apply(t *testing.T) {

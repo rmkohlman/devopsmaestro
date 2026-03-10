@@ -21,7 +21,7 @@ import (
 //	    return err
 //	}
 //	defer mgr.Close()
-func getNvimManager(cmd *cobra.Command) (*nvimops.Manager, error) {
+func getNvimManager(cmd *cobra.Command) (nvimops.Manager, error) {
 	datastore, err := getDataStore(cmd)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get datastore: %w", err)

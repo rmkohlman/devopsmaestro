@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"database/sql"
-	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/registry"
 	"devopsmaestro/render"
@@ -180,11 +179,10 @@ func runRolloutRestartRegistry(cmd *cobra.Command, args []string) error {
 	name := args[0]
 
 	// Get DataStore from context
-	dataStore, ok := ctx.Value("dataStore").(*db.DataStore)
-	if !ok || dataStore == nil {
-		return fmt.Errorf("database not initialized")
+	store, err := getDataStore(cmd)
+	if err != nil {
+		return fmt.Errorf("database not initialized: %w", err)
 	}
-	store := *dataStore
 
 	// Look up Registry by name
 	reg, err := store.GetRegistryByName(name)
@@ -265,11 +263,10 @@ func runRolloutStatusRegistry(cmd *cobra.Command, args []string) error {
 	format, _ := cmd.Flags().GetString("output")
 
 	// Get DataStore from context
-	dataStore, ok := ctx.Value("dataStore").(*db.DataStore)
-	if !ok || dataStore == nil {
-		return fmt.Errorf("database not initialized")
+	store, err := getDataStore(cmd)
+	if err != nil {
+		return fmt.Errorf("database not initialized: %w", err)
 	}
-	store := *dataStore
 
 	// Look up Registry by name
 	reg, err := store.GetRegistryByName(name)
@@ -359,16 +356,14 @@ func runRolloutStatusRegistry(cmd *cobra.Command, args []string) error {
 
 // runRolloutHistoryRegistry implements the rollout history registry command
 func runRolloutHistoryRegistry(cmd *cobra.Command, args []string) error {
-	ctx := cmd.Context()
 	name := args[0]
 	format, _ := cmd.Flags().GetString("output")
 
 	// Get DataStore from context
-	dataStore, ok := ctx.Value("dataStore").(*db.DataStore)
-	if !ok || dataStore == nil {
-		return fmt.Errorf("database not initialized")
+	store, err := getDataStore(cmd)
+	if err != nil {
+		return fmt.Errorf("database not initialized: %w", err)
 	}
-	store := *dataStore
 
 	// Look up Registry by name
 	reg, err := store.GetRegistryByName(name)
@@ -394,7 +389,7 @@ func runRolloutHistoryRegistry(cmd *cobra.Command, args []string) error {
 		for i, h := range history {
 			historyYAML[i] = h.ToYAML()
 		}
-		return outputData(ctx, format, historyYAML)
+		return outputData(cmd.Context(), format, historyYAML)
 	default:
 		// Build table for human-readable output
 		tableData := render.TableData{

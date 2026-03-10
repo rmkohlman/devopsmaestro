@@ -64,8 +64,7 @@ func (s *ZotStrategy) CreateManager(reg *models.Registry) (ServiceManager, error
 		// For now, we use defaults
 	}
 
-	// Create managers (for now, use real implementations)
-	// TODO: Make these injectable for testing
+	// Create managers with explicit dependency construction.
 	binaryManager := NewBinaryManager(config.Storage, "2.0.0") // Zot v2.0.0
 	processManager := NewProcessManager(ProcessConfig{
 		PIDFile: filepath.Join(config.Storage, "zot.pid"),
@@ -73,10 +72,7 @@ func (s *ZotStrategy) CreateManager(reg *models.Registry) (ServiceManager, error
 	})
 
 	// Create and return ZotManager wrapped as ServiceManager
-	manager := &ZotManager{
-		BaseServiceManager: NewBaseServiceManager(binaryManager, processManager),
-		config:             config,
-	}
+	manager := NewZotManagerWithDeps(config, binaryManager, processManager)
 
 	return manager, nil
 }
@@ -155,8 +151,11 @@ func (s *AthensStrategy) CreateManager(reg *models.Registry) (ServiceManager, er
 		config.Port = s.GetDefaultPort()
 	}
 
-	// Create AthensManager and wrap it in adapter
-	athensManager := NewAthensManager(config)
+	// Create AthensManager with explicit dependency construction and wrap in adapter.
+	athensManager, err := NewAthensManagerDefault(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Athens manager: %w", err)
+	}
 	return &AthensManagerAdapter{manager: athensManager}, nil
 }
 
@@ -260,8 +259,11 @@ func (s *DevpiStrategy) CreateManager(reg *models.Registry) (ServiceManager, err
 		config.Port = s.GetDefaultPort()
 	}
 
-	// Create DevpiManager and wrap it in adapter
-	devpiManager := NewDevpiManager(config)
+	// Create DevpiManager with explicit dependency construction and wrap in adapter.
+	devpiManager, err := NewDevpiManagerDefault(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create devpi manager: %w", err)
+	}
 	return &DevpiManagerAdapter{manager: devpiManager}, nil
 }
 
@@ -369,8 +371,11 @@ func (s *VerdaccioStrategy) CreateManager(reg *models.Registry) (ServiceManager,
 		config.Lifecycle = "manual"
 	}
 
-	// Create VerdaccioManager and wrap it in adapter
-	verdaccioManager := NewVerdaccioManager(config)
+	// Create VerdaccioManager with explicit dependency construction and wrap in adapter.
+	verdaccioManager, err := NewVerdaccioManagerDefault(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create verdaccio manager: %w", err)
+	}
 	return &VerdaccioManagerAdapter{manager: verdaccioManager}, nil
 }
 

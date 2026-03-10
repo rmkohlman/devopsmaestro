@@ -5,6 +5,7 @@ import (
 	"devopsmaestro/db"
 	"devopsmaestro/pkg/colors"
 	"devopsmaestro/pkg/crd"
+	"devopsmaestro/pkg/nvimops/theme"
 	"fmt"
 	"io"
 	"io/fs"
@@ -39,10 +40,16 @@ func Execute(dataStore *db.DataStore, executor *Executor, migrationsFS fs.FS) {
 		// Initialize logging
 		initLogging()
 
-		// Initialize ColorProvider
+		// Initialize ColorProvider - construct adapter chain at composition root
+		themePath := colors.GetDefaultThemePath()
+		var paletteProvider colors.PaletteProvider
+		if themePath != "" {
+			store := theme.NewFileStore(themePath)
+			paletteProvider = colors.NewThemeStoreAdapter(store)
+		}
 		ctx, err := colors.InitColorProviderForCommand(
 			cmd.Context(),
-			colors.GetDefaultThemePath(),
+			paletteProvider,
 			noColor,
 		)
 		if err != nil {

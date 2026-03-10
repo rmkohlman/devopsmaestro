@@ -5,6 +5,7 @@ package handlers
 import (
 	"fmt"
 
+	"devopsmaestro/db"
 	"devopsmaestro/models"
 	nvimpkg "devopsmaestro/pkg/nvimops/package"
 	"devopsmaestro/pkg/nvimops/package/library"
@@ -181,30 +182,8 @@ func (h *NvimPackageHandler) ToYAML(res resource.Resource) ([]byte, error) {
 }
 
 // getDataStore returns the DataStore with pkg operations from context.
-func (h *NvimPackageHandler) getDataStore(ctx resource.Context) (interface {
-	CreatePackage(pkg *models.NvimPackageDB) error
-	UpdatePackage(pkg *models.NvimPackageDB) error
-	GetPackage(name string) (*models.NvimPackageDB, error)
-	ListPackages() ([]*models.NvimPackageDB, error)
-	DeletePackage(name string) error
-}, error) {
-	if ctx.DataStore == nil {
-		return nil, fmt.Errorf("DataStore is required for pkg operations")
-	}
-
-	// Type assert to ensure DataStore has pkg methods
-	dataStore, ok := ctx.DataStore.(interface {
-		CreatePackage(pkg *models.NvimPackageDB) error
-		UpdatePackage(pkg *models.NvimPackageDB) error
-		GetPackage(name string) (*models.NvimPackageDB, error)
-		ListPackages() ([]*models.NvimPackageDB, error)
-		DeletePackage(name string) error
-	})
-	if !ok {
-		return nil, fmt.Errorf("DataStore does not support pkg operations: %T", ctx.DataStore)
-	}
-
-	return dataStore, nil
+func (h *NvimPackageHandler) getDataStore(ctx resource.Context) (db.NvimPackageStore, error) {
+	return resource.DataStoreAs[db.NvimPackageStore](ctx)
 }
 
 // toDBModel converts a Package to NvimPackageDB model.

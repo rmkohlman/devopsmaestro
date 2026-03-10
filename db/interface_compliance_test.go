@@ -16,9 +16,57 @@ import (
 // TestDataStoreInterfaceCompliance verifies that all implementations
 // satisfy the DataStore interface at compile time.
 func TestDataStoreInterfaceCompliance(t *testing.T) {
-	// Compile-time checks
+	// Compile-time checks — composed DataStore interface
 	var _ DataStore = (*SQLDataStore)(nil)
 	var _ DataStore = (*MockDataStore)(nil)
+}
+
+// TestSubInterfaceCompliance_SQLDataStore verifies that SQLDataStore satisfies
+// each of the 19 domain sub-interfaces individually.
+func TestSubInterfaceCompliance_SQLDataStore(t *testing.T) {
+	var _ EcosystemStore = (*SQLDataStore)(nil)
+	var _ DomainStore = (*SQLDataStore)(nil)
+	var _ AppStore = (*SQLDataStore)(nil)
+	var _ WorkspaceStore = (*SQLDataStore)(nil)
+	var _ ContextStore = (*SQLDataStore)(nil)
+	var _ PluginStore = (*SQLDataStore)(nil)
+	var _ ThemeStore = (*SQLDataStore)(nil)
+	var _ TerminalPromptStore = (*SQLDataStore)(nil)
+	var _ TerminalProfileStore = (*SQLDataStore)(nil)
+	var _ TerminalPluginStore = (*SQLDataStore)(nil)
+	var _ TerminalEmulatorStore = (*SQLDataStore)(nil)
+	var _ CredentialStore = (*SQLDataStore)(nil)
+	var _ GitRepoStore = (*SQLDataStore)(nil)
+	var _ DefaultsStore = (*SQLDataStore)(nil)
+	var _ NvimPackageStore = (*SQLDataStore)(nil)
+	var _ TerminalPackageStore = (*SQLDataStore)(nil)
+	var _ RegistryStore = (*SQLDataStore)(nil)
+	var _ RegistryHistoryStore = (*SQLDataStore)(nil)
+	var _ CustomResourceStore = (*SQLDataStore)(nil)
+}
+
+// TestSubInterfaceCompliance_MockDataStore verifies that MockDataStore satisfies
+// each of the 19 domain sub-interfaces individually.
+func TestSubInterfaceCompliance_MockDataStore(t *testing.T) {
+	var _ EcosystemStore = (*MockDataStore)(nil)
+	var _ DomainStore = (*MockDataStore)(nil)
+	var _ AppStore = (*MockDataStore)(nil)
+	var _ WorkspaceStore = (*MockDataStore)(nil)
+	var _ ContextStore = (*MockDataStore)(nil)
+	var _ PluginStore = (*MockDataStore)(nil)
+	var _ ThemeStore = (*MockDataStore)(nil)
+	var _ TerminalPromptStore = (*MockDataStore)(nil)
+	var _ TerminalProfileStore = (*MockDataStore)(nil)
+	var _ TerminalPluginStore = (*MockDataStore)(nil)
+	var _ TerminalEmulatorStore = (*MockDataStore)(nil)
+	var _ CredentialStore = (*MockDataStore)(nil)
+	var _ GitRepoStore = (*MockDataStore)(nil)
+	var _ DefaultsStore = (*MockDataStore)(nil)
+	var _ NvimPackageStore = (*MockDataStore)(nil)
+	var _ TerminalPackageStore = (*MockDataStore)(nil)
+	var _ RegistryStore = (*MockDataStore)(nil)
+	var _ RegistryHistoryStore = (*MockDataStore)(nil)
+	var _ CustomResourceStore = (*MockDataStore)(nil)
 }
 
 // TestDriverInterfaceCompliance verifies that all driver implementations

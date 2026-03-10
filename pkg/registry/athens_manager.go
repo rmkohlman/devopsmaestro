@@ -14,14 +14,29 @@ type AthensManager struct {
 	config GoModuleConfig
 }
 
-// NewAthensManager creates a new AthensManager with the given configuration.
-func NewAthensManager(config GoModuleConfig) *AthensManager {
-	// Validate config
+// NewAthensManager creates an AthensManager with injected dependencies.
+// This is the canonical constructor — callers provide their own BinaryManager
+// and ProcessManager, enabling testability and explicit dependency control.
+// Returns an error if the config is invalid.
+func NewAthensManager(config GoModuleConfig, binary BinaryManager, process ProcessManager) (*AthensManager, error) {
 	if err := config.Validate(); err != nil {
-		panic(fmt.Sprintf("invalid Athens config: %v", err))
+		return nil, fmt.Errorf("invalid Athens config: %w", err)
 	}
 
-	// Create real binary and process managers
+	return &AthensManager{
+		BaseServiceManager: NewBaseServiceManager(binary, process),
+		config:             config,
+	}, nil
+}
+
+// NewAthensManagerDefault creates an AthensManager with default production
+// dependencies (AthensBinaryManager v0.14.1, ProcessManager with standard
+// PID/log paths). Prefer NewAthensManager for testability.
+func NewAthensManagerDefault(config GoModuleConfig) (*AthensManager, error) {
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid Athens config: %w", err)
+	}
+
 	binaryManager := NewAthensBinaryManager(config.Storage, "0.14.1")
 	processManager := NewProcessManager(ProcessConfig{
 		PIDFile: filepath.Join(config.Storage, "athens.pid"),
@@ -31,19 +46,7 @@ func NewAthensManager(config GoModuleConfig) *AthensManager {
 	return &AthensManager{
 		BaseServiceManager: NewBaseServiceManager(binaryManager, processManager),
 		config:             config,
-	}
-}
-
-// NewAthensManagerWithDeps creates an AthensManager with injected dependencies.
-func NewAthensManagerWithDeps(config GoModuleConfig, binary BinaryManager, process ProcessManager) *AthensManager {
-	if err := config.Validate(); err != nil {
-		panic(fmt.Sprintf("invalid Athens config: %v", err))
-	}
-
-	return &AthensManager{
-		BaseServiceManager: NewBaseServiceManager(binary, process),
-		config:             config,
-	}
+	}, nil
 }
 
 // Start starts the Athens proxy process.

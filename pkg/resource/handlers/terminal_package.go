@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/resource"
 	terminalpkg "devopsmaestro/pkg/terminalops/package"
@@ -140,30 +141,8 @@ func (h *TerminalPackageHandler) ToYAML(res resource.Resource) ([]byte, error) {
 }
 
 // getDataStore returns the DataStore with terminal package operations from context.
-func (h *TerminalPackageHandler) getDataStore(ctx resource.Context) (interface {
-	CreateTerminalPackage(pkg *models.TerminalPackageDB) error
-	UpdateTerminalPackage(pkg *models.TerminalPackageDB) error
-	GetTerminalPackage(name string) (*models.TerminalPackageDB, error)
-	ListTerminalPackages() ([]*models.TerminalPackageDB, error)
-	DeleteTerminalPackage(name string) error
-}, error) {
-	if ctx.DataStore == nil {
-		return nil, fmt.Errorf("DataStore is required for terminal package operations")
-	}
-
-	// Type assert to ensure DataStore has terminal package methods
-	dataStore, ok := ctx.DataStore.(interface {
-		CreateTerminalPackage(pkg *models.TerminalPackageDB) error
-		UpdateTerminalPackage(pkg *models.TerminalPackageDB) error
-		GetTerminalPackage(name string) (*models.TerminalPackageDB, error)
-		ListTerminalPackages() ([]*models.TerminalPackageDB, error)
-		DeleteTerminalPackage(name string) error
-	})
-	if !ok {
-		return nil, fmt.Errorf("DataStore does not support terminal package operations: %T", ctx.DataStore)
-	}
-
-	return dataStore, nil
+func (h *TerminalPackageHandler) getDataStore(ctx resource.Context) (db.TerminalPackageStore, error) {
+	return resource.DataStoreAs[db.TerminalPackageStore](ctx)
 }
 
 // toDBModel converts a Package to TerminalPackageDB model.

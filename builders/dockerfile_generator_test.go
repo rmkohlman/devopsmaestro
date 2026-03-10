@@ -547,20 +547,23 @@ func TestNewDockerfileGenerator(t *testing.T) {
 
 	gen := NewDockerfileGenerator(ws, wsYAML, "python", "3.11", "/app/path", "/app/path/Dockerfile")
 
-	if gen.workspace != ws {
+	// Type assert to access internal fields for verification
+	impl := gen.(*DefaultDockerfileGenerator)
+
+	if impl.workspace != ws {
 		t.Error("workspace not set")
 	}
-	if gen.language != "python" {
-		t.Errorf("language = %q, want %q", gen.language, "python")
+	if impl.language != "python" {
+		t.Errorf("language = %q, want %q", impl.language, "python")
 	}
-	if gen.version != "3.11" {
-		t.Errorf("version = %q, want %q", gen.version, "3.11")
+	if impl.version != "3.11" {
+		t.Errorf("version = %q, want %q", impl.version, "3.11")
 	}
-	if gen.appPath != "/app/path" {
-		t.Errorf("appPath = %q, want %q", gen.appPath, "/app/path")
+	if impl.appPath != "/app/path" {
+		t.Errorf("appPath = %q, want %q", impl.appPath, "/app/path")
 	}
-	if gen.baseDockerfile != "/app/path/Dockerfile" {
-		t.Errorf("baseDockerfile = %q, want %q", gen.baseDockerfile, "/app/path/Dockerfile")
+	if impl.baseDockerfile != "/app/path/Dockerfile" {
+		t.Errorf("baseDockerfile = %q, want %q", impl.baseDockerfile, "/app/path/Dockerfile")
 	}
 }
 

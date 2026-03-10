@@ -38,7 +38,9 @@ func setupTestAthensManager(t *testing.T) GoModuleProxy {
 		LogFile: config.Storage + "/athens.log",
 	})
 
-	return NewAthensManagerWithDeps(config, mockBinary, mockProcess)
+	mgr, err := NewAthensManager(config, mockBinary, mockProcess)
+	require.NoError(t, err)
+	return mgr
 }
 
 // =============================================================================
@@ -94,13 +96,14 @@ func TestAthensManager_Start_BinaryNotFound(t *testing.T) {
 		Storage:   t.TempDir(),
 	}
 
-	mgr := NewAthensManager(config)
+	mgr, err := NewAthensManagerDefault(config)
+	require.NoError(t, err)
 	ctx := context.Background()
 
 	// Mock BinaryManager to return error
 	// (This test will need proper mock injection in implementation)
 
-	err := mgr.Start(ctx)
+	err = mgr.Start(ctx)
 	assert.Error(t, err, "Start should fail if binary not found")
 	assert.Contains(t, err.Error(), "binary", "Error should mention binary")
 }
@@ -123,7 +126,8 @@ func TestAthensManager_Start_PortInUse(t *testing.T) {
 		Port:      13000, // Same port
 		Storage:   t.TempDir(),
 	}
-	mgr2 := NewAthensManager(config)
+	mgr2, err := NewAthensManagerDefault(config)
+	require.NoError(t, err)
 
 	err = mgr2.Start(ctx)
 	assert.Error(t, err, "Start should fail if port is in use")
@@ -371,7 +375,8 @@ func TestAthensManager_GetEndpoint_ReturnsCorrectFormat(t *testing.T) {
 				Port:      tt.port,
 				Storage:   t.TempDir(),
 			}
-			mgr := NewAthensManager(config)
+			mgr, err := NewAthensManagerDefault(config)
+			require.NoError(t, err)
 
 			endpoint := mgr.GetEndpoint()
 			assert.Equal(t, tt.wantFmt, endpoint, "Endpoint format should be http://localhost:port")
@@ -390,7 +395,8 @@ func TestAthensManager_GetGoEnv_ReturnsCorrectVariables(t *testing.T) {
 		Port:      3000,
 		Storage:   t.TempDir(),
 	}
-	mgr := NewAthensManager(config)
+	mgr, err := NewAthensManagerDefault(config)
+	require.NoError(t, err)
 
 	goEnv := mgr.GetGoEnv()
 
@@ -430,7 +436,8 @@ func TestAthensManager_GetGoEnv_DifferentPorts(t *testing.T) {
 				Port:    tt.port,
 				Storage: t.TempDir(),
 			}
-			mgr := NewAthensManager(config)
+			mgr, err := NewAthensManagerDefault(config)
+			require.NoError(t, err)
 
 			goEnv := mgr.GetGoEnv()
 
@@ -449,7 +456,8 @@ func TestAthensManager_GetGoEnv_NotRunning(t *testing.T) {
 		Port:      3000,
 		Storage:   t.TempDir(),
 	}
-	mgr := NewAthensManager(config)
+	mgr, err := NewAthensManagerDefault(config)
+	require.NoError(t, err)
 
 	goEnv := mgr.GetGoEnv()
 

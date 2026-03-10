@@ -3,8 +3,6 @@ package colors
 import (
 	"context"
 	"os"
-
-	"devopsmaestro/pkg/nvimops/theme"
 )
 
 // InitColorProviderForCommand initializes ColorProvider for CLI commands.
@@ -13,7 +11,7 @@ import (
 //
 // Parameters:
 //   - ctx: Base context to inject the ColorProvider into
-//   - themePath: Path to the theme store directory (e.g., ~/.config/dvm/themes)
+//   - provider: PaletteProvider that bridges to the theme system (may be nil)
 //   - noColor: Whether to disable colors (--no-color flag)
 //
 // Returns:
@@ -22,34 +20,33 @@ import (
 //
 // Behavior:
 //   - If noColor is true or NO_COLOR env var is set, returns NoColorProvider
-//   - Tries to load active theme from store
+//   - If provider is nil, returns DefaultColorProvider
+//   - Tries to load active theme from provider
 //   - Falls back to default colors if no active theme or on error
 //   - Never returns an error (always provides some ColorProvider)
-func InitColorProviderForCommand(ctx context.Context, themePath string, noColor bool) (context.Context, error) {
+func InitColorProviderForCommand(ctx context.Context, provider PaletteProvider, noColor bool) (context.Context, error) {
 	// Check for no-color mode first
 	if noColor || os.Getenv("NO_COLOR") != "" {
 		return WithProvider(ctx, NewNoColorProvider()), nil
 	}
 
-	// Check if theme path is provided
-	if themePath == "" {
-		// Use default colors if no theme path
+	// Check if palette provider is available
+	if provider == nil {
+		// Use default colors if no provider
 		return WithProvider(ctx, NewDefaultColorProvider()), nil
 	}
 
-	// Create theme store and adapter
-	store := theme.NewFileStore(themePath)
-	adapter := NewThemeStoreAdapter(store)
-	factory := NewProviderFactory(adapter)
+	// Create factory from palette provider
+	factory := NewProviderFactory(provider)
 
 	// Try to create provider from active theme
-	provider, err := factory.CreateFromActive()
+	colorProvider, err := factory.CreateFromActive()
 	if err != nil {
 		// Fall back to default on any error (no active theme, invalid theme, etc.)
-		provider = NewDefaultColorProvider()
+		colorProvider = NewDefaultColorProvider()
 	}
 
-	return WithProvider(ctx, provider), nil
+	return WithProvider(ctx, colorProvider), nil
 }
 
 // InitColorProviderWithTheme initializes ColorProvider for a specific theme.
@@ -58,7 +55,7 @@ func InitColorProviderForCommand(ctx context.Context, themePath string, noColor 
 //
 // Parameters:
 //   - ctx: Base context to inject the ColorProvider into
-//   - themePath: Path to the theme store directory
+//   - provider: PaletteProvider that bridges to the theme system (may be nil)
 //   - themeName: Name of the specific theme to load
 //   - noColor: Whether to disable colors
 //
@@ -69,32 +66,30 @@ func InitColorProviderForCommand(ctx context.Context, themePath string, noColor 
 // Unlike InitColorProviderForCommand, this function returns an error
 // if the requested theme cannot be found, since the caller explicitly
 // requested a specific theme.
-func InitColorProviderWithTheme(ctx context.Context, themePath, themeName string, noColor bool) (context.Context, error) {
+func InitColorProviderWithTheme(ctx context.Context, provider PaletteProvider, themeName string, noColor bool) (context.Context, error) {
 	// Check for no-color mode first
 	if noColor || os.Getenv("NO_COLOR") != "" {
 		return WithProvider(ctx, NewNoColorProvider()), nil
 	}
 
 	// Validate inputs
-	if themePath == "" {
+	if provider == nil {
 		return WithProvider(ctx, NewDefaultColorProvider()), nil
 	}
 	if themeName == "" {
 		return WithProvider(ctx, NewDefaultColorProvider()), nil
 	}
 
-	// Create theme store and adapter
-	store := theme.NewFileStore(themePath)
-	adapter := NewThemeStoreAdapter(store)
-	factory := NewProviderFactory(adapter)
+	// Create factory from palette provider
+	factory := NewProviderFactory(provider)
 
 	// Try to create provider from specific theme
-	provider, err := factory.CreateFromTheme(themeName)
+	colorProvider, err := factory.CreateFromTheme(themeName)
 	if err != nil {
 		return ctx, err // Return error for specific theme requests
 	}
 
-	return WithProvider(ctx, provider), nil
+	return WithProvider(ctx, colorProvider), nil
 }
 
 // GetDefaultThemePath returns the default path for theme storage.

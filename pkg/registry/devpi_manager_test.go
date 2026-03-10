@@ -39,7 +39,9 @@ func setupTestDevpiManager(t *testing.T) PyPIProxy {
 		LogFile: config.Storage + "/devpi.log",
 	})
 
-	return NewDevpiManagerWithDeps(config, mockBinary, mockProcess)
+	mgr, err := NewDevpiManager(config, mockBinary, mockProcess)
+	require.NoError(t, err)
+	return mgr
 }
 
 // =============================================================================
@@ -95,13 +97,14 @@ func TestDevpiManager_Start_BinaryNotFound(t *testing.T) {
 		Storage:   t.TempDir(),
 	}
 
-	mgr := NewDevpiManager(config)
+	mgr, err := NewDevpiManagerDefault(config)
+	require.NoError(t, err)
 	ctx := context.Background()
 
 	// Mock BinaryManager to return error
 	// (This test will need proper mock injection in implementation)
 
-	err := mgr.Start(ctx)
+	err = mgr.Start(ctx)
 	assert.Error(t, err, "Start should fail if binary not found")
 	assert.Contains(t, err.Error(), "binary", "Error should mention binary")
 }
@@ -124,7 +127,8 @@ func TestDevpiManager_Start_PortInUse(t *testing.T) {
 		Port:      13141, // Same port
 		Storage:   t.TempDir(),
 	}
-	mgr2 := NewDevpiManager(config)
+	mgr2, err := NewDevpiManagerDefault(config)
+	require.NoError(t, err)
 
 	err = mgr2.Start(ctx)
 	assert.Error(t, err, "Start should fail if port is in use")
@@ -370,7 +374,8 @@ func TestDevpiManager_GetEndpoint_ReturnsCorrectFormat(t *testing.T) {
 				Port:      tt.port,
 				Storage:   t.TempDir(),
 			}
-			mgr := NewDevpiManager(config)
+			mgr, err := NewDevpiManagerDefault(config)
+			require.NoError(t, err)
 
 			endpoint := mgr.GetEndpoint()
 			assert.Equal(t, tt.wantFmt, endpoint, "Endpoint format should be http://localhost:port")
@@ -389,7 +394,8 @@ func TestDevpiManager_GetPipEnv_ReturnsCorrectVariables(t *testing.T) {
 		Port:      3141,
 		Storage:   t.TempDir(),
 	}
-	mgr := NewDevpiManager(config)
+	mgr, err := NewDevpiManagerDefault(config)
+	require.NoError(t, err)
 
 	pipEnv := mgr.GetPipEnv()
 
@@ -428,7 +434,8 @@ func TestDevpiManager_GetPipEnv_DifferentPorts(t *testing.T) {
 				Port:      tt.port,
 				Storage:   t.TempDir(),
 			}
-			mgr := NewDevpiManager(config)
+			mgr, err := NewDevpiManagerDefault(config)
+			require.NoError(t, err)
 
 			pipEnv := mgr.GetPipEnv()
 
@@ -447,7 +454,8 @@ func TestDevpiManager_GetPipEnv_NotRunning(t *testing.T) {
 		Port:      3141,
 		Storage:   t.TempDir(),
 	}
-	mgr := NewDevpiManager(config)
+	mgr, err := NewDevpiManagerDefault(config)
+	require.NoError(t, err)
 
 	pipEnv := mgr.GetPipEnv()
 
@@ -467,7 +475,8 @@ func TestDevpiManager_GetPipConfig_ReturnsCorrectFormat(t *testing.T) {
 		Port:      3141,
 		Storage:   t.TempDir(),
 	}
-	mgr := NewDevpiManager(config)
+	mgr, err := NewDevpiManagerDefault(config)
+	require.NoError(t, err)
 
 	pipConfig := mgr.GetPipConfig()
 
@@ -501,7 +510,8 @@ func TestDevpiManager_GetPipConfig_DifferentPorts(t *testing.T) {
 				Port:      tt.port,
 				Storage:   t.TempDir(),
 			}
-			mgr := NewDevpiManager(config)
+			mgr, err := NewDevpiManagerDefault(config)
+			require.NoError(t, err)
 
 			pipConfig := mgr.GetPipConfig()
 
@@ -526,11 +536,12 @@ func TestDevpiManager_IdleTimeout_OnDemand(t *testing.T) {
 		IdleTimeout: 500 * time.Millisecond, // Short timeout for testing
 	}
 
-	mgr := NewDevpiManager(config)
+	mgr, err := NewDevpiManagerDefault(config)
+	require.NoError(t, err)
 	ctx := context.Background()
 
 	// Start proxy
-	err := mgr.Start(ctx)
+	err = mgr.Start(ctx)
 	require.NoError(t, err)
 
 	// Verify running
@@ -554,10 +565,11 @@ func TestDevpiManager_IdleTimeout_ResetOnAccess(t *testing.T) {
 		IdleTimeout: 1 * time.Second,
 	}
 
-	mgr := NewDevpiManager(config)
+	mgr, err := NewDevpiManagerDefault(config)
+	require.NoError(t, err)
 	ctx := context.Background()
 
-	err := mgr.Start(ctx)
+	err = mgr.Start(ctx)
 	require.NoError(t, err)
 
 	// Access endpoint to reset timer

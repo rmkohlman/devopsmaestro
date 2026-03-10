@@ -103,10 +103,11 @@ func (h *TerminalPromptHandler) ToYAML(res resource.Resource) ([]byte, error) {
 func (h *TerminalPromptHandler) getStore(ctx resource.Context) (prompt.PromptStore, error) {
 	// If DataStore is provided, use SQLitePromptStore adapter
 	if ctx.DataStore != nil {
-		if ds, ok := ctx.DataStore.(prompt.PromptDataStore); ok {
-			return prompt.NewSQLitePromptStore(ds), nil
+		ds, err := resource.DataStoreAs[prompt.PromptDataStore](ctx)
+		if err != nil {
+			return nil, fmt.Errorf("DataStore does not implement PromptDataStore: %T", ctx.DataStore)
 		}
-		return nil, fmt.Errorf("DataStore does not implement PromptDataStore: %T", ctx.DataStore)
+		return prompt.NewSQLitePromptStore(ds), nil
 	}
 
 	// No store configured

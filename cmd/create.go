@@ -103,13 +103,10 @@ Examples:
 		}
 
 		// Get datastore from context
-		ctx := cmd.Context()
-		dataStore := ctx.Value("dataStore").(*db.DataStore)
-		if dataStore == nil {
-			return fmt.Errorf("DataStore not initialized")
+		ds, err := getDataStore(cmd)
+		if err != nil {
+			return fmt.Errorf("DataStore not initialized: %w", err)
 		}
-
-		ds := *dataStore
 
 		var appName string
 		if appFlag != "" {
@@ -293,12 +290,10 @@ func createRegistry(cmd *cobra.Command, name string) error {
 	}
 
 	// Get datastore from context
-	ctx := cmd.Context()
-	dataStore := ctx.Value("dataStore").(*db.DataStore)
-	if dataStore == nil {
-		return fmt.Errorf("DataStore not initialized")
+	ds, err := getDataStore(cmd)
+	if err != nil {
+		return fmt.Errorf("DataStore not initialized: %w", err)
 	}
-	ds := *dataStore
 
 	// Check if registry already exists
 	existing, _ := ds.GetRegistryByName(name)
@@ -444,12 +439,10 @@ Examples:
 		}
 
 		// Get datastore from context
-		ctx := cmd.Context()
-		dataStore := ctx.Value("dataStore").(*db.DataStore)
-		if dataStore == nil {
-			return fmt.Errorf("DataStore not initialized")
+		ds, err := getDataStore(cmd)
+		if err != nil {
+			return fmt.Errorf("DataStore not initialized: %w", err)
 		}
-		ds := *dataStore
 
 		// Resolve app name
 		appName := createBranchApp

@@ -81,15 +81,14 @@ templates:
 		}
 
 		// Initialize database
-		ctx := cmd.Context()
-		dataStore := ctx.Value("dataStore").(*db.DataStore)
-		if dataStore == nil || *dataStore == nil {
-			slog.Error("dataStore not initialized in context")
+		ds, dsErr := getDataStore(cmd)
+		if dsErr != nil {
+			slog.Error("dataStore not initialized in context", "error", dsErr)
 			fmt.Println("Error: DataStore not initialized")
 			return
 		}
 
-		driver := (*dataStore).Driver()
+		driver := ds.Driver()
 		if driver == nil {
 			slog.Error("driver not available from dataStore")
 			fmt.Println("Error: Database driver not available")
@@ -97,6 +96,7 @@ templates:
 		}
 
 		// Get migrations filesystem from context
+		ctx := cmd.Context()
 		migrationsFS := ctx.Value("migrationsFS").(fs.FS)
 		if migrationsFS == nil {
 			slog.Error("migrations filesystem not available in context")

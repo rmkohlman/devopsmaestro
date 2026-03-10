@@ -34,7 +34,7 @@ func (h *DomainHandler) Apply(ctx resource.Context, data []byte) (resource.Resou
 	}
 
 	// Get the datastore
-	ds, err := h.getDataStore(ctx)
+	ds, err := resource.DataStoreAs[db.DataStore](ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func (h *DomainHandler) Apply(ctx resource.Context, data []byte) (resource.Resou
 // Get retrieves a domain by name.
 // Note: This requires an active ecosystem context to resolve the domain.
 func (h *DomainHandler) Get(ctx resource.Context, name string) (resource.Resource, error) {
-	ds, err := h.getDataStore(ctx)
+	ds, err := resource.DataStoreAs[db.DataStore](ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +113,7 @@ func (h *DomainHandler) Get(ctx resource.Context, name string) (resource.Resourc
 
 // List returns all domains in the active ecosystem.
 func (h *DomainHandler) List(ctx resource.Context) ([]resource.Resource, error) {
-	ds, err := h.getDataStore(ctx)
+	ds, err := resource.DataStoreAs[db.DataStore](ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +149,7 @@ func (h *DomainHandler) List(ctx resource.Context) ([]resource.Resource, error) 
 
 // Delete removes a domain by name.
 func (h *DomainHandler) Delete(ctx resource.Context, name string) error {
-	ds, err := h.getDataStore(ctx)
+	ds, err := resource.DataStoreAs[db.DataStore](ctx)
 	if err != nil {
 		return err
 	}
@@ -181,20 +181,6 @@ func (h *DomainHandler) ToYAML(res resource.Resource) ([]byte, error) {
 
 	yamlDoc := dr.domain.ToYAML(dr.ecosystemName, nil)
 	return yaml.Marshal(yamlDoc)
-}
-
-// getDataStore returns the DataStore from the context.
-func (h *DomainHandler) getDataStore(ctx resource.Context) (db.DataStore, error) {
-	if ctx.DataStore == nil {
-		return nil, fmt.Errorf("DataStore not provided in context")
-	}
-
-	ds, ok := ctx.DataStore.(db.DataStore)
-	if !ok {
-		return nil, fmt.Errorf("invalid DataStore type: %T", ctx.DataStore)
-	}
-
-	return ds, nil
 }
 
 // DomainResource wraps a models.Domain to implement resource.Resource.

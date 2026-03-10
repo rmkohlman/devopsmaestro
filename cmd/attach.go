@@ -62,12 +62,10 @@ func runAttach(cmd *cobra.Command) error {
 	slog.Info("starting attach")
 
 	// Get datastore from context
-	ctx := cmd.Context()
-	dataStore := ctx.Value("dataStore").(*db.DataStore)
-	if dataStore == nil {
-		return fmt.Errorf("dataStore not initialized")
+	ds, err := getDataStore(cmd)
+	if err != nil {
+		return fmt.Errorf("dataStore not initialized: %w", err)
 	}
-	ds := *dataStore
 
 	var app *models.App
 	var workspace *models.Workspace

@@ -34,7 +34,7 @@ func (h *WorkspaceHandler) Apply(ctx resource.Context, data []byte) (resource.Re
 	}
 
 	// Get the datastore
-	ds, err := h.getDataStore(ctx)
+	ds, err := resource.DataStoreAs[db.DataStore](ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +126,7 @@ func (h *WorkspaceHandler) Apply(ctx resource.Context, data []byte) (resource.Re
 // Get retrieves a workspace by name.
 // Note: This requires an active app context to resolve the workspace.
 func (h *WorkspaceHandler) Get(ctx resource.Context, name string) (resource.Resource, error) {
-	ds, err := h.getDataStore(ctx)
+	ds, err := resource.DataStoreAs[db.DataStore](ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +170,7 @@ func (h *WorkspaceHandler) Get(ctx resource.Context, name string) (resource.Reso
 
 // List returns all workspaces in the active app.
 func (h *WorkspaceHandler) List(ctx resource.Context) ([]resource.Resource, error) {
-	ds, err := h.getDataStore(ctx)
+	ds, err := resource.DataStoreAs[db.DataStore](ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +220,7 @@ func (h *WorkspaceHandler) List(ctx resource.Context) ([]resource.Resource, erro
 
 // Delete removes a workspace by name.
 func (h *WorkspaceHandler) Delete(ctx resource.Context, name string) error {
-	ds, err := h.getDataStore(ctx)
+	ds, err := resource.DataStoreAs[db.DataStore](ctx)
 	if err != nil {
 		return err
 	}
@@ -252,20 +252,6 @@ func (h *WorkspaceHandler) ToYAML(res resource.Resource) ([]byte, error) {
 
 	yamlDoc := wr.workspace.ToYAML(wr.appName, wr.gitRepoName)
 	return yaml.Marshal(yamlDoc)
-}
-
-// getDataStore returns the DataStore from the context.
-func (h *WorkspaceHandler) getDataStore(ctx resource.Context) (db.DataStore, error) {
-	if ctx.DataStore == nil {
-		return nil, fmt.Errorf("DataStore not provided in context")
-	}
-
-	ds, ok := ctx.DataStore.(db.DataStore)
-	if !ok {
-		return nil, fmt.Errorf("invalid DataStore type: %T", ctx.DataStore)
-	}
-
-	return ds, nil
 }
 
 // WorkspaceResource wraps a models.Workspace to implement resource.Resource.

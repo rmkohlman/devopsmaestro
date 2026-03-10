@@ -42,23 +42,45 @@ type Platform struct {
 	HomeDir    string // Home directory (for building paths)
 }
 
-// PlatformDetector detects available container platforms
-type PlatformDetector struct {
+// PlatformDetector defines the interface for detecting available container platforms.
+// Implementations detect installed runtimes (OrbStack, Colima, Docker Desktop, Podman)
+// by checking for platform-specific socket files and configuration directories.
+type PlatformDetector interface {
+	// Detect finds the best container platform to use.
+	// Priority: DVM_PLATFORM env var > config file > auto-detect.
+	Detect() (*Platform, error)
+
+	// DetectAll finds all installed container platforms (socket files on disk).
+	// Returns platforms regardless of whether they are currently running.
+	DetectAll() []*Platform
+
+	// DetectReachable finds all container platforms that are actively listening.
+	// Filters DetectAll() to only platforms where the socket is reachable.
+	DetectReachable() []*Platform
+}
+
+// Compile-time interface compliance check
+var _ PlatformDetector = (*DefaultPlatformDetector)(nil)
+
+// DefaultPlatformDetector is the standard implementation of PlatformDetector
+// that detects platforms by inspecting the local filesystem for socket files.
+type DefaultPlatformDetector struct {
 	homeDir string
 }
 
-// NewPlatformDetector creates a new platform detector
-func NewPlatformDetector() (*PlatformDetector, error) {
+// NewPlatformDetector creates a new platform detector.
+// Returns the PlatformDetector interface for loose coupling.
+func NewPlatformDetector() (PlatformDetector, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get home directory: %w", err)
 	}
-	return &PlatformDetector{homeDir: homeDir}, nil
+	return &DefaultPlatformDetector{homeDir: homeDir}, nil
 }
 
 // Detect finds the container platform to use
 // Priority: DVM_PLATFORM env var > config file > auto-detect
-func (pd *PlatformDetector) Detect() (*Platform, error) {
+func (pd *DefaultPlatformDetector) Detect() (*Platform, error) {
 	// Check for explicit platform selection via env var
 	if platformEnv := os.Getenv("DVM_PLATFORM"); platformEnv != "" {
 		return pd.detectSpecific(PlatformType(strings.ToLower(platformEnv)))
@@ -74,7 +96,7 @@ func (pd *PlatformDetector) Detect() (*Platform, error) {
 }
 
 // detectSpecific tries to detect a specific platform
-func (pd *PlatformDetector) detectSpecific(platformType PlatformType) (*Platform, error) {
+func (pd *DefaultPlatformDetector) detectSpecific(platformType PlatformType) (*Platform, error) {
 	var platform *Platform
 
 	switch platformType {
@@ -100,7 +122,7 @@ func (pd *PlatformDetector) detectSpecific(platformType PlatformType) (*Platform
 }
 
 // autoDetect finds the first available platform
-func (pd *PlatformDetector) autoDetect() (*Platform, error) {
+func (pd *DefaultPlatformDetector) autoDetect() (*Platform, error) {
 	// Check non-Colima detectors and Colima separately so we can
 	// enumerate all Colima profiles while keeping other detectors as-is.
 
@@ -135,7 +157,7 @@ func (pd *PlatformDetector) autoDetect() (*Platform, error) {
 // DetectAll finds all installed container platforms (socket files on disk).
 // This returns platforms regardless of whether they are currently running.
 // Use DetectReachable() to get only platforms that are actively listening.
-func (pd *PlatformDetector) DetectAll() []*Platform {
+func (pd *DefaultPlatformDetector) DetectAll() []*Platform {
 	var platforms []*Platform
 
 	// OrbStack
@@ -165,7 +187,7 @@ func (pd *PlatformDetector) DetectAll() []*Platform {
 // DetectReachable finds all container platforms that are actively listening.
 // This calls DetectAll() and then filters to only platforms where the socket
 // is reachable, i.e., the runtime is currently running.
-func (pd *PlatformDetector) DetectReachable() []*Platform {
+func (pd *DefaultPlatformDetector) DetectReachable() []*Platform {
 	all := pd.DetectAll()
 	reachable := make([]*Platform, 0, len(all))
 	for _, p := range all {
@@ -176,7 +198,7 @@ func (pd *PlatformDetector) DetectReachable() []*Platform {
 	return reachable
 }
 
-func (pd *PlatformDetector) detectOrbStack() *Platform {
+func (pd *DefaultPlatformDetector) detectOrbStack() *Platform {
 	// OrbStack can expose socket at multiple locations
 	socketPaths := []string{
 		filepath.Join(pd.homeDir, ".orbstack", "run", "docker.sock"),
@@ -219,7 +241,7 @@ func (pd *PlatformDetector) detectOrbStack() *Platform {
 	return nil
 }
 
-func (pd *PlatformDetector) detectColima() *Platform {
+func (pd *DefaultPlatformDetector) detectColima() *Platform {
 	platforms := pd.detectAllColima()
 	if len(platforms) > 0 {
 		return platforms[0]
@@ -230,7 +252,7 @@ func (pd *PlatformDetector) detectColima() *Platform {
 // detectAllColima enumerates all Colima profiles and returns platforms for each.
 // If COLIMA_DOCKER_PROFILE or COLIMA_ACTIVE_PROFILE is set, only that profile is checked.
 // Otherwise, all profile directories under ~/.colima/ are scanned.
-func (pd *PlatformDetector) detectAllColima() []*Platform {
+func (pd *DefaultPlatformDetector) detectAllColima() []*Platform {
 	// If an env var is set, only check that specific profile
 	if profile := os.Getenv("COLIMA_DOCKER_PROFILE"); profile != "" {
 		if !isValidColimaProfileName(profile) {
@@ -277,7 +299,7 @@ func (pd *PlatformDetector) detectAllColima() []*Platform {
 
 // detectColimaProfile checks a single Colima profile for docker.sock and containerd.sock.
 // If both exist, docker.sock is preferred (matches existing behavior).
-func (pd *PlatformDetector) detectColimaProfile(profile string) []*Platform {
+func (pd *DefaultPlatformDetector) detectColimaProfile(profile string) []*Platform {
 	profileDir := filepath.Join(pd.homeDir, ".colima", profile)
 
 	// Check for docker socket first (preferred)
@@ -307,7 +329,7 @@ func (pd *PlatformDetector) detectColimaProfile(profile string) []*Platform {
 	return nil
 }
 
-func (pd *PlatformDetector) detectDockerDesktop() *Platform {
+func (pd *DefaultPlatformDetector) detectDockerDesktop() *Platform {
 	// macOS Docker Desktop locations
 	locations := []string{
 		filepath.Join(pd.homeDir, ".docker", "run", "docker.sock"),
@@ -332,7 +354,7 @@ func (pd *PlatformDetector) detectDockerDesktop() *Platform {
 	return nil
 }
 
-func (pd *PlatformDetector) detectPodman() *Platform {
+func (pd *DefaultPlatformDetector) detectPodman() *Platform {
 	// Check for Podman socket - try multiple locations
 	// macOS uses a temp directory socket, Linux uses /run/podman
 	locations := []string{
@@ -379,7 +401,7 @@ func (pd *PlatformDetector) detectPodman() *Platform {
 	return nil
 }
 
-func (pd *PlatformDetector) detectLinuxNative() *Platform {
+func (pd *DefaultPlatformDetector) detectLinuxNative() *Platform {
 	// Only on Linux, check for native Docker
 	if _, err := os.Stat("/var/run/docker.sock"); err == nil {
 		// Make sure we're on Linux and it's not another platform
@@ -397,7 +419,7 @@ func (pd *PlatformDetector) detectLinuxNative() *Platform {
 }
 
 // getInstallHint returns installation instructions for a platform
-func (pd *PlatformDetector) getInstallHint(platformType PlatformType) string {
+func (pd *DefaultPlatformDetector) getInstallHint(platformType PlatformType) string {
 	switch platformType {
 	case PlatformOrbStack:
 		return "Install OrbStack from https://orbstack.dev or run: brew install orbstack"

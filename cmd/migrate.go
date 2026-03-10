@@ -14,20 +14,20 @@ var migrateCmd = &cobra.Command{
 	Short: "Apply database migrations",
 	Long:  `This command applies the necessary database migrations to ensure your schema is up-to-date.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		ctx := cmd.Context()
-		dataStore := ctx.Value("dataStore").(*db.DataStore)
-		if dataStore == nil || *dataStore == nil {
+		ds, dsErr := getDataStore(cmd)
+		if dsErr != nil {
 			fmt.Println("Error: DataStore not initialized")
 			os.Exit(1)
 		}
 
-		driver := (*dataStore).Driver()
+		driver := ds.Driver()
 		if driver == nil {
 			fmt.Println("Error: Database driver not available")
 			os.Exit(1)
 		}
 
 		// Get migrations filesystem from context
+		ctx := cmd.Context()
 		migrationsFS := ctx.Value("migrationsFS").(fs.FS)
 		if migrationsFS == nil {
 			fmt.Println("Error: Migrations filesystem not available")

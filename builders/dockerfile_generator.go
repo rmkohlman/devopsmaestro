@@ -11,8 +11,25 @@ import (
 	"devopsmaestro/utils"
 )
 
-// DockerfileGenerator generates Dockerfiles for dev containers
-type DockerfileGenerator struct {
+// DockerfileGenerator defines the interface for generating Dockerfiles for dev containers.
+// Implementations produce Dockerfile content optimized with BuildKit features
+// (parallel multi-stage builds, cache mounts) for a specific language/workspace combination.
+type DockerfileGenerator interface {
+	// SetPluginManifest sets the plugin manifest for conditional feature detection.
+	// This should be called before Generate() to enable plugin-aware Dockerfile generation.
+	SetPluginManifest(manifest *plugin.PluginManifest)
+
+	// Generate creates a Dockerfile.dvm with dev stage.
+	// Uses BuildKit features: parallel multi-stage builds, cache mounts.
+	Generate() (string, error)
+}
+
+// Compile-time interface compliance check
+var _ DockerfileGenerator = (*DefaultDockerfileGenerator)(nil)
+
+// DefaultDockerfileGenerator is the standard implementation of DockerfileGenerator
+// that generates Dockerfiles for dev containers.
+type DefaultDockerfileGenerator struct {
 	workspace      *models.Workspace
 	workspaceYAML  models.WorkspaceSpec
 	language       string
@@ -22,9 +39,10 @@ type DockerfileGenerator struct {
 	pluginManifest *plugin.PluginManifest
 }
 
-// NewDockerfileGenerator creates a new Dockerfile generator
-func NewDockerfileGenerator(ws *models.Workspace, wsYAML models.WorkspaceSpec, lang, version, appPath, baseDockerfile string) *DockerfileGenerator {
-	return &DockerfileGenerator{
+// NewDockerfileGenerator creates a new Dockerfile generator.
+// Returns the DockerfileGenerator interface for loose coupling.
+func NewDockerfileGenerator(ws *models.Workspace, wsYAML models.WorkspaceSpec, lang, version, appPath, baseDockerfile string) DockerfileGenerator {
+	return &DefaultDockerfileGenerator{
 		workspace:      ws,
 		workspaceYAML:  wsYAML,
 		language:       lang,
@@ -36,13 +54,13 @@ func NewDockerfileGenerator(ws *models.Workspace, wsYAML models.WorkspaceSpec, l
 
 // SetPluginManifest sets the plugin manifest for conditional feature detection.
 // This should be called before Generate() to enable plugin-aware Dockerfile generation.
-func (g *DockerfileGenerator) SetPluginManifest(manifest *plugin.PluginManifest) {
+func (g *DefaultDockerfileGenerator) SetPluginManifest(manifest *plugin.PluginManifest) {
 	g.pluginManifest = manifest
 }
 
 // Generate creates a Dockerfile.dvm with dev stage
 // Uses BuildKit features: parallel multi-stage builds, cache mounts
-func (g *DockerfileGenerator) Generate() (string, error) {
+func (g *DefaultDockerfileGenerator) Generate() (string, error) {
 	var dockerfile strings.Builder
 
 	// Header comment
@@ -111,7 +129,7 @@ func (g *DockerfileGenerator) Generate() (string, error) {
 	return dockerfile.String(), nil
 }
 
-func (g *DockerfileGenerator) generateBaseStage(dockerfile *strings.Builder, privateRepoInfo *utils.PrivateRepoInfo) {
+func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Builder, privateRepoInfo *utils.PrivateRepoInfo) {
 	dockerfile.WriteString("# Base stage (auto-generated)\n")
 
 	switch g.language {
@@ -270,7 +288,7 @@ func (g *DockerfileGenerator) generateBaseStage(dockerfile *strings.Builder, pri
 // Cache mount strategy: Builder stages do NOT use cache mounts because they are short-lived
 // throwaway stages. Cache mounts on parallel stages can also cause lock contention.
 // The dev stage (long-lived) does use cache mounts for all package managers.
-func (g *DockerfileGenerator) generateBuilderStages(dockerfile *strings.Builder) {
+func (g *DefaultDockerfileGenerator) generateBuilderStages(dockerfile *strings.Builder) {
 	isAlpine := g.isAlpineImage()
 
 	// Neovim builder (only for Debian - Alpine uses apk)
@@ -296,7 +314,7 @@ func (g *DockerfileGenerator) generateBuilderStages(dockerfile *strings.Builder)
 }
 
 // generateNeovimBuilder creates a parallel stage to download Neovim (Debian only)
-func (g *DockerfileGenerator) generateNeovimBuilder(dockerfile *strings.Builder) {
+func (g *DefaultDockerfileGenerator) generateNeovimBuilder(dockerfile *strings.Builder) {
 	dockerfile.WriteString("# --- Parallel builder: Neovim ---\n")
 	dockerfile.WriteString("FROM debian:bookworm-slim AS neovim-builder\n")
 	dockerfile.WriteString("RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
@@ -315,7 +333,7 @@ func (g *DockerfileGenerator) generateNeovimBuilder(dockerfile *strings.Builder)
 }
 
 // generateLazygitBuilder creates a parallel stage to download lazygit
-func (g *DockerfileGenerator) generateLazygitBuilder(dockerfile *strings.Builder, isAlpine bool) {
+func (g *DefaultDockerfileGenerator) generateLazygitBuilder(dockerfile *strings.Builder, isAlpine bool) {
 	dockerfile.WriteString("# --- Parallel builder: lazygit ---\n")
 	if isAlpine {
 		dockerfile.WriteString("FROM alpine:3.20 AS lazygit-builder\n")
@@ -348,7 +366,7 @@ func (g *DockerfileGenerator) generateLazygitBuilder(dockerfile *strings.Builder
 }
 
 // generateStarshipBuilder creates a parallel stage to download Starship prompt
-func (g *DockerfileGenerator) generateStarshipBuilder(dockerfile *strings.Builder) {
+func (g *DefaultDockerfileGenerator) generateStarshipBuilder(dockerfile *strings.Builder) {
 	dockerfile.WriteString("# --- Parallel builder: Starship prompt ---\n")
 	dockerfile.WriteString("FROM debian:bookworm-slim AS starship-builder\n")
 	dockerfile.WriteString("RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
@@ -356,7 +374,7 @@ func (g *DockerfileGenerator) generateStarshipBuilder(dockerfile *strings.Builde
 }
 
 // generateTreeSitterBuilder creates a parallel stage to download tree-sitter CLI
-func (g *DockerfileGenerator) generateTreeSitterBuilder(dockerfile *strings.Builder) {
+func (g *DefaultDockerfileGenerator) generateTreeSitterBuilder(dockerfile *strings.Builder) {
 	dockerfile.WriteString("# --- Parallel builder: tree-sitter CLI ---\n")
 	dockerfile.WriteString("FROM alpine:3.20 AS treesitter-builder\n")
 	dockerfile.WriteString("RUN apk add --no-cache curl && \\\n")
@@ -369,7 +387,7 @@ func (g *DockerfileGenerator) generateTreeSitterBuilder(dockerfile *strings.Buil
 }
 
 // getGoToolsList returns the resolved Go tools list (config or defaults)
-func (g *DockerfileGenerator) getGoToolsList() []string {
+func (g *DefaultDockerfileGenerator) getGoToolsList() []string {
 	tools := g.workspaceYAML.Build.DevStage.DevTools
 	if len(tools) == 0 {
 		tools = g.getDefaultLanguageTools()
@@ -380,7 +398,7 @@ func (g *DockerfileGenerator) getGoToolsList() []string {
 // hasGoToolsBuilder returns true if we need a parallel Go tools builder stage.
 // This is true when the language is golang and there are go-installable tools
 // (i.e., tools other than golangci-lint which uses a curl installer).
-func (g *DockerfileGenerator) hasGoToolsBuilder() bool {
+func (g *DefaultDockerfileGenerator) hasGoToolsBuilder() bool {
 	if g.language != "golang" {
 		return false
 	}
@@ -393,7 +411,7 @@ func (g *DockerfileGenerator) hasGoToolsBuilder() bool {
 }
 
 // generateGoToolsBuilder creates a parallel stage to install Go dev tools
-func (g *DockerfileGenerator) generateGoToolsBuilder(dockerfile *strings.Builder) {
+func (g *DefaultDockerfileGenerator) generateGoToolsBuilder(dockerfile *strings.Builder) {
 	tools := g.getGoToolsList()
 
 	var installCmds []string
@@ -422,7 +440,7 @@ func (g *DockerfileGenerator) generateGoToolsBuilder(dockerfile *strings.Builder
 }
 
 // copyFromBuilders emits COPY --from= directives to pull binaries from parallel stages
-func (g *DockerfileGenerator) copyFromBuilders(dockerfile *strings.Builder) {
+func (g *DefaultDockerfileGenerator) copyFromBuilders(dockerfile *strings.Builder) {
 	isAlpine := g.isAlpineImage()
 
 	dockerfile.WriteString("# Copy binaries from parallel builder stages\n")
@@ -453,14 +471,14 @@ func (g *DockerfileGenerator) copyFromBuilders(dockerfile *strings.Builder) {
 }
 
 // effectiveGoVersion returns the Go version to use (with default)
-func (g *DockerfileGenerator) effectiveGoVersion() string {
+func (g *DefaultDockerfileGenerator) effectiveGoVersion() string {
 	if g.version != "" {
 		return g.version
 	}
 	return "1.22"
 }
 
-func (g *DockerfileGenerator) generateDevStage(dockerfile *strings.Builder) {
+func (g *DefaultDockerfileGenerator) generateDevStage(dockerfile *strings.Builder) {
 	// Get packages from config or use defaults
 	packages := g.workspaceYAML.Build.DevStage.Packages
 	if len(packages) == 0 {
@@ -561,7 +579,7 @@ func appendUnique(slice []string, items ...string) []string {
 	return slice
 }
 
-func (g *DockerfileGenerator) generateDevUser(dockerfile *strings.Builder) {
+func (g *DefaultDockerfileGenerator) generateDevUser(dockerfile *strings.Builder) {
 	uid := g.workspaceYAML.Container.UID
 	gid := g.workspaceYAML.Container.GID
 	user := g.workspaceYAML.Container.User
@@ -598,7 +616,7 @@ func (g *DockerfileGenerator) generateDevUser(dockerfile *strings.Builder) {
 	dockerfile.WriteString(fmt.Sprintf("RUN chown -R %s:%s /home/%s/.zshrc /home/%s/.config\n\n", user, user, user, user))
 }
 
-func (g *DockerfileGenerator) getDefaultPackages() []string {
+func (g *DefaultDockerfileGenerator) getDefaultPackages() []string {
 	base := []string{
 		"git",
 		"curl",
@@ -621,11 +639,11 @@ func (g *DockerfileGenerator) getDefaultPackages() []string {
 
 // isAlpineImage returns true if the base image is Alpine-based
 // This affects user creation commands, package manager, and binary compatibility
-func (g *DockerfileGenerator) isAlpineImage() bool {
+func (g *DefaultDockerfileGenerator) isAlpineImage() bool {
 	return g.language == "golang" || strings.Contains(g.workspace.ImageName, "alpine")
 }
 
-func (g *DockerfileGenerator) getDefaultLanguageTools() []string {
+func (g *DefaultDockerfileGenerator) getDefaultLanguageTools() []string {
 	switch g.language {
 	case "python":
 		return []string{"python-lsp-server", "black", "isort", "pytest"}
@@ -638,7 +656,7 @@ func (g *DockerfileGenerator) getDefaultLanguageTools() []string {
 	}
 }
 
-func (g *DockerfileGenerator) installLanguageTools(dockerfile *strings.Builder, tools []string) {
+func (g *DefaultDockerfileGenerator) installLanguageTools(dockerfile *strings.Builder, tools []string) {
 	dockerfile.WriteString("# Install language-specific tools\n")
 
 	switch g.language {
@@ -666,7 +684,7 @@ func (g *DockerfileGenerator) installLanguageTools(dockerfile *strings.Builder, 
 }
 
 // generateNvimSection copies nvim config and installs plugins (called after user creation)
-func (g *DockerfileGenerator) generateNvimSection(dockerfile *strings.Builder) {
+func (g *DefaultDockerfileGenerator) generateNvimSection(dockerfile *strings.Builder) {
 	// Skip if explicitly disabled
 	if g.workspaceYAML.Nvim.Structure == "none" {
 		return
@@ -707,7 +725,7 @@ func (g *DockerfileGenerator) generateNvimSection(dockerfile *strings.Builder) {
 }
 
 // getMasonLSPsForLanguage returns the Mason LSP package names for the detected language
-func (g *DockerfileGenerator) getMasonLSPsForLanguage() []string {
+func (g *DefaultDockerfileGenerator) getMasonLSPsForLanguage() []string {
 	switch g.language {
 	case "python":
 		return []string{"pyright", "ruff-lsp", "black", "isort"}
@@ -729,7 +747,7 @@ func (g *DockerfileGenerator) getMasonLSPsForLanguage() []string {
 }
 
 // installMasonLSPs installs language servers via Mason at build time
-func (g *DockerfileGenerator) installMasonLSPs(dockerfile *strings.Builder) {
+func (g *DefaultDockerfileGenerator) installMasonLSPs(dockerfile *strings.Builder) {
 	// Check if Mason is installed via manifest
 	if g.pluginManifest != nil && !g.pluginManifest.Features.HasMason {
 		dockerfile.WriteString("# Mason not installed - skipping LSP pre-install\n\n")
@@ -749,7 +767,7 @@ func (g *DockerfileGenerator) installMasonLSPs(dockerfile *strings.Builder) {
 }
 
 // getTreesitterParsersForLanguage returns Treesitter parsers for the detected language
-func (g *DockerfileGenerator) getTreesitterParsersForLanguage() []string {
+func (g *DefaultDockerfileGenerator) getTreesitterParsersForLanguage() []string {
 	// Base parsers always included for a good editing experience
 	base := []string{"lua", "vim", "vimdoc", "query", "markdown", "markdown_inline", "bash", "json", "yaml"}
 
@@ -774,7 +792,7 @@ func (g *DockerfileGenerator) getTreesitterParsersForLanguage() []string {
 }
 
 // installTreesitterParsers installs Treesitter parsers at build time
-func (g *DockerfileGenerator) installTreesitterParsers(dockerfile *strings.Builder) {
+func (g *DefaultDockerfileGenerator) installTreesitterParsers(dockerfile *strings.Builder) {
 	// Check if Treesitter is installed via manifest
 	if g.pluginManifest != nil && !g.pluginManifest.Features.HasTreesitter {
 		dockerfile.WriteString("# Treesitter not installed - skipping parser pre-install\n\n")

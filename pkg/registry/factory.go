@@ -6,12 +6,12 @@ import (
 )
 
 // NewRegistryManager creates a RegistryManager with the given config.
-// Panics if config is invalid (fail-fast for programming errors).
-func NewRegistryManager(config RegistryConfig) RegistryManager {
+// Returns an error if the config is invalid.
+func NewRegistryManager(config RegistryConfig) (RegistryManager, error) {
 	if err := config.Validate(); err != nil {
-		panic(fmt.Sprintf("invalid registry config: %v", err))
+		return nil, fmt.Errorf("invalid registry config: %w", err)
 	}
-	return NewZotManager(config)
+	return NewZotManager(config), nil
 }
 
 // NewZotManager creates a ZotManager with injected dependencies.

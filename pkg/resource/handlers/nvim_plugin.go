@@ -107,18 +107,20 @@ func (h *NvimPluginHandler) ToYAML(res resource.Resource) ([]byte, error) {
 func (h *NvimPluginHandler) getStore(ctx resource.Context) (store.PluginStore, error) {
 	// If PluginStore is directly provided, use it
 	if ctx.PluginStore != nil {
-		if ps, ok := ctx.PluginStore.(store.PluginStore); ok {
-			return ps, nil
+		ps, err := resource.PluginStoreAs[store.PluginStore](ctx)
+		if err != nil {
+			return nil, fmt.Errorf("invalid PluginStore type: %T", ctx.PluginStore)
 		}
-		return nil, fmt.Errorf("invalid PluginStore type: %T", ctx.PluginStore)
+		return ps, nil
 	}
 
 	// If DataStore is provided, use DBStoreAdapter
 	if ctx.DataStore != nil {
-		if ds, ok := ctx.DataStore.(store.PluginDataStore); ok {
-			return store.NewDBStoreAdapter(ds), nil
+		ds, err := resource.DataStoreAs[store.PluginDataStore](ctx)
+		if err != nil {
+			return nil, fmt.Errorf("DataStore does not implement PluginDataStore: %T", ctx.DataStore)
 		}
-		return nil, fmt.Errorf("DataStore does not implement PluginDataStore: %T", ctx.DataStore)
+		return store.NewDBStoreAdapter(ds), nil
 	}
 
 	// If ConfigDir is provided, use FileStore

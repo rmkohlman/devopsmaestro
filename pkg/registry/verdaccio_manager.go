@@ -15,14 +15,29 @@ type VerdaccioManager struct {
 	config NpmProxyConfig
 }
 
-// NewVerdaccioManager creates a new VerdaccioManager with the given configuration.
-func NewVerdaccioManager(config NpmProxyConfig) *VerdaccioManager {
-	// Validate config
+// NewVerdaccioManager creates a VerdaccioManager with injected dependencies.
+// This is the canonical constructor — callers provide their own BinaryManager
+// and ProcessManager, enabling testability and explicit dependency control.
+// Returns an error if the config is invalid.
+func NewVerdaccioManager(config NpmProxyConfig, binary BinaryManager, process ProcessManager) (*VerdaccioManager, error) {
 	if err := config.Validate(); err != nil {
-		panic(fmt.Sprintf("invalid verdaccio config: %v", err))
+		return nil, fmt.Errorf("invalid verdaccio config: %w", err)
 	}
 
-	// Create real binary and process managers
+	return &VerdaccioManager{
+		BaseServiceManager: NewBaseServiceManager(binary, process),
+		config:             config,
+	}, nil
+}
+
+// NewVerdaccioManagerDefault creates a VerdaccioManager with default production
+// dependencies (NpmBinaryManager for verdaccio v5.28.0, ProcessManager with
+// standard PID/log paths). Prefer NewVerdaccioManager for testability.
+func NewVerdaccioManagerDefault(config NpmProxyConfig) (*VerdaccioManager, error) {
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid verdaccio config: %w", err)
+	}
+
 	binaryManager := NewNpmBinaryManager("verdaccio", "5.28.0")
 	processManager := NewProcessManager(ProcessConfig{
 		PIDFile: filepath.Join(config.Storage, "verdaccio.pid"),
@@ -32,19 +47,7 @@ func NewVerdaccioManager(config NpmProxyConfig) *VerdaccioManager {
 	return &VerdaccioManager{
 		BaseServiceManager: NewBaseServiceManager(binaryManager, processManager),
 		config:             config,
-	}
-}
-
-// NewVerdaccioManagerWithDeps creates a VerdaccioManager with injected dependencies.
-func NewVerdaccioManagerWithDeps(config NpmProxyConfig, binary BinaryManager, process ProcessManager) *VerdaccioManager {
-	if err := config.Validate(); err != nil {
-		panic(fmt.Sprintf("invalid verdaccio config: %v", err))
-	}
-
-	return &VerdaccioManager{
-		BaseServiceManager: NewBaseServiceManager(binary, process),
-		config:             config,
-	}
+	}, nil
 }
 
 // Start starts the verdaccio proxy process.

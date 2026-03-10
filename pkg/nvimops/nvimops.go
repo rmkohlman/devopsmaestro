@@ -44,8 +44,50 @@ import (
 	"devopsmaestro/pkg/nvimops/store"
 )
 
-// Manager provides high-level operations for nvim-manager.
-type Manager struct {
+// Manager defines the interface for high-level Neovim plugin management operations.
+// It provides CRUD operations on plugins, Lua code generation, and URL-based import.
+type Manager interface {
+	// ApplyFile applies a plugin from a YAML file.
+	ApplyFile(path string) error
+
+	// ApplyURL fetches a plugin YAML from a URL and applies it.
+	// Supports GitHub shorthand: github:user/repo/path/file.yaml
+	ApplyURL(url string) error
+
+	// Apply applies (upserts) a plugin to the store.
+	Apply(p *plugin.Plugin) error
+
+	// Get retrieves a plugin by name.
+	Get(name string) (*plugin.Plugin, error)
+
+	// List returns all plugins.
+	List() ([]*plugin.Plugin, error)
+
+	// Delete removes a plugin by name.
+	Delete(name string) error
+
+	// GenerateLua generates Lua files for all enabled plugins in the output directory.
+	GenerateLua(outputDir string) error
+
+	// GenerateLuaFor generates Lua code for a specific plugin without writing to disk.
+	GenerateLuaFor(name string) (string, error)
+
+	// Store returns the underlying plugin store.
+	Store() store.PluginStore
+
+	// Generator returns the underlying Lua generator.
+	Generator() plugin.LuaGenerator
+
+	// Close releases resources held by the manager.
+	Close() error
+}
+
+// Compile-time interface compliance check
+var _ Manager = (*DefaultManager)(nil)
+
+// DefaultManager is the standard implementation of Manager that provides
+// high-level operations for nvim plugin management.
+type DefaultManager struct {
 	store     store.PluginStore
 	generator plugin.LuaGenerator
 }
@@ -64,12 +106,12 @@ type Options struct {
 }
 
 // New creates a new Manager with default options.
-func New() (*Manager, error) {
+func New() (Manager, error) {
 	return NewWithOptions(Options{})
 }
 
 // NewWithOptions creates a new Manager with the specified options.
-func NewWithOptions(opts Options) (*Manager, error) {
+func NewWithOptions(opts Options) (Manager, error) {
 	var s store.PluginStore
 	var err error
 
@@ -91,14 +133,14 @@ func NewWithOptions(opts Options) (*Manager, error) {
 		gen = plugin.NewGenerator()
 	}
 
-	return &Manager{
+	return &DefaultManager{
 		store:     s,
 		generator: gen,
 	}, nil
 }
 
 // ApplyFile applies a plugin from a YAML file.
-func (m *Manager) ApplyFile(path string) error {
+func (m *DefaultManager) ApplyFile(path string) error {
 	p, err := plugin.ParseYAMLFile(path)
 	if err != nil {
 		return fmt.Errorf("failed to parse plugin file: %w", err)
@@ -108,7 +150,7 @@ func (m *Manager) ApplyFile(path string) error {
 
 // ApplyURL fetches a plugin YAML from a URL and applies it.
 // Supports GitHub shorthand: github:user/repo/path/file.yaml
-func (m *Manager) ApplyURL(url string) error {
+func (m *DefaultManager) ApplyURL(url string) error {
 	data, fetchedURL, err := FetchURL(url)
 	if err != nil {
 		return fmt.Errorf("failed to fetch URL: %w", err)
@@ -173,27 +215,27 @@ func FetchURL(url string) ([]byte, string, error) {
 }
 
 // Apply applies (upserts) a plugin to the store.
-func (m *Manager) Apply(p *plugin.Plugin) error {
+func (m *DefaultManager) Apply(p *plugin.Plugin) error {
 	return m.store.Upsert(p)
 }
 
 // Get retrieves a plugin by name.
-func (m *Manager) Get(name string) (*plugin.Plugin, error) {
+func (m *DefaultManager) Get(name string) (*plugin.Plugin, error) {
 	return m.store.Get(name)
 }
 
 // List returns all plugins.
-func (m *Manager) List() ([]*plugin.Plugin, error) {
+func (m *DefaultManager) List() ([]*plugin.Plugin, error) {
 	return m.store.List()
 }
 
 // Delete removes a plugin by name.
-func (m *Manager) Delete(name string) error {
+func (m *DefaultManager) Delete(name string) error {
 	return m.store.Delete(name)
 }
 
 // GenerateLua generates Lua files for all enabled plugins in the output directory.
-func (m *Manager) GenerateLua(outputDir string) error {
+func (m *DefaultManager) GenerateLua(outputDir string) error {
 	plugins, err := m.store.List()
 	if err != nil {
 		return fmt.Errorf("failed to list plugins: %w", err)
@@ -230,7 +272,7 @@ func (m *Manager) GenerateLua(outputDir string) error {
 }
 
 // GenerateLuaFor generates Lua code for a specific plugin without writing to disk.
-func (m *Manager) GenerateLuaFor(name string) (string, error) {
+func (m *DefaultManager) GenerateLuaFor(name string) (string, error) {
 	p, err := m.store.Get(name)
 	if err != nil {
 		return "", err
@@ -240,17 +282,17 @@ func (m *Manager) GenerateLuaFor(name string) (string, error) {
 
 // Store returns the underlying plugin store.
 // Useful for advanced operations or using a different store implementation.
-func (m *Manager) Store() store.PluginStore {
+func (m *DefaultManager) Store() store.PluginStore {
 	return m.store
 }
 
 // Generator returns the underlying Lua generator.
 // Useful for advanced operations or customizing Lua output.
-func (m *Manager) Generator() plugin.LuaGenerator {
+func (m *DefaultManager) Generator() plugin.LuaGenerator {
 	return m.generator
 }
 
 // Close releases resources held by the manager.
-func (m *Manager) Close() error {
+func (m *DefaultManager) Close() error {
 	return m.store.Close()
 }

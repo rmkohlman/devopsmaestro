@@ -34,7 +34,7 @@ func (h *AppHandler) Apply(ctx resource.Context, data []byte) (resource.Resource
 	}
 
 	// Get the datastore
-	ds, err := h.getDataStore(ctx)
+	ds, err := resource.DataStoreAs[db.DataStore](ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +92,7 @@ func (h *AppHandler) Apply(ctx resource.Context, data []byte) (resource.Resource
 // Get retrieves an app by name.
 // Note: This requires an active domain context to resolve the app.
 func (h *AppHandler) Get(ctx resource.Context, name string) (resource.Resource, error) {
-	ds, err := h.getDataStore(ctx)
+	ds, err := resource.DataStoreAs[db.DataStore](ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ func (h *AppHandler) Get(ctx resource.Context, name string) (resource.Resource, 
 
 // List returns all apps in the active domain.
 func (h *AppHandler) List(ctx resource.Context) ([]resource.Resource, error) {
-	ds, err := h.getDataStore(ctx)
+	ds, err := resource.DataStoreAs[db.DataStore](ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ func (h *AppHandler) List(ctx resource.Context) ([]resource.Resource, error) {
 
 // Delete removes an app by name.
 func (h *AppHandler) Delete(ctx resource.Context, name string) error {
-	ds, err := h.getDataStore(ctx)
+	ds, err := resource.DataStoreAs[db.DataStore](ctx)
 	if err != nil {
 		return err
 	}
@@ -191,20 +191,6 @@ func (h *AppHandler) ToYAML(res resource.Resource) ([]byte, error) {
 
 	yamlDoc := ar.app.ToYAML(ar.domainName, nil)
 	return yaml.Marshal(yamlDoc)
-}
-
-// getDataStore returns the DataStore from the context.
-func (h *AppHandler) getDataStore(ctx resource.Context) (db.DataStore, error) {
-	if ctx.DataStore == nil {
-		return nil, fmt.Errorf("DataStore not provided in context")
-	}
-
-	ds, ok := ctx.DataStore.(db.DataStore)
-	if !ok {
-		return nil, fmt.Errorf("invalid DataStore type: %T", ctx.DataStore)
-	}
-
-	return ds, nil
 }
 
 // AppResource wraps a models.App to implement resource.Resource.

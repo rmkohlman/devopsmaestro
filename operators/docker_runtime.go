@@ -18,6 +18,11 @@ import (
 	"github.com/moby/term"
 )
 
+// dockerHost returns the Docker host URI for the given platform socket.
+func dockerHost(platform *Platform) string {
+	return fmt.Sprintf("unix://%s", platform.SocketPath)
+}
+
 // DockerRuntime implements ContainerRuntime for Docker-compatible platforms
 // Supports: OrbStack, Colima, Docker Desktop, Podman, native Linux Docker
 type DockerRuntime struct {
@@ -25,19 +30,19 @@ type DockerRuntime struct {
 	platform *Platform
 }
 
-// NewDockerRuntime creates a new Docker runtime instance for the given platform
+// NewDockerRuntime creates a new Docker runtime instance for the given platform.
+// The Docker client is configured directly via client.WithHost — no global
+// environment variables (DOCKER_HOST) are mutated.
 func NewDockerRuntime(platform *Platform) (*DockerRuntime, error) {
 	if platform == nil {
 		return nil, fmt.Errorf("platform cannot be nil")
 	}
 
-	// Set Docker host based on platform socket
-	dockerHost := fmt.Sprintf("unix://%s", platform.SocketPath)
-	os.Setenv("DOCKER_HOST", dockerHost)
-
-	// Create Docker client
+	// Create Docker client using the platform socket directly.
+	// This avoids os.Setenv("DOCKER_HOST") which mutates process-wide state,
+	// is racy under concurrency, and pollutes tests.
 	cli, err := client.NewClientWithOpts(
-		client.FromEnv,
+		client.WithHost(dockerHost(platform)),
 		client.WithAPIVersionNegotiation(),
 	)
 	if err != nil {
