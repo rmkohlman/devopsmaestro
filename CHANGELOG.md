@@ -7,6 +7,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.34.6] - 2026-03-10 — Architecture Cleanup Sprint 4.2: Structural Refactors
+
+### ♻️ Refactored
+
+> **Internal structural refactoring only — no user-facing behavioral changes.**
+
+#### Wave 1: Sentinel Error System + Handler Test Coverage (1A-1C)
+
+##### 1A: db Layer — Typed Sentinel Errors
+- **`db/errors.go`** — Upgraded `IsNotFound()` from direct type assertion to `errors.As()` (handles wrapped errors); added `ErrUniqueViolation`, `NewErrUniqueViolation()`, `IsUniqueViolation()`
+- **~15 `db/store_*.go` files** — Replaced `fmt.Errorf("... not found: %s")` with `db.NewErrNotFound()` across ~27 call sites (ecosystem, domain, app, workspace, plugin, theme, terminal_plugin, terminal_prompt, terminal_emulator, terminal_profile, terminal_package, nvim_package, registry, credential, context, custom_resource)
+- **`db/store_registry.go`** + **`db/store_registry_history.go`** — Replaced `strings.Contains(err.Error(), "UNIQUE")` with `NewErrUniqueViolation()`
+- **4 test files updated** — `errors_test.go`, `registry_test.go`, `terminal_plugin_test.go`, `terminal_emulator_integration_test.go`
+
+##### 1B: Consumer Layer — Sentinel Error Adoption
+- **`pkg/terminalops/store/`** (4 files) — Added `isNotFoundCompat()` helper using `errors.As()` for `*db.ErrNotFound` (import cycle prevents direct `db.IsNotFound()`)
+- **`pkg/nvimops/theme/db_adapter.go`** — Same `isNotFoundCompat()` pattern
+- **`pkg/registry/process_manager.go`** — Replaced string matching with `errors.Is(err, exec.ErrNotFound)` and `errors.Is(err, os.ErrProcessDone)`
+- **`pkg/registry/binary_athens.go`** — Replaced string matching with `errors.Is(err, ErrBinaryNotFound)`
+- **`builders/buildkit_builder.go`** — Replaced string matching with `errdefs.IsNotFound(err)` (containerd typed errors)
+- **3 parser files** — Replaced `err.Error() == "EOF"` with `errors.Is(err, io.EOF)`
+- **`cmd/app.go`** — Replaced string matching with `db.IsNotFound(err)`
+
+##### 1C: Missing Handler Tests — 4 New Test Files
+- **`pkg/resource/handlers/ecosystem_test.go`** — NEW (~15 tests: CRUD, duplicate handling, not-found errors)
+- **`pkg/resource/handlers/domain_test.go`** — NEW (~15 tests: hierarchy context, active ecosystem requirement)
+- **`pkg/resource/handlers/app_test.go`** — NEW (~15 tests: domain hierarchy, active domain requirement)
+- **`pkg/resource/handlers/workspace_test.go`** — NEW (18 tests: field preservation on update, git repo linking, app hierarchy)
+
+#### Wave 2: God File Decomposition — 3 Files Split (2A-2C)
+
+##### 2A: Split `operators/containerd_runtime_v2.go` (839 → 5 files)
+- **`containerd_runtime_v2.go`** (89 lines) — Struct, constructors, `GetRuntimeType`, `BuildImage`, `Close`, `GetPlatformName`
+- **`containerd_runtime_v2_start.go`** (372 lines) — `StartWorkspace`, `startWorkspaceViaColima`, `needsQuoting`, `startWorkspaceDirectAPI`
+- **`containerd_runtime_v2_attach.go`** (129 lines) — `AttachToWorkspace`, `attachViaColima`, `attachDirectAPI`
+- **`containerd_runtime_v2_stop.go`** (74 lines) — `StopWorkspace`, `stopViaColima`, `stopDirectAPI`
+- **`containerd_runtime_v2_status.go`** (216 lines) — `GetWorkspaceStatus`, `ListWorkspaces`, `FindWorkspace`, `StopAllWorkspaces`, terminal helpers
+
+##### 2B: Split `pkg/nvimops/theme/generator.go` (778 → 3 files)
+- **`generator.go`** (326 lines) — Core: `Generator` struct, `Generate`, `generatePalette`, `writeSemanticAliases`, `generateInit`, `generatePlugin`, helpers
+- **`generator_themes.go`** (243 lines) — Theme-specific: `generateSetup` switch + 10 theme generators (tokyonight, catppuccin, gruvbox, nord, kanagawa, rose-pine, nightfox, onedark, dracula, generic)
+- **`generator_standalone.go`** (221 lines) — Standalone: `generateStandalonePlugin`, `generateStandaloneColorscheme`, `generateStandaloneHighlights`, `writeHighlight`
+
+##### 2C: Split `pkg/nvimops/store/db_adapter.go` (547 → 2 files)
+- **`db_adapter.go`** (215 lines) — Adapter struct, constructors, CRUD methods, interface compliance
+- **`db_adapter_convert.go`** (333 lines) — `pluginToDBModel`, `dbModelToPlugin`, mode/interface conversion helpers
+
+### 📊 Sprint 4.2 Summary
+
+| Metric | Value |
+|--------|-------|
+| Files modified | ~35 |
+| Files created | 10 (4 test + 6 split) |
+| Sentinel error sites converted | ~27 (db) + ~12 (consumers) |
+| Handler test coverage added | 4 handlers (ecosystem, domain, app, workspace) — 63 new tests |
+| God files decomposed | 3 (containerd runtime, theme generator, db adapter) |
+| Total lines across split files | 2,160 → 10 focused files |
+| New composed error types | 2 (`ErrUniqueViolation`, upgraded `IsNotFound`) |
+| All tests pass | ✅ (59 packages) |
+
+---
+
 ## [v0.34.5] - 2026-03-10 — Architecture Cleanup Sprint 4.1: Quick Wins + Foundation
 
 ### ♻️ Refactored

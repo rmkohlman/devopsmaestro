@@ -41,7 +41,7 @@ func (ds *SQLDataStore) UpdatePackage(pkg *models.NvimPackageDB) error {
 
 	rowsAffected, err := result.RowsAffected()
 	if err == nil && rowsAffected == 0 {
-		return fmt.Errorf("package not found: %s", pkg.Name)
+		return NewErrNotFound("package", pkg.Name)
 	}
 
 	return nil
@@ -74,7 +74,7 @@ func (ds *SQLDataStore) GetPackage(name string) (*models.NvimPackageDB, error) {
 	row := ds.driver.QueryRow(query, name)
 	if err := row.Scan(&pkg.ID, &pkg.Name, &pkg.Description, &pkg.Category, &pkg.Labels, &pkg.Plugins, &pkg.Extends, &pkg.CreatedAt, &pkg.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("package not found: %s", name)
+			return nil, NewErrNotFound("package", name)
 		}
 		return nil, fmt.Errorf("failed to scan package: %w", err)
 	}

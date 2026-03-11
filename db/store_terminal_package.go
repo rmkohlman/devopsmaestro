@@ -41,7 +41,7 @@ func (ds *SQLDataStore) UpdateTerminalPackage(pkg *models.TerminalPackageDB) err
 
 	rowsAffected, err := result.RowsAffected()
 	if err == nil && rowsAffected == 0 {
-		return fmt.Errorf("terminal package not found: %s", pkg.Name)
+		return NewErrNotFound("terminal package", pkg.Name)
 	}
 
 	return nil
@@ -74,7 +74,7 @@ func (ds *SQLDataStore) GetTerminalPackage(name string) (*models.TerminalPackage
 	row := ds.driver.QueryRow(query, name)
 	if err := row.Scan(&pkg.ID, &pkg.Name, &pkg.Description, &pkg.Category, &pkg.Labels, &pkg.Plugins, &pkg.Prompts, &pkg.Profiles, &pkg.WezTerm, &pkg.Extends, &pkg.CreatedAt, &pkg.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("terminal package not found: %s", name)
+			return nil, NewErrNotFound("terminal package", name)
 		}
 		return nil, fmt.Errorf("failed to scan terminal package: %w", err)
 	}

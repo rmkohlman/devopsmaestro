@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 
 	"github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/pkg/namespaces"
+	"github.com/containerd/errdefs"
 	bkclient "github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/session"
 	"github.com/moby/buildkit/session/auth/authprovider"
@@ -197,7 +197,7 @@ func (b *BuildKitBuilder) ImageExists(ctx context.Context) (bool, error) {
 
 	_, err := b.containerdClient.ImageService().Get(ctx, b.imageName)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errdefs.IsNotFound(err) {
 			return false, nil
 		}
 		return false, err

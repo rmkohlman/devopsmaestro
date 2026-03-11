@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/terminalops/emulator"
@@ -129,7 +128,7 @@ func (a *DBEmulatorStore) Get(name string) (*emulator.Emulator, error) {
 	dbEmulator, err := a.store.GetTerminalEmulator(name)
 	if err != nil {
 		// Check if it's a "not found" error
-		if strings.Contains(err.Error(), "not found") {
+		if isNotFoundCompat(err) {
 			return nil, &emulator.ErrNotFound{Name: name}
 		}
 		return nil, fmt.Errorf("failed to get emulator: %w", err)
@@ -183,7 +182,7 @@ func (a *DBEmulatorStore) ListByWorkspace(workspace string) ([]*emulator.Emulato
 func (a *DBEmulatorStore) Exists(name string) (bool, error) {
 	_, err := a.store.GetTerminalEmulator(name)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if isNotFoundCompat(err) {
 			return false, nil
 		}
 		return false, fmt.Errorf("failed to check emulator existence: %w", err)

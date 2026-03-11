@@ -48,7 +48,7 @@ func (ds *SQLDataStore) GetCRDByKind(kind string) (*models.CustomResourceDefinit
 	row := ds.driver.QueryRow(query, kind)
 	if err := row.Scan(&crd.ID, &crd.Kind, &crd.Group, &crd.Singular, &crd.Plural, &crd.ShortNames, &crd.Scope, &crd.Versions, &crd.CreatedAt, &crd.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("CRD not found: %s", kind)
+			return nil, NewErrNotFound("CRD", kind)
 		}
 		return nil, fmt.Errorf("failed to scan CRD: %w", err)
 	}
@@ -170,7 +170,7 @@ func (ds *SQLDataStore) GetCustomResource(kind, name, namespace string) (*models
 	row := ds.driver.QueryRow(query, kind, name, namespace, namespace)
 	if err := row.Scan(&resource.ID, &resource.Kind, &resource.Name, &resource.Namespace, &resource.Spec, &resource.Status, &resource.CreatedAt, &resource.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("custom resource not found: %s/%s/%s", kind, namespace, name)
+			return nil, NewErrNotFound("custom resource", fmt.Sprintf("%s/%s/%s", kind, namespace, name))
 		}
 		return nil, fmt.Errorf("failed to scan custom resource: %w", err)
 	}

@@ -79,7 +79,7 @@ func TestSQLDataStore_GetTerminalPlugin_NotFound(t *testing.T) {
 	// Get non-existent terminal plugin
 	_, err := store.GetTerminalPlugin("nonexistent")
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "terminal plugin not found")
+	assert.True(t, IsNotFound(err), "error should be ErrNotFound")
 }
 
 func TestSQLDataStore_UpdateTerminalPlugin(t *testing.T) {
@@ -187,7 +187,7 @@ func TestSQLDataStore_DeleteTerminalPlugin(t *testing.T) {
 	// Verify it's gone
 	_, err = store.GetTerminalPlugin("fzf")
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "terminal plugin not found")
+	assert.True(t, IsNotFound(err), "error should be ErrNotFound")
 }
 
 func TestSQLDataStore_ListTerminalPlugins(t *testing.T) {

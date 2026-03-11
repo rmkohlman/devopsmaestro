@@ -676,7 +676,9 @@ func resolveOrCreateGitRepo(ds db.DataStore, repo string) (*int, string, string,
 
 		// Check if a GitRepo with this slug name exists
 		existingBySlug, err := ds.GetGitRepoByName(slug)
-		if err != nil && !strings.Contains(err.Error(), "not found") {
+		// Check for "not found" using both typed error check and string fallback
+		// TODO: Remove strings.Contains fallback once db.GetGitRepoByName returns *db.ErrNotFound
+		if err != nil && !db.IsNotFound(err) && !strings.Contains(err.Error(), "not found") {
 			return nil, "", "", fmt.Errorf("failed to check existing GitRepo: %w", err)
 		}
 		if existingBySlug != nil {

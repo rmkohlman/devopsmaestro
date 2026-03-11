@@ -58,7 +58,7 @@ func (ds *SQLDataStore) GetTerminalPromptByName(name string) (*models.TerminalPr
 	prompt, err := scanTerminalPrompt(row)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("terminal prompt not found: %s", name)
+			return nil, NewErrNotFound("terminal prompt", name)
 		}
 		return nil, fmt.Errorf("failed to scan terminal prompt: %w", err)
 	}

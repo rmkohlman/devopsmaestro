@@ -69,7 +69,7 @@ func (ds *SQLDataStore) GetCredential(scopeType models.CredentialScopeType, scop
 		&credential.UpdatedAt,
 	); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("credential not found: %s (scope: %s, id: %d)", name, scopeType, scopeID)
+			return nil, NewErrNotFound("credential", fmt.Sprintf("%s (scope: %s, id: %d)", name, scopeType, scopeID))
 		}
 		return nil, fmt.Errorf("failed to scan credential: %w", err)
 	}
@@ -110,7 +110,7 @@ func (ds *SQLDataStore) UpdateCredential(credential *models.CredentialDB) error 
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
-		return fmt.Errorf("credential not found: %s (scope: %s, id: %d)", credential.Name, credential.ScopeType, credential.ScopeID)
+		return NewErrNotFound("credential", fmt.Sprintf("%s (scope: %s, id: %d)", credential.Name, credential.ScopeType, credential.ScopeID))
 	}
 
 	return nil

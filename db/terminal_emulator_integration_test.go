@@ -167,7 +167,7 @@ func TestTerminalEmulator_IntegrationTest(t *testing.T) {
 
 		_, err = store.GetTerminalEmulator("kitty-minimal")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "terminal emulator not found")
+		assert.True(t, IsNotFound(err), "error should be ErrNotFound")
 
 		// Verify other emulators still exist
 		emulators, err := store.ListTerminalEmulators()

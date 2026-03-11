@@ -51,7 +51,7 @@ func (ds *SQLDataStore) GetPluginByName(name string) (*models.NvimPluginDB, erro
 		&plugin.Category, &plugin.Tags, &plugin.Enabled, &plugin.CreatedAt, &plugin.UpdatedAt,
 	); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("plugin not found: %s", name)
+			return nil, NewErrNotFound("plugin", name)
 		}
 		return nil, fmt.Errorf("failed to scan plugin: %w", err)
 	}
@@ -74,7 +74,7 @@ func (ds *SQLDataStore) GetPluginByID(id int) (*models.NvimPluginDB, error) {
 		&plugin.Category, &plugin.Tags, &plugin.Enabled, &plugin.CreatedAt, &plugin.UpdatedAt,
 	); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("plugin not found: %d", id)
+			return nil, NewErrNotFound("plugin", id)
 		}
 		return nil, fmt.Errorf("failed to scan plugin: %w", err)
 	}

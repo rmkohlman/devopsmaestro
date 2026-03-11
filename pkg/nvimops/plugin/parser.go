@@ -1,7 +1,9 @@
 package plugin
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -40,7 +42,7 @@ func ParseYAMLMultiple(data []byte) ([]*Plugin, error) {
 	for {
 		var py PluginYAML
 		if err := decoder.Decode(&py); err != nil {
-			if err.Error() == "EOF" {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			return nil, fmt.Errorf("failed to parse YAML: %w", err)
@@ -94,7 +96,7 @@ func bytesReader(data []byte) *bytesReaderType {
 
 func (r *bytesReaderType) Read(p []byte) (n int, err error) {
 	if r.pos >= len(r.data) {
-		return 0, fmt.Errorf("EOF")
+		return 0, io.EOF
 	}
 	n = copy(p, r.data[r.pos:])
 	r.pos += n

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 
+	dbpkg "devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/terminalops/plugin"
 )
@@ -40,6 +41,18 @@ type PluginDataStore interface {
 
 	// ListTerminalPluginsByShell retrieves plugins filtered by shell.
 	ListTerminalPluginsByShell(shell string) ([]*models.TerminalPluginDB, error)
+}
+
+// isNotFoundCompat checks if an error represents a "not found" condition.
+// It first checks for the typed *db.ErrNotFound (preferred), then falls back
+// to string matching for backward compatibility with old-style fmt.Errorf errors
+// that haven't been converted yet.
+// TODO: Remove the strings.Contains fallback once all DB methods return *db.ErrNotFound.
+func isNotFoundCompat(err error) bool {
+	if dbpkg.IsNotFound(err) {
+		return true
+	}
+	return strings.Contains(err.Error(), "not found")
 }
 
 // DBPluginStore adapts db.DataStore to implement plugin.PluginStore.
@@ -129,7 +142,7 @@ func (a *DBPluginStore) Get(name string) (*plugin.Plugin, error) {
 	dbPlugin, err := a.store.GetTerminalPlugin(name)
 	if err != nil {
 		// Check if it's a "not found" error
-		if strings.Contains(err.Error(), "not found") {
+		if isNotFoundCompat(err) {
 			return nil, &plugin.ErrNotFound{Name: name}
 		}
 		return nil, fmt.Errorf("failed to get plugin: %w", err)
@@ -186,7 +199,7 @@ func (a *DBPluginStore) ListByManager(manager plugin.PluginManager) ([]*plugin.P
 func (a *DBPluginStore) Exists(name string) (bool, error) {
 	_, err := a.store.GetTerminalPlugin(name)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if isNotFoundCompat(err) {
 			return false, nil
 		}
 		return false, fmt.Errorf("failed to check plugin existence: %w", err)

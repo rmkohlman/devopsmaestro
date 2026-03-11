@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/terminalops/prompt"
@@ -129,7 +128,7 @@ func (a *DBPromptStore) Get(name string) (*prompt.Prompt, error) {
 	dbPrompt, err := a.store.GetTerminalPromptByName(name)
 	if err != nil {
 		// Check if it's a "not found" error
-		if strings.Contains(err.Error(), "not found") {
+		if isNotFoundCompat(err) {
 			return nil, &prompt.ErrNotFound{Name: name}
 		}
 		return nil, fmt.Errorf("failed to get prompt: %w", err)
@@ -183,7 +182,7 @@ func (a *DBPromptStore) ListByCategory(category string) ([]*prompt.Prompt, error
 func (a *DBPromptStore) Exists(name string) (bool, error) {
 	_, err := a.store.GetTerminalPromptByName(name)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if isNotFoundCompat(err) {
 			return false, nil
 		}
 		return false, fmt.Errorf("failed to check prompt existence: %w", err)

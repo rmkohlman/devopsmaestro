@@ -48,7 +48,7 @@ func (ds *SQLDataStore) GetTerminalProfileByName(name string) (*models.TerminalP
 		&profile.Labels, &profile.Enabled, &profile.CreatedAt, &profile.UpdatedAt,
 	); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("terminal profile not found: %s", name)
+			return nil, NewErrNotFound("terminal profile", name)
 		}
 		return nil, fmt.Errorf("failed to scan terminal profile: %w", err)
 	}

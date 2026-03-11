@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -78,7 +79,7 @@ func (b *AthensBinaryManager) NeedsUpdate(ctx context.Context) (bool, error) {
 	currentVer, err := b.GetVersion(ctx)
 	if err != nil {
 		// If binary doesn't exist, we need to "update" (download)
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, ErrBinaryNotFound) {
 			return true, nil
 		}
 		return false, err

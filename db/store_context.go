@@ -18,7 +18,7 @@ func (ds *SQLDataStore) GetContext() (*models.Context, error) {
 	row := ds.driver.QueryRow(query)
 	if err := row.Scan(&context.ID, &context.ActiveEcosystemID, &context.ActiveDomainID, &context.ActiveAppID, &context.ActiveWorkspaceID, &context.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("context not found")
+			return nil, NewErrNotFound("context", "current")
 		}
 		return nil, fmt.Errorf("failed to scan context: %w", err)
 	}

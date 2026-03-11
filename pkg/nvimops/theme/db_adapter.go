@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 
+	dbpkg "devopsmaestro/db"
 	"devopsmaestro/models"
 )
 
@@ -52,6 +53,18 @@ type DBStoreAdapter struct {
 	ownedConn bool // true if we own the connection and should close it
 }
 
+// isNotFoundCompat checks if an error represents a "not found" condition.
+// It first checks for the typed *db.ErrNotFound (preferred), then falls back
+// to string matching for backward compatibility with old-style fmt.Errorf errors
+// that haven't been converted yet.
+// TODO: Remove the strings.Contains fallback once all DB methods return *db.ErrNotFound.
+func isNotFoundCompat(err error) bool {
+	if dbpkg.IsNotFound(err) {
+		return true
+	}
+	return strings.Contains(err.Error(), "not found")
+}
+
 // NewDBStoreAdapter creates a new adapter wrapping the given ThemeDataStore.
 // The adapter does NOT take ownership of the connection - caller is responsible
 // for closing the underlying DataStore.
@@ -76,7 +89,7 @@ func NewDBStoreAdapterOwned(store ThemeDataStore) *DBStoreAdapter {
 func (a *DBStoreAdapter) Get(name string) (*Theme, error) {
 	dbTheme, err := a.store.GetThemeByName(name)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if isNotFoundCompat(err) {
 			return nil, fmt.Errorf("theme %q not found", name)
 		}
 		return nil, fmt.Errorf("failed to get theme: %w", err)

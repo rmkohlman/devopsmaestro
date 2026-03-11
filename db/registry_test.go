@@ -53,7 +53,7 @@ func TestDataStore_CreateRegistry(t *testing.T) {
 				Storage:   "/var/lib/zot-dup",
 			},
 			wantErr: true,
-			errMsg:  "already exists",
+			errMsg:  "unique constraint violation",
 		},
 		{
 			name: "create with invalid type",
@@ -266,7 +266,7 @@ func TestDataStore_DeleteRegistry(t *testing.T) {
 	// Verify deletion
 	_, err = ds.GetRegistryByName(reg.Name)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not found")
+	assert.True(t, IsNotFound(err), "error should be ErrNotFound")
 }
 
 func TestDataStore_GetRegistryByPort(t *testing.T) {

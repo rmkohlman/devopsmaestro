@@ -63,7 +63,7 @@ func (ds *SQLDataStore) GetTerminalEmulator(name string) (*models.TerminalEmulat
 	emulator, err := scanTerminalEmulator(row)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("terminal emulator not found: %s", name)
+			return nil, NewErrNotFound("terminal emulator", name)
 		}
 		return nil, fmt.Errorf("failed to scan terminal emulator: %w", err)
 	}

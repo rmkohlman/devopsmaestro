@@ -48,7 +48,7 @@ func (ds *SQLDataStore) GetThemeByName(name string) (*models.NvimThemeDB, error)
 		&theme.Colors, &theme.Options, &theme.IsActive, &theme.CreatedAt, &theme.UpdatedAt,
 	); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("theme not found: %s", name)
+			return nil, NewErrNotFound("theme", name)
 		}
 		return nil, fmt.Errorf("failed to scan theme: %w", err)
 	}
@@ -70,7 +70,7 @@ func (ds *SQLDataStore) GetThemeByID(id int) (*models.NvimThemeDB, error) {
 		&theme.Colors, &theme.Options, &theme.IsActive, &theme.CreatedAt, &theme.UpdatedAt,
 	); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("theme not found: %d", id)
+			return nil, NewErrNotFound("theme", id)
 		}
 		return nil, fmt.Errorf("failed to scan theme: %w", err)
 	}

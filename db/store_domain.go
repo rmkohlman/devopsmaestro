@@ -36,7 +36,7 @@ func (ds *SQLDataStore) GetDomainByName(ecosystemID int, name string) (*models.D
 	row := ds.driver.QueryRow(query, ecosystemID, name)
 	if err := row.Scan(&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description, &domain.Theme, &domain.CreatedAt, &domain.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("domain not found: %s", name)
+			return nil, NewErrNotFound("domain", name)
 		}
 		return nil, fmt.Errorf("failed to scan domain: %w", err)
 	}
@@ -52,7 +52,7 @@ func (ds *SQLDataStore) GetDomainByID(id int) (*models.Domain, error) {
 	row := ds.driver.QueryRow(query, id)
 	if err := row.Scan(&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description, &domain.Theme, &domain.CreatedAt, &domain.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("domain not found: %d", id)
+			return nil, NewErrNotFound("domain", id)
 		}
 		return nil, fmt.Errorf("failed to scan domain: %w", err)
 	}

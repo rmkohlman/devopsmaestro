@@ -75,7 +75,7 @@ func (ds *SQLDataStore) GetTerminalPlugin(name string) (*models.TerminalPluginDB
 	plugin, err := scanTerminalPlugin(row)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("terminal plugin not found: %s", name)
+			return nil, NewErrNotFound("terminal plugin", name)
 		}
 		return nil, fmt.Errorf("failed to scan terminal plugin: %w", err)
 	}

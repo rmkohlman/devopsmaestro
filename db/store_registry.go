@@ -42,10 +42,10 @@ func (ds *SQLDataStore) CreateRegistry(registry *models.Registry) error {
 		// Check for unique constraint violations
 		if strings.Contains(err.Error(), "UNIQUE") || strings.Contains(err.Error(), "unique") {
 			if strings.Contains(err.Error(), "name") {
-				return fmt.Errorf("registry with name '%s' already exists", registry.Name)
+				return NewErrUniqueViolation("name", registry.Name)
 			}
 			if strings.Contains(err.Error(), "port") {
-				return fmt.Errorf("port %d is already in use", registry.Port)
+				return NewErrUniqueViolation("port", fmt.Sprintf("%d", registry.Port))
 			}
 		}
 		return fmt.Errorf("failed to create registry: %w", err)
@@ -73,7 +73,7 @@ func (ds *SQLDataStore) GetRegistryByName(name string) (*models.Registry, error)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("registry '%s' not found", name)
+			return nil, NewErrNotFound("registry", name)
 		}
 		return nil, fmt.Errorf("failed to get registry: %w", err)
 	}
@@ -94,7 +94,7 @@ func (ds *SQLDataStore) GetRegistryByID(id int) (*models.Registry, error) {
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("registry with ID %d not found", id)
+			return nil, NewErrNotFound("registry", id)
 		}
 		return nil, fmt.Errorf("failed to get registry: %w", err)
 	}
@@ -115,7 +115,7 @@ func (ds *SQLDataStore) GetRegistryByPort(port int) (*models.Registry, error) {
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("no registry found on port %d", port)
+			return nil, NewErrNotFound("registry", fmt.Sprintf("port:%d", port))
 		}
 		return nil, fmt.Errorf("failed to get registry: %w", err)
 	}
@@ -153,7 +153,7 @@ func (ds *SQLDataStore) UpdateRegistry(registry *models.Registry) error {
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 	if rows == 0 {
-		return fmt.Errorf("registry with ID %d not found", registry.ID)
+		return NewErrNotFound("registry", registry.ID)
 	}
 
 	return nil
@@ -179,7 +179,7 @@ func (ds *SQLDataStore) DeleteRegistry(name string) error {
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 	if rows == 0 {
-		return fmt.Errorf("registry '%s' not found", name)
+		return NewErrNotFound("registry", name)
 	}
 
 	return nil

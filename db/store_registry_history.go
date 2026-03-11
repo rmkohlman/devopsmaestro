@@ -39,7 +39,7 @@ func (ds *SQLDataStore) CreateRegistryHistory(history *models.RegistryHistory) e
 	if err != nil {
 		// Check for unique constraint violations
 		if strings.Contains(err.Error(), "UNIQUE") || strings.Contains(err.Error(), "unique") {
-			return fmt.Errorf("revision %d already exists for registry %d", history.Revision, history.RegistryID)
+			return NewErrUniqueViolation("revision", fmt.Sprintf("registry_id=%d, revision=%d", history.RegistryID, history.Revision))
 		}
 		return fmt.Errorf("failed to create registry history: %w", err)
 	}
@@ -92,7 +92,7 @@ func (ds *SQLDataStore) GetRegistryHistory(registryID int, revision int) (*model
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("registry history not found: registry_id=%d, revision=%d", registryID, revision)
+			return nil, NewErrNotFound("registry history", fmt.Sprintf("registry_id=%d, revision=%d", registryID, revision))
 		}
 		return nil, fmt.Errorf("failed to get registry history: %w", err)
 	}
@@ -134,7 +134,7 @@ func (ds *SQLDataStore) GetLatestRegistryHistory(registryID int) (*models.Regist
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("no history found for registry_id=%d", registryID)
+			return nil, NewErrNotFound("registry history", fmt.Sprintf("registry_id=%d", registryID))
 		}
 		return nil, fmt.Errorf("failed to get latest registry history: %w", err)
 	}

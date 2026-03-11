@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/terminalops/profile"
@@ -126,7 +125,7 @@ func (a *DBProfileStore) Get(name string) (*profile.Profile, error) {
 	dbProfile, err := a.store.GetTerminalProfileByName(name)
 	if err != nil {
 		// Check if it's a "not found" error
-		if strings.Contains(err.Error(), "not found") {
+		if isNotFoundCompat(err) {
 			return nil, &profile.ErrNotFound{Name: name}
 		}
 		return nil, fmt.Errorf("failed to get profile: %w", err)
@@ -166,7 +165,7 @@ func (a *DBProfileStore) ListByCategory(category string) ([]*profile.Profile, er
 func (a *DBProfileStore) Exists(name string) (bool, error) {
 	_, err := a.store.GetTerminalProfileByName(name)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if isNotFoundCompat(err) {
 			return false, nil
 		}
 		return false, fmt.Errorf("failed to check profile existence: %w", err)

@@ -36,7 +36,7 @@ func (ds *SQLDataStore) GetAppByName(domainID int, name string) (*models.App, er
 	row := ds.driver.QueryRow(query, domainID, name)
 	if err := row.Scan(&app.ID, &app.DomainID, &app.Name, &app.Path, &app.Description, &app.Theme, &app.Language, &app.BuildConfig, &app.GitRepoID, &app.CreatedAt, &app.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("app not found: %s", name)
+			return nil, NewErrNotFound("app", name)
 		}
 		return nil, fmt.Errorf("failed to scan app: %w", err)
 	}
@@ -53,7 +53,7 @@ func (ds *SQLDataStore) GetAppByNameGlobal(name string) (*models.App, error) {
 	row := ds.driver.QueryRow(query, name)
 	if err := row.Scan(&app.ID, &app.DomainID, &app.Name, &app.Path, &app.Description, &app.Theme, &app.Language, &app.BuildConfig, &app.GitRepoID, &app.CreatedAt, &app.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("app not found: %s", name)
+			return nil, NewErrNotFound("app", name)
 		}
 		return nil, fmt.Errorf("failed to scan app: %w", err)
 	}
@@ -69,7 +69,7 @@ func (ds *SQLDataStore) GetAppByID(id int) (*models.App, error) {
 	row := ds.driver.QueryRow(query, id)
 	if err := row.Scan(&app.ID, &app.DomainID, &app.Name, &app.Path, &app.Description, &app.Theme, &app.Language, &app.BuildConfig, &app.GitRepoID, &app.CreatedAt, &app.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("app not found: %d", id)
+			return nil, NewErrNotFound("app", id)
 		}
 		return nil, fmt.Errorf("failed to scan app: %w", err)
 	}

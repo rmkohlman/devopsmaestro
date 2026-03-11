@@ -2,6 +2,7 @@ package registry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -86,7 +87,7 @@ func (p *DefaultProcessManager) Start(ctx context.Context, binary string, args [
 	// Start the process
 	if err := p.cmd.Start(); err != nil {
 		// Check if binary not found
-		if strings.Contains(err.Error(), "executable file not found") || strings.Contains(err.Error(), "no such file") {
+		if errors.Is(err, exec.ErrNotFound) {
 			return fmt.Errorf("binary not found: %w", err)
 		}
 		return fmt.Errorf("failed to start process: %w", err)
@@ -130,7 +131,7 @@ func (p *DefaultProcessManager) Stop(ctx context.Context) error {
 func (p *DefaultProcessManager) stopInMemoryProcess(ctx context.Context) error {
 	// Send SIGTERM first
 	if err := p.cmd.Process.Signal(syscall.SIGTERM); err != nil {
-		if !strings.Contains(err.Error(), "process already finished") {
+		if !errors.Is(err, os.ErrProcessDone) {
 			return fmt.Errorf("failed to send SIGTERM: %w", err)
 		}
 	}
@@ -186,7 +187,7 @@ func (p *DefaultProcessManager) stopFromPIDFile(ctx context.Context) error {
 
 	// Send SIGTERM first
 	if err := proc.Signal(syscall.SIGTERM); err != nil {
-		if !strings.Contains(err.Error(), "process already finished") {
+		if !errors.Is(err, os.ErrProcessDone) {
 			return fmt.Errorf("failed to send SIGTERM to process %d: %w", pid, err)
 		}
 		// Process already gone, just clean up

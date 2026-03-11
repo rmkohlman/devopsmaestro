@@ -124,7 +124,7 @@ func TestIsNotFound(t *testing.T) {
 		{
 			name: "wrapped ErrNotFound with fmt.Errorf",
 			err:  fmt.Errorf("failed to get: %w", NewErrNotFound("app", "myapp")),
-			want: false, // IsNotFound doesn't support wrapped errors
+			want: true, // IsNotFound uses errors.As, which supports wrapped errors
 		},
 	}
 
@@ -137,23 +137,22 @@ func TestIsNotFound(t *testing.T) {
 	}
 }
 
-// TestIsNotFound_ErrorsIs tests that errors.Is could be used in the future
-// This documents current limitation - IsNotFound doesn't support wrapped errors
+// TestIsNotFound_ErrorsIs tests that IsNotFound supports wrapped errors via errors.As
 func TestIsNotFound_ErrorsIs(t *testing.T) {
 	baseErr := NewErrNotFound("workspace", "test")
 	wrappedErr := fmt.Errorf("operation failed: %w", baseErr)
 
-	// Current implementation limitation
-	if IsNotFound(wrappedErr) {
-		t.Error("IsNotFound() returned true for wrapped error - implementation changed?")
+	// IsNotFound uses errors.As, so it supports wrapped errors
+	if !IsNotFound(wrappedErr) {
+		t.Error("IsNotFound() should return true for wrapped ErrNotFound (uses errors.As)")
 	}
 
-	// But errors.Is works with wrapped errors
+	// errors.Is also works with wrapped errors
 	if !errors.Is(wrappedErr, baseErr) {
 		t.Error("errors.Is() should work with wrapped ErrNotFound")
 	}
 
-	// Document that if we want wrapped support, we should use errors.As
+	// errors.As extracts the typed error from the wrapping
 	var notFoundErr *ErrNotFound
 	if !errors.As(wrappedErr, &notFoundErr) {
 		t.Error("errors.As() should extract ErrNotFound from wrapped error")
