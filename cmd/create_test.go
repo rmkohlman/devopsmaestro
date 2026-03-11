@@ -5,6 +5,7 @@ import (
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/mirror"
+	ws "devopsmaestro/pkg/workspace"
 	"fmt"
 	"strings"
 	"testing"
@@ -304,22 +305,23 @@ func TestCreateWorkspace_WithRepoFlag_MirrorExists_SkipsSync(t *testing.T) {
 func TestCreateWorkspace_WithRepoFlag_UsesCorrectRepoPath(t *testing.T) {
 	mockStore, app := setupTestContext()
 
-	// Create workspace
+	// Create workspace with a slug (required for path computation)
 	workspace := &models.Workspace{
 		AppID:     app.ID,
 		Name:      "path-test",
+		Slug:      "test-eco-test-domain-test-app-path-test",
 		ImageName: "test-image",
 		Status:    "stopped",
 	}
 	err := mockStore.CreateWorkspace(workspace)
 	require.NoError(t, err)
 
-	// Get workspace path and repo path
-	workspacePath, err := mockStore.GetWorkspacePath(workspace.ID)
+	// Get workspace path and repo path via pkg/workspace functions
+	workspacePath, err := ws.GetWorkspacePath(workspace.Slug)
 	assert.NoError(t, err)
 	assert.Contains(t, workspacePath, "workspaces/", "workspace path should contain workspaces/")
 
-	repoPath, err := mockStore.GetWorkspaceRepoPath(workspace.ID)
+	repoPath, err := ws.GetWorkspaceRepoPath(workspace.Slug)
 	assert.NoError(t, err)
 	assert.Contains(t, repoPath, "repo", "repo path should end with /repo")
 }
@@ -408,6 +410,7 @@ func TestCreateWorkspace_FullWorkflow_WithRepo(t *testing.T) {
 	workspace := &models.Workspace{
 		AppID:     app.ID,
 		Name:      "full-test-workspace",
+		Slug:      "test-eco-test-domain-test-app-full-test-workspace",
 		ImageName: "dvm-full-test-workspace-test-app:pending",
 		Status:    "stopped",
 		GitRepoID: sql.NullInt64{Int64: int64(gitRepo.ID), Valid: true},
@@ -415,8 +418,8 @@ func TestCreateWorkspace_FullWorkflow_WithRepo(t *testing.T) {
 	err = mockStore.CreateWorkspace(workspace)
 	require.NoError(t, err)
 
-	// 3. Get workspace path
-	workspacePath, err := mockStore.GetWorkspacePath(workspace.ID)
+	// 3. Get workspace path via pkg/workspace functions
+	workspacePath, err := ws.GetWorkspacePath(workspace.Slug)
 	require.NoError(t, err)
 
 	// 4. Mock mirror operations

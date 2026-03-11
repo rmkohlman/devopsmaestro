@@ -101,6 +101,8 @@ type AppStore interface {
 // WorkspaceStore defines operations for managing workspaces.
 type WorkspaceStore interface {
 	// CreateWorkspace inserts a new workspace.
+	// Callers must ensure defaults (nvim config, slug) are set via
+	// workspace.PrepareDefaults() before calling this method.
 	CreateWorkspace(workspace *models.Workspace) error
 
 	// GetWorkspaceByName retrieves a workspace by app ID and name.
@@ -129,20 +131,8 @@ type WorkspaceStore interface {
 	// Use this for smart workspace resolution when the user provides partial criteria.
 	FindWorkspaces(filter models.WorkspaceFilter) ([]*models.WorkspaceWithHierarchy, error)
 
-	// GetWorkspacePath returns the filesystem path for a workspace.
-	// Returns: ~/.devopsmaestro/workspaces/{slug}/
-	GetWorkspacePath(workspaceID int) (string, error)
-
-	// GetWorkspaceRepoPath returns the path to the workspace's git clone directory.
-	// Returns: ~/.devopsmaestro/workspaces/{slug}/repo/
-	GetWorkspaceRepoPath(workspaceID int) (string, error)
-
 	// GetWorkspaceSlug returns the slug for a workspace.
 	GetWorkspaceSlug(workspaceID int) (string, error)
-
-	// GenerateWorkspaceSlug creates a slug from hierarchy names.
-	// Format: {ecosystem}-{domain}-{app}-{workspace}
-	GenerateWorkspaceSlug(ecosystemName, domainName, appName, workspaceName string) string
 }
 
 // ContextStore defines operations for active selection state tracking.

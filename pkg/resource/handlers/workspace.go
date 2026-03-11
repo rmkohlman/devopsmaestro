@@ -7,6 +7,7 @@ import (
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/resource"
+	ws "devopsmaestro/pkg/workspace"
 
 	"gopkg.in/yaml.v3"
 )
@@ -105,7 +106,10 @@ func (h *WorkspaceHandler) Apply(ctx resource.Context, data []byte) (resource.Re
 			return nil, fmt.Errorf("failed to update workspace: %w", err)
 		}
 	} else {
-		// Create new
+		// Create new — apply defaults before persisting
+		if err := ws.PrepareDefaults(workspace, ds); err != nil {
+			return nil, fmt.Errorf("failed to prepare workspace defaults: %w", err)
+		}
 		if err := ds.CreateWorkspace(workspace); err != nil {
 			return nil, fmt.Errorf("failed to create workspace: %w", err)
 		}

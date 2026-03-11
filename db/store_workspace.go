@@ -3,11 +3,7 @@ package db
 import (
 	"database/sql"
 	"devopsmaestro/models"
-	"devopsmaestro/pkg/nvimops"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 )
 
 // =============================================================================
@@ -15,31 +11,9 @@ import (
 // =============================================================================
 
 // CreateWorkspace inserts a new workspace.
+// Callers must ensure defaults (nvim config, slug) are set via
+// workspace.PrepareDefaults() before calling this method.
 func (ds *SQLDataStore) CreateWorkspace(workspace *models.Workspace) error {
-	// Apply default nvim config if not specified
-	if !workspace.NvimStructure.Valid || workspace.NvimStructure.String == "" {
-		defaultConfig := nvimops.DefaultNvimConfig()
-		workspace.NvimStructure = sql.NullString{String: defaultConfig.Structure, Valid: true}
-	}
-
-	// Generate slug if not provided
-	if workspace.Slug == "" {
-		// Get hierarchy to generate slug
-		app, err := ds.GetAppByID(workspace.AppID)
-		if err != nil {
-			return fmt.Errorf("failed to get app for slug generation: %w", err)
-		}
-		domain, err := ds.GetDomainByID(app.DomainID)
-		if err != nil {
-			return fmt.Errorf("failed to get domain for slug generation: %w", err)
-		}
-		ecosystem, err := ds.GetEcosystemByID(domain.EcosystemID)
-		if err != nil {
-			return fmt.Errorf("failed to get ecosystem for slug generation: %w", err)
-		}
-		workspace.Slug = ds.GenerateWorkspaceSlug(ecosystem.Name, domain.Name, app.Name, workspace.Name)
-	}
-
 	query := fmt.Sprintf(`INSERT INTO workspaces (app_id, name, slug, description, image_name, status, ssh_agent_forwarding, nvim_structure, nvim_plugins, theme, terminal_prompt, terminal_plugins, terminal_package, git_repo_id, created_at, updated_at) 
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
 
@@ -286,33 +260,6 @@ func (ds *SQLDataStore) FindWorkspaces(filter models.WorkspaceFilter) ([]*models
 	return results, nil
 }
 
-// GetWorkspacePath returns the filesystem path for a workspace.
-// Returns: ~/.devopsmaestro/workspaces/{slug}/
-func (ds *SQLDataStore) GetWorkspacePath(workspaceID int) (string, error) {
-	slug, err := ds.GetWorkspaceSlug(workspaceID)
-	if err != nil {
-		return "", err
-	}
-
-	// Get home directory
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("failed to get home directory: %w", err)
-	}
-
-	return fmt.Sprintf("%s/.devopsmaestro/workspaces/%s/", homeDir, slug), nil
-}
-
-// GetWorkspaceRepoPath returns the path to the workspace's git clone directory.
-// Returns: ~/.devopsmaestro/workspaces/{slug}/repo/
-func (ds *SQLDataStore) GetWorkspaceRepoPath(workspaceID int) (string, error) {
-	basePath, err := ds.GetWorkspacePath(workspaceID)
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(basePath, "repo"), nil
-}
-
 // GetWorkspaceSlug returns the slug for a workspace.
 func (ds *SQLDataStore) GetWorkspaceSlug(workspaceID int) (string, error) {
 	var slug string
@@ -327,25 +274,4 @@ func (ds *SQLDataStore) GetWorkspaceSlug(workspaceID int) (string, error) {
 	}
 
 	return slug, nil
-}
-
-// GenerateWorkspaceSlug creates a slug from hierarchy names.
-// Format: {ecosystem}-{domain}-{app}-{workspace}
-// Names are sanitized: lowercased, spaces/underscores converted to hyphens
-func (ds *SQLDataStore) GenerateWorkspaceSlug(ecosystemName, domainName, appName, workspaceName string) string {
-	sanitize := func(s string) string {
-		// Convert to lowercase
-		s = strings.ToLower(s)
-		// Replace spaces and underscores with hyphens
-		s = strings.ReplaceAll(s, " ", "-")
-		s = strings.ReplaceAll(s, "_", "-")
-		return s
-	}
-
-	return fmt.Sprintf("%s-%s-%s-%s",
-		sanitize(ecosystemName),
-		sanitize(domainName),
-		sanitize(appName),
-		sanitize(workspaceName),
-	)
 }

@@ -5,6 +5,7 @@ import (
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/mirror"
+	ws "devopsmaestro/pkg/workspace"
 	"devopsmaestro/render"
 	"fmt"
 	"os/exec"
@@ -181,6 +182,9 @@ Examples:
 			GitRepoID: gitRepoID,
 		}
 
+		if err := ws.PrepareDefaults(workspace, ds); err != nil {
+			return fmt.Errorf("failed to prepare workspace defaults: %w", err)
+		}
 		if err := ds.CreateWorkspace(workspace); err != nil {
 			return fmt.Errorf("failed to create workspace: %w", err)
 		}
@@ -190,7 +194,7 @@ Examples:
 			render.Progress(fmt.Sprintf("Cloning from mirror '%s'...", gitRepo.Name))
 
 			// Get workspace path and clone to repo/ subdirectory
-			workspacePath, err := ds.GetWorkspacePath(workspace.ID)
+			workspacePath, err := ws.GetWorkspacePath(workspace.Slug)
 			if err != nil {
 				render.Warning(fmt.Sprintf("Failed to get workspace path: %v", err))
 			} else {
@@ -481,7 +485,7 @@ Examples:
 		}
 
 		// Get workspace repo path
-		repoPath, err := ds.GetWorkspaceRepoPath(workspace.ID)
+		repoPath, err := ws.GetWorkspaceRepoPath(workspace.Slug)
 		if err != nil {
 			return fmt.Errorf("failed to get workspace repo path: %w", err)
 		}

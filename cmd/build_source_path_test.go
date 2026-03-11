@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"devopsmaestro/db"
 	"devopsmaestro/models"
+	ws "devopsmaestro/pkg/workspace"
 	"testing"
 )
 
@@ -54,7 +55,7 @@ func TestBuildSourcePath_WithGitRepoID_UsesWorkspaceRepoPath(t *testing.T) {
 
 	// When GitRepoID is set, we MUST use the repo path, even if it doesn't exist yet
 	// The directory will be created during the git clone step
-	expectedRepoPath, _ := mockStore.GetWorkspaceRepoPath(workspace.ID)
+	expectedRepoPath, _ := ws.GetWorkspaceRepoPath(workspace.Slug)
 	if sourcePath != expectedRepoPath {
 		t.Errorf("Expected source path to be workspace repo path %q, got %q", expectedRepoPath, sourcePath)
 	}
@@ -161,7 +162,7 @@ func TestBuildSourcePath_WithGitRepoID_AlwaysUsesRepoPath(t *testing.T) {
 	}
 
 	// The key requirement: when GitRepoID is set, always use repo path
-	expectedRepoPath, _ := mockStore.GetWorkspaceRepoPath(workspace.ID)
+	expectedRepoPath, _ := ws.GetWorkspaceRepoPath(workspace.Slug)
 	if sourcePath != expectedRepoPath {
 		t.Errorf("Expected source path to be workspace repo path %q, got %q", expectedRepoPath, sourcePath)
 	}

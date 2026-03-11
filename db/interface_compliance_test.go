@@ -301,24 +301,10 @@ func TestMockDataStore_AllWorkspaceMethods(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, found, 1)
 
-	// GetWorkspacePath
-	path, err := store.GetWorkspacePath(workspace.ID)
-	require.NoError(t, err)
-	assert.Contains(t, path, "devopsmaestro/workspaces")
-
-	// GetWorkspaceRepoPath
-	repoPath, err := store.GetWorkspaceRepoPath(workspace.ID)
-	require.NoError(t, err)
-	assert.Contains(t, repoPath, "repo")
-
 	// GetWorkspaceSlug
 	slug, err := store.GetWorkspaceSlug(workspace.ID)
 	require.NoError(t, err)
 	assert.Equal(t, workspace.Slug, slug)
-
-	// GenerateWorkspaceSlug
-	generatedSlug := store.GenerateWorkspaceSlug("test-eco", "test-domain", "test-app", "main")
-	assert.Equal(t, "test-eco-test-domain-test-app-main", generatedSlug)
 
 	// DeleteWorkspace
 	err = store.DeleteWorkspace(workspace.ID)

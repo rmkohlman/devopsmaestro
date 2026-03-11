@@ -5,6 +5,7 @@ import (
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/operators"
+	ws "devopsmaestro/pkg/workspace"
 	"devopsmaestro/render"
 	"devopsmaestro/utils"
 	"fmt"
@@ -22,7 +23,7 @@ import (
 // not in the original app.Path. This function returns the correct path to use.
 func getBuildSourcePath(ds db.DataStore, workspace *models.Workspace, appPath string) (string, error) {
 	if workspace.GitRepoID.Valid {
-		repoPath, err := ds.GetWorkspaceRepoPath(workspace.ID)
+		repoPath, err := ws.GetWorkspaceRepoPath(workspace.Slug)
 		if err != nil {
 			return "", fmt.Errorf("failed to get workspace repo path: %w", err)
 		}

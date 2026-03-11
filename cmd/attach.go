@@ -9,6 +9,7 @@ import (
 	"devopsmaestro/pkg/mirror"
 	"devopsmaestro/pkg/nvimops/theme/library"
 	"devopsmaestro/pkg/resolver"
+	ws "devopsmaestro/pkg/workspace"
 	"devopsmaestro/render"
 	"fmt"
 	"log/slog"
@@ -328,7 +329,7 @@ func loadThemeEnvVars(themeName string) (map[string]string, error) {
 // not in the original app.Path. This function returns the correct path to mount.
 func getMountPath(ds db.DataStore, workspace *models.Workspace, appPath string) (string, error) {
 	if workspace.GitRepoID.Valid {
-		repoPath, err := ds.GetWorkspaceRepoPath(workspace.ID)
+		repoPath, err := ws.GetWorkspaceRepoPath(workspace.Slug)
 		if err != nil {
 			return "", fmt.Errorf("failed to get workspace repo path: %w", err)
 		}

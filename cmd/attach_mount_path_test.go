@@ -6,28 +6,18 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
+	ws "devopsmaestro/pkg/workspace"
 )
-
-// MockDataStoreForAttach is a mock DataStore for attach tests
-type MockDataStoreForAttach struct {
-	db.DataStore
-	workspaceRepoPath string
-	getRepoPathCalled bool
-}
-
-func (m *MockDataStoreForAttach) GetWorkspaceRepoPath(workspaceID int) (string, error) {
-	m.getRepoPathCalled = true
-	return m.workspaceRepoPath, nil
-}
 
 // TestGetMountPath_WithGitRepoID_UsesWorkspaceRepoPath verifies that when a workspace
 // has a GitRepoID (created with --repo flag), the mount path should be the workspace
 // repo path, not the app.Path. This prevents mounting an empty directory.
 func TestGetMountPath_WithGitRepoID_UsesWorkspaceRepoPath(t *testing.T) {
-	// Arrange: Create a workspace with GitRepoID set
+	// Arrange: Create a workspace with GitRepoID and Slug set
 	workspace := &models.Workspace{
 		ID:        123,
 		Name:      "feature-branch",
+		Slug:      "eco-domain-my-app-feature-branch",
 		GitRepoID: sql.NullInt64{Int64: 1, Valid: true},
 	}
 
@@ -37,13 +27,11 @@ func TestGetMountPath_WithGitRepoID_UsesWorkspaceRepoPath(t *testing.T) {
 		Path: "/tmp/dvm-test-apps/my-app", // This is NOT where the code is
 	}
 
-	// Mock the DataStore to return the correct workspace repo path
-	expectedRepoPath := "/Users/test/.devopsmaestro/workspaces/eco-domain-my-app-feature-branch/repo"
-	mockStore := &MockDataStoreForAttach{
-		workspaceRepoPath: expectedRepoPath,
-	}
+	// getMountPath now uses ws.GetWorkspaceRepoPath(slug) directly,
+	// so the DataStore is not consulted for path lookups.
+	mockStore := db.NewMockDataStore()
 
-	// Act: Call getMountPath (this uses getBuildSourcePath internally)
+	// Act: Call getMountPath
 	mountPath, err := getMountPath(mockStore, workspace, app.Path)
 
 	// Assert: Should use workspace repo path, not app.Path
@@ -51,6 +39,7 @@ func TestGetMountPath_WithGitRepoID_UsesWorkspaceRepoPath(t *testing.T) {
 		t.Fatalf("getMountPath returned error: %v", err)
 	}
 
+	expectedRepoPath, _ := ws.GetWorkspaceRepoPath(workspace.Slug)
 	if mountPath != expectedRepoPath {
 		t.Errorf("Expected mount path to be workspace repo path %q, got %q", expectedRepoPath, mountPath)
 	}
@@ -77,7 +66,7 @@ func TestGetMountPath_WithoutGitRepoID_UsesAppPath(t *testing.T) {
 		Path: "/home/user/code/local-app", // This IS where the code is
 	}
 
-	mockStore := &MockDataStoreForAttach{}
+	mockStore := db.NewMockDataStore()
 
 	// Act
 	mountPath, err := getMountPath(mockStore, workspace, app.Path)
@@ -100,9 +89,12 @@ func TestAttachMountPath_IntegrationScenario(t *testing.T) {
 	// 2. dvm clones the repo to ~/.devopsmaestro/workspaces/{slug}/repo/
 	// 3. When attaching, the container mount should be from the repo path, not app.Path
 
+	workspaceSlug := "test-eco-test-domain-golang-app-main"
+
 	workspace := &models.Workspace{
 		ID:        11,
 		Name:      "main",
+		Slug:      workspaceSlug,
 		ImageName: "dvm-main-golang-app:20260303-202258",
 		GitRepoID: sql.NullInt64{Int64: 5, Valid: true},
 	}
@@ -113,13 +105,9 @@ func TestAttachMountPath_IntegrationScenario(t *testing.T) {
 		Path: "/tmp/dvm-test-apps/golang-app", // Empty directory
 	}
 
-	// The repo was cloned here
-	workspaceSlug := "test-eco-test-domain-golang-app-main"
-	expectedMountPath := "/Users/test/.devopsmaestro/workspaces/" + workspaceSlug + "/repo"
-
-	mockStore := &MockDataStoreForAttach{
-		workspaceRepoPath: expectedMountPath,
-	}
+	// getMountPath now uses ws.GetWorkspaceRepoPath(slug) directly
+	mockStore := db.NewMockDataStore()
+	expectedMountPath, _ := ws.GetWorkspaceRepoPath(workspaceSlug)
 
 	// Act
 	mountPath, err := getMountPath(mockStore, workspace, app.Path)
@@ -136,10 +124,5 @@ func TestAttachMountPath_IntegrationScenario(t *testing.T) {
 
 	if mountPath != expectedMountPath {
 		t.Errorf("Expected mount path %q, got %q", expectedMountPath, mountPath)
-	}
-
-	// Verify GetWorkspaceRepoPath was called
-	if !mockStore.getRepoPathCalled {
-		t.Error("Expected GetWorkspaceRepoPath to be called for workspace with GitRepoID")
 	}
 }

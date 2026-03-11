@@ -730,26 +730,6 @@ func (m *MockDataStore) FindWorkspaces(filter models.WorkspaceFilter) ([]*models
 	return results, nil
 }
 
-// GetWorkspacePath returns the filesystem path for a workspace.
-func (m *MockDataStore) GetWorkspacePath(workspaceID int) (string, error) {
-	m.recordCall("GetWorkspacePath", workspaceID)
-	slug, err := m.GetWorkspaceSlug(workspaceID)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("~/.devopsmaestro/workspaces/%s/", slug), nil
-}
-
-// GetWorkspaceRepoPath returns the path to the workspace's git clone directory.
-func (m *MockDataStore) GetWorkspaceRepoPath(workspaceID int) (string, error) {
-	m.recordCall("GetWorkspaceRepoPath", workspaceID)
-	basePath, err := m.GetWorkspacePath(workspaceID)
-	if err != nil {
-		return "", err
-	}
-	return basePath + "repo", nil
-}
-
 // GetWorkspaceSlug returns the slug for a workspace.
 func (m *MockDataStore) GetWorkspaceSlug(workspaceID int) (string, error) {
 	m.recordCall("GetWorkspaceSlug", workspaceID)
@@ -762,12 +742,6 @@ func (m *MockDataStore) GetWorkspaceSlug(workspaceID int) (string, error) {
 	}
 
 	return ws.Slug, nil
-}
-
-// GenerateWorkspaceSlug generates a slug from hierarchy names.
-func (m *MockDataStore) GenerateWorkspaceSlug(ecosystemName, domainName, appName, workspaceName string) string {
-	m.recordCall("GenerateWorkspaceSlug", ecosystemName, domainName, appName, workspaceName)
-	return fmt.Sprintf("%s-%s-%s-%s", ecosystemName, domainName, appName, workspaceName)
 }
 
 // =============================================================================

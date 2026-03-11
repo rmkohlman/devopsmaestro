@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"devopsmaestro/models"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -1261,6 +1262,7 @@ func TestSQLDataStore_CreateWorkspace(t *testing.T) {
 	workspace := &models.Workspace{
 		AppID:     app.ID,
 		Name:      "test-workspace",
+		Slug:      "eco-dom-app-test-workspace",
 		ImageName: "test:latest",
 		Status:    "stopped",
 	}
@@ -1275,20 +1277,21 @@ func TestSQLDataStore_CreateWorkspace(t *testing.T) {
 	}
 }
 
-func TestSQLDataStore_CreateWorkspace_AppliesDefaultNvimConfig(t *testing.T) {
+func TestSQLDataStore_CreateWorkspace_NvimStructureRoundTrip(t *testing.T) {
 	ds := createTestDataStore(t)
 	defer ds.Close()
 
 	// Create app hierarchy
 	app := createTestApp(t, ds, "nvim")
 
-	// Test 1: Create workspace without nvim config - should apply defaults
+	// Test 1: Workspace without NvimStructure stores as NULL (no defaults applied by db layer)
 	workspace := &models.Workspace{
 		AppID:     app.ID,
-		Name:      "default-nvim-workspace",
+		Name:      "no-nvim-workspace",
+		Slug:      "eco-dom-app-no-nvim",
 		ImageName: "test:latest",
 		Status:    "stopped",
-		// NvimStructure intentionally not set
+		// NvimStructure intentionally not set — callers use workspace.PrepareDefaults()
 	}
 
 	err := ds.CreateWorkspace(workspace)
@@ -1296,27 +1299,19 @@ func TestSQLDataStore_CreateWorkspace_AppliesDefaultNvimConfig(t *testing.T) {
 		t.Fatalf("CreateWorkspace() error = %v", err)
 	}
 
-	// Verify default was applied
-	if !workspace.NvimStructure.Valid {
-		t.Errorf("CreateWorkspace() should have set NvimStructure.Valid to true")
-	}
-	if workspace.NvimStructure.String != "lazyvim" {
-		t.Errorf("CreateWorkspace() NvimStructure = %s, want 'lazyvim'", workspace.NvimStructure.String)
-	}
-
-	// Retrieve and verify persistence
-	retrieved, err := ds.GetWorkspaceByName(app.ID, "default-nvim-workspace")
+	retrieved, err := ds.GetWorkspaceByName(app.ID, "no-nvim-workspace")
 	if err != nil {
 		t.Fatalf("GetWorkspaceByName() error = %v", err)
 	}
-	if retrieved.NvimStructure.String != "lazyvim" {
-		t.Errorf("Retrieved workspace NvimStructure = %s, want 'lazyvim'", retrieved.NvimStructure.String)
+	if retrieved.NvimStructure.Valid {
+		t.Errorf("Retrieved workspace NvimStructure.Valid = true, want false (db should not apply defaults)")
 	}
 
-	// Test 2: Create workspace with explicit nvim config - should preserve it
+	// Test 2: Workspace with explicit NvimStructure is persisted as-is
 	workspace2 := &models.Workspace{
 		AppID:         app.ID,
 		Name:          "custom-nvim-workspace",
+		Slug:          "eco-dom-app-custom-nvim",
 		ImageName:     "test:latest",
 		Status:        "stopped",
 		NvimStructure: sql.NullString{String: "custom", Valid: true},
@@ -1327,18 +1322,12 @@ func TestSQLDataStore_CreateWorkspace_AppliesDefaultNvimConfig(t *testing.T) {
 		t.Fatalf("CreateWorkspace() error = %v", err)
 	}
 
-	// Verify custom config was preserved
-	if workspace2.NvimStructure.String != "custom" {
-		t.Errorf("CreateWorkspace() should have preserved custom NvimStructure")
-	}
-
-	// Retrieve and verify persistence
 	retrieved2, err := ds.GetWorkspaceByName(app.ID, "custom-nvim-workspace")
 	if err != nil {
 		t.Fatalf("GetWorkspaceByName() error = %v", err)
 	}
 	if retrieved2.NvimStructure.String != "custom" {
-		t.Errorf("Retrieved workspace NvimStructure = %s, want 'custom'", retrieved2.NvimStructure.String)
+		t.Errorf("Retrieved workspace NvimStructure = %q, want %q", retrieved2.NvimStructure.String, "custom")
 	}
 }
 
@@ -1351,6 +1340,7 @@ func TestSQLDataStore_GetWorkspaceByName(t *testing.T) {
 	workspace := &models.Workspace{
 		AppID:     app.ID,
 		Name:      "findme-ws",
+		Slug:      "eco-dom-app-findme-ws",
 		ImageName: "image:v1",
 		Status:    "running",
 	}
@@ -1380,6 +1370,7 @@ func TestSQLDataStore_GetWorkspaceByID(t *testing.T) {
 	workspace := &models.Workspace{
 		AppID:     app.ID,
 		Name:      "getbyid-ws",
+		Slug:      "eco-dom-app-getbyid-ws",
 		ImageName: "test:v2",
 		Status:    "stopped",
 	}
@@ -1406,6 +1397,7 @@ func TestSQLDataStore_UpdateWorkspace(t *testing.T) {
 	workspace := &models.Workspace{
 		AppID:     app.ID,
 		Name:      "update-ws",
+		Slug:      "eco-dom-app-update-ws",
 		ImageName: "old:image",
 		Status:    "stopped",
 	}
@@ -1444,6 +1436,7 @@ func TestSQLDataStore_DeleteWorkspace(t *testing.T) {
 	workspace := &models.Workspace{
 		AppID:     app.ID,
 		Name:      "delete-ws",
+		Slug:      "eco-dom-app-delete-ws",
 		ImageName: "img:latest",
 		Status:    "stopped",
 	}
@@ -1472,6 +1465,7 @@ func TestSQLDataStore_ListWorkspacesByApp(t *testing.T) {
 		ws := &models.Workspace{
 			AppID:     app.ID,
 			Name:      "ws-" + string(rune('0'+i)),
+			Slug:      fmt.Sprintf("eco-dom-app-ws-%d", i),
 			ImageName: "img:v" + string(rune('0'+i)),
 			Status:    "stopped",
 		}
@@ -1502,6 +1496,7 @@ func TestSQLDataStore_ListAllWorkspaces(t *testing.T) {
 			ws := &models.Workspace{
 				AppID:     app.ID,
 				Name:      "ws-" + string(rune('0'+w)),
+				Slug:      fmt.Sprintf("eco-dom-app%d-ws-%d", p, w),
 				ImageName: "img:latest",
 				Status:    "stopped",
 			}
@@ -1535,6 +1530,7 @@ func TestSQLDataStore_Context(t *testing.T) {
 	workspace := &models.Workspace{
 		AppID:     app.ID,
 		Name:      "ctx-workspace",
+		Slug:      "eco-dom-app-ctx-workspace",
 		ImageName: "ctx:img",
 		Status:    "stopped",
 	}
@@ -1772,6 +1768,7 @@ func TestSQLDataStore_Context_FullHierarchy(t *testing.T) {
 	workspace := &models.Workspace{
 		AppID:     app.ID,
 		Name:      "full-ctx-workspace",
+		Slug:      "eco-dom-app-full-ctx-workspace",
 		ImageName: "full:img",
 		Status:    "stopped",
 	}
@@ -1981,6 +1978,7 @@ func TestSQLDataStore_WorkspacePluginAssociation(t *testing.T) {
 	workspace := &models.Workspace{
 		AppID:     app.ID,
 		Name:      "wp-workspace",
+		Slug:      "eco-dom-app-wp-workspace",
 		ImageName: "img:latest",
 		Status:    "stopped",
 	}
