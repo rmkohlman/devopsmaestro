@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"devopsmaestro/pkg/paths"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -238,7 +240,7 @@ func DefaultNpmProxyConfig() NpmProxyConfig {
 		Enabled:     true,
 		Lifecycle:   "on-demand",
 		Port:        4873,
-		Storage:     filepath.Join(homeDir, ".devopsmaestro", "verdaccio"),
+		Storage:     paths.New(homeDir).VerdaccioStorage(),
 		IdleTimeout: 30 * time.Minute,
 		MaxBodySize: "10mb",
 		Upstreams:   defaultNpmUpstreams(),

@@ -1,11 +1,11 @@
 package db
 
 import (
+	"devopsmaestro/pkg/paths"
 	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -259,12 +259,12 @@ func runMigrationsIfNeeded(driver Driver, migrationsFS fs.FS, currentVersion str
 
 // GetStoredVersion reads the last-run binary version from ~/.devopsmaestro/.version
 func GetStoredVersion() (string, error) {
-	homeDir, err := os.UserHomeDir()
+	pc, err := paths.Default()
 	if err != nil {
 		return "", fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	versionFile := filepath.Join(homeDir, ".devopsmaestro", ".version")
+	versionFile := pc.VersionFile()
 
 	// If file doesn't exist, return empty string (first run)
 	if _, err := os.Stat(versionFile); os.IsNotExist(err) {
@@ -281,22 +281,18 @@ func GetStoredVersion() (string, error) {
 
 // SaveCurrentVersion writes the current binary version to ~/.devopsmaestro/.version
 func SaveCurrentVersion(version string) error {
-	homeDir, err := os.UserHomeDir()
+	pc, err := paths.Default()
 	if err != nil {
 		return fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	configDir := filepath.Join(homeDir, ".devopsmaestro")
-
 	// Ensure config directory exists
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	if err := os.MkdirAll(pc.Root(), 0755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	versionFile := filepath.Join(configDir, ".version")
-
 	// Write version to file
-	err = os.WriteFile(versionFile, []byte(version), 0644)
+	err = os.WriteFile(pc.VersionFile(), []byte(version), 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write version file: %w", err)
 	}

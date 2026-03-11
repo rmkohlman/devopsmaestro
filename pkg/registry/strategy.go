@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"devopsmaestro/models"
+	"devopsmaestro/pkg/paths"
 )
 
 // resolveStoragePath extracts the storage path from a registry's config,
@@ -26,7 +27,7 @@ func resolveStoragePath(reg *models.Registry, configKey string) string {
 
 	// Otherwise use default path under ~/.devopsmaestro
 	homeDir, _ := os.UserHomeDir()
-	return filepath.Join(homeDir, ".devopsmaestro", "registries", reg.Name)
+	return paths.New(homeDir).RegistryDir(reg.Name)
 }
 
 // --- Zot Strategy ---
@@ -464,7 +465,7 @@ func (s *SquidStrategy) CreateManager(reg *models.Registry) (ServiceManager, err
 	// For Squid, if "cacheDir" is specified in config, use its parent directory
 	// as the base storage path. Otherwise fall back to the default registry path.
 	homeDir, _ := os.UserHomeDir()
-	defaultPath := filepath.Join(homeDir, ".devopsmaestro", "registries", reg.Name)
+	defaultPath := paths.New(homeDir).RegistryDir(reg.Name)
 	storagePath := resolveStoragePath(reg, "cacheDir")
 	if storagePath != defaultPath {
 		// cacheDir was found in config — use its parent as the storage root

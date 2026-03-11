@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"devopsmaestro/pkg/paths"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -62,49 +63,49 @@ func DeleteWorkspaceDirectories(workspacePath string) error {
 // GetWorkspaceBasePath returns the base path for all workspaces
 // Returns: ~/.devopsmaestro
 func GetWorkspaceBasePath() (string, error) {
-	home, err := os.UserHomeDir()
+	pc, err := paths.Default()
 	if err != nil {
 		return "", fmt.Errorf("failed to get user home directory: %w", err)
 	}
-	return filepath.Join(home, ".devopsmaestro"), nil
+	return pc.Root(), nil
 }
 
 // GetWorkspacePath returns the full path for a workspace given its slug
 // Format: ~/.devopsmaestro/workspaces/{slug}
 func GetWorkspacePath(slug string) (string, error) {
-	basePath, err := GetWorkspaceBasePath()
+	pc, err := paths.Default()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(basePath, "workspaces", slug), nil
+	return pc.WorkspacePath(slug), nil
 }
 
 // GetWorkspaceRepoPath returns the path to the workspace's git repository
 // Format: ~/.devopsmaestro/workspaces/{slug}/repo
 func GetWorkspaceRepoPath(slug string) (string, error) {
-	workspacePath, err := GetWorkspacePath(slug)
+	pc, err := paths.Default()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(workspacePath, "repo"), nil
+	return pc.WorkspaceRepoPath(slug), nil
 }
 
 // GetWorkspaceVolumePath returns the path to the workspace's persistent volume
 // Format: ~/.devopsmaestro/workspaces/{slug}/volume
 func GetWorkspaceVolumePath(slug string) (string, error) {
-	workspacePath, err := GetWorkspacePath(slug)
+	pc, err := paths.Default()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(workspacePath, "volume"), nil
+	return pc.WorkspaceVolumePath(slug), nil
 }
 
 // GetWorkspaceConfigPath returns the path to the workspace's generated configs
 // Format: ~/.devopsmaestro/workspaces/{slug}/.dvm
 func GetWorkspaceConfigPath(slug string) (string, error) {
-	workspacePath, err := GetWorkspacePath(slug)
+	pc, err := paths.Default()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(workspacePath, ".dvm"), nil
+	return pc.WorkspaceConfigPath(slug), nil
 }

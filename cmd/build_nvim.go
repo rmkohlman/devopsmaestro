@@ -10,6 +10,7 @@ import (
 	"devopsmaestro/pkg/nvimops/plugin"
 	"devopsmaestro/pkg/nvimops/store"
 	"devopsmaestro/pkg/nvimops/theme"
+	"devopsmaestro/pkg/paths"
 	"devopsmaestro/render"
 	"encoding/json"
 	"fmt"
@@ -34,8 +35,8 @@ func generateNvimConfig(workspacePlugins []string, stagingDir, homeDir string, d
 	}
 
 	// Load core config from ~/.nvp/core.yaml or use defaults
-	nvpDir := filepath.Join(homeDir, ".nvp")
-	coreConfigPath := filepath.Join(nvpDir, "core.yaml")
+	pc := paths.New(homeDir)
+	coreConfigPath := pc.NVPCoreConfig()
 
 	var cfg *nvimconfig.CoreConfig
 	var err error
@@ -196,7 +197,7 @@ func generateNvimConfig(workspacePlugins []string, stagingDir, homeDir string, d
 	manifest := plugin.ResolveManifest(enabledPlugins)
 
 	// Generate theme from hierarchy (not global ~/.nvp/active-theme)
-	themeStore := theme.NewFileStore(nvpDir)
+	themeStore := theme.NewFileStore(pc.NVPRoot())
 	themeCtx := context.Background()
 	resolvedTheme, themeErr := resolveWorkspaceTheme(themeCtx, ds, themeStore, workspace)
 	if themeErr != nil {

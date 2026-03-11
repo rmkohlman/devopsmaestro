@@ -1,6 +1,7 @@
 package operators
 
 import (
+	"devopsmaestro/pkg/paths"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -59,16 +60,13 @@ type ContextConfig struct {
 // NewContextManager creates a new context manager.
 // Returns the ContextManager interface for loose coupling.
 func NewContextManager() (ContextManager, error) {
-	homeDir, err := os.UserHomeDir()
+	pc, err := paths.Default()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	dvmDir := filepath.Join(homeDir, ".devopsmaestro")
-	contextPath := filepath.Join(dvmDir, "context.yaml")
-
 	return &DefaultContextManager{
-		contextFilePath: contextPath,
+		contextFilePath: pc.ContextFile(),
 	}, nil
 }
 

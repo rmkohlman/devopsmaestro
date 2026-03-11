@@ -2,7 +2,10 @@ package operators
 
 import (
 	"context"
+	"os"
 	"strings"
+
+	"devopsmaestro/pkg/paths"
 )
 
 // ContainerRuntime defines the interface for container runtime operations
@@ -230,16 +233,9 @@ func (opts StartOptions) ComputeWorkspaceMounts() ([]MountConfig, error) {
 	}
 
 	// Import workspace package for path computation (must be done at call site)
-	// For now, compute paths manually to avoid circular imports
-	// Format: ~/.devopsmaestro/workspaces/{slug}/
-
-	// Note: This is imported from pkg/workspace package
-	// We compute the base path here directly
-	workspacePath := "~/.devopsmaestro/workspaces/" + opts.WorkspaceSlug
-
-	// Expand tilde to home directory
-	// (In production code, this should use os.UserHomeDir())
-	// For now, leave as-is for the path patterns
+	// Compute the resolved workspace path using PathConfig
+	homeDir, _ := os.UserHomeDir()
+	workspacePath := paths.New(homeDir).WorkspacePath(opts.WorkspaceSlug)
 
 	mounts := []MountConfig{
 		// Volume mounts (read-write)

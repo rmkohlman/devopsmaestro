@@ -3,8 +3,9 @@ package config
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
+
+	"devopsmaestro/pkg/paths"
 
 	"github.com/spf13/viper"
 )
@@ -67,7 +68,7 @@ func GetRegistryConfig() *RegistryConfig {
 	}
 	if cfg.Storage == "" {
 		homeDir, _ := os.UserHomeDir()
-		cfg.Storage = filepath.Join(homeDir, ".devopsmaestro", "registry")
+		cfg.Storage = paths.New(homeDir).RegistryStorage()
 	}
 	if cfg.Lifecycle == "" {
 		cfg.Lifecycle = "on-demand"
@@ -89,7 +90,7 @@ func DefaultRegistryConfig() *RegistryConfig {
 		Enabled:     true,
 		Lifecycle:   "on-demand",
 		Port:        5001,
-		Storage:     filepath.Join(homeDir, ".devopsmaestro", "registry"),
+		Storage:     paths.New(homeDir).RegistryStorage(),
 		IdleTimeout: 30 * time.Minute,
 		Mirrors:     defaultMirrors(),
 	}

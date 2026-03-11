@@ -6,6 +6,7 @@ import (
 	"devopsmaestro/config"
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/nvimops/plugin"
+	"devopsmaestro/pkg/paths"
 	"devopsmaestro/pkg/registry"
 	"devopsmaestro/pkg/registry/envinjector"
 	"devopsmaestro/pkg/resolver"
@@ -224,7 +225,7 @@ func buildWorkspace(cmd *cobra.Command) error {
 		slog.Debug("language detection failed, using generic base")
 	}
 
-	stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", filepath.Base(sourcePath))
+	stagingDir := paths.New(homeDir).BuildStagingDir(filepath.Base(sourcePath))
 	if err := prepareStagingDirectory(stagingDir, sourcePath, appName, workspaceName, sqlDS, workspace); err != nil {
 		return err
 	}

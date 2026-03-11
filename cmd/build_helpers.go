@@ -5,6 +5,7 @@ import (
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/operators"
+	"devopsmaestro/pkg/paths"
 	ws "devopsmaestro/pkg/workspace"
 	"devopsmaestro/render"
 	"devopsmaestro/utils"
@@ -145,7 +146,7 @@ func copyAppSource(srcDir, dstDir string) error {
 
 // shouldSkipPath determines if a path should be skipped during app source copy
 func shouldSkipPath(path string) bool {
-	skipDirs := []string{".git", ".devopsmaestro", "node_modules", "vendor", "__pycache__", ".venv", "venv"}
+	skipDirs := []string{".git", paths.DVMDirName, "node_modules", "vendor", "__pycache__", ".venv", "venv"}
 	skipFiles := []string{".DS_Store", "Thumbs.db", "*.log", "Dockerfile.dvm"}
 
 	for _, skip := range skipDirs {

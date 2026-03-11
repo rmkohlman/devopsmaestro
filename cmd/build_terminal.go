@@ -7,6 +7,7 @@ import (
 	colorresolver "devopsmaestro/pkg/colors/resolver"
 	"devopsmaestro/pkg/nvimops/theme"
 	"devopsmaestro/pkg/palette"
+	"devopsmaestro/pkg/paths"
 	"devopsmaestro/pkg/resource/handlers"
 	terminalpkg "devopsmaestro/pkg/terminalops/package"
 	terminalpkglib "devopsmaestro/pkg/terminalops/package/library"
@@ -228,7 +229,7 @@ compinit
 	if err != nil {
 		return fmt.Errorf("failed to get home directory: %w", err)
 	}
-	nvpDir := filepath.Join(homeDir, ".nvp")
+	nvpDir := paths.New(homeDir).NVPRoot()
 	themeStore := theme.NewFileStore(nvpDir)
 
 	themeCtx := context.Background()

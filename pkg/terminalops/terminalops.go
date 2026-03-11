@@ -36,6 +36,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"devopsmaestro/pkg/paths"
 	"devopsmaestro/pkg/terminalops/plugin"
 	"devopsmaestro/pkg/terminalops/profile"
 	"devopsmaestro/pkg/terminalops/prompt"
@@ -87,7 +88,7 @@ func NewWithOptions(opts Options) (*Manager, error) {
 	configDir := opts.ConfigDir
 	if configDir == "" {
 		home, _ := os.UserHomeDir()
-		configDir = filepath.Join(home, ".dvt")
+		configDir = paths.New(home).DVTRoot()
 	}
 
 	// Expand ~ if present

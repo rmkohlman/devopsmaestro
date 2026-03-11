@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"devopsmaestro/pkg/paths"
 )
 
 // Manager handles Neovim configuration management operations
@@ -35,7 +37,7 @@ type manager struct {
 func NewManager() Manager {
 	homeDir, _ := os.UserHomeDir()
 	configPath := filepath.Join(homeDir, ".config", "nvim")
-	statusFile := filepath.Join(homeDir, ".devopsmaestro", ".nvim-sync-status")
+	statusFile := paths.New(homeDir).NvimSyncStatus()
 
 	return &manager{
 		configPath: configPath,
@@ -46,7 +48,7 @@ func NewManager() Manager {
 // NewManagerWithPath creates a manager with a custom config path
 func NewManagerWithPath(configPath string) Manager {
 	homeDir, _ := os.UserHomeDir()
-	statusFile := filepath.Join(homeDir, ".devopsmaestro", ".nvim-sync-status")
+	statusFile := paths.New(homeDir).NvimSyncStatus()
 
 	return &manager{
 		configPath: configPath,

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"text/tabwriter"
 
@@ -180,7 +181,7 @@ Examples:
 			Overwrite(force)
 
 		// Add target directory
-		targetDir := getConfigDir() + "/plugins"
+		targetDir := filepath.Join(getConfigDir(), "plugins")
 		optionsBuilder.WithTargetDir(targetDir)
 
 		// Parse selectors (format: key=value)
@@ -198,7 +199,7 @@ Examples:
 		}
 
 		// Create package creator for auto-generating packages
-		packagesDir := getConfigDir() + "/packages"
+		packagesDir := filepath.Join(getConfigDir(), "packages")
 		packageCreator := nvimpackage.NewFilePackageCreator(packagesDir)
 		optionsBuilder.WithPackageCreator(packageCreator)
 

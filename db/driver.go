@@ -1,6 +1,7 @@
 package db
 
 import (
+	"devopsmaestro/pkg/paths"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -86,7 +87,7 @@ func NewDefaultDriver() (Driver, error) {
 
 	return NewDriver(DriverConfig{
 		Type: DriverSQLite,
-		Path: filepath.Join(homeDir, ".devopsmaestro", "devopsmaestro.db"),
+		Path: paths.New(homeDir).Database(),
 	})
 }
 

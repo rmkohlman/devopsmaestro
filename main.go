@@ -3,10 +3,10 @@ package main
 import (
 	"devopsmaestro/cmd"
 	"devopsmaestro/db"
+	"devopsmaestro/pkg/paths"
 	"fmt"
 	"io/fs"
 	"os"
-	"path/filepath"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/viper"
@@ -34,7 +34,7 @@ func loadConfig() error {
 	}
 
 	// Set config path to ~/.devopsmaestro
-	configPath := filepath.Join(homeDir, ".devopsmaestro")
+	configPath := paths.New(homeDir).Root()
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(configPath)
@@ -79,7 +79,7 @@ func main() {
 	// Set default values if config is not found (for init command)
 	if viper.GetString("database.type") == "" {
 		viper.Set("database.type", "sqlite")
-		viper.Set("database.path", "~/.devopsmaestro/devopsmaestro.db")
+		viper.Set("database.path", "~/"+paths.DVMDirName+"/"+paths.DatabaseFile)
 		viper.Set("store", "sql")
 	}
 

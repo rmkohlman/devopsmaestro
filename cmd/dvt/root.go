@@ -14,6 +14,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"devopsmaestro/pkg/paths"
 	"devopsmaestro/pkg/terminalops/plugin"
 	pluginlibrary "devopsmaestro/pkg/terminalops/plugin/library"
 	"devopsmaestro/pkg/terminalops/profile"
@@ -83,7 +84,7 @@ func setupDatabaseConfig() {
 	}
 
 	// Set config path to ~/.devopsmaestro (same as dvm for shared database)
-	configPath := filepath.Join(homeDir, ".devopsmaestro")
+	configPath := paths.New(homeDir).Root()
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(configPath)
@@ -101,7 +102,7 @@ func setupDatabaseConfig() {
 	// Set default values if config is not found (use same database as dvm)
 	if viper.GetString("database.type") == "" {
 		viper.Set("database.type", "sqlite")
-		viper.Set("database.path", "~/.devopsmaestro/devopsmaestro.db")
+		viper.Set("database.path", "~/"+paths.DVMDirName+"/"+paths.DatabaseFile)
 		viper.Set("store", "sql")
 	}
 }
@@ -1319,7 +1320,7 @@ func getConfigDir() string {
 		return dir
 	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".dvt")
+	return paths.New(home).DVTRoot()
 }
 
 // =============================================================================

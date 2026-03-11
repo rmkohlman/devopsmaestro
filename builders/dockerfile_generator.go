@@ -8,6 +8,7 @@ import (
 
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/nvimops/plugin"
+	"devopsmaestro/pkg/paths"
 	"devopsmaestro/utils"
 )
 
@@ -693,7 +694,7 @@ func (g *DefaultDockerfileGenerator) generateNvimSection(dockerfile *strings.Bui
 	// Check if staging nvim config directory exists
 	// The copyNvimConfig function now creates config in staging directory
 	homeDir, _ := os.UserHomeDir()
-	stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", filepath.Base(g.appPath))
+	stagingDir := paths.New(homeDir).BuildStagingDir(filepath.Base(g.appPath))
 	nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
 	if _, err := os.Stat(nvimConfigPath); os.IsNotExist(err) {
 		// Nvim config doesn't exist - skip this section

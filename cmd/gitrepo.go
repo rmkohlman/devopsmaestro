@@ -4,10 +4,10 @@ import (
 	"database/sql"
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/mirror"
+	"devopsmaestro/pkg/paths"
 	"devopsmaestro/render"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -588,7 +588,7 @@ func getGitRepoBaseDir() string {
 	if err != nil {
 		homeDir = "."
 	}
-	return filepath.Join(homeDir, ".devopsmaestro", "repos")
+	return paths.New(homeDir).ReposDir()
 }
 
 // gitRepoToYAML converts a GitRepoDB to a YAML-friendly map

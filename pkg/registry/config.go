@@ -3,7 +3,8 @@ package registry
 import (
 	"fmt"
 	"os"
-	"path/filepath"
+
+	"devopsmaestro/pkg/paths"
 )
 
 // GenerateZotConfig generates a Zot registry configuration from a DVM config.
@@ -76,7 +77,7 @@ func DefaultRegistryConfig() RegistryConfig {
 		Enabled:     true,
 		Lifecycle:   "on-demand",
 		Port:        5001,
-		Storage:     filepath.Join(homeDir, ".devopsmaestro", "registry"),
+		Storage:     paths.New(homeDir).RegistryStorage(),
 		IdleTimeout: 30 * defaultMinute,
 		Mirrors:     defaultMirrors(),
 	}

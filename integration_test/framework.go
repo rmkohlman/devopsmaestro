@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	"devopsmaestro/pkg/paths"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -64,11 +66,11 @@ func NewTestFramework(t *testing.T) *TestFramework {
 	require.NoError(t, os.MkdirAll(homeDir, 0755), "Failed to create home directory")
 
 	// Create .devopsmaestro directory structure
-	dvmDir := filepath.Join(homeDir, ".devopsmaestro")
+	dvmDir := filepath.Join(homeDir, paths.DVMDirName)
 	require.NoError(t, os.MkdirAll(dvmDir, 0755), "Failed to create .devopsmaestro directory")
 
 	// Database path
-	dbPath := filepath.Join(dvmDir, "devopsmaestro.db")
+	dbPath := filepath.Join(dvmDir, paths.DatabaseFile)
 
 	// Build the binary (in temp dir to avoid conflicts)
 	binaryPath := filepath.Join(tempDir, "dvm")

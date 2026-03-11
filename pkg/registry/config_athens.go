@@ -3,8 +3,9 @@ package registry
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
+
+	"devopsmaestro/pkg/paths"
 )
 
 // GoModuleConfig holds configuration for the Athens Go module proxy.
@@ -126,7 +127,7 @@ func DefaultGoModuleConfig() GoModuleConfig {
 		Enabled:     true,
 		Lifecycle:   "on-demand",
 		Port:        3000,
-		Storage:     filepath.Join(homeDir, ".devopsmaestro", "athens"),
+		Storage:     paths.New(homeDir).AthensStorage(),
 		IdleTimeout: 30 * time.Minute,
 		Upstreams:   defaultUpstreams(),
 	}

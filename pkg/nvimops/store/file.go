@@ -46,6 +46,8 @@ func NewFileStore(baseDir string) (*FileStore, error) {
 }
 
 // DefaultFileStore creates a FileStore in the default location (~/.nvim-manager/plugins).
+// TODO(paths): This uses a legacy path (.nvim-manager) for backward compatibility.
+// Evaluate whether this code path is still needed and migrate to paths.NVPPluginsDir() if not.
 func DefaultFileStore() (*FileStore, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {

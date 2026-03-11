@@ -2,11 +2,11 @@ package cmd
 
 import (
 	"devopsmaestro/db"
+	"devopsmaestro/pkg/paths"
 	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 )
@@ -29,14 +29,15 @@ var initCmd = &cobra.Command{
 		slog.Debug("resolved home directory", "path", homeDir)
 
 		// Create ~/.devopsmaestro directory structure
-		dvmDir := filepath.Join(homeDir, ".devopsmaestro")
+		pc := paths.New(homeDir)
+		dvmDir := pc.Root()
 		dirs := []string{
 			dvmDir,
-			filepath.Join(dvmDir, "templates"),
-			filepath.Join(dvmDir, "templates", "nvim"),
-			filepath.Join(dvmDir, "templates", "shell"),
-			filepath.Join(dvmDir, "backups"),
-			filepath.Join(dvmDir, "logs"),
+			pc.TemplatesDir(),
+			pc.NvimTemplatesDir(),
+			pc.ShellTemplatesDir(),
+			pc.BackupsDir(),
+			pc.LogsDir(),
 		}
 
 		fmt.Println("Creating directory structure...")
@@ -51,13 +52,13 @@ var initCmd = &cobra.Command{
 		slog.Debug("directory structure created", "root", dvmDir)
 
 		// Create default config.yaml
-		configPath := filepath.Join(dvmDir, "config.yaml")
+		configPath := pc.ConfigFile()
 		if _, err := os.Stat(configPath); os.IsNotExist(err) {
 			slog.Debug("creating default config", "path", configPath)
-			defaultConfig := `# DevOpsMaestro Configuration
+			defaultConfig := fmt.Sprintf(`# DevOpsMaestro Configuration
 database:
   type: sqlite
-  path: ~/.devopsmaestro/devopsmaestro.db
+  path: ~/%s/%s
 
 store: sql
 
@@ -66,9 +67,9 @@ runtime:
   # auto: Automatically detects runtime (checks for docker.sock or containerd.sock)
 
 templates:
-  nvim: ~/.devopsmaestro/templates/nvim
-  shell: ~/.devopsmaestro/templates/shell
-`
+  nvim: ~/%s/templates/nvim
+  shell: ~/%s/templates/shell
+`, paths.DVMDirName, paths.DatabaseFile, paths.DVMDirName, paths.DVMDirName)
 			if err := os.WriteFile(configPath, []byte(defaultConfig), 0644); err != nil {
 				slog.Error("failed to create config.yaml", "path", configPath, "error", err)
 				fmt.Printf("Error: Failed to create config.yaml: %v\n", err)

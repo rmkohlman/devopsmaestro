@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"devopsmaestro/pkg/paths"
 )
 
 // HttpProxyConfig represents squid HTTP proxy configuration.
@@ -65,7 +67,7 @@ func NewHttpProxyConfig() *HttpProxyConfig {
 // including paths set relative to the user's home directory.
 func DefaultHttpProxyConfig() HttpProxyConfig {
 	homeDir, _ := os.UserHomeDir()
-	baseDir := filepath.Join(homeDir, ".devopsmaestro", "squid")
+	baseDir := paths.New(homeDir).SquidDir()
 
 	return HttpProxyConfig{
 		Port:            3128,

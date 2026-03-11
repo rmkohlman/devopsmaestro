@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"devopsmaestro/pkg/paths"
 )
 
 // PyPIProxyConfig holds configuration for the devpi PyPI proxy.
@@ -154,7 +156,7 @@ func DefaultPyPIProxyConfig() PyPIProxyConfig {
 		Enabled:     true,
 		Lifecycle:   "on-demand",
 		Port:        3141,
-		Storage:     filepath.Join(homeDir, ".devopsmaestro", "devpi"),
+		Storage:     paths.New(homeDir).DevpiStorage(),
 		IdleTimeout: 30 * time.Minute,
 		Upstreams:   defaultPyPIUpstreams(),
 	}
