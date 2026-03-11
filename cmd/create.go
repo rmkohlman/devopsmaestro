@@ -235,7 +235,7 @@ Examples:
 		}
 		render.Info(fmt.Sprintf("Image:   %s", imageName))
 
-		fmt.Println()
+		render.Blank()
 		render.Info("Next steps:")
 		render.Info("  1. Switch to this workspace:")
 		render.Info(fmt.Sprintf("     dvm use workspace %s", workspaceName))
@@ -350,7 +350,7 @@ func createRegistry(cmd *cobra.Command, name string) error {
 	render.Info(fmt.Sprintf("Port:      %d", registry.Port))
 	render.Info(fmt.Sprintf("Lifecycle: %s", registry.Lifecycle))
 
-	fmt.Println()
+	render.Blank()
 	render.Info("Next steps:")
 	render.Info(fmt.Sprintf("  dvm registry start %s    # Start the registry", name))
 	render.Info(fmt.Sprintf("  dvm registry status %s   # Check status", name))

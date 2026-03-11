@@ -61,8 +61,8 @@ Examples:
 		sources := factory.ListSources()
 
 		if len(sources) == 0 {
-			fmt.Println("No external sources available")
-			fmt.Println("\nCheck the documentation for how to register external sources.")
+			render.Info("No external sources available")
+			render.Info("Check the documentation for how to register external sources.")
 			return nil
 		}
 
@@ -71,7 +71,7 @@ Examples:
 		for _, sourceName := range sources {
 			info, err := factory.GetHandlerInfo(sourceName)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: could not get info for source %s: %v\n", sourceName, err)
+				render.WarningfToStderr("could not get info for source %s: %v", sourceName, err)
 				continue
 			}
 			sourceInfos = append(sourceInfos, info)
@@ -212,25 +212,24 @@ Examples:
 
 		// Show what we're about to do
 		if dryRun {
-			fmt.Printf("Would sync from source '%s':\n", sourceName)
+			render.Infof("Would sync from source '%s':", sourceName)
 		} else {
-			fmt.Printf("Syncing from source '%s'...\n", sourceName)
+			render.Progressf("Syncing from source '%s'...", sourceName)
 		}
 
 		if len(options.Filters) > 0 {
-			fmt.Printf("Filters: ")
 			var filters []string
 			for k, v := range options.Filters {
 				filters = append(filters, fmt.Sprintf("%s=%s", k, v))
 			}
-			fmt.Printf("%s\n", strings.Join(filters, ", "))
+			render.Infof("Filters: %s", strings.Join(filters, ", "))
 		}
 
 		if options.Overwrite {
-			fmt.Println("Mode: Overwrite existing plugins")
+			render.Info("Mode: Overwrite existing plugins")
 		}
 
-		fmt.Println()
+		render.Blank()
 
 		// Perform the sync
 		result, err := handler.Sync(cmd.Context(), options)
@@ -310,11 +309,11 @@ func outputSource(source *sync.SourceInfo, format string) error {
 func outputSyncResult(result *sync.SyncResult, format string, dryRun bool) error {
 	// Handle errors first
 	if result.HasErrors() {
-		fmt.Fprintf(os.Stderr, "Sync completed with %d errors:\n", len(result.Errors))
+		render.ErrorfToStderr("Sync completed with %d errors:", len(result.Errors))
 		for i, err := range result.Errors {
-			fmt.Fprintf(os.Stderr, "  %d. %v\n", i+1, err)
+			render.ErrorfToStderr("  %d. %v", i+1, err)
 		}
-		fmt.Fprintln(os.Stderr)
+		render.ErrorToStderr("")
 	}
 
 	switch format {
@@ -325,64 +324,69 @@ func outputSyncResult(result *sync.SyncResult, format string, dryRun bool) error
 	case "table", "":
 		// Table format with summary
 		if dryRun {
-			fmt.Printf("Dry run complete for source '%s'\n", result.SourceName)
+			render.Successf("Dry run complete for source '%s'", result.SourceName)
 		} else {
-			fmt.Printf("Sync complete for source '%s'\n", result.SourceName)
+			render.Successf("Sync complete for source '%s'", result.SourceName)
 		}
 
-		fmt.Printf("Available: %d plugins\n", result.TotalAvailable)
-		fmt.Printf("Synced: %d plugins\n", result.TotalSynced)
+		render.Infof("Available: %d plugins", result.TotalAvailable)
+		render.Infof("Synced: %d plugins", result.TotalSynced)
 
 		if len(result.PluginsCreated) > 0 {
-			fmt.Printf("\nCreated (%d):\n", len(result.PluginsCreated))
+			render.Blank()
+			render.Infof("Created (%d):", len(result.PluginsCreated))
 			for _, name := range result.PluginsCreated {
 				if dryRun {
-					fmt.Printf("  %s (would create)\n", name)
+					render.Plainf("  %s (would create)", name)
 				} else {
-					fmt.Printf("  ✓ %s\n", name)
+					render.Plainf("  %s", name)
 				}
 			}
 		}
 
 		if len(result.PluginsUpdated) > 0 {
-			fmt.Printf("\nUpdated (%d):\n", len(result.PluginsUpdated))
+			render.Blank()
+			render.Infof("Updated (%d):", len(result.PluginsUpdated))
 			for _, name := range result.PluginsUpdated {
 				if dryRun {
-					fmt.Printf("  %s (would update)\n", name)
+					render.Plainf("  %s (would update)", name)
 				} else {
-					fmt.Printf("  ✓ %s\n", name)
+					render.Plainf("  %s", name)
 				}
 			}
 		}
 
 		if len(result.PackagesCreated) > 0 {
-			fmt.Printf("\nPackages Created (%d):\n", len(result.PackagesCreated))
+			render.Blank()
+			render.Infof("Packages Created (%d):", len(result.PackagesCreated))
 			for _, name := range result.PackagesCreated {
 				if dryRun {
-					fmt.Printf("  %s (would create)\n", name)
+					render.Plainf("  %s (would create)", name)
 				} else {
-					fmt.Printf("  ✓ %s\n", name)
+					render.Plainf("  %s", name)
 				}
 			}
 		}
 
 		if len(result.PackagesUpdated) > 0 {
-			fmt.Printf("\nPackages Updated (%d):\n", len(result.PackagesUpdated))
+			render.Blank()
+			render.Infof("Packages Updated (%d):", len(result.PackagesUpdated))
 			for _, name := range result.PackagesUpdated {
 				if dryRun {
-					fmt.Printf("  %s (would update)\n", name)
+					render.Plainf("  %s (would update)", name)
 				} else {
-					fmt.Printf("  ✓ %s\n", name)
+					render.Plainf("  %s", name)
 				}
 			}
 		}
 
 		// Show next steps
 		if !dryRun && result.TotalSynced > 0 {
-			fmt.Println("\nNext steps:")
-			fmt.Println("  nvp list                    # View synced plugins")
-			fmt.Println("  nvp generate                # Generate Lua files")
-			fmt.Println("  nvp get <plugin-name>       # Customize specific plugins")
+			render.Blank()
+			render.Info("Next steps:")
+			render.Plain("  nvp list                    # View synced plugins")
+			render.Plain("  nvp generate                # Generate Lua files")
+			render.Plain("  nvp get <plugin-name>       # Customize specific plugins")
 		}
 
 		return nil

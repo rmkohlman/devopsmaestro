@@ -99,7 +99,7 @@ Examples:
 			render.Success(fmt.Sprintf("Set '%s' as active domain", domainName))
 		}
 
-		fmt.Println()
+		render.Blank()
 		render.Info("Next steps:")
 		render.Info("  1. Create an app in this domain:")
 		render.Info("     dvm create app <name> --path <path>")
@@ -198,7 +198,7 @@ Examples:
 		ds.SetActiveApp(nil)
 
 		render.Success(fmt.Sprintf("Switched to domain '%s' in ecosystem '%s'", domainName, ecosystem.Name))
-		fmt.Println()
+		render.Blank()
 		render.Info("Next: Select an app with: dvm use app <name>")
 		return nil
 	},

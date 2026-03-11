@@ -22,6 +22,7 @@ import (
 	promptlibrary "devopsmaestro/pkg/terminalops/prompt/library"
 	"devopsmaestro/pkg/terminalops/shell"
 	"devopsmaestro/pkg/terminalops/store"
+	"devopsmaestro/render"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/cobra"
@@ -160,7 +161,7 @@ func init() {
 					// This allows dvt to work even when migrations are not available
 					if verbose {
 						slog.Warn("migrations not available for auto-migration in dvt", "error", err)
-						fmt.Printf("Warning: Migrations not found, skipping auto-migration: %v\n", err)
+						render.WarningfToStderr("Migrations not found, skipping auto-migration: %v", err)
 					}
 					return
 				}
@@ -169,8 +170,8 @@ func init() {
 				migrationsApplied, err := db.CheckVersionBasedAutoMigration(driver, migrationsFS, Version, verbose)
 				if err != nil {
 					slog.Error("auto-migration failed", "error", err)
-					fmt.Printf("Error: Failed to apply database migrations: %v\n", err)
-					fmt.Println("Please run 'dvm admin migrate' to fix migration issues.")
+					render.ErrorfToStderr("Failed to apply database migrations: %v", err)
+					render.InfoToStderr("Please run 'dvm admin migrate' to fix migration issues.")
 					os.Exit(1)
 				}
 				if migrationsApplied && verbose {
@@ -210,7 +211,7 @@ func initLogging() {
 	if logFile != "" {
 		f, err := os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: could not open log file %s: %v\n", logFile, err)
+			render.WarningfToStderr("could not open log file %s: %v", logFile, err)
 			handler = slog.NewTextHandler(os.Stderr, opts)
 		} else {
 			handler = slog.NewJSONHandler(f, opts)
@@ -281,7 +282,7 @@ You can specify a custom directory with --config or DVT_CONFIG_DIR.`,
 			}
 		}
 
-		fmt.Printf("Initialized dvt at %s\n", dir)
+		render.Successf("Initialized dvt at %s", dir)
 		return nil
 	},
 }
@@ -322,7 +323,7 @@ var promptLibraryListCmd = &cobra.Command{
 		}
 
 		if len(prompts) == 0 {
-			fmt.Println("No prompts found")
+			render.Info("No prompts found")
 			return nil
 		}
 
@@ -384,7 +385,7 @@ Examples:
 			for _, name := range args {
 				p, err := lib.Get(name)
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "Warning: prompt not found in library: %s\n", name)
+					render.WarningfToStderr("prompt not found in library: %s", name)
 					continue
 				}
 				prompts = append(prompts, p)
@@ -393,10 +394,10 @@ Examples:
 
 		for _, p := range prompts {
 			if err := store.Save(p); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to install %s: %v\n", p.Name, err)
+				render.WarningfToStderr("failed to install %s: %v", p.Name, err)
 				continue
 			}
-			fmt.Printf("Installed %s\n", p.Name)
+			render.Successf("Installed %s", p.Name)
 		}
 
 		return nil
@@ -413,10 +414,10 @@ var promptLibraryCategoriesCmd = &cobra.Command{
 		}
 
 		categories := lib.Categories()
-		fmt.Printf("Categories (%d):\n", len(categories))
+		render.Infof("Categories (%d):", len(categories))
 		for _, c := range categories {
 			prompts := lib.ListByCategory(c)
-			fmt.Printf("  %-15s (%d prompts)\n", c, len(prompts))
+			render.Plainf("  %-15s (%d prompts)", c, len(prompts))
 		}
 		return nil
 	},
@@ -433,8 +434,8 @@ var promptListCmd = &cobra.Command{
 		}
 
 		if len(prompts) == 0 {
-			fmt.Println("No prompts installed")
-			fmt.Println("\nUse 'dvt prompt library list' to see available prompts")
+			render.Info("No prompts installed")
+			render.Info("Use 'dvt prompt library list' to see available prompts")
 			return nil
 		}
 
@@ -564,7 +565,7 @@ var pluginLibraryListCmd = &cobra.Command{
 		}
 
 		if len(plugins) == 0 {
-			fmt.Println("No plugins found")
+			render.Info("No plugins found")
 			return nil
 		}
 
@@ -628,7 +629,7 @@ Examples:
 			for _, name := range args {
 				p, err := lib.Get(name)
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "Warning: plugin not found in library: %s\n", name)
+					render.WarningfToStderr("plugin not found in library: %s", name)
 					continue
 				}
 				plugins = append(plugins, p)
@@ -637,10 +638,10 @@ Examples:
 
 		for _, p := range plugins {
 			if err := store.Upsert(p); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to install %s: %v\n", p.Name, err)
+				render.WarningfToStderr("failed to install %s: %v", p.Name, err)
 				continue
 			}
-			fmt.Printf("Installed %s\n", p.Name)
+			render.Successf("Installed %s", p.Name)
 		}
 
 		return nil
@@ -657,10 +658,10 @@ var pluginLibraryCategoriesCmd = &cobra.Command{
 		}
 
 		categories := lib.Categories()
-		fmt.Printf("Categories (%d):\n", len(categories))
+		render.Infof("Categories (%d):", len(categories))
 		for _, c := range categories {
 			plugins := lib.ListByCategory(c)
-			fmt.Printf("  %-20s (%d plugins)\n", c, len(plugins))
+			render.Plainf("  %-20s (%d plugins)", c, len(plugins))
 		}
 		return nil
 	},
@@ -680,8 +681,8 @@ var pluginListCmd = &cobra.Command{
 		}
 
 		if len(plugins) == 0 {
-			fmt.Println("No plugins installed")
-			fmt.Println("\nUse 'dvt plugin library list' to see available plugins")
+			render.Info("No plugins installed")
+			render.Info("Use 'dvt plugin library list' to see available plugins")
 			return nil
 		}
 
@@ -742,7 +743,7 @@ Examples:
 					if libPlugin, libErr := lib.Get(name); libErr == nil {
 						p = libPlugin
 					} else {
-						fmt.Fprintf(os.Stderr, "Warning: plugin not found: %s\n", name)
+						render.WarningfToStderr("plugin not found: %s", name)
 						continue
 					}
 				}
@@ -855,7 +856,7 @@ Examples:
 				return fmt.Errorf("failed to save shell config: %w", err)
 			}
 
-			fmt.Printf("Shell config '%s' %s (from %s)\n", s.Name, action, source)
+			render.Successf("Shell config '%s' %s (from %s)", s.Name, action, source)
 		}
 
 		return nil
@@ -873,7 +874,7 @@ var shellListCmd = &cobra.Command{
 		}
 
 		if len(shells) == 0 {
-			fmt.Println("No shell configs installed")
+			render.Info("No shell configs installed")
 			return nil
 		}
 
@@ -1025,8 +1026,8 @@ Examples:
 			return fmt.Errorf("failed to save profile: %w", err)
 		}
 
-		fmt.Printf("Installed profile preset '%s'\n", name)
-		fmt.Println("\nRun 'dvt profile generate' to generate config files")
+		render.Successf("Installed profile preset '%s'", name)
+		render.Info("Run 'dvt profile generate' to generate config files")
 		return nil
 	},
 }
@@ -1078,7 +1079,7 @@ Examples:
 				return fmt.Errorf("failed to save profile: %w", err)
 			}
 
-			fmt.Printf("Profile '%s' %s (from %s)\n", p.Name, action, source)
+			render.Successf("Profile '%s' %s (from %s)", p.Name, action, source)
 		}
 
 		return nil
@@ -1096,8 +1097,8 @@ var profileListCmd = &cobra.Command{
 		}
 
 		if len(profiles) == 0 {
-			fmt.Println("No profiles installed")
-			fmt.Println("\nUse 'dvt profile preset list' to see available presets")
+			render.Info("No profiles installed")
+			render.Info("Use 'dvt profile preset list' to see available presets")
 			return nil
 		}
 
@@ -1209,7 +1210,7 @@ Examples:
 			if err := os.WriteFile(starshipPath, []byte(result.StarshipTOML), 0644); err != nil {
 				return fmt.Errorf("failed to write starship.toml: %w", err)
 			}
-			fmt.Printf("Wrote %s\n", starshipPath)
+			render.Successf("Wrote %s", starshipPath)
 		}
 
 		if result.ZshrcPlugins != "" || result.ZshrcShell != "" {
@@ -1225,9 +1226,10 @@ Examples:
 			if err := os.WriteFile(zshrcPath, []byte(zshrcContent), 0644); err != nil {
 				return fmt.Errorf("failed to write .zshrc.dvt: %w", err)
 			}
-			fmt.Printf("Wrote %s\n", zshrcPath)
-			fmt.Println("\nAdd this line to your .zshrc:")
-			fmt.Printf("  source %s\n", zshrcPath)
+			render.Successf("Wrote %s", zshrcPath)
+			render.Blank()
+			render.Info("Add this line to your .zshrc:")
+			render.Plainf("  source %s", zshrcPath)
 		}
 
 		return nil
@@ -1246,8 +1248,8 @@ var profileUseCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("Active profile set to '%s'\n", name)
-		fmt.Println("\nRun 'dvt profile generate' to regenerate config files")
+		render.Successf("Active profile set to '%s'", name)
+		render.Info("Run 'dvt profile generate' to regenerate config files")
 		return nil
 	},
 }

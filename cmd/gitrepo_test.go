@@ -6,6 +6,7 @@ import (
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/render"
+	"os"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -585,8 +586,10 @@ func TestGetGitReposCmd_Empty(t *testing.T) {
 	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
 	cmd.SetContext(ctx)
 
-	buf := new(bytes.Buffer)
-	cmd.SetOut(buf)
+	// Capture render output (render.Info writes to render's default writer, not cobra's SetOut)
+	var buf bytes.Buffer
+	render.SetWriter(&buf)
+	defer render.SetWriter(os.Stdout)
 
 	err := cmd.Execute()
 	assert.NoError(t, err, "should handle empty list gracefully")

@@ -51,3 +51,34 @@ func WarningToStderr(content string) error {
 func ErrorToStderr(content string) error {
 	return MsgTo(os.Stderr, "", Message{Level: LevelError, Content: content})
 }
+
+// InfofToStderr outputs a formatted info message to os.Stderr.
+func InfofToStderr(format string, args ...any) error {
+	return InfoToStderr(fmt.Sprintf(format, args...))
+}
+
+// WarningfToStderr outputs a formatted warning message to os.Stderr.
+func WarningfToStderr(format string, args ...any) error {
+	return WarningToStderr(fmt.Sprintf(format, args...))
+}
+
+// ErrorfToStderr outputs a formatted error message to os.Stderr.
+func ErrorfToStderr(format string, args ...any) error {
+	return ErrorToStderr(fmt.Sprintf(format, args...))
+}
+
+// Plain outputs undecorated text followed by a newline to the default writer.
+// Use this for output that should not receive any level prefix or color —
+// for example, simple status lines, key-value pairs, or list items that
+// are not errors, warnings, or info messages.
+func Plain(text string) error {
+	w := GetWriter()
+	_, err := fmt.Fprintln(w, text)
+	return err
+}
+
+// Plainf outputs formatted undecorated text followed by a newline to the
+// default writer. See Plain for when to use this.
+func Plainf(format string, args ...any) error {
+	return Plain(fmt.Sprintf(format, args...))
+}

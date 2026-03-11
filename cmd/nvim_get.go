@@ -301,7 +301,7 @@ func renderEmptyWorkspacePlugins(workspaceName, appName string) error {
 
 	render.Info(fmt.Sprintf("Workspace '%s' has no plugins configured", workspaceName))
 	render.Info("Build will use all plugins from global library (~/.nvp/plugins/)")
-	fmt.Println()
+	render.Blank()
 	render.Info("Configure workspace plugins with:")
 	render.Info(fmt.Sprintf("  dvm set nvim plugin -w %s <plugin-names...>", workspaceName))
 	render.Info(fmt.Sprintf("  dvm set nvim plugin -w %s --all", workspaceName))
@@ -331,7 +331,7 @@ func renderWorkspacePlugins(workspaceName, appName string, plugins []*plugin.Plu
 
 	// Human-readable output
 	render.Success(fmt.Sprintf("Workspace '%s' has %d plugin(s) configured:", workspaceName, len(configuredNames)))
-	fmt.Println()
+	render.Blank()
 
 	// Build table
 	tableData := render.TableData{

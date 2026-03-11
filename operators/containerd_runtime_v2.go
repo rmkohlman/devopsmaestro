@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"devopsmaestro/render"
+
 	"github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/pkg/namespaces"
 )
@@ -55,7 +57,7 @@ func NewContainerdRuntimeV2WithPlatform(platform *Platform) (*ContainerdRuntimeV
 		return nil, fmt.Errorf("failed to connect to containerd: %w\n%s", err, platform.GetStartHint())
 	}
 
-	fmt.Printf("Connected to containerd %s (%s, namespace: %s)\n",
+	render.Infof("Connected to containerd %s (%s, namespace: %s)",
 		version.Version, platform.Name, namespace)
 
 	return &ContainerdRuntimeV2{

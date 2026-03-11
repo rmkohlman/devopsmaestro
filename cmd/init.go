@@ -3,6 +3,7 @@ package cmd
 import (
 	"devopsmaestro/db"
 	"devopsmaestro/pkg/paths"
+	"devopsmaestro/render"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -16,14 +17,14 @@ var initCmd = &cobra.Command{
 	Short: "Initialize DevOpsMaestro",
 	Long:  `Initialize DevOpsMaestro by setting up the database, configuration, and template directories.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Initializing DevOpsMaestro...")
+		render.Progress("Initializing DevOpsMaestro...")
 		slog.Info("starting initialization")
 
 		// Get home directory
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
 			slog.Error("failed to get home directory", "error", err)
-			fmt.Printf("Error: Failed to get home directory: %v\n", err)
+			render.Errorf("Failed to get home directory: %v", err)
 			return
 		}
 		slog.Debug("resolved home directory", "path", homeDir)
@@ -40,12 +41,12 @@ var initCmd = &cobra.Command{
 			pc.LogsDir(),
 		}
 
-		fmt.Println("Creating directory structure...")
+		render.Progress("Creating directory structure...")
 		for _, dir := range dirs {
 			slog.Debug("creating directory", "path", dir)
 			if err := os.MkdirAll(dir, 0755); err != nil {
 				slog.Error("failed to create directory", "path", dir, "error", err)
-				fmt.Printf("Error: Failed to create directory %s: %v\n", dir, err)
+				render.Errorf("Failed to create directory %s: %v", dir, err)
 				return
 			}
 		}
@@ -72,10 +73,10 @@ templates:
 `, paths.DVMDirName, paths.DatabaseFile, paths.DVMDirName, paths.DVMDirName)
 			if err := os.WriteFile(configPath, []byte(defaultConfig), 0644); err != nil {
 				slog.Error("failed to create config.yaml", "path", configPath, "error", err)
-				fmt.Printf("Error: Failed to create config.yaml: %v\n", err)
+				render.Errorf("Failed to create config.yaml: %v", err)
 				return
 			}
-			fmt.Println("✓ Created config.yaml")
+			render.Success("Created config.yaml")
 			slog.Info("created config file", "path", configPath)
 		} else {
 			slog.Debug("config file already exists", "path", configPath)
@@ -85,14 +86,14 @@ templates:
 		ds, dsErr := getDataStore(cmd)
 		if dsErr != nil {
 			slog.Error("dataStore not initialized in context", "error", dsErr)
-			fmt.Println("Error: DataStore not initialized")
+			render.Error("DataStore not initialized")
 			return
 		}
 
 		driver := ds.Driver()
 		if driver == nil {
 			slog.Error("driver not available from dataStore")
-			fmt.Println("Error: Database driver not available")
+			render.Error("Database driver not available")
 			return
 		}
 
@@ -101,28 +102,30 @@ templates:
 		migrationsFS := ctx.Value("migrationsFS").(fs.FS)
 		if migrationsFS == nil {
 			slog.Error("migrations filesystem not available in context")
-			fmt.Println("Error: Migrations filesystem not available")
+			render.Error("Migrations filesystem not available")
 			return
 		}
 
-		fmt.Println("Running database migrations...")
+		render.Progress("Running database migrations...")
 		slog.Debug("running database migrations")
 		if err := db.RunMigrations(driver, migrationsFS); err != nil {
 			slog.Error("failed to run database migrations", "error", err)
-			fmt.Printf("Error: Failed to run database migrations: %v\n", err)
+			render.Errorf("Failed to run database migrations: %v", err)
 			return
 		}
 		slog.Info("database migrations completed")
 
-		fmt.Println("\n✓ DevOpsMaestro initialized successfully!")
+		render.Blank()
+		render.Success("DevOpsMaestro initialized successfully!")
 		slog.Info("initialization completed successfully", "config_dir", dvmDir)
-		fmt.Println("\nNext steps:")
-		fmt.Println("  1. Copy your dev environment templates:")
-		fmt.Println("     (We'll create a script for this)")
-		fmt.Println("  2. Create your first app:")
-		fmt.Println("     dvm create app <name> --from-cwd")
-		fmt.Println("  3. Start coding:")
-		fmt.Println("     dvm use workspace main && dvm attach")
+		render.Blank()
+		render.Info("Next steps:")
+		render.Info("  1. Copy your dev environment templates:")
+		render.Info("     (We'll create a script for this)")
+		render.Info("  2. Create your first app:")
+		render.Info("     dvm create app <name> --from-cwd")
+		render.Info("  3. Start coding:")
+		render.Info("     dvm use workspace main && dvm attach")
 	},
 }
 

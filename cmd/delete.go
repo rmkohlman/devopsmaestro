@@ -145,14 +145,14 @@ func runDeleteWorkspacePlugins(cmd *cobra.Command, pluginNames []string) error {
 	if len(removed) > 0 {
 		render.Success(fmt.Sprintf("Removed %d plugin(s) from workspace '%s':", len(removed), workspace.Name))
 		for _, p := range removed {
-			fmt.Printf("  - %s\n", p)
+			render.Plainf("  - %s", p)
 		}
 	}
 
 	if len(notFound) > 0 {
 		render.Warning(fmt.Sprintf("Not found in workspace (%d):", len(notFound)))
 		for _, p := range notFound {
-			fmt.Printf("  ? %s\n", p)
+			render.Plainf("  ? %s", p)
 		}
 	}
 
@@ -163,7 +163,7 @@ func runDeleteWorkspacePlugins(cmd *cobra.Command, pluginNames []string) error {
 	}
 
 	if len(removed) > 0 {
-		fmt.Println()
+		render.Blank()
 		render.Info(fmt.Sprintf("Rebuild workspace to apply: dvm build %s --force", workspace.Name))
 	}
 

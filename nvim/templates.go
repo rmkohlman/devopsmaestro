@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"devopsmaestro/render"
 )
 
 // initFromTemplate initializes config from a template
@@ -180,7 +182,7 @@ func (m *manager) cloneTemplate(gitURL, configPath, subdir string) error {
 	gitDir := filepath.Join(configPath, ".git")
 	if err := os.RemoveAll(gitDir); err != nil {
 		// Not fatal, just warn
-		fmt.Printf("Warning: failed to remove .git directory: %v\n", err)
+		render.Warningf("failed to remove .git directory: %v", err)
 	}
 
 	return nil

@@ -256,28 +256,28 @@ func getDefaults(cmd *cobra.Command) error {
 	}
 
 	// For human-readable output, show organized key-value display
-	fmt.Println()
+	render.Blank()
 	render.Info("Theme Defaults:")
 	for key, value := range themeDefaults {
-		fmt.Printf("  %s: %v\n", key, value)
+		render.Plainf("  %s: %v", key, value)
 	}
 
-	fmt.Println()
+	render.Blank()
 	render.Info("Shell Defaults:")
 	for key, value := range shellDefaults {
-		fmt.Printf("  %s: %v\n", key, value)
+		render.Plainf("  %s: %v", key, value)
 	}
 
-	fmt.Println()
+	render.Blank()
 	render.Info("Neovim Defaults:")
 	for key, value := range nvimDefaults {
-		fmt.Printf("  %s: %v\n", key, value)
+		render.Plainf("  %s: %v", key, value)
 	}
 
-	fmt.Println()
+	render.Blank()
 	render.Info("Container Defaults:")
 	for key, value := range containerDefaults {
-		fmt.Printf("  %s: %v\n", key, value)
+		render.Plainf("  %s: %v", key, value)
 	}
 
 	return nil

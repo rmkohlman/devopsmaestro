@@ -8,6 +8,8 @@ import (
 	"strings"
 	"syscall"
 
+	"devopsmaestro/render"
+
 	"github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/pkg/cio"
 	"github.com/containerd/containerd/v2/pkg/namespaces"
@@ -62,7 +64,7 @@ func (r *ContainerdRuntimeV2) startWorkspaceViaColima(ctx context.Context, opts 
 		imageChanged := hasImageLabel && existingImage != opts.ImageName
 
 		if !hasImageLabel {
-			fmt.Printf("Container exists without image label (pre-v0.18.18), recreating...\n")
+			render.Infof("Container exists without image label (pre-v0.18.18), recreating...")
 			// Remove old container to recreate with proper labels
 			rmCmd := fmt.Sprintf("sudo nerdctl --namespace %s rm -f %s 2>/dev/null || true",
 				r.namespace, containerName)
@@ -70,8 +72,8 @@ func (r *ContainerdRuntimeV2) startWorkspaceViaColima(ctx context.Context, opts 
 			rmExec.Run()
 			// Fall through to create new container
 		} else if imageChanged {
-			fmt.Printf("Image changed: %s -> %s\n", existingImage, opts.ImageName)
-			fmt.Printf("Recreating container with new image...\n")
+			render.Infof("Image changed: %s -> %s", existingImage, opts.ImageName)
+			render.Info("Recreating container with new image...")
 
 			// Stop and remove the old container regardless of state
 			rmCmd := fmt.Sprintf("sudo nerdctl --namespace %s rm -f %s 2>/dev/null || true",

@@ -12,6 +12,7 @@ import (
 	"devopsmaestro/pkg/terminalops/emulator"
 	"devopsmaestro/pkg/terminalops/emulator/library"
 	"devopsmaestro/pkg/terminalops/store"
+	"devopsmaestro/render"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -81,7 +82,7 @@ Examples:
 		}
 
 		if len(emulators) == 0 {
-			fmt.Println("No emulators found")
+			render.Info("No emulators found")
 			return nil
 		}
 
@@ -145,7 +146,7 @@ Examples:
 
 		// Check if already enabled
 		if emu.Enabled {
-			fmt.Printf("Emulator '%s' is already enabled\n", name)
+			render.Infof("Emulator '%s' is already enabled", name)
 			return nil
 		}
 
@@ -155,7 +156,7 @@ Examples:
 			return fmt.Errorf("failed to enable emulator: %w", err)
 		}
 
-		fmt.Printf("Emulator '%s' enabled\n", name)
+		render.Successf("Emulator '%s' enabled", name)
 		return nil
 	},
 }
@@ -186,7 +187,7 @@ Examples:
 
 		// Check if already disabled
 		if !emu.Enabled {
-			fmt.Printf("Emulator '%s' is already disabled\n", name)
+			render.Infof("Emulator '%s' is already disabled", name)
 			return nil
 		}
 
@@ -196,7 +197,7 @@ Examples:
 			return fmt.Errorf("failed to disable emulator: %w", err)
 		}
 
-		fmt.Printf("Emulator '%s' disabled\n", name)
+		render.Successf("Emulator '%s' disabled", name)
 		return nil
 	},
 }
@@ -226,10 +227,10 @@ Examples:
 		}
 
 		if dryRun {
-			fmt.Printf("Would install emulator: %s\n", name)
-			fmt.Printf("Type: %s\n", libEmulator.Type)
-			fmt.Printf("Description: %s\n", libEmulator.Description)
-			fmt.Printf("Category: %s\n", libEmulator.Category)
+			render.Infof("Would install emulator: %s", name)
+			render.Plainf("Type: %s", libEmulator.Type)
+			render.Plainf("Description: %s", libEmulator.Description)
+			render.Plainf("Category: %s", libEmulator.Category)
 			return nil
 		}
 
@@ -250,7 +251,7 @@ Examples:
 			return fmt.Errorf("failed to install emulator: %w", err)
 		}
 
-		fmt.Printf("Emulator '%s' installed successfully\n", name)
+		render.Successf("Emulator '%s' installed successfully", name)
 		return nil
 	},
 }
@@ -293,10 +294,10 @@ Examples:
 		}
 
 		if dryRun {
-			fmt.Printf("Would apply emulator: %s\n", emu.Name)
-			fmt.Printf("Type: %s\n", emu.Type)
-			fmt.Printf("Description: %s\n", emu.Description)
-			fmt.Printf("Category: %s\n", emu.Category)
+			render.Infof("Would apply emulator: %s", emu.Name)
+			render.Plainf("Type: %s", emu.Type)
+			render.Plainf("Description: %s", emu.Description)
+			render.Plainf("Category: %s", emu.Category)
 			return nil
 		}
 
@@ -311,7 +312,7 @@ Examples:
 			return fmt.Errorf("failed to apply emulator: %w", err)
 		}
 
-		fmt.Printf("Emulator '%s' applied successfully\n", emu.Name)
+		render.Successf("Emulator '%s' applied successfully", emu.Name)
 		return nil
 	},
 }
@@ -353,7 +354,7 @@ Examples:
 		}
 
 		if len(emulators) == 0 {
-			fmt.Println("No library emulators found")
+			render.Info("No library emulators found")
 			return nil
 		}
 

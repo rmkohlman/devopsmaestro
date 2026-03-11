@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"devopsmaestro/render"
+
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
@@ -63,7 +65,7 @@ func NewDockerRuntime(platform *Platform) (*DockerRuntime, error) {
 
 // BuildImage builds a container image using Docker
 func (d *DockerRuntime) BuildImage(ctx context.Context, opts BuildOptions) error {
-	fmt.Printf("Building image '%s' using %s...\n", opts.ImageName, d.platform.Name)
+	render.Progressf("Building image '%s' using %s...", opts.ImageName, d.platform.Name)
 
 	// Create build context tarball
 	buildCtx, err := archive.TarWithOptions(opts.BuildContext, &archive.TarOptions{})
@@ -99,7 +101,7 @@ func (d *DockerRuntime) BuildImage(ctx context.Context, opts BuildOptions) error
 		return fmt.Errorf("error during build: %w", err)
 	}
 
-	fmt.Printf("✓ Image '%s' built successfully\n", opts.ImageName)
+	render.Successf("Image '%s' built successfully", opts.ImageName)
 	return nil
 }
 
@@ -130,8 +132,8 @@ func (d *DockerRuntime) StartWorkspace(ctx context.Context, opts StartOptions) (
 		// Check if the container is using the requested image
 		// existing.Image contains the image name/tag the container was created with
 		if existing.Image != opts.ImageName {
-			fmt.Printf("Image changed: %s -> %s\n", existing.Image, opts.ImageName)
-			fmt.Printf("Recreating container with new image...\n")
+			render.Infof("Image changed: %s -> %s", existing.Image, opts.ImageName)
+			render.Info("Recreating container with new image...")
 
 			// Stop container if running
 			if existing.State == "running" {
@@ -250,7 +252,7 @@ func (d *DockerRuntime) StartWorkspace(ctx context.Context, opts StartOptions) (
 
 // AttachToWorkspace attaches an interactive terminal to a running workspace
 func (d *DockerRuntime) AttachToWorkspace(ctx context.Context, opts AttachOptions) error {
-	fmt.Printf("Attaching to workspace (press Ctrl+D to exit)...\n")
+	render.Info("Attaching to workspace (press Ctrl+D to exit)...")
 
 	// Build shell command with options
 	shell := opts.Shell
@@ -303,7 +305,7 @@ func (d *DockerRuntime) AttachToWorkspace(ctx context.Context, opts AttachOption
 	// Set initial terminal size
 	if err := d.resizeExecTTY(ctx, execResp.ID); err != nil {
 		// Non-fatal: log and continue
-		fmt.Fprintf(os.Stderr, "Warning: failed to set terminal size: %v\n", err)
+		render.WarningfToStderr("failed to set terminal size: %v", err)
 	}
 
 	// Monitor for terminal resize signals (SIGWINCH)
@@ -337,7 +339,8 @@ func (d *DockerRuntime) AttachToWorkspace(ctx context.Context, opts AttachOption
 	// Wait for I/O to finish
 	<-errChan
 
-	fmt.Printf("\n✓ Detached from workspace\n")
+	render.Blank()
+	render.Success("Detached from workspace")
 	return nil
 }
 
@@ -356,14 +359,14 @@ func (d *DockerRuntime) resizeExecTTY(ctx context.Context, execID string) error 
 
 // StopWorkspace stops a running workspace
 func (d *DockerRuntime) StopWorkspace(ctx context.Context, workspaceID string) error {
-	fmt.Printf("Stopping workspace...\n")
+	render.Progress("Stopping workspace...")
 
 	timeout := 10
 	if err := d.client.ContainerStop(ctx, workspaceID, container.StopOptions{Timeout: &timeout}); err != nil {
 		return fmt.Errorf("failed to stop container: %w", err)
 	}
 
-	fmt.Printf("✓ Workspace stopped\n")
+	render.Success("Workspace stopped")
 	return nil
 }
 

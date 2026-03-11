@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"devopsmaestro/db"
+	"devopsmaestro/render"
 	"fmt"
 
 	"github.com/stretchr/testify/mock"
@@ -23,7 +24,7 @@ func (e *DefaultExecutor) Execute(ctx context.Context) error {
 	}
 
 	// Example logic: perform operations using DataStore
-	fmt.Println("Executing command with datastore...")
+	render.Progress("Executing command with datastore...")
 	// Insert business logic here
 
 	return nil

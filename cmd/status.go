@@ -152,7 +152,7 @@ func renderStatusColored(status StatusInfo) {
 		render.Warning("  Workspace: (none)")
 	}
 
-	fmt.Println()
+	render.Blank()
 
 	// Runtime section
 	render.Info("Runtime")
@@ -167,7 +167,7 @@ func renderStatusColored(status StatusInfo) {
 		render.Warning(fmt.Sprintf("  Status:   %s", status.Runtime.Status))
 	}
 
-	fmt.Println()
+	render.Blank()
 
 	// Containers section
 	render.Info("Running Workspaces")

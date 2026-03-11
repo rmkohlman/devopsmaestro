@@ -85,7 +85,7 @@ func runAttach(cmd *cobra.Command) error {
 			// Check if ambiguous and provide helpful output
 			if ambiguousErr, ok := resolver.IsAmbiguousError(err); ok {
 				render.Warning("Multiple workspaces match your criteria")
-				fmt.Println(ambiguousErr.FormatDisambiguation())
+				render.Plain(ambiguousErr.FormatDisambiguation())
 				return fmt.Errorf("ambiguous workspace selection")
 			}
 			if resolver.IsNoWorkspaceFoundError(err) {
@@ -184,7 +184,7 @@ func runAttach(cmd *cobra.Command) error {
 		slog.Warn("workspace image may not be built", "image", imageName)
 		render.Warning(fmt.Sprintf("Workspace image '%s' has not been built yet.", imageName))
 		render.Info("Run 'dvm build' first to build the development container.")
-		fmt.Println()
+		render.Blank()
 		return fmt.Errorf("workspace not built: run 'dvm build' first")
 	}
 

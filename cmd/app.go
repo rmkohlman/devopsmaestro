@@ -203,7 +203,7 @@ Next Steps:
 			render.Success(fmt.Sprintf("Set '%s' as active app", appName))
 		}
 
-		fmt.Println()
+		render.Blank()
 		render.Info("Next steps:")
 		render.Info("  1. Create a workspace for this app:")
 		if gitRepoName != "" {

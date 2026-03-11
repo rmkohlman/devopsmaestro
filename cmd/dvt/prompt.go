@@ -217,7 +217,7 @@ func promptResourceDelete(cmd *cobra.Command, args []string) error {
 		var response string
 		fmt.Scanln(&response)
 		if response != "y" && response != "Y" {
-			fmt.Println("Aborted")
+			render.Info("Aborted")
 			return nil
 		}
 	}
@@ -303,7 +303,7 @@ func promptResourceList(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(resources) == 0 {
-		fmt.Println("No prompts found")
+		render.Info("No prompts found")
 		return nil
 	}
 
@@ -330,9 +330,9 @@ func promptResourceList(cmd *cobra.Command, args []string) error {
 
 	if len(prompts) == 0 {
 		if typeFilter != "" {
-			fmt.Printf("No prompts found with type '%s'\n", typeFilter)
+			render.Infof("No prompts found with type '%s'", typeFilter)
 		} else {
-			fmt.Println("No prompts found")
+			render.Info("No prompts found")
 		}
 		return nil
 	}
@@ -414,7 +414,7 @@ func promptResourceSet(cmd *cobra.Command, args []string) error {
 		var response string
 		fmt.Scanln(&response)
 		if response != "y" && response != "Y" {
-			fmt.Println("Aborted")
+			render.Info("Aborted")
 			return nil
 		}
 	}
@@ -436,10 +436,12 @@ func promptResourceSet(cmd *cobra.Command, args []string) error {
 	// TODO: This should write to the appropriate config file (e.g., ~/.config/starship.toml)
 	// For now, output instructions
 	render.Success(fmt.Sprintf("Prompt '%s' set as active", name))
-	fmt.Printf("\nTo use this prompt, save the config to ~/.config/starship.toml:\n")
-	fmt.Printf("dvt prompt generate %s > ~/.config/starship.toml\n\n", name)
-	fmt.Printf("Or view the generated config with:\n")
-	fmt.Printf("dvt prompt generate %s\n", name)
+	render.Blank()
+	render.Info("To use this prompt, save the config to ~/.config/starship.toml:")
+	render.Plainf("dvt prompt generate %s > ~/.config/starship.toml", name)
+	render.Blank()
+	render.Info("Or view the generated config with:")
+	render.Plainf("dvt prompt generate %s", name)
 
 	return nil
 }

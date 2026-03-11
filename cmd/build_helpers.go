@@ -193,7 +193,7 @@ func copyFile(src, dst string, mode os.FileMode) error {
 // copyImageToNamespace copies the built image from buildkit namespace to devopsmaestro namespace
 // This is needed because BuildKit creates images in its own namespace
 func copyImageToNamespace(platform *operators.Platform, imageName string) error {
-	fmt.Println()
+	render.Blank()
 	render.Progress("Copying image to devopsmaestro namespace...")
 
 	profile := platform.Profile

@@ -171,7 +171,9 @@ func AutoMigrate(driver Driver, migrationsFS fs.FS) error {
 	}
 
 	// Apply migrations with user feedback
-	fmt.Println("Applying database migrations...")
+	// NOTE: db package cannot import render (import cycle), so use slog here.
+	// These are infrastructure messages, not user-facing UI output.
+	slog.Info("Applying database migrations...")
 	err = RunMigrations(driver, migrationsFS)
 	if err != nil {
 		return fmt.Errorf("failed to apply migrations: %w", err)
@@ -239,8 +241,8 @@ func runMigrationsIfNeeded(driver Driver, migrationsFS fs.FS, currentVersion str
 
 	// Apply migrations
 	if !verbose {
-		// Only show message if not in verbose mode (verbose mode uses slog)
-		fmt.Println("Applying database migrations...")
+		// NOTE: db package cannot import render (import cycle), so use slog here.
+		slog.Info("Applying database migrations...")
 	}
 	err = RunMigrations(driver, migrationsFS)
 	if err != nil {

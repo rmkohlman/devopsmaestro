@@ -180,27 +180,27 @@ func runSetNvimPlugin(cmd *cobra.Command, args []string) error {
 	if len(added) > 0 {
 		render.Success(fmt.Sprintf("Added %d plugin(s) to workspace '%s':", len(added), workspace.Name))
 		for _, p := range added {
-			fmt.Printf("  + %s\n", p)
+			render.Plainf("  + %s", p)
 		}
 	}
 
 	if len(skipped) > 0 {
 		render.Info(fmt.Sprintf("Skipped %d plugin(s) (already configured):", len(skipped)))
 		for _, p := range skipped {
-			fmt.Printf("  • %s\n", p)
+			render.Plainf("  • %s", p)
 		}
 	}
 
 	if len(notFound) > 0 {
 		render.Warning(fmt.Sprintf("Not found in global library (%d):", len(notFound)))
 		for _, p := range notFound {
-			fmt.Printf("  ? %s\n", p)
+			render.Plainf("  ? %s", p)
 		}
 		render.Info("Install missing plugins with: nvp library install <name>")
 	}
 
 	if len(added) > 0 {
-		fmt.Println()
+		render.Blank()
 		render.Info(fmt.Sprintf("View configured plugins: dvm get nvim plugins -w %s", workspace.Name))
 		render.Info(fmt.Sprintf("Rebuild workspace to apply: dvm build %s --force", workspace.Name))
 		_ = appName // Used for context in messages if needed
@@ -242,7 +242,7 @@ func runClearWorkspacePlugins(cmd *cobra.Command) error {
 
 	render.Success(fmt.Sprintf("Cleared %d plugin(s) from workspace '%s'", count, workspace.Name))
 	render.Info("Build will now use all plugins from global library")
-	fmt.Println()
+	render.Blank()
 	render.Info(fmt.Sprintf("Rebuild workspace to apply: dvm build %s --force", workspace.Name))
 
 	return nil
@@ -312,7 +312,7 @@ func runSetGlobalDefaultPlugins(cmd *cobra.Command, args []string) error {
 	if len(notFound) > 0 {
 		render.Error(fmt.Sprintf("Plugin(s) not found in library (%d):", len(notFound)))
 		for _, p := range notFound {
-			fmt.Printf("  ? %s\n", p)
+			render.Plainf("  ? %s", p)
 		}
 		render.Info("Install missing plugins with: nvp library install <name>")
 		return fmt.Errorf("invalid plugin names provided")
@@ -365,18 +365,18 @@ func runSetGlobalDefaultPlugins(cmd *cobra.Command, args []string) error {
 	// Report results
 	render.Success(fmt.Sprintf("Set %d plugin(s) as global defaults:", len(targetPlugins)))
 	for _, p := range targetPlugins {
-		fmt.Printf("  + %s\n", p)
+		render.Plainf("  + %s", p)
 	}
 
 	if len(previousPlugins) > 0 {
-		fmt.Println()
+		render.Blank()
 		render.Info(fmt.Sprintf("Replaced %d previous default(s):", len(previousPlugins)))
 		for _, p := range previousPlugins {
-			fmt.Printf("  - %s\n", p)
+			render.Plainf("  - %s", p)
 		}
 	}
 
-	fmt.Println()
+	render.Blank()
 	render.Info("These plugins will be used as defaults when creating new workspaces")
 
 	return nil
@@ -428,10 +428,10 @@ func clearGlobalDefaultPlugins(cmd *cobra.Command, ds db.DefaultsStore) error {
 
 	render.Success(fmt.Sprintf("Cleared %d global default plugin(s):", len(currentPlugins)))
 	for _, p := range currentPlugins {
-		fmt.Printf("  - %s\n", p)
+		render.Plainf("  - %s", p)
 	}
 
-	fmt.Println()
+	render.Blank()
 	render.Info("New workspaces will now include all available plugins")
 
 	return nil

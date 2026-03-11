@@ -13,6 +13,7 @@ import (
 	"devopsmaestro/pkg/nvimops/library"
 	nvimpackage "devopsmaestro/pkg/nvimops/package"
 	packagelibrary "devopsmaestro/pkg/nvimops/package/library"
+	"devopsmaestro/render"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -65,7 +66,7 @@ Examples:
 		}
 
 		if len(packages) == 0 {
-			fmt.Println("No packages found")
+			render.Info("No packages found")
 			return nil
 		}
 
@@ -136,9 +137,9 @@ Examples:
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
 
 		if dryRun {
-			fmt.Printf("Would install %d plugins from package '%s':\n", len(pluginNames), name)
+			render.Infof("Would install %d plugins from package '%s':", len(pluginNames), name)
 			for _, pluginName := range pluginNames {
-				fmt.Printf("  - %s\n", pluginName)
+				render.Plainf("  - %s", pluginName)
 			}
 			return nil
 		}
@@ -169,40 +170,41 @@ Examples:
 			// Get plugin from library
 			plugin, ok := pluginLib.Get(pluginName)
 			if !ok {
-				fmt.Printf("⚠ Plugin '%s' not found in library, skipping\n", pluginName)
+				render.Warningf("Plugin '%s' not found in library, skipping", pluginName)
 				failed = append(failed, pluginName)
 				continue
 			}
 
 			// Check if already exists
 			if _, err := mgr.Get(pluginName); err == nil {
-				fmt.Printf("• Plugin '%s' already installed\n", pluginName)
+				render.Infof("Plugin '%s' already installed", pluginName)
 				continue
 			}
 
 			// Install plugin to file store
 			if err := mgr.Apply(plugin); err != nil {
-				fmt.Printf("✗ Failed to install '%s': %v\n", pluginName, err)
+				render.Errorf("Failed to install '%s': %v", pluginName, err)
 				failed = append(failed, pluginName)
 			} else {
-				fmt.Printf("✓ Installed '%s'\n", pluginName)
+				render.Successf("Installed '%s'", pluginName)
 				installed = append(installed, pluginName)
 
 				// Also save to database for dvm compatibility
 				pluginDB := &models.NvimPluginDB{}
 				if err := pluginDB.FromNvimOpsPlugin(plugin); err != nil {
-					fmt.Printf("⚠ Warning: Failed to convert plugin '%s' for database: %v\n", pluginName, err)
+					render.Warningf("Failed to convert plugin '%s' for database: %v", pluginName, err)
 				} else if err := (*dataStore).UpsertPlugin(pluginDB); err != nil {
-					fmt.Printf("⚠ Warning: Failed to save plugin '%s' to database: %v\n", pluginName, err)
+					render.Warningf("Failed to save plugin '%s' to database: %v", pluginName, err)
 				}
 			}
 		}
 
 		// Summary
-		fmt.Printf("\nPackage '%s' installation complete:\n", name)
-		fmt.Printf("  Installed: %d\n", len(installed))
+		render.Blank()
+		render.Successf("Package '%s' installation complete:", name)
+		render.Plainf("  Installed: %d", len(installed))
 		if len(failed) > 0 {
-			fmt.Printf("  Failed:    %d\n", len(failed))
+			render.Plainf("  Failed:    %d", len(failed))
 			return fmt.Errorf("some plugins failed to install")
 		}
 

@@ -124,7 +124,7 @@ Examples:
 
 		render.Success(fmt.Sprintf("Switched to app '%s'", appName))
 		render.Info(fmt.Sprintf("Path: %s", app.Path))
-		fmt.Println()
+		render.Blank()
 		render.Info("Next: Select a workspace with: dvm use workspace <name>")
 		return nil
 	},
@@ -213,7 +213,7 @@ Examples:
 		}
 
 		render.Success(fmt.Sprintf("Switched to workspace '%s' in app '%s'", workspaceName, appName))
-		fmt.Println()
+		render.Blank()
 		render.Info("Next: Attach to your workspace with: dvm attach")
 		return nil
 	},

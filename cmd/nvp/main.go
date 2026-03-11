@@ -1,8 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"os"
+
+	"devopsmaestro/render"
 )
 
 // Version information (set via ldflags during build)
@@ -14,7 +15,7 @@ var (
 
 func main() {
 	if err := Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		render.ErrorToStderr(err.Error())
 		os.Exit(1)
 	}
 }

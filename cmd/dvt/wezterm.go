@@ -10,6 +10,7 @@ import (
 	"devopsmaestro/pkg/palette"
 	"devopsmaestro/pkg/terminalops/wezterm"
 	weztermlib "devopsmaestro/pkg/terminalops/wezterm/library"
+	"devopsmaestro/render"
 
 	"github.com/spf13/cobra"
 )
@@ -34,9 +35,10 @@ var weztermListCmd = &cobra.Command{
 		}
 
 		configs := lib.List()
-		fmt.Printf("Available WezTerm presets:\n\n")
+		render.Info("Available WezTerm presets:")
+		render.Blank()
 		for _, c := range configs {
-			fmt.Printf("  %s - %s\n", c.Name, c.Description)
+			render.Plainf("  %s - %s", c.Name, c.Description)
 		}
 		return nil
 	},
@@ -59,19 +61,19 @@ var weztermShowCmd = &cobra.Command{
 			return fmt.Errorf("preset not found: %s", name)
 		}
 
-		fmt.Printf("Preset: %s\n", config.Name)
-		fmt.Printf("Description: %s\n", config.Description)
+		render.Infof("Preset: %s", config.Name)
+		render.Plainf("Description: %s", config.Description)
 		if config.Font.Family != "" {
-			fmt.Printf("Font: %s (%.0fpt)\n", config.Font.Family, config.Font.Size)
+			render.Plainf("Font: %s (%.0fpt)", config.Font.Family, config.Font.Size)
 		}
 		if config.Window.Opacity > 0 && config.Window.Opacity < 1.0 {
-			fmt.Printf("Opacity: %.1f\n", config.Window.Opacity)
+			render.Plainf("Opacity: %.1f", config.Window.Opacity)
 		}
 		if config.ThemeRef != "" {
-			fmt.Printf("Theme reference: %s\n", config.ThemeRef)
+			render.Plainf("Theme reference: %s", config.ThemeRef)
 		}
 		if len(config.Keys) > 0 {
-			fmt.Printf("Key bindings: %d configured\n", len(config.Keys))
+			render.Plainf("Key bindings: %d configured", len(config.Keys))
 		}
 		return nil
 	},
@@ -102,7 +104,7 @@ Examples:
 		// Resolve theme colors if ThemeRef is set
 		if err := resolveThemeColors(config); err != nil {
 			// Log warning but continue - colors just won't be embedded
-			fmt.Fprintf(os.Stderr, "Warning: could not resolve theme colors: %v\n", err)
+			render.WarningfToStderr("Could not resolve theme colors: %v", err)
 		}
 
 		generator := wezterm.NewLuaGenerator()
@@ -142,7 +144,7 @@ Examples:
 		// Resolve theme colors if ThemeRef is set
 		if err := resolveThemeColors(config); err != nil {
 			// Log warning but continue - colors just won't be embedded
-			fmt.Fprintf(os.Stderr, "Warning: could not resolve theme colors: %v\n", err)
+			render.WarningfToStderr("Could not resolve theme colors: %v", err)
 		}
 
 		generator := wezterm.NewLuaGenerator()
@@ -172,7 +174,7 @@ Examples:
 			return fmt.Errorf("failed to write config: %w", err)
 		}
 
-		fmt.Printf("WezTerm configuration applied to %s\n", outputPath)
+		render.Successf("WezTerm configuration applied to %s", outputPath)
 		return nil
 	},
 }

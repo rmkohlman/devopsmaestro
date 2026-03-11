@@ -411,7 +411,7 @@ func getWorkspace(cmd *cobra.Command, name string) error {
 			// Check if ambiguous and provide helpful output
 			if ambiguousErr, ok := resolver.IsAmbiguousError(err); ok {
 				render.Warning("Multiple workspaces match your criteria")
-				fmt.Println(ambiguousErr.FormatDisambiguation())
+				render.Plain(ambiguousErr.FormatDisambiguation())
 				return fmt.Errorf("ambiguous workspace selection")
 			}
 			if resolver.IsNoWorkspaceFoundError(err) {

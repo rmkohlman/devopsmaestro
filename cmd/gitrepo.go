@@ -336,8 +336,7 @@ func runGetGitRepos(cmd *cobra.Command, args []string) error {
 
 	// Handle empty list
 	if len(repos) == 0 {
-		output := cmd.OutOrStdout()
-		fmt.Fprintln(output, "No git repositories found")
+		render.Info("No git repositories found")
 		return nil
 	}
 

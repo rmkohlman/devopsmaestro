@@ -4,6 +4,7 @@ import (
 	"devopsmaestro/cmd"
 	"devopsmaestro/db"
 	"devopsmaestro/pkg/paths"
+	"devopsmaestro/render"
 	"fmt"
 	"io/fs"
 	"os"
@@ -71,7 +72,7 @@ func main() {
 	if err := loadConfig(); err != nil {
 		// Don't fail for commands that don't need config
 		if !skipDB {
-			fmt.Printf("Failed to load configuration: %v\n", err)
+			render.Errorf("Failed to load configuration: %v", err)
 			os.Exit(1)
 		}
 	}
@@ -92,7 +93,7 @@ func main() {
 		var err error
 		dataStoreInstance, err = db.CreateDataStore()
 		if err != nil {
-			fmt.Printf("Failed to initialize database: %v\n", err)
+			render.Errorf("Failed to initialize database: %v", err)
 			os.Exit(1)
 		}
 
@@ -100,7 +101,7 @@ func main() {
 		defer func() {
 			if dataStoreInstance != nil {
 				if err := dataStoreInstance.Close(); err != nil {
-					fmt.Printf("Failed to close database connection: %v\n", err)
+					render.Warningf("Failed to close database connection: %v", err)
 				}
 			}
 		}()
@@ -111,7 +112,7 @@ func main() {
 	// Get migrations subdirectory from embedded filesystem
 	migrationsSubFS, err := fs.Sub(MigrationsFS, "db/migrations")
 	if err != nil {
-		fmt.Printf("Failed to access embedded migrations: %v\n", err)
+		render.Errorf("Failed to access embedded migrations: %v", err)
 		os.Exit(1)
 	}
 

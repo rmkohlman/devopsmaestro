@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"devopsmaestro/db"
-	"fmt"
+	"devopsmaestro/render"
 	"io/fs"
 	"os"
 
@@ -16,13 +16,13 @@ var migrateCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		ds, dsErr := getDataStore(cmd)
 		if dsErr != nil {
-			fmt.Println("Error: DataStore not initialized")
+			render.Error("DataStore not initialized")
 			os.Exit(1)
 		}
 
 		driver := ds.Driver()
 		if driver == nil {
-			fmt.Println("Error: Database driver not available")
+			render.Error("Database driver not available")
 			os.Exit(1)
 		}
 
@@ -30,17 +30,17 @@ var migrateCmd = &cobra.Command{
 		ctx := cmd.Context()
 		migrationsFS := ctx.Value("migrationsFS").(fs.FS)
 		if migrationsFS == nil {
-			fmt.Println("Error: Migrations filesystem not available")
+			render.Error("Migrations filesystem not available")
 			os.Exit(1)
 		}
 
 		// Run the necessary migrations to set up the database schema
 		if err := db.RunMigrations(driver, migrationsFS); err != nil {
-			fmt.Printf("Failed to apply migrations: %v\n", err)
+			render.Errorf("Failed to apply migrations: %v", err)
 			os.Exit(1)
 		}
 
-		fmt.Println("Migrations applied successfully.")
+		render.Success("Migrations applied successfully.")
 	},
 }
 

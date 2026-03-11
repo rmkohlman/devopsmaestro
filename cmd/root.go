@@ -6,6 +6,7 @@ import (
 	"devopsmaestro/pkg/colors"
 	"devopsmaestro/pkg/crd"
 	"devopsmaestro/pkg/nvimops/theme"
+	"devopsmaestro/render"
 	"fmt"
 	"io"
 	"io/fs"
@@ -75,8 +76,8 @@ func Execute(dataStore *db.DataStore, executor *Executor, migrationsFS fs.FS) {
 				if err != nil {
 					// Migration failure is critical - exit
 					slog.Error("auto-migration failed", "error", err)
-					fmt.Printf("Error: Failed to apply database migrations: %v\n", err)
-					fmt.Println("Please run 'dvm admin migrate' to fix migration issues.")
+					render.Errorf("Failed to apply database migrations: %v", err)
+					render.Info("Please run 'dvm admin migrate' to fix migration issues.")
 					os.Exit(1)
 				}
 
@@ -96,7 +97,7 @@ func Execute(dataStore *db.DataStore, executor *Executor, migrationsFS fs.FS) {
 	if err := rootCmd.Execute(); err != nil {
 		// errSilent means the command already displayed the error via render.Error()
 		if err != errSilent {
-			fmt.Println(err)
+			render.Errorf("%s", err)
 		}
 		os.Exit(1)
 	}
@@ -152,7 +153,7 @@ func initLogging() {
 		// JSON format for file output (machine-readable)
 		f, err := os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: could not open log file %s: %v\n", logFile, err)
+			render.WarningfToStderr("Could not open log file %s: %v", logFile, err)
 			handler = slog.NewTextHandler(os.Stderr, opts)
 		} else {
 			handler = slog.NewJSONHandler(f, opts)

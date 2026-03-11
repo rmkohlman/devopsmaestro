@@ -183,7 +183,7 @@ func runSetTerminalPrompt(cmd *cobra.Command, args []string) error {
 
 	// Report success
 	render.Success(fmt.Sprintf("Set terminal prompt for workspace '%s' to '%s'", workspace.Name, promptName))
-	fmt.Println()
+	render.Blank()
 	render.Info(fmt.Sprintf("Rebuild workspace to apply: dvm build %s --force", workspace.Name))
 
 	return nil
@@ -322,26 +322,26 @@ func runSetTerminalPlugin(cmd *cobra.Command, args []string) error {
 	if len(toAdd) > 0 {
 		render.Success(fmt.Sprintf("Added %d plugin(s) to workspace '%s':", len(toAdd), workspace.Name))
 		for _, p := range toAdd {
-			fmt.Printf("  + %s\n", p)
+			render.Plainf("  + %s", p)
 		}
 	}
 
 	if len(skipped) > 0 {
 		render.Info(fmt.Sprintf("Skipped %d plugin(s) (already configured):", len(skipped)))
 		for _, p := range skipped {
-			fmt.Printf("  • %s\n", p)
+			render.Plainf("  • %s", p)
 		}
 	}
 
 	if len(notFound) > 0 {
 		render.Warning(fmt.Sprintf("Not found in library (%d):", len(notFound)))
 		for _, p := range notFound {
-			fmt.Printf("  ? %s\n", p)
+			render.Plainf("  ? %s", p)
 		}
 	}
 
 	if len(toAdd) > 0 {
-		fmt.Println()
+		render.Blank()
 		render.Info(fmt.Sprintf("View configured plugins: dvm get terminal plugins -w %s", workspace.Name))
 		render.Info(fmt.Sprintf("Rebuild workspace to apply: dvm build %s --force", workspace.Name))
 	}
@@ -399,7 +399,7 @@ func runClearTerminalPlugins(cmd *cobra.Command) error {
 	}
 
 	render.Success(fmt.Sprintf("Cleared %d plugin(s) from workspace '%s'", count, workspace.Name))
-	fmt.Println()
+	render.Blank()
 	render.Info(fmt.Sprintf("Rebuild workspace to apply: dvm build %s --force", workspace.Name))
 
 	return nil
@@ -463,7 +463,7 @@ func runSetTerminalPackage(cmd *cobra.Command, args []string) error {
 	}
 
 	render.Success(fmt.Sprintf("Set terminal package for workspace '%s' to '%s'", workspace.Name, packageName))
-	fmt.Println()
+	render.Blank()
 	render.Info(fmt.Sprintf("Rebuild workspace to apply: dvm build %s --force", workspace.Name))
 
 	return nil

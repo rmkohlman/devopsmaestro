@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"devopsmaestro/pkg/nvimops/plugin"
+	"devopsmaestro/render"
 
 	"gopkg.in/yaml.v3"
 )
@@ -256,7 +257,7 @@ func (s *FileStore) loadPlugins() error {
 		p, err := plugin.ParseYAMLFile(path)
 		if err != nil {
 			// Log warning but continue loading other plugins
-			fmt.Fprintf(os.Stderr, "warning: failed to load plugin %s: %v\n", entry.Name(), err)
+			render.WarningfToStderr("failed to load plugin %s: %v", entry.Name(), err)
 			continue
 		}
 

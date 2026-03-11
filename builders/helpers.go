@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"devopsmaestro/render"
 )
 
 // SaveDockerfile saves the generated Dockerfile content to disk.
@@ -15,6 +17,6 @@ func SaveDockerfile(content, appPath string) (string, error) {
 		return "", fmt.Errorf("failed to write Dockerfile: %w", err)
 	}
 
-	fmt.Printf("✓ Generated Dockerfile: %s\n", dockerfilePath)
+	render.Successf("Generated Dockerfile: %s", dockerfilePath)
 	return dockerfilePath, nil
 }

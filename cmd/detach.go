@@ -91,7 +91,7 @@ func detachActiveWorkspace(cmd *cobra.Command, runtime operators.ContainerRuntim
 			// Check if ambiguous and provide helpful output
 			if ambiguousErr, ok := resolver.IsAmbiguousError(err); ok {
 				render.Warning("Multiple workspaces match your criteria")
-				fmt.Println(ambiguousErr.FormatDisambiguation())
+				render.Plain(ambiguousErr.FormatDisambiguation())
 				return fmt.Errorf("ambiguous workspace selection")
 			}
 			if resolver.IsNoWorkspaceFoundError(err) {
@@ -172,7 +172,7 @@ func detachAllWorkspaces(runtime operators.ContainerRuntime) error {
 		return nil
 	}
 
-	fmt.Println()
+	render.Blank()
 	render.Success(fmt.Sprintf("Stopped %d workspace container(s)", stopped))
 	return nil
 }
@@ -204,7 +204,7 @@ func stopWorkspace(runtime operators.ContainerRuntime, containerName string) err
 
 	slog.Info("workspace stopped", "name", containerName)
 	render.Success(fmt.Sprintf("Workspace '%s' stopped", containerName))
-	fmt.Println()
+	render.Blank()
 	render.Info("Re-attach with: dvm attach")
 
 	return nil

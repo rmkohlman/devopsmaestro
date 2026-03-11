@@ -181,37 +181,37 @@ func showThemeResolution(cmd *cobra.Command, ds db.DataStore, level themeresolve
 		return fmt.Errorf("failed to resolve theme: %w", err)
 	}
 
-	fmt.Println()
+	render.Blank()
 	render.Info("Theme Resolution:")
 
 	if resolution.Source != themeresolver.LevelGlobal {
-		fmt.Printf("  Effective theme: %s\n", resolution.GetEffectiveThemeName())
-		fmt.Printf("  Source: %s\n", resolution.GetSourceDescription())
+		render.Plainf("  Effective theme: %s", resolution.GetEffectiveThemeName())
+		render.Plainf("  Source: %s", resolution.GetSourceDescription())
 	} else {
-		fmt.Printf("  Effective theme: %s (default)\n", themeresolver.DefaultTheme)
-		fmt.Printf("  Source: global default\n")
+		render.Plainf("  Effective theme: %s (default)", themeresolver.DefaultTheme)
+		render.Plain("  Source: global default")
 	}
 
 	if len(resolution.Path) > 0 {
-		fmt.Println("  Resolution path:")
+		render.Plain("  Resolution path:")
 		for _, step := range resolution.Path {
 			status := "○" // Empty circle
 			if step.Found && step.ThemeName != "" {
 				status = "●" // Filled circle
 			}
 
-			fmt.Printf("    %s %s '%s'", status, step.Level.String(), step.Name)
+			line := fmt.Sprintf("    %s %s '%s'", status, step.Level.String(), step.Name)
 			if step.ThemeName != "" {
-				fmt.Printf(" → %s", step.ThemeName)
+				line += fmt.Sprintf(" → %s", step.ThemeName)
 			}
 			if step.Error != "" {
-				fmt.Printf(" (error: %s)", step.Error)
+				line += fmt.Sprintf(" (error: %s)", step.Error)
 			}
-			fmt.Println()
+			render.Plain(line)
 		}
 	}
 
-	fmt.Println()
+	render.Blank()
 	render.Info("Legend: ● theme set, ○ no theme (inherits from parent)")
 
 	return nil

@@ -81,7 +81,7 @@ Examples:
 			render.Success(fmt.Sprintf("Set '%s' as active ecosystem", ecosystemName))
 		}
 
-		fmt.Println()
+		render.Blank()
 		render.Info("Next steps:")
 		render.Info("  1. Create a domain in this ecosystem:")
 		render.Info("     dvm create domain <name>")
@@ -174,7 +174,7 @@ Examples:
 		ds.SetActiveApp(nil)
 
 		render.Success(fmt.Sprintf("Switched to ecosystem '%s'", ecosystemName))
-		fmt.Println()
+		render.Blank()
 		render.Info("Next: Select a domain with: dvm use domain <name>")
 		return nil
 	},

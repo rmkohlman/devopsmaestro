@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"devopsmaestro/operators"
+	"devopsmaestro/render"
 )
 
 // WatchdogRunner is a function type for running commands with a watchdog.
@@ -60,9 +61,10 @@ func NewDockerBuilder(cfg BuilderConfig) (*DockerBuilder, error) {
 // Build builds the container image using Docker CLI.
 // Includes a watchdog to handle Docker buildx hang issue on Colima.
 func (b *DockerBuilder) Build(ctx context.Context, opts BuildOptions) error {
-	fmt.Printf("Building image: %s\n", b.imageName)
-	fmt.Printf("Using Docker CLI (%s)\n", b.platform.Name)
-	fmt.Printf("Socket: %s\n\n", b.platform.SocketPath)
+	render.Progressf("Building image: %s", b.imageName)
+	render.Infof("Using Docker CLI (%s)", b.platform.Name)
+	render.Infof("Socket: %s", b.platform.SocketPath)
+	render.Blank()
 
 	// Build docker build command
 	args := []string{"build"}
@@ -119,7 +121,8 @@ func (b *DockerBuilder) Build(ctx context.Context, opts BuildOptions) error {
 	// Add build context (project path) last
 	args = append(args, ".")
 
-	fmt.Printf("Command: docker %s\n\n", strings.Join(args, " "))
+	render.Infof("Command: docker %s", strings.Join(args, " "))
+	render.Blank()
 
 	// Prepare docker build command
 	cmd := exec.Command("docker", args...)
@@ -152,12 +155,14 @@ func (b *DockerBuilder) Build(ctx context.Context, opts BuildOptions) error {
 		if err != nil {
 			return fmt.Errorf("failed to build image: %w", err)
 		}
-		fmt.Printf("\n✓ Image built successfully: %s\n", b.imageName)
+		render.Blank()
+		render.Successf("Image built successfully: %s", b.imageName)
 		return nil
 
 	case WatchdogDetected:
-		fmt.Printf("\n[watchdog] Image detected, terminating hung build process...\n")
-		fmt.Printf("✓ Image built successfully: %s\n", b.imageName)
+		render.Blank()
+		render.Info("[watchdog] Image detected, terminating hung build process...")
+		render.Successf("Image built successfully: %s", b.imageName)
 		return nil
 
 	case WatchdogTimedOut:

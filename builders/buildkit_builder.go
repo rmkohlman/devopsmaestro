@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sync"
 
+	"devopsmaestro/render"
+
 	"github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/pkg/namespaces"
 	"github.com/containerd/errdefs"
@@ -82,10 +84,11 @@ func NewBuildKitBuilder(cfg BuilderConfig) (*BuildKitBuilder, error) {
 
 // Build builds the container image using BuildKit gRPC API.
 func (b *BuildKitBuilder) Build(ctx context.Context, opts BuildOptions) error {
-	fmt.Printf("Building image: %s\n", b.imageName)
-	fmt.Printf("Using BuildKit gRPC API\n")
-	fmt.Printf("BuildKit socket: %s\n", b.buildkitSocket)
-	fmt.Printf("Namespace: %s\n\n", b.namespace)
+	render.Progressf("Building image: %s", b.imageName)
+	render.Info("Using BuildKit gRPC API")
+	render.Infof("BuildKit socket: %s", b.buildkitSocket)
+	render.Infof("Namespace: %s", b.namespace)
+	render.Blank()
 
 	// Determine dockerfile path
 	dockerfilePath := b.dockerfile
@@ -155,7 +158,7 @@ func (b *BuildKitBuilder) Build(ctx context.Context, opts BuildOptions) error {
 		})
 		if err == nil {
 			s.Allow(sshProvider)
-			fmt.Println("  SSH agent forwarding enabled")
+			render.Info("  SSH agent forwarding enabled")
 		}
 	}
 
@@ -187,7 +190,8 @@ func (b *BuildKitBuilder) Build(ctx context.Context, opts BuildOptions) error {
 		return fmt.Errorf("build failed: %w", solveErr)
 	}
 
-	fmt.Printf("\n✓ Image built successfully: %s\n", b.imageName)
+	render.Blank()
+	render.Successf("Image built successfully: %s", b.imageName)
 	return nil
 }
 

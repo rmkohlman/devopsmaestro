@@ -46,7 +46,7 @@ func buildWorkspace(cmd *cobra.Command) error {
 			// Check if ambiguous and provide helpful output
 			if ambiguousErr, ok := resolver.IsAmbiguousError(err); ok {
 				render.Warning("Multiple workspaces match your criteria")
-				fmt.Println(ambiguousErr.FormatDisambiguation())
+				render.Plain(ambiguousErr.FormatDisambiguation())
 				return fmt.Errorf("ambiguous workspace selection")
 			}
 			if resolver.IsNoWorkspaceFoundError(err) {
@@ -107,7 +107,7 @@ func buildWorkspace(cmd *cobra.Command) error {
 
 	render.Info(fmt.Sprintf("Building workspace: %s/%s", appName, workspaceName))
 	render.Info(fmt.Sprintf("App path: %s", app.Path))
-	fmt.Println()
+	render.Blank()
 	slog.Debug("app details", "path", app.Path, "id", app.ID)
 
 	// Verify app path exists
@@ -153,7 +153,7 @@ func buildWorkspace(cmd *cobra.Command) error {
 	}
 
 	// Step 2: Check for existing Dockerfile
-	fmt.Println()
+	render.Blank()
 	render.Progress("Checking for Dockerfile...")
 	hasDockerfile, dockerfilePath := utils.HasDockerfile(app.Path)
 	if hasDockerfile {
@@ -203,7 +203,7 @@ func buildWorkspace(cmd *cobra.Command) error {
 	// Step 4b: Detect language (use App.Language if set, fall back to auto-detection)
 	// This must happen AFTER sourcePath is computed so detection uses the worktree
 	// checkout (sourcePath) instead of the bare git mirror (app.Path).
-	fmt.Println()
+	render.Blank()
 	render.Progress("Detecting app language...")
 	languageName, version, wasDetected := getLanguageFromApp(app, sourcePath)
 
@@ -241,7 +241,7 @@ func buildWorkspace(cmd *cobra.Command) error {
 	}
 
 	// Step 6: Generate Dockerfile (after nvim config so it can detect .config/nvim/)
-	fmt.Println()
+	render.Blank()
 	render.Progress("Generating Dockerfile.dvm...")
 	slog.Debug("generating Dockerfile", "language", languageName, "version", version)
 	generator := builders.NewDockerfileGenerator(
@@ -278,7 +278,7 @@ func buildWorkspace(cmd *cobra.Command) error {
 	// Use timestamp tag for versioning (enables container recreation on rebuild)
 	timestamp := time.Now().Format("20060102-150405")
 	imageName := fmt.Sprintf("dvm-%s-%s:%s", workspaceName, appName, timestamp)
-	fmt.Println()
+	render.Blank()
 	render.Progress(fmt.Sprintf("Building image: %s", imageName))
 	slog.Info("building image", "image", imageName, "dockerfile", dvmDockerfile)
 
@@ -371,7 +371,7 @@ func buildWorkspace(cmd *cobra.Command) error {
 
 	// Step 8: Push to registry if --push flag is set and registry is available
 	if buildPush && registryEndpoint != "" {
-		fmt.Println()
+		render.Blank()
 		render.Progress(fmt.Sprintf("Pushing image to registry: %s", registryEndpoint))
 
 		// Tag image for registry
@@ -393,14 +393,14 @@ func buildWorkspace(cmd *cobra.Command) error {
 		render.Info("Start the registry with: dvm registry start")
 	}
 
-	fmt.Println()
+	render.Blank()
 	render.Success("Build complete!")
 	render.Info(fmt.Sprintf("Image: %s", imageName))
 	render.Info(fmt.Sprintf("Dockerfile: %s", dvmDockerfile))
 	if registryEndpoint != "" {
 		render.Info(fmt.Sprintf("Registry cache: %s", registryEndpoint))
 	}
-	fmt.Println()
+	render.Blank()
 	render.Info("Next: Attach to your workspace with: dvm attach")
 
 	return nil

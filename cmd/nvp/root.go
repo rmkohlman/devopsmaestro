@@ -30,6 +30,7 @@ import (
 	"devopsmaestro/pkg/resource"
 	"devopsmaestro/pkg/resource/handlers"
 	"devopsmaestro/pkg/source"
+	"devopsmaestro/render"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -218,9 +219,9 @@ func init() {
 				if commandRequiresDatabase(cmd) {
 					// Fail fast with clear error message
 					slog.Error("Database required but unavailable", "error", err)
-					fmt.Fprintf(os.Stderr, "Error: Database required but unavailable\n")
-					fmt.Fprintf(os.Stderr, "Run 'dvm admin init' to initialize the database, or check ~/.devopsmaestro/devopsmaestro.db exists\n")
-					fmt.Fprintf(os.Stderr, "Details: %v\n", err)
+					render.ErrorToStderr("Database required but unavailable")
+					render.InfoToStderr("Run 'dvm admin init' to initialize the database, or check ~/.devopsmaestro/devopsmaestro.db exists")
+					render.ErrorfToStderr("Details: %v", err)
 					os.Exit(1)
 				}
 				// For optional DB commands, just warn and continue
@@ -247,7 +248,7 @@ func init() {
 					// This allows nvp to work even when migrations are not available
 					if verbose {
 						slog.Warn("migrations not available for auto-migration in nvp")
-						fmt.Printf("Warning: Migrations not found, skipping auto-migration\n")
+						render.Warning("Migrations not found, skipping auto-migration")
 					}
 					return
 				}
@@ -256,8 +257,8 @@ func init() {
 				migrationsApplied, err := db.CheckVersionBasedAutoMigration(driver, migrationsFS, Version, verbose)
 				if err != nil {
 					slog.Error("auto-migration failed", "error", err)
-					fmt.Printf("Error: Failed to apply database migrations: %v\n", err)
-					fmt.Println("Please run 'dvm admin migrate' to fix migration issues.")
+					render.Errorf("Failed to apply database migrations: %v", err)
+					render.Info("Please run 'dvm admin migrate' to fix migration issues.")
 					os.Exit(1)
 				}
 				if migrationsApplied && verbose {
@@ -320,7 +321,7 @@ func initLogging() {
 		// JSON format for file output (machine-readable)
 		f, err := os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: could not open log file %s: %v\n", logFile, err)
+			render.WarningfToStderr("could not open log file %s: %v", logFile, err)
 			handler = slog.NewTextHandler(os.Stderr, opts)
 		} else {
 			handler = slog.NewJSONHandler(f, opts)
@@ -383,7 +384,7 @@ You can specify a custom directory with --config or NVP_CONFIG_DIR.`,
 			return fmt.Errorf("failed to create config directory: %w", err)
 		}
 
-		fmt.Printf("✓ Initialized nvp at %s\n", dir)
+		render.Successf("Initialized nvp at %s", dir)
 		return nil
 	},
 }
@@ -423,7 +424,7 @@ var libraryListCmd = &cobra.Command{
 		}
 
 		if len(plugins) == 0 {
-			fmt.Println("No plugins found")
+			render.Info("No plugins found")
 			return nil
 		}
 
@@ -492,7 +493,7 @@ Examples:
 				p, ok := lib.Get(name)
 				if !ok {
 					slog.Warn("plugin not found in library", "name", name)
-					fmt.Fprintf(os.Stderr, "Warning: plugin not found in library: %s\n", name)
+					render.WarningfToStderr("plugin not found in library: %s", name)
 					continue
 				}
 				plugins = append(plugins, p)
@@ -504,11 +505,11 @@ Examples:
 			p.Enabled = true
 			if err := mgr.Apply(p); err != nil {
 				slog.Error("failed to install plugin", "name", p.Name, "error", err)
-				fmt.Fprintf(os.Stderr, "Warning: failed to install %s: %v\n", p.Name, err)
+				render.WarningfToStderr("failed to install %s: %v", p.Name, err)
 				continue
 			}
 			slog.Debug("installed plugin", "name", p.Name)
-			fmt.Printf("✓ Installed %s\n", p.Name)
+			render.Successf("Installed %s", p.Name)
 		}
 
 		return nil
@@ -525,10 +526,10 @@ var libraryCategoriesCmd = &cobra.Command{
 		}
 
 		categories := lib.Categories()
-		fmt.Printf("Categories (%d):\n", len(categories))
+		render.Infof("Categories (%d):", len(categories))
 		for _, c := range categories {
 			plugins := lib.ListByCategory(c)
-			fmt.Printf("  %-15s (%d plugins)\n", c, len(plugins))
+			render.Plainf("  %-15s (%d plugins)", c, len(plugins))
 		}
 		return nil
 	},
@@ -544,10 +545,10 @@ var libraryTagsCmd = &cobra.Command{
 		}
 
 		tags := lib.Tags()
-		fmt.Printf("Tags (%d):\n", len(tags))
+		render.Infof("Tags (%d):", len(tags))
 		for _, t := range tags {
 			plugins := lib.ListByTag(t)
-			fmt.Printf("  %-20s (%d plugins)\n", t, len(plugins))
+			render.Plainf("  %-20s (%d plugins)", t, len(plugins))
 		}
 		return nil
 	},
@@ -617,7 +618,7 @@ Examples:
 			// Determine if this was a create or update based on the resource type
 			// For now, just report success
 			slog.Info("resource applied", "kind", res.GetKind(), "name", res.GetName(), "source", displayName)
-			fmt.Printf("✓ %s '%s' applied (from %s)\n", res.GetKind(), res.GetName(), displayName)
+			render.Successf("%s '%s' applied (from %s)", res.GetKind(), res.GetName(), displayName)
 		}
 
 		return nil
@@ -673,7 +674,7 @@ var listCmd = &cobra.Command{
 		}
 
 		if len(plugins) == 0 {
-			fmt.Println("No plugins found")
+			render.Info("No plugins found")
 			return nil
 		}
 
@@ -749,7 +750,7 @@ var deleteCmd = &cobra.Command{
 			var response string
 			fmt.Scanln(&response)
 			if response != "y" && response != "Y" {
-				fmt.Println("Aborted")
+				render.Info("Aborted")
 				return nil
 			}
 		}
@@ -758,7 +759,7 @@ var deleteCmd = &cobra.Command{
 			return fmt.Errorf("failed to delete plugin: %w", err)
 		}
 
-		fmt.Printf("✓ Plugin '%s' deleted\n", name)
+		render.Successf("Plugin '%s' deleted", name)
 		return nil
 	},
 }
@@ -804,17 +805,17 @@ func setPluginsEnabled(names []string, enabled bool) error {
 	for _, name := range names {
 		p, err := mgr.Get(name)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: plugin not found: %s\n", name)
+			render.WarningfToStderr("plugin not found: %s", name)
 			continue
 		}
 
 		p.Enabled = enabled
 		if err := mgr.Apply(p); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to update %s: %v\n", name, err)
+			render.WarningfToStderr("failed to update %s: %v", name, err)
 			continue
 		}
 
-		fmt.Printf("✓ Plugin '%s' %s\n", name, action)
+		render.Successf("Plugin '%s' %s", name, action)
 	}
 
 	return nil
@@ -874,14 +875,14 @@ Examples:
 		slog.Info("generating Lua files", "total", len(plugins), "enabled", len(enabled))
 
 		if len(enabled) == 0 {
-			fmt.Println("No enabled plugins to generate")
+			render.Info("No enabled plugins to generate")
 			return nil
 		}
 
 		if dryRun {
-			fmt.Printf("Would generate %d Lua files to %s:\n", len(enabled), outputDir)
+			render.Infof("Would generate %d Lua files to %s:", len(enabled), outputDir)
 			for _, p := range enabled {
-				fmt.Printf("  %s.lua\n", p.Name)
+				render.Plainf("  %s.lua", p.Name)
 			}
 			return nil
 		}
@@ -896,22 +897,22 @@ Examples:
 		for _, p := range enabled {
 			lua, err := gen.GenerateLuaFile(p)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to generate %s: %v\n", p.Name, err)
+				render.WarningfToStderr("failed to generate %s: %v", p.Name, err)
 				continue
 			}
 
 			filename := filepath.Join(outputDir, p.Name+".lua")
 			if err := os.WriteFile(filename, []byte(lua), 0644); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to write %s: %v\n", filename, err)
+				render.WarningfToStderr("failed to write %s: %v", filename, err)
 				continue
 			}
 
 			if verbose {
-				fmt.Printf("  Generated %s\n", filename)
+				render.Plainf("  Generated %s", filename)
 			}
 		}
 
-		fmt.Printf("✓ Generated %d Lua files to %s\n", len(enabled), outputDir)
+		render.Successf("Generated %d Lua files to %s", len(enabled), outputDir)
 		return nil
 	},
 }
@@ -995,8 +996,8 @@ var themeListCmd = &cobra.Command{
 		}
 
 		if len(themes) == 0 {
-			fmt.Println("No themes installed")
-			fmt.Println("\nUse 'nvp theme library list' to see available themes")
+			render.Info("No themes installed")
+			render.Info("Use 'nvp theme library list' to see available themes")
 			return nil
 		}
 
@@ -1079,7 +1080,7 @@ Examples:
 			}
 
 			slog.Info("resource applied", "kind", res.GetKind(), "name", res.GetName(), "source", displayName)
-			fmt.Printf("✓ %s '%s' applied (from %s)\n", res.GetKind(), res.GetName(), displayName)
+			render.Successf("%s '%s' applied (from %s)", res.GetKind(), res.GetName(), displayName)
 		}
 
 		return nil
@@ -1106,7 +1107,7 @@ var themeDeleteCmd = &cobra.Command{
 			var response string
 			fmt.Scanln(&response)
 			if response != "y" && response != "Y" {
-				fmt.Println("Aborted")
+				render.Info("Aborted")
 				return nil
 			}
 		}
@@ -1115,7 +1116,7 @@ var themeDeleteCmd = &cobra.Command{
 			return fmt.Errorf("failed to delete theme: %w", err)
 		}
 
-		fmt.Printf("✓ Theme '%s' deleted\n", name)
+		render.Successf("Theme '%s' deleted", name)
 		return nil
 	},
 }
@@ -1132,8 +1133,8 @@ var themeUseCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("✓ Active theme set to '%s'\n", name)
-		fmt.Println("\nRun 'nvp generate' to regenerate Lua files with the new theme")
+		render.Successf("Active theme set to '%s'", name)
+		render.Info("Run 'nvp generate' to regenerate Lua files with the new theme")
 		return nil
 	},
 }
@@ -1154,7 +1155,7 @@ var themeLibraryListCmd = &cobra.Command{
 		}
 
 		if len(themes) == 0 {
-			fmt.Println("No themes in library")
+			render.Info("No themes in library")
 			return nil
 		}
 
@@ -1205,16 +1206,16 @@ var themeLibraryInstallCmd = &cobra.Command{
 		for _, name := range args {
 			t, err := themelibrary.Get(name)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: theme not found in library: %s\n", name)
+				render.WarningfToStderr("theme not found in library: %s", name)
 				continue
 			}
 
 			if err := themeStore.Save(t); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to install %s: %v\n", name, err)
+				render.WarningfToStderr("failed to install %s: %v", name, err)
 				continue
 			}
 
-			fmt.Printf("✓ Installed theme '%s'\n", t.Name)
+			render.Successf("Installed theme '%s'", t.Name)
 			lastInstalled = t.Name
 		}
 
@@ -1223,7 +1224,7 @@ var themeLibraryInstallCmd = &cobra.Command{
 			if err := themeStore.SetActive(lastInstalled); err != nil {
 				return err
 			}
-			fmt.Printf("✓ Active theme set to '%s'\n", lastInstalled)
+			render.Successf("Active theme set to '%s'", lastInstalled)
 		}
 
 		return nil
@@ -1239,10 +1240,10 @@ var themeLibraryCategoriesCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("Categories (%d):\n", len(categories))
+		render.Infof("Categories (%d):", len(categories))
 		for _, c := range categories {
 			themes, _ := themelibrary.ListByCategory(c)
-			fmt.Printf("  %-10s (%d themes)\n", c, len(themes))
+			render.Plainf("  %-10s (%d themes)", c, len(themes))
 		}
 		return nil
 	},
@@ -1283,7 +1284,7 @@ Examples:
 				}
 				t, err := themelibrary.Get(info.Name)
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "Warning: could not load %s: %v\n", info.Name, err)
+					render.WarningfToStderr("could not load %s: %v", info.Name, err)
 					continue
 				}
 				printThemePreview(t)
@@ -1506,7 +1507,7 @@ Examples:
 
 		// Dry run - just output the theme
 		if dryRun {
-			fmt.Printf("Generated theme preview:\n")
+			render.Info("Generated theme preview:")
 			return outputTheme(generatedTheme, output)
 		}
 
@@ -1520,7 +1521,7 @@ Examples:
 			return fmt.Errorf("failed to save theme: %w", err)
 		}
 
-		fmt.Printf("✓ Created theme '%s'\n", generatedTheme.Name)
+		render.Successf("Created theme '%s'", generatedTheme.Name)
 
 		// Optionally set as active
 		setActive, _ := cmd.Flags().GetBool("use")
@@ -1528,16 +1529,17 @@ Examples:
 			if err := themeStore.SetActive(generatedTheme.Name); err != nil {
 				return err
 			}
-			fmt.Printf("✓ Set '%s' as active theme\n", generatedTheme.Name)
+			render.Successf("Set '%s' as active theme", generatedTheme.Name)
 		}
 
 		// Show what to do next
-		fmt.Println("\nNext steps:")
+		render.Blank()
+		render.Info("Next steps:")
 		if !setActive {
-			fmt.Printf("  nvp theme use %s      # Set as active theme\n", generatedTheme.Name)
+			render.Plainf("  nvp theme use %s      # Set as active theme", generatedTheme.Name)
 		}
-		fmt.Println("  nvp generate          # Generate Lua files")
-		fmt.Printf("  nvp theme preview %s  # Preview colors\n", generatedTheme.Name)
+		render.Plain("  nvp generate          # Generate Lua files")
+		render.Plainf("  nvp theme preview %s  # Preview colors", generatedTheme.Name)
 
 		return nil
 	},
@@ -1597,9 +1599,9 @@ Other plugins can use the palette:
 		}
 
 		if dryRun {
-			fmt.Printf("Would generate theme files for '%s':\n", t.Name)
+			render.Infof("Would generate theme files for '%s':", t.Name)
 			for path := range files {
-				fmt.Printf("  %s\n", path)
+				render.Plainf("  %s", path)
 			}
 			return nil
 		}
@@ -1613,12 +1615,12 @@ Other plugins can use the palette:
 				return fmt.Errorf("failed to write %s: %w", path, err)
 			}
 			if verbose {
-				fmt.Printf("  Generated %s\n", path)
+				render.Plainf("  Generated %s", path)
 			}
 		}
 
-		fmt.Printf("✓ Generated theme '%s' to %s\n", t.Name, outputDir)
-		fmt.Println("\nOther plugins can now use: require(\"theme\").palette")
+		render.Successf("Generated theme '%s' to %s", t.Name, outputDir)
+		render.Info("Other plugins can now use: require(\"theme\").palette")
 		return nil
 	},
 }
@@ -1856,9 +1858,9 @@ The file is created at ~/.nvp/core.yaml by default.`,
 			return fmt.Errorf("failed to write core.yaml: %w", err)
 		}
 
-		fmt.Printf("✓ Created %s\n", configPath)
-		fmt.Println("\nEdit this file to customize your Neovim configuration.")
-		fmt.Println("Then run 'nvp config generate' to create the Lua files.")
+		render.Successf("Created %s", configPath)
+		render.Info("Edit this file to customize your Neovim configuration.")
+		render.Info("Then run 'nvp config generate' to create the Lua files.")
 		return nil
 	},
 }
@@ -1917,7 +1919,7 @@ Examples:
 		if err != nil {
 			// If no core.yaml exists, use defaults
 			if os.IsNotExist(err) {
-				fmt.Println("No core.yaml found, using defaults...")
+				render.Info("No core.yaml found, using defaults...")
 				cfg = nvimconfig.DefaultCoreConfig()
 			} else {
 				return err
@@ -1964,23 +1966,23 @@ Examples:
 		}
 
 		if dryRun {
-			fmt.Printf("Would generate Neovim config to %s:\n", outputDir)
-			fmt.Printf("  init.lua\n")
-			fmt.Printf("  lua/%s/lazy.lua\n", ns)
-			fmt.Printf("  lua/%s/core/init.lua\n", ns)
-			fmt.Printf("  lua/%s/core/options.lua\n", ns)
-			fmt.Printf("  lua/%s/core/keymaps.lua\n", ns)
-			fmt.Printf("  lua/%s/core/autocmds.lua\n", ns)
-			fmt.Printf("  lua/%s/plugins/init.lua\n", ns)
+			render.Infof("Would generate Neovim config to %s:", outputDir)
+			render.Plain("  init.lua")
+			render.Plainf("  lua/%s/lazy.lua", ns)
+			render.Plainf("  lua/%s/core/init.lua", ns)
+			render.Plainf("  lua/%s/core/options.lua", ns)
+			render.Plainf("  lua/%s/core/keymaps.lua", ns)
+			render.Plainf("  lua/%s/core/autocmds.lua", ns)
+			render.Plainf("  lua/%s/plugins/init.lua", ns)
 			for _, p := range enabled {
-				fmt.Printf("  lua/%s/plugins/%s.lua\n", ns, p.Name)
+				render.Plainf("  lua/%s/plugins/%s.lua", ns, p.Name)
 			}
 			// Check for active theme
 			themeStore := getThemeStore()
 			if activeTheme, _ := themeStore.GetActive(); activeTheme != nil {
-				fmt.Printf("  lua/%s/plugins/colorscheme.lua (theme: %s)\n", ns, activeTheme.Name)
-				fmt.Printf("  lua/theme/init.lua\n")
-				fmt.Printf("  lua/theme/palette.lua\n")
+				render.Plainf("  lua/%s/plugins/colorscheme.lua (theme: %s)", ns, activeTheme.Name)
+				render.Plain("  lua/theme/init.lua")
+				render.Plain("  lua/theme/palette.lua")
 			}
 			return nil
 		}
@@ -1998,7 +2000,7 @@ Examples:
 			themeGen := theme.NewGenerator()
 			generated, err := themeGen.Generate(activeTheme)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to generate theme: %v\n", err)
+				render.WarningfToStderr("failed to generate theme: %v", err)
 			} else {
 				// Write theme files
 				themeFiles := map[string]string{
@@ -2010,22 +2012,22 @@ Examples:
 				for path, content := range themeFiles {
 					dir := filepath.Dir(path)
 					if err := os.MkdirAll(dir, 0755); err != nil {
-						fmt.Fprintf(os.Stderr, "Warning: failed to create %s: %v\n", dir, err)
+						render.WarningfToStderr("failed to create %s: %v", dir, err)
 						continue
 					}
 					if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-						fmt.Fprintf(os.Stderr, "Warning: failed to write %s: %v\n", path, err)
+						render.WarningfToStderr("failed to write %s: %v", path, err)
 						continue
 					}
 				}
-				fmt.Printf("  Theme: %s (colorscheme.lua)\n", activeTheme.Name)
+				render.Plainf("  Theme: %s (colorscheme.lua)", activeTheme.Name)
 			}
 		}
 
-		fmt.Printf("✓ Generated Neovim configuration to %s\n", outputDir)
-		fmt.Printf("  Core files: init.lua, lua/%s/core/*.lua\n", ns)
-		fmt.Printf("  Plugin files: %d plugins in lua/%s/plugins/\n", len(enabled), ns)
-		fmt.Println("\nRestart Neovim to apply changes.")
+		render.Successf("Generated Neovim configuration to %s", outputDir)
+		render.Plainf("  Core files: init.lua, lua/%s/core/*.lua", ns)
+		render.Plainf("  Plugin files: %d plugins in lua/%s/plugins/", len(enabled), ns)
+		render.Info("Restart Neovim to apply changes.")
 		return nil
 	},
 }
@@ -2039,7 +2041,7 @@ var configEditCmd = &cobra.Command{
 
 		// Create default if doesn't exist
 		if _, err := os.Stat(configPath); os.IsNotExist(err) {
-			fmt.Println("No core.yaml found, creating default...")
+			render.Info("No core.yaml found, creating default...")
 			if err := os.MkdirAll(dir, 0755); err != nil {
 				return err
 			}
@@ -2060,7 +2062,7 @@ var configEditCmd = &cobra.Command{
 
 		// Open editor
 		editorCmd := fmt.Sprintf("%s %s", editor, configPath)
-		fmt.Printf("Opening %s in %s...\n", configPath, editor)
+		render.Progressf("Opening %s in %s...", configPath, editor)
 		return runCommand(editorCmd)
 	},
 }

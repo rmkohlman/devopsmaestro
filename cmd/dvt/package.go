@@ -16,6 +16,7 @@ import (
 	pluginlibrary "devopsmaestro/pkg/terminalops/plugin/library"
 	promptlibrary "devopsmaestro/pkg/terminalops/prompt/library"
 	"devopsmaestro/pkg/terminalops/store"
+	"devopsmaestro/render"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -80,7 +81,7 @@ Examples:
 		}
 
 		if len(packages) == 0 {
-			fmt.Println("No packages found")
+			render.Info("No packages found")
 			return nil
 		}
 
@@ -153,55 +154,56 @@ Examples:
 		// Calculate totals
 		totalComponents := len(components.Plugins) + len(components.Prompts) + len(components.Profiles)
 
-		fmt.Printf("Installing package: %s\n\n", name)
+		render.Progressf("Installing package: %s", name)
+		render.Blank()
 
 		if totalComponents == 0 {
-			fmt.Println("No components to install.")
+			render.Info("No components to install.")
 			return nil
 		}
 
 		if dryRun {
 			// Show preview for dry run
 			if len(components.Plugins) > 0 {
-				fmt.Printf("Plugins to install (%d):\n", len(components.Plugins))
+				render.Infof("Plugins to install (%d):", len(components.Plugins))
 				for _, pluginName := range components.Plugins {
 					source := getComponentSource(pluginName, pkg, lib, "plugin")
 					if source != "" {
-						fmt.Printf("  - %s (from %s)\n", pluginName, source)
+						render.Plainf("  - %s (from %s)", pluginName, source)
 					} else {
-						fmt.Printf("  - %s\n", pluginName)
+						render.Plainf("  - %s", pluginName)
 					}
 				}
-				fmt.Println()
+				render.Blank()
 			}
 
 			if len(components.Prompts) > 0 {
-				fmt.Printf("Prompts to install (%d):\n", len(components.Prompts))
+				render.Infof("Prompts to install (%d):", len(components.Prompts))
 				for _, promptName := range components.Prompts {
 					source := getComponentSource(promptName, pkg, lib, "prompt")
 					if source != "" {
-						fmt.Printf("  - %s (from %s)\n", promptName, source)
+						render.Plainf("  - %s (from %s)", promptName, source)
 					} else {
-						fmt.Printf("  - %s\n", promptName)
+						render.Plainf("  - %s", promptName)
 					}
 				}
-				fmt.Println()
+				render.Blank()
 			}
 
 			if len(components.Profiles) > 0 {
-				fmt.Printf("Profiles to install (%d):\n", len(components.Profiles))
+				render.Infof("Profiles to install (%d):", len(components.Profiles))
 				for _, profileName := range components.Profiles {
 					source := getComponentSource(profileName, pkg, lib, "profile")
 					if source != "" {
-						fmt.Printf("  - %s (from %s)\n", profileName, source)
+						render.Plainf("  - %s (from %s)", profileName, source)
 					} else {
-						fmt.Printf("  - %s\n", profileName)
+						render.Plainf("  - %s", profileName)
 					}
 				}
-				fmt.Println()
+				render.Blank()
 			}
 
-			fmt.Printf("Use 'dvt package install %s' without --dry-run to install.\n", name)
+			render.Infof("Use 'dvt package install %s' without --dry-run to install.", name)
 			return nil
 		}
 
@@ -239,29 +241,29 @@ Examples:
 		var profilesFailed []string
 
 		if len(components.Plugins) > 0 {
-			fmt.Printf("Installing %d plugins...\n", len(components.Plugins))
+			render.Progressf("Installing %d plugins...", len(components.Plugins))
 			for _, pluginName := range components.Plugins {
 				// Get plugin from library
 				plugin, err := pluginLib.Get(pluginName)
 				if err != nil {
-					fmt.Printf("⚠ Plugin '%s' not found in library, skipping\n", pluginName)
+					render.Warningf("Plugin '%s' not found in library, skipping", pluginName)
 					failed = append(failed, pluginName)
 					continue
 				}
 
 				// Check if already exists
 				if exists, _ := pluginStore.Exists(pluginName); exists {
-					fmt.Printf("• Plugin '%s' already installed\n", pluginName)
+					render.Infof("Plugin '%s' already installed", pluginName)
 					skipped = append(skipped, pluginName)
 					continue
 				}
 
 				// Install plugin using Upsert (safe for create/update)
 				if err := pluginStore.Upsert(plugin); err != nil {
-					fmt.Printf("✗ Failed to install '%s': %v\n", pluginName, err)
+					render.Errorf("Failed to install '%s': %v", pluginName, err)
 					failed = append(failed, pluginName)
 				} else {
-					fmt.Printf("✓ Installed '%s'\n", pluginName)
+					render.Successf("Installed '%s'", pluginName)
 					installed = append(installed, pluginName)
 				}
 			}
@@ -269,28 +271,29 @@ Examples:
 
 		// Install prompts
 		if len(components.Prompts) > 0 {
-			fmt.Printf("\nInstalling %d prompts...\n", len(components.Prompts))
+			render.Blank()
+			render.Progressf("Installing %d prompts...", len(components.Prompts))
 			for _, promptName := range components.Prompts {
 				prompt, err := promptLib.Get(promptName)
 				if err != nil {
-					fmt.Printf("⚠ Prompt '%s' not found in library, skipping\n", promptName)
+					render.Warningf("Prompt '%s' not found in library, skipping", promptName)
 					promptsFailed = append(promptsFailed, promptName)
 					continue
 				}
 
 				// Check if already exists
 				if exists, _ := promptStore.Exists(promptName); exists {
-					fmt.Printf("• Prompt '%s' already installed\n", promptName)
+					render.Infof("Prompt '%s' already installed", promptName)
 					promptsSkipped = append(promptsSkipped, promptName)
 					continue
 				}
 
 				// Install prompt using Upsert (safe for create/update)
 				if err := promptStore.Upsert(prompt); err != nil {
-					fmt.Printf("✗ Failed to install '%s': %v\n", promptName, err)
+					render.Errorf("Failed to install '%s': %v", promptName, err)
 					promptsFailed = append(promptsFailed, promptName)
 				} else {
-					fmt.Printf("✓ Installed '%s'\n", promptName)
+					render.Successf("Installed '%s'", promptName)
 					promptsInstalled = append(promptsInstalled, promptName)
 				}
 			}
@@ -298,9 +301,10 @@ Examples:
 
 		// Install profiles (note: profiles typically reference prompts/plugins, so no inline library yet)
 		if len(components.Profiles) > 0 {
-			fmt.Printf("\nProfiles to install (%d) - profile library not yet implemented:\n", len(components.Profiles))
+			render.Blank()
+			render.Warningf("Profiles to install (%d) - profile library not yet implemented:", len(components.Profiles))
 			for _, profileName := range components.Profiles {
-				fmt.Printf("  - %s (pending profile library)\n", profileName)
+				render.Plainf("  - %s (pending profile library)", profileName)
 				profilesFailed = append(profilesFailed, profileName)
 			}
 		}
@@ -328,29 +332,30 @@ Examples:
 
 		if err := (*dataStore).UpsertTerminalPackage(pkgDB); err != nil {
 			// Log warning but don't fail - components were installed
-			fmt.Printf("⚠ Warning: Failed to save package record: %v\n", err)
+			render.Warningf("Failed to save package record: %v", err)
 		}
 
 		// Print summary
-		fmt.Printf("\nPackage '%s' installation complete:\n", name)
-		fmt.Printf("  Plugins installed: %d\n", len(installed))
+		render.Blank()
+		render.Successf("Package '%s' installation complete:", name)
+		render.Plainf("  Plugins installed: %d", len(installed))
 		if len(promptsInstalled) > 0 {
-			fmt.Printf("  Prompts installed: %d\n", len(promptsInstalled))
+			render.Plainf("  Prompts installed: %d", len(promptsInstalled))
 		}
 		if len(skipped) > 0 {
-			fmt.Printf("  Plugins skipped:   %d (already installed)\n", len(skipped))
+			render.Plainf("  Plugins skipped:   %d (already installed)", len(skipped))
 		}
 		if len(promptsSkipped) > 0 {
-			fmt.Printf("  Prompts skipped:   %d (already installed)\n", len(promptsSkipped))
+			render.Plainf("  Prompts skipped:   %d (already installed)", len(promptsSkipped))
 		}
 		if len(failed) > 0 {
-			fmt.Printf("  Plugins failed:    %d (not found in library)\n", len(failed))
+			render.Plainf("  Plugins failed:    %d (not found in library)", len(failed))
 		}
 		if len(promptsFailed) > 0 {
-			fmt.Printf("  Prompts failed:    %d (not found in library)\n", len(promptsFailed))
+			render.Plainf("  Prompts failed:    %d (not found in library)", len(promptsFailed))
 		}
 		if len(profilesFailed) > 0 {
-			fmt.Printf("  Profiles failed:   %d (library not implemented)\n", len(profilesFailed))
+			render.Plainf("  Profiles failed:   %d (library not implemented)", len(profilesFailed))
 		}
 
 		// Only fail if nothing was installed and there were failures, but no skipped items
@@ -362,7 +367,8 @@ Examples:
 			return fmt.Errorf("no components could be installed")
 		}
 
-		fmt.Println("\nUse 'dvt plugin list' and 'dvt get prompts' to see installed components")
+		render.Blank()
+		render.Info("Use 'dvt plugin list' and 'dvt get prompts' to see installed components")
 
 		return nil
 	},
