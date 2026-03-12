@@ -1,6 +1,6 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.37.2  
+> **Version**: v0.37.4  
 > **Last Updated**: March 12, 2026
 
 ---
@@ -2538,6 +2538,106 @@ dvm delete registry idle-test
 
 ---
 
+## Part 12: BuildKit Builder Stage Robustness (v0.37.4)
+
+These scenarios verify that Dockerfile builder stages fail loudly on download or install errors instead of silently producing a broken image layer. They focus on the hardened curl flags, `set -e` enforcement, download-to-file patterns, and binary verification added in v0.37.4.
+
+**Prerequisites:**
+- `dvm` binary built from v0.37.4+
+- A working Docker / Colima environment with BuildKit enabled
+- Network access (scenarios 72–73 require pulling remote binaries)
+
+---
+
+### Scenario 72: Successful Build with All Builder Stages
+
+Verify a normal `dvm build` completes without errors and that all expected builder-stage binaries (neovim, lazygit, starship, tree-sitter) end up in the final image.
+
+```bash
+# Build a workspace image (uses the full builder pipeline)
+dvm build --workspace <your-workspace>
+```
+
+**Expected:** Build completes with exit code 0. All builder stages appear in the BuildKit output without errors.
+
+**Inside the container (after `dvm attach`), verify each binary is present:**
+
+```bash
+nvim --version | head -1          # Expected: NVIM v0.x.x
+lazygit --version                 # Expected: version info
+starship --version                # Expected: starship x.y.z
+tree-sitter --version             # Expected: tree-sitter x.y.z
+exit
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Build exits with code 0 | No error, image created | |
+| Neovim binary present | `nvim --version` succeeds | |
+| Lazygit binary present | `lazygit --version` succeeds | |
+| Starship binary present | `starship --version` succeeds | |
+| Tree-sitter binary present | `tree-sitter --version` succeeds | |
+
+---
+
+### Scenario 73: Generated Dockerfile Contains Hardened Curl Flags
+
+Verify the generated Dockerfile uses hardened `curl` flags (`--retry 3 --connect-timeout 30 -f`) in every builder stage. Use verbose mode to inspect the generated Dockerfile before building.
+
+```bash
+# Generate and display the Dockerfile without building
+dvm build --workspace <your-workspace> --dry-run
+# OR inspect the generated Dockerfile in the build context:
+dvm build --workspace <your-workspace> --verbose 2>&1 | head -200
+```
+
+Search the Dockerfile output for each builder stage and confirm:
+
+```bash
+# Pipe the verbose output to grep to check flags
+dvm build --workspace <your-workspace> --dry-run 2>&1 | grep -E 'curl.*retry'
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Neovim stage curl contains `--retry 3` | Flag present in neovim builder `RUN` block | |
+| Lazygit stage curl contains `--retry 3` | Flag present in lazygit builder `RUN` block | |
+| Starship stage curl contains `--retry 3` | Flag present in starship builder `RUN` block | |
+| Tree-sitter stage curl contains `--retry 3` | Flag present in tree-sitter builder `RUN` block | |
+| All curl calls include `-f` | HTTP errors cause failures (no silent error-page downloads) | |
+
+---
+
+### Scenario 74: Broken Download URL Fails Explicitly
+
+Verify that if a builder stage's download URL is unreachable or returns an HTTP error, the build fails with a **clear, actionable error** — not a cryptic checksum or `": not found"` error at a later `COPY --from=<stage>` step.
+
+> **Note:** This requires temporarily breaking a download URL, which cannot be done directly. This scenario is a conceptual regression test — use it as a mental checklist when investigating any future build failures.
+
+**What to observe if a download URL breaks:**
+- The broken stage should output a non-zero exit code with a `curl` error message (e.g., `curl: (22) The requested URL returned error: 404`)
+- The build should fail **at that stage**, not silently continue and fail at `COPY --from=<stage>`
+- The error message should identify the specific stage and URL that failed
+
+**Automated coverage:** The 6 tests added in v0.37.4 (`builders/dockerfile_generator_test.go`) verify the structural patterns that enable this behavior:
+
+```bash
+# Run the automated tests that cover the hardened patterns
+go test ./builders/... -v -run 'TestDockerfileGenerator'
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Automated tests pass | All 6 new `TestDockerfileGenerator_*` tests pass | |
+| `set -e` test passes | `TestDockerfileGenerator_SetEOnAllBuilderStages` ✅ | |
+| Hardened curl flags test passes | `TestDockerfileGenerator_HardenedCurlFlagsInAllBuilderStages` ✅ | |
+| No-pipe test passes | `TestDockerfileGenerator_NoPipeToShellInBuilderStages` ✅ | |
+| Version guard test passes | `TestDockerfileGenerator_LazygitVersionGuard` ✅ | |
+| Binary verification test passes | `TestDockerfileGenerator_BinaryVerificationInAllBuilderStages` ✅ | |
+| Golangci-lint test passes | `TestDockerfileGenerator_GolangciLintHardenedInstall` ✅ | |
+
+---
+
 ## Test Results Summary
 
 | Part | Tests | Pass | Fail |
@@ -2556,6 +2656,7 @@ dvm delete registry idle-test
 | Part 9: Runtime Credential & Env Injection | 7 scenarios | | |
 | Part 10: Keychain Dual-Field Credentials | 12 scenarios | | |
 | Part 11: Registry Bug Fix Verification | 6 scenarios | | |
+| Part 12: BuildKit Builder Stage Robustness | 3 scenarios | | |
 
 ---
 
@@ -2608,5 +2709,5 @@ colima nerdctl -- --namespace devopsmaestro images
 
 **Tested by:** ________________  
 **Date:** ________________  
-**Version:** v0.37.2  
+**Version:** v0.37.4  
 **Platform:** ________________

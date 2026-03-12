@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.37.4] - 2026-03-12 — BuildKit Builder Stage Robustness
+
+### 🔨 Hardening
+
+#### BuildKit Multi-Stage Dockerfile: All Builder Stages Hardened — `builders/dockerfile_generator.go`
+
+The root cause of cryptic build errors like `"/usr/local/bin/starship": not found` was traced to the starship builder stage silently swallowing a failed download via `curl ... | sh`. All 5 builder stages (neovim, lazygit, starship, tree-sitter, and the golangci-lint dev-stage install) now fail loudly and immediately on any error.
+
+- **`curlFlags` constant added** — Centralized hardened curl flags (`-fsSL --retry 3 --connect-timeout 30`) shared across all builder stages; eliminates copy-paste inconsistencies in flag sets
+- **`set -e` in all builder `RUN` commands** — Any command failure immediately aborts the stage instead of silently continuing to the next line
+- **`curl -f` flag on all downloads** — HTTP 4xx/5xx responses now cause immediate failure instead of silently writing an HTML error page to disk
+- **`--retry 3 --connect-timeout 30` on all `curl` calls** — Transient network blips are automatically retried (up to 3 times); connections that never respond are abandoned after 30 seconds
+- **Download-to-file replaces pipe-to-shell** — The starship and golangci-lint installers now download the install script to a temp file first, then execute it; eliminates the silent-failure risk where a broken pipe swallowed the error code
+- **`test -x` binary verification in all builder stages** — Every stage now asserts its expected binary exists and is executable before completing, catching broken installs before `COPY --from=<stage>` fails with a confusing checksum error:
+  - `test -x /opt/nvim/bin/nvim` (neovim stage)
+  - `test -x /usr/local/bin/lazygit` (lazygit stage)
+  - `test -x /usr/local/bin/starship` (starship stage)
+  - `test -x /usr/local/bin/tree-sitter` (tree-sitter stage)
+- **Lazygit version guard added** — `[ -n "$LAZYGIT_VERSION" ]` check added before using the value; fails explicitly with a clear error when the GitHub API returns an empty string (e.g., due to rate limiting) instead of proceeding with a broken version string
+- **Inaccurate comment corrected** — Builder image rationale comment updated: the starship install script uses POSIX `sh`, not `bash`
+  - Files changed: `builders/dockerfile_generator.go`
+
+### 🧪 Tests Added
+
+- **`TestDockerfileGenerator_SetEOnAllBuilderStages`** — Verifies every builder `RUN` block contains `set -e`
+- **`TestDockerfileGenerator_HardenedCurlFlagsInAllBuilderStages`** — Verifies all builder stages use the hardened curl flags (`-fsSL --retry 3 --connect-timeout 30 -f`)
+- **`TestDockerfileGenerator_NoPipeToShellInBuilderStages`** — Verifies the download-to-file pattern is used; no `curl ... | sh` pipe-to-shell patterns remain in builder stages
+- **`TestDockerfileGenerator_LazygitVersionGuard`** — Verifies the `[ -n "$LAZYGIT_VERSION" ]` guard is present before the lazygit `RUN` uses `$LAZYGIT_VERSION`
+- **`TestDockerfileGenerator_BinaryVerificationInAllBuilderStages`** — Verifies each builder stage contains a `test -x` check for its expected binary
+- **`TestDockerfileGenerator_GolangciLintHardenedInstall`** — Verifies the dev-stage golangci-lint install uses the download-to-file pattern (not pipe-to-shell)
+  - Files changed: `builders/dockerfile_generator_test.go`
+
+### 📊 v0.37.4 Summary
+
+| Metric | Value |
+|--------|-------|
+| Builder stages hardened | 5 (neovim, lazygit, starship, tree-sitter) + 1 dev-stage (golangci-lint) |
+| Hardening techniques applied | `set -e`, hardened curl flags, download-to-file, `test -x`, version guard |
+| Files changed | 2 (`dockerfile_generator.go`, `dockerfile_generator_test.go`) |
+| New tests | 6 |
+| All tests pass | ✅ |
+
+---
+
 ## [v0.37.3] - 2026-03-12 — Security Hardening
 
 ### 🔒 Security

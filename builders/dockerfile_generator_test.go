@@ -682,6 +682,514 @@ func TestDockerfileGenerator_NvimSection_AppPathMismatch(t *testing.T) {
 	}
 }
 
+// TestDockerfileGenerator_BuilderStage_SetE verifies that every builder stage RUN command
+// begins with `set -e` so that any failed sub-command aborts the build immediately.
+// This is a Phase 2 failing test — the hardening is NOT yet implemented.
+func TestDockerfileGenerator_BuilderStage_SetE(t *testing.T) {
+	tests := []struct {
+		name         string
+		language     string
+		version      string
+		wantBuilders []string // stage header comments to look for
+		minSetECount int      // minimum number of `set -e` occurrences expected
+	}{
+		{
+			name:     "python/debian — neovim, lazygit, starship, treesitter builders",
+			language: "python",
+			version:  "3.11",
+			wantBuilders: []string{
+				"# --- Parallel builder: Neovim ---",
+				"# --- Parallel builder: lazygit ---",
+				"# --- Parallel builder: Starship prompt ---",
+				"# --- Parallel builder: tree-sitter CLI ---",
+			},
+			// At minimum one `set -e` per builder stage (neovim, lazygit, starship, treesitter)
+			minSetECount: 4,
+		},
+		{
+			name:     "golang/alpine — lazygit (alpine path), starship, treesitter builders",
+			language: "golang",
+			version:  "1.22",
+			wantBuilders: []string{
+				"# --- Parallel builder: lazygit ---",
+				"# --- Parallel builder: Starship prompt ---",
+				"# --- Parallel builder: tree-sitter CLI ---",
+			},
+			// At minimum one `set -e` per builder stage (lazygit, starship, treesitter)
+			minSetECount: 3,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws := &models.Workspace{
+				ID:        1,
+				Name:      "test-ws",
+				ImageName: "test:latest",
+			}
+			wsYAML := models.WorkspaceSpec{}
+
+			gen := NewDockerfileGenerator(ws, wsYAML, tt.language, tt.version, "/tmp/test", "")
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			// Verify all expected builder stage headers are present
+			for _, header := range tt.wantBuilders {
+				if !strings.Contains(dockerfile, header) {
+					t.Errorf("Generate() missing builder stage header: %q", header)
+				}
+			}
+
+			// Verify `set -e` appears at least once per builder stage
+			setECount := strings.Count(dockerfile, "set -e")
+			if setECount < tt.minSetECount {
+				t.Errorf("Generate() has %d occurrences of 'set -e', want at least %d.\n"+
+					"Every builder stage RUN command must begin with 'set -e' for fail-fast behavior.",
+					setECount, tt.minSetECount)
+			}
+
+			// Verify `set -e` appears specifically within builder stage sections
+			// (not just in the dev stage or elsewhere)
+			neovimIdx := strings.Index(dockerfile, "# --- Parallel builder: Neovim ---")
+			lazygitIdx := strings.Index(dockerfile, "# --- Parallel builder: lazygit ---")
+			starshipIdx := strings.Index(dockerfile, "# --- Parallel builder: Starship prompt ---")
+			treesitterIdx := strings.Index(dockerfile, "# --- Parallel builder: tree-sitter CLI ---")
+			devStageIdx := strings.Index(dockerfile, "FROM base AS dev")
+
+			type stageCheck struct {
+				name  string
+				start int
+				end   int
+			}
+			var stages []stageCheck
+
+			if neovimIdx >= 0 && lazygitIdx > neovimIdx {
+				stages = append(stages, stageCheck{"neovim", neovimIdx, lazygitIdx})
+			}
+			if lazygitIdx >= 0 && starshipIdx > lazygitIdx {
+				stages = append(stages, stageCheck{"lazygit", lazygitIdx, starshipIdx})
+			}
+			if starshipIdx >= 0 && treesitterIdx > starshipIdx {
+				stages = append(stages, stageCheck{"starship", starshipIdx, treesitterIdx})
+			}
+			if treesitterIdx >= 0 && devStageIdx > treesitterIdx {
+				stages = append(stages, stageCheck{"treesitter", treesitterIdx, devStageIdx})
+			}
+
+			for _, stage := range stages {
+				stageContent := dockerfile[stage.start:stage.end]
+				if !strings.Contains(stageContent, "set -e") {
+					t.Errorf("Builder stage %q is missing 'set -e'.\n"+
+						"Stage content:\n%s", stage.name, stageContent)
+				}
+			}
+		})
+	}
+}
+
+// TestDockerfileGenerator_BuilderStage_CurlHardened verifies that ALL curl commands in
+// builder stages use hardened flags: -f (fail on HTTP errors) and --retry 3.
+// Also verifies that OLD vulnerable curl patterns are NOT present.
+// This is a Phase 2 failing test — the hardening is NOT yet implemented.
+func TestDockerfileGenerator_BuilderStage_CurlHardened(t *testing.T) {
+	tests := []struct {
+		name             string
+		language         string
+		version          string
+		wantCurlPatterns []string // patterns that MUST be present
+		badCurlPatterns  []string // patterns that must NOT be present
+	}{
+		{
+			name:     "python/debian — all curl commands hardened",
+			language: "python",
+			version:  "3.11",
+			wantCurlPatterns: []string{
+				// Hardened curl flags must appear in builder stages
+				"curl -fsSL --retry 3 --connect-timeout 30",
+			},
+			badCurlPatterns: []string{
+				// Old neovim download pattern
+				"curl -LO",
+				// Old lazygit API call pattern
+				`curl -s "https://api.github.com`,
+				// Old lazygit download pattern (note: -Lo is the old pattern)
+				"curl -Lo lazygit",
+				// Old starship pattern (pipe-to-shell)
+				"curl -sS https://starship.rs",
+				// Old tree-sitter pattern
+				"curl -sL ",
+			},
+		},
+		{
+			name:     "golang/alpine — all curl commands hardened",
+			language: "golang",
+			version:  "1.22",
+			wantCurlPatterns: []string{
+				"curl -fsSL --retry 3 --connect-timeout 30",
+			},
+			badCurlPatterns: []string{
+				// Old lazygit API call pattern (Alpine path)
+				`curl -s "https://api.github.com`,
+				// Old lazygit download pattern
+				"curl -Lo lazygit",
+				// Old starship pattern
+				"curl -sS https://starship.rs",
+				// Old tree-sitter pattern
+				"curl -sL ",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws := &models.Workspace{
+				ID:        1,
+				Name:      "test-ws",
+				ImageName: "test:latest",
+			}
+			wsYAML := models.WorkspaceSpec{}
+
+			gen := NewDockerfileGenerator(ws, wsYAML, tt.language, tt.version, "/tmp/test", "")
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			// Verify hardened patterns ARE present
+			for _, want := range tt.wantCurlPatterns {
+				if !strings.Contains(dockerfile, want) {
+					t.Errorf("Generate() missing hardened curl pattern: %q\n"+
+						"All curl commands in builder stages must use -f and --retry 3", want)
+				}
+			}
+
+			// Verify vulnerable patterns are NOT present
+			for _, bad := range tt.badCurlPatterns {
+				if strings.Contains(dockerfile, bad) {
+					t.Errorf("Generate() contains vulnerable curl pattern: %q\n"+
+						"This pattern must be replaced with hardened curl flags", bad)
+				}
+			}
+		})
+	}
+}
+
+// TestDockerfileGenerator_StarshipBuilder_NoShellPipe verifies that the starship builder
+// downloads the install script to a file first instead of piping directly to sh.
+// This is a Phase 2 failing test — the hardening is NOT yet implemented.
+func TestDockerfileGenerator_StarshipBuilder_NoShellPipe(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	// Default shell theme triggers starship builder
+	wsYAML := models.WorkspaceSpec{}
+
+	gen := NewDockerfileGenerator(ws, wsYAML, "python", "3.11", "/tmp/test", "")
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// Verify the starship builder section is present
+	if !strings.Contains(dockerfile, "# --- Parallel builder: Starship prompt ---") {
+		t.Fatalf("Generate() missing starship builder stage — test requires it to be present")
+	}
+
+	// Extract the starship builder section
+	starshipStart := strings.Index(dockerfile, "# --- Parallel builder: Starship prompt ---")
+	treesitterStart := strings.Index(dockerfile, "# --- Parallel builder: tree-sitter CLI ---")
+	if treesitterStart <= starshipStart {
+		t.Fatalf("Could not isolate starship builder section")
+	}
+	starshipSection := dockerfile[starshipStart:treesitterStart]
+
+	// MUST have: download to file (not pipe)
+	wantPatterns := []string{
+		// Download script to a temp file
+		"-o /tmp/install-starship.sh",
+		// Execute from file
+		"sh /tmp/install-starship.sh --yes",
+		// Binary verification
+		"test -x /usr/local/bin/starship",
+	}
+	for _, want := range wantPatterns {
+		if !strings.Contains(starshipSection, want) {
+			t.Errorf("Starship builder missing pattern: %q\n"+
+				"Starship section:\n%s", want, starshipSection)
+		}
+	}
+
+	// MUST NOT have: pipe-to-shell pattern (security risk)
+	if strings.Contains(starshipSection, "| sh") {
+		t.Errorf("Starship builder uses pipe-to-shell pattern (| sh) — this is insecure.\n"+
+			"Must download to file first, then execute.\n"+
+			"Starship section:\n%s", starshipSection)
+	}
+}
+
+// TestDockerfileGenerator_LazygitBuilder_VersionValidation verifies that the lazygit builder
+// validates that $LAZYGIT_VERSION is non-empty before attempting to download the binary.
+// Tests BOTH Alpine and Debian paths.
+// This is a Phase 2 failing test — the hardening is NOT yet implemented.
+func TestDockerfileGenerator_LazygitBuilder_VersionValidation(t *testing.T) {
+	tests := []struct {
+		name     string
+		language string
+		version  string
+		path     string // "alpine" or "debian"
+	}{
+		{
+			name:     "lazygit alpine path (golang workspace)",
+			language: "golang",
+			version:  "1.22",
+			path:     "alpine",
+		},
+		{
+			name:     "lazygit debian path (python workspace)",
+			language: "python",
+			version:  "3.11",
+			path:     "debian",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws := &models.Workspace{
+				ID:        1,
+				Name:      "test-ws",
+				ImageName: "test:latest",
+			}
+			wsYAML := models.WorkspaceSpec{}
+
+			gen := NewDockerfileGenerator(ws, wsYAML, tt.language, tt.version, "/tmp/test", "")
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			// Verify lazygit builder section is present
+			if !strings.Contains(dockerfile, "# --- Parallel builder: lazygit ---") {
+				t.Fatalf("Generate() missing lazygit builder stage")
+			}
+
+			// Extract the lazygit builder section
+			lazygitStart := strings.Index(dockerfile, "# --- Parallel builder: lazygit ---")
+			starshipStart := strings.Index(dockerfile, "# --- Parallel builder: Starship prompt ---")
+			if starshipStart <= lazygitStart {
+				t.Fatalf("Could not isolate lazygit builder section")
+			}
+			lazygitSection := dockerfile[lazygitStart:starshipStart]
+
+			// MUST validate that LAZYGIT_VERSION is non-empty
+			// Pattern: [ -n "$LAZYGIT_VERSION" ] ensures we don't try to download ""
+			if !strings.Contains(lazygitSection, `[ -n "$LAZYGIT_VERSION" ]`) {
+				t.Errorf("Lazygit builder (%s path) missing version validation: %q\n"+
+					"Without this check, a failed API call produces a broken download URL.\n"+
+					"Lazygit section:\n%s",
+					tt.path, `[ -n "$LAZYGIT_VERSION" ]`, lazygitSection)
+			}
+
+			// MUST use hardened curl for the GitHub API call
+			if !strings.Contains(lazygitSection, "curl -fsSL --retry 3 --connect-timeout 30") {
+				t.Errorf("Lazygit builder (%s path) API call missing hardened curl flags.\n"+
+					"Lazygit section:\n%s", tt.path, lazygitSection)
+			}
+
+			// MUST have binary verification
+			if !strings.Contains(lazygitSection, "test -x /usr/local/bin/lazygit") {
+				t.Errorf("Lazygit builder (%s path) missing binary verification: 'test -x /usr/local/bin/lazygit'\n"+
+					"Lazygit section:\n%s", tt.path, lazygitSection)
+			}
+		})
+	}
+}
+
+// TestDockerfileGenerator_BuilderStage_BinaryVerification verifies that each builder stage
+// includes a `test -x /path/to/binary` check to confirm the binary was installed correctly.
+// This is a Phase 2 failing test — the hardening is NOT yet implemented.
+func TestDockerfileGenerator_BuilderStage_BinaryVerification(t *testing.T) {
+	tests := []struct {
+		name         string
+		language     string
+		version      string
+		binaryChecks []struct {
+			stageName   string // for error messages
+			stageHeader string // section header to locate
+			nextHeader  string // next section header (to bound the search)
+			binaryPath  string // expected `test -x` path
+		}
+	}{
+		{
+			name:     "python/debian — neovim, lazygit, starship, treesitter",
+			language: "python",
+			version:  "3.11",
+			binaryChecks: []struct {
+				stageName   string
+				stageHeader string
+				nextHeader  string
+				binaryPath  string
+			}{
+				{
+					stageName:   "neovim",
+					stageHeader: "# --- Parallel builder: Neovim ---",
+					nextHeader:  "# --- Parallel builder: lazygit ---",
+					binaryPath:  "test -x /opt/nvim/bin/nvim",
+				},
+				{
+					stageName:   "lazygit",
+					stageHeader: "# --- Parallel builder: lazygit ---",
+					nextHeader:  "# --- Parallel builder: Starship prompt ---",
+					binaryPath:  "test -x /usr/local/bin/lazygit",
+				},
+				{
+					stageName:   "starship",
+					stageHeader: "# --- Parallel builder: Starship prompt ---",
+					nextHeader:  "# --- Parallel builder: tree-sitter CLI ---",
+					binaryPath:  "test -x /usr/local/bin/starship",
+				},
+				{
+					stageName:   "tree-sitter",
+					stageHeader: "# --- Parallel builder: tree-sitter CLI ---",
+					nextHeader:  "# Development stage",
+					binaryPath:  "test -x /usr/local/bin/tree-sitter",
+				},
+			},
+		},
+		{
+			name:     "golang/alpine — lazygit, starship, treesitter",
+			language: "golang",
+			version:  "1.22",
+			binaryChecks: []struct {
+				stageName   string
+				stageHeader string
+				nextHeader  string
+				binaryPath  string
+			}{
+				{
+					stageName:   "lazygit",
+					stageHeader: "# --- Parallel builder: lazygit ---",
+					nextHeader:  "# --- Parallel builder: Starship prompt ---",
+					binaryPath:  "test -x /usr/local/bin/lazygit",
+				},
+				{
+					stageName:   "starship",
+					stageHeader: "# --- Parallel builder: Starship prompt ---",
+					nextHeader:  "# --- Parallel builder: tree-sitter CLI ---",
+					binaryPath:  "test -x /usr/local/bin/starship",
+				},
+				{
+					stageName:   "tree-sitter",
+					stageHeader: "# --- Parallel builder: tree-sitter CLI ---",
+					nextHeader:  "# Development stage",
+					binaryPath:  "test -x /usr/local/bin/tree-sitter",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws := &models.Workspace{
+				ID:        1,
+				Name:      "test-ws",
+				ImageName: "test:latest",
+			}
+			wsYAML := models.WorkspaceSpec{}
+
+			gen := NewDockerfileGenerator(ws, wsYAML, tt.language, tt.version, "/tmp/test", "")
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			for _, check := range tt.binaryChecks {
+				startIdx := strings.Index(dockerfile, check.stageHeader)
+				endIdx := strings.Index(dockerfile, check.nextHeader)
+
+				if startIdx < 0 {
+					t.Errorf("Missing builder stage header: %q", check.stageHeader)
+					continue
+				}
+				if endIdx <= startIdx {
+					// Fall back to checking the full dockerfile section from the header
+					endIdx = len(dockerfile)
+				}
+
+				section := dockerfile[startIdx:endIdx]
+
+				if !strings.Contains(section, check.binaryPath) {
+					t.Errorf("Builder stage %q missing binary verification: %q\n"+
+						"Each builder stage must verify the binary was installed correctly.\n"+
+						"Stage section:\n%s",
+						check.stageName, check.binaryPath, section)
+				}
+			}
+		})
+	}
+}
+
+// TestDockerfileGenerator_GolangciLint_NoShellPipe verifies that the golangci-lint install
+// in the dev stage uses download-to-file, NOT pipe-to-shell.
+// This is a Phase 2 failing test — the hardening is NOT yet implemented.
+func TestDockerfileGenerator_GolangciLint_NoShellPipe(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	// Default golang tools include golangci-lint
+	wsYAML := models.WorkspaceSpec{}
+
+	gen := NewDockerfileGenerator(ws, wsYAML, "golang", "1.22", "/tmp/test", "")
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// Verify golangci-lint installer is referenced somewhere in the dockerfile
+	if !strings.Contains(dockerfile, "golangci-lint") {
+		t.Fatalf("Generate() missing golangci-lint install — golang workspaces must include it")
+	}
+
+	// MUST have: download to file pattern
+	wantPatterns := []string{
+		// Download install script to temp file
+		"-o /tmp/install-golangci.sh",
+		// Execute from file
+		"sh /tmp/install-golangci.sh",
+	}
+	for _, want := range wantPatterns {
+		if !strings.Contains(dockerfile, want) {
+			t.Errorf("golangci-lint install missing pattern: %q\n"+
+				"Must download install script to file before executing (not pipe-to-shell)", want)
+		}
+	}
+
+	// MUST NOT have: old pipe-to-shell pattern
+	// The old pattern was: curl -sSfL ... | sh -s -- -b $(go env GOPATH)/bin
+	badPatterns := []string{
+		"| sh -s --",
+		// Also check for the raw pipe pattern with the golangci script URL
+		"golangci/golangci-lint/master/install.sh | sh",
+	}
+	for _, bad := range badPatterns {
+		if strings.Contains(dockerfile, bad) {
+			t.Errorf("golangci-lint install uses pipe-to-shell pattern: %q\n"+
+				"This is a security risk — must download to file first, then execute.", bad)
+		}
+	}
+}
+
 // TestDockerfileGenerator_PluginManifest tests conditional Mason/Treesitter pre-install
 func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 	// Import needed for manifest

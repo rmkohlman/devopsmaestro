@@ -12,6 +12,15 @@ import (
 	"devopsmaestro/utils"
 )
 
+// curlFlags provides hardened curl flags for builder stage downloads.
+// -f: Fail on HTTP errors (4xx/5xx) instead of silently returning error pages
+// -s: Silent mode (no progress meter)
+// -S: Show errors even in silent mode
+// -L: Follow redirects
+// --retry 3: Retry transient failures up to 3 times
+// --connect-timeout 30: Timeout connection phase after 30 seconds
+const curlFlags = "-fsSL --retry 3 --connect-timeout 30"
+
 // DockerfileGenerator defines the interface for generating Dockerfiles for dev containers.
 // Implementations produce Dockerfile content optimized with BuildKit features
 // (parallel multi-stage builds, cache mounts) for a specific language/workspace combination.
@@ -282,7 +291,7 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 //     Alpine gets neovim via apk in the merged package install instead.
 //   - Lazygit: Uses matching base (Alpine for Alpine targets, Debian for Debian) because
 //     the binary is statically linked but download tools (curl vs wget, sed behavior) differ.
-//   - Starship: Always Debian because the install script requires bash.
+//   - Starship: Always Debian for consistency with Neovim builder (install script uses POSIX sh).
 //   - Tree-sitter CLI: Alpine (small image, binary is statically linked).
 //   - Go tools: Uses the same golang:X-alpine image as the base stage for ABI compatibility.
 //
@@ -318,7 +327,8 @@ func (g *DefaultDockerfileGenerator) generateBuilderStages(dockerfile *strings.B
 func (g *DefaultDockerfileGenerator) generateNeovimBuilder(dockerfile *strings.Builder) {
 	dockerfile.WriteString("# --- Parallel builder: Neovim ---\n")
 	dockerfile.WriteString("FROM debian:bookworm-slim AS neovim-builder\n")
-	dockerfile.WriteString("RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
+	dockerfile.WriteString("RUN set -e && \\\n")
+	dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
 	dockerfile.WriteString("    ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m) && \\\n")
 	dockerfile.WriteString("    if [ \"$ARCH\" = \"arm64\" ] || [ \"$ARCH\" = \"aarch64\" ]; then \\\n")
 	dockerfile.WriteString("        NVIM_ARCH=\"nvim-linux-arm64\"; \\\n")
@@ -327,10 +337,11 @@ func (g *DefaultDockerfileGenerator) generateNeovimBuilder(dockerfile *strings.B
 	dockerfile.WriteString("    else \\\n")
 	dockerfile.WriteString("        NVIM_ARCH=\"nvim-linux-x86_64\"; \\\n")
 	dockerfile.WriteString("    fi && \\\n")
-	dockerfile.WriteString("    curl -LO \"https://github.com/neovim/neovim/releases/latest/download/${NVIM_ARCH}.tar.gz\" && \\\n")
+	dockerfile.WriteString(fmt.Sprintf("    curl %s -O \"https://github.com/neovim/neovim/releases/latest/download/${NVIM_ARCH}.tar.gz\" && \\\n", curlFlags))
 	dockerfile.WriteString("    tar -C /opt -xzf \"${NVIM_ARCH}.tar.gz\" && \\\n")
 	dockerfile.WriteString("    mv /opt/${NVIM_ARCH} /opt/nvim && \\\n")
-	dockerfile.WriteString("    rm \"${NVIM_ARCH}.tar.gz\"\n\n")
+	dockerfile.WriteString("    rm \"${NVIM_ARCH}.tar.gz\" && \\\n")
+	dockerfile.WriteString("    test -x /opt/nvim/bin/nvim\n\n")
 }
 
 // generateLazygitBuilder creates a parallel stage to download lazygit
@@ -338,7 +349,8 @@ func (g *DefaultDockerfileGenerator) generateLazygitBuilder(dockerfile *strings.
 	dockerfile.WriteString("# --- Parallel builder: lazygit ---\n")
 	if isAlpine {
 		dockerfile.WriteString("FROM alpine:3.20 AS lazygit-builder\n")
-		dockerfile.WriteString("RUN apk add --no-cache curl sed && \\\n")
+		dockerfile.WriteString("RUN set -e && \\\n")
+		dockerfile.WriteString("    apk add --no-cache curl sed && \\\n")
 		dockerfile.WriteString("    ARCH=$(uname -m) && \\\n")
 		dockerfile.WriteString("    if [ \"$ARCH\" = \"aarch64\" ]; then \\\n")
 		dockerfile.WriteString("        LG_ARCH=\"arm64\"; \\\n")
@@ -349,7 +361,8 @@ func (g *DefaultDockerfileGenerator) generateLazygitBuilder(dockerfile *strings.
 		dockerfile.WriteString("    fi && \\\n")
 	} else {
 		dockerfile.WriteString("FROM debian:bookworm-slim AS lazygit-builder\n")
-		dockerfile.WriteString("RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates sed && \\\n")
+		dockerfile.WriteString("RUN set -e && \\\n")
+		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends curl ca-certificates sed && \\\n")
 		dockerfile.WriteString("    ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m) && \\\n")
 		dockerfile.WriteString("    if [ \"$ARCH\" = \"arm64\" ] || [ \"$ARCH\" = \"aarch64\" ]; then \\\n")
 		dockerfile.WriteString("        LG_ARCH=\"arm64\"; \\\n")
@@ -359,32 +372,40 @@ func (g *DefaultDockerfileGenerator) generateLazygitBuilder(dockerfile *strings.
 		dockerfile.WriteString("        LG_ARCH=\"x86_64\"; \\\n")
 		dockerfile.WriteString("    fi && \\\n")
 	}
-	dockerfile.WriteString("    LAZYGIT_VERSION=$(curl -s \"https://api.github.com/repos/jesseduffield/lazygit/releases/latest\" | sed -n 's/.*\"tag_name\": \"v\\([^\"]*\\)\".*/\\1/p') && \\\n")
-	dockerfile.WriteString("    curl -Lo lazygit.tar.gz \"https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LAZYGIT_VERSION}_Linux_${LG_ARCH}.tar.gz\" && \\\n")
+	dockerfile.WriteString(fmt.Sprintf("    LAZYGIT_VERSION=$(curl %s \"https://api.github.com/repos/jesseduffield/lazygit/releases/latest\" | sed -n 's/.*\"tag_name\": \"v\\([^\"]*\\)\".*/\\1/p') && \\\n", curlFlags))
+	dockerfile.WriteString("    [ -n \"$LAZYGIT_VERSION\" ] || { echo \"ERROR: Failed to determine lazygit version\"; exit 1; } && \\\n")
+	dockerfile.WriteString(fmt.Sprintf("    curl %s -o lazygit.tar.gz \"https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LAZYGIT_VERSION}_Linux_${LG_ARCH}.tar.gz\" && \\\n", curlFlags))
 	dockerfile.WriteString("    tar xf lazygit.tar.gz lazygit && \\\n")
 	dockerfile.WriteString("    install lazygit /usr/local/bin && \\\n")
-	dockerfile.WriteString("    rm lazygit lazygit.tar.gz\n\n")
+	dockerfile.WriteString("    rm lazygit lazygit.tar.gz && \\\n")
+	dockerfile.WriteString("    test -x /usr/local/bin/lazygit\n\n")
 }
 
 // generateStarshipBuilder creates a parallel stage to download Starship prompt
 func (g *DefaultDockerfileGenerator) generateStarshipBuilder(dockerfile *strings.Builder) {
 	dockerfile.WriteString("# --- Parallel builder: Starship prompt ---\n")
 	dockerfile.WriteString("FROM debian:bookworm-slim AS starship-builder\n")
-	dockerfile.WriteString("RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
-	dockerfile.WriteString("    curl -sS https://starship.rs/install.sh | sh -s -- --yes\n\n")
+	dockerfile.WriteString(fmt.Sprintf("RUN set -e && \\\n"+
+		"    apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n"+
+		"    curl %s -o /tmp/install-starship.sh https://starship.rs/install.sh && \\\n"+
+		"    sh /tmp/install-starship.sh --yes && \\\n"+
+		"    rm /tmp/install-starship.sh && \\\n"+
+		"    test -x /usr/local/bin/starship\n\n", curlFlags))
 }
 
 // generateTreeSitterBuilder creates a parallel stage to download tree-sitter CLI
 func (g *DefaultDockerfileGenerator) generateTreeSitterBuilder(dockerfile *strings.Builder) {
 	dockerfile.WriteString("# --- Parallel builder: tree-sitter CLI ---\n")
 	dockerfile.WriteString("FROM alpine:3.20 AS treesitter-builder\n")
-	dockerfile.WriteString("RUN apk add --no-cache curl && \\\n")
+	dockerfile.WriteString("RUN set -e && \\\n")
+	dockerfile.WriteString("    apk add --no-cache curl && \\\n")
 	dockerfile.WriteString("    ARCH=$(uname -m) && \\\n")
 	dockerfile.WriteString("    if [ \"$ARCH\" = \"aarch64\" ]; then TS_ARCH=\"arm64\"; \\\n")
 	dockerfile.WriteString("    elif [ \"$ARCH\" = \"x86_64\" ]; then TS_ARCH=\"x64\"; \\\n")
 	dockerfile.WriteString("    else TS_ARCH=\"x64\"; fi && \\\n")
-	dockerfile.WriteString("    curl -sL \"https://github.com/tree-sitter/tree-sitter/releases/download/v0.24.6/tree-sitter-linux-${TS_ARCH}.gz\" -o /tmp/ts.gz && \\\n")
-	dockerfile.WriteString("    gunzip /tmp/ts.gz && chmod +x /tmp/ts && mv /tmp/ts /usr/local/bin/tree-sitter\n\n")
+	dockerfile.WriteString(fmt.Sprintf("    curl %s \"https://github.com/tree-sitter/tree-sitter/releases/download/v0.24.6/tree-sitter-linux-${TS_ARCH}.gz\" -o /tmp/ts.gz && \\\n", curlFlags))
+	dockerfile.WriteString("    gunzip /tmp/ts.gz && chmod +x /tmp/ts && mv /tmp/ts /usr/local/bin/tree-sitter && \\\n")
+	dockerfile.WriteString("    test -x /usr/local/bin/tree-sitter\n\n")
 }
 
 // getGoToolsList returns the resolved Go tools list (config or defaults)
@@ -549,7 +570,10 @@ func (g *DefaultDockerfileGenerator) generateDevStage(dockerfile *strings.Builde
 		for _, tool := range languageTools {
 			if tool == "golangci-lint" {
 				dockerfile.WriteString("# Install golangci-lint via installer script\n")
-				dockerfile.WriteString("RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin\n\n")
+				dockerfile.WriteString(fmt.Sprintf("RUN set -e && \\\n"+
+					"    curl %s -o /tmp/install-golangci.sh https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh && \\\n"+
+					"    sh /tmp/install-golangci.sh -b $(go env GOPATH)/bin && \\\n"+
+					"    rm /tmp/install-golangci.sh\n\n", curlFlags))
 				break
 			}
 		}
