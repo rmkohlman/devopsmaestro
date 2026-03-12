@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -36,7 +37,10 @@ func (b *DefaultBinaryManager) EnsureBinary(ctx context.Context) (string, error)
 		// Check if installed version matches desired version
 		needsUpdate, err := b.NeedsUpdate(ctx)
 		if err != nil {
-			// If we can't determine version, assume it's fine
+			// Can't determine installed version — re-download to ensure correct version
+			if updateErr := b.Update(ctx); updateErr != nil {
+				return "", fmt.Errorf("failed to update binary to version %s: %w", b.version, updateErr)
+			}
 			return binaryPath, nil
 		}
 		if needsUpdate {
@@ -61,21 +65,33 @@ func (b *DefaultBinaryManager) GetVersion(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("%w: %s", ErrBinaryNotFound, binaryPath)
 	}
 
-	// Run "zot version" command
-	cmd := exec.CommandContext(ctx, binaryPath, "version")
-	output, err := cmd.Output()
+	// Zot outputs version info as JSON to stderr via --version flag
+	cmd := exec.CommandContext(ctx, binaryPath, "--version")
+	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("failed to get version: %w", err)
 	}
 
-	// Parse version from output
-	// Expected format: "zot v1.4.3" or similar
-	version := strings.TrimSpace(string(output))
-	version = strings.TrimPrefix(version, "zot")
-	version = strings.TrimSpace(version)
-	version = strings.TrimPrefix(version, "v")
+	// Parse JSON to extract commit field: "v2.1.15-0-gace12e2"
+	var versionInfo struct {
+		Commit string `json:"commit"`
+	}
+	if err := json.Unmarshal(output, &versionInfo); err != nil {
+		return "", fmt.Errorf("failed to parse version output: %w", err)
+	}
 
-	return version, nil
+	// Extract semver from commit: "v2.1.15-0-gace12e2" -> "2.1.15"
+	commit := strings.TrimPrefix(versionInfo.Commit, "v")
+	// Strip git describe suffix: "2.1.15-0-gace12e2" -> "2.1.15"
+	if idx := strings.Index(commit, "-"); idx != -1 {
+		commit = commit[:idx]
+	}
+
+	if commit == "" {
+		return "", fmt.Errorf("could not extract version from commit field: %s", versionInfo.Commit)
+	}
+
+	return commit, nil
 }
 
 // NeedsUpdate checks if the binary needs to be updated.

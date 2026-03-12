@@ -39,17 +39,16 @@ func setupMockBinaryManager(t *testing.T) *MockBinaryManager {
 
 func TestBinaryManager_EnsureBinary_AlreadyExists(t *testing.T) {
 	binDir := t.TempDir()
-	binaryPath := filepath.Join(binDir, "zot")
 
-	// Create fake binary
-	err := os.WriteFile(binaryPath, []byte("fake zot binary"), 0755)
-	require.NoError(t, err)
+	// Create fake binary that responds to --version
+	makeFakeZotScript(t, binDir, "1.0.0")
+	binaryPath := filepath.Join(binDir, "zot")
 
 	mgr := NewBinaryManager(binDir, "1.0.0")
 	ctx := context.Background()
 
 	path, err := mgr.EnsureBinary(ctx)
-	require.NoError(t, err, "EnsureBinary should succeed when binary exists")
+	require.NoError(t, err, "EnsureBinary should succeed when binary exists with matching version")
 	assert.Equal(t, binaryPath, path, "Should return existing binary path")
 }
 
@@ -156,11 +155,18 @@ func TestBinaryManager_GetVersion_BinaryNotExist(t *testing.T) {
 }
 
 func TestBinaryManager_GetVersion_ParsesOutput(t *testing.T) {
-	// This test verifies that GetVersion can parse Zot's version output
-	// Format: "zot v1.4.3" or similar
+	// This test verifies that GetVersion can parse Zot's version output.
+	// Zot outputs JSON to stderr via --version; we parse the commit field
+	// (e.g. "v2.1.15-0-gabcdef0") to extract the bare semver string "2.1.15".
+	binDir := t.TempDir()
+	makeFakeZotScript(t, binDir, "2.1.15")
 
-	// Will need integration test with real binary
-	t.Skip("Integration test - requires real binary")
+	bm := &DefaultBinaryManager{binDir: binDir, version: "anything"}
+	ctx := context.Background()
+
+	ver, err := bm.GetVersion(ctx)
+	require.NoError(t, err, "GetVersion should parse Zot JSON version output")
+	assert.Equal(t, "2.1.15", ver, "GetVersion should extract semver from commit field")
 }
 
 // =============================================================================
@@ -495,12 +501,22 @@ func TestBinaryManager_NeedsUpdate_ErrorsIs_CorrectPattern(t *testing.T) {
 // =============================================================================
 
 // makeFakeZotScript writes a tiny shell script that acts as a "zot" binary,
-// responding to "version" with "zot v<ver>" and exiting 0.
-// This lets us test EnsureBinary version-checking without network access.
+// responding to "--version" with JSON output matching Zot's real format.
+// Zot outputs version info as JSON to stderr; the commit field format is
+// "v{semver}-0-g{short-hash}". This lets us test GetVersion/NeedsUpdate/EnsureBinary
+// version-checking without network access.
 func makeFakeZotScript(t *testing.T, dir, ver string) string {
 	t.Helper()
 	binPath := filepath.Join(dir, "zot")
-	script := "#!/bin/sh\nif [ \"$1\" = \"version\" ]; then echo \"zot v" + ver + "\"; exit 0; fi\nexit 1\n"
+	// Zot outputs version info as JSON to stderr via --version flag
+	// The commit field format is: v{semver}-0-g{short-hash}
+	script := `#!/bin/sh
+if [ "$1" = "--version" ]; then
+    echo '{"level":"info","commit":"v` + ver + `-0-gabcdef0","message":"version"}' >&2
+    exit 0
+fi
+exit 1
+`
 	require.NoError(t, os.WriteFile(binPath, []byte(script), 0755))
 	return binPath
 }
@@ -615,9 +631,10 @@ func TestNeedsUpdate_VersionMatch(t *testing.T) {
 	assert.False(t, needsUpdate, "NeedsUpdate must return false when installed version matches desired")
 }
 
-// TestNeedsUpdate_FakeScriptVersionParsing verifies GetVersion correctly strips
-// the "zot v" prefix from the fake script's output, which is the same format the
-// real Zot binary uses.  If parsing breaks, NeedsUpdate tests above become
+// TestNeedsUpdate_FakeScriptVersionParsing verifies GetVersion correctly parses
+// the JSON output from the fake script, extracting the semver from the commit
+// field (e.g. "v1.2.3-0-gabcdef0" → "1.2.3"). This mirrors the real Zot binary's
+// --version output format. If parsing breaks, NeedsUpdate tests above become
 // unreliable.
 func TestNeedsUpdate_FakeScriptVersionParsing(t *testing.T) {
 	binDir := t.TempDir()
@@ -629,5 +646,29 @@ func TestNeedsUpdate_FakeScriptVersionParsing(t *testing.T) {
 	ver, err := bm.GetVersion(ctx)
 	require.NoError(t, err, "GetVersion should succeed with the fake script")
 	assert.Equal(t, "1.2.3", ver,
-		"GetVersion must strip 'zot v' prefix and return bare semver string")
+		"GetVersion must parse the commit field JSON and return bare semver string")
+}
+
+// TestGetVersion_ParsesVariousCommitFormats verifies that GetVersion correctly
+// extracts the semver portion from commit fields of the form "v{semver}-0-g{hash}".
+func TestGetVersion_ParsesVariousCommitFormats(t *testing.T) {
+	tests := []struct {
+		name     string
+		ver      string
+		expected string
+	}{
+		{"standard semver", "2.1.15", "2.1.15"},
+		{"major only patch", "2.0.0", "2.0.0"},
+		{"single digit", "1.0.0", "1.0.0"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			binDir := t.TempDir()
+			makeFakeZotScript(t, binDir, tt.ver)
+			bm := &DefaultBinaryManager{binDir: binDir, version: "anything"}
+			ver, err := bm.GetVersion(context.Background())
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, ver)
+		})
+	}
 }
