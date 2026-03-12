@@ -190,6 +190,8 @@ func createTestSchema(driver Driver) error {
 			description TEXT,
 			username_var TEXT,
 			password_var TEXT,
+			label TEXT,
+			keychain_type TEXT DEFAULT 'generic' CHECK(keychain_type IN ('generic', 'internet')),
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(scope_type, scope_id, name)

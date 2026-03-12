@@ -9,7 +9,7 @@ import (
 
 // GetFromKeychain retrieves a password from the system keychain
 // On non-macOS platforms, this returns an error
-func GetFromKeychain(service string) (string, error) {
+func GetFromKeychain(lookup KeychainLookup) (string, error) {
 	return "", fmt.Errorf("keychain integration not available on %s (only macOS supported)", runtime.GOOS)
 }
 
@@ -32,6 +32,6 @@ func KeychainAvailable() bool {
 
 // GetAccountFromKeychain retrieves the account field from the system keychain
 // On non-macOS platforms, this returns an error
-func GetAccountFromKeychain(service string) (string, error) {
+func GetAccountFromKeychain(lookup KeychainLookup) (string, error) {
 	return "", fmt.Errorf("keychain integration not available on %s (only macOS supported)", runtime.GOOS)
 }

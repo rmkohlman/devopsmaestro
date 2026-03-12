@@ -1,6 +1,6 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.38.2  
+> **Version**: v0.39.0  
 > **Last Updated**: March 12, 2026
 
 ---
@@ -3263,6 +3263,282 @@ go test ./...
 
 ---
 
+## Part 17: Keychain Label-Based Lookup (v0.39.0)
+
+These scenarios cover the redesigned keychain credential resolution introduced in v0.39.0: the `--keychain-label` flag, the `--keychain-type` flag, deprecation warnings for `--service`, mutual-exclusivity validation, and YAML apply with the new `keychainLabel:` field.
+
+**Prerequisites:**
+- `dvm` binary built from v0.39.0+
+- At least one ecosystem configured
+- macOS Keychain entry with a known **display label** (visible as the "Name" column in Keychain Access)
+- A Passwords app / Safari-managed entry (for internet password scenarios)
+
+---
+
+### Scenario 61: Create Credential with `--keychain-label` and Generic Type
+
+Create a credential using the new `--keychain-label` flag with the default generic keychain type.
+
+```bash
+dvm create credential GITHUB_TOKEN \
+  --source keychain \
+  --keychain-label "GitHub Token" \
+  --ecosystem <your-ecosystem>
+
+# Verify it appears in the list
+dvm get credentials --ecosystem <your-ecosystem>
+
+# Verify detail view
+dvm get credential GITHUB_TOKEN --ecosystem <your-ecosystem>
+dvm get credential GITHUB_TOKEN --ecosystem <your-ecosystem> -o yaml
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Create succeeds | No error, success message shown | |
+| Credential appears in list | `GITHUB_TOKEN` visible in `get credentials` | |
+| Detail view shows label | `Label: GitHub Token` field present | |
+| YAML shows `keychainLabel:` | `keychainLabel: "GitHub Token"` under spec | |
+| YAML shows `keychainType: generic` | `keychainType: generic` (or default) under spec | |
+
+**Cleanup (defer to end of Part 17).**
+
+---
+
+### Scenario 62: Create Credential with `--keychain-label` and Internet Type
+
+Create a credential using `--keychain-label` with `--keychain-type internet` to target a Passwords app entry.
+
+```bash
+dvm create credential NPM_TOKEN \
+  --source keychain \
+  --keychain-label "npmjs.com" \
+  --keychain-type internet \
+  --ecosystem <your-ecosystem>
+
+# Verify detail view
+dvm get credential NPM_TOKEN --ecosystem <your-ecosystem>
+dvm get credential NPM_TOKEN --ecosystem <your-ecosystem> -o yaml
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Create succeeds | No error | |
+| Detail view shows keychain type | `KeychainType: internet` (or equivalent) present | |
+| YAML shows `keychainType: internet` | `keychainType: internet` under spec | |
+| Label stored correctly | `keychainLabel: "npmjs.com"` under spec | |
+
+**Cleanup (defer to end of Part 17).**
+
+---
+
+### Scenario 63: Deprecated `--service` Flag — Warning Displayed
+
+Verify that using the old `--service` flag still creates the credential but emits a visible deprecation warning.
+
+```bash
+dvm create credential LEGACY_TOKEN \
+  --source keychain \
+  --service legacy.example.com \
+  --ecosystem <your-ecosystem>
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Create succeeds | No error, credential created | |
+| Deprecation warning shown | Warning text visible (e.g., `--service is deprecated, use --keychain-label`) | |
+| Warning is non-fatal | Command exits with code 0 | |
+| Credential resolves via legacy path | `get credential LEGACY_TOKEN` shows the credential | |
+
+**Cleanup:**
+```bash
+dvm delete credential LEGACY_TOKEN --ecosystem <your-ecosystem> --force
+```
+
+---
+
+### Scenario 64: `--service` and `--keychain-label` Are Mutually Exclusive
+
+Verify that specifying both `--service` and `--keychain-label` in the same command is rejected.
+
+```bash
+dvm create credential BAD_CRED \
+  --source keychain \
+  --service old.example.com \
+  --keychain-label "New Label" \
+  --ecosystem <your-ecosystem>
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Command fails | Non-zero exit code | |
+| Error mentions mutual exclusivity | Error text references both flags | |
+| Error is not a panic | No stack trace | |
+| No credential created | `get credentials` does not list `BAD_CRED` | |
+
+---
+
+### Scenario 65: `--keychain-type` Validation — Invalid Value Rejected
+
+Verify that an unrecognized value for `--keychain-type` is rejected with a clear error.
+
+```bash
+dvm create credential BAD_TYPE \
+  --source keychain \
+  --keychain-label "Some Label" \
+  --keychain-type badvalue \
+  --ecosystem <your-ecosystem>
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Command fails | Non-zero exit code | |
+| Error mentions valid values | Error references `generic` and `internet` | |
+| Error is not a panic | No stack trace | |
+| No credential created | `get credentials` does not list `BAD_TYPE` | |
+
+---
+
+### Scenario 66: YAML Apply with `keychainLabel:` Field
+
+Verify `dvm apply -f` creates a credential from a YAML manifest using the new `keychainLabel:` field.
+
+```bash
+cat <<EOF > /tmp/label-cred.yaml
+apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  name: YAML_LABEL_TOKEN
+  ecosystem: <your-ecosystem>
+spec:
+  source: keychain
+  keychainLabel: "My API Token"
+  keychainType: generic
+EOF
+
+dvm apply -f /tmp/label-cred.yaml
+
+# Verify
+dvm get credential YAML_LABEL_TOKEN --ecosystem <your-ecosystem>
+dvm get credential YAML_LABEL_TOKEN --ecosystem <your-ecosystem> -o yaml
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `dvm apply` succeeds | No error | |
+| Credential appears in list | `YAML_LABEL_TOKEN` visible | |
+| `keychainLabel` stored | `keychainLabel: "My API Token"` in yaml output | |
+| `keychainType` stored | `keychainType: generic` in yaml output | |
+
+**Cleanup:**
+```bash
+dvm delete credential YAML_LABEL_TOKEN --ecosystem <your-ecosystem> --force
+rm /tmp/label-cred.yaml
+```
+
+---
+
+### Scenario 67: YAML Apply with Deprecated `service:` Field — Backward Compat
+
+Verify that a YAML manifest using the old `service:` field still applies without error, enabling teams to migrate incrementally.
+
+```bash
+cat <<EOF > /tmp/legacy-cred.yaml
+apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  name: LEGACY_YAML_TOKEN
+  ecosystem: <your-ecosystem>
+spec:
+  source: keychain
+  service: legacy.example.com
+EOF
+
+dvm apply -f /tmp/legacy-cred.yaml
+
+# Verify
+dvm get credential LEGACY_YAML_TOKEN --ecosystem <your-ecosystem> -o yaml
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `dvm apply` succeeds | No error | |
+| Credential created | `LEGACY_YAML_TOKEN` visible in list | |
+| `service:` value preserved or migrated | `service` (or `keychainLabel`) reflects `legacy.example.com` | |
+| No panic or schema error | Clean apply, non-zero only on validation failures | |
+
+**Cleanup:**
+```bash
+dvm delete credential LEGACY_YAML_TOKEN --ecosystem <your-ecosystem> --force
+rm /tmp/legacy-cred.yaml
+```
+
+---
+
+### Scenario 68: Credential Display Shows Label and KeychainType
+
+Verify that `dvm get credential` displays the `Label` and `KeychainType` fields in both human-readable and structured output.
+
+```bash
+# Use the credential created in Scenario 61 (or re-create it)
+dvm get credential GITHUB_TOKEN --ecosystem <your-ecosystem>
+dvm get credential GITHUB_TOKEN --ecosystem <your-ecosystem> -o yaml
+dvm get credential GITHUB_TOKEN --ecosystem <your-ecosystem> -o json
+```
+
+**For JSON validation:**
+```bash
+dvm get credential GITHUB_TOKEN --ecosystem <your-ecosystem> -o json | python3 -m json.tool
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Human-readable output shows `Label:` | `Label: GitHub Token` present | |
+| Human-readable output shows `KeychainType:` | `KeychainType: generic` (or `internet`) present | |
+| YAML output has `keychainLabel` under spec | `keychainLabel: "GitHub Token"` in YAML | |
+| YAML output has `keychainType` under spec | `keychainType: generic` in YAML | |
+| JSON output parses cleanly | No raw struct types, valid JSON | |
+| JSON output has label and type fields | `keychainLabel` and `keychainType` keys present in JSON | |
+
+**Cleanup (all Part 17 credentials):**
+```bash
+dvm delete credential GITHUB_TOKEN --ecosystem <your-ecosystem> --force
+dvm delete credential NPM_TOKEN    --ecosystem <your-ecosystem> --force
+```
+
+---
+
+### Scenario 69: Automated Test Coverage (Regression Gate)
+
+Run the automated tests added in v0.39.0 to confirm all ~37 new test functions pass.
+
+```bash
+# Config and keychain tests
+go test ./config/... -v -run 'TestCredential'
+go test ./config/... -v -run 'TestKeychain'
+
+# Command tests
+go test ./cmd/... -v -run 'TestCredential'
+
+# Resource handler tests
+go test ./pkg/resource/... -v -run 'TestCredential'
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `config/credentials_test.go` new functions | All pass ✅ | |
+| `config/keychain_darwin_test.go` new functions | All pass ✅ | |
+| `cmd/credential_test.go` new functions | All pass ✅ | |
+| `pkg/resource/handlers/credential_test.go` new functions | All pass ✅ | |
+| Full test suite | `go test ./...` all green ✅ | |
+
+```bash
+# Full regression check
+go test ./...
+```
+
+---
+
 ## Test Results Summary
 
 | Part | Tests | Pass | Fail |
@@ -3286,6 +3562,7 @@ go test ./...
 | Part 14: Dockerfile Generator Purity | 3 scenarios | | |
 | Part 15: Python HTTPS Token Substitution | 5 scenarios | | |
 | Part 16: Credential Resolution Robustness | 4 scenarios | | |
+| Part 17: Keychain Label-Based Lookup | 9 scenarios | | |
 
 ---
 

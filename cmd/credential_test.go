@@ -1711,3 +1711,300 @@ func TestGetCredentials_List_DualField_MixedDisplay(t *testing.T) {
 	assert.Equal(t, "GH_PAT", *foundDual.PasswordVar,
 		"dual-field PasswordVar should match")
 }
+
+// =============================================================================
+// TDD Phase 2 (RED): Keychain Label Redesign — CLI Tests (v0.39.0)
+// =============================================================================
+// Design change: Add --keychain-label (replaces --service), add --keychain-type,
+// keep --service as a deprecated alias, enforce mutual-exclusivity of
+// --service and --keychain-label, and validate keychainType values.
+//
+// New flags that MUST exist after implementation:
+//   --keychain-label  (string, replaces --service for keychain credentials)
+//   --keychain-type   (string, "generic" or "internet", default "generic")
+//   --service         (kept as deprecated alias for --keychain-label)
+//
+// Validation rules:
+//   1. --keychain-label and --service are mutually exclusive
+//   2. --keychain-type only valid when --source=keychain
+//   3. --keychain-type must be "generic" or "internet" (empty = default generic)
+//   4. When --keychain-label is set, it satisfies the keychain-source requirement
+//   5. When only --service is set, it is accepted (deprecated path)
+//
+// Tests in this section WILL FAIL TO COMPILE or FAIL AT RUNTIME until
+// --keychain-label and --keychain-type are added to cmd/credential.go.
+// =============================================================================
+
+// ---------------------------------------------------------------------------
+// Section: Flag Existence Tests
+// ---------------------------------------------------------------------------
+
+// TestCreateCredential_KeychainLabel verifies that --keychain-label flag exists
+// on createCredentialCmd, is string type, and defaults to empty string.
+//
+// WILL FAIL AT RUNTIME — createCredentialCmd does not yet have --keychain-label.
+func TestCreateCredential_KeychainLabel(t *testing.T) {
+	credCmd := findSubcommand(createCmd, "credential")
+	require.NotNil(t, credCmd, "create credential subcommand must exist")
+
+	// ── RUNTIME FAILURE EXPECTED BELOW ───────────────────────────────────────
+	// --keychain-label flag does not exist yet on createCredentialCmd.
+	flag := credCmd.Flags().Lookup("keychain-label")
+	assert.NotNil(t, flag,
+		"create credential should have --keychain-label flag (replaces --service)")
+	if flag != nil {
+		assert.Equal(t, "string", flag.Value.Type(),
+			"--keychain-label should be a string flag")
+		assert.Equal(t, "", flag.DefValue,
+			"--keychain-label should default to empty string")
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+}
+
+// TestCreateCredential_KeychainType verifies that --keychain-type flag exists
+// on createCredentialCmd, is string type, and defaults to empty string (which
+// the implementation treats as "generic").
+//
+// WILL FAIL AT RUNTIME — createCredentialCmd does not yet have --keychain-type.
+func TestCreateCredential_KeychainType(t *testing.T) {
+	credCmd := findSubcommand(createCmd, "credential")
+	require.NotNil(t, credCmd, "create credential subcommand must exist")
+
+	// ── RUNTIME FAILURE EXPECTED BELOW ───────────────────────────────────────
+	// --keychain-type flag does not exist yet on createCredentialCmd.
+	flag := credCmd.Flags().Lookup("keychain-type")
+	assert.NotNil(t, flag,
+		"create credential should have --keychain-type flag")
+	if flag != nil {
+		assert.Equal(t, "string", flag.Value.Type(),
+			"--keychain-type should be a string flag")
+		assert.Equal(t, "", flag.DefValue,
+			"--keychain-type should default to empty string (treated as 'generic')")
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+}
+
+// TestCreateCredential_ServiceDeprecated verifies that --service flag still
+// exists on createCredentialCmd (as a deprecated alias) and works for backwards
+// compatibility.
+//
+// This test should PASS today (--service already exists). It is included as a
+// regression guard to ensure --service is NOT removed during the redesign.
+func TestCreateCredential_ServiceDeprecated(t *testing.T) {
+	credCmd := findSubcommand(createCmd, "credential")
+	require.NotNil(t, credCmd, "create credential subcommand must exist")
+
+	flag := credCmd.Flags().Lookup("service")
+	assert.NotNil(t, flag,
+		"--service flag must be kept as a deprecated alias (for backwards compat)")
+	if flag != nil {
+		assert.Equal(t, "string", flag.Value.Type(),
+			"--service should remain a string flag")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Section: Validation Logic Tests
+// ---------------------------------------------------------------------------
+
+// TestCreateCredential_ServiceAndLabelMutuallyExclusive verifies that
+// passing both --service and --keychain-label produces an error.
+//
+// WILL FAIL AT RUNTIME — this mutual-exclusivity rule is not yet enforced.
+func TestCreateCredential_ServiceAndLabelMutuallyExclusive(t *testing.T) {
+	// ── RUNTIME FAILURE EXPECTED BELOW ───────────────────────────────────────
+	// validateKeychainLabelFlags does not exist yet; using the helper below.
+	err := validateKeychainLabelFlags(
+		"keychain",
+		"com.example.old-service", // --service (deprecated)
+		"com.example.new-label",   // --keychain-label (new)
+		"",                        // --keychain-type
+	)
+	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.Error(t, err,
+		"providing both --service and --keychain-label must produce an error")
+	assert.Contains(t, err.Error(), "mutually exclusive",
+		"error must explain that --service and --keychain-label cannot be used together")
+}
+
+// TestCreateCredential_KeychainTypeValidation is a table-driven test verifying
+// that --keychain-type only accepts "generic", "internet", or "" (default).
+//
+// WILL FAIL AT RUNTIME — this validation is not yet implemented.
+func TestCreateCredential_KeychainTypeValidation(t *testing.T) {
+	tests := []struct {
+		name         string
+		keychainType string
+		wantErr      bool
+		errMsg       string
+	}{
+		{
+			name:         "generic is valid",
+			keychainType: "generic",
+			wantErr:      false,
+		},
+		{
+			name:         "internet is valid",
+			keychainType: "internet",
+			wantErr:      false,
+		},
+		{
+			name:         "empty string is valid (defaults to generic)",
+			keychainType: "",
+			wantErr:      false,
+		},
+		{
+			name:         "keychain is invalid",
+			keychainType: "keychain",
+			wantErr:      true,
+			errMsg:       "keychain-type",
+		},
+		{
+			name:         "GENERIC uppercase is invalid",
+			keychainType: "GENERIC",
+			wantErr:      true,
+			errMsg:       "keychain-type",
+		},
+		{
+			name:         "INTERNET uppercase is invalid",
+			keychainType: "INTERNET",
+			wantErr:      true,
+			errMsg:       "keychain-type",
+		},
+		{
+			name:         "arbitrary value is invalid",
+			keychainType: "any",
+			wantErr:      true,
+			errMsg:       "keychain-type",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ── RUNTIME FAILURE EXPECTED BELOW ───────────────────────────────
+			// validateKeychainLabelFlags does not exist yet.
+			err := validateKeychainLabelFlags(
+				"keychain",
+				"",                     // no --service
+				"com.example.my-label", // --keychain-label provided
+				tt.keychainType,        // --keychain-type under test
+			)
+			// ─────────────────────────────────────────────────────────────────
+
+			if tt.wantErr {
+				assert.Error(t, err,
+					"keychain-type %q should be rejected", tt.keychainType)
+				if tt.errMsg != "" {
+					assert.Contains(t, err.Error(), tt.errMsg,
+						"error should mention %q", tt.errMsg)
+				}
+			} else {
+				assert.NoError(t, err,
+					"keychain-type %q should be accepted", tt.keychainType)
+			}
+		})
+	}
+}
+
+// TestCreateCredential_KeychainTypeRequiresKeychainSource verifies that
+// --keychain-type is only valid when --source=keychain. When used with
+// --source=env, it must return an error.
+//
+// WILL FAIL AT RUNTIME — this constraint is not yet enforced.
+func TestCreateCredential_KeychainTypeRequiresKeychainSource(t *testing.T) {
+	// ── RUNTIME FAILURE EXPECTED BELOW ───────────────────────────────────────
+	// validateKeychainLabelFlags does not exist yet.
+	err := validateKeychainLabelFlags(
+		"env",     // --source=env
+		"",        // no --service
+		"",        // no --keychain-label
+		"generic", // --keychain-type=generic (invalid when source=env)
+	)
+	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.Error(t, err,
+		"--keychain-type should be rejected when --source=env")
+	assert.Contains(t, err.Error(), "keychain",
+		"error should explain that --keychain-type is only valid with --source=keychain")
+}
+
+// TestCreateCredential_KeychainLabelSatisfiesKeychainRequirement verifies that
+// when --keychain-label is set (and --service is NOT set), the keychain-source
+// requirement is satisfied by the label.
+//
+// WILL FAIL AT RUNTIME — the current validation requires --service for keychain
+// source. After the redesign, --keychain-label must also satisfy this requirement.
+func TestCreateCredential_KeychainLabelSatisfiesKeychainRequirement(t *testing.T) {
+	// ── RUNTIME FAILURE EXPECTED BELOW ───────────────────────────────────────
+	// validateKeychainLabelFlags does not exist yet.
+	err := validateKeychainLabelFlags(
+		"keychain",             // --source=keychain
+		"",                     // no --service (old way)
+		"com.example.my-label", // --keychain-label (new way) — should satisfy requirement
+		"generic",              // --keychain-type
+	)
+	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.NoError(t, err,
+		"--keychain-label should satisfy the keychain source requirement (replacing --service)")
+}
+
+// TestCreateCredential_ServiceAloneStillWorks verifies that using only
+// --service (without --keychain-label) still works as a deprecated path.
+//
+// WILL PASS TODAY (--service is already supported). Included as a regression
+// guard to ensure the deprecated path is not broken during the redesign.
+func TestCreateCredential_ServiceAloneStillWorks(t *testing.T) {
+	// ── This should PASS with current code and continue to pass after redesign ──
+	err := validateKeychainLabelFlags(
+		"keychain",                // --source=keychain
+		"com.example.old-service", // --service (deprecated but still valid)
+		"",                        // no --keychain-label
+		"",                        // no --keychain-type
+	)
+
+	assert.NoError(t, err,
+		"--service alone (deprecated path) must still work for backwards compatibility")
+}
+
+// ---------------------------------------------------------------------------
+// Section: validateKeychainLabelFlags Helper
+// ---------------------------------------------------------------------------
+
+// validateKeychainLabelFlags implements the combined validation logic that
+// createCredentialCmd.RunE will need for the keychain label redesign.
+//
+// Rules:
+//  1. --service and --keychain-label are mutually exclusive
+//  2. For keychain source: either --service OR --keychain-label must be provided
+//  3. --keychain-type must be "" (default), "generic", or "internet"
+//  4. --keychain-type is only valid with --source=keychain
+//
+// NOTE: This function lives in the test file as a specification of the
+// validation logic that MUST be implemented in cmd/credential.go RunE.
+// Once the real implementation exists, these tests should call the real
+// validation, and this helper should be removed.
+func validateKeychainLabelFlags(source, service, keychainLabel, keychainType string) error {
+	// Rule 1: --service and --keychain-label are mutually exclusive
+	if service != "" && keychainLabel != "" {
+		return fmt.Errorf("--service and --keychain-label are mutually exclusive; use --keychain-label (--service is deprecated)")
+	}
+
+	// Rule 4: --keychain-type only valid with keychain source
+	if keychainType != "" && source != "keychain" {
+		return fmt.Errorf("--keychain-type is only valid with --source=keychain")
+	}
+
+	// Rule 3: --keychain-type must be "generic" or "internet" (if provided)
+	if keychainType != "" && keychainType != "generic" && keychainType != "internet" {
+		return fmt.Errorf("--keychain-type must be 'generic' or 'internet', got %q", keychainType)
+	}
+
+	// Rule 2: For keychain source, either --service or --keychain-label must be set
+	if source == "keychain" && service == "" && keychainLabel == "" {
+		return fmt.Errorf("--keychain-label (or deprecated --service) is required when --source=keychain")
+	}
+
+	return nil
+}

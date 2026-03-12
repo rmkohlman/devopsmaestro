@@ -146,7 +146,10 @@ func TestCredentialConfig_HasFieldProperty(t *testing.T) {
 //   - darwin:     expect an error (item not found in Keychain)
 //   - non-darwin: expect a "not available" error
 func TestGetAccountFromKeychain_Exists(t *testing.T) {
-	_, err := GetAccountFromKeychain("nonexistent-service-for-dvm-test")
+	_, err := GetAccountFromKeychain(KeychainLookup{
+		Label:        "nonexistent-service-for-dvm-test",
+		KeychainType: KeychainTypeGeneric,
+	})
 
 	assert.Error(t, err,
 		"GetAccountFromKeychain should return an error for a non-existent service")
@@ -381,4 +384,240 @@ func TestResolveCredentialsWithErrors_MultipleCredsPartialRescue(t *testing.T) {
 		"unrescued credential must not appear in resolved map")
 	assert.Contains(t, errors, unrescuedCred,
 		"unrescued credential must remain in errors map")
+}
+
+// =============================================================================
+// TDD Phase 2 (RED): ResolveCredential Label-Based Lookup Tests (v0.39.0)
+// =============================================================================
+// Design change: CredentialConfig gains a Label field (replaces Service for
+// keychain lookups) and a KeychainType field. ResolveCredential must use Label
+// (not Service) when calling keychain functions.
+//
+// New CredentialConfig fields that MUST exist after implementation:
+//
+//	type CredentialConfig struct {
+//	    ...existing fields...
+//	    Label        string       `yaml:"label,omitempty"`
+//	    KeychainType KeychainType `yaml:"keychainType,omitempty"`
+//	}
+//
+// New KeychainType type and constants (in keychain_darwin.go / keychain_stub.go):
+//
+//	type KeychainType string
+//	const (
+//	    KeychainTypeGeneric  KeychainType = "generic"
+//	    KeychainTypeInternet KeychainType = "internet"
+//	)
+//
+// ALL tests in this section WILL FAIL TO COMPILE until the above fields and
+// types are added to config/credentials.go and config/keychain_*.go.
+// =============================================================================
+
+// ---------------------------------------------------------------------------
+// Section: CredentialConfig Label Field Tests
+// ---------------------------------------------------------------------------
+
+// TestCredentialConfig_HasLabelProperty verifies that CredentialConfig has a
+// Label field of type string.
+//
+// WILL FAIL TO COMPILE — CredentialConfig.Label does not exist yet.
+func TestCredentialConfig_HasLabelProperty(t *testing.T) {
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	// CredentialConfig.Label field does not exist yet.
+	cfg := CredentialConfig{
+		Source: SourceKeychain,
+		Label:  "com.example.my-label",
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.Equal(t, "com.example.my-label", cfg.Label,
+		"Label should be stored and retrievable on CredentialConfig")
+	assert.Empty(t, cfg.Service,
+		"Service should be empty when only Label is set")
+}
+
+// TestCredentialConfig_HasKeychainTypeProperty verifies that CredentialConfig
+// has a KeychainType field.
+//
+// WILL FAIL TO COMPILE — CredentialConfig.KeychainType does not exist yet.
+func TestCredentialConfig_HasKeychainTypeProperty(t *testing.T) {
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	// CredentialConfig.KeychainType and KeychainTypeGeneric do not exist yet.
+	cfg := CredentialConfig{
+		Source:       SourceKeychain,
+		Label:        "com.example.label",
+		KeychainType: KeychainTypeGeneric,
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.Equal(t, KeychainTypeGeneric, cfg.KeychainType,
+		"KeychainType should be stored and retrievable on CredentialConfig")
+}
+
+// ---------------------------------------------------------------------------
+// Section: ResolveCredential Label-Based Routing Tests
+// ---------------------------------------------------------------------------
+
+// TestResolveCredential_UsesLabel verifies that ResolveCredential uses the
+// Label field (not Service) when calling keychain functions. When Label is
+// set, GetFromKeychain should be called with a KeychainLookup{Label: cfg.Label}.
+//
+// We test this indirectly: a non-existent label must produce an error that
+// does NOT mention the old "requires service name" validation message (which
+// would indicate it fell back to the old Service-based path).
+//
+// WILL FAIL TO COMPILE — CredentialConfig.Label does not exist yet.
+func TestResolveCredential_UsesLabel(t *testing.T) {
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	// CredentialConfig.Label field does not exist yet.
+	cfg := CredentialConfig{
+		Source: SourceKeychain,
+		Label:  "dvm-test-label-resolve-nonexistent-99999",
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	_, err := ResolveCredential(cfg)
+
+	// We always expect an error (no real keychain entry).
+	assert.Error(t, err, "expected error from keychain lookup (entry won't exist)")
+
+	// Must NOT get a validation error about missing label/service — the Label
+	// field was provided, so the lookup should proceed to the keychain.
+	assert.NotContains(t, err.Error(), "requires service name",
+		"Label field should satisfy the keychain source requirement")
+	assert.NotContains(t, err.Error(), "requires label",
+		"Label field should satisfy the keychain source requirement")
+}
+
+// TestResolveCredential_UsesKeychainType verifies that ResolveCredential passes
+// the KeychainType through to the underlying keychain function. When
+// KeychainType is "internet", find-internet-password should be called;
+// when "generic" (or empty), find-generic-password should be called.
+//
+// We verify indirectly via the error path: both types must produce "not found"
+// errors (not validation errors) when the label doesn't exist.
+//
+// WILL FAIL TO COMPILE — CredentialConfig.Label and CredentialConfig.KeychainType
+// do not exist yet.
+func TestResolveCredential_UsesKeychainType(t *testing.T) {
+	tests := []struct {
+		name         string
+		keychainType KeychainType
+	}{
+		{
+			name:         "generic type",
+			keychainType: KeychainTypeGeneric,
+		},
+		{
+			name:         "internet type",
+			keychainType: KeychainTypeInternet,
+		},
+		{
+			name:         "empty type (defaults to generic)",
+			keychainType: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ── COMPILE ERRORS EXPECTED BELOW ────────────────────────────────
+			// CredentialConfig.Label, CredentialConfig.KeychainType,
+			// KeychainTypeGeneric, KeychainTypeInternet do not exist yet.
+			cfg := CredentialConfig{
+				Source:       SourceKeychain,
+				Label:        "dvm-test-ktype-resolve-nonexistent-99999",
+				KeychainType: tt.keychainType,
+			}
+			// ─────────────────────────────────────────────────────────────────
+
+			_, err := ResolveCredential(cfg)
+
+			assert.Error(t, err,
+				"expected error from keychain lookup for type %q (entry won't exist)",
+				tt.keychainType)
+			// The error should be a "not found" error from the keychain,
+			// not a validation error about the type value.
+			assert.NotContains(t, err.Error(), "invalid keychain type",
+				"valid KeychainType %q should not fail validation", tt.keychainType)
+		})
+	}
+}
+
+// TestResolveCredential_LabelFallbackToService verifies that when Label is
+// empty but Service is set, ResolveCredential falls back to using Service for
+// the keychain lookup (backwards compatibility).
+//
+// This tests the transition period where old configs still use Service.
+//
+// WILL FAIL AT RUNTIME — ResolveCredential currently requires cfg.Service and
+// calls GetFromKeychain(cfg.Service). After the redesign, it should prefer
+// cfg.Label but accept cfg.Service as a fallback.
+//
+// Note: This test passes today ONLY because the existing implementation uses
+// Service. After the redesign, the test must CONTINUE to pass — verifying
+// the fallback is preserved.
+func TestResolveCredential_LabelFallbackToService(t *testing.T) {
+	// Use the existing Service field (no Label set) — must still work
+	cfg := CredentialConfig{
+		Source:  SourceKeychain,
+		Service: "dvm-test-service-fallback-nonexistent-99999",
+		// Label intentionally empty — should fall back to Service
+	}
+
+	_, err := ResolveCredential(cfg)
+
+	// We always expect an error (no real keychain entry exists).
+	assert.Error(t, err, "expected error from keychain lookup (entry won't exist)")
+
+	// Must NOT get a "requires service name" / "requires label" validation error.
+	// The Service field must still satisfy the requirement.
+	assert.NotContains(t, err.Error(), "requires service name",
+		"Service field must still work as fallback when Label is empty")
+	assert.NotContains(t, err.Error(), "requires label",
+		"Service field must still work as fallback when Label is empty")
+}
+
+// TestResolveCredential_RequiresLabelOrService verifies that ResolveCredential
+// returns a validation error when BOTH Label and Service are empty for a
+// keychain source credential.
+//
+// WILL FAIL AT RUNTIME — the current error message says "requires service name"
+// but after the redesign it should mention label/service. This test accepts
+// either phrasing to be flexible.
+func TestResolveCredential_RequiresLabelOrService(t *testing.T) {
+	cfg := CredentialConfig{
+		Source: SourceKeychain,
+		// Both Label and Service are empty — must be rejected
+	}
+
+	_, err := ResolveCredential(cfg)
+
+	assert.Error(t, err,
+		"keychain source with neither Label nor Service should return validation error")
+
+	// Accept any phrasing that communicates the missing identifier
+	hasRelevantMsg := false
+	if err != nil {
+		msg := err.Error()
+		hasRelevantMsg = contains(msg, "requires service") ||
+			contains(msg, "requires label") ||
+			contains(msg, "label or service") ||
+			contains(msg, "service name")
+	}
+	assert.True(t, hasRelevantMsg,
+		"error message should indicate that a label or service name is required")
+}
+
+// contains is a simple substring helper used in tests to avoid importing
+// strings just for Contains.
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr ||
+		func() bool {
+			for i := 0; i <= len(s)-len(substr); i++ {
+				if s[i:i+len(substr)] == substr {
+					return true
+				}
+			}
+			return false
+		}())
 }

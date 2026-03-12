@@ -7,6 +7,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.39.0] - 2026-03-12 — Keychain Label-Based Lookup
+
+### ✨ Features
+
+#### Label-Based Keychain Lookup — `cmd/credential.go`, `config/keychain_darwin.go`, `config/credentials.go`
+- **New `--keychain-label` flag (`-l`) replaces `--service` for identifying keychain entries** — `--keychain-label` matches against the macOS Keychain entry's display name (the `-l` field in the `security` CLI), not the service/domain field; any entry visible in Keychain Access or the Passwords app can now be targeted by its human-readable label
+- **Credentials created with `--keychain-label` use `keychainLabel:` in the YAML spec**, making configs portable across team members who only need to agree on the label name — no more machine-specific service strings embedded in shared YAML
+
+#### Explicit Keychain Type — `cmd/credential.go`, `config/keychain_darwin.go`, `config/keychain_types.go` (new)
+- **New `--keychain-type generic|internet` flag** selects whether to query macOS Generic Passwords (Keychain Access entries, e.g., tokens) or Internet Passwords (Passwords app / Safari entries)
+- **Default is `generic`** — existing keychain credentials continue to work without specifying the flag; `--keychain-type internet` unlocks lookup of browser-managed credentials
+
+#### Team-Portable Credential Configs — `config/credentials.go`, `models/credential.go`
+- **YAML `keychainLabel:` field** stores the display-name label; team members only need a Keychain entry with a matching label — no service URL alignment required
+- **`CredentialConfig`** gains `Label` + `KeychainType` fields; **`CredentialSpec`** gains `KeychainLabel` + `KeychainType` fields
+
+### 🐛 Bug Fixes
+
+#### Removed `-a $USER` Filter Blocking Third-Party Entries — `config/keychain_darwin.go`
+- **Keychain read operations previously filtered results to the current system user (`-a $USER`)**, which prevented finding entries created by browser sync, password managers, or other sources whose account field did not match `$USER`
+- **`-a $USER` filter removed from keychain read operations** — entries created by any source are now reachable; the `--keychain-label` flag provides precise targeting without requiring a user-account match
+
+#### Internet Password Support — `config/keychain_darwin.go`
+- **`security find-internet-password` was not used in credential resolution** — credentials sourced from the Passwords app (Safari-synced, iCloud Keychain) could not be reached at all
+- **New `keychainSubcommand()` helper** dispatches to `find-generic-password` or `find-internet-password` based on the `KeychainType` field; both paths are now fully supported in resolution and label lookup
+
+### ⚠️ Deprecations
+
+#### `--service` Flag → `--keychain-label` — `cmd/credential.go`
+- **`--service` flag is deprecated** — it still works and triggers a cobra deprecation warning; callers should migrate to `--keychain-label`
+
+#### YAML `service:` Field → `keychainLabel:` — `config/credentials.go`, `models/credential.go`
+- **`service:` field is deprecated** — still parsed for backward compatibility; `keychainLabel:` is now the preferred field in credential YAML manifests
+
+### 🏗️ Technical
+
+#### DB Migration 011 — `db/migrations/sqlite/011_add_credential_label_fields.up.sql` (new)
+- Adds `label` and `keychain_type` columns to the credentials table with a backfill that copies existing `service` values into `label`; existing credentials continue to resolve without modification
+
+#### New Types — `config/keychain_types.go` (new)
+- `KeychainType` string type with `KeychainTypeGeneric` and `KeychainTypeInternet` constants
+- `KeychainLookup` struct encapsulates label + type for keychain operations
+
+### 🧪 Tests Added (37 new)
+
+- **`config/credentials_test.go`** (appended) — new test functions covering label-based resolution, keychain-type branching, and backward-compat parsing of `service:` field
+- **`config/keychain_darwin_test.go`** (appended) — new test functions verifying `keychainSubcommand()` dispatch and label lookup argument construction
+- **`cmd/credential_test.go`** (appended) — new test functions for `--keychain-label` flag, `--keychain-type` validation, mutual exclusivity with `--service`, and deprecation warning emission
+- **`pkg/resource/handlers/credential_test.go`** (appended) — new test functions for YAML apply with `keychainLabel:` field and deprecated `service:` backward compat
+
+### 📊 v0.39.0 Summary
+
+| Metric | Value |
+|--------|-------|
+| Features | 3 (label-based lookup, explicit keychain type, team-portable configs) |
+| Bug fixes | 2 (removed -a $USER filter, internet password support) |
+| Deprecations | 2 (--service flag, service: YAML field — both still work with warnings) |
+| New file | `config/keychain_types.go`, `db/migrations/sqlite/011_add_credential_label_fields.{up,down}.sql` |
+| Files changed | ~20 |
+| New test functions | ~37 across 4 test files |
+| All tests pass | ✅ |
+
+---
+
 ## [v0.38.2] - 2026-03-12 — Credential Resolution Robustness
 
 ### 🐛 Bug Fixes

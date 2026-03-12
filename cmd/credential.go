@@ -129,13 +129,35 @@ Credentials reference secrets stored in the macOS Keychain or environment variab
 They are scoped to exactly one resource (ecosystem, domain, app, or workspace).
 
 Sources:
-  keychain - Reference a macOS Keychain item (requires --service)
+  keychain - Reference a macOS Keychain item (requires --keychain-label)
   env      - Reference an environment variable (requires --env-var)
 
+Keychain Types:
+  generic  - Generic password (Keychain Access → login keychain)
+  internet - Internet password (Passwords app / Safari autofill)
+
 Examples:
-  dvm create credential github-token --source keychain --service com.github.token --app my-api
-  dvm create credential api-key --source env --env-var MY_API_KEY --ecosystem prod
-  dvm create cred db-pass --source keychain --service com.db.password --domain backend`,
+  # GitHub PAT stored as a generic keychain entry
+  dvm create credential github-creds \
+    --source keychain \
+    --keychain-label "github-pat" \
+    --username-var GITHUB_USERNAME \
+    --password-var GITHUB_PAT \
+    --ecosystem myorg
+
+  # API key from environment variable
+  dvm create credential api-key \
+    --source env \
+    --env-var MY_API_KEY \
+    --ecosystem prod
+
+  # Internet keychain entry (Passwords app / Safari)
+  dvm create credential docker-hub \
+    --source keychain \
+    --keychain-label "hub.docker.com" \
+    --keychain-type internet \
+    --password-var DOCKER_TOKEN \
+    --domain infra`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		credName := args[0]
@@ -149,6 +171,8 @@ Examples:
 		// Read flags
 		source, _ := cmd.Flags().GetString("source")
 		service, _ := cmd.Flags().GetString("service")
+		keychainLabel, _ := cmd.Flags().GetString("keychain-label")
+		keychainType, _ := cmd.Flags().GetString("keychain-type")
 		envVar, _ := cmd.Flags().GetString("env-var")
 		description, _ := cmd.Flags().GetString("description")
 		usernameVar, _ := cmd.Flags().GetString("username-var")
@@ -162,9 +186,29 @@ Examples:
 			return fmt.Errorf("--source must be 'keychain' or 'env', got '%s'", source)
 		}
 
+		// Mutual exclusivity: --service and --keychain-label cannot both be set
+		if cmd.Flags().Changed("keychain-label") && cmd.Flags().Changed("service") {
+			return fmt.Errorf("--service and --keychain-label are mutually exclusive; use --keychain-label")
+		}
+
+		// Handle --service → --keychain-label fallback (deprecated path)
+		if keychainLabel == "" && service != "" {
+			keychainLabel = service
+		}
+
+		// Validate --keychain-type values
+		if keychainType != "" && keychainType != "generic" && keychainType != "internet" {
+			return fmt.Errorf("--keychain-type must be 'generic' or 'internet', got %q", keychainType)
+		}
+
+		// Validate --keychain-type only valid with keychain source
+		if cmd.Flags().Changed("keychain-type") && source != "keychain" {
+			return fmt.Errorf("--keychain-type is only valid when --source=keychain")
+		}
+
 		// Validate conditional flags
-		if source == "keychain" && service == "" {
-			return fmt.Errorf("--service is required when --source=keychain")
+		if source == "keychain" && keychainLabel == "" {
+			return fmt.Errorf("--keychain-label is required when --source=keychain")
 		}
 		if source == "env" && envVar == "" {
 			return fmt.Errorf("--env-var is required when --source=env")
@@ -201,8 +245,13 @@ Examples:
 			Source:    source,
 		}
 
-		if service != "" {
-			cred.Service = &service
+		if keychainLabel != "" {
+			cred.Label = &keychainLabel
+			// Set Service for backward compat (same value as label)
+			cred.Service = &keychainLabel
+		}
+		if keychainType != "" {
+			cred.KeychainType = &keychainType
 		}
 		if envVar != "" {
 			cred.EnvVar = &envVar
@@ -232,11 +281,16 @@ func init() {
 
 	// Source flags
 	createCredentialCmd.Flags().String("source", "", "Credential source: keychain or env (required)")
-	createCredentialCmd.Flags().String("service", "", "Keychain service name (required when --source=keychain)")
+	createCredentialCmd.Flags().String("service", "", "Keychain service name (deprecated: use --keychain-label)")
+	createCredentialCmd.Flags().String("keychain-label", "", "Keychain entry label (display name) — identifies the entry in Keychain Access or Passwords app (required when --source=keychain)")
+	createCredentialCmd.Flags().String("keychain-type", "", "Keychain entry type: generic or internet (default: generic)")
 	createCredentialCmd.Flags().String("env-var", "", "Environment variable name (required when --source=env)")
 	createCredentialCmd.Flags().String("description", "", "Credential description")
 	createCredentialCmd.Flags().String("username-var", "", "Environment variable name for the keychain account/username (keychain source only)")
 	createCredentialCmd.Flags().String("password-var", "", "Environment variable name for the keychain password (keychain source only)")
+
+	// Mark --service as deprecated (cobra handles the warning automatically)
+	createCredentialCmd.Flags().MarkDeprecated("service", "use --keychain-label instead")
 
 	// Scope flags
 	addCredentialScopeFlags(createCredentialCmd)

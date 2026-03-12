@@ -31,8 +31,12 @@ const (
 type CredentialConfig struct {
 	// Source specifies where to retrieve the credential from
 	Source CredentialSource `yaml:"source" json:"source" mapstructure:"source"`
-	// Service is the Keychain service name (when Source is "keychain")
+	// Label is the keychain entry label for lookup (when Source is "keychain")
+	Label string `yaml:"label,omitempty" json:"label,omitempty" mapstructure:"label"`
+	// Service is the Keychain service name (when Source is "keychain") — DEPRECATED, use Label
 	Service string `yaml:"service,omitempty" json:"service,omitempty" mapstructure:"service"`
+	// KeychainType specifies the keychain entry type: "generic" or "internet" (when Source is "keychain")
+	KeychainType KeychainType `yaml:"keychainType,omitempty" json:"keychainType,omitempty" mapstructure:"keychainType"`
 	// EnvVar is the environment variable name (when Source is "env")
 	EnvVar string `yaml:"env,omitempty" json:"env,omitempty" mapstructure:"env"`
 	// Field specifies which field to extract from a keychain entry (when Source is "keychain")
@@ -56,13 +60,30 @@ type CredentialScope struct {
 func ResolveCredential(cfg CredentialConfig) (string, error) {
 	switch cfg.Source {
 	case SourceKeychain:
-		if cfg.Service == "" {
-			return "", fmt.Errorf("keychain source requires service name")
+		// Determine the lookup label: prefer Label, fall back to Service
+		label := cfg.Label
+		if label == "" {
+			label = cfg.Service
 		}
+		if label == "" {
+			return "", fmt.Errorf("keychain source requires label or service name")
+		}
+
+		// Determine keychain type: use KeychainType if set, default to "generic"
+		keychainType := cfg.KeychainType
+		if keychainType == "" {
+			keychainType = KeychainTypeGeneric
+		}
+
+		lookup := KeychainLookup{
+			Label:        label,
+			KeychainType: keychainType,
+		}
+
 		if cfg.Field == KeychainFieldAccount {
-			return GetAccountFromKeychain(cfg.Service)
+			return GetAccountFromKeychain(lookup)
 		}
-		return GetFromKeychain(cfg.Service)
+		return GetFromKeychain(lookup)
 	case SourceEnv:
 		if cfg.EnvVar == "" {
 			return "", fmt.Errorf("env source requires env var name")

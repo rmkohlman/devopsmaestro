@@ -912,6 +912,455 @@ func TestValidateCredentialYAML_DualFieldEnvKeyValidation(t *testing.T) {
 }
 
 // =============================================================================
+// TDD Phase 2 (RED): Keychain Label Redesign Tests (v0.39.0)
+// =============================================================================
+// Design change: Introduce keychainLabel: (canonical YAML field), keep service:
+// as a fallback for backwards-compatibility, add keychainType: field, and add
+// Label / KeychainType columns to CredentialDB.
+//
+// New CredentialSpec fields that MUST exist after implementation:
+//
+//	type CredentialSpec struct {
+//	    ...existing fields...
+//	    KeychainLabel string `yaml:"keychainLabel,omitempty"`
+//	    KeychainType  string `yaml:"keychainType,omitempty"`
+//	}
+//
+// New CredentialDB fields that MUST exist after implementation:
+//
+//	type CredentialDB struct {
+//	    ...existing fields...
+//	    Label        *string `db:"label" json:"label,omitempty"`
+//	    KeychainType *string `db:"keychain_type" json:"keychain_type,omitempty"`
+//	}
+//
+// ALL tests in this section WILL FAIL TO COMPILE (or FAIL AT RUNTIME) until
+// the above fields are added to models/credential.go.
+// =============================================================================
+
+// ---------------------------------------------------------------------------
+// Section: CredentialSpec keychainLabel Field Tests
+// ---------------------------------------------------------------------------
+
+// TestCredentialSpec_KeychainLabel verifies that CredentialSpec has a
+// KeychainLabel field that survives a YAML round-trip through CredentialDB.
+//
+// WILL FAIL TO COMPILE — CredentialSpec.KeychainLabel does not exist yet.
+func TestCredentialSpec_KeychainLabel(t *testing.T) {
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	// CredentialSpec.KeychainLabel field does not exist yet.
+	spec := CredentialSpec{
+		Source:        "keychain",
+		KeychainLabel: "com.example.my-new-label",
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.Equal(t, "com.example.my-new-label", spec.KeychainLabel,
+		"KeychainLabel should be stored and retrievable on CredentialSpec")
+	assert.Empty(t, spec.Service,
+		"Service should be empty when only KeychainLabel is set")
+}
+
+// TestCredentialSpec_KeychainType verifies that CredentialSpec has a
+// KeychainType field that survives a YAML round-trip through CredentialDB.
+//
+// WILL FAIL TO COMPILE — CredentialSpec.KeychainType does not exist yet.
+func TestCredentialSpec_KeychainType(t *testing.T) {
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	// CredentialSpec.KeychainType field does not exist yet.
+	spec := CredentialSpec{
+		Source:        "keychain",
+		KeychainLabel: "com.example.label",
+		KeychainType:  "internet",
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.Equal(t, "internet", spec.KeychainType,
+		"KeychainType should be stored and retrievable on CredentialSpec")
+}
+
+// TestCredentialSpec_KeychainLabel_RoundTrip verifies that keychainLabel
+// survives a ToYAML → FromYAML round-trip through CredentialDB.
+//
+// WILL FAIL TO COMPILE — CredentialSpec.KeychainLabel and CredentialDB.Label
+// do not exist yet.
+func TestCredentialSpec_KeychainLabel_RoundTrip(t *testing.T) {
+	// ── COMPILE ERRORS EXPECTED BELOW ────────────────────────────────────────
+	// CredentialDB.Label field does not exist yet.
+	label := "com.example.round-trip-label"
+	original := &CredentialDB{
+		Name:      "MY_LABEL_CRED",
+		ScopeType: CredentialScopeApp,
+		Source:    "keychain",
+		Label:     &label,
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	y := original.ToYAML("test-app")
+	restored := &CredentialDB{}
+	restored.FromYAML(y)
+
+	// ── COMPILE ERRORS EXPECTED BELOW ────────────────────────────────────────
+	// CredentialDB.Label field does not exist yet.
+	require.NotNil(t, restored.Label,
+		"Label should survive ToYAML → FromYAML round-trip")
+	assert.Equal(t, *original.Label, *restored.Label,
+		"Label value should be preserved across round-trip")
+	// ─────────────────────────────────────────────────────────────────────────
+}
+
+// TestCredentialSpec_KeychainType_RoundTrip verifies that keychainType
+// survives a ToYAML → FromYAML round-trip through CredentialDB.
+//
+// WILL FAIL TO COMPILE — CredentialDB.KeychainType does not exist yet.
+func TestCredentialSpec_KeychainType_RoundTrip(t *testing.T) {
+	// ── COMPILE ERRORS EXPECTED BELOW ────────────────────────────────────────
+	// CredentialDB.KeychainType field does not exist yet.
+	label := "com.example.type-round-trip"
+	keychainType := "internet"
+	original := &CredentialDB{
+		Name:         "MY_INTERNET_CRED",
+		ScopeType:    CredentialScopeApp,
+		Source:       "keychain",
+		Label:        &label,
+		KeychainType: &keychainType,
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	y := original.ToYAML("test-app")
+	restored := &CredentialDB{}
+	restored.FromYAML(y)
+
+	// ── COMPILE ERRORS EXPECTED BELOW ────────────────────────────────────────
+	require.NotNil(t, restored.KeychainType,
+		"KeychainType should survive ToYAML → FromYAML round-trip")
+	assert.Equal(t, "internet", *restored.KeychainType,
+		"KeychainType value should be preserved across round-trip")
+	// ─────────────────────────────────────────────────────────────────────────
+}
+
+// ---------------------------------------------------------------------------
+// Section: FromYAML service: Fallback Tests
+// ---------------------------------------------------------------------------
+
+// TestCredentialSpec_ServiceFallback verifies that FromYAML still accepts
+// service: as a fallback for keychainLabel: for backwards compatibility.
+// When service: is present and keychainLabel: is absent, the credential should
+// be treated as if keychainLabel: was set with the same value.
+//
+// WILL FAIL AT RUNTIME — the current FromYAML populates c.Service from
+// y.Spec.Service but does not populate c.Label. After the fix, a non-empty
+// y.Spec.Service should also populate c.Label (fallback behaviour).
+func TestCredentialSpec_ServiceFallback(t *testing.T) {
+	// A YAML with the legacy service: field (no keychainLabel:)
+	y := CredentialYAML{
+		APIVersion: "devopsmaestro.io/v1",
+		Kind:       "Credential",
+		Metadata:   CredentialMetadata{Name: "LEGACY_CRED", Ecosystem: "testlab"},
+		Spec: CredentialSpec{
+			Source:  "keychain",
+			Service: "com.example.legacy-service", // old field — still accepted
+		},
+	}
+
+	cred := &CredentialDB{}
+	cred.FromYAML(y)
+
+	// The legacy service: field MUST still populate Service for backwards compat
+	require.NotNil(t, cred.Service,
+		"service: field in YAML must still populate CredentialDB.Service")
+	assert.Equal(t, "com.example.legacy-service", *cred.Service)
+
+	// ── RUNTIME FAILURE EXPECTED BELOW ───────────────────────────────────────
+	// After the fix, FromYAML must also copy service: → Label (fallback).
+	// Currently c.Label is never populated, so this assertion fails.
+	require.NotNil(t, cred.Label,
+		"service: field must also populate CredentialDB.Label as fallback for keychainLabel:")
+	assert.Equal(t, "com.example.legacy-service", *cred.Label,
+		"Label must mirror Service when only service: is provided (backwards compat fallback)")
+	// ─────────────────────────────────────────────────────────────────────────
+}
+
+// TestCredentialSpec_KeychainLabelTakesPrecedenceOverService verifies that when
+// BOTH keychainLabel: and service: appear in YAML, keychainLabel: wins.
+//
+// WILL FAIL TO COMPILE — CredentialSpec.KeychainLabel does not exist yet.
+func TestCredentialSpec_KeychainLabelTakesPrecedenceOverService(t *testing.T) {
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	y := CredentialYAML{
+		APIVersion: "devopsmaestro.io/v1",
+		Kind:       "Credential",
+		Metadata:   CredentialMetadata{Name: "DUAL_LABEL_CRED", Ecosystem: "testlab"},
+		Spec: CredentialSpec{
+			Source:        "keychain",
+			Service:       "com.example.old-service",
+			KeychainLabel: "com.example.new-label", // should win
+		},
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	cred := &CredentialDB{}
+	cred.FromYAML(y)
+
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	require.NotNil(t, cred.Label,
+		"Label must be populated when keychainLabel: is present in YAML")
+	assert.Equal(t, "com.example.new-label", *cred.Label,
+		"keychainLabel: must take precedence over service: when both are present")
+	// ─────────────────────────────────────────────────────────────────────────
+}
+
+// ---------------------------------------------------------------------------
+// Section: ValidateCredentialYAML keychainType Validation Tests
+// ---------------------------------------------------------------------------
+
+// TestValidateCredentialYAML_KeychainType is a table-driven test verifying
+// that ValidateCredentialYAML accepts only "generic" and "internet" as valid
+// keychainType values (when provided), and rejects anything else.
+//
+// WILL FAIL AT RUNTIME — ValidateCredentialYAML does not yet validate
+// keychainType (the field doesn't exist in CredentialSpec yet either).
+func TestValidateCredentialYAML_KeychainType(t *testing.T) {
+	tests := []struct {
+		name         string
+		keychainType string
+		wantErr      bool
+		errMsg       string
+	}{
+		{
+			name:         "generic is valid",
+			keychainType: "generic",
+			wantErr:      false,
+		},
+		{
+			name:         "internet is valid",
+			keychainType: "internet",
+			wantErr:      false,
+		},
+		{
+			name:         "empty string is valid (defaults to generic)",
+			keychainType: "",
+			wantErr:      false,
+		},
+		{
+			name:         "keychain is rejected (old wrong value)",
+			keychainType: "keychain",
+			wantErr:      true,
+			errMsg:       "keychainType",
+		},
+		{
+			name:         "GENERIC uppercase rejected",
+			keychainType: "GENERIC",
+			wantErr:      true,
+			errMsg:       "keychainType",
+		},
+		{
+			name:         "INTERNET uppercase rejected",
+			keychainType: "INTERNET",
+			wantErr:      true,
+			errMsg:       "keychainType",
+		},
+		{
+			name:         "arbitrary string rejected",
+			keychainType: "plaintext",
+			wantErr:      true,
+			errMsg:       "keychainType",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────
+			// CredentialSpec.KeychainLabel and CredentialSpec.KeychainType
+			// do not exist yet.
+			y := CredentialYAML{
+				APIVersion: "devopsmaestro.io/v1",
+				Kind:       "Credential",
+				Metadata:   CredentialMetadata{Name: "TYPE_TEST", Ecosystem: "testlab"},
+				Spec: CredentialSpec{
+					Source:        "keychain",
+					KeychainLabel: "com.example.label",
+					KeychainType:  tt.keychainType,
+				},
+			}
+			// ─────────────────────────────────────────────────────────────────
+
+			err := ValidateCredentialYAML(y)
+			if tt.wantErr {
+				assert.Error(t, err,
+					"keychainType %q should be rejected by ValidateCredentialYAML", tt.keychainType)
+				assert.Contains(t, err.Error(), tt.errMsg,
+					"error message should mention keychainType")
+			} else {
+				assert.NoError(t, err,
+					"keychainType %q should be accepted by ValidateCredentialYAML", tt.keychainType)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Section: CredentialDB Label and KeychainType Field Tests
+// ---------------------------------------------------------------------------
+
+// TestCredentialDB_LabelField verifies that CredentialDB has a Label field
+// of type *string with the correct db/json tags.
+//
+// WILL FAIL TO COMPILE — CredentialDB.Label does not exist yet.
+func TestCredentialDB_LabelField(t *testing.T) {
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	// CredentialDB.Label field does not exist yet.
+	label := "com.example.db-label"
+	cred := &CredentialDB{
+		Name:   "LABEL_CRED",
+		Source: "keychain",
+		Label:  &label,
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	require.NotNil(t, cred.Label,
+		"CredentialDB.Label should be non-nil when set")
+	assert.Equal(t, "com.example.db-label", *cred.Label,
+		"CredentialDB.Label should store and return the label string")
+}
+
+// TestCredentialDB_KeychainTypeField verifies that CredentialDB has a
+// KeychainType field of type *string with the correct db/json tags.
+//
+// WILL FAIL TO COMPILE — CredentialDB.KeychainType does not exist yet.
+func TestCredentialDB_KeychainTypeField(t *testing.T) {
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	// CredentialDB.KeychainType field does not exist yet.
+	kt := "internet"
+	cred := &CredentialDB{
+		Name:         "KTYPE_CRED",
+		Source:       "keychain",
+		KeychainType: &kt,
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	require.NotNil(t, cred.KeychainType,
+		"CredentialDB.KeychainType should be non-nil when set")
+	assert.Equal(t, "internet", *cred.KeychainType,
+		"CredentialDB.KeychainType should store and return the type string")
+}
+
+// TestCredentialDB_LabelField_NilDefault verifies that a zero-value
+// CredentialDB has a nil Label (the field is optional/*string).
+//
+// WILL FAIL TO COMPILE — CredentialDB.Label does not exist yet.
+func TestCredentialDB_LabelField_NilDefault(t *testing.T) {
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	cred := &CredentialDB{
+		Name:   "NO_LABEL_CRED",
+		Source: "env",
+	}
+	assert.Nil(t, cred.Label,
+		"CredentialDB.Label should default to nil when not set")
+	// ─────────────────────────────────────────────────────────────────────────
+}
+
+// TestCredentialDB_KeychainTypeField_NilDefault verifies that a zero-value
+// CredentialDB has a nil KeychainType.
+//
+// WILL FAIL TO COMPILE — CredentialDB.KeychainType does not exist yet.
+func TestCredentialDB_KeychainTypeField_NilDefault(t *testing.T) {
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	cred := &CredentialDB{
+		Name:   "NO_KTYPE_CRED",
+		Source: "keychain",
+	}
+	assert.Nil(t, cred.KeychainType,
+		"CredentialDB.KeychainType should default to nil when not set")
+	// ─────────────────────────────────────────────────────────────────────────
+}
+
+// ---------------------------------------------------------------------------
+// Section: ToUsernameConfig and ToPasswordConfig Label Propagation
+// ---------------------------------------------------------------------------
+
+// TestToUsernameConfig_Label verifies that ToUsernameConfig propagates the
+// Label field from CredentialDB into the returned CredentialConfig.Label.
+//
+// WILL FAIL TO COMPILE — CredentialDB.Label does not exist yet AND
+// CredentialConfig.Label does not exist yet (must also be added to
+// config/credentials.go).
+func TestToUsernameConfig_Label(t *testing.T) {
+	// ── COMPILE ERRORS EXPECTED BELOW ────────────────────────────────────────
+	// CredentialDB.Label and CredentialConfig.Label do not exist yet.
+	label := "com.example.dual-label"
+	usernameVar := "GH_USER"
+	passwordVar := "GH_PAT"
+	cred := &CredentialDB{
+		Name:        "github-creds",
+		Source:      "keychain",
+		Label:       &label,
+		UsernameVar: &usernameVar,
+		PasswordVar: &passwordVar,
+	}
+
+	cfg := cred.ToUsernameConfig()
+
+	assert.Equal(t, config.SourceKeychain, cfg.Source)
+	assert.Equal(t, "com.example.dual-label", cfg.Label,
+		"ToUsernameConfig must populate Label from CredentialDB.Label")
+	assert.Equal(t, config.KeychainFieldAccount, cfg.Field)
+	// ─────────────────────────────────────────────────────────────────────────
+}
+
+// TestToPasswordConfig_Label verifies that ToPasswordConfig propagates the
+// Label field from CredentialDB into the returned CredentialConfig.Label.
+//
+// WILL FAIL TO COMPILE — CredentialDB.Label does not exist yet AND
+// CredentialConfig.Label does not exist yet.
+func TestToPasswordConfig_Label(t *testing.T) {
+	// ── COMPILE ERRORS EXPECTED BELOW ────────────────────────────────────────
+	// CredentialDB.Label and CredentialConfig.Label do not exist yet.
+	label := "com.example.dual-label"
+	usernameVar := "GH_USER"
+	passwordVar := "GH_PAT"
+	cred := &CredentialDB{
+		Name:        "github-creds",
+		Source:      "keychain",
+		Label:       &label,
+		UsernameVar: &usernameVar,
+		PasswordVar: &passwordVar,
+	}
+
+	cfg := cred.ToPasswordConfig()
+
+	assert.Equal(t, config.SourceKeychain, cfg.Source)
+	assert.Equal(t, "com.example.dual-label", cfg.Label,
+		"ToPasswordConfig must populate Label from CredentialDB.Label")
+	assert.Equal(t, config.KeychainFieldPassword, cfg.Field)
+	// ─────────────────────────────────────────────────────────────────────────
+}
+
+// TestToUsernameConfig_ServiceFallback verifies that ToUsernameConfig falls
+// back to Service when Label is nil (backwards compatibility).
+//
+// WILL FAIL AT RUNTIME — ToUsernameConfig does not yet set cfg.Label.
+func TestToUsernameConfig_ServiceFallback(t *testing.T) {
+	service := "com.example.legacy-service"
+	usernameVar := "GH_USER"
+	cred := &CredentialDB{
+		Name:        "legacy-cred",
+		Source:      "keychain",
+		Service:     &service,
+		UsernameVar: &usernameVar,
+		// Label intentionally nil — should fall back to Service
+	}
+
+	cfg := cred.ToUsernameConfig()
+
+	assert.Equal(t, config.SourceKeychain, cfg.Source)
+	// When Label is nil, the old Service should still be passed through
+	// via cfg.Service for backwards-compat (the credential system falls back)
+	assert.Equal(t, "com.example.legacy-service", cfg.Service,
+		"ToUsernameConfig must still set Service for backwards compat when Label is nil")
+}
+
+// =============================================================================
 // Test Helpers
 // =============================================================================
 

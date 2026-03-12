@@ -19,18 +19,20 @@ const (
 
 // CredentialDB represents a credential configuration stored in the database
 type CredentialDB struct {
-	ID          int64               `db:"id" json:"id"`
-	ScopeType   CredentialScopeType `db:"scope_type" json:"scope_type"`
-	ScopeID     int64               `db:"scope_id" json:"scope_id"`
-	Name        string              `db:"name" json:"name"`
-	Source      string              `db:"source" json:"source"`   // "keychain", "env"
-	Service     *string             `db:"service" json:"service"` // Keychain service name
-	EnvVar      *string             `db:"env_var" json:"env_var"` // Environment variable name
-	Description *string             `db:"description" json:"description"`
-	UsernameVar *string             `db:"username_var" json:"username_var,omitempty"`
-	PasswordVar *string             `db:"password_var" json:"password_var,omitempty"`
-	CreatedAt   time.Time           `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time           `db:"updated_at" json:"updated_at"`
+	ID           int64               `db:"id" json:"id"`
+	ScopeType    CredentialScopeType `db:"scope_type" json:"scope_type"`
+	ScopeID      int64               `db:"scope_id" json:"scope_id"`
+	Name         string              `db:"name" json:"name"`
+	Source       string              `db:"source" json:"source"`   // "keychain", "env"
+	Service      *string             `db:"service" json:"service"` // Keychain service name
+	EnvVar       *string             `db:"env_var" json:"env_var"` // Environment variable name
+	Description  *string             `db:"description" json:"description"`
+	UsernameVar  *string             `db:"username_var" json:"username_var,omitempty"`
+	PasswordVar  *string             `db:"password_var" json:"password_var,omitempty"`
+	Label        *string             `db:"label" json:"label,omitempty"`
+	KeychainType *string             `db:"keychain_type" json:"keychain_type,omitempty"` // "generic" or "internet"
+	CreatedAt    time.Time           `db:"created_at" json:"created_at"`
+	UpdatedAt    time.Time           `db:"updated_at" json:"updated_at"`
 }
 
 // IsDualField returns true if the credential has explicit username or password var names.
@@ -44,8 +46,14 @@ func (c *CredentialDB) ToUsernameConfig() config.CredentialConfig {
 		Source: config.SourceKeychain,
 		Field:  config.KeychainFieldAccount,
 	}
+	if c.Label != nil {
+		cfg.Label = *c.Label
+	}
 	if c.Service != nil {
 		cfg.Service = *c.Service
+	}
+	if c.KeychainType != nil && *c.KeychainType != "" {
+		cfg.KeychainType = config.KeychainType(*c.KeychainType)
 	}
 	return cfg
 }
@@ -56,8 +64,14 @@ func (c *CredentialDB) ToPasswordConfig() config.CredentialConfig {
 		Source: config.SourceKeychain,
 		Field:  config.KeychainFieldPassword,
 	}
+	if c.Label != nil {
+		cfg.Label = *c.Label
+	}
 	if c.Service != nil {
 		cfg.Service = *c.Service
+	}
+	if c.KeychainType != nil && *c.KeychainType != "" {
+		cfg.KeychainType = config.KeychainType(*c.KeychainType)
 	}
 	return cfg
 }
@@ -67,8 +81,14 @@ func (c *CredentialDB) ToConfig() config.CredentialConfig {
 	cfg := config.CredentialConfig{
 		Source: config.CredentialSource(c.Source),
 	}
+	if c.Label != nil {
+		cfg.Label = *c.Label
+	}
 	if c.Service != nil {
 		cfg.Service = *c.Service
+	}
+	if c.KeychainType != nil && *c.KeychainType != "" {
+		cfg.KeychainType = config.KeychainType(*c.KeychainType)
 	}
 	if c.EnvVar != nil {
 		cfg.EnvVar = *c.EnvVar
@@ -119,12 +139,14 @@ type CredentialMetadata struct {
 
 // CredentialSpec contains the credential specification
 type CredentialSpec struct {
-	Source      string `yaml:"source" json:"source"`
-	Service     string `yaml:"service,omitempty" json:"service,omitempty"`
-	EnvVar      string `yaml:"envVar,omitempty" json:"envVar,omitempty"`
-	Description string `yaml:"description,omitempty" json:"description,omitempty"`
-	UsernameVar string `yaml:"usernameVar,omitempty" json:"usernameVar,omitempty"`
-	PasswordVar string `yaml:"passwordVar,omitempty" json:"passwordVar,omitempty"`
+	Source        string `yaml:"source" json:"source"`
+	KeychainLabel string `yaml:"keychainLabel,omitempty" json:"keychainLabel,omitempty"` // Canonical label field
+	Service       string `yaml:"service,omitempty" json:"service,omitempty"`             // DEPRECATED: kept for backward compat
+	KeychainType  string `yaml:"keychainType,omitempty" json:"keychainType,omitempty"`   // "generic" or "internet"
+	EnvVar        string `yaml:"envVar,omitempty" json:"envVar,omitempty"`
+	Description   string `yaml:"description,omitempty" json:"description,omitempty"`
+	UsernameVar   string `yaml:"usernameVar,omitempty" json:"usernameVar,omitempty"`
+	PasswordVar   string `yaml:"passwordVar,omitempty" json:"passwordVar,omitempty"`
 }
 
 // ScopeInfo returns the scope type and scope name from metadata
@@ -170,8 +192,14 @@ func (c *CredentialDB) ToYAML(scopeName string) CredentialYAML {
 	}
 
 	// Set optional fields from pointers
+	if c.Label != nil {
+		y.Spec.KeychainLabel = *c.Label
+	}
 	if c.Service != nil {
 		y.Spec.Service = *c.Service
+	}
+	if c.KeychainType != nil && *c.KeychainType != "" {
+		y.Spec.KeychainType = *c.KeychainType
 	}
 	if c.EnvVar != nil {
 		y.Spec.EnvVar = *c.EnvVar
@@ -195,9 +223,24 @@ func (c *CredentialDB) FromYAML(y CredentialYAML) {
 	c.Name = y.Metadata.Name
 	c.Source = y.Spec.Source
 
+	// Handle keychainLabel / service fields:
+	// - If keychainLabel is set, use it for Label
+	// - If keychainLabel is empty but service is set, use service for BOTH Label AND Service (backward compat)
+	if y.Spec.KeychainLabel != "" {
+		l := y.Spec.KeychainLabel
+		c.Label = &l
+	} else if y.Spec.Service != "" {
+		s := y.Spec.Service
+		c.Label = &s
+	}
+
 	if y.Spec.Service != "" {
 		s := y.Spec.Service
 		c.Service = &s
+	}
+	if y.Spec.KeychainType != "" {
+		kt := y.Spec.KeychainType
+		c.KeychainType = &kt
 	}
 	if y.Spec.EnvVar != "" {
 		e := y.Spec.EnvVar
@@ -254,11 +297,21 @@ func ValidateCredentialYAML(y CredentialYAML) error {
 	}
 
 	// Validate source-specific fields
-	if y.Spec.Source == "keychain" && y.Spec.Service == "" {
-		return fmt.Errorf("service is required for keychain source")
+	if y.Spec.Source == "keychain" && y.Spec.KeychainLabel == "" && y.Spec.Service == "" {
+		return fmt.Errorf("keychainLabel or service is required for keychain source")
 	}
 	if y.Spec.Source == "env" && y.Spec.EnvVar == "" {
 		return fmt.Errorf("env-var is required for env source")
+	}
+
+	// Validate keychainType: must be "generic" or "internet" if set
+	if y.Spec.KeychainType != "" {
+		if y.Spec.Source != "keychain" {
+			return fmt.Errorf("keychainType is only valid with keychain source")
+		}
+		if y.Spec.KeychainType != "generic" && y.Spec.KeychainType != "internet" {
+			return fmt.Errorf("keychainType must be 'generic' or 'internet', got '%s'", y.Spec.KeychainType)
+		}
 	}
 
 	// Validate dual-field vars are only used with keychain source

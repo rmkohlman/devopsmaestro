@@ -10,6 +10,14 @@ import (
 	"strings"
 )
 
+// keychainSubcommand returns the correct security(1) subcommand for the given type.
+func keychainSubcommand(kt KeychainType) string {
+	if kt == KeychainTypeInternet {
+		return "find-internet-password"
+	}
+	return "find-generic-password"
+}
+
 // keychainExitError maps well-known macOS security(1) exit codes to descriptive errors.
 func keychainExitError(exitCode int, service string) error {
 	switch exitCode {
@@ -24,24 +32,26 @@ func keychainExitError(exitCode int, service string) error {
 	}
 }
 
-// GetFromKeychain retrieves a password from macOS Keychain
-func GetFromKeychain(service string) (string, error) {
-	user := os.Getenv("USER")
-	if user == "" {
-		return "", fmt.Errorf("USER environment variable not set")
+// GetFromKeychain retrieves a password from macOS Keychain using label-based lookup.
+// It uses the -l (label) flag instead of -s (service) and does NOT pass -a $USER,
+// allowing it to find entries regardless of which account created them.
+func GetFromKeychain(lookup KeychainLookup) (string, error) {
+	if lookup.Label == "" {
+		return "", fmt.Errorf("keychain label is required")
 	}
 
-	cmd := exec.Command("security", "find-generic-password",
-		"-s", service,
-		"-a", user,
-		"-w")
+	// Determine the security subcommand based on keychain type
+	subcommand := keychainSubcommand(lookup.KeychainType)
+
+	// Use -l (label) instead of -s (service), and do NOT pass -a $USER
+	cmd := exec.Command("security", subcommand, "-l", lookup.Label, "-w")
 
 	output, err := cmd.Output()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
-			return "", keychainExitError(exitErr.ExitCode(), service)
+			return "", keychainExitError(exitErr.ExitCode(), lookup.Label)
 		}
-		return "", fmt.Errorf("keychain lookup failed for %q: %w", service, err)
+		return "", fmt.Errorf("keychain lookup failed for %q: %w", lookup.Label, err)
 	}
 
 	return strings.TrimSpace(string(output)), nil
@@ -99,22 +109,23 @@ func KeychainAvailable() bool {
 // GetAccountFromKeychain retrieves the account (username) field from a macOS Keychain entry.
 // Unlike GetFromKeychain which uses -w to get the password, this function parses
 // the full entry output to extract the "acct" attribute.
-func GetAccountFromKeychain(service string) (string, error) {
-	user := os.Getenv("USER")
-	if user == "" {
-		return "", fmt.Errorf("USER environment variable not set")
+// It uses the -l (label) flag and does NOT pass -a $USER.
+func GetAccountFromKeychain(lookup KeychainLookup) (string, error) {
+	if lookup.Label == "" {
+		return "", fmt.Errorf("keychain label is required")
 	}
 
-	cmd := exec.Command("security", "find-generic-password",
-		"-s", service,
-		"-a", user)
+	subcommand := keychainSubcommand(lookup.KeychainType)
+
+	// Use -l (label), no -a $USER, no -w (need full output to parse acct)
+	cmd := exec.Command("security", subcommand, "-l", lookup.Label)
 
 	output, err := cmd.Output()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
-			return "", keychainExitError(exitErr.ExitCode(), service)
+			return "", keychainExitError(exitErr.ExitCode(), lookup.Label)
 		}
-		return "", fmt.Errorf("keychain lookup failed for %q: %w", service, err)
+		return "", fmt.Errorf("keychain lookup failed for %q: %w", lookup.Label, err)
 	}
 
 	// Parse the "acct" attribute from security output
@@ -122,12 +133,12 @@ func GetAccountFromKeychain(service string) (string, error) {
 	acctRegex := regexp.MustCompile(`"acct"<blob>="([^"]*)"`)
 	matches := acctRegex.FindSubmatch(output)
 	if matches == nil {
-		return "", fmt.Errorf("account field not found in keychain entry for %q", service)
+		return "", fmt.Errorf("account field not found in keychain entry for %q", lookup.Label)
 	}
 
 	account := string(matches[1])
 	if account == "<NULL>" || account == "" {
-		return "", fmt.Errorf("account field is empty in keychain entry for %q", service)
+		return "", fmt.Errorf("account field is empty in keychain entry for %q", lookup.Label)
 	}
 
 	return account, nil

@@ -49,20 +49,22 @@ func createTestCredentialStore(t *testing.T) *SQLDataStore {
 			updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
 
-		// Credentials — includes the post-migration-010 columns
+		// Credentials — includes the post-migration-011 columns
 		`CREATE TABLE credentials (
-			id           INTEGER PRIMARY KEY AUTOINCREMENT,
-			scope_type   TEXT NOT NULL CHECK(scope_type IN ('ecosystem','domain','app','workspace')),
-			scope_id     INTEGER NOT NULL,
-			name         TEXT NOT NULL,
-			source       TEXT NOT NULL CHECK(source IN ('keychain','env')),
-			service      TEXT,
-			env_var      TEXT,
-			description  TEXT,
-			username_var TEXT,
-			password_var TEXT,
-			created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+			id            INTEGER PRIMARY KEY AUTOINCREMENT,
+			scope_type    TEXT NOT NULL CHECK(scope_type IN ('ecosystem','domain','app','workspace')),
+			scope_id      INTEGER NOT NULL,
+			name          TEXT NOT NULL,
+			source        TEXT NOT NULL CHECK(source IN ('keychain','env')),
+			service       TEXT,
+			env_var       TEXT,
+			description   TEXT,
+			username_var  TEXT,
+			password_var  TEXT,
+			label         TEXT,
+			keychain_type TEXT DEFAULT 'generic' CHECK(keychain_type IN ('generic', 'internet')),
+			created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(scope_type, scope_id, name)
 		)`,
 	}
