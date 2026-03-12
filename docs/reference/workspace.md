@@ -76,7 +76,7 @@ spec:
       - hrsh7th/nvim-cmp
       - nvim-telescope/telescope.nvim
       - fatih/vim-go
-    mergeMode: extend
+    mergeMode: append
     customConfig: |
       -- Custom Lua configuration
       vim.opt.relativenumber = true
@@ -128,7 +128,6 @@ spec:
     resources:
       cpus: "2.0"
       memory: "4G"
-      storage: "20G"
 ```
 
 ## Field Reference
@@ -235,6 +234,8 @@ spec:
     type: tmux                      # tmux, zellij, screen
     configPath: ~/.tmux.conf        # Mount this config file
     autostart: true                 # Start on container attach
+    prompt: my-starship-prompt      # TerminalPrompt resource name
+    package: my-terminal-package    # Terminal package name
 ```
 
 ### spec.nvim (optional)
@@ -249,7 +250,7 @@ spec:
     plugins:                        # Individual plugins
       - neovim/nvim-lspconfig
       - fatih/vim-go
-    mergeMode: extend               # extend, replace, merge
+    mergeMode: append               # append (default), replace
     customConfig: |
       vim.opt.relativenumber = true
 ```
@@ -261,9 +262,8 @@ spec:
 - `astronvim` - AstroNvim distribution
 
 **Merge modes:**
-- `extend` - Add plugins to package
-- `replace` - Replace package plugins
-- `merge` - Intelligent merge
+- `append` - Add plugins to the package list (default)
+- `replace` - Replace all package plugins with the workspace's plugin list
 
 ### spec.mounts (optional)
 Container mount points for accessing host filesystem.
@@ -324,7 +324,6 @@ spec:
     resources:
       cpus: "2.0"                  # CPU allocation
       memory: "4G"                 # Memory allocation
-      storage: "20G"               # Storage allocation
 ```
 
 ## Language-Specific Examples

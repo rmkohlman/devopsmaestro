@@ -86,4 +86,4 @@ When implementing major features:
 
 ---
 
-**Last Updated:** 2026-02-04 (v0.7.1)
+**Last Updated:** 2026-03-12 (v0.39.1)

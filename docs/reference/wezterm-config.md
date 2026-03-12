@@ -25,16 +25,14 @@ spec:
   font:
     family: "JetBrainsMono Nerd Font"
     size: 14.0
-    weight: "Regular"
   window:
     opacity: 0.95
-    blur: true
+    blur: 5
     decorations: "RESIZE"
-    padding:
-      left: 8
-      right: 8
-      top: 8
-      bottom: 8
+    paddingLeft: 8
+    paddingRight: 8
+    paddingTop: 8
+    paddingBottom: 8
   colors:
     foreground: "#e1e1e6"
     background: "#0a0a0a"
@@ -108,20 +106,9 @@ spec:
     enabled: true
     position: "bottom"
     fancyTabBar: true
-    style:
-      newTabButton: ">"
-      activeTabLeftEdge: ""
-      activeTabRightEdge: ""
-      inactiveTabLeftEdge: ""
-      inactiveTabRightEdge: ""
+    showNewTab: true
   scrollback: 10000
   workspace: "default"
-  shell:
-    program: "/bin/zsh"
-    args: ["-l"]
-  environment:
-    EDITOR: "nvim"
-    COLORTERM: "truecolor"
 ```
 
 ## Field Reference
@@ -142,11 +129,13 @@ spec:
 | `spec.themeRef` | string | ❌ | Reference to theme library |
 | `spec.leader` | object | ❌ | Leader key configuration |
 | `spec.keys` | array | ❌ | Key binding definitions |
+| `spec.keyTables` | object | ❌ | Named key tables (map of table name → keybindings) |
 | `spec.tabBar` | object | ❌ | Tab bar configuration |
+| `spec.pane` | object | ❌ | Pane appearance settings |
+| `spec.plugins` | array | ❌ | WezTerm plugin configurations |
 | `spec.scrollback` | integer | ❌ | Scrollback buffer size |
 | `spec.workspace` | string | ❌ | Default workspace |
-| `spec.shell` | object | ❌ | Default shell configuration |
-| `spec.environment` | object | ❌ | Environment variables |
+| `spec.enabled` | boolean | ❌ | Enable or disable the config (default: `true`) |
 
 ## Field Details
 
@@ -175,8 +164,6 @@ spec:
   font:
     family: "JetBrainsMono Nerd Font"  # Font family name (required)
     size: 14.0                         # Font size in points (required)
-    weight: "Regular"                  # Font weight (optional)
-    italic: false                      # Italic font (optional)
 ```
 
 **Popular programming fonts:**
@@ -193,15 +180,15 @@ Window appearance and behavior settings.
 spec:
   window:
     opacity: 0.95                      # Window opacity (0.0-1.0)
-    blur: true                         # Enable background blur
+    blur: 5                            # Background blur radius (integer)
     decorations: "RESIZE"              # Window decorations
-    padding:                           # Window padding
-      left: 8
-      right: 8
-      top: 8
-      bottom: 8
-    initialRows: 24                    # Initial window height
-    initialCols: 80                    # Initial window width
+    paddingLeft: 8                     # Left padding in pixels
+    paddingRight: 8                    # Right padding in pixels
+    paddingTop: 8                      # Top padding in pixels
+    paddingBottom: 8                   # Bottom padding in pixels
+    initialRows: 24                    # Initial window height in rows
+    initialCols: 80                    # Initial window width in columns
+    closeOnExit: "Never"               # Close behavior on shell exit
 ```
 
 **Decoration options:**
@@ -310,39 +297,78 @@ Tab bar appearance and behavior.
 spec:
   tabBar:
     enabled: true                      # Show tab bar
-    position: "bottom"                 # Tab bar position
-    fancyTabBar: true                  # Use fancy styling
-    style:                             # Tab styling
-      newTabButton: "+"
-      activeTabLeftEdge: ""
-      activeTabRightEdge: ""
-      inactiveTabLeftEdge: ""
-      inactiveTabRightEdge: ""
+    position: "bottom"                 # Tab bar position ("top" or "bottom")
+    maxWidth: 40                       # Maximum tab width in cells
+    showNewTab: true                   # Show the new tab button
+    fancyTabBar: true                  # Use fancy tab bar styling
+    hideTabBarIfOnly: false            # Hide tab bar when only one tab is open
 ```
 
 **Position options:**
 - `"top"` - Top of window
 - `"bottom"` - Bottom of window
 
-### spec.shell (optional)
-Default shell configuration.
+### spec.keyTables (optional)
+Named key tables for modal keybinding contexts. Each table is a map of table name to a list of keybindings, activated via the `ActivateKeyTable` action.
 
 ```yaml
 spec:
-  shell:
-    program: "/bin/zsh"                # Shell program
-    args: ["-l"]                       # Shell arguments
+  keyTables:
+    resize_pane:
+      - key: "LeftArrow"
+        action: "AdjustPaneSize"
+        args: ["Left", 5]
+      - key: "RightArrow"
+        action: "AdjustPaneSize"
+        args: ["Right", 5]
+      - key: "UpArrow"
+        action: "AdjustPaneSize"
+        args: ["Up", 5]
+      - key: "DownArrow"
+        action: "AdjustPaneSize"
+        args: ["Down", 5]
+    move_tab:
+      - key: "LeftArrow"
+        action: "MoveTabRelative"
+        args: [-1]
+      - key: "RightArrow"
+        action: "MoveTabRelative"
+        args: [1]
 ```
 
-### spec.environment (optional)
-Environment variables for new shells.
+### spec.pane (optional)
+Pane appearance settings for inactive panes.
 
 ```yaml
 spec:
-  environment:
-    EDITOR: "nvim"                     # Default editor
-    COLORTERM: "truecolor"             # Color support
-    TERM: "wezterm"                    # Terminal type
+  pane:
+    inactiveSaturation: 0.9            # Color saturation for inactive panes (0.0-1.0)
+    inactiveBrightness: 0.8            # Brightness for inactive panes (0.0-1.0)
+```
+
+### spec.plugins (optional)
+WezTerm plugin configurations.
+
+```yaml
+spec:
+  plugins:
+    - name: "tabline"                  # Plugin name
+      source: "https://github.com/michaelbrusegard/tabline.wez"  # Plugin source URL
+      config:                          # Plugin-specific configuration
+        options:
+          theme: "Catppuccin Mocha"
+    - name: "bar"
+      source: "https://github.com/adriankarlen/bar.wezterm"
+      config:
+        position: "bottom"
+```
+
+### spec.enabled (optional)
+Enable or disable the WezTerm configuration. Defaults to `true` when omitted.
+
+```yaml
+spec:
+  enabled: false                       # Disable this configuration
 ```
 
 ## Configuration Examples
@@ -376,7 +402,10 @@ spec:
     size: 14.0
   window:
     opacity: 0.95
-    padding: { left: 8, right: 8, top: 8, bottom: 8 }
+    paddingLeft: 8
+    paddingRight: 8
+    paddingTop: 8
+    paddingBottom: 8
   themeRef: "coolnight-synthwave"
   leader:
     key: "a"

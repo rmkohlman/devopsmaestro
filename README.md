@@ -44,7 +44,7 @@ brew install devopsmaestro
 brew install nvimops
 
 # Verify installation
-dvm version   # Should show v0.32.2
+dvm version   # Should show v0.39.1
 nvp version
 ```
 
@@ -444,7 +444,7 @@ dvm registry get-defaults -o yaml                 # Output as YAML
 
 # Git Repository Management (v0.20.0+)
 dvm create gitrepo <name> --url <git-url>         # Create git repository mirror
-dvm create gitrepo <name> --url <url> --auth-type ssh --credential <name>  # With authentication
+dvm create gitrepo <name> --url <url> --auth-type ssh --credential <cred-name>  # With credential
 dvm create gitrepo <name> --url <url> --no-sync  # Create without initial sync
 dvm get gitrepos                                  # List all git repositories
 dvm get gitrepo <name>                            # Get specific repository
@@ -465,6 +465,16 @@ dvm delete <kind> <name>                          # Delete custom resource
 # Configuration
 dvm apply -f workspace.yaml   # Apply YAML configuration
 dvm get platforms             # List detected container platforms
+
+# Credential Management (v0.39.0+)
+dvm create credential <name> --source keychain --keychain-label <label> --ecosystem <eco>
+dvm create credential <name> --source keychain --keychain-label <label> --keychain-type internet --app <app>
+dvm create credential <name> --source env --env-var <VAR> --domain <dom>
+dvm get credentials --all                         # List all credentials
+dvm get credentials -A                            # Same (short form)
+dvm get credentials --app <name>                  # Filter by app scope
+dvm get credential <name> --app <name>            # Get specific credential
+dvm get creds -A                                  # Alias
 ```
 
 ### nvp Commands
@@ -490,7 +500,7 @@ nvp source sync <name> --tag v15.0.0     # Sync specific version
 nvp theme library list        # List available themes (34+ themes)
 nvp theme library show <name> # View theme details  
 nvp theme library install <name> --use
-nvp theme apply -f theme.yaml # Apply theme from file
+nvp apply -f theme.yaml         # Apply theme from file
 
 # Note: Library themes are automatically available, no installation needed
 dvm get nvim themes           # Shows user + library themes (34+ total)
@@ -556,41 +566,86 @@ dvt wezterm apply <name>      # Apply configuration to ~/.wezterm.lua
 
 ---
 
-## Secrets
+## Credentials
 
-DevOpsMaestro supports pluggable secret providers for secure credential management.
+DevOpsMaestro manages credentials as first-class resources scoped to your object hierarchy. Credentials reference secrets stored in the macOS Keychain or environment variables.
 
-### Supported Providers
-
-| Provider | Backend | Platform | Priority |
-|----------|---------|----------|----------|
-| `keychain` | macOS Keychain | macOS | Default on macOS |
-| `env` | Environment variables | All | Fallback |
-
-### Usage
-
-Secrets can be referenced in YAML using inline syntax:
-
-```yaml
-config: |
-  api_key = "${secret:my-api-key}"           # Uses default provider
-  token = "${secret:github-token:keychain}"  # Explicit provider
-```
-
-### Adding Secrets to Keychain
+### Credential Commands (v0.39.0+)
 
 ```bash
-# Add a secret to macOS Keychain for dvm
-security add-generic-password -s devopsmaestro -a github-token -w "your-token-here"
+# Create a credential referencing a macOS Keychain entry (by label)
+dvm create credential github-creds \
+  --source keychain \
+  --keychain-label "github-pat" \
+  --username-var GITHUB_USERNAME \
+  --password-var GITHUB_PAT \
+  --ecosystem myorg
+
+# Create a credential referencing an environment variable
+dvm create credential api-key \
+  --source env \
+  --env-var MY_API_KEY \
+  --app my-api
+
+# Use --keychain-type to select generic vs. internet passwords
+# (default: internet — matches Passwords app, Safari, iCloud Keychain entries)
+dvm create credential docker-hub \
+  --source keychain \
+  --keychain-label "hub.docker.com" \
+  --keychain-type internet \
+  --password-var DOCKER_TOKEN \
+  --domain infra
+
+# For Keychain Access (non-Passwords-app) entries, use --keychain-type generic
+dvm create credential ci-token \
+  --source keychain \
+  --keychain-label "CI Service Token" \
+  --keychain-type generic \
+  --password-var CI_TOKEN \
+  --workspace dev
+
+# List all credentials
+dvm get credentials --all
+dvm get creds -A
+
+# List credentials for a specific scope
+dvm get credentials --app my-api
+dvm get credentials --ecosystem prod
+
+# Get credential details
+dvm get credential github-creds --ecosystem myorg
+
+# Use in gitrepo authentication
+dvm create gitrepo my-private-repo \
+  --url git@github.com:user/repo.git \
+  --auth-type ssh \
+  --credential my-ssh-key
 ```
 
-### Environment Variables
+### Supported Sources
 
-Secrets can also be set via environment variables:
-- `DVM_SECRET_GITHUB_TOKEN` - GitHub API token
-- `DVM_SECRET_<NAME>` - Any secret (uppercase, underscores for dashes)
+| Source | Backend | Flags |
+|--------|---------|-------|
+| `keychain` | macOS Keychain | `--keychain-label`, `--keychain-type`, `--username-var`, `--password-var` |
+| `env` | Environment variable | `--env-var` |
 
-For backward compatibility, `GITHUB_TOKEN` is also checked.
+### Keychain Types
+
+| Type | Description | Use Case |
+|------|-------------|----------|
+| `internet` | Internet passwords (default) | Passwords app, Safari, iCloud Keychain |
+| `generic` | Generic passwords | Keychain Access entries, CLI-created tokens |
+
+### Credential Scopes
+
+Credentials are scoped to exactly one level of the hierarchy:
+
+```bash
+--ecosystem <name>   # Shared across all domains/apps in this ecosystem
+--domain <name>      # Shared across all apps in this domain
+--app <name>         # Available to all workspaces in this app
+--workspace <name>   # Available to this workspace only
+```
 
 ---
 
@@ -1377,18 +1432,27 @@ echo '...' | dvm apply -f -
 ```
 dvm/nvp CLI
     │
-    ├── render/          # Decoupled output formatting
-    ├── db/              # SQLite database layer (dvm)
+    ├── render/          # Decoupled output formatting (Renderer interface)
+    ├── db/              # SQLite database layer (DataStore interface)
+    ├── operators/       # Container runtime abstraction (ContainerRuntime interface)
+    ├── builders/        # Image building (ImageBuilder interface)
     ├── pkg/source/      # Source resolution (file, URL, stdin, GitHub)
     ├── pkg/resource/    # Unified resource interface & handlers
-    │   └── handlers/    # NvimPlugin, NvimTheme handlers
+    │   └── handlers/    # Ecosystem, Domain, App, Workspace, Credential, Registry, CRD...
     ├── pkg/nvimops/     # Plugin/theme management (nvp)
     │   ├── plugin/      # Plugin types, parser, generator
     │   ├── theme/       # Theme types, parser, generator
     │   ├── store/       # Storage interfaces
     │   └── library/     # Embedded plugin/theme library
-    ├── operators/       # Container runtime abstraction
-    └── builders/        # Image building (Docker, BuildKit)
+    ├── pkg/terminalops/ # Terminal prompt/plugin management (dvt)
+    ├── pkg/registry/    # Registry type implementations (Zot, devpi, Verdaccio, Athens, Squid)
+    ├── pkg/secrets/     # Secret provider system (Keychain, env)
+    ├── pkg/crd/         # Custom Resource Definition support
+    ├── pkg/colors/      # Color/theme provider system
+    ├── pkg/mirror/      # Git repository mirror management
+    ├── pkg/resolver/    # Workspace/hierarchy resolution helpers
+    ├── pkg/preflight/   # Pre-flight health checks (registry validation)
+    └── pkg/workspace/   # Workspace path and directory helpers
 ```
 
 ---

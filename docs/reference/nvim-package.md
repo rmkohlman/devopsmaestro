@@ -48,85 +48,6 @@ spec:
     
     # Code formatting
     - stevearc/conform.nvim
-  
-  defaultConfig:
-    # LSP servers to install
-    lspServers:
-      - gopls
-      - golangci-lint-ls
-    
-    # Formatters
-    formatters:
-      - gofmt
-      - goimports
-      - golines
-    
-    # Linters  
-    linters:
-      - golangci-lint
-      - staticcheck
-    
-    # Debuggers
-    debuggers:
-      - delve
-    
-    # Test frameworks
-    testFrameworks:
-      - go-test
-      - testify
-  
-  configuration: |
-    -- Go LSP setup
-    require('lspconfig').gopls.setup({
-      capabilities = capabilities,
-      settings = {
-        gopls = {
-          analyses = {
-            unusedparams = true,
-            shadow = true,
-          },
-          staticcheck = true,
-          gofumpt = true,
-        },
-      },
-    })
-    
-    -- Go.nvim setup
-    require('go').setup({
-      go = "go",
-      goimport = "gopls",
-      fillstruct = "gopls",
-      dap_debug = true,
-      dap_debug_gui = true,
-    })
-    
-    -- DAP Go setup
-    require('dap-go').setup()
-    
-    -- Neotest Go setup
-    require('neotest').setup({
-      adapters = {
-        require('neotest-go')({
-          experimental = {
-            test_table = true,
-          },
-          args = { "-count=1", "-timeout=60s" }
-        }),
-      },
-    })
-    
-    -- Go-specific keymaps
-    vim.api.nvim_create_autocmd("FileType", {
-      pattern = "go",
-      callback = function()
-        local opts = { buffer = true }
-        vim.keymap.set("n", "<leader>gr", "<cmd>GoRun<cr>", opts)
-        vim.keymap.set("n", "<leader>gt", "<cmd>GoTest<cr>", opts)
-        vim.keymap.set("n", "<leader>gT", "<cmd>GoTestFile<cr>", opts)
-        vim.keymap.set("n", "<leader>gc", "<cmd>GoCoverage<cr>", opts)
-        vim.keymap.set("n", "<leader>gd", "<cmd>GoDebug<cr>", opts)
-      end,
-    })
 ```
 
 ## Field Reference
@@ -143,8 +64,7 @@ spec:
 | `metadata.annotations` | object | ❌ | Key-value annotations |
 | `spec.extends` | string | ❌ | Parent package to extend |
 | `spec.plugins` | array | ✅ | List of plugin names |
-| `spec.defaultConfig` | object | ❌ | Default configuration values |
-| `spec.configuration` | string | ❌ | Lua configuration code |
+| `spec.enabled` | boolean | ❌ | Enable or disable the package (default: `true`) |
 
 ## Field Details
 
@@ -208,46 +128,12 @@ spec:
 - Short name: `telescope` (references local plugin)
 - Hyphenated: `cmp-nvim-lsp`
 
-### spec.defaultConfig (optional)
-Default configuration values for tools and plugins.
+### spec.enabled (optional)
+Enable or disable the package. Defaults to `true`. When set to `false`, the package is stored but not applied.
 
 ```yaml
 spec:
-  defaultConfig:
-    lspServers:                      # LSP servers to install
-      - gopls
-      - rust-analyzer
-    formatters:                      # Code formatters
-      - prettier
-      - black
-    linters:                         # Code linters
-      - eslint
-      - flake8
-    debuggers:                       # Debug adapters
-      - node2
-      - debugpy
-    testFrameworks:                  # Test frameworks
-      - jest
-      - pytest
-    treesitterParsers:              # Treesitter parsers
-      - go
-      - lua
-      - python
-```
-
-### spec.configuration (optional)
-Lua configuration code executed when the package is loaded.
-
-```yaml
-spec:
-  configuration: |
-    -- Package-specific configuration
-    require('lspconfig').gopls.setup({
-      capabilities = capabilities,
-    })
-    
-    -- Keymaps for this package
-    vim.keymap.set("n", "<leader>gr", "<cmd>GoRun<cr>")
+  enabled: false   # Disable this package
 ```
 
 ## Built-in Packages
@@ -291,9 +177,6 @@ spec:
     - fatih/vim-go
     - ray-x/go.nvim
     - leoluz/nvim-dap-go
-  defaultConfig:
-    lspServers: ["gopls"]
-    formatters: ["gofmt", "goimports"]
 ```
 
 #### Python Development
@@ -310,9 +193,6 @@ spec:
   plugins:
     - nvim-neotest/neotest-python
     - mfussenegger/nvim-dap-python
-  defaultConfig:
-    lspServers: ["pyright", "ruff-lsp"]
-    formatters: ["black", "isort"]
 ```
 
 #### TypeScript Development
@@ -329,9 +209,6 @@ spec:
   plugins:
     - nvim-neotest/neotest-jest
     - mfussenegger/nvim-dap-node2
-  defaultConfig:
-    lspServers: ["tsserver", "eslint"]
-    formatters: ["prettier"]
 ```
 
 ### Framework Packages
@@ -350,8 +227,6 @@ spec:
   plugins:
     - windwp/nvim-ts-autotag
     - JoosepAlviste/nvim-ts-context-commentstring
-  defaultConfig:
-    lspServers: ["tsserver", "tailwindcss"]
 ```
 
 ### Specialty Packages
@@ -451,7 +326,7 @@ spec:
     pluginPackage: golang-dev       # Use the package
     plugins:                        # Add extra plugins
       - github/copilot.vim
-    mergeMode: extend               # Extend package
+    mergeMode: append               # Extend package
 ```
 
 ### Export Package
@@ -473,13 +348,12 @@ spec:
   nvim:
     pluginPackage: golang-dev
     plugins: [github/copilot.vim]
-    mergeMode: extend               # How to merge
+    mergeMode: append               # How to merge
 ```
 
 **Merge modes:**
-- `extend` - Add workspace plugins to package plugins
+- `append` - Add workspace plugins to package plugins (default)
 - `replace` - Replace package plugins with workspace plugins
-- `merge` - Intelligent merge (deduplicate, override configs)
 
 ## Best Practices
 
@@ -516,6 +390,5 @@ spec:
 - `metadata.name` must be a valid DNS subdomain
 - `spec.extends` must reference an existing package
 - `spec.plugins` must be valid plugin references
-- `spec.configuration` must be valid Lua code
 - Package inheritance must not create circular dependencies
 - Package names must not conflict with built-in packages

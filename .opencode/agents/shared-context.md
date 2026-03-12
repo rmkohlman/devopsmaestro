@@ -9,7 +9,7 @@
 **DevOpsMaestro** is a kubectl-style CLI toolkit for managing containerized development environments with a GitOps mindset.
 
 - **Module**: `devopsmaestro` (Go 1.25.0)
-- **Current Version**: v0.32.6
+- **Current Version**: v0.39.1
 - **Codebase**: 150K+ lines of Go across 28 packages and 550+ files
 
 ### Two Binaries
@@ -90,12 +90,13 @@ cmd/ (thin CLI layer, delegates to packages)
 
 ```
 cmd/           -> CLI commands (Cobra) - thin, delegates to packages (~22K lines)
-db/            -> DataStore interface + SQLite implementation (~20K lines)
+db/            -> DataStore interface + SQLite implementation + migrations (~20K lines)
+  migrations/
+    sqlite/    -> Migration SQL files (001–012, latest: 012_change_keychain_type_default)
 operators/     -> ContainerRuntime interface + implementations (~5.9K lines)
 builders/      -> ImageBuilder interface + implementations (~4.5K lines)
 render/        -> Renderer interface + implementations (~2.8K lines)
 models/        -> Data models (no business logic) (~4.2K lines)
-migrations/    -> Database migrations (sqlite/)
 config/        -> Configuration handling (~741 lines)
 utils/         -> Utility functions (~410 lines)
 ui/            -> UI components (~1.5K lines)

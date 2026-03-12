@@ -109,7 +109,11 @@ Auto-migration now runs ONLY on first run after an upgrade by tracking the binar
 ### Development Version
 ```bash
 # During development with version "dev"
-./dvm status  # Every run
+./dvm status  # First run (or first run after changing from a real version)
 # → Version file shows "dev"
-# → Still gets fast path behavior during development
+# → Runs migration check, applies if needed, saves "dev"
+
+./dvm status  # Subsequent runs (same "dev" version)
+# → Fast path: skips migration check ("dev" == "dev")
+# → To force a migration check during development, run: ./dvm admin migrate
 ```

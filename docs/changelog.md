@@ -4,6 +4,200 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.39.1 (2026-03-12)
+
+**🐛 Change Default Keychain Type to "internet"**
+
+Fixes silent lookup failures for credentials stored via the macOS Passwords app (macOS Sequoia's primary password manager), which exclusively creates `inet` (internet password) entries.
+
+- **Default changed** — `--keychain-type` now defaults to `internet` (`find-internet-password`); credentials stored by the Passwords app, Safari, or iCloud Keychain resolve without extra flags
+- **Help text updated** — `--keychain-type` flag description reflects the new default; `generic` must now be specified explicitly for Keychain Access (non-Passwords-app) entries
+- **DB migration 012** — Migrates all existing credentials with `keychain_type = "generic"` to `"internet"` so credentials created under v0.39.0's old default are automatically updated
+
+**⚠️ Breaking change:** Users on v0.39.0 who explicitly needed `generic`-type entries and did not pass `--keychain-type generic` must now do so. Since `--keychain-type` was introduced in v0.39.0 (released the same day), no users had a release window to depend on the old default.
+
+### v0.39.0 (2026-03-12)
+
+**✨ Keychain Label-Based Lookup**
+
+Users can now look up macOS keychain entries by **label** (the display name visible in Keychain Access / Passwords app) instead of service name — enabling portable, team-shareable credential configs.
+
+- **`--keychain-label` flag (`-l`)** — identifies keychain entries by display label instead of service/domain string
+- **`--keychain-type generic|internet` flag** — explicitly selects Generic Passwords (Keychain Access) or Internet Passwords (Passwords app / Safari); no silent fallback between types
+- **`keychainLabel:` in YAML** — portable label reference; team members only need a Keychain entry with a matching label; no machine-specific service URLs in shared configs
+- **`keychainType:` in YAML** — explicit keychain class in credential YAML specs
+- **`--service` deprecated** — still works with a cobra deprecation warning; migrate to `--keychain-label`
+- **`service:` YAML field deprecated** — still parsed for backward compatibility; `keychainLabel:` is now canonical
+- **DB migration 011** — adds `label` + `keychain_type` columns, backfills label from existing service values
+- 37 new tests across 4 test files
+
+### v0.38.2 (2026-03-12)
+
+**🐛 Credential Resolution Robustness**
+
+Three bugs that caused silent credential failures during `dvm build` and `dvm attach`:
+
+- **(P0) Invisible errors** — `loadBuildCredentials()` now returns warnings displayed via `render.Warning()`; credential resolution failures are surfaced immediately instead of being silently logged
+- **(P1) Env var fallback gap** — `ResolveCredentialsWithErrors()` now rescues failed keychain lookups with matching env vars; the "env vars always win" contract is enforced correctly
+- **(P1) Missing `-a $USER` filter** — `GetAccountFromKeychain()` now filters by current system user (consistent with all other keychain functions); prevents returning wrong account on multi-account machines
+
+14 new tests across 3 test files.
+
+### v0.38.1 (2026-03-12)
+
+**🐛 Fix Python HTTPS Token Substitution**
+
+Two bugs that broke Dockerfile credential injection for Python workspaces with private repos:
+
+- **SSH regex false positive** — `sshGitPattern` matched `.git@v1.0` version pins in HTTPS URLs, misclassifying them as SSH; fixed to require `git@` not preceded by a dot
+- **Dispatch chain priority error** — replaced `if NeedsSSH / else if RequiredBuildArgs` chain with a `switch` on `GitURLType`; HTTPS, SSH, Mixed, and plain cases are now independent and cannot shadow each other
+
+12 new subtests across 2 test files.
+
+### v0.38.0 (2026-03-12)
+
+**✨ Dockerfile Generator Purity & Robustness**
+
+Seven structural improvements eliminating heuristics, injecting dependencies, and propagating errors:
+
+- **(D2 Bug)** `isAlpineImage()` uses computed `isAlpine` field (set during base stage generation) instead of `language == "golang"` heuristic
+- **(A2 Bug)** `getDefaultPackages()` uses `isAlpineImage()` instead of direct `strings.Contains()` — both callers are now consistent
+- **(A1)** `effectiveVersion()` method centralizes language-default version resolution across all 3 language branches
+- **(A4)** `activeBuilderStages()` computed once and passed to both `emitBuilderStages()` and `emitCopyFromBuilders()` — eliminates stage mismatch window
+- **(A5 Internal)** `NewDockerfileGenerator()` now accepts `DockerfileGeneratorOptions` struct (replaces 6 positional parameters)
+- **(D3)** `PathConfig` injection via options struct — `generateNvimSection()` uses injected path, no more `os.UserHomeDir()` calls in production
+- **(D1)** `generateNvimSection()` returns `error`; `Generate()` propagates it — no more silent nvim config failures
+
+6 new tests.
+
+### v0.37.5 (2026-03-12)
+
+**✨ BuildKit Structural Improvements**
+
+- **Tree-sitter dynamic versioning** — version fetched from GitHub API at build time (same pattern as lazygit); replaces hardcoded `v0.24.6`
+- **Nil workspace guard** — `Generate()` returns `fmt.Errorf` instead of panicking on nil workspace
+- **`builderStage` struct** — single source of truth for which builder stages are emitted and copied; eliminates the mirrored-conditional window
+- **Fail-fast on unknown architecture** — all 4 builder stages `exit 1` on unsupported arch instead of silently falling back to x86_64
+- **`effectiveUser()` helper** — `generateNvimSection()` uses configured user instead of hardcoded `/home/dev/`
+- **Lazygit download consolidation** — Alpine and Debian paths share common download logic section
+
+6 new tests.
+
+### v0.37.4 (2026-03-12)
+
+**🔨 BuildKit Builder Stage Robustness**
+
+Hardened all 5 Dockerfile builder stages to eliminate silent download failures (e.g., `"/usr/local/bin/starship": not found`):
+
+- **`curlFlags` constant** — centralized `−fsSL --retry 3 --connect-timeout 30` across all builder stages
+- **`set -e` in all builder `RUN` commands** — any command failure immediately aborts the stage
+- **Download-to-file pattern** — starship and golangci-lint replaced pipe-to-shell with download-then-execute
+- **`test -x` binary verification** — every builder stage asserts its binary exists and is executable before completing
+- **Lazygit `[ -n "$LAZYGIT_VERSION" ]` guard** — fails explicitly if the GitHub API returns empty
+
+6 new tests.
+
+### v0.37.3 (2026-03-12)
+
+**🔒 Security Hardening**
+
+- **(HIGH)** Checksum verification for downloaded registry binaries using `crypto/subtle.ConstantTimeCompare()`; `io.LimitReader` caps body reads at 500 MB
+- **(MEDIUM)** Defensive 5-minute timeout on Athens binary downloads
+- **(MEDIUM)** Config and log file permissions hardened from 0644 → 0600 in all 5 registry managers
+- **(MEDIUM)** Storage path validation (`validateStoragePath()`) in `pkg/registry/strategy.go` — rejects path-traversal attempts
+- **(LOW)** Minimum idle timeout enforcement (60 s minimum for on-demand registries)
+
+12 new tests.
+
+### v0.37.2 (2026-03-12)
+
+**🐛 Registry Bug Fixes**
+
+- **(P0)** `downloadBinary()` applies a defensive 5-minute context timeout — prevents indefinite hangs on slow networks
+- **(P1)** Log file handle stored in struct and closed in `Stop()` — prevents premature close while child Zot process still writes
+- **(P1)** All 4 registry creation paths set version from strategy's `GetDefaultVersion()` — fixes empty version string causing `EnsureBinary()` to skip reconciliation
+- **(P2)** Idle timer callback wrapped in goroutine — eliminates latent deadlock across all 5 registry manager types
+
+4 new tests.
+
+### v0.37.1 (2026-03-11)
+
+**✨ Keychain Dual-Field Credentials**
+
+A single `dvm create credential` can now extract both the account (username) and password from one macOS Keychain entry:
+
+- **`--username-var <VAR>`** — env var name for the Keychain account field
+- **`--password-var <VAR>`** — env var name for the Keychain password field
+- **`CredentialsToMap()` fanout** — 1 DB row → 2 `CredentialConfig` entries
+- **DB migration 010** — adds `username_var` + `password_var` columns
+- **YAML apply support** — `usernameVar` / `passwordVar` in credential YAML specs
+
+Example:
+```bash
+dvm create credential github-creds \
+  --source keychain --service github.com \
+  --username-var GITHUB_USERNAME \
+  --password-var GITHUB_PAT \
+  --ecosystem myorg
+```
+
+42 new tests.
+
+### v0.37.0 (2026-03-11)
+
+**✨ Runtime Credential & Env Injection**
+
+- **Runtime credential injection** — `dvm attach` injects credentials from the 5-layer hierarchy into the running container via `loadBuildCredentials()`
+- **Runtime registry env injection** — `loadRegistryEnv()` generates `PIP_INDEX_URL`, `GOPROXY`, `NPM_CONFIG_REGISTRY`, etc. at attach time
+- **4-map merge policy** — `buildRuntimeEnv` merges theme → registry → credentials → workspace env; metadata vars (`DVM_*`) always applied last
+- **`--env KEY=VALUE` flag** on `dvm create workspace` — inline env var setting at creation time; validates POSIX names and blocks `DVM_*` reserved prefix
+- **Bootstrap all 5 default registries** on `dvm admin init` — OCI (zot:5001), PyPI (devpi:5002), npm (verdaccio:5003), Go (athens:5004), HTTP (squid:5005)
+- **Shell-escape Colima env values** — single-quote wrapping prevents shell injection
+- **Expanded `NO_PROXY`** — adds RFC1918 ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
+
+~25 new tests across 5 test files.
+
+### v0.36.1 (2026-03-11)
+
+**✨ Default OCI Registry on Init**
+
+`dvm admin init` now auto-creates a default Zot OCI registry (port 5001, on-demand lifecycle) so `dvm build` works out-of-the-box without manual `dvm registry enable oci`. Idempotent — re-running init skips creation if registry already exists.
+
+5 new tests.
+
+### v0.36.0 (2026-03-11)
+
+**✨ Credential Injection & Bug Fixes**
+
+- **SQLite foreign key enforcement** — `_foreign_keys=on` DSN parameter + PRAGMA verification; cascade deletes now propagate correctly
+- **GitRepo single-item render fix** — `dvm get gitrepo <name>` now renders with `KeyValueData` instead of raw `map[string]interface{}`
+- **GitRepo `--credential` flag wired** — previously registered but discarded as dead code; now validates and stores the credential reference
+- **Runtime env injection** — `dvm attach` injects workspace env vars and theme env vars into the container
+- **Workspace `env` field** — DB migration 009; `GetEnv()`/`SetEnv()` helpers; round-trips through `ToYAML()`/`FromYAML()`
+- **Build-arg credential redaction** — `redactBuildArgs()` replaces credential values with `***REDACTED***` in logged Docker build-arg strings
+- **`pkg/envvalidation/` package** — POSIX env var name validation, dangerous env var denylist (`LD_PRELOAD`, `DYLD_INSERT_LIBRARIES`, etc.)
+
+### v0.35.2 (2026-03-12)
+
+**🐛 Registry Binary Version Reconciliation Fix**
+
+- **`GetVersion()` reads Zot stderr correctly** — previously ran `zot version` (invalid subcommand) and always returned empty string; now reads `--version` JSON from stderr
+- **Backup/rollback preserved** — failed binary downloads restore the previous working binary so the registry remains runnable
+- **Defensive timeout on Athens downloads** — mirrors the Zot fix
+
+### v0.35.1 (2026-03-12)
+
+**✨ Declarative Registry Version Management**
+
+- **`--version` flag on `dvm create registry`** — specifies desired binary version at creation time; validated as semver
+- **VERSION column** in `dvm get registries` table output
+- **Version in `dvm get registry <name>`** detail view and `-o yaml` output
+- **`GetDefaultVersion()` interface method** on `RegistryStrategy` — Zot returns `"2.1.15"`, others `""`
+- **`EnsureBinary()` version reconciliation** — checks installed vs. desired version on every start; downloads correct version if mismatched
+- **DB migration 008** — adds `version` column to `registries` table
+
+8 new manual test scenarios (Scenarios 32–39).
+
 ### v0.35.0 (2026-03-11)
 
 **✨ Credential CLI Feature**
@@ -577,6 +771,22 @@ See the [full migration guide](https://github.com/rmkohlman/devopsmaestro/blob/m
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **0.39.1** | 2026-03-12 | Default keychain type changed to "internet" — fixes Passwords app / Safari / iCloud Keychain silent failures; DB migration 012 |
+| **0.39.0** | 2026-03-12 | Keychain label-based lookup — `--keychain-label`, `--keychain-type`, `keychainLabel:` YAML, internet password support; `--service` deprecated |
+| **0.38.2** | 2026-03-12 | Credential resolution robustness — visible warnings, env var rescue, keychain `-a $USER` filter |
+| **0.38.1** | 2026-03-12 | Python HTTPS token substitution fix — SSH regex false positive + dispatch chain priority error |
+| **0.38.0** | 2026-03-12 | Dockerfile generator purity — computed Alpine detection, options struct, PathConfig injection, error propagation |
+| **0.37.5** | 2026-03-12 | BuildKit structural improvements — dynamic tree-sitter versioning, builderStage struct, arch fail-fast, custom user nvim fix |
+| **0.37.4** | 2026-03-12 | Builder stage robustness — curl retry, binary verification, set -e, download-to-file pattern |
+| **0.37.3** | 2026-03-12 | Security hardening — checksum verification, file permissions 0600, storage path validation, idle timeout minimum |
+| **0.37.2** | 2026-03-12 | Registry bug fixes — download timeout, log file lifecycle, version defaults, idle timer deadlock |
+| **0.37.1** | 2026-03-11 | Keychain dual-field credentials — single keychain entry yields username + password env vars |
+| **0.37.0** | 2026-03-11 | Runtime credential & env injection — credentials, registry env, workspace env injected into containers at attach time |
+| **0.36.1** | 2026-03-11 | Default OCI registry auto-created on `dvm admin init` |
+| **0.36.0** | 2026-03-11 | Credential injection & bug fixes — cascade deletes, gitrepo render, build arg redaction, env validation package |
+| **0.35.2** | 2026-03-12 | Registry binary version reconciliation fix — Zot `GetVersion()` stderr parsing, backup/rollback |
+| **0.35.1** | 2026-03-12 | Declarative registry version management — `--version` flag, VERSION column, `EnsureBinary()` reconciliation |
+| **0.35.0** | 2026-03-11 | Credential CLI feature — `create`, `get`, `list`, `delete`, `apply` commands for credentials |
 | **0.32.8** | 2026-03-05 | library list quoted args fix, library show nvim/terminal-package, set theme flag fix, create branch command |
 | **0.32.1** | 2026-03-04 | Error handling fixes, watchdog refactor, improved GitRepo resolution |
 | **0.32.0** | 2026-03-04 | `--repo` flag for app creation, Docker build hang fix on Colima |

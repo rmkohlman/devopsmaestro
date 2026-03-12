@@ -25,9 +25,6 @@ spec:
   language:
     name: go
     version: "1.22"
-  repo:
-    url: "https://github.com/company/api-service"
-    branch: "main"
   build:
     dockerfile: ./Dockerfile
     target: production
@@ -78,7 +75,6 @@ spec:
 | `metadata.annotations` | object | ❌ | Key-value annotations for metadata |
 | `spec.path` | string | ✅ | Absolute path to source code |
 | `spec.language` | object | ❌ | Programming language configuration |
-| `spec.repo` | object | ❌ | Repository information |
 | `spec.build` | object | ❌ | Build configuration |
 | `spec.dependencies` | object | ❌ | Dependency management |
 | `spec.services` | array | ❌ | External services (databases, etc.) |
@@ -137,16 +133,6 @@ spec:
 - `rust` - Rust
 - `java` - Java
 - `dotnet` - .NET/C#
-
-### spec.repo (optional)
-Repository information for the source code.
-
-```yaml
-spec:
-  repo:
-    url: "https://github.com/company/api-service"
-    branch: "main"    # Optional: default branch
-```
 
 ### spec.build (optional)
 Build configuration for containerization.

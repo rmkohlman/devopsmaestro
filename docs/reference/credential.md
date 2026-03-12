@@ -15,7 +15,8 @@ metadata:
   app: api-service           # Scoped to this app
 spec:
   source: keychain
-  service: com.github.token
+  keychainLabel: "GitHub PAT"
+  keychainType: internet
   description: "GitHub PAT for pulling private packages"
 ```
 
@@ -29,7 +30,8 @@ metadata:
   ecosystem: prod-platform   # Scoped to this ecosystem
 spec:
   source: keychain
-  service: com.registry.docker
+  keychainLabel: "hub.docker.com"
+  keychainType: internet
   description: "Docker Hub credentials"
   usernameVar: DOCKER_USERNAME   # Injected as this env var (from keychain account field)
   passwordVar: DOCKER_PASSWORD   # Injected as this env var (from keychain password field)
@@ -61,7 +63,9 @@ spec:
 | `metadata.app` | string | ❌ | Scope to an app (exactly one scope required) |
 | `metadata.workspace` | string | ❌ | Scope to a workspace (exactly one scope required) |
 | `spec.source` | string | ✅ | Where the secret lives: `keychain` or `env` |
-| `spec.service` | string | ✅ (keychain) | macOS Keychain service name — required when `source: keychain` |
+| `spec.keychainLabel` | string | ✅ (keychain) | macOS Keychain label — required when `source: keychain` (preferred over `service`) |
+| `spec.keychainType` | string | ❌ | Keychain item type: `generic` or `internet` (default: `internet`) |
+| `spec.service` | string | ❌ | **Deprecated.** Keychain service name — use `keychainLabel` instead |
 | `spec.envVar` | string | ✅ (env) | Environment variable name — required when `source: env` |
 | `spec.description` | string | ❌ | Human-readable description of the credential |
 | `spec.usernameVar` | string | ❌ | Env var name to receive the keychain account field (keychain only) |
@@ -95,19 +99,37 @@ Defines where the secret value is stored at runtime.
 
 | Value | Description |
 |-------|-------------|
-| `keychain` | macOS Keychain item (requires `spec.service`) |
+| `keychain` | macOS Keychain item (requires `spec.keychainLabel`) |
 | `env` | Host environment variable (requires `spec.envVar`) |
 
-### spec.service (required for keychain)
-The macOS Keychain service name used to look up the item.
+### spec.keychainLabel (required for keychain)
+The macOS Keychain entry label used to look up the item. This is the display name shown in Keychain Access (for `generic` type) or in the Passwords app and Safari (for `internet` type).
 
 ```yaml
 spec:
   source: keychain
-  service: com.github.token   # Keychain service identifier
+  keychainLabel: "GitHub PAT"   # Keychain entry label
 ```
 
 The Keychain item's **password field** is the value retrieved by default. Use `usernameVar` / `passwordVar` to split a single Keychain entry into two environment variables.
+
+### spec.keychainType (optional, keychain only)
+Controls which macOS keychain store is searched:
+
+| Value | Description |
+|-------|-------------|
+| `internet` | Internet password item — appears in the Passwords app, Safari autofill, and iCloud Keychain (default) |
+| `generic` | Generic password item — appears only in the Keychain Access app |
+
+```yaml
+spec:
+  source: keychain
+  keychainLabel: "hub.docker.com"
+  keychainType: internet   # default; searches the Passwords app / iCloud Keychain
+```
+
+### spec.service (deprecated)
+**Deprecated since v0.39.0.** Use `spec.keychainLabel` instead. Existing credentials that use `spec.service` continue to work — the value is treated as the keychain label.
 
 ### spec.envVar (required for env)
 The name of a host environment variable. The value is read at resolution time from `os.Getenv`.
@@ -129,7 +151,7 @@ Both are optional and independent — you can specify one or both.
 ```yaml
 spec:
   source: keychain
-  service: com.registry.docker
+  keychainLabel: "hub.docker.com"
   usernameVar: DOCKER_USERNAME   # account field → DOCKER_USERNAME
   passwordVar: DOCKER_PASSWORD   # password field → DOCKER_PASSWORD
 ```
@@ -177,11 +199,13 @@ dvm create cred <name> [flags]        # Alias
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
 | `--source` | string | ✅ | Secret source: `keychain` or `env` |
-| `--service` | string | ✅ (keychain) | Keychain service name |
+| `--keychain-label` | string | ✅ (keychain) | Keychain entry label — display name in Keychain Access or Passwords app |
+| `--keychain-type` | string | ❌ | Keychain item type: `generic` or `internet` (default: `internet`) |
 | `--env-var` | string | ✅ (env) | Environment variable name |
 | `--description` | string | ❌ | Human-readable description |
 | `--username-var` | string | ❌ | Env var for keychain account field (keychain only) |
 | `--password-var` | string | ❌ | Env var for keychain password field (keychain only) |
+| `--service` | string | ❌ | **Deprecated.** Keychain service name — use `--keychain-label` instead |
 
 **Scope flags (exactly one required):**
 
@@ -195,9 +219,9 @@ dvm create cred <name> [flags]        # Alias
 **Examples:**
 
 ```bash
-# Keychain credential scoped to an app
+# Keychain credential scoped to an app (internet type — Passwords app / iCloud)
 dvm create credential github-token \
-  --source keychain --service com.github.token \
+  --source keychain --keychain-label "GitHub PAT" \
   --app my-api
 
 # Environment variable credential scoped to an ecosystem
@@ -207,14 +231,16 @@ dvm create credential api-key \
 
 # Dual-field keychain credential scoped to a domain
 dvm create credential docker-registry \
-  --source keychain --service com.registry.docker \
+  --source keychain --keychain-label "hub.docker.com" \
+  --keychain-type internet \
   --username-var DOCKER_USERNAME \
   --password-var DOCKER_PASSWORD \
   --domain backend
 
-# With description
+# Generic keychain entry (Keychain Access app) with description
 dvm create cred db-pass \
-  --source keychain --service com.db.password \
+  --source keychain --keychain-label "Postgres prod" \
+  --keychain-type generic \
   --description "Postgres prod password" \
   --app my-api
 ```
@@ -253,7 +279,8 @@ dvm get cred db-pass --domain backend
 Name:      github-token
 Scope:     app (ID: 3)
 Source:    keychain
-Service:   com.github.token
+Label:     GitHub PAT
+Type:      internet
 Desc:      GitHub PAT for pulling private packages
 ```
 
@@ -345,14 +372,16 @@ metadata:
   app: api-service
 spec:
   source: keychain
-  service: com.github.token
+  keychainLabel: "GitHub PAT"
+  keychainType: internet
   description: "GitHub PAT with read:packages scope"
 ```
 
 **Create equivalent:**
 ```bash
 dvm create credential github-token \
-  --source keychain --service com.github.token \
+  --source keychain --keychain-label "GitHub PAT" \
+  --keychain-type internet \
   --app api-service
 ```
 
@@ -370,7 +399,8 @@ metadata:
   ecosystem: prod-platform
 spec:
   source: keychain
-  service: com.registry.docker
+  keychainLabel: "hub.docker.com"
+  keychainType: internet
   description: "Docker Hub login"
   usernameVar: DOCKER_USERNAME
   passwordVar: DOCKER_PASSWORD
@@ -411,7 +441,8 @@ metadata:
   ecosystem: prod-platform
 spec:
   source: keychain
-  service: com.github.prod.token
+  keychainLabel: "GitHub PAT (prod)"
+  keychainType: internet
 ---
 # App-level: overrides the ecosystem credential for this specific app
 apiVersion: devopsmaestro.io/v1
@@ -421,7 +452,8 @@ metadata:
   app: special-service
 spec:
   source: keychain
-  service: com.github.special.token
+  keychainLabel: "GitHub PAT (special-service)"
+  keychainType: internet
   description: "Separate token for this app's private repos"
 ```
 
@@ -442,16 +474,20 @@ dvm apply -f all-credentials.yaml
 - `metadata.name` is required and must be non-empty
 - Exactly one scope field (`ecosystem`, `domain`, `app`, or `workspace`) must be set in `metadata`
 - `spec.source` is required and must be `keychain` or `env`
-- `spec.service` is required when `spec.source` is `keychain`
+- `spec.keychainLabel` is required when `spec.source` is `keychain`
+- `spec.keychainType` must be `generic` or `internet` when specified (default is `internet`)
 - `spec.envVar` is required when `spec.source` is `env`
 - `spec.usernameVar` and `spec.passwordVar` are only valid when `spec.source` is `keychain`
 - `spec.usernameVar` and `spec.passwordVar` must be valid environment variable names (e.g., `UPPER_SNAKE_CASE`)
+- `spec.service` is accepted but deprecated — use `spec.keychainLabel` instead
 - Plaintext values are not supported — `source` must be `keychain` or `env`
 
 ## Notes
 
-- **Credentials never store secret values.** Only the source reference (Keychain service name or env var name) is stored in the database.
+- **Credentials never store secret values.** Only the source reference (Keychain label or env var name) is stored in the database.
 - **macOS Keychain only.** The `keychain` source uses the macOS Security framework. It is not available on Linux or Windows.
+- **Keychain types:** `internet` (default) looks up items in the Passwords app / iCloud Keychain / Safari autofill. `generic` looks up items in the Keychain Access app's login keychain.
+- **`--service` is deprecated.** Use `--keychain-label` for new credentials. The `--service` flag still works but emits a deprecation warning.
 - **Host env takes precedence.** If the same variable name already exists in the host environment, the host value is always used — Keychain and config values do not override it.
 - **Dual-field credentials** inject two separate environment variables from a single Keychain item, which is common for services requiring a username and password pair (container registries, npm, Maven).
 - **Scope resolution** is performed at `dvm` runtime, not at creation time. A credential scoped to an app is available to all workspaces of that app.

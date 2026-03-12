@@ -36,7 +36,7 @@ spec:
 
 ## Resource Types
 
-### 1. NvimTheme (NEW in v0.12.0)
+### 1. NvimTheme
 
 Represents a Neovim theme that can be applied and shared via Infrastructure as Code.
 
@@ -82,7 +82,7 @@ spec:
         fg: "#565f89"
 ```
 
-### 2. NvimPlugin (NEW in v0.12.0)
+### 2. NvimPlugin
 
 Represents a Neovim plugin configuration that can be shared and applied.
 
@@ -193,7 +193,7 @@ spec:
     name: go          # go, python, node, rust, java, etc.
     version: "1.22"   # Language version
   
-  # Repository information (NEW in v0.12.0)
+  # Repository information
   repo:
     url: "https://github.com/user/my-api"
     branch: "main"
@@ -238,7 +238,7 @@ spec:
     REDIS_URL: redis://localhost:6379
     LOG_LEVEL: debug
     
-  # Theme configuration (NEW in v0.12.0) - inherits to workspaces
+  # Theme configuration - inherits to workspaces
   theme: coolnight-synthwave      # Optional: theme name
   
   # Associated workspaces
@@ -309,7 +309,7 @@ spec:
     configPath: ~/.tmux.conf      # Mount this config
     autostart: true               # Start on attach
       
-  # Neovim configuration (ENHANCED in v0.12.0)
+  # Neovim configuration
   nvim:
     structure: lazyvim            # lazyvim, custom, nvchad, astronvim, none
     theme: coolnight-synthwave    # Override app/domain/ecosystem theme
@@ -688,7 +688,7 @@ Error: validation failed for NvimTheme/my-theme:
 
 ---
 
-## Theme Cascade System (v0.12.0)
+## Theme Cascade System
 
 DevOpsMaestro now supports hierarchical theme inheritance:
 
@@ -748,7 +748,7 @@ spec:
     theme: coolnight-synthwave  # Dev workspace uses coolnight
 ```
 
-### Built-in Theme Library (v0.12.0)
+### Built-in Theme Library
 
 DevOpsMaestro includes 34+ themes that are instantly available:
 

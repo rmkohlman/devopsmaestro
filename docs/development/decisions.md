@@ -248,7 +248,7 @@ Implement `ColorizeYAML()` function with:
 ## ADR-007: Local Neovim Management Integration
 
 **Date:** 2026-01-24  
-**Status:** 💡 Proposed  
+**Status:** ✅ Superseded — See ADR-008  
 **Version:** v0.3.0 (planned)
 
 ### Context
@@ -259,54 +259,64 @@ DevOpsMaestro manages Neovim plugins for containerized workspaces, but users als
 - Test configurations locally before deploying
 - Ensure consistent development experience across machines
 
-### Decision
+### Decision (Original Proposal)
 
 Integrate local Neovim management into DevOpsMaestro via `dvm nvim` commands rather than creating a separate standalone tool.
 
-**Commands to add:**
+### Outcome
+
+This approach was superseded. A dedicated standalone binary (`nvp`) was built instead. See ADR-008.
+
+---
+
+## ADR-008: nvp as a Standalone Binary
+
+**Date:** 2026-02-04  
+**Status:** ✅ Accepted and Implemented  
+**Version:** v0.7.0+
+
+### Context
+
+ADR-007 proposed integrating Neovim management into `dvm` via `dvm nvim` commands. During implementation, it became clear that:
+- Neovim plugin/theme management is a distinct domain with its own release cadence
+- Users who don't use Docker/containers still need Neovim management
+- A standalone binary allows Homebrew distribution without requiring CGO/SQLite
+- Separation reduces binary size for Neovim-only users
+
+### Decision
+
+Build `nvp` as a separate standalone binary in the same repository, built from `cmd/nvp/`.
+
+**Key commands:**
 ```bash
-dvm nvim init                   # Initialize local Neovim config
-dvm nvim apply -f FILE          # Apply plugin YAML to local
-dvm nvim sync WORKSPACE         # Sync workspace → local
-dvm nvim push WORKSPACE         # Sync local → workspace  
-dvm nvim diff WORKSPACE         # Compare configurations
+nvp list                        # List installed plugins
+nvp get <name>                  # Show plugin details
+nvp enable / disable <name>     # Toggle plugin
+nvp library list/install        # Browse and install from library
+nvp theme list/get/use          # Theme management
+nvp theme generate              # Generate Lua config files
+nvp apply -f FILE               # Apply YAML config (file, URL, GitHub shorthand)
+nvp config init/show/edit       # Manage nvp configuration
 ```
 
 ### Rationale
 
-1. **Unified Workflow** - Container and local management in one tool
-2. **Guaranteed Consistency** - Same plugin definitions for both
-3. **Better DX** - Users learn one tool instead of two
-4. **Natural Fit** - Complements existing workspace management
-5. **Validated Approach** - Prove concept before extracting
+1. **Separation of Concerns** - Neovim management is distinct from workspace/container management
+2. **No CGO Required** - `nvp` has no SQLite dependency, enabling pure cross-compilation
+3. **Smaller Install** - Users get only what they need
+4. **Independent Releases** - `nvp` and `dvm` ship from the same repo/tag but with independent feature sets
+5. **Homebrew-Friendly** - CGO-free binary works seamlessly with GoReleaser cross-compilation
 
 ### Consequences
 
 **Positive:**
-- Seamless container ↔ local synchronization
-- Single binary installation
-- No version compatibility issues
-- Natural user workflow
+- Both binaries ship from a single `git tag` and GoReleaser build
+- `nvp` is fully cross-compiled; `dvm` still requires macOS for CGO
+- Clean separation: `dvm` owns workspace/app/container management; `nvp` owns Neovim plugin/theme management
 
 **Negative:**
-- Increased tool scope
-- Slightly larger binary size
-- Local-only users still need container runtime installed
-
-### Alternatives Considered
-
-**Standalone Tool:**
-- Separate `nvim-maestro` CLI
-- Rejected for v0.3.0: Adds maintenance burden, version sync issues
-
-**Library Only:**
-- Pure Go library, no CLI
-- Rejected: Less accessible for end users
-
-### Future Evolution
-
-- **v0.5.0:** Extract core as reusable library (`github.com/rmkohlman/nvim-config-manager`)
-- **v1.0.0+:** Optional standalone CLI for non-DevOpsMaestro users
+- Two binaries to install (mitigated by Homebrew tap)
+- Some duplication in shared library code
 
 ---
 
@@ -339,4 +349,4 @@ What other options did we evaluate?
 
 ---
 
-**Last Updated:** 2026-01-24
+**Last Updated:** 2026-03-12 (v0.39.1)

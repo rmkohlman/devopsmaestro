@@ -117,12 +117,13 @@ func TestWorkspaceValidation(t *testing.T) {
 ```go
 func TestComponentName_MethodName(t *testing.T) {
     // Arrange: Set up test fixtures
-    db, err := NewSQLDataStore(":memory:")
+    driver, _ := db.NewDriver(db.DriverConfig{Type: db.DriverMemory})
+    store, err := db.NewDataStore(db.DataStoreConfig{Driver: driver})
     require.NoError(t, err)
-    defer db.Close()
+    defer store.Close()
 
     // Act: Execute the code under test
-    result, err := db.GetWorkspaceByName("test")
+    result, err := store.GetWorkspaceByName(1, "test")
 
     // Assert: Verify the results
     assert.NoError(t, err)
@@ -190,17 +191,20 @@ When writing tests, you may need to understand the code:
 
 ---
 
-## v0.19.0 Test Coverage Requirements
+## Key Test Coverage Areas
 
-You MUST write tests for these workspace isolation features:
+Ensure tests exist for these important behaviors:
 
 | Feature | Test Coverage Required |
 |---------|----------------------|
-| **Workspace volume paths** | Paths scoped to workspace ID |
-| **SSH mount opt-in** | Default false, explicit true |
-| **Credential encryption** | Not plaintext in DB |
-| **Credential scoping** | Access restricted by scope |
-| **Config path isolation** | No host `~/.config/` writes |
+| **Workspace slug** | Slug uniqueness, GetWorkspaceBySlug |
+| **Credential keychain fields** | label, keychain_type, username_var, password_var |
+| **Keychain type default** | Default is now `'internet'`, not `'generic'` |
+| **Credential scoping** | Access restricted by scope_type/scope_id |
+| **GitRepo CRUD** | Create/Get/List/Delete git repos |
+| **Registry management** | Registry CRUD, port conflict detection |
+| **CRD operations** | Custom resource definition lifecycle |
+| **Sub-interface compliance** | `db.AppStore`, `db.WorkspaceStore`, etc. satisfy `db.DataStore` |
 
 ---
 

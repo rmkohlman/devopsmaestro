@@ -8,18 +8,18 @@ Managing Neovim plugins with nvp. Use the curated library of 38+ plugins or plug
 
 ### From Library
 
-The easiest way - use the built-in library of 38+ curated plugins:
+The easiest way — use the built-in library of 38+ curated plugins:
 
 ```bash
-# See available plugins
-nvp plugin list
+# Browse available plugins
+nvp library list
 
-# Install complete plugin package (39 plugins)
-nvp apply -f package:rmkohlman
+# Filter by category
+nvp library list --category lsp
 
 # Install individual plugins
-nvp apply -f plugin:telescope
-nvp apply -f plugin:treesitter
+nvp library install telescope
+nvp library install treesitter
 ```
 
 ### From File
@@ -100,20 +100,27 @@ spec:
 ### List Installed Plugins
 
 ```bash
-nvp plugin list
+nvp list
 ```
 
 ### Get Plugin Details
 
 ```bash
-nvp plugin get telescope
-nvp plugin get telescope -o yaml
+nvp get telescope
+nvp get telescope -o yaml
+```
+
+### Enable / Disable a Plugin
+
+```bash
+nvp enable telescope
+nvp disable copilot
 ```
 
 ### Delete a Plugin
 
 ```bash
-nvp plugin delete telescope
+nvp delete telescope
 ```
 
 ---
@@ -124,16 +131,19 @@ nvp includes 38+ curated plugins with a plugin package system for complete setup
 
 ### Plugin Packages
 
-Complete plugin configurations for specific use cases:
+Complete plugin configurations for specific use cases are available via the library:
 
 | Package | Plugins | Description |
 |---------|---------|-------------|
 | `rmkohlman` | 39 plugins | Complete development environment with LSP, fuzzy finding, Git, AI, and more |
 
-Install a complete package:
+Install all plugins from the library:
 
 ```bash
-nvp apply -f package:rmkohlman
+nvp library list
+nvp library install telescope
+nvp library install treesitter
+# ... install as many as you need
 ```
 
 ### Individual Plugins
@@ -231,7 +241,7 @@ Plus additional plugins for debugging, testing, note-taking, and more specialize
 See full list:
 
 ```bash
-nvp plugin list
+nvp library list
 ```
 
 ---

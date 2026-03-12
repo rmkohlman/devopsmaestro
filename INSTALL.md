@@ -18,14 +18,14 @@ brew tap rmkohlman/tap
 brew install rmkohlman/tap/devopsmaestro
 
 # Verify installation
-dvm version   # Should show v0.7.0
+dvm version   # Should show v0.39.1
 ```
 
 ### Download Pre-Built Binary
 
 **macOS (Apple Silicon):**
 ```bash
-curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.7.0/devopsmaestro_0.7.0_darwin_arm64.tar.gz | tar xz
+curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.39.1/devopsmaestro_0.39.1_darwin_arm64.tar.gz | tar xz
 chmod +x dvm
 sudo mv dvm /usr/local/bin/
 ```
@@ -76,28 +76,28 @@ nvp version
 
 **macOS (Apple Silicon):**
 ```bash
-curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.7.0/nvp_0.7.0_darwin_arm64.tar.gz | tar xz
+curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.39.1/nvp_0.39.1_darwin_arm64.tar.gz | tar xz
 chmod +x nvp
 sudo mv nvp /usr/local/bin/
 ```
 
 **macOS (Intel):**
 ```bash
-curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.7.0/nvp_0.7.0_darwin_amd64.tar.gz | tar xz
+curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.39.1/nvp_0.39.1_darwin_amd64.tar.gz | tar xz
 chmod +x nvp
 sudo mv nvp /usr/local/bin/
 ```
 
 **Linux (x86_64):**
 ```bash
-curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.7.0/nvp_0.7.0_linux_amd64.tar.gz | tar xz
+curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.39.1/nvp_0.39.1_linux_amd64.tar.gz | tar xz
 chmod +x nvp
 sudo mv nvp /usr/local/bin/
 ```
 
 **Linux (ARM64):**
 ```bash
-curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.7.0/nvp_0.7.0_linux_arm64.tar.gz | tar xz
+curl -L https://github.com/rmkohlman/devopsmaestro/releases/download/v0.39.1/nvp_0.39.1_linux_arm64.tar.gz | tar xz
 chmod +x nvp
 sudo mv nvp /usr/local/bin/
 ```
@@ -186,7 +186,7 @@ sudo make uninstall
 After installation, verify it works:
 
 ```bash
-dvm version   # Should show v0.7.0
+dvm version   # Should show v0.39.1
 dvm --help
 dvm status
 ```

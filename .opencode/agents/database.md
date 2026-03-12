@@ -30,142 +30,164 @@ You are the Database Agent for DevOpsMaestro. You own all code that interacts wi
 ### Files You Own
 ```
 db/
-  datastore.go          # DataStore interface (CRITICAL - the contract)
-  interfaces.go         # Driver, Row, Rows, Result, Transaction interfaces
-  store.go              # SQLDataStore implementation (main file)
-  driver.go             # Database driver abstraction
-  sqlite_driver.go      # SQLite driver implementation
-  sqlite.go             # SQLite utilities
-  postgres.go           # PostgreSQL driver (future)
-  querybuilder.go       # SQL query builder
-  factory.go            # DataStoreFactory, CreateDataStore()
-  database.go           # Database utilities
-  mock_store.go         # Mock DataStore for testing
-  mock_driver.go        # Mock driver for testing
-  store_test.go         # Store tests
-  sqlite_driver_test.go # SQLite driver tests
-  querybuilder_test.go  # Query builder tests
-  integration_test.go   # Integration tests
-  mock_test.go          # Mock tests
-  testutils/            # Test utilities
-  migrations/           # Embedded migrations subdirectory
+  datastore.go              # DataStore interface (composed from sub-interfaces)
+  datastore_interfaces.go   # All domain sub-interfaces (EcosystemStore, AppStore, etc.)
+  interfaces.go             # Driver, Row, Rows, Result, Transaction interfaces
+  store.go                  # SQLDataStore struct + NewSQLDataStore() + NewDataStore()
+  store_ecosystem.go        # EcosystemStore implementation
+  store_domain.go           # DomainStore implementation
+  store_app.go              # AppStore implementation
+  store_workspace.go        # WorkspaceStore implementation
+  store_context.go          # ContextStore implementation
+  store_plugin.go           # PluginStore implementation
+  store_theme.go            # ThemeStore implementation
+  store_credential.go       # CredentialStore implementation
+  store_git_repo.go         # GitRepoStore implementation (file: git_repo.go)
+  store_registry.go         # RegistryStore implementation
+  store_registry_history.go # RegistryHistoryStore implementation
+  store_custom_resource.go  # CustomResourceStore implementation
+  store_defaults.go         # DefaultsStore implementation
+  store_nvim_package.go     # NvimPackageStore implementation
+  store_terminal_*.go       # TerminalPromptStore, TerminalProfileStore, etc.
+  driver.go                 # Database driver abstraction
+  sqlite_driver.go          # SQLite driver implementation
+  querybuilder.go           # SQL query builder
+  factory.go                # CreateDataStore(), NewDriver()
+  database.go               # Migration utilities, version tracking
+  errors.go                 # Error types
+  mock_store.go             # Mock DataStore for testing
+  mock_driver.go            # Mock driver for testing
+  testutils/                # Test utilities
+  migrations/
+    sqlite/                 # Migration SQL files (embedded via //go:embed)
 
-migrations/sqlite/      # Actual migration files
-  001_init.up.sql
-  002_add_plugins.up.sql
-  003_add_workspace_nvim_config.{up,down}.sql
-  004_add_themes.{up,down}.sql
-  005_add_ecosystems.{up,down}.sql
-  006_add_domains.{up,down}.sql
-  007_add_apps.{up,down}.sql
-  008_update_context.{up,down}.sql
-  009_workspace_app_id.{up,down}.sql
-  010_add_credentials.{up,down}.sql
+db/migrations/sqlite/       # Actual migration files (latest: 012)
+  001_init.{up,down}.sql                        # Unified initial schema
+  002_add_git_repos.{up,down}.sql               # Git repository support
+  003_add_git_repo_fk.{up,down}.sql             # Git repo foreign keys
+  004_add_terminal_fields.{up,down}.sql         # Terminal emulator/prompt/profile tables
+  005_add_registries.{up,down}.sql              # Registry management
+  006_add_registry_history.{up,down}.sql        # Registry version history
+  007_add_crds.{up,down}.sql                    # Custom Resource Definitions
+  008_add_registry_version.{up,down}.sql        # Registry version tracking
+  009_add_workspace_env.{up,down}.sql           # Workspace env vars
+  010_add_credential_keychain_fields.{up,down}.sql  # username_var, password_var columns
+  011_add_credential_label_fields.{up,down}.sql     # label, keychain_type columns
+  012_change_keychain_type_default.{up,down}.sql    # Default keychain_type = 'internet'
 ```
 
 ## DataStore Interface (Actual)
 
-This is the actual interface from `db/datastore.go`:
+The `DataStore` interface in `db/datastore.go` is a **composed interface** — it embeds all domain sub-interfaces. The sub-interfaces are defined in `db/datastore_interfaces.go` and each maps to a `store_*.go` implementation file.
 
 ```go
+// db/datastore.go — the composed interface
 type DataStore interface {
-    // Ecosystem Operations
-    CreateEcosystem(ecosystem *models.Ecosystem) error
-    GetEcosystemByName(name string) (*models.Ecosystem, error)
-    GetEcosystemByID(id int) (*models.Ecosystem, error)
-    UpdateEcosystem(ecosystem *models.Ecosystem) error
-    DeleteEcosystem(name string) error
-    ListEcosystems() ([]*models.Ecosystem, error)
+    EcosystemStore
+    DomainStore
+    AppStore
+    WorkspaceStore
+    ContextStore
+    PluginStore
+    ThemeStore
+    TerminalPromptStore
+    TerminalProfileStore
+    TerminalPluginStore
+    TerminalEmulatorStore
+    CredentialStore
+    GitRepoStore
+    DefaultsStore
+    NvimPackageStore
+    TerminalPackageStore
+    RegistryStore
+    RegistryHistoryStore
+    CustomResourceStore
 
-    // Domain Operations
-    CreateDomain(domain *models.Domain) error
-    GetDomainByName(ecosystemID int, name string) (*models.Domain, error)
-    GetDomainByID(id int) (*models.Domain, error)
-    UpdateDomain(domain *models.Domain) error
-    DeleteDomain(id int) error
-    ListDomainsByEcosystem(ecosystemID int) ([]*models.Domain, error)
-    ListAllDomains() ([]*models.Domain, error)
+    Driver() Driver
+    Close() error
+    Ping() error
+}
+```
 
-    // App Operations
-    CreateApp(app *models.App) error
-    GetAppByName(domainID int, name string) (*models.App, error)
-    GetAppByNameGlobal(name string) (*models.App, error)
-    GetAppByID(id int) (*models.App, error)
-    UpdateApp(app *models.App) error
-    DeleteApp(id int) error
-    ListAppsByDomain(domainID int) ([]*models.App, error)
-    ListAllApps() ([]*models.App, error)
+### Key Sub-Interfaces (defined in `db/datastore_interfaces.go`)
 
-    // Project Operations (DEPRECATED: migrate to Domain/App)
-    CreateProject(project *models.Project) error
-    GetProjectByName(name string) (*models.Project, error)
-    GetProjectByID(id int) (*models.Project, error)
-    UpdateProject(project *models.Project) error
-    DeleteProject(name string) error
-    ListProjects() ([]*models.Project, error)
+**New consumers should depend on the narrowest sub-interface they need**, not the full `DataStore`. The full interface is kept for backward compatibility.
 
-    // Workspace Operations
+```go
+// Example: prefer narrow interfaces
+func listApps(store db.AppStore) ([]*models.App, error) {
+    return store.ListAllApps()
+}
+```
+
+**WorkspaceStore** (notable: includes slug-based lookup)
+```go
+type WorkspaceStore interface {
     CreateWorkspace(workspace *models.Workspace) error
     GetWorkspaceByName(appID int, name string) (*models.Workspace, error)
     GetWorkspaceByID(id int) (*models.Workspace, error)
+    GetWorkspaceBySlug(slug string) (*models.Workspace, error)
     UpdateWorkspace(workspace *models.Workspace) error
     DeleteWorkspace(id int) error
     ListWorkspacesByApp(appID int) ([]*models.Workspace, error)
     ListAllWorkspaces() ([]*models.Workspace, error)
     FindWorkspaces(filter models.WorkspaceFilter) ([]*models.WorkspaceWithHierarchy, error)
+    GetWorkspaceSlug(workspaceID int) (string, error)
+}
+```
 
-    // Context Operations
+**CredentialStore** (notable: includes `GetCredentialByName` for CLI convenience)
+```go
+type CredentialStore interface {
+    CreateCredential(credential *models.CredentialDB) error
+    GetCredential(scopeType models.CredentialScopeType, scopeID int64, name string) (*models.CredentialDB, error)
+    GetCredentialByName(name string) (*models.CredentialDB, error)
+    UpdateCredential(credential *models.CredentialDB) error
+    DeleteCredential(scopeType models.CredentialScopeType, scopeID int64, name string) error
+    ListCredentialsByScope(scopeType models.CredentialScopeType, scopeID int64) ([]*models.CredentialDB, error)
+    ListAllCredentials() ([]*models.CredentialDB, error)
+}
+```
+
+**ContextStore** (no deprecated `SetActiveProject` — that was removed)
+```go
+type ContextStore interface {
     GetContext() (*models.Context, error)
     SetActiveEcosystem(ecosystemID *int) error
     SetActiveDomain(domainID *int) error
     SetActiveApp(appID *int) error
     SetActiveWorkspace(workspaceID *int) error
-    SetActiveProject(projectID *int) error  // DEPRECATED
+}
+```
 
-    // Plugin Operations
+**PluginStore** (includes `UpsertPlugin`)
+```go
+type PluginStore interface {
     CreatePlugin(plugin *models.NvimPluginDB) error
     GetPluginByName(name string) (*models.NvimPluginDB, error)
     GetPluginByID(id int) (*models.NvimPluginDB, error)
     UpdatePlugin(plugin *models.NvimPluginDB) error
+    UpsertPlugin(plugin *models.NvimPluginDB) error
     DeletePlugin(name string) error
     ListPlugins() ([]*models.NvimPluginDB, error)
     ListPluginsByCategory(category string) ([]*models.NvimPluginDB, error)
     ListPluginsByTags(tags []string) ([]*models.NvimPluginDB, error)
-
-    // Workspace Plugin Associations
     AddPluginToWorkspace(workspaceID int, pluginID int) error
     RemovePluginFromWorkspace(workspaceID int, pluginID int) error
     GetWorkspacePlugins(workspaceID int) ([]*models.NvimPluginDB, error)
     SetWorkspacePluginEnabled(workspaceID int, pluginID int, enabled bool) error
-
-    // Theme Operations
-    CreateTheme(theme *models.NvimThemeDB) error
-    GetThemeByName(name string) (*models.NvimThemeDB, error)
-    GetThemeByID(id int) (*models.NvimThemeDB, error)
-    UpdateTheme(theme *models.NvimThemeDB) error
-    DeleteTheme(name string) error
-    ListThemes() ([]*models.NvimThemeDB, error)
-    ListThemesByCategory(category string) ([]*models.NvimThemeDB, error)
-    GetActiveTheme() (*models.NvimThemeDB, error)
-    SetActiveTheme(name string) error
-    ClearActiveTheme() error
-
-    // Credential Operations
-    CreateCredential(credential *models.CredentialDB) error
-    GetCredential(scopeType models.CredentialScopeType, scopeID int64, name string) (*models.CredentialDB, error)
-    UpdateCredential(credential *models.CredentialDB) error
-    DeleteCredential(scopeType models.CredentialScopeType, scopeID int64, name string) error
-    ListCredentialsByScope(scopeType models.CredentialScopeType, scopeID int64) ([]*models.CredentialDB, error)
-    ListAllCredentials() ([]*models.CredentialDB, error)
-
-    // Driver Access
-    Driver() Driver
-
-    // Health and Maintenance
-    Close() error
-    Ping() error
 }
 ```
+
+### Credential Model Fields (as of v0.39.1)
+
+The `CredentialDB` model in `models/credential.go` has these fields:
+- `Source`: `"keychain"` or `"env"`
+- `Service`: Keychain service name (DEPRECATED — use `Label`)
+- `Label`: Keychain entry display name (searched with `-l` flag in security CLI)
+- `KeychainType`: `"generic"` or `"internet"` (default: `"internet"` since migration 012)
+- `UsernameVar`, `PasswordVar`: For dual-field keychain extraction
+- `EnvVar`: Environment variable name (when `Source = "env"`)
 
 ## Design Principles
 
@@ -184,12 +206,22 @@ workspaces, err := dataStore.ListWorkspacesByApp(appID)
 - Use MockDataStore for testing
 
 ### 3. Driver Abstraction
+
+The `Driver` interface in `db/interfaces.go` is the low-level database abstraction. Key methods:
+
 ```go
 type Driver interface {
-    Open(path string) error
+    Connect() error
     Close() error
+    Ping() error
+    Execute(query string, args ...interface{}) (Result, error)
+    QueryRow(query string, args ...interface{}) Row
     Query(query string, args ...interface{}) (Rows, error)
-    Exec(query string, args ...interface{}) (Result, error)
+    Begin() (Transaction, error)
+    Type() DriverType    // "sqlite", "postgres", "memory"
+    DSN() string
+    MigrationDSN() string
+    // ...context variants of each query method
 }
 ```
 
@@ -230,29 +262,37 @@ go test ./db/... -race
 
 ---
 
-## v0.19.0 Schema Changes
+## Recent Schema Changes (v0.37–v0.39)
 
-| Change | Description |
-|--------|-------------|
-| **Encrypted credentials** | `value TEXT` -> `encrypted_value BLOB` + `nonce BLOB` |
-| **Workspace volumes** | New `workspace_volumes` table for persistent data paths |
-| **Scope validation** | Foreign key constraints for credential scopes |
-| **Remove stale tables** | Clean up deprecated Project-era tables |
+These migrations have already been applied. Do NOT create them again.
 
-### New DataStore Methods (v0.19.0)
+| Migration | Change | Status |
+|-----------|--------|--------|
+| 010 | Added `username_var`, `password_var` to credentials | ✅ Done |
+| 011 | Added `label`, `keychain_type` columns to credentials | ✅ Done |
+| 012 | Changed default keychain_type to `'internet'` for all existing rows | ✅ Done |
 
-```go
-// Workspace volume management
-GetWorkspaceVolumePath(workspaceID int) (string, error)
-SetWorkspaceVolumePath(workspaceID int, path string) error
+### Credential Schema (current state after all migrations)
 
-// Credential scoping
-GetCredentialsByScope(scopeType CredentialScopeType, scopeID int64) ([]*models.Credential, error)
-ValidateCredentialScope(scopeType CredentialScopeType, scopeID int64) error
-
-// Workspace SSH opt-in
-SetWorkspaceMountSSH(workspaceID int, mount bool) error
-GetWorkspaceMountSSH(workspaceID int) (bool, error)
+```sql
+CREATE TABLE credentials (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    scope_type TEXT NOT NULL CHECK(scope_type IN ('ecosystem', 'domain', 'app', 'workspace')),
+    scope_id   INTEGER NOT NULL,
+    name       TEXT NOT NULL,
+    source     TEXT NOT NULL CHECK(source IN ('keychain', 'env')),
+    service    TEXT,           -- DEPRECATED: use label instead
+    env_var    TEXT,
+    description TEXT,
+    username_var TEXT,         -- added in 010
+    password_var TEXT,         -- added in 010
+    label      TEXT,           -- added in 011: keychain entry display name
+    keychain_type TEXT DEFAULT 'generic' CHECK(keychain_type IN ('generic', 'internet')), -- added in 011
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(scope_type, scope_id, name)
+);
+-- Note: migration 012 changed all existing 'generic' values to 'internet'
 ```
 
 ---

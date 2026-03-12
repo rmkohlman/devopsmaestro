@@ -148,15 +148,21 @@ nvp theme use coolnight-solarized
 
 ### Create Custom Variants
 
-Generate your own CoolNight variant with any hue:
+Generate your own CoolNight variant using a hue angle (0–360), a hex color, or a preset name:
 
 ```bash
-# Create custom hues
-nvp theme create --hue 75 --name coolnight-lime     # Lime green
-nvp theme create --hue 165 --name coolnight-teal    # Teal blue  
-nvp theme create --hue 315 --name coolnight-magenta # Hot magenta
+# Create by hue angle
+nvp theme create --from "75" --name coolnight-lime     # Lime green
+nvp theme create --from "165" --name coolnight-teal    # Teal blue
+nvp theme create --from "315" --name coolnight-magenta # Hot magenta
 
-# Use immediately
+# Create from a hex color
+nvp theme create --from "#8B00FF" --name coolnight-violet
+
+# Create from a preset name
+nvp theme create --from "synthwave" --name my-synth
+
+# Use immediately after creation
 nvp theme use coolnight-lime
 ```
 
@@ -174,18 +180,20 @@ nvp theme use coolnight-lime
 
 ### Advanced Generator Options
 
+The `--from` flag accepts a hue angle, hex color, or preset name. For full control, create a theme YAML and apply it:
+
 ```bash
-# Custom base colors
-nvp theme create --hue 210 --name my-ocean \
-  --bg "#0a0e1a" --fg "#e0e6f0"
+# Use a specific hue angle
+nvp theme create --from "210" --name my-ocean
 
-# Adjust saturation and lightness
-nvp theme create --hue 280 --name subtle-purple \
-  --saturation 0.4 --lightness 0.8
+# Use a hex color as the base
+nvp theme create --from "#0a7fa8" --name my-teal
 
-# Override specific semantic colors
-nvp theme create --hue 120 --name custom-matrix \
-  --accent "#00ff41" --error "#ff0040"
+# Use a built-in preset name
+nvp theme create --from "ocean" --name ocean-custom
+
+# Activate immediately after creation
+nvp theme create --from "280" --name custom-purple --use
 ```
 
 ---
@@ -345,21 +353,21 @@ nvp generate
 # Check terminal color support
 echo $COLORTERM  # Should show: truecolor
 
-# Test terminal colors
-nvp test colors
-
 # Check Neovim termguicolors
 nvim -c 'set termguicolors?' -c 'q'
+
+# Preview the theme to verify colors in terminal
+nvp theme preview coolnight-ocean
 ```
 
 ### Custom Variant Issues
 
 ```bash
-# Validate custom theme
-nvp theme create --hue 210 --name test-theme --validate
+# Check what was generated
+nvp theme get my-custom-theme -o yaml
 
-# Check generated colors
-nvp theme get test-theme --show-palette
+# Regenerate Lua files after making changes
+nvp generate
 ```
 
 ---

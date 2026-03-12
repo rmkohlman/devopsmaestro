@@ -334,7 +334,7 @@ When you push a tag matching `v*`, GitHub Actions automatically:
 │                    (.github/workflows/release.yml)               │
 ├─────────────────────────────────────────────────────────────────┤
 │  1. Checkout repository (full history for changelog)            │
-│  2. Setup Go 1.23                                               │
+│  2. Setup Go 1.25                                               │
 │  3. Run GoReleaser with GITHUB_TOKEN                            │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -444,12 +444,12 @@ on:
 |---------|-------|-------------|
 | **Trigger** | `push.tags: v*` | Runs when a `v*` tag is pushed |
 | **Runner** | `ubuntu-latest` | Uses GitHub's Linux runner |
-| **Go Version** | `1.23` | Set via `actions/setup-go@v5` |
+| **Go Version** | `1.25` | Set via `actions/setup-go@v5` |
 | **Permissions** | `contents: write` | Allows creating releases |
 
 **Steps:**
 1. **Checkout** - Full clone with `fetch-depth: 0` (needed for changelog)
-2. **Setup Go** - Installs Go 1.23
+2. **Setup Go** - Installs Go 1.25
 3. **Run GoReleaser** - Executes `goreleaser release --clean`
 
 **Environment Variables:**
@@ -488,7 +488,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: '1.25'
       
       - name: Run tests
         run: go test -v ./pkg/nvimops/... ./cmd/nvp/...
@@ -706,4 +706,4 @@ file dvm-darwin-arm64
 
 ---
 
-**Last Updated:** 2026-02-02 (v0.5.1)
+**Last Updated:** 2026-03-12 (v0.39.1)

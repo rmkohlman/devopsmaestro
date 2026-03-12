@@ -239,7 +239,7 @@ dvm get apps [flags]
 
 | Flag | Description |
 |------|-------------|
-| `--domain <name>` | Domain name (required) |
+| `--domain <name>` | Domain name (defaults to active domain if set) |
 | `-o, --output <format>` | Output format: `json`, `yaml`, `plain`, `table` |
 
 **Examples:**
@@ -262,7 +262,8 @@ dvm get workspaces [flags]
 
 | Flag | Description |
 |------|-------------|
-| `--app <name>` | App name (required) |
+| `--app <name>` | App name (defaults to active app if set) |
+| `-A, --all` | List all workspaces across every app |
 | `-o, --output <format>` | Output format: `json`, `yaml`, `plain`, `table` |
 
 **Examples:**
@@ -324,8 +325,22 @@ dvm use --clear
 Build workspace container image.
 
 ```bash
-dvm build [workspace-path] [flags]
+dvm build [flags]
 ```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `-e, --ecosystem <name>` | Filter by ecosystem name |
+| `-d, --domain <name>` | Filter by domain name |
+| `-a, --app <name>` | Filter by app name |
+| `-w, --workspace <name>` | Filter by workspace name |
+| `--force` | Force rebuild even if image exists |
+| `--no-cache` | Build without cache (skip registry cache, pull fresh) |
+| `--target <stage>` | Build target stage (default: `dev`) |
+| `--push` | Push built image to local registry after build |
+| `--registry <endpoint>` | Override registry endpoint (default: from config) |
 
 **Examples:**
 
@@ -333,17 +348,42 @@ dvm build [workspace-path] [flags]
 # Build active workspace
 dvm build
 
-# Build specific workspace
-dvm build my-platform/backend/my-api/dev
+# Force rebuild
+dvm build --force
+
+# Build without cache
+dvm build --no-cache
+
+# Build specific app's workspace
+dvm build -a my-api
+
+# Build and push to local registry
+dvm build --push
+
+# Specify ecosystem and app
+dvm build -e my-platform -a my-api
+
+# Use specific platform
+DVM_PLATFORM=colima dvm build
 ```
 
 ### `dvm attach`
 
-Attach to workspace container (starts if not running).
+Attach to workspace container (starts if not running; builds image if it doesn't exist).
 
 ```bash
-dvm attach [workspace-path] [flags]
+dvm attach [flags]
 ```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `-e, --ecosystem <name>` | Filter by ecosystem name |
+| `-d, --domain <name>` | Filter by domain name |
+| `-a, --app <name>` | Filter by app name |
+| `-w, --workspace <name>` | Filter by workspace name |
+| `--no-sync` | Skip syncing git mirror before attach |
 
 **Examples:**
 
@@ -351,26 +391,17 @@ dvm attach [workspace-path] [flags]
 # Attach to active workspace
 dvm attach
 
-# Attach to specific workspace
-dvm attach my-platform/backend/my-api/dev
-```
+# Skip mirror sync
+dvm attach --no-sync
 
-### `dvm enter`
+# Attach to specific app's workspace
+dvm attach -a my-api
 
-Enter workspace container (attach alias).
+# Specify app and workspace name
+dvm attach -a my-api -w staging
 
-```bash
-dvm enter [workspace-path] [flags]
-```
-
-**Examples:**
-
-```bash
-# Enter active workspace
-dvm enter
-
-# Enter specific workspace  
-dvm enter my-platform/backend/my-api/dev
+# Specify ecosystem and app
+dvm attach -e my-platform -a my-api
 ```
 
 ---
@@ -466,6 +497,142 @@ dvm apply -f github:user/themes/my-custom-theme.yaml
 - `NvimPlugin` - Plugin configurations  
 - `Workspace` - Workspace configurations
 - `App` - Application definitions
+
+---
+
+## Credentials
+
+Credentials store references to secrets in the macOS Keychain or host environment variables. They are scoped to a specific resource (ecosystem, domain, app, or workspace).
+
+See [Credential YAML Reference](../reference/credential.md) for full YAML spec and field details.
+
+### `dvm create credential`
+
+Create a new credential.
+
+```bash
+dvm create credential <name> [flags]
+dvm create cred <name> [flags]        # Alias
+```
+
+**Source flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--source <type>` | Secret source: `keychain` or `env` (required) |
+| `--keychain-label <label>` | Keychain entry label — required when `--source=keychain` |
+| `--keychain-type <type>` | Keychain item type: `generic` or `internet` (default: `internet`) |
+| `--env-var <name>` | Environment variable name — required when `--source=env` |
+| `--description <text>` | Human-readable description |
+| `--username-var <name>` | Env var for keychain account field (keychain only) |
+| `--password-var <name>` | Env var for keychain password field (keychain only) |
+| `--service <name>` | **Deprecated.** Use `--keychain-label` instead |
+
+**Scope flags (exactly one required):**
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--ecosystem` | `-e` | Scope to an ecosystem |
+| `--domain` | `-d` | Scope to a domain |
+| `--app` | `-a` | Scope to an app |
+| `--workspace` | `-w` | Scope to a workspace |
+
+**Examples:**
+
+```bash
+# GitHub PAT from Passwords app / iCloud Keychain
+dvm create credential github-token \
+  --source keychain --keychain-label "GitHub PAT" \
+  --app my-api
+
+# API key from environment variable
+dvm create credential api-key \
+  --source env --env-var MY_API_KEY \
+  --ecosystem prod
+
+# Docker Hub credentials (split into username + password vars)
+dvm create credential docker-registry \
+  --source keychain --keychain-label "hub.docker.com" \
+  --keychain-type internet \
+  --username-var DOCKER_USERNAME \
+  --password-var DOCKER_PASSWORD \
+  --domain backend
+
+# Generic keychain entry (Keychain Access app)
+dvm create cred db-pass \
+  --source keychain --keychain-label "Postgres prod" \
+  --keychain-type generic \
+  --description "Postgres prod password" \
+  --app my-api
+```
+
+### `dvm get credential`
+
+Get a specific credential by name within a scope.
+
+```bash
+dvm get credential <name> [scope-flag]
+dvm get cred <name> [scope-flag]       # Alias
+```
+
+**Scope flags (exactly one required):** `-e/--ecosystem`, `-d/--domain`, `-a/--app`, `-w/--workspace`
+
+**Examples:**
+
+```bash
+dvm get credential github-token --app my-api
+dvm get credential api-key --ecosystem prod
+dvm get cred db-pass --domain backend
+```
+
+### `dvm get credentials`
+
+List credentials by scope or across all scopes.
+
+```bash
+dvm get credentials [flags]
+dvm get creds [flags]                  # Alias
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--all` | `-A` | List all credentials across every scope |
+| `--ecosystem` | `-e` | Filter to an ecosystem |
+| `--domain` | `-d` | Filter to a domain |
+| `--app` | `-a` | Filter to an app |
+| `--workspace` | `-w` | Filter to a workspace |
+
+**Examples:**
+
+```bash
+dvm get credentials -A             # All credentials
+dvm get credentials --app my-api   # Credentials for a specific app
+```
+
+### `dvm delete credential`
+
+Delete a credential by name within a scope.
+
+```bash
+dvm delete credential <name> [scope-flag] [flags]
+dvm delete cred <name> [scope-flag] [flags]    # Alias
+```
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--force` | `-f` | Skip confirmation prompt |
+| `--ecosystem` | `-e` | Scope to an ecosystem |
+| `--domain` | `-d` | Scope to a domain |
+| `--app` | `-a` | Scope to an app |
+| `--workspace` | `-w` | Scope to a workspace |
+
+**Examples:**
+
+```bash
+dvm delete credential github-token --app my-api
+dvm delete credential api-key --ecosystem prod --force
+dvm delete cred db-pass --domain backend -f
+```
 
 ---
 
@@ -692,6 +859,8 @@ dvm version
 | `domain` | `dom` |
 | `app` | `a`, `application` |
 | `workspace` | `ws` |
+| `credential` | `cred` |
+| `credentials` | `cred`, `creds` |
 | `context` | `ctx` |
 | `platforms` | `plat` |
 | `nvim plugins` | `np` |

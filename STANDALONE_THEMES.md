@@ -120,7 +120,7 @@ return M
 
 ```bash
 # Create standalone theme
-nvp theme apply -f my-standalone-theme.yaml
+nvp apply -f my-standalone-theme.yaml
 
 # Use it
 nvp theme use my-standalone-theme

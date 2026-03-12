@@ -25,16 +25,6 @@ spec:
     - user-service
     - auth-service
   theme: gruvbox-dark
-  defaults:
-    language:
-      name: go
-      version: "1.22"
-    shell:
-      theme: starship
-    nvim:
-      plugins:
-        - neovim/nvim-lspconfig
-        - fatih/vim-go
 ```
 
 ## Field Reference
@@ -49,7 +39,6 @@ spec:
 | `metadata.annotations` | object | ❌ | Key-value annotations for metadata |
 | `spec.apps` | array | ❌ | List of app names in this domain |
 | `spec.theme` | string | ❌ | Default theme for apps/workspaces in this domain |
-| `spec.defaults` | object | ❌ | Default configurations for apps and workspaces |
 
 ## Field Details
 
@@ -90,29 +79,6 @@ Theme hierarchy: `Workspace → App → Domain → Ecosystem → System Default`
 ```yaml
 spec:
   theme: gruvbox-dark  # Overrides ecosystem theme for this domain
-```
-
-### spec.defaults (optional)
-Default configuration values inherited by all apps and workspaces in this domain.
-
-```yaml
-spec:
-  defaults:
-    language:
-      name: go           # Default language for apps
-      version: "1.22"    # Default language version
-    shell:
-      type: zsh
-      theme: starship
-    nvim:
-      structure: lazyvim
-      plugins:
-        - neovim/nvim-lspconfig
-        - fatih/vim-go     # Go-specific plugins
-    container:
-      resources:
-        cpus: "1.0"
-        memory: "2G"
 ```
 
 ## Usage Examples
@@ -166,15 +132,10 @@ metadata:
   ecosystem: company-platform
 spec:
   theme: coolnight-ocean
-  defaults:
-    language:
-      name: go
-      version: "1.22"
-    nvim:
-      plugins:
-        - neovim/nvim-lspconfig
-        - fatih/vim-go
-        - ray-x/go.nvim
+  apps:
+    - api-service
+    - user-service
+    - auth-service
 ```
 
 ### Frontend Domain
@@ -187,15 +148,9 @@ metadata:
   ecosystem: company-platform
 spec:
   theme: coolnight-synthwave
-  defaults:
-    language:
-      name: node
-      version: "20"
-    nvim:
-      plugins:
-        - neovim/nvim-lspconfig
-        - nvim-treesitter/nvim-treesitter
-        - windwp/nvim-autopairs
+  apps:
+    - web-app
+    - admin-portal
 ```
 
 ### Data Platform Domain
@@ -208,15 +163,9 @@ metadata:
   ecosystem: company-platform
 spec:
   theme: coolnight-forest
-  defaults:
-    language:
-      name: python
-      version: "3.11"
-    nvim:
-      plugins:
-        - neovim/nvim-lspconfig
-        - nvim-treesitter/nvim-treesitter
-        - jupyter-vim/jupyter-vim
+  apps:
+    - data-pipeline
+    - analytics-service
 ```
 
 ## Related Resources
@@ -233,4 +182,3 @@ spec:
 - `metadata.ecosystem` must reference an existing Ecosystem resource
 - `spec.apps` references must exist as App resources within this domain
 - `spec.theme` must reference an existing theme (built-in or custom)
-- `spec.defaults` values must be valid configuration options

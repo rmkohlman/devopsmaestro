@@ -131,16 +131,15 @@ When you need domain-specific expertise:
 
 ---
 
-## v0.19.0 Architecture Review Checklist
+## Workspace Isolation Architecture Review Checklist
 
-When reviewing v0.19.0 workspace isolation changes, verify:
+When reviewing workspace isolation changes (ongoing concern), verify:
 
-- [ ] Config generators accept parameterized output paths
-- [ ] No hardcoded `~/.config/`, `~/.local/`, `~/.zshrc` paths in dvm
-- [ ] Database schema supports workspace isolation (workspace_id foreign keys)
-- [ ] Credential storage uses proper scoping
-- [ ] Container mounts respect isolation boundaries
-- [ ] SSH/secrets only mounted when explicitly requested
+- [ ] Config generators accept parameterized output paths (not hardcoded `~/.config/`)
+- [ ] No hardcoded `~/.config/`, `~/.local/`, `~/.zshrc` paths in dvm workspace code
+- [ ] Credential storage uses proper scope hierarchy (ecosystem/domain/app/workspace)
+- [ ] Container mounts respect isolation boundaries (workspace-scoped volumes)
+- [ ] SSH/secrets only mounted when explicitly requested (`StartOptions.MountSSH`)
 
 ---
 

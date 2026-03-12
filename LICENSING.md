@@ -60,7 +60,7 @@ $ dvm workspace create main
 $ dvm build  # All features, no restrictions!
 
 # Learning and education
-$ dvm plugin list  # Study how it works, modify it!
+$ nvp list       # Explore nvp - study how it works, modify it!
 ```
 
 See [LICENSE](LICENSE) for full GPL-3.0 terms.
@@ -183,12 +183,12 @@ $ dvm workspace create main
 
 # Open source project
 $ cd my-oss-framework  # Project is GPL-3.0 licensed
-$ dvm plugin apply -f telescope.yaml
+$ nvp library install telescope
 # Perfect! Both are GPL-3.0
 
 # Learning/education
 $ dvm version
-$ dvm get plugins
+$ nvp list
 # Study, learn, experiment - completely free!
 ```
 

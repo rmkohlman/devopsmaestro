@@ -1,6 +1,6 @@
 # ADR-008: Shared Library Architecture for Neovim Management
 
-**Status:** Proposed  
+**Status:** Superseded — `nvp` was built as a standalone binary within the same repo (`cmd/nvp/`), not as a separate shared library. See `decisions.md` ADR-008 for the implemented design.  
 **Date:** 2026-01-23  
 **Author:** Robert Kohlman  
 **Related:** ADR-007 (Neovim Local Management)

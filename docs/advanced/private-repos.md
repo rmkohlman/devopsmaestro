@@ -27,7 +27,53 @@ dvm build
 
 ---
 
-### 2. Build Args (For HTTPS with Tokens)
+### 2. macOS Keychain (Recommended for Tokens)
+**Securely store tokens in your system keychain**
+
+DevOpsMaestro integrates with macOS Keychain via `dvm create credential`. Use `--keychain-label` to identify the Keychain entry and `--keychain-type` to specify whether it is a **generic** password or an **internet** password.
+
+**Keychain types:**
+
+| Type | Description | Best For |
+|------|-------------|----------|
+| `generic` | Generic password (Keychain Access → login keychain) | Developer tokens, API keys |
+| `internet` | Internet password (Passwords app / Safari autofill) | Website credentials, Docker Hub |
+
+```bash
+# Store a GitHub PAT as a generic keychain credential
+dvm create credential github-creds \
+  --source keychain \
+  --keychain-label "github-pat" \
+  --keychain-type generic \
+  --username-var GITHUB_USERNAME \
+  --password-var GITHUB_PAT \
+  --ecosystem myorg
+
+# Store Docker Hub credentials as an internet keychain entry
+dvm create credential docker-hub \
+  --source keychain \
+  --keychain-label "hub.docker.com" \
+  --keychain-type internet \
+  --password-var DOCKER_TOKEN \
+  --domain infra
+```
+
+**Flag reference for `dvm create credential`:**
+
+| Flag | Description |
+|------|-------------|
+| `--source keychain` | Use macOS Keychain as the credential source |
+| `--keychain-label <label>` | Display name of the Keychain entry (required when `--source=keychain`) |
+| `--keychain-type <type>` | `generic` or `internet` (default: `internet`) — only valid with `--source=keychain` |
+| `--username-var <var>` | Env var name to receive the Keychain account/username |
+| `--password-var <var>` | Env var name to receive the Keychain password |
+| `--service <label>` | *Deprecated* — use `--keychain-label` instead |
+
+**Note:** `--service` and `--keychain-label` are mutually exclusive. Use `--keychain-label` in new configurations.
+
+---
+
+### 3. Build Args (For HTTPS with Tokens)
 **Use when SSH is not available**
 
 ```bash
@@ -389,8 +435,8 @@ export GITHUB_USERNAME=myuser
 export GITHUB_PAT=ghp_xxxxx
 
 # Create and build
-dvm create project my-project --from-cwd
-dvm use project my-project
+dvm create app my-project --from-cwd
+dvm use app my-project
 dvm use workspace main
 dvm build
 ```

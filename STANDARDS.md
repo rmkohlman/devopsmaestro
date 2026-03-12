@@ -307,10 +307,16 @@ func getMyResources(cmd *cobra.Command) error {
 | `Ecosystem` | `EcosystemHandler` | ✅ Complete |
 | `Domain` | `DomainHandler` | ✅ Complete |
 | `App` | `AppHandler` | ✅ Complete |
+| `Workspace` | `WorkspaceHandler` | ✅ Complete |
 | `NvimPlugin` | `NvimPluginHandler` | ✅ Complete |
 | `NvimTheme` | `NvimThemeHandler` | ✅ Complete |
-| `Project` | — | ⚠️ Needs migration (deprecated) |
-| `Workspace` | — | ⚠️ Needs migration |
+| `NvimPackage` | `NvimPackageHandler` | ✅ Complete |
+| `TerminalPrompt` | `TerminalPromptHandler` | ✅ Complete |
+| `TerminalPackage` | `TerminalPackageHandler` | ✅ Complete |
+| `Registry` | `RegistryHandler` | ✅ Complete |
+| `Credential` | `CredentialHandler` | ✅ Complete |
+| `CustomResourceDefinition` | `CRDHandler` | ✅ Complete |
+| `Project` | — | ⚠️ Deprecated (migrate to App) |
 
 ---
 
@@ -557,6 +563,26 @@ if err := driver.Connect(); err != nil {
     return fmt.Errorf("failed to connect to database: %w", err)
 }
 ```
+
+### errSilent Pattern (CLI Commands)
+
+CLI commands that have already displayed their error via `render.Error()` or `render.Errorf()` should return `errSilent` instead of the original error. This prevents Cobra from double-printing the error message while still setting exit code 1.
+
+```go
+// cmd/root.go
+var errSilent = fmt.Errorf("")
+
+// In a command handler:
+func runE(cmd *cobra.Command, args []string) error {
+    if err := doSomething(); err != nil {
+        render.Errorf("Failed: %v", err)  // User-facing error displayed here
+        return errSilent                   // Cobra sees non-nil, sets exit 1, prints nothing
+    }
+    return nil
+}
+```
+
+**Rule:** Use `errSilent` only when `render.Error()` / `render.Errorf()` has already been called in the same code path.
 
 ---
 

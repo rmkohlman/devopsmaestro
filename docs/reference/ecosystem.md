@@ -24,12 +24,6 @@ spec:
     - frontend
     - data
   theme: coolnight-ocean
-  defaults:
-    shell:
-      type: zsh
-      framework: oh-my-zsh
-    nvim:
-      structure: lazyvim
 ```
 
 ## Field Reference
@@ -43,7 +37,6 @@ spec:
 | `metadata.annotations` | object | ❌ | Key-value annotations for metadata |
 | `spec.domains` | array | ❌ | List of domain names in this ecosystem |
 | `spec.theme` | string | ❌ | Default theme for all domains/apps/workspaces |
-| `spec.defaults` | object | ❌ | Default configurations inherited by workspaces |
 
 ## Field Details
 
@@ -77,24 +70,6 @@ Default theme name that cascades down to all domains, apps, and workspaces in th
 - `gruvbox-dark`
 
 See [Theme Hierarchy](../advanced/theme-hierarchy.md) for complete list.
-
-### spec.defaults (optional)
-Default configuration values that will be inherited by all workspaces unless overridden.
-
-```yaml
-spec:
-  defaults:
-    shell:
-      type: zsh              # Default shell for all workspaces
-      framework: oh-my-zsh   # Default shell framework
-    nvim:
-      structure: lazyvim     # Default Neovim structure
-    container:
-      user: dev              # Default container user
-      resources:
-        cpus: "2.0"          # Default CPU allocation
-        memory: "4G"         # Default memory allocation
-```
 
 ## Usage Examples
 
@@ -138,4 +113,3 @@ dvm get ecosystem my-platform --include-children -o yaml
 - `metadata.name` must be a valid DNS subdomain (lowercase, alphanumeric, hyphens)
 - `spec.domains` references must exist as Domain resources
 - `spec.theme` must reference an existing theme (built-in or custom)
-- `spec.defaults` must contain valid configuration values

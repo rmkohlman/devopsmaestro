@@ -297,9 +297,8 @@ Domain agents MUST:
 
 | Version | Theme | Status |
 |---------|-------|--------|
-| v0.32.6 | Current stable | Released |
-| **v0.19.0** | "Isolation" - Workspace isolation, security | Next Major |
-| v0.20.0 | "Mirror" - GitRepo resource, bare repos | Planned |
+| v0.39.1 | Current stable | Released |
+| **v0.40.0** | Next release | Planned |
 
 ---
 

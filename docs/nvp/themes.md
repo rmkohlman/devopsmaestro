@@ -13,8 +13,8 @@ dvm get nvim theme coolnight-ocean    # Use with dvm integration
 nvp theme use coolnight-synthwave     # Direct nvp usage
 
 # Parametric generator for CoolNight variants
-nvp theme create --hue 210 --name my-blue-theme
-nvp theme create --hue 350 --name my-rose-theme
+nvp theme create --from "210" --name my-blue-theme
+nvp theme create --from "350" --name my-rose-theme
 ```
 
 ---
@@ -54,9 +54,9 @@ nvp theme use tokyonight-night
 nvp theme use catppuccin-mocha
 
 # Parametric generator for CoolNight variants
-nvp theme create --hue 210 --name ocean-blue
-nvp theme create --hue 280 --name synthwave-purple
-nvp theme create --hue 120 --name matrix-green
+nvp theme create --from "210" --name ocean-blue
+nvp theme create --from "280" --name synthwave-purple
+nvp theme create --from "120" --name matrix-green
 ```
 
 ### From Library (Manual Install)
@@ -124,8 +124,10 @@ nvp theme use coolnight-ocean
 nvp theme use coolnight-synthwave
 nvp theme use coolnight-matrix
 
-# Create custom variant
-nvp theme create --hue 165 --name coolnight-teal
+# Create custom variant with a hue angle, hex color, or preset name
+nvp theme create --from "165" --name coolnight-teal
+nvp theme create --from "#8B00FF" --name coolnight-violet
+nvp theme create --from "synthwave" --name my-synth
 ```
 
 **→ [Complete CoolNight Documentation](coolnight.md)** - See all 21 variants, color science, and usage recommendations
@@ -150,13 +152,14 @@ nvp theme create --hue 165 --name coolnight-teal
 
 ### Parametric Generator
 
-Create custom CoolNight variants with any hue:
+Create custom CoolNight variants using a hue angle (0–360), a hex color, or a preset name:
 
 ```bash
 # Create custom themes
-nvp theme create --hue 210 --name my-blue-theme
-nvp theme create --hue 350 --name my-rose-theme
-nvp theme create --hue 120 --name my-green-theme
+nvp theme create --from "210" --name my-blue-theme
+nvp theme create --from "350" --name my-rose-theme
+nvp theme create --from "#8B00FF" --name my-violet-theme
+nvp theme create --from "synthwave" --name my-synth
 
 # Use immediately
 nvp theme use my-blue-theme
@@ -171,7 +174,7 @@ nvp theme use dracula
 nvp theme use catppuccin-mocha
 
 # Create custom CoolNight variants
-nvp theme create --hue 280 --name my-synthwave
+nvp theme create --from "280" --name my-synthwave --use
 ```
 
 View details:
@@ -298,6 +301,27 @@ return M
 
 ```bash
 nvp theme list
+```
+
+### Browse the Theme Library
+
+```bash
+# List themes available in the remote library
+nvp theme library list
+nvp theme library list --category dark
+
+# Show details of a library theme
+nvp theme library show catppuccin-mocha
+
+# Install from the library
+nvp theme library install catppuccin-mocha --use
+```
+
+### Preview a Theme
+
+```bash
+nvp theme preview coolnight-ocean
+nvp theme preview catppuccin-mocha
 ```
 
 ### View Theme Details

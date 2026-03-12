@@ -85,22 +85,22 @@ dvm <TAB>
 # Shows: admin attach build create delete get nvim plugin app version workspace
 
 dvm get <TAB>
-# Shows: platforms plugins apps workspaces
+# Shows: apps workspaces domains ecosystems
 ```
 
 ### nvp Completions
 ```bash
 nvp <TAB>
-# Shows: apply completion delete disable enable generate get init library list theme version
+# Shows: apply completion config delete disable enable generate generate-lua get library list source theme version
 
 nvp library <TAB>
-# Shows: categories info install list show tags
+# Shows: categories install list show tags
 
 nvp theme <TAB>
-# Shows: apply delete generate get library list use
+# Shows: create delete generate get library list preview use
 
 nvp theme library <TAB>
-# Shows: install list show
+# Shows: categories install list show tags
 ```
 
 ---

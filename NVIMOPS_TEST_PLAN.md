@@ -735,16 +735,16 @@ EOF
 ```
 
 ```bash
-./nvp theme apply -f /tmp/test-theme.yaml
-./nvp theme apply --url github:rmkohlman/nvim-yaml-plugins/themes/tokyonight-custom.yaml
+./nvp apply -f /tmp/test-theme.yaml
+./nvp apply -f github:rmkohlman/nvim-yaml-plugins/themes/tokyonight-custom.yaml
 ```
 
 **Expected:** Theme created/updated in store.
 
 | Test | Command | Expected | Status |
 |------|---------|----------|--------|
-| Apply from file | `theme apply -f test.yaml` | Theme created | |
-| Apply from URL | `theme apply --url github:...` | Theme fetched & applied | |
+| Apply from file | `nvp apply -f test.yaml` | Theme created | |
+| Apply from URL | `nvp apply -f github:...` | Theme fetched & applied | |
 | Apply invalid | `theme apply -f bad.yaml` | Error message | |
 
 ### 9.6 Theme Generate

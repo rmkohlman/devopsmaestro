@@ -67,7 +67,7 @@ DevOpsMaestro organizes your development environments using a clear hierarchy th
     # Or install NvimOps only (no containers needed)
     brew install nvimops
     
-    # Verify installation (should show v0.32.2)
+    # Verify installation (should show v0.39.1)
     dvm version && nvp version
     ```
 

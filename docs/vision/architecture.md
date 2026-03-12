@@ -1483,7 +1483,7 @@ dvm get runtimes
 dvm get nvim plugins
 dvm get nvim themes
 dvm apply -f plugin.yaml
-nvp plugin list                # Standalone nvp
+nvp list                       # Standalone nvp
 nvp theme list
 ```
 

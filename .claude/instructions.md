@@ -133,15 +133,16 @@ render.Info("Hint: try this command")
 ### Adding a New Resource Type (e.g., "Widget")
 
 1. [ ] Create model in `models/widget.go`
-2. [ ] Add DataStore interface methods in `db/datastore.go`
-3. [ ] Implement in `db/store.go`
-4. [ ] Add to `db/mock_store.go`
-5. [ ] Create migration in `migrations/sqlite/`
-6. [ ] Create handler in `pkg/resource/handlers/widget.go`
-7. [ ] Register handler in `pkg/resource/handlers/register.go`
-8. [ ] Create CLI commands in `cmd/widget.go`
-9. [ ] Add tests for handler and commands
-10. [ ] Update STANDARDS.md resource type table
+2. [ ] Add sub-interface to `db/datastore_interfaces.go` (e.g., `WidgetStore`)
+3. [ ] Embed the new sub-interface in `DataStore` in `db/datastore.go`
+4. [ ] Implement in `db/store_widget.go`
+5. [ ] Add to `db/mock_store.go`
+6. [ ] Create migration in `db/migrations/sqlite/`
+7. [ ] Create handler in `pkg/resource/handlers/widget.go`
+8. [ ] Register handler in `pkg/resource/handlers/register.go`
+9. [ ] Create CLI commands in `cmd/widget.go`
+10. [ ] Add tests for handler and commands
+11. [ ] Update STANDARDS.md resource type table
 
 ### Adding a New CLI Command
 
@@ -154,11 +155,11 @@ render.Info("Hint: try this command")
 
 ### Adding a New DataStore Method
 
-1. [ ] Add to `DataStore` interface in `db/datastore.go`
-2. [ ] Implement in `db/store.go`
+1. [ ] Add sub-interface method to `db/datastore_interfaces.go` (find the right sub-interface, e.g., `WorkspaceStore`)
+2. [ ] Implement in the matching `db/store_<domain>.go` file
 3. [ ] Add to `MockDataStore` in `db/mock_store.go`
 4. [ ] Add error injection field if needed
-5. [ ] Add tests in `db/store_test.go`
+5. [ ] Add tests in the matching `db/*_test.go` file
 
 ---
 
@@ -183,9 +184,12 @@ When reviewing your own code before committing:
 | Resource registry | `pkg/resource/registry.go` |
 | Handlers | `pkg/resource/handlers/*.go` |
 | Handler registration | `pkg/resource/handlers/register.go` |
-| DataStore interface | `db/datastore.go` |
-| DataStore implementation | `db/store.go` |
+| DataStore composed interface | `db/datastore.go` |
+| DataStore sub-interfaces | `db/datastore_interfaces.go` |
+| DataStore implementation (base) | `db/store.go` |
+| DataStore implementation (domain) | `db/store_<domain>.go` |
 | Mock DataStore | `db/mock_store.go` |
+| Migrations | `db/migrations/sqlite/` |
 | Render system | `render/*.go` |
 | Build resource context | `cmd/apply.go` → `buildResourceContext()` |
 
@@ -209,4 +213,4 @@ When reviewing your own code before committing:
 
 ---
 
-*Last updated: Session implementing Ecosystem/Domain/App hierarchy (v0.8.0)*
+*Last updated: v0.39.1 — updated for split DataStore sub-interfaces, current migration numbering*

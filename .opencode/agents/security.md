@@ -186,27 +186,28 @@ When you find issues, report them as:
 
 ---
 
-## v0.19.0 Security Requirements
+## Credential Security (Current State as of v0.39.1)
 
-### Critical Security Issues to Fix
+Credentials are stored in SQLite with scope-based access control. Key security properties:
 
-| Issue | Current State | Required State | Severity |
-|-------|--------------|----------------|----------|
-| Plaintext credentials | `value TEXT` in credentials table | Encrypted at rest (age/sops) | CRITICAL |
-| SSH auto-mount | All containers get `~/.ssh` | Explicit opt-in per workspace | HIGH |
-| Host path pollution | Writes to `~/.config/`, `~/.local/` | Workspace-scoped paths only | HIGH |
-| Credential scope bypass | Global access to all credentials | Scope-validated access | HIGH |
+| Property | Current State | Notes |
+|----------|--------------|-------|
+| Storage | Plaintext credential configs (not values) | Values are never stored; resolved at runtime from keychain/env |
+| Credential source | `"keychain"` or `"env"` | No plaintext values stored in DB |
+| Keychain type | `"generic"` or `"internet"` (default: `"internet"`) | Maps to macOS `find-generic-password` / `find-internet-password` |
+| Scope isolation | `scope_type` + `scope_id` constraints | Credentials bound to ecosystem/domain/app/workspace |
+| SSH mount | `StartOptions.MountSSH` opt-in | Not mounted by default |
 
 ### Workspace Isolation Boundaries
 
 Verify workspace isolation:
 
-- [ ] No writes to host `~/.config/` directories
+- [ ] No writes to host `~/.config/` directories from `dvm` workspace commands
 - [ ] No writes to host `~/.local/` directories
 - [ ] No writes to host shell rc files (`~/.zshrc`, `~/.bashrc`)
 - [ ] Credentials scoped to requesting workspace/app/domain
-- [ ] SSH keys only accessible to workspaces that request them
-- [ ] Container volumes isolated to workspace-specific paths
+- [ ] SSH keys only accessible to workspaces that request them (`MountSSH: true`)
+- [ ] Container volumes isolated to workspace-specific paths (`~/.devopsmaestro/workspaces/{id}/`)
 
 ---
 

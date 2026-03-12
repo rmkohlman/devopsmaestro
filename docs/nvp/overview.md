@@ -41,13 +41,18 @@ This means you can start coding immediately without manual nvim configuration.
 # Initialize
 nvp init
 
-# Install plugins from library
-nvp plugin list
-nvp apply -f package:rmkohlman
+# Browse and install plugins from library
+nvp library list
+nvp library install telescope
+nvp library install treesitter
+
+# Apply a plugin from a file or URL
+nvp apply -f my-plugin.yaml
+nvp apply -f github:rmkohlman/nvim-yaml-plugins/plugins/telescope.yaml
 
 # List and use themes
 nvp theme list
-nvp theme create --hue 210 --name my-blue-theme
+nvp theme create --from "210" --name my-blue-theme --use
 
 # Generate Lua files
 nvp generate
@@ -115,7 +120,7 @@ The `core` package (automatically installed for new dvm workspaces):
 See full list:
 
 ```bash
-nvp plugin list
+nvp library list
 ```
 
 ---
@@ -153,11 +158,13 @@ nvp plugin list
 
 ### Parametric Generator
 
-Create custom CoolNight variants:
+Create custom CoolNight variants using a hue angle, hex color, or preset name:
 
 ```bash
-nvp theme create --hue 210 --name my-blue-theme
-nvp theme create --hue 350 --name my-rose-theme
+nvp theme create --from "210" --name my-blue-theme
+nvp theme create --from "350" --name my-rose-theme
+nvp theme create --from "#8B00FF" --name my-violet-theme
+nvp theme create --from "synthwave" --name my-synth
 ```
 
 See full list:

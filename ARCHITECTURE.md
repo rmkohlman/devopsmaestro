@@ -15,11 +15,11 @@ Ecosystem → Domain → App → Workspace (dev mode)
 
 | Object | Purpose | Status |
 |--------|---------|--------|
-| **Ecosystem** | Top-level platform grouping | 🔴 v0.8.0 |
-| **Domain** | Bounded context (replaces Project) | 🔴 v0.8.0 |
-| **App** | The codebase (has `path`) | 🔴 v0.8.0 |
-| **Project** | ⚠️ DEPRECATED | 🟡 Migrate to App |
-| **Workspace** | Dev environment for App | 🟢 Exists |
+| **Ecosystem** | Top-level platform grouping | ✅ Complete |
+| **Domain** | Bounded context | ✅ Complete |
+| **App** | The codebase (has `path`) | ✅ Complete |
+| **Workspace** | Dev environment for App | ✅ Complete |
+| **Project** | ⚠️ DEPRECATED | Migrate to App |
 
 ---
 
@@ -256,6 +256,9 @@ Before writing or reviewing code, verify:
 | `operators/` | `ContainerRuntime` | `NewContainerRuntime()` | `MockRuntime` |
 | `builders/` | `ImageBuilder` | `NewImageBuilder()` | - |
 | `pkg/nvimops/store/` | `PluginStore` | per-type constructor | `MemoryStore` |
+| `pkg/secrets/` | `SecretProvider` | `NewSecretProviderFactory()` | `MockSecretProvider` |
+| `pkg/resource/` | `Handler` | `resource.Register()` | - |
+| `pkg/registry/` | `RegistryService` | `NewServiceFactory()` | - |
 
 ---
 
@@ -271,6 +274,7 @@ db/
 ├── datastore.go          # DataStore interface
 ├── interfaces.go         # Driver interface
 ├── store.go              # SQLDataStore impl
+├── database.go           # Migration helpers (CheckVersionBasedAutoMigration)
 └── sqlite_driver.go      # SQLiteDriver impl
 
 operators/
@@ -290,6 +294,24 @@ pkg/nvimops/store/
 ├── memory.go             # MemoryStore impl
 ├── file.go               # FileStore impl
 └── db_adapter.go         # DBStoreAdapter impl
+
+pkg/secrets/
+├── interfaces.go         # SecretProvider interface
+├── factory.go            # NewSecretProviderFactory()
+├── providers/            # Keychain, env implementations
+└── mock.go               # MockSecretProvider
+
+pkg/resource/
+├── resource.go           # Resource and Handler interfaces
+└── handlers/             # One file per resource type
+    ├── register.go       # RegisterAll() - registers all handlers
+    ├── credential.go     # CredentialHandler
+    ├── workspace.go      # WorkspaceHandler
+    ├── registry.go       # RegistryHandler
+    └── ...
+
+pkg/crd/
+└── crd.go                # CRD fallback handler for custom resources
 ```
 
 ---

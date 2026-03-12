@@ -12,11 +12,11 @@ brew tap rmkohlman/tap
 
 # Install NvimOps (standalone Neovim plugin/theme manager)
 brew install rmkohlman/tap/nvimops
-nvp version  # Should show v0.5.1
+nvp version  # Should show v0.39.1
 
 # Install DevOpsMaestro (workspace/container management)
-# Note: dvm requires CGO and must be built locally
-# See "Building dvm Locally" below
+brew install rmkohlman/tap/devopsmaestro
+dvm version  # Should show v0.39.1
 ```
 
 **Tap repository:** https://github.com/rmkohlman/homebrew-tap
@@ -27,8 +27,8 @@ nvp version  # Should show v0.5.1
 
 | Formula | Binary | Description | CGO Required |
 |---------|--------|-------------|--------------|
-| `nvimops` | `nvp` | Neovim plugin & theme manager | No |
-| `devopsmaestro` | `dvm` | Workspace/container management | Yes (SQLite) |
+| `nvimops` | `nvp` | Neovim plugin & theme manager | No (cross-compiled) |
+| `devopsmaestro` | `dvm` | Workspace/container management | Yes (built on macOS runner) |
 
 ### Installing NvimOps (nvp)
 
@@ -41,9 +41,20 @@ nvp version
 nvp --help
 ```
 
-### Building dvm Locally
+### Installing DevOpsMaestro (dvm)
 
-dvm requires CGO for SQLite and cannot be distributed as a pre-built Homebrew bottle on macOS. Build from source:
+dvm requires CGO for SQLite. It is built on macOS runners via GitHub Actions and published as a pre-built binary — Homebrew installs it directly without requiring a local Go toolchain.
+
+```bash
+brew tap rmkohlman/tap
+brew install rmkohlman/tap/devopsmaestro
+
+# Verify
+dvm version
+dvm --help
+```
+
+If you need to build from source (e.g., for development or unsupported platforms):
 
 ```bash
 git clone https://github.com/rmkohlman/devopsmaestro.git
@@ -238,7 +249,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.21'
+          go-version: '1.25'
       
       - name: Build Release Binaries
         run: make release
@@ -359,9 +370,9 @@ brew unpin dvm                     # Allow upgrades again
 ## Current Status
 
 ✅ Homebrew tap live at https://github.com/rmkohlman/homebrew-tap
-✅ NvimOps (nvp) formula available - v0.5.1
-✅ DevOpsMaestro formula available (requires local CGO build)
-✅ GitHub releases with pre-built nvp binaries (4 platforms)
+✅ NvimOps (nvp) formula available - v0.39.1
+✅ DevOpsMaestro (dvm) formula available - v0.39.1 (pre-built on macOS runner)
+✅ GitHub releases with pre-built binaries (4 platforms for nvp, macOS for dvm)
 ✅ GoReleaser configured for automated releases
 
 **Formulas:**

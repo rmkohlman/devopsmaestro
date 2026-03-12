@@ -1,129 +1,218 @@
-# TerminalPrompt
+# TerminalPrompt YAML Reference
 
-TerminalPrompt resources define shell prompt configurations for development environments. They support multiple prompt engines (Starship, Powerlevel10k, Oh-My-Posh) with theme integration for consistent colors.
+**Kind:** `TerminalPrompt`  
+**APIVersion:** `devopsmaestro.io/v1`
 
-## Resource Definition
+A TerminalPrompt defines a shell prompt configuration. Prompts are stored in the database and applied to workspaces. They support multiple prompt engines (Starship, Powerlevel10k, Oh-My-Posh) with structured module configuration and theme color integration.
+
+## Full Example
 
 ```yaml
 apiVersion: devopsmaestro.io/v1
 kind: TerminalPrompt
 metadata:
   name: my-starship-prompt
+  description: "Custom Starship prompt with theme integration"
+  category: development
+  tags: ["starship", "git", "go"]
   labels:
     prompt.type: starship
 spec:
   type: starship
-  description: "Custom Starship prompt with theme integration"
-  config:
-    format: |
-      [${theme.green}$directory${theme.reset}](bold) $git_branch$git_status
-      [${theme.blue}❯${theme.reset}] 
-    right_format: |
-      $time
+  addNewline: true
+  palette: theme
+  format: |
+    $directory$git_branch$git_status$golang$python$nodejs
+    [❯](bold ${theme.blue})
+  modules:
+    directory:
+      style: "bold ${theme.cyan}"
+      options:
+        truncation_length: 3
     git_branch:
       format: "[$branch]($style) "
       style: "${theme.purple}"
     git_status:
       format: "[$all_status$ahead_behind]($style) "
       style: "${theme.red}"
-    directory:
-      truncation_length: 3
-      style: "${theme.cyan}"
-    time:
-      disabled: false
-      format: "[${theme.dim}$time${theme.reset}]"
+    golang:
+      format: "[🐹 $version]($style) "
+      style: "${theme.sky}"
+  character:
+    success_symbol: "[❯](bold ${theme.green})"
+    error_symbol: "[❯](bold ${theme.red})"
+  paletteRef: coolnight-synthwave
 ```
 
-## Fields
-
-### metadata
+## Field Reference
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | string | Yes | Unique prompt name |
-| `labels` | map | No | Resource labels for organization |
-| `annotations` | map | No | Additional metadata |
+| `apiVersion` | string | ✅ | Must be `devopsmaestro.io/v1` |
+| `kind` | string | ✅ | Must be `TerminalPrompt` |
+| `metadata.name` | string | ✅ | Unique prompt name |
+| `metadata.description` | string | ❌ | Human-readable description |
+| `metadata.category` | string | ❌ | Prompt category for organization |
+| `metadata.tags` | array | ❌ | Tags for filtering |
+| `metadata.labels` | object | ❌ | Key-value labels |
+| `metadata.annotations` | object | ❌ | Key-value annotations |
+| `spec.type` | string | ✅ | Prompt engine: `starship`, `powerlevel10k`, `oh-my-posh` |
+| `spec.addNewline` | boolean | ❌ | Add blank line before prompt (Starship) |
+| `spec.palette` | string | ❌ | Palette name to use (`theme` = active theme) |
+| `spec.format` | string | ❌ | Prompt format string |
+| `spec.modules` | object | ❌ | Module-specific configuration (keyed by module name) |
+| `spec.character` | object | ❌ | Prompt character/symbol configuration |
+| `spec.paletteRef` | string | ❌ | Reference to a named color palette or theme |
+| `spec.colors` | object | ❌ | Custom color overrides (map of name → hex) |
+| `spec.rawConfig` | string | ❌ | Raw engine config (for advanced use; bypasses structured fields) |
+| `spec.enabled` | boolean | ❌ | Enable or disable the prompt (default: `true`) |
 
-### spec
+## Field Details
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `type` | string | Yes | Prompt engine: `starship`, `powerlevel10k`, `oh-my-posh` |
-| `description` | string | No | Human-readable prompt description |
-| `config` | object | Yes | Engine-specific configuration |
+### metadata.name (required)
+The unique identifier for this prompt. Used when referencing the prompt in workspace configuration.
 
-## Prompt Engines
+**Examples:**
+- `my-starship-prompt`
+- `dev-prompt`
+- `minimal-prompt`
 
-### Starship
+### metadata.category (optional)
+Category for organization and filtering.
 
-Starship uses TOML configuration with theme variable interpolation:
+**Common values:**
+- `development` - Developer-focused prompts
+- `minimal` - Minimal/clean prompts
+- `feature-rich` - Information-dense prompts
+- `specialty` - Specialized prompts
+
+### spec.type (required)
+The prompt engine to use.
+
+| Value | Description |
+|-------|-------------|
+| `starship` | Cross-shell prompt written in Rust |
+| `powerlevel10k` | Zsh-specific high-performance prompt |
+| `oh-my-posh` | Cross-platform prompt engine |
+
+### spec.addNewline (optional, Starship)
+When `true`, adds a blank line before the prompt. Equivalent to `add_newline = true` in `starship.toml`. Defaults to `false`.
 
 ```yaml
 spec:
   type: starship
-  config:
-    format: |
-      $directory$git_branch$git_status
-      [${theme.blue}❯${theme.reset}] 
+  addNewline: true
+```
+
+### spec.palette (optional)
+Palette name to use for color variables. Set to `theme` to use the active DevOpsMaestro theme's colors.
+
+```yaml
+spec:
+  palette: theme   # Use the active workspace theme
+```
+
+### spec.format (optional)
+The prompt format string. Uses the engine's native format syntax with optional `${theme.color}` variable interpolation.
+
+```yaml
+spec:
+  format: |
+    $directory$git_branch
+    [❯](bold ${theme.blue})
+```
+
+### spec.modules (optional)
+Per-module configuration, keyed by module name. Each entry is a `ModuleConfig` object.
+
+```yaml
+spec:
+  modules:
     directory:
-      style: "${theme.cyan}"
+      style: "bold ${theme.cyan}"
+      options:
+        truncation_length: 3
     git_branch:
+      format: "[$branch]($style) "
       style: "${theme.purple}"
+      symbol: " "
+    git_status:
+      disabled: false
+      format: "[$all_status$ahead_behind]($style) "
+      style: "${theme.red}"
 ```
 
-### Powerlevel10k
+**ModuleConfig fields:**
 
-Powerlevel10k configuration for Zsh:
+| Field | Type | Description |
+|-------|------|-------------|
+| `disabled` | boolean | Disable this module entirely |
+| `format` | string | Module format string |
+| `style` | string | Module color/style |
+| `symbol` | string | Symbol to display |
+| `options` | object | Engine-specific additional options |
+
+### spec.character (optional)
+Configures the prompt character symbol that appears at the end of the prompt line.
 
 ```yaml
 spec:
-  type: powerlevel10k
-  config:
-    elements:
-      - dir
-      - vcs
-      - status
-    colors:
-      dir: "${theme.cyan}"
-      vcs: "${theme.purple}"
+  character:
+    success_symbol: "[❯](bold ${theme.green})"
+    error_symbol: "[❯](bold ${theme.red})"
+    vicmd_symbol: "[❮](bold ${theme.purple})"
+    viins_symbol: "[❯](bold ${theme.blue})"
 ```
 
-### Oh-My-Posh
-
-Oh-My-Posh JSON configuration with theme support:
+### spec.paletteRef (optional)
+Reference to a named palette or theme to use for color resolution. Takes precedence over `palette`.
 
 ```yaml
 spec:
-  type: oh-my-posh
-  config:
-    blocks:
-      - type: prompt
-        segments:
-          - type: path
-            style: folder
-            foreground: "${theme.cyan}"
+  paletteRef: coolnight-synthwave
+```
+
+### spec.colors (optional)
+Custom color overrides as a map of color name to hex value.
+
+```yaml
+spec:
+  colors:
+    primary: "#bd93f9"
+    secondary: "#ff79c6"
+    accent: "#50fa7b"
+```
+
+### spec.rawConfig (optional)
+Raw engine configuration string. For advanced users who want to bypass the structured fields and provide the config directly (e.g., a complete `starship.toml`).
+
+```yaml
+spec:
+  rawConfig: |
+    add_newline = true
+    [directory]
+    style = "bold cyan"
+    truncation_length = 3
 ```
 
 ## Theme Variables
 
-TerminalPrompt configurations support theme variable interpolation:
+Prompt configurations support `${theme.color}` variable interpolation. Variables are resolved from the active theme's color palette at config generation time.
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `${theme.red}` | Primary red color | `#ff5555` |
-| `${theme.green}` | Primary green color | `#50fa7b` |
-| `${theme.blue}` | Primary blue color | `#8be9fd` |
-| `${theme.purple}` | Primary purple color | `#bd93f9` |
-| `${theme.cyan}` | Primary cyan color | `#8be9fd` |
-| `${theme.yellow}` | Primary yellow color | `#f1fa8c` |
-| `${theme.orange}` | Primary orange color | `#ffb86c` |
-| `${theme.pink}` | Primary pink color | `#ff79c6` |
-| `${theme.gray}` | Primary gray color | `#6272a4` |
-| `${theme.sky}` | Sky blue color | `#87ceeb` |
-| `${theme.dim}` | Dimmed text color | `#44475a` |
-| `${theme.reset}` | Reset formatting | ANSI reset code |
-
-Theme variables are resolved from the active theme's color palette when generating configuration files.
+| Variable | Description |
+|----------|-------------|
+| `${theme.red}` | Primary red |
+| `${theme.green}` | Primary green |
+| `${theme.blue}` | Primary blue |
+| `${theme.purple}` | Primary purple |
+| `${theme.cyan}` | Primary cyan |
+| `${theme.yellow}` | Primary yellow |
+| `${theme.orange}` | Primary orange |
+| `${theme.pink}` | Primary pink |
+| `${theme.gray}` | Primary gray |
+| `${theme.sky}` | Sky blue |
+| `${theme.dim}` | Dimmed text |
+| `${theme.reset}` | ANSI reset |
 
 ## CLI Commands
 
@@ -158,9 +247,6 @@ dvt prompt apply -f prompt.yaml
 
 # Apply from URL
 dvt prompt apply -f https://configs.example.com/prompt.yaml
-
-# Apply from GitHub
-dvt prompt apply -f github:rmkohlman/dvm-config/prompts/starship.yaml
 ```
 
 ### Generate Configuration
@@ -181,20 +267,18 @@ dvt prompt delete my-starship-prompt
 
 ## Examples
 
-### Basic Starship Prompt
+### Minimal Starship Prompt
 
 ```yaml
 apiVersion: devopsmaestro.io/v1
 kind: TerminalPrompt
 metadata:
-  name: simple-starship
+  name: minimal
+  description: "Clean single-line prompt"
 spec:
   type: starship
-  description: "Simple Starship prompt"
-  config:
-    format: |
-      $directory $git_branch
-      [❯](bold ${theme.blue}) 
+  format: "$directory$git_branch [❯](bold ${theme.blue}) "
+  modules:
     directory:
       style: "bold ${theme.cyan}"
     git_branch:
@@ -202,27 +286,28 @@ spec:
       style: "${theme.purple}"
 ```
 
-### Multi-line Starship with Status
+### Multi-line Development Prompt
 
 ```yaml
 apiVersion: devopsmaestro.io/v1
 kind: TerminalPrompt
 metadata:
   name: dev-starship
-  labels:
-    environment: development
+  description: "Development-focused Starship prompt with language context"
+  category: development
+  tags: ["starship", "multiline", "git"]
 spec:
   type: starship
-  description: "Development-focused Starship prompt"
-  config:
-    format: |
-      [${theme.green}╭─${theme.reset}] $directory$git_branch$git_status$golang$python$nodejs
-      [${theme.green}╰─${theme.blue}❯${theme.reset}] 
-    right_format: |
-      $cmd_duration $time
+  addNewline: true
+  palette: theme
+  format: |
+    [${theme.green}╭─${theme.reset}] $directory$git_branch$git_status$golang$python$nodejs
+    [${theme.green}╰─${theme.blue}❯${theme.reset}] 
+  modules:
     directory:
-      truncation_length: 4
       style: "bold ${theme.cyan}"
+      options:
+        truncation_length: 4
     git_branch:
       format: "[$branch]($style) "
       style: "${theme.purple}"
@@ -238,12 +323,9 @@ spec:
     nodejs:
       format: "[⬢ $version]($style) "
       style: "${theme.green}"
-    time:
-      disabled: false
-      format: "[${theme.dim}$time${theme.reset}]"
-    cmd_duration:
-      min_time: 2000
-      format: "[took ${theme.yellow}$duration${theme.reset}]"
+  character:
+    success_symbol: "[❯](bold ${theme.green})"
+    error_symbol: "[❯](bold ${theme.red})"
 ```
 
 ### Workspace Context Prompt
@@ -253,47 +335,64 @@ apiVersion: devopsmaestro.io/v1
 kind: TerminalPrompt
 metadata:
   name: workspace-context
+  description: "Prompt showing workspace context"
 spec:
   type: starship
-  description: "Prompt showing workspace context"
-  config:
-    format: |
-      [${theme.dim}($env_var.DVM_WORKSPACE)${theme.reset}] $directory $git_branch
-      [${theme.blue}❯${theme.reset}] 
+  format: |
+    [${theme.dim}($env_var.DVM_WORKSPACE)${theme.reset}] $directory$git_branch
+    [${theme.blue}❯${theme.reset}] 
+  modules:
     directory:
       style: "bold ${theme.cyan}"
       format: "[$path]($style) "
     git_branch:
       format: "[$branch]($style) "
       style: "${theme.purple}"
-    env_var:
-      DVM_WORKSPACE:
-        format: "$env_value"
-        style: "${theme.orange}"
+    env_var.DVM_WORKSPACE:
+      format: "$env_value"
+      style: "${theme.orange}"
+```
+
+### Raw Config (Advanced)
+
+For prompts that need full control over the generated config:
+
+```yaml
+apiVersion: devopsmaestro.io/v1
+kind: TerminalPrompt
+metadata:
+  name: advanced-starship
+  description: "Advanced prompt using raw config"
+spec:
+  type: starship
+  rawConfig: |
+    add_newline = true
+    format = "$directory$git_branch\n[❯](bold blue) "
+
+    [directory]
+    style = "bold cyan"
+    truncation_length = 3
+
+    [git_branch]
+    format = "[$branch]($style) "
+    style = "purple"
 ```
 
 ## Validation
 
-TerminalPrompt resources are validated on creation:
-
-- **Required fields**: `metadata.name`, `spec.type`, `spec.config`
-- **Valid types**: Must be one of `starship`, `powerlevel10k`, `oh-my-posh`
-- **Theme variables**: Theme variable syntax must be valid (`${theme.color}`)
-- **Configuration**: Engine-specific config validation
+- `metadata.name` is required and must be non-empty
+- `spec.type` is required and must be `starship`, `powerlevel10k`, or `oh-my-posh`
+- `spec.rawConfig` and structured fields (`spec.format`, `spec.modules`) may be used together but `rawConfig` takes full control when present
 
 ## Storage
 
 TerminalPrompts are stored in the database and linked to workspaces:
 
 - **Database table**: `terminal_prompts`
-- **Workspace relationship**: Prompts can be set as active per workspace
+- **Workspace relationship**: Set via `spec.terminal.prompt` in a Workspace YAML
 - **Qualified naming**: Prompts are workspace-qualified (`app/workspace/prompt-name`)
 
-## Integration
+## Related Resources
 
-TerminalPrompts integrate with the broader DevOpsMaestro ecosystem:
-
-- **Theme resolution**: Automatic theme variable interpolation
-- **Workspace context**: Environment variables provide workspace context
-- **Build process**: Prompts can be applied during container builds
-- **Shell integration**: Generated configs work with existing shell setups
+- [Workspace](workspace.md) - Reference prompts via `spec.terminal.prompt`
+- [NvimTheme](nvim-theme.md) - Theme palettes used for `${theme.color}` interpolation
