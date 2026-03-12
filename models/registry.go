@@ -54,6 +54,10 @@ type RegistrySpec struct {
 	Config    map[string]interface{} `yaml:"config,omitempty"`
 }
 
+// Minimum idle timeout for on-demand registries (seconds).
+// Values below this threshold cause rapid start/stop cycling.
+const minIdleTimeout = 60
+
 // Valid registry types
 var validRegistryTypes = map[string]bool{
 	"zot":       true,
@@ -215,6 +219,13 @@ func (r *Registry) Validate() error {
 
 	if err := r.ValidateVersion(); err != nil {
 		return err
+	}
+
+	// Minimum IdleTimeout for on-demand registries: values between 1 and
+	// minIdleTimeout-1 would cause rapid start/stop cycling. Zero means
+	// "use default" (ApplyDefaults sets it to 1800s) and is always allowed.
+	if r.IsOnDemand() && r.IdleTimeout > 0 && r.IdleTimeout < minIdleTimeout {
+		return fmt.Errorf("IdleTimeout must be at least %d seconds for on-demand registries (got %d)", minIdleTimeout, r.IdleTimeout)
 	}
 
 	// Validate storage path is not empty

@@ -574,6 +574,10 @@ func TestBaseServiceManager_EnsureBinary_DelegatesToBinaryManager(t *testing.T) 
 // =============================================================================
 
 func TestBaseServiceManager_SetupIdleTimer(t *testing.T) {
+	oldMin := minTimerDuration
+	minTimerDuration = 1 * time.Millisecond
+	defer func() { minTimerDuration = oldMin }()
+
 	tests := []struct {
 		name           string
 		lifecycle      string
@@ -641,6 +645,10 @@ func TestBaseServiceManager_SetupIdleTimer(t *testing.T) {
 }
 
 func TestBaseServiceManager_SetupIdleTimer_RespectsTimeout(t *testing.T) {
+	oldMin := minTimerDuration
+	minTimerDuration = 1 * time.Millisecond
+	defer func() { minTimerDuration = oldMin }()
+
 	mgr, _, _ := setupBaseServiceManager(t)
 
 	var mu sync.Mutex
@@ -699,6 +707,10 @@ func TestBaseServiceManager_SetupIdleTimer_CanBeStopped(t *testing.T) {
 // =============================================================================
 
 func TestBaseServiceManager_ResetIdleTimer(t *testing.T) {
+	oldMin := minTimerDuration
+	minTimerDuration = 1 * time.Millisecond
+	defer func() { minTimerDuration = oldMin }()
+
 	tests := []struct {
 		name         string
 		lifecycle    string
@@ -770,6 +782,10 @@ func TestBaseServiceManager_ResetIdleTimer(t *testing.T) {
 }
 
 func TestBaseServiceManager_ResetIdleTimer_ExtendsTimeout(t *testing.T) {
+	oldMin := minTimerDuration
+	minTimerDuration = 1 * time.Millisecond
+	defer func() { minTimerDuration = oldMin }()
+
 	mgr, _, _ := setupBaseServiceManager(t)
 
 	var mu sync.Mutex

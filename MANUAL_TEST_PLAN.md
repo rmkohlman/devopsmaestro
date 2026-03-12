@@ -2255,18 +2255,113 @@ dvm delete credential legacy-cred  --ecosystem <your-ecosystem> --force
 
 ---
 
+### Scenario 64: Create Dual-Field Credential — Username-Var Only
+
+Create a keychain-sourced credential with only `--username-var` (no `--password-var`). Verifies that a single username variable is accepted, stored, and injected correctly without requiring a paired password field.
+
+```bash
+dvm create credential sso-user \
+  --source keychain --service sso.example.com \
+  --username-var SSO_USERNAME \
+  --ecosystem <your-ecosystem>
+
+# Verify it appears in the list
+dvm get credentials --ecosystem <your-ecosystem>
+
+# Verify detail view
+dvm get credential sso-user --ecosystem <your-ecosystem>
+
+# Verify YAML round-trip
+dvm get credential sso-user --ecosystem <your-ecosystem> -o yaml
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Create succeeds | No error, success message shown | |
+| Credential appears in list | `sso-user` visible in `get credentials` | |
+| Detail view shows username var | `Username: SSO_USERNAME` field present | |
+| Password field absent or empty | No `Password:` line, or value is empty | |
+| `-o yaml` shows `usernameVar` | `usernameVar: SSO_USERNAME` under spec in YAML output | |
+| `-o yaml` omits or leaves empty `passwordVar` | No `passwordVar` field, or `passwordVar: ""` in YAML output | |
+
+**Cleanup:**
+```bash
+dvm delete credential sso-user --ecosystem <your-ecosystem> --force
+```
+
+---
+
+### Scenario 65: Dual-Field Credential Fan-Out Produces Exactly 2 Env Vars
+
+Verify that a dual-field keychain credential with both `--username-var` and `--password-var` produces **exactly 2 distinct environment variables** in the build and runtime context — one for the username field, one for the password field — using the names specified at creation time.
+
+> **Note:** Requires a macOS Keychain entry for `fanout.example.com` with a username and password set, or substitute any valid Keychain service available on your machine.
+
+```bash
+# Create the dual-field credential
+dvm create credential fanout-creds \
+  --source keychain --service fanout.example.com \
+  --username-var FANOUT_USER \
+  --password-var FANOUT_PASS \
+  --ecosystem <your-ecosystem>
+
+# --- Build check: inspect build args ---
+# Run a build and capture the output; count --build-arg occurrences for this credential
+dvm build <workspace> 2>&1 | grep -E 'build-arg (FANOUT_USER|FANOUT_PASS)'
+```
+
+**Expected build output (values redacted):**
+```
+--build-arg FANOUT_USER=***REDACTED***
+--build-arg FANOUT_PASS=***REDACTED***
+```
+
+```bash
+# --- Runtime check: attach and inspect env vars ---
+dvm attach <workspace>
+```
+
+**Inside the container, verify:**
+```bash
+# Both vars must be set
+echo "FANOUT_USER=${FANOUT_USER}"   # Expected: non-empty username from Keychain
+echo "FANOUT_PASS=${FANOUT_PASS}"   # Expected: non-empty password from Keychain
+
+# Confirm only 2 vars were injected for this credential (no extra/duplicate vars)
+env | grep '^FANOUT_' | sort
+exit
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Build output includes `FANOUT_USER` build arg | `--build-arg FANOUT_USER=...` present in build log | |
+| Build output includes `FANOUT_PASS` build arg | `--build-arg FANOUT_PASS=...` present in build log | |
+| Exactly 2 `FANOUT_*` build args present | `grep 'FANOUT_'` in build output returns exactly 2 lines | |
+| `FANOUT_USER` available in container | Non-empty value matching Keychain username | |
+| `FANOUT_PASS` available in container | Non-empty value matching Keychain password | |
+| Env var names match `--username-var` / `--password-var` | Variable names are `FANOUT_USER` and `FANOUT_PASS` exactly | |
+| No extra `FANOUT_*` variables injected | `env \| grep '^FANOUT_'` returns exactly 2 lines | |
+| Values are redacted in build log | No plaintext credential values visible in build output | |
+
+**Cleanup:**
+```bash
+dvm delete credential fanout-creds --ecosystem <your-ecosystem> --force
+```
+
+---
+
 ## Part 11: Registry Bug Fix Verification (v0.37.2)
 
 These scenarios verify the four registry bugs fixed in v0.37.2: binary download timeout, log file persistence, version defaulting on init and create, and the latent idle-timer deadlock. Run them from a clean registry state unless a scenario explicitly depends on prior state.
 
 **Prerequisites:**
 - `dvm` binary built from v0.37.2+
-- Zot binary **not** cached (delete `~/.devopsmaestro/bin/zot` if it exists) for Scenario 64
+- Zot binary **not** cached (delete `~/.devopsmaestro/bin/zot` if it exists) for Scenario 66
 - Port 5010 available for test registries
 
 ---
 
-### Scenario 64: Binary Download Timeout (First Use)
+### Scenario 66: Binary Download Timeout (First Use)
 
 Verify that `dvm start registry` completes the Zot binary download (or fails with a timeout error) and does **not** hang indefinitely when the binary is not yet cached.
 
@@ -2297,7 +2392,7 @@ dvm delete registry timeout-test
 
 ---
 
-### Scenario 65: Log File Persistence
+### Scenario 67: Log File Persistence
 
 Verify that `zot.log` is created in the registry's storage directory and written to while the registry is running, and that the file is cleanly closed after the registry stops (no corruption or truncation).
 
@@ -2342,7 +2437,7 @@ dvm delete registry log-test
 
 ---
 
-### Scenario 66: Version Defaulting — `dvm init`
+### Scenario 68: Version Defaulting — `dvm init`
 
 Verify that `dvm admin init` populates a non-empty default version for OCI registries in the generated YAML/config, and that the created registries show `version: 2.1.15` (not empty or blank).
 
@@ -2365,7 +2460,7 @@ dvm get registries -o yaml
 
 ---
 
-### Scenario 67: Version Defaulting — `dvm create registry`
+### Scenario 69: Version Defaulting — `dvm create registry`
 
 Verify that `dvm create registry` without an explicit `--version` flag populates the default version (`2.1.15` for zot) in the stored resource.
 
@@ -2391,7 +2486,7 @@ dvm delete registry default-ver-test
 
 ---
 
-### Scenario 68: Version Defaulting — `dvm registry enable devpi`
+### Scenario 70: Version Defaulting — `dvm registry enable devpi`
 
 Verify that enabling a non-zot registry type (devpi) via `dvm registry enable` also has its default version populated.
 
@@ -2413,7 +2508,7 @@ dvm get registries -o yaml
 
 ---
 
-### Scenario 69: Idle Timer Deadlock (Informational)
+### Scenario 71: Idle Timer Deadlock (Informational)
 
 > **Note:** This scenario is primarily covered by automated tests. The deadlock is a latent race condition that manifests under specific timing — it is difficult to trigger manually. This entry documents the fix for tracking purposes and provides a smoke-test to confirm on-demand registries start cleanly.
 
@@ -2459,7 +2554,7 @@ dvm delete registry idle-test
 | Part 7: Registry Version Management | 8 scenarios | | |
 | Part 8: Credential Injection & Env Vars | 7 scenarios | | |
 | Part 9: Runtime Credential & Env Injection | 7 scenarios | | |
-| Part 10: Keychain Dual-Field Credentials | 10 scenarios | | |
+| Part 10: Keychain Dual-Field Credentials | 12 scenarios | | |
 | Part 11: Registry Bug Fix Verification | 6 scenarios | | |
 
 ---

@@ -3,6 +3,7 @@ package registry
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -16,6 +17,9 @@ import (
 	"strings"
 	"time"
 )
+
+// maxBinarySize is the maximum allowed size for downloaded binaries (500 MB).
+const maxBinarySize = 500 * 1024 * 1024
 
 // DefaultBinaryManager implements BinaryManager for Zot.
 type DefaultBinaryManager struct {
@@ -186,6 +190,14 @@ func (b *DefaultBinaryManager) downloadBinary(ctx context.Context, destPath stri
 		return "", fmt.Errorf("%w: HTTP %d from %s", ErrDownloadFailed, resp.StatusCode, url)
 	}
 
+	// Check Content-Length against maximum allowed size
+	if resp.ContentLength > maxBinarySize {
+		return "", fmt.Errorf("binary size %d exceeds maximum allowed %d", resp.ContentLength, maxBinarySize)
+	}
+
+	// Limit actual read to maxBinarySize
+	limitedBody := io.LimitReader(resp.Body, maxBinarySize)
+
 	// Create temporary file
 	tempPath := destPath + ".tmp"
 	f, err := os.OpenFile(tempPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
@@ -198,13 +210,22 @@ func (b *DefaultBinaryManager) downloadBinary(ctx context.Context, destPath stri
 	}()
 
 	// Download to temp file
-	if _, err := io.Copy(f, resp.Body); err != nil {
+	if _, err := io.Copy(f, limitedBody); err != nil {
 		return "", fmt.Errorf("failed to download binary: %w", err)
 	}
 
-	// Close file before moving
+	// Close file before verification and moving
 	if err := f.Close(); err != nil {
 		return "", fmt.Errorf("failed to close temp file: %w", err)
+	}
+
+	// Verify integrity
+	expectedSum, err := b.fetchChecksum(ctx, url)
+	if err != nil {
+		return "", fmt.Errorf("checksum fetch failed: %w", err)
+	}
+	if err := b.verifyChecksum(tempPath, expectedSum); err != nil {
+		return "", fmt.Errorf("integrity verification failed: %w", err)
 	}
 
 	// Move temp file to final location
@@ -249,9 +270,37 @@ func (b *DefaultBinaryManager) verifyChecksum(path string, expectedSum string) e
 	}
 
 	actualSum := hex.EncodeToString(hash.Sum(nil))
-	if actualSum != expectedSum {
+	if subtle.ConstantTimeCompare([]byte(actualSum), []byte(expectedSum)) != 1 {
 		return fmt.Errorf("checksum mismatch: expected %s, got %s", expectedSum, actualSum)
 	}
 
 	return nil
+}
+
+// fetchChecksum downloads the checksum file for the given binary URL and returns the expected SHA256 hex digest.
+func (b *DefaultBinaryManager) fetchChecksum(ctx context.Context, binaryURL string) (string, error) {
+	checksumURL := binaryURL + ".sha256"
+	req, err := http.NewRequestWithContext(ctx, "GET", checksumURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create checksum request: %w", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to download checksum: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("checksum download failed with status %d", resp.StatusCode)
+	}
+	// Read at most 256 bytes (SHA256 hex is 64 chars + optional filename)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 256))
+	if err != nil {
+		return "", fmt.Errorf("failed to read checksum: %w", err)
+	}
+	// Parse: could be just the hex digest, or "hexdigest  filename"
+	parts := strings.Fields(strings.TrimSpace(string(body)))
+	if len(parts) == 0 {
+		return "", fmt.Errorf("empty checksum file")
+	}
+	return parts[0], nil
 }

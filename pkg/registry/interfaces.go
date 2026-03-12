@@ -2,7 +2,20 @@ package registry
 
 import (
 	"context"
+	"os"
 	"time"
+)
+
+// File permission constants for security-sensitive files.
+// These restrict access to owner-only (0600) to prevent information leakage.
+const (
+	// configFileMode is used for config files that may contain auth settings,
+	// ports, storage paths, or other sensitive configuration data.
+	configFileMode os.FileMode = 0600
+
+	// logFileMode is used for log files that may contain sensitive startup
+	// arguments, request details, or error messages.
+	logFileMode os.FileMode = 0600
 )
 
 // RegistryManager defines the interface for managing a container registry.

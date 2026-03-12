@@ -200,8 +200,8 @@ func (z *ZotManager) writeConfigFile(path string, config map[string]interface{})
 		return err
 	}
 
-	// Write to file
-	return os.WriteFile(path, data, 0644)
+	// Write to file — use restricted permissions since config may contain auth settings
+	return os.WriteFile(path, data, configFileMode)
 }
 
 // waitForReady waits for the registry to become ready.

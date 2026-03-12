@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 )
 
 // AthensBinaryManager implements BinaryManager for Athens.
@@ -120,6 +121,13 @@ func (b *AthensBinaryManager) Update(ctx context.Context) error {
 
 // downloadBinary downloads the Athens binary for the current platform.
 func (b *AthensBinaryManager) downloadBinary(ctx context.Context, destPath string) (string, error) {
+	// Apply defensive timeout if caller didn't set a deadline
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 5*time.Minute)
+		defer cancel()
+	}
+
 	// Ensure directory exists
 	if err := os.MkdirAll(b.binDir, 0755); err != nil {
 		return "", fmt.Errorf("failed to create binary directory: %w", err)

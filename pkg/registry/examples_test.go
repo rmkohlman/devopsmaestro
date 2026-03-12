@@ -112,16 +112,13 @@ func ExampleZotStrategy_CreateManager() {
 func ExampleRegistryStrategy_ValidateConfig() {
 	factory := registry.NewServiceFactory()
 
-	// Valid config
+	// Valid config — Storage field satisfies NOT NULL; no custom Config so
+	// resolveStoragePath falls back to the safe ~/.devopsmaestro default.
 	reg := &models.Registry{
 		Name:    "configured-zot",
 		Type:    "zot",
 		Port:    5001,
-		Storage: "/custom/path",
-		Config: sql.NullString{
-			Valid:  true,
-			String: `{"storage": "/custom/path"}`,
-		},
+		Storage: "default",
 	}
 
 	// Validation happens in CreateManager
@@ -137,7 +134,7 @@ func ExampleRegistryStrategy_ValidateConfig() {
 		Name:    "invalid",
 		Type:    "zot",
 		Port:    5001,
-		Storage: "/tmp/invalid",
+		Storage: "registries/invalid",
 		Config: sql.NullString{
 			Valid:  true,
 			String: `{invalid json}`,

@@ -235,7 +235,7 @@ func (m *VerdaccioManager) generateConfig() error {
 
 	// Write config file
 	configPath := filepath.Join(m.config.Storage, "config.yaml")
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(configContent), configFileMode); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 

@@ -104,10 +104,19 @@ func (b *BaseServiceManager) ResetIdleTimer(lifecycle string, timeout time.Durat
 	b.ResetIdleTimerLocked(lifecycle, timeout, stopFunc)
 }
 
+// minTimerDuration is the minimum idle timer duration to prevent rapid start/stop cycling.
+// This is a defensive guard; validation in models/ should already reject sub-minimum values.
+// Exposed as var (not const) so tests can override for fast execution.
+var minTimerDuration = 60 * time.Second
+
 // ResetIdleTimerLocked resets idle timer. Caller must hold mu.
 func (b *BaseServiceManager) ResetIdleTimerLocked(lifecycle string, timeout time.Duration, stopFunc func()) {
 	if lifecycle != "on-demand" {
 		return
+	}
+	// Defensive: clamp dangerously short timeouts to the minimum.
+	if timeout > 0 && timeout < minTimerDuration {
+		timeout = minTimerDuration
 	}
 	b.lastAccessTime = time.Now()
 	if b.idleTimer != nil {

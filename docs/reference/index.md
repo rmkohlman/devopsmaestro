@@ -14,6 +14,7 @@ DevOpsMaestro supports the following resource types with kubectl-style YAML conf
 | [Domain](domain.md) | `devopsmaestro.io/v1` | Bounded context within an ecosystem |
 | [App](app.md) | `devopsmaestro.io/v1` | Application/codebase within a domain |
 | [Workspace](workspace.md) | `devopsmaestro.io/v1` | Development environment for an app |
+| [Credential](credential.md) | `devopsmaestro.io/v1` | Secret reference scoped to an ecosystem, domain, app, or workspace |
 
 ### NvimOps Resources
 

@@ -6,28 +6,69 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/paths"
 )
 
+// validateStoragePath ensures the resolved path is within the DVM root directory (~/.devopsmaestro/).
+// Returns an error if the path escapes the allowed base directory.
+// The homeDir parameter is accepted explicitly to support deterministic testing.
+func validateStoragePath(resolved, homeDir string) error {
+	if !filepath.IsAbs(resolved) {
+		return fmt.Errorf("storage path must be absolute: %s", resolved)
+	}
+
+	baseDir := filepath.Join(homeDir, ".devopsmaestro")
+
+	absResolved, err := filepath.Abs(filepath.Clean(resolved))
+	if err != nil {
+		return fmt.Errorf("invalid storage path: %w", err)
+	}
+	absBase, err := filepath.Abs(baseDir)
+	if err != nil {
+		return fmt.Errorf("invalid base directory: %w", err)
+	}
+
+	// Check that the resolved path is within the base directory.
+	// filepath.Rel returns a ".." prefix when the target escapes the base.
+	rel, err := filepath.Rel(absBase, absResolved)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return fmt.Errorf("storage path %q must be within %s", resolved, baseDir)
+	}
+
+	return nil
+}
+
 // resolveStoragePath extracts the storage path from a registry's config,
 // falling back to the default ~/.devopsmaestro/registries/{name} path.
 // The configKey parameter specifies which JSON key to look up (e.g. "storage", "cacheDir").
-func resolveStoragePath(reg *models.Registry, configKey string) string {
+// Returns an error if a user-provided path fails validation.
+func resolveStoragePath(reg *models.Registry, configKey string) (string, error) {
 	if reg.Config.Valid && reg.Config.String != "" {
 		var configMap map[string]interface{}
 		if err := json.Unmarshal([]byte(reg.Config.String), &configMap); err == nil {
 			if val, ok := configMap[configKey].(string); ok && val != "" {
-				return val
+				homeDir, err := os.UserHomeDir()
+				if err != nil {
+					return "", fmt.Errorf("cannot determine home directory: %w", err)
+				}
+				if err := validateStoragePath(val, homeDir); err != nil {
+					return "", err
+				}
+				return val, nil
 			}
 		}
 	}
 
 	// Otherwise use default path under ~/.devopsmaestro
-	homeDir, _ := os.UserHomeDir()
-	return paths.New(homeDir).RegistryDir(reg.Name)
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("cannot determine home directory: %w", err)
+	}
+	return paths.New(homeDir).RegistryDir(reg.Name), nil
 }
 
 // --- Zot Strategy ---
@@ -63,12 +104,18 @@ func (s *ZotStrategy) CreateManager(reg *models.Registry) (ServiceManager, error
 		return nil, fmt.Errorf("registry cannot be nil")
 	}
 
+	// Resolve and validate storage path
+	storagePath, err := resolveStoragePath(reg, "storage")
+	if err != nil {
+		return nil, fmt.Errorf("invalid storage path for registry %q: %w", reg.Name, err)
+	}
+
 	// Convert Registry to RegistryConfig
 	config := RegistryConfig{
 		Enabled:     true,
 		Lifecycle:   reg.Lifecycle,
 		Port:        reg.Port,
-		Storage:     resolveStoragePath(reg, "storage"),
+		Storage:     storagePath,
 		IdleTimeout: 30 * time.Minute,
 	}
 
@@ -148,12 +195,18 @@ func (s *AthensStrategy) CreateManager(reg *models.Registry) (ServiceManager, er
 		return nil, fmt.Errorf("registry cannot be nil")
 	}
 
+	// Resolve and validate storage path
+	storagePath, err := resolveStoragePath(reg, "storage")
+	if err != nil {
+		return nil, fmt.Errorf("invalid storage path for registry %q: %w", reg.Name, err)
+	}
+
 	// Convert Registry to GoModuleConfig
 	config := GoModuleConfig{
 		Enabled:     true,
 		Lifecycle:   reg.Lifecycle,
 		Port:        reg.Port,
-		Storage:     resolveStoragePath(reg, "storage"),
+		Storage:     storagePath,
 		IdleTimeout: 30 * time.Minute,
 		Upstreams:   defaultUpstreams(),
 	}
@@ -244,12 +297,18 @@ func (s *DevpiStrategy) CreateManager(reg *models.Registry) (ServiceManager, err
 		return nil, fmt.Errorf("registry cannot be nil")
 	}
 
+	// Resolve and validate storage path
+	storagePath, err := resolveStoragePath(reg, "storage")
+	if err != nil {
+		return nil, fmt.Errorf("invalid storage path for registry %q: %w", reg.Name, err)
+	}
+
 	// Convert Registry to PyPIProxyConfig
 	config := PyPIProxyConfig{
 		Enabled:     true,
 		Lifecycle:   reg.Lifecycle,
 		Port:        reg.Port,
-		Storage:     resolveStoragePath(reg, "storage"),
+		Storage:     storagePath,
 		IdleTimeout: 30 * time.Minute,
 		Upstreams:   defaultPyPIUpstreams(),
 	}
@@ -339,12 +398,18 @@ func (s *VerdaccioStrategy) CreateManager(reg *models.Registry) (ServiceManager,
 		return nil, fmt.Errorf("registry cannot be nil")
 	}
 
+	// Resolve and validate storage path
+	storagePath, err := resolveStoragePath(reg, "storage")
+	if err != nil {
+		return nil, fmt.Errorf("invalid storage path for registry %q: %w", reg.Name, err)
+	}
+
 	// Convert Registry to NpmProxyConfig
 	config := NpmProxyConfig{
 		Enabled:     true,
 		Lifecycle:   reg.Lifecycle,
 		Port:        reg.Port,
-		Storage:     resolveStoragePath(reg, "storage"),
+		Storage:     storagePath,
 		IdleTimeout: 30 * time.Minute,
 		Upstreams:   defaultNpmUpstreams(),
 	}
@@ -489,9 +554,15 @@ func (s *SquidStrategy) CreateManager(reg *models.Registry) (ServiceManager, err
 	// Determine storage path - override defaults if not set in custom config
 	// For Squid, if "cacheDir" is specified in config, use its parent directory
 	// as the base storage path. Otherwise fall back to the default registry path.
-	homeDir, _ := os.UserHomeDir()
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("cannot determine home directory: %w", err)
+	}
 	defaultPath := paths.New(homeDir).RegistryDir(reg.Name)
-	storagePath := resolveStoragePath(reg, "cacheDir")
+	storagePath, err := resolveStoragePath(reg, "cacheDir")
+	if err != nil {
+		return nil, fmt.Errorf("invalid storage path for registry %q: %w", reg.Name, err)
+	}
 	if storagePath != defaultPath {
 		// cacheDir was found in config — use its parent as the storage root
 		storagePath = filepath.Dir(storagePath)

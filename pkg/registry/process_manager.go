@@ -64,7 +64,7 @@ func (p *DefaultProcessManager) Start(ctx context.Context, binary string, args [
 			return fmt.Errorf("failed to create log directory: %w", err)
 		}
 
-		logFile, err = os.OpenFile(config.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		logFile, err = os.OpenFile(config.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, logFileMode)
 		if err != nil {
 			return fmt.Errorf("failed to create log file: %w", err)
 		}

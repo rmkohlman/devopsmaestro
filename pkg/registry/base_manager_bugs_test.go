@@ -48,6 +48,10 @@ import (
 //	             within the 500ms window → test FAILS with "DEADLOCK detected".
 //	GREEN after: stopFunc runs in `go stopFunc()` → done signals quickly → PASSES.
 func TestResetIdleTimerLocked_DeadlockWhenLockHeld(t *testing.T) {
+	oldMin := minTimerDuration
+	minTimerDuration = 1 * time.Millisecond
+	defer func() { minTimerDuration = oldMin }()
+
 	b := &BaseServiceManager{}
 
 	done := make(chan struct{}, 1)
@@ -144,6 +148,10 @@ func TestResetIdleTimerLocked_DeadlockWhenLockHeld(t *testing.T) {
 // With the FIX: stopFunc runs in a fresh goroutine, so it can acquire mu after
 // the original goroutine releases it.
 func TestResetIdleTimerLocked_StopFuncCalledFromLockedContext(t *testing.T) {
+	oldMin := minTimerDuration
+	minTimerDuration = 1 * time.Millisecond
+	defer func() { minTimerDuration = oldMin }()
+
 	b := &BaseServiceManager{}
 	done := make(chan struct{}, 1)
 

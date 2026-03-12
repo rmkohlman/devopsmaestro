@@ -244,8 +244,8 @@ func (m *SquidManager) generateConfig(configPath string) error {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	// Write config file
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+	// Write config file — use restricted permissions since config may contain sensitive data
+	if err := os.WriteFile(configPath, []byte(configContent), configFileMode); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 

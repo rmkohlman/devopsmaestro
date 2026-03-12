@@ -213,8 +213,8 @@ func (m *AthensManager) writeConfigFile(path string, config string) error {
 		return err
 	}
 
-	// Write to file
-	return os.WriteFile(path, []byte(config), 0644)
+	// Write to file — use restricted permissions since config may contain auth settings
+	return os.WriteFile(path, []byte(config), configFileMode)
 }
 
 // waitForReady waits for the proxy to become ready.
