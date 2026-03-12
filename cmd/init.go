@@ -3,6 +3,7 @@ package cmd
 import (
 	"devopsmaestro/db"
 	"devopsmaestro/pkg/paths"
+	"devopsmaestro/pkg/registry"
 	"devopsmaestro/render"
 	"fmt"
 	"io/fs"
@@ -114,6 +115,19 @@ templates:
 			return
 		}
 		slog.Info("database migrations completed")
+
+		// Bootstrap default OCI registry (non-fatal)
+		render.Progress("Creating default OCI registry...")
+		created, regErr := registry.EnsureDefaultRegistry(ctx, ds, ds, "oci", "on-demand")
+		if regErr != nil {
+			slog.Warn("failed to create default OCI registry", "error", regErr)
+			render.Warning("Could not create default OCI registry: " + regErr.Error())
+			render.Info("  You can set it up later with: dvm registry enable oci")
+		} else if created {
+			render.Success("Default OCI registry configured (zot on port 5001)")
+		} else {
+			render.Info("Default OCI registry already configured")
+		}
 
 		render.Blank()
 		render.Success("DevOpsMaestro initialized successfully!")

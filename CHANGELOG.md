@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.36.1] - 2026-03-11 — Default OCI Registry on Init
+
+### ✨ Added
+
+#### Default OCI Registry Created During `dvm admin init`
+- **`dvm admin init` now creates a default Zot OCI registry** — After database migrations complete, a Zot registry is automatically created (port 5001, on-demand lifecycle) and set as the OCI default, so `dvm build` works out-of-the-box without manual `dvm registry enable oci`
+  - Idempotent: re-running `dvm admin init` skips creation if the registry already exists
+  - Non-fatal: if registry creation fails, init continues with a warning and instructions to run `dvm registry enable oci`
+  - Files changed: `cmd/init.go`, `pkg/registry/bootstrap.go` (new)
+
+### 📊 v0.36.1 Summary
+
+| Metric | Value |
+|--------|-------|
+| New functions | 1 (`EnsureDefaultRegistry` in `pkg/registry/bootstrap.go`) |
+| New tests | 5 (bootstrap idempotency, error handling) |
+| All tests pass | 59/59 packages |
+
+---
+
 ## [v0.36.0] - 2026-03-11 — Credential Injection & Bug Fixes
 
 ### 🐛 Fixed
