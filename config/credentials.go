@@ -79,30 +79,7 @@ func ResolveCredential(cfg CredentialConfig) (string, error) {
 // applying inheritance (later scopes override earlier ones).
 // Environment variables always take highest priority.
 func ResolveCredentials(scopes ...CredentialScope) map[string]string {
-	result := make(map[string]string)
-	errors := make(map[string]error)
-
-	// Process scopes in order (global -> ecosystem -> domain -> app -> workspace)
-	for _, scope := range scopes {
-		for name, cfg := range scope.Credentials {
-			val, err := ResolveCredential(cfg)
-			if err != nil {
-				errors[name] = err
-				continue
-			}
-			if val != "" {
-				result[name] = val
-			}
-		}
-	}
-
-	// Environment variables always win (check all resolved credential names)
-	for name := range result {
-		if envVal := os.Getenv(name); envVal != "" {
-			result[name] = envVal
-		}
-	}
-
+	result, _ := ResolveCredentialsWithErrors(scopes...)
 	return result
 }
 
@@ -110,10 +87,12 @@ func ResolveCredentials(scopes ...CredentialScope) map[string]string {
 func ResolveCredentialsWithErrors(scopes ...CredentialScope) (map[string]string, map[string]error) {
 	result := make(map[string]string)
 	errors := make(map[string]error)
+	allNames := make(map[string]struct{}) // Track every credential name
 
 	// Process scopes in order (global -> ecosystem -> domain -> app -> workspace)
 	for _, scope := range scopes {
 		for name, cfg := range scope.Credentials {
+			allNames[name] = struct{}{} // Register name regardless of resolution outcome
 			val, err := ResolveCredential(cfg)
 			if err != nil {
 				errors[name] = fmt.Errorf("[%s] %w", scope.Type, err)
@@ -127,11 +106,11 @@ func ResolveCredentialsWithErrors(scopes ...CredentialScope) (map[string]string,
 		}
 	}
 
-	// Environment variables always win
-	for name := range result {
+	// Environment variables always win — check ALL names, not just resolved ones
+	for name := range allNames {
 		if envVal := os.Getenv(name); envVal != "" {
 			result[name] = envVal
-			delete(errors, name)
+			delete(errors, name) // Env var rescued this credential
 		}
 	}
 

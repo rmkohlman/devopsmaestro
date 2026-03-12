@@ -242,7 +242,7 @@ func getRelativePath(base, target string) string {
 // Global -> Ecosystem -> Domain -> App -> Workspace
 // Used for both build-time (--build-arg) and runtime (container env) injection.
 // Environment variables always take highest priority.
-func loadBuildCredentials(ds db.DataStore, app *models.App, workspace *models.Workspace) map[string]string {
+func loadBuildCredentials(ds db.DataStore, app *models.App, workspace *models.Workspace) (map[string]string, []string) {
 	var scopes []config.CredentialScope
 
 	// Layer 1: Global credentials from config file
@@ -318,8 +318,10 @@ func loadBuildCredentials(ds db.DataStore, app *models.App, workspace *models.Wo
 	// Resolve all credentials (env vars checked last internally)
 	resolved, errors := config.ResolveCredentialsWithErrors(scopes...)
 
-	// Log any resolution errors
+	// Collect warnings for failed credential resolutions
+	var warnings []string
 	for name, err := range errors {
+		warnings = append(warnings, fmt.Sprintf("credential %q failed to resolve: %v", name, err))
 		slog.Warn("failed to resolve credential", "name", name, "error", err)
 	}
 
@@ -327,7 +329,7 @@ func loadBuildCredentials(ds db.DataStore, app *models.App, workspace *models.Wo
 		slog.Info("resolved build credentials", "count", len(resolved))
 	}
 
-	return resolved
+	return resolved, warnings
 }
 
 // tagImageForRegistry tags an image for pushing to a registry.

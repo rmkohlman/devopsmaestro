@@ -1,6 +1,6 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.38.1  
+> **Version**: v0.38.2  
 > **Last Updated**: March 12, 2026
 
 ---
@@ -3092,6 +3092,177 @@ go test ./builders/... -v -run 'TestDockerfileGenerator_PythonPrivateRepos/No_pr
 
 ---
 
+## Part 16: Credential Resolution Robustness (v0.38.2)
+
+These scenarios verify the three credential resolution bug fixes in v0.38.2: user-visible warnings when credential resolution fails, the env var fallback rescue path for failed keychain lookups, and correct dual-field keychain resolution with the `-a $USER` filter.
+
+**Prerequisites:**
+- `dvm` binary built from v0.38.2+
+- At least one ecosystem configured
+- macOS Keychain entry available for dual-field tests (Scenario 59)
+- Environment variable `GITHUB_USERNAME` set (for Scenario 58)
+
+---
+
+### Scenario 57: Build with Intentionally Missing Keychain Credential
+
+Verify that when a credential references a Keychain service that does not exist, `dvm build` displays a visible warning to the user instead of silently proceeding with an empty credential value.
+
+**Setup:** Create a credential referencing a Keychain service that does not exist on your machine.
+
+```bash
+# Create a credential referencing a nonexistent keychain service
+dvm create credential MISSING_CRED \
+  --source keychain \
+  --service nonexistent.service.that.does.not.exist \
+  --ecosystem <your-ecosystem>
+
+# Associate it with a workspace (or ensure it is in the credential hierarchy)
+# Then run a build
+dvm build --workspace <your-workspace>
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Build does not hang or panic | `dvm build` exits cleanly (success or failure) | |
+| Warning is displayed to user | A `render.Warning()`-style message appears in terminal output | |
+| Warning identifies the credential | Warning text includes the credential name (`MISSING_CRED`) or service name | |
+| No silent empty value | Build does not proceed with `https://:****@...` style URLs without warning | |
+| Warning text visible before build output | Warning appears before Docker build log lines | |
+
+**Cleanup:**
+```bash
+dvm delete credential MISSING_CRED --ecosystem <your-ecosystem> --force
+```
+
+---
+
+### Scenario 58: Build with Env Var Fallback for Failed Keychain Credential
+
+Verify that when a keychain lookup fails but a matching environment variable is set on the host, the env var value is used as a fallback — and no warning is displayed (the "env vars always win" contract).
+
+**Setup:** Set an env var on the host that matches a credential's variable name, and create a credential whose keychain service does not exist.
+
+```bash
+# Set the env var on the host
+export GITHUB_USERNAME=my-github-user
+
+# Create a credential that would normally pull from keychain
+dvm create credential GITHUB_USERNAME \
+  --source keychain \
+  --service nonexistent.service \
+  --ecosystem <your-ecosystem>
+
+# Run a build — GITHUB_USERNAME should be rescued from the env var
+dvm build --workspace <your-workspace>
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Build succeeds | Exit code 0, no credential-related errors | |
+| No warning displayed | No `render.Warning()` output for `GITHUB_USERNAME` | |
+| Credential value is non-empty | Build args include `GITHUB_USERNAME=my-github-user` (value redacted in log) | |
+| Env var rescue is transparent | Normal build output, no indication that keychain failed | |
+| Unrescued credentials still warn | If a second credential has no env var fallback, its warning still appears | |
+
+**Cleanup:**
+```bash
+dvm delete credential GITHUB_USERNAME --ecosystem <your-ecosystem> --force
+unset GITHUB_USERNAME
+```
+
+---
+
+### Scenario 59: Dual-Field Keychain Credential Build — Both Fields Resolve
+
+Verify that a dual-field keychain credential correctly resolves both `GITHUB_USERNAME` (account field) and `GITHUB_PAT` (password field) with the `-a $USER` filter active, ensuring the correct system-user Keychain entry is used.
+
+> **Note:** Requires a macOS Keychain entry for `github.com` with both a username (account) and password set for the current system user.
+
+```bash
+# Create the dual-field credential (if not already created)
+dvm create credential github-creds \
+  --source keychain --service github.com \
+  --username-var GITHUB_USERNAME \
+  --password-var GITHUB_PAT \
+  --ecosystem <your-ecosystem>
+
+# Run a build and observe both build args
+dvm build --workspace <your-workspace>
+```
+
+**Inspect build output for both args:**
+
+```bash
+# Both build args should be present with non-empty (redacted) values
+dvm build --workspace <your-workspace> 2>&1 | grep -E 'build-arg (GITHUB_USERNAME|GITHUB_PAT)'
+```
+
+**Expected build output (values redacted):**
+```
+--build-arg GITHUB_USERNAME=***REDACTED***
+--build-arg GITHUB_PAT=***REDACTED***
+```
+
+```bash
+# After build: attach and verify both vars inside the container
+dvm attach --workspace <your-workspace>
+```
+
+**Inside the container, verify:**
+```bash
+echo "GITHUB_USERNAME=${GITHUB_USERNAME}"   # Expected: non-empty username from Keychain
+echo "GITHUB_PAT=${GITHUB_PAT}"             # Expected: non-empty password/token from Keychain
+exit
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Build succeeds | Exit code 0, image built | |
+| No warnings for `GITHUB_USERNAME` | No warning output for username credential | |
+| No warnings for `GITHUB_PAT` | No warning output for password credential | |
+| `GITHUB_USERNAME` build arg present | `--build-arg GITHUB_USERNAME=...` in build log | |
+| `GITHUB_PAT` build arg present | `--build-arg GITHUB_PAT=...` in build log | |
+| Both values non-empty | No `https://:****@...` URL pattern in build output | |
+| `GITHUB_USERNAME` available in container | Non-empty value from Keychain account field | |
+| `GITHUB_PAT` available in container | Non-empty value from Keychain password field | |
+
+**Cleanup:**
+```bash
+dvm delete credential github-creds --ecosystem <your-ecosystem> --force
+```
+
+---
+
+### Scenario 60: Automated Test Coverage (Regression Gate)
+
+Run the automated tests added in v0.38.2 to confirm all 14 new test functions pass.
+
+```bash
+# Warning return tests (build_helpers)
+go test ./cmd/... -v -run 'TestLoadBuildCredentials'
+
+# Env var rescue tests (credentials)
+go test ./config/... -v -run 'TestResolveCredentials'
+
+# keychainExitError helper tests
+go test ./config/... -v -run 'TestKeychainExitError'
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `cmd/build_helpers_test.go` (5 functions) | All pass ✅ | |
+| `config/credentials_test.go` (5 new functions) | All pass ✅ | |
+| `config/keychain_darwin_test.go` (4 functions) | All pass ✅ | |
+| Full test suite | `go test ./...` all green ✅ | |
+
+```bash
+# Full regression check
+go test ./...
+```
+
+---
+
 ## Test Results Summary
 
 | Part | Tests | Pass | Fail |
@@ -3114,6 +3285,7 @@ go test ./builders/... -v -run 'TestDockerfileGenerator_PythonPrivateRepos/No_pr
 | Part 13: BuildKit Structural Improvements | 3 scenarios | | |
 | Part 14: Dockerfile Generator Purity | 3 scenarios | | |
 | Part 15: Python HTTPS Token Substitution | 5 scenarios | | |
+| Part 16: Credential Resolution Robustness | 4 scenarios | | |
 
 ---
 
@@ -3166,5 +3338,5 @@ colima nerdctl -- --namespace devopsmaestro images
 
 **Tested by:** ________________  
 **Date:** ________________  
-**Version:** v0.38.1  
+**Version:** v0.38.2  
 **Platform:** ________________

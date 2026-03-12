@@ -337,7 +337,10 @@ func buildWorkspace(cmd *cobra.Command) error {
 	}
 
 	// Layer 3: Credentials from hierarchy (highest priority)
-	resolvedCreds := loadBuildCredentials(sqlDS, app, workspace)
+	resolvedCreds, credWarnings := loadBuildCredentials(sqlDS, app, workspace)
+	for _, w := range credWarnings {
+		render.Warning(w)
+	}
 	for k, v := range resolvedCreds {
 		buildArgs[k] = v
 		slog.Debug("using credential", "key", k)

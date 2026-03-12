@@ -10,6 +10,20 @@ import (
 	"strings"
 )
 
+// keychainExitError maps well-known macOS security(1) exit codes to descriptive errors.
+func keychainExitError(exitCode int, service string) error {
+	switch exitCode {
+	case 36:
+		return fmt.Errorf("keychain lookup cancelled by user for %q", service)
+	case 44:
+		return fmt.Errorf("credential %q not found in Keychain", service)
+	case 51:
+		return fmt.Errorf("keychain access denied for %q", service)
+	default:
+		return fmt.Errorf("keychain lookup failed for %q (exit code %d)", service, exitCode)
+	}
+}
+
 // GetFromKeychain retrieves a password from macOS Keychain
 func GetFromKeychain(service string) (string, error) {
 	user := os.Getenv("USER")
@@ -25,11 +39,7 @@ func GetFromKeychain(service string) (string, error) {
 	output, err := cmd.Output()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
-			// Exit code 44 means item not found
-			if exitErr.ExitCode() == 44 {
-				return "", fmt.Errorf("credential %q not found in Keychain", service)
-			}
-			return "", fmt.Errorf("keychain lookup failed for %q: %s", service, string(exitErr.Stderr))
+			return "", keychainExitError(exitErr.ExitCode(), service)
 		}
 		return "", fmt.Errorf("keychain lookup failed for %q: %w", service, err)
 	}
@@ -90,22 +100,19 @@ func KeychainAvailable() bool {
 // Unlike GetFromKeychain which uses -w to get the password, this function parses
 // the full entry output to extract the "acct" attribute.
 func GetAccountFromKeychain(service string) (string, error) {
+	user := os.Getenv("USER")
+	if user == "" {
+		return "", fmt.Errorf("USER environment variable not set")
+	}
+
 	cmd := exec.Command("security", "find-generic-password",
-		"-s", service)
+		"-s", service,
+		"-a", user)
 
 	output, err := cmd.Output()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
-			switch exitErr.ExitCode() {
-			case 44:
-				return "", fmt.Errorf("credential %q not found in Keychain", service)
-			case 36:
-				return "", fmt.Errorf("keychain lookup cancelled by user for %q", service)
-			case 51:
-				return "", fmt.Errorf("keychain access denied for %q", service)
-			default:
-				return "", fmt.Errorf("keychain lookup failed for %q: %s", service, string(exitErr.Stderr))
-			}
+			return "", keychainExitError(exitErr.ExitCode(), service)
 		}
 		return "", fmt.Errorf("keychain lookup failed for %q: %w", service, err)
 	}

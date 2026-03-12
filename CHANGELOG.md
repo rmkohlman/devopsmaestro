@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.38.2] - 2026-03-12 — Credential Resolution Robustness
+
+### 🐛 Bug Fixes
+
+#### (P0) Credential Resolution Errors Invisible to Users — `cmd/build_helpers.go`, `cmd/build_orchestrator.go`, `cmd/attach.go`
+- **`loadBuildCredentials()` previously logged credential resolution failures via `slog.Warn()` only**, so users never saw that one or more credentials failed to resolve — a real-world build failure where `GITHUB_USERNAME` resolved to empty produced `https://:****@github.com/...` in pip install with no visible warning in the terminal
+- **`loadBuildCredentials()` now returns `(map[string]string, []string)`** — the second return value is a slice of human-readable warning strings; callers (`build_orchestrator.go` and `attach.go`) display each warning via `render.Warning()` so credential failures are surfaced immediately
+
+#### (P1) Env Var Fallback Gap — `config/credentials.go`
+- **The env var override loop in `ResolveCredentials()` only checked already-resolved credentials** — failed keychain lookups were never retried against matching env vars, silently breaking the "env vars always win" contract documented in the resolution hierarchy
+- **`ResolveCredentialsWithErrors()` now tracks all credential names** (`allNames` set) and rescues any failed keychain lookup with a matching env var — if `GITHUB_USERNAME=myuser` is set in the environment and the Keychain lookup for that credential fails, the env var value is used and no error is reported to the caller
+
+#### (P1) `GetAccountFromKeychain()` Missing `-a $USER` Filter — `config/keychain_darwin.go`
+- **`GetAccountFromKeychain()` did not filter results by the current system user (`-a $USER`)**, unlike all other keychain functions in the file — on machines with multiple Keychain accounts, this could return the wrong account entry
+- **Added `-a $USER` to the `security find-internet-password` invocation** to match the filter pattern used by `GetFromKeychain()` and `GetPasswordFromKeychain()`
+- **Extracted shared `keychainExitError()` helper** — DRY refactor eliminating duplicated exit-code-to-error mapping across `GetFromKeychain()`, `GetAccountFromKeychain()`, and `GetPasswordFromKeychain()`
+
+### 🧪 Tests Added (14 new)
+
+- **`cmd/build_helpers_test.go`** (new file) — 5 test functions covering warning return from `loadBuildCredentials()`:
+  - Tests verify warning slice is populated when credentials fail to resolve
+  - Tests verify empty warning slice on full success
+- **`config/credentials_test.go`** (appended) — 5 test functions for env var rescue path:
+  - Tests verify failed keychain lookup is rescued by matching env var
+  - Tests verify `allNames` tracking covers all credential names in the resolution walk
+- **`config/keychain_darwin_test.go`** (new file) — 4 test functions for `keychainExitError()` helper:
+  - Tests verify correct error type returned for each keychain exit code
+  - Tests verify `-a $USER` filter is present in generated `security` command arguments
+
+### 📊 v0.38.2 Summary
+
+| Metric | Value |
+|--------|-------|
+| Bugs fixed | 3 (P0: invisible errors, P1: env var fallback gap, P1: missing -a $USER filter) |
+| Real-world failure addressed | `GITHUB_USERNAME` resolved to empty → `https://:****@github.com/...` in pip install |
+| Files changed | 7 (`config/keychain_darwin.go`, `config/credentials.go`, `cmd/build_helpers.go`, `cmd/build_orchestrator.go`, `cmd/attach.go`, `cmd/build_helpers_test.go` (new), `config/keychain_darwin_test.go` (new)) |
+| New test files | 2 (`cmd/build_helpers_test.go`, `config/keychain_darwin_test.go`) |
+| New test functions | 14 (5 + 5 + 4) |
+| All tests pass | ✅ |
+
+---
+
 ## [v0.38.1] - 2026-03-12 — Fix Python HTTPS Token Substitution
 
 ### 🐛 Bug Fixes

@@ -242,7 +242,10 @@ func runAttach(cmd *cobra.Command) error {
 	registryEnv, _ := loadRegistryEnv(ds)
 
 	// Load credential env (WI-2)
-	credentialEnv := loadBuildCredentials(ds, app, workspace)
+	credentialEnv, credWarnings := loadBuildCredentials(ds, app, workspace)
+	for _, w := range credWarnings {
+		render.Warning(w)
+	}
 
 	// Build the merged env
 	envVars := buildRuntimeEnv(appName, workspaceName, ecosystemName, domainName, themeEnv, registryEnv, credentialEnv, wsEnv)
