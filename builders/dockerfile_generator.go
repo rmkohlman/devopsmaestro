@@ -71,6 +71,10 @@ func (g *DefaultDockerfileGenerator) SetPluginManifest(manifest *plugin.PluginMa
 // Generate creates a Dockerfile.dvm with dev stage
 // Uses BuildKit features: parallel multi-stage builds, cache mounts
 func (g *DefaultDockerfileGenerator) Generate() (string, error) {
+	if g.workspace == nil {
+		return "", fmt.Errorf("workspace must not be nil")
+	}
+
 	var dockerfile strings.Builder
 
 	// Header comment
@@ -283,6 +287,79 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 	}
 }
 
+// builderStage represents a parallel builder stage and its corresponding COPY directives.
+// This struct is the single source of truth for which builders are emitted and what
+// COPY --from= directives are generated, eliminating the risk of conditional duplication.
+type builderStage struct {
+	name      string                            // stage name (e.g., "neovim-builder")
+	emitFunc  func(dockerfile *strings.Builder) // generates the FROM ... RUN block
+	copyLines []string                          // COPY --from=... lines for the dev stage
+}
+
+// activeBuilderStages returns the ordered list of builder stages that should be emitted
+// for this workspace configuration. This is the single source of truth: both
+// generateBuilderStages() and copyFromBuilders() iterate this list.
+func (g *DefaultDockerfileGenerator) activeBuilderStages() []builderStage {
+	isAlpine := g.isAlpineImage()
+	var stages []builderStage
+
+	// Neovim builder (only for Debian — Alpine uses apk)
+	if !isAlpine {
+		stages = append(stages, builderStage{
+			name:     "neovim-builder",
+			emitFunc: g.generateNeovimBuilder,
+			copyLines: []string{
+				"COPY --from=neovim-builder /opt/nvim/ /opt/nvim/",
+				"RUN ln -sf /opt/nvim/bin/nvim /usr/local/bin/nvim",
+			},
+		})
+	}
+
+	// Lazygit builder
+	stages = append(stages, builderStage{
+		name: "lazygit-builder",
+		emitFunc: func(df *strings.Builder) {
+			g.generateLazygitBuilder(df, isAlpine)
+		},
+		copyLines: []string{
+			"COPY --from=lazygit-builder /usr/local/bin/lazygit /usr/local/bin/lazygit",
+		},
+	})
+
+	// Starship builder
+	if g.workspaceYAML.Shell.Theme == "starship" || g.workspaceYAML.Shell.Theme == "" {
+		stages = append(stages, builderStage{
+			name:     "starship-builder",
+			emitFunc: g.generateStarshipBuilder,
+			copyLines: []string{
+				"COPY --from=starship-builder /usr/local/bin/starship /usr/local/bin/starship",
+			},
+		})
+	}
+
+	// Tree-sitter CLI builder
+	stages = append(stages, builderStage{
+		name:     "treesitter-builder",
+		emitFunc: g.generateTreeSitterBuilder,
+		copyLines: []string{
+			"COPY --from=treesitter-builder /usr/local/bin/tree-sitter /usr/local/bin/tree-sitter",
+		},
+	})
+
+	// Go tools builder (only for golang workspaces with go-installable tools)
+	if g.hasGoToolsBuilder() {
+		stages = append(stages, builderStage{
+			name:     "go-tools-builder",
+			emitFunc: g.generateGoToolsBuilder,
+			copyLines: []string{
+				"COPY --from=go-tools-builder /go/bin/ /go/bin/",
+			},
+		})
+	}
+
+	return stages
+}
+
 // generateBuilderStages emits parallel multi-stage builds for binary downloads.
 // BuildKit runs these concurrently since they have no dependencies on each other.
 //
@@ -295,31 +372,14 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 //   - Tree-sitter CLI: Alpine (small image, binary is statically linked).
 //   - Go tools: Uses the same golang:X-alpine image as the base stage for ABI compatibility.
 //
-// Cache mount strategy: Builder stages do NOT use cache mounts because they are short-lived
-// throwaway stages. Cache mounts on parallel stages can also cause lock contention.
-// The dev stage (long-lived) does use cache mounts for all package managers.
+// Cache mount strategy: Builder stages generally do NOT use cache mounts because they are
+// short-lived throwaway stages and parallel cache mounts can cause lock contention.
+// Exception: go-tools-builder uses Go module/build cache mounts because `go install`
+// downloads significant dependencies that benefit from caching.
+// The dev stage (long-lived) uses cache mounts for all package managers.
 func (g *DefaultDockerfileGenerator) generateBuilderStages(dockerfile *strings.Builder) {
-	isAlpine := g.isAlpineImage()
-
-	// Neovim builder (only for Debian - Alpine uses apk)
-	if !isAlpine {
-		g.generateNeovimBuilder(dockerfile)
-	}
-
-	// Lazygit builder
-	g.generateLazygitBuilder(dockerfile, isAlpine)
-
-	// Starship builder
-	if g.workspaceYAML.Shell.Theme == "starship" || g.workspaceYAML.Shell.Theme == "" {
-		g.generateStarshipBuilder(dockerfile)
-	}
-
-	// Tree-sitter CLI builder
-	g.generateTreeSitterBuilder(dockerfile)
-
-	// Go tools builder (only for golang workspaces with go-installable tools)
-	if g.hasGoToolsBuilder() {
-		g.generateGoToolsBuilder(dockerfile)
+	for _, stage := range g.activeBuilderStages() {
+		stage.emitFunc(dockerfile)
 	}
 }
 
@@ -335,7 +395,7 @@ func (g *DefaultDockerfileGenerator) generateNeovimBuilder(dockerfile *strings.B
 	dockerfile.WriteString("    elif [ \"$ARCH\" = \"amd64\" ] || [ \"$ARCH\" = \"x86_64\" ]; then \\\n")
 	dockerfile.WriteString("        NVIM_ARCH=\"nvim-linux-x86_64\"; \\\n")
 	dockerfile.WriteString("    else \\\n")
-	dockerfile.WriteString("        NVIM_ARCH=\"nvim-linux-x86_64\"; \\\n")
+	dockerfile.WriteString("        echo \"ERROR: Unsupported architecture: $ARCH\"; exit 1; \\\n")
 	dockerfile.WriteString("    fi && \\\n")
 	dockerfile.WriteString(fmt.Sprintf("    curl %s -O \"https://github.com/neovim/neovim/releases/latest/download/${NVIM_ARCH}.tar.gz\" && \\\n", curlFlags))
 	dockerfile.WriteString("    tar -C /opt -xzf \"${NVIM_ARCH}.tar.gz\" && \\\n")
@@ -357,7 +417,7 @@ func (g *DefaultDockerfileGenerator) generateLazygitBuilder(dockerfile *strings.
 		dockerfile.WriteString("    elif [ \"$ARCH\" = \"x86_64\" ]; then \\\n")
 		dockerfile.WriteString("        LG_ARCH=\"x86_64\"; \\\n")
 		dockerfile.WriteString("    else \\\n")
-		dockerfile.WriteString("        LG_ARCH=\"x86_64\"; \\\n")
+		dockerfile.WriteString("        echo \"ERROR: Unsupported architecture: $ARCH\"; exit 1; \\\n")
 		dockerfile.WriteString("    fi && \\\n")
 	} else {
 		dockerfile.WriteString("FROM debian:bookworm-slim AS lazygit-builder\n")
@@ -369,9 +429,10 @@ func (g *DefaultDockerfileGenerator) generateLazygitBuilder(dockerfile *strings.
 		dockerfile.WriteString("    elif [ \"$ARCH\" = \"amd64\" ] || [ \"$ARCH\" = \"x86_64\" ]; then \\\n")
 		dockerfile.WriteString("        LG_ARCH=\"x86_64\"; \\\n")
 		dockerfile.WriteString("    else \\\n")
-		dockerfile.WriteString("        LG_ARCH=\"x86_64\"; \\\n")
+		dockerfile.WriteString("        echo \"ERROR: Unsupported architecture: $ARCH\"; exit 1; \\\n")
 		dockerfile.WriteString("    fi && \\\n")
 	}
+	// Shared download logic (identical for Alpine and Debian)
 	dockerfile.WriteString(fmt.Sprintf("    LAZYGIT_VERSION=$(curl %s \"https://api.github.com/repos/jesseduffield/lazygit/releases/latest\" | sed -n 's/.*\"tag_name\": \"v\\([^\"]*\\)\".*/\\1/p') && \\\n", curlFlags))
 	dockerfile.WriteString("    [ -n \"$LAZYGIT_VERSION\" ] || { echo \"ERROR: Failed to determine lazygit version\"; exit 1; } && \\\n")
 	dockerfile.WriteString(fmt.Sprintf("    curl %s -o lazygit.tar.gz \"https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LAZYGIT_VERSION}_Linux_${LG_ARCH}.tar.gz\" && \\\n", curlFlags))
@@ -398,12 +459,14 @@ func (g *DefaultDockerfileGenerator) generateTreeSitterBuilder(dockerfile *strin
 	dockerfile.WriteString("# --- Parallel builder: tree-sitter CLI ---\n")
 	dockerfile.WriteString("FROM alpine:3.20 AS treesitter-builder\n")
 	dockerfile.WriteString("RUN set -e && \\\n")
-	dockerfile.WriteString("    apk add --no-cache curl && \\\n")
+	dockerfile.WriteString("    apk add --no-cache curl sed && \\\n")
 	dockerfile.WriteString("    ARCH=$(uname -m) && \\\n")
 	dockerfile.WriteString("    if [ \"$ARCH\" = \"aarch64\" ]; then TS_ARCH=\"arm64\"; \\\n")
 	dockerfile.WriteString("    elif [ \"$ARCH\" = \"x86_64\" ]; then TS_ARCH=\"x64\"; \\\n")
-	dockerfile.WriteString("    else TS_ARCH=\"x64\"; fi && \\\n")
-	dockerfile.WriteString(fmt.Sprintf("    curl %s \"https://github.com/tree-sitter/tree-sitter/releases/download/v0.24.6/tree-sitter-linux-${TS_ARCH}.gz\" -o /tmp/ts.gz && \\\n", curlFlags))
+	dockerfile.WriteString("    else echo \"ERROR: Unsupported architecture: $ARCH\"; exit 1; fi && \\\n")
+	dockerfile.WriteString(fmt.Sprintf("    TREESITTER_VERSION=$(curl %s \"https://api.github.com/repos/tree-sitter/tree-sitter/releases/latest\" | sed -n 's/.*\"tag_name\": \"v\\([^\"]*\\)\".*/\\1/p') && \\\n", curlFlags))
+	dockerfile.WriteString("    [ -n \"$TREESITTER_VERSION\" ] || { echo \"ERROR: Failed to determine tree-sitter version\"; exit 1; } && \\\n")
+	dockerfile.WriteString(fmt.Sprintf("    curl %s \"https://github.com/tree-sitter/tree-sitter/releases/download/v${TREESITTER_VERSION}/tree-sitter-linux-${TS_ARCH}.gz\" -o /tmp/ts.gz && \\\n", curlFlags))
 	dockerfile.WriteString("    gunzip /tmp/ts.gz && chmod +x /tmp/ts && mv /tmp/ts /usr/local/bin/tree-sitter && \\\n")
 	dockerfile.WriteString("    test -x /usr/local/bin/tree-sitter\n\n")
 }
@@ -463,32 +526,12 @@ func (g *DefaultDockerfileGenerator) generateGoToolsBuilder(dockerfile *strings.
 
 // copyFromBuilders emits COPY --from= directives to pull binaries from parallel stages
 func (g *DefaultDockerfileGenerator) copyFromBuilders(dockerfile *strings.Builder) {
-	isAlpine := g.isAlpineImage()
-
 	dockerfile.WriteString("# Copy binaries from parallel builder stages\n")
-
-	// Neovim (Debian: from builder; Alpine: installed via apk in merged package install)
-	if !isAlpine {
-		dockerfile.WriteString("COPY --from=neovim-builder /opt/nvim/ /opt/nvim/\n")
-		dockerfile.WriteString("RUN ln -sf /opt/nvim/bin/nvim /usr/local/bin/nvim\n")
+	for _, stage := range g.activeBuilderStages() {
+		for _, line := range stage.copyLines {
+			dockerfile.WriteString(line + "\n")
+		}
 	}
-
-	// Lazygit
-	dockerfile.WriteString("COPY --from=lazygit-builder /usr/local/bin/lazygit /usr/local/bin/lazygit\n")
-
-	// Starship
-	if g.workspaceYAML.Shell.Theme == "starship" || g.workspaceYAML.Shell.Theme == "" {
-		dockerfile.WriteString("COPY --from=starship-builder /usr/local/bin/starship /usr/local/bin/starship\n")
-	}
-
-	// Tree-sitter CLI
-	dockerfile.WriteString("COPY --from=treesitter-builder /usr/local/bin/tree-sitter /usr/local/bin/tree-sitter\n")
-
-	// Go tools (only if parallel builder stage was emitted)
-	if g.hasGoToolsBuilder() {
-		dockerfile.WriteString("COPY --from=go-tools-builder /go/bin/ /go/bin/\n")
-	}
-
 	dockerfile.WriteString("\n")
 }
 
@@ -708,6 +751,14 @@ func (g *DefaultDockerfileGenerator) installLanguageTools(dockerfile *strings.Bu
 	}
 }
 
+// effectiveUser returns the configured container user, defaulting to "dev"
+func (g *DefaultDockerfileGenerator) effectiveUser() string {
+	if g.workspaceYAML.Container.User != "" {
+		return g.workspaceYAML.Container.User
+	}
+	return "dev"
+}
+
 // generateNvimSection copies nvim config and installs plugins (called after user creation)
 func (g *DefaultDockerfileGenerator) generateNvimSection(dockerfile *strings.Builder) {
 	// Skip if explicitly disabled
@@ -728,14 +779,15 @@ func (g *DefaultDockerfileGenerator) generateNvimSection(dockerfile *strings.Bui
 	}
 
 	// Copy nvim configuration from staging directory
+	user := g.effectiveUser()
 	dockerfile.WriteString("# Copy Neovim configuration\n")
-	dockerfile.WriteString("COPY .config/nvim /home/dev/.config/nvim\n")
-	dockerfile.WriteString("RUN chown -R dev:dev /home/dev/.config\n\n")
+	dockerfile.WriteString(fmt.Sprintf("COPY .config/nvim /home/%s/.config/nvim\n", user))
+	dockerfile.WriteString(fmt.Sprintf("RUN chown -R %s:%s /home/%s/.config\n\n", user, user, user))
 
 	// tree-sitter CLI is already installed via parallel builder stage (COPY --from=treesitter-builder)
 
 	// Install lazy.nvim and plugins as dev user with proper error handling
-	dockerfile.WriteString("USER dev\n")
+	dockerfile.WriteString(fmt.Sprintf("USER %s\n", user))
 	dockerfile.WriteString("# Bootstrap lazy.nvim and install plugins\n")
 	dockerfile.WriteString("RUN nvim --headless \"+Lazy! sync\" +qa 2>&1 | tee /tmp/nvim-install.log || \\\n")
 	dockerfile.WriteString("    (cat /tmp/nvim-install.log && exit 1)\n\n")

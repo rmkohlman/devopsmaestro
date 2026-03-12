@@ -1,6 +1,6 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.37.4  
+> **Version**: v0.37.5  
 > **Last Updated**: March 12, 2026
 
 ---
@@ -2638,6 +2638,103 @@ go test ./builders/... -v -run 'TestDockerfileGenerator'
 
 ---
 
+## Part 13: BuildKit Structural Improvements (v0.37.5)
+
+These scenarios verify the structural improvements made to the Dockerfile generator in v0.37.5: dynamic tree-sitter versioning, fail-fast architecture detection, and custom user support for nvim config.
+
+**Prerequisites:**
+- `dvm` binary built from v0.37.5+
+- A working Docker / Colima environment with BuildKit enabled
+- Network access (Scenario 46 requires pulling from GitHub API)
+
+---
+
+### Scenario 46: Tree-sitter Dynamic Versioning
+
+Verify the tree-sitter builder stage queries the GitHub API for the latest version at build time instead of using a hardcoded version string.
+
+**Prerequisites:** Running Colima/Docker, a workspace with dvm build capability.
+
+```bash
+# Generate the Dockerfile and inspect the tree-sitter builder stage
+dvm build --workspace <your-workspace> --dry-run 2>&1 > Dockerfile.dvm
+```
+
+**Verify:**
+
+```bash
+# Should return 0 — no hardcoded version present
+grep -c "v0.24.6" Dockerfile.dvm
+
+# Should return >0 — dynamic version variable present
+grep -c "TREESITTER_VERSION" Dockerfile.dvm
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| No hardcoded `v0.24.6` | `grep -c "v0.24.6" Dockerfile.dvm` returns `0` | |
+| Dynamic version variable present | `grep -c "TREESITTER_VERSION" Dockerfile.dvm` returns `>0` | |
+| GitHub API query present | `grep "api.github.com" Dockerfile.dvm` matches tree-sitter stage | |
+| Version validation guard present | `grep "\[ -n.*TREESITTER_VERSION" Dockerfile.dvm` returns a match | |
+
+---
+
+### Scenario 47: Builder Stage Architecture Fail-Fast
+
+Verify that every builder stage fails explicitly with an error message when an unknown architecture is detected, instead of silently falling back to x86_64.
+
+**Prerequisites:** None (inspect generated Dockerfile).
+
+```bash
+# Generate and inspect the Dockerfile
+dvm build --workspace <your-workspace> --dry-run 2>&1 > Dockerfile.dvm
+```
+
+**Verify:**
+
+```bash
+# Should return matches for each builder stage — not 0
+grep "Unsupported architecture" Dockerfile.dvm
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Unsupported architecture message present | `grep "Unsupported architecture" Dockerfile.dvm` returns matches | |
+| `exit 1` paired with error message | Each `"Unsupported architecture"` line is followed by or paired with `exit 1` | |
+| No silent x86_64 fallback | No `else` branch in builder arch detection silently sets `ARCH=amd64` without error | |
+
+---
+
+### Scenario 48: Custom User Nvim Config
+
+Verify that when a workspace is configured with a custom `container.user`, the generated Dockerfile copies nvim config to the correct user home directory instead of hardcoding `/home/dev/`.
+
+**Prerequisites:** A workspace YAML with `container.user: myuser`.
+
+```bash
+# Build (or dry-run) with a workspace that has container.user: myuser
+dvm build --workspace <your-custom-user-workspace> --dry-run 2>&1 > Dockerfile.dvm
+```
+
+**Verify:**
+
+```bash
+# Should return matches — custom user path is used for nvim config
+grep "/home/myuser/" Dockerfile.dvm
+
+# Should only appear in user creation (useradd/adduser), NOT in nvim COPY/chown directives
+grep "/home/dev/" Dockerfile.dvm
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Nvim COPY uses custom user path | `grep "/home/myuser/" Dockerfile.dvm` returns matches | |
+| `/home/dev/` not used in nvim section | Any `/home/dev/` references are limited to user creation lines, not nvim COPY/chown | |
+| chown uses custom user | `grep "chown.*myuser" Dockerfile.dvm` returns a match | |
+| USER directive references custom user | `grep "^USER myuser" Dockerfile.dvm` returns a match | |
+
+---
+
 ## Test Results Summary
 
 | Part | Tests | Pass | Fail |
@@ -2657,6 +2754,7 @@ go test ./builders/... -v -run 'TestDockerfileGenerator'
 | Part 10: Keychain Dual-Field Credentials | 12 scenarios | | |
 | Part 11: Registry Bug Fix Verification | 6 scenarios | | |
 | Part 12: BuildKit Builder Stage Robustness | 3 scenarios | | |
+| Part 13: BuildKit Structural Improvements | 3 scenarios | | |
 
 ---
 
@@ -2709,5 +2807,5 @@ colima nerdctl -- --namespace devopsmaestro images
 
 **Tested by:** ________________  
 **Date:** ________________  
-**Version:** v0.37.4  
+**Version:** v0.37.5  
 **Platform:** ________________

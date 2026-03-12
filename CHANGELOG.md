@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.37.5] - 2026-03-12 — BuildKit Structural Improvements
+
+### 🏗️ Improvements
+
+#### (HIGH) Tree-sitter Dynamic Versioning — `builders/dockerfile_generator.go`
+- **Replaced hardcoded `v0.24.6` with a GitHub API query** — Version is now fetched at build time using the same pattern as lazygit: `TREESITTER_VERSION=$(curl ... api.github.com ... | sed ...)`
+- **Added `[ -n "$TREESITTER_VERSION" ]` version validation** — Fails explicitly on API failure instead of proceeding with a broken or empty version string
+- **Added `sed` to the Alpine apk install** — Required for parsing the GitHub API JSON response
+
+#### (MEDIUM) `Generate()` nil workspace guard — `builders/dockerfile_generator.go`
+- **`Generate()` now validates that `workspace` is not nil before proceeding** — Previously, a nil workspace would panic at `isAlpineImage()` on the `g.workspace.ImageName` field access
+- **Returns `fmt.Errorf("workspace must not be nil")` instead of crashing**
+
+#### (MEDIUM) `builderStage` struct eliminates conditional duplication — `builders/dockerfile_generator.go`
+- **Introduced `builderStage` struct** with `name`, `emitFunc`, and `copyLines` fields
+- **Added `activeBuilderStages()` method** as the single source of truth for which builders are emitted
+- **`generateBuilderStages()` and `copyFromBuilders()` now both iterate the same list** — Previously, mirrored conditionals in two methods risked `COPY` referencing a nonexistent stage (or vice versa) if conditions were changed in only one place
+
+#### (LOW) Fail-fast on unsupported architecture — `builders/dockerfile_generator.go`
+- **All 4 builder stages now `exit 1` on unknown architectures** — Every builder (neovim, lazygit Alpine, lazygit Debian, tree-sitter) outputs `"ERROR: Unsupported architecture: $ARCH"` and exits instead of silently falling back to x86_64 and producing binaries that would segfault at runtime
+
+#### (LOW) Lazygit builder code path consolidation — `builders/dockerfile_generator.go`
+- **Extracted shared download logic into a common section** — API query, version validation, tar/install, and binary verification are documented with a comment; Alpine and Debian paths only differ in the preamble (base image, package install, arch detection)
+
+#### (LOW) Fixed cache mount comment — `builders/dockerfile_generator.go`
+- **Updated `generateBuilderStages()` comment** to note that go-tools-builder is an exception to the "no cache mounts on builders" rule; the go-tools-builder uses Go module/build cache mounts because `go install` downloads significant dependencies
+
+#### (BUG FIX) Nvim config respects custom user — `builders/dockerfile_generator.go`
+- **Added `effectiveUser()` helper method** — `generateNvimSection()` now uses the configured `Container.User` instead of hardcoding `/home/dev/`
+- **COPY, chown, and USER directives all reference the effective user** — Previously, custom users (e.g., `myuser`) still had nvim config copied to `/home/dev/`
+
+### 🧪 Tests Added
+
+- **`TestDockerfileGenerator_TreeSitterBuilder_DynamicVersion`** — Verifies tree-sitter uses GitHub API, no hardcoded version, version validation present
+- **`TestDockerfileGenerator_Generate_NilWorkspace`** — Verifies nil workspace returns error instead of panicking
+- **`TestDockerfileGenerator_BuilderStageConsistency`** — Regression guard: every builder stage header has matching `COPY --from=` directive
+- **`TestDockerfileGenerator_ArchDetection_NoSilentFallback`** — Verifies all builders fail explicitly on unknown architectures
+- **`TestDockerfileGenerator_LazygitBuilder_UnifiedDownload`** — Regression guard: Alpine and Debian lazygit paths have consistent download logic
+- **`TestDockerfileGenerator_NvimSection_CustomUser`** — Verifies nvim COPY/chown uses configured user
+  - Files changed: `builders/dockerfile_generator_test.go`
+
+### 📊 v0.37.5 Summary
+
+| Metric | Value |
+|--------|-------|
+| Issues addressed | 7 (1 high, 2 medium, 3 low, 1 bug fix) |
+| Structural improvements | `builderStage` struct, `activeBuilderStages()`, `effectiveUser()` |
+| Files changed | 2 (`dockerfile_generator.go`, `dockerfile_generator_test.go`) |
+| New tests | 6 |
+| All tests pass | ✅ |
+
+---
+
 ## [v0.37.4] - 2026-03-12 — BuildKit Builder Stage Robustness
 
 ### 🔨 Hardening

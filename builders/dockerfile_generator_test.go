@@ -1339,3 +1339,505 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 		})
 	}
 }
+
+// =============================================================================
+// v0.37.5 Phase 2 Tests (RED) — Write failing tests before implementation
+// =============================================================================
+
+// TestDockerfileGenerator_TreeSitterBuilder_DynamicVersion verifies that the tree-sitter
+// builder stage queries the GitHub Releases API for the latest version instead of
+// hardcoding a specific version (e.g., v0.24.6).
+//
+// Phase 2 failing test for H3: tree-sitter dynamic versioning.
+// MUST FAIL against current code (hardcodes v0.24.6).
+func TestDockerfileGenerator_TreeSitterBuilder_DynamicVersion(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{}
+
+	gen := NewDockerfileGenerator(ws, wsYAML, "python", "3.11", "/tmp/test", "")
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// Verify the tree-sitter builder section exists
+	if !strings.Contains(dockerfile, "# --- Parallel builder: tree-sitter CLI ---") {
+		t.Fatalf("Generate() missing tree-sitter builder stage")
+	}
+
+	// Extract the tree-sitter builder section
+	tsStart := strings.Index(dockerfile, "# --- Parallel builder: tree-sitter CLI ---")
+	// The tree-sitter builder is the last builder stage before the dev stage
+	devStageStart := strings.Index(dockerfile, "# Development stage with additional tools")
+	if devStageStart <= tsStart {
+		// Fall back: search for go-tools-builder or FROM base AS dev
+		devStageStart = strings.Index(dockerfile, "FROM base AS dev")
+	}
+	var tsSection string
+	if devStageStart > tsStart {
+		tsSection = dockerfile[tsStart:devStageStart]
+	} else {
+		tsSection = dockerfile[tsStart:]
+	}
+
+	// MUST NOT contain hardcoded version
+	if strings.Contains(tsSection, "v0.24.6") {
+		t.Errorf("tree-sitter builder hardcodes version 'v0.24.6'.\n"+
+			"Must use dynamic version from GitHub API instead.\n"+
+			"tree-sitter section:\n%s", tsSection)
+	}
+
+	// MUST query GitHub API for latest version
+	if !strings.Contains(tsSection, "api.github.com/repos/tree-sitter/tree-sitter/releases/latest") {
+		t.Errorf("tree-sitter builder does not query GitHub API for latest version.\n"+
+			"Expected: api.github.com/repos/tree-sitter/tree-sitter/releases/latest\n"+
+			"tree-sitter section:\n%s", tsSection)
+	}
+
+	// MUST validate version is non-empty before using it
+	if !strings.Contains(tsSection, `[ -n "$TREESITTER_VERSION" ]`) {
+		t.Errorf("tree-sitter builder missing version validation: %q\n"+
+			"Without this check, a failed API call produces a broken download URL.\n"+
+			"tree-sitter section:\n%s",
+			`[ -n "$TREESITTER_VERSION" ]`, tsSection)
+	}
+
+	// MUST use the variable ${TREESITTER_VERSION} in the download URL
+	if !strings.Contains(tsSection, "${TREESITTER_VERSION}") {
+		t.Errorf("tree-sitter builder download URL must use ${TREESITTER_VERSION} variable.\n"+
+			"tree-sitter section:\n%s", tsSection)
+	}
+}
+
+// TestDockerfileGenerator_Generate_NilWorkspace verifies that Generate() returns a
+// non-nil error when the workspace is nil, rather than panicking.
+//
+// Phase 2 failing test for M3: nil workspace guard.
+// MUST FAIL against current code (panics at g.workspace.ImageName in isAlpineImage()).
+func TestDockerfileGenerator_Generate_NilWorkspace(t *testing.T) {
+	wsYAML := models.WorkspaceSpec{}
+
+	gen := NewDockerfileGenerator(nil, wsYAML, "python", "3.11", "/tmp/test", "")
+
+	// Recover from panic so the test can report failure rather than crashing the suite
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("Generate() panicked with nil workspace instead of returning an error: %v", r)
+		}
+	}()
+
+	_, err := gen.Generate()
+	if err == nil {
+		t.Error("Generate() with nil workspace should return a non-nil error, got nil")
+	}
+}
+
+// TestDockerfileGenerator_BuilderStageConsistency verifies that every builder stage
+// emitted in the Dockerfile has a corresponding COPY --from= directive, and vice versa.
+//
+// This is a regression guard for M4's refactor (should PASS against current code).
+// It also documents the invariant that must hold after the activeBuilderStages() refactor.
+func TestDockerfileGenerator_BuilderStageConsistency(t *testing.T) {
+	tests := []struct {
+		name     string
+		language string
+		version  string
+	}{
+		{name: "python/debian", language: "python", version: "3.11"},
+		{name: "golang/alpine", language: "golang", version: "1.22"},
+	}
+
+	// Known stage-name to FROM-stage mapping
+	builderHeaders := map[string]string{
+		"# --- Parallel builder: Neovim ---":          "neovim-builder",
+		"# --- Parallel builder: lazygit ---":         "lazygit-builder",
+		"# --- Parallel builder: Starship prompt ---": "starship-builder",
+		"# --- Parallel builder: tree-sitter CLI ---": "treesitter-builder",
+		"# --- Parallel builder: Go tools ---":        "go-tools-builder",
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws := &models.Workspace{
+				ID:        1,
+				Name:      "test-ws",
+				ImageName: "test:latest",
+			}
+			wsYAML := models.WorkspaceSpec{}
+
+			gen := NewDockerfileGenerator(ws, wsYAML, tt.language, tt.version, "/tmp/test", "")
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			// For every builder header present, there must be a COPY --from= for that stage
+			for header, stageName := range builderHeaders {
+				hasHeader := strings.Contains(dockerfile, header)
+				copyDirective := "COPY --from=" + stageName
+				hasCopy := strings.Contains(dockerfile, copyDirective)
+
+				if hasHeader && !hasCopy {
+					t.Errorf("Builder stage %q is emitted but has no corresponding %q directive.\n"+
+						"Builders and COPY --from= directives must always be in sync.",
+						header, copyDirective)
+				}
+				if !hasHeader && hasCopy {
+					t.Errorf("COPY directive %q is present but the corresponding builder stage %q is missing.\n"+
+						"Builders and COPY --from= directives must always be in sync.",
+						copyDirective, header)
+				}
+			}
+		})
+	}
+}
+
+// TestDockerfileGenerator_ArchDetection_NoSilentFallback verifies that the else branch
+// in every builder's architecture detection block fails explicitly (echo ERROR + exit 1)
+// rather than silently falling back to x86_64.
+//
+// Phase 2 failing test for L2: remove silent arch fallback.
+// MUST FAIL against current code (silently falls back to x86_64 in else branches).
+func TestDockerfileGenerator_ArchDetection_NoSilentFallback(t *testing.T) {
+	tests := []struct {
+		name          string
+		language      string
+		version       string
+		builderStages []struct {
+			header     string
+			nextHeader string
+		}
+	}{
+		{
+			name:     "python/debian — neovim, lazygit, tree-sitter builders",
+			language: "python",
+			version:  "3.11",
+			builderStages: []struct {
+				header     string
+				nextHeader string
+			}{
+				{
+					header:     "# --- Parallel builder: Neovim ---",
+					nextHeader: "# --- Parallel builder: lazygit ---",
+				},
+				{
+					header:     "# --- Parallel builder: lazygit ---",
+					nextHeader: "# --- Parallel builder: Starship prompt ---",
+				},
+				{
+					header:     "# --- Parallel builder: tree-sitter CLI ---",
+					nextHeader: "# Development stage with additional tools",
+				},
+			},
+		},
+		{
+			name:     "golang/alpine — lazygit, tree-sitter builders",
+			language: "golang",
+			version:  "1.22",
+			builderStages: []struct {
+				header     string
+				nextHeader string
+			}{
+				{
+					header:     "# --- Parallel builder: lazygit ---",
+					nextHeader: "# --- Parallel builder: Starship prompt ---",
+				},
+				{
+					header:     "# --- Parallel builder: tree-sitter CLI ---",
+					nextHeader: "# Development stage with additional tools",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws := &models.Workspace{
+				ID:        1,
+				Name:      "test-ws",
+				ImageName: "test:latest",
+			}
+			wsYAML := models.WorkspaceSpec{}
+
+			gen := NewDockerfileGenerator(ws, wsYAML, tt.language, tt.version, "/tmp/test", "")
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			for _, stage := range tt.builderStages {
+				startIdx := strings.Index(dockerfile, stage.header)
+				if startIdx < 0 {
+					t.Errorf("Missing builder stage: %q", stage.header)
+					continue
+				}
+
+				endIdx := strings.Index(dockerfile, stage.nextHeader)
+				var section string
+				if endIdx > startIdx {
+					section = dockerfile[startIdx:endIdx]
+				} else {
+					// Fall back to rest of file
+					section = dockerfile[startIdx:]
+				}
+
+				// The else branch must NOT silently set an arch variable to a default
+				// Silent fallback patterns look like: else \n    NVIM_ARCH="nvim-linux-x86_64"; \
+				silentFallbackPatterns := []string{
+					// Neovim builder silent fallback
+					"else \\\n        NVIM_ARCH=\"nvim-linux-x86_64\"",
+					// Lazygit builder silent fallback (Alpine-style single-line)
+					"else \\\n        LG_ARCH=\"x86_64\"",
+					// Lazygit builder silent fallback (Debian-style)
+					"else \\\n        LG_ARCH=\"x86_64\"",
+					// Tree-sitter builder silent fallback (inline style)
+					"else TS_ARCH=\"x64\"",
+				}
+
+				for _, silentPattern := range silentFallbackPatterns {
+					if strings.Contains(section, silentPattern) {
+						t.Errorf("Builder stage %q has silent arch fallback: %q\n"+
+							"The else branch must fail explicitly with 'echo ERROR' and 'exit 1'.\n"+
+							"Stage section:\n%s",
+							stage.header, silentPattern, section)
+					}
+				}
+
+				// The else branch MUST contain explicit failure
+				// Check that if there's any arch detection (if/elif/else), the else has exit 1
+				if strings.Contains(section, "if [ \"$ARCH\"") || strings.Contains(section, "if [ \"$ARCH\" =") {
+					if !strings.Contains(section, "exit 1") {
+						t.Errorf("Builder stage %q has arch detection but no 'exit 1' in else branch.\n"+
+							"Unknown architectures must fail explicitly, not silently fall back.\n"+
+							"Stage section:\n%s",
+							stage.header, section)
+					}
+					if !strings.Contains(section, "echo \"ERROR") && !strings.Contains(section, "echo \"Unsupported") {
+						t.Errorf("Builder stage %q has arch detection but no error message in else branch.\n"+
+							"Unknown architectures must print an error message before failing.\n"+
+							"Stage section:\n%s",
+							stage.header, section)
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestDockerfileGenerator_LazygitBuilder_UnifiedDownload verifies that the lazygit builder
+// produces consistent download logic across both Alpine and Debian paths — same URL pattern,
+// same version validation, same binary verification.
+//
+// This is a regression guard for L1's refactor (should PASS against current code).
+// The test ensures L1's unification of the two lazygit builder paths doesn't break anything.
+func TestDockerfileGenerator_LazygitBuilder_UnifiedDownload(t *testing.T) {
+	tests := []struct {
+		name     string
+		language string
+		version  string
+	}{
+		{name: "alpine path (golang workspace)", language: "golang", version: "1.22"},
+		{name: "debian path (python workspace)", language: "python", version: "3.11"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws := &models.Workspace{
+				ID:        1,
+				Name:      "test-ws",
+				ImageName: "test:latest",
+			}
+			wsYAML := models.WorkspaceSpec{}
+
+			gen := NewDockerfileGenerator(ws, wsYAML, tt.language, tt.version, "/tmp/test", "")
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			// Extract lazygit builder section
+			lazygitStart := strings.Index(dockerfile, "# --- Parallel builder: lazygit ---")
+			starshipStart := strings.Index(dockerfile, "# --- Parallel builder: Starship prompt ---")
+			if lazygitStart < 0 {
+				t.Fatalf("Missing lazygit builder stage")
+			}
+			if starshipStart <= lazygitStart {
+				t.Fatalf("Could not isolate lazygit builder section")
+			}
+			lazygitSection := dockerfile[lazygitStart:starshipStart]
+
+			// Both paths MUST query the GitHub Releases API for version
+			if !strings.Contains(lazygitSection, "api.github.com/repos/jesseduffield/lazygit/releases/latest") {
+				t.Errorf("[%s] lazygit builder missing GitHub API query for version.\n"+
+					"Section:\n%s", tt.name, lazygitSection)
+			}
+
+			// Both paths MUST validate the version is non-empty
+			if !strings.Contains(lazygitSection, `[ -n "$LAZYGIT_VERSION" ]`) {
+				t.Errorf("[%s] lazygit builder missing version validation: %q\n"+
+					"Section:\n%s", tt.name, `[ -n "$LAZYGIT_VERSION" ]`, lazygitSection)
+			}
+
+			// Both paths MUST use the standard lazygit download URL pattern
+			if !strings.Contains(lazygitSection, "jesseduffield/lazygit/releases/latest/download/lazygit_") {
+				t.Errorf("[%s] lazygit builder missing standard download URL.\n"+
+					"Section:\n%s", tt.name, lazygitSection)
+			}
+
+			// Both paths MUST verify the binary
+			if !strings.Contains(lazygitSection, "test -x /usr/local/bin/lazygit") {
+				t.Errorf("[%s] lazygit builder missing binary verification.\n"+
+					"Section:\n%s", tt.name, lazygitSection)
+			}
+
+			// Both paths MUST use hardened curl flags
+			if !strings.Contains(lazygitSection, "curl -fsSL --retry 3 --connect-timeout 30") {
+				t.Errorf("[%s] lazygit builder missing hardened curl flags.\n"+
+					"Section:\n%s", tt.name, lazygitSection)
+			}
+		})
+	}
+}
+
+// TestDockerfileGenerator_NvimSection_CustomUser verifies that when Container.User is set
+// to a custom username, the nvim COPY and chown commands use that username instead of
+// the hardcoded "dev" username.
+//
+// Phase 2 failing test for A3: nvim section respects configured user.
+// MUST FAIL against current code (hardcodes /home/dev/ on line 732).
+func TestDockerfileGenerator_NvimSection_CustomUser(t *testing.T) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("failed to get home dir: %v", err)
+	}
+
+	// Use a unique workspace name for the staging directory
+	repoName := "test-custom-user-ws"
+	stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", repoName)
+	nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
+
+	if err := os.MkdirAll(nvimConfigPath, 0755); err != nil {
+		t.Fatalf("failed to create nvim config dir: %v", err)
+	}
+	defer os.RemoveAll(stagingDir)
+
+	// Create a dummy init.lua to make the nvim config directory detected
+	initLuaPath := filepath.Join(nvimConfigPath, "init.lua")
+	if err := os.WriteFile(initLuaPath, []byte("-- test config for custom user"), 0644); err != nil {
+		t.Fatalf("failed to create init.lua: %v", err)
+	}
+
+	tests := []struct {
+		name           string
+		containerUser  string
+		wantUser       string
+		wantNotContain string
+	}{
+		{
+			name:           "custom user myuser",
+			containerUser:  "myuser",
+			wantUser:       "myuser",
+			wantNotContain: "/home/dev/",
+		},
+		{
+			name:           "custom user appdev",
+			containerUser:  "appdev",
+			wantUser:       "appdev",
+			wantNotContain: "/home/dev/",
+		},
+		{
+			name:           "explicit dev user",
+			containerUser:  "dev",
+			wantUser:       "dev",
+			wantNotContain: "", // No negative assertion needed for default
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws := &models.Workspace{
+				ID:        1,
+				Name:      "test-ws",
+				ImageName: "test:latest",
+			}
+			wsYAML := models.WorkspaceSpec{
+				Nvim: models.NvimConfig{
+					Structure: "custom",
+				},
+				Container: models.ContainerConfig{
+					User: tt.containerUser,
+				},
+			}
+
+			// Pass the sourcePath whose basename matches the staging dir name
+			sourcePath := filepath.Join("/tmp", "dvm-clone-xyz", repoName)
+
+			gen := NewDockerfileGenerator(ws, wsYAML, "python", "3.11", sourcePath, "")
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			// Verify the nvim COPY uses the correct user's home directory
+			wantCopyLine := "COPY .config/nvim /home/" + tt.wantUser + "/.config/nvim"
+			if !strings.Contains(dockerfile, wantCopyLine) {
+				t.Errorf("[%s] nvim COPY should use /home/%s/ but it doesn't.\n"+
+					"Want: %q\n"+
+					"Generated Dockerfile (nvim section):\n%s",
+					tt.name, tt.wantUser, wantCopyLine,
+					extractNvimSection(dockerfile))
+			}
+
+			// Verify the chown uses the correct user
+			wantChownLine := "RUN chown -R " + tt.wantUser + ":" + tt.wantUser + " /home/" + tt.wantUser + "/.config"
+			if !strings.Contains(dockerfile, wantChownLine) {
+				t.Errorf("[%s] nvim chown should reference /home/%s/ but it doesn't.\n"+
+					"Want: %q\n"+
+					"Generated Dockerfile (nvim section):\n%s",
+					tt.name, tt.wantUser, wantChownLine,
+					extractNvimSection(dockerfile))
+			}
+
+			// For non-default users, verify we don't have the hardcoded /home/dev/ path
+			if tt.wantNotContain != "" {
+				// Only check in the nvim section (the dev user section itself uses "dev" literally)
+				nvimSec := extractNvimSection(dockerfile)
+				if strings.Contains(nvimSec, tt.wantNotContain) {
+					t.Errorf("[%s] nvim section hardcodes %q instead of using configured user %q.\n"+
+						"Nvim section:\n%s",
+						tt.name, tt.wantNotContain, tt.wantUser, nvimSec)
+				}
+			}
+		})
+	}
+}
+
+// extractNvimSection returns the portion of the Dockerfile between the
+// "# Copy Neovim configuration" comment and "USER root" (end of nvim section).
+// Returns the full dockerfile as fallback if the section is not found.
+func extractNvimSection(dockerfile string) string {
+	start := strings.Index(dockerfile, "# Copy Neovim configuration")
+	if start < 0 {
+		return dockerfile
+	}
+	// Find the last USER root after the nvim section starts
+	end := strings.Index(dockerfile[start:], "USER root\n\n")
+	if end < 0 {
+		return dockerfile[start:]
+	}
+	return dockerfile[start : start+end+len("USER root\n\n")]
+}
+
+// NOTE: L4 (cache mount comment fix) is a documentation-only change to the source comment
+// in generateBuilderStages(). Comments are not testable, so no test is written for L4.
+// The fix updates the comment to note that go-tools-builder IS an exception that uses
+// cache mounts (--mount=type=cache), which is already verified by existing tests.
