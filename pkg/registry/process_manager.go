@@ -16,10 +16,11 @@ import (
 
 // DefaultProcessManager implements ProcessManager using os/exec.
 type DefaultProcessManager struct {
-	config ProcessConfig
-	cmd    *exec.Cmd
-	pid    int
-	mu     sync.RWMutex
+	config  ProcessConfig
+	cmd     *exec.Cmd
+	pid     int
+	logFile *os.File
+	mu      sync.RWMutex
 }
 
 // Start spawns a new process with the given binary and arguments.
@@ -67,7 +68,6 @@ func (p *DefaultProcessManager) Start(ctx context.Context, binary string, args [
 		if err != nil {
 			return fmt.Errorf("failed to create log file: %w", err)
 		}
-		defer logFile.Close()
 	}
 
 	// Create command
@@ -86,12 +86,19 @@ func (p *DefaultProcessManager) Start(ctx context.Context, binary string, args [
 
 	// Start the process
 	if err := p.cmd.Start(); err != nil {
+		// Close log file on start failure
+		if logFile != nil {
+			logFile.Close()
+		}
 		// Check if binary not found
 		if errors.Is(err, exec.ErrNotFound) {
 			return fmt.Errorf("binary not found: %w", err)
 		}
 		return fmt.Errorf("failed to start process: %w", err)
 	}
+
+	// Store the log file so it remains open for the child process
+	p.logFile = logFile
 
 	// Store PID
 	p.pid = p.cmd.Process.Pid
@@ -101,6 +108,11 @@ func (p *DefaultProcessManager) Start(ctx context.Context, binary string, args [
 		if err := p.writePIDFile(config.PIDFile, p.pid); err != nil {
 			// Kill the process we just started
 			p.cmd.Process.Kill()
+			// Close the log file since we're aborting
+			if p.logFile != nil {
+				p.logFile.Close()
+				p.logFile = nil
+			}
 			return fmt.Errorf("failed to write PID file: %w", err)
 		}
 	}
@@ -159,6 +171,12 @@ func (p *DefaultProcessManager) stopInMemoryProcess(ctx context.Context) error {
 	case <-ctx.Done():
 		p.cmd.Process.Signal(syscall.SIGKILL)
 		return ctx.Err()
+	}
+
+	// Close the log file now that the process has exited
+	if p.logFile != nil {
+		p.logFile.Close()
+		p.logFile = nil
 	}
 
 	// Remove PID file
@@ -228,8 +246,13 @@ func (p *DefaultProcessManager) stopFromPIDFile(ctx context.Context) error {
 	}
 }
 
-// removePIDFile removes the configured PID file.
+// removePIDFile removes the configured PID file and closes the log file if open.
 func (p *DefaultProcessManager) removePIDFile() {
+	// Close the log file if it's still open
+	if p.logFile != nil {
+		p.logFile.Close()
+		p.logFile = nil
+	}
 	if p.config.PIDFile != "" {
 		os.Remove(p.config.PIDFile)
 	}

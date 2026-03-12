@@ -104,6 +104,16 @@ func runRegistryEnable(cmd *cobra.Command, args []string) error {
 	// Apply defaults for port and storage
 	newRegistry.ApplyDefaults()
 
+	// Apply strategy-based defaults (version) — RC-1: versions belong to strategy layer
+	if newRegistry.Version == "" {
+		factory := registry.NewServiceFactory()
+		if strategy, err := factory.GetStrategy(newRegistry.Type); err == nil {
+			if v := strategy.GetDefaultVersion(); v != "" {
+				newRegistry.Version = v
+			}
+		}
+	}
+
 	// Validate the registry
 	if err := newRegistry.Validate(); err != nil {
 		return fmt.Errorf("invalid registry configuration: %w", err)

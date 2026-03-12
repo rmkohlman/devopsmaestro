@@ -5,6 +5,7 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
+	"devopsmaestro/pkg/registry"
 	"devopsmaestro/pkg/resource"
 
 	"gopkg.in/yaml.v3"
@@ -43,6 +44,16 @@ func (h *RegistryHandler) Apply(ctx resource.Context, data []byte) (resource.Res
 
 	// Apply defaults for any missing fields (port, storage, idle_timeout)
 	reg.ApplyDefaults()
+
+	// Apply strategy-based defaults (version) — RC-1: versions belong to strategy layer
+	if reg.Version == "" {
+		factory := registry.NewServiceFactory()
+		if strategy, err := factory.GetStrategy(reg.Type); err == nil {
+			if v := strategy.GetDefaultVersion(); v != "" {
+				reg.Version = v
+			}
+		}
+	}
 
 	// Validate
 	if err := reg.Validate(); err != nil {

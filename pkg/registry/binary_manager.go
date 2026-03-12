@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 )
 
 // DefaultBinaryManager implements BinaryManager for Zot.
@@ -144,6 +145,13 @@ func (b *DefaultBinaryManager) Update(ctx context.Context) error {
 
 // downloadBinary downloads the Zot binary for the current platform.
 func (b *DefaultBinaryManager) downloadBinary(ctx context.Context, destPath string) (string, error) {
+	// Apply defensive timeout if caller didn't set a deadline
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 5*time.Minute)
+		defer cancel()
+	}
+
 	// Ensure directory exists
 	if err := os.MkdirAll(b.binDir, 0755); err != nil {
 		return "", fmt.Errorf("failed to create binary directory: %w", err)

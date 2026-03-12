@@ -1,7 +1,7 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.37.1  
-> **Last Updated**: March 2026
+> **Version**: v0.37.2  
+> **Last Updated**: March 12, 2026
 
 ---
 
@@ -2255,6 +2255,194 @@ dvm delete credential legacy-cred  --ecosystem <your-ecosystem> --force
 
 ---
 
+## Part 11: Registry Bug Fix Verification (v0.37.2)
+
+These scenarios verify the four registry bugs fixed in v0.37.2: binary download timeout, log file persistence, version defaulting on init and create, and the latent idle-timer deadlock. Run them from a clean registry state unless a scenario explicitly depends on prior state.
+
+**Prerequisites:**
+- `dvm` binary built from v0.37.2+
+- Zot binary **not** cached (delete `~/.devopsmaestro/bin/zot` if it exists) for Scenario 64
+- Port 5010 available for test registries
+
+---
+
+### Scenario 64: Binary Download Timeout (First Use)
+
+Verify that `dvm start registry` completes the Zot binary download (or fails with a timeout error) and does **not** hang indefinitely when the binary is not yet cached.
+
+**Setup:** Remove the cached Zot binary if present.
+
+```bash
+rm -f ~/.devopsmaestro/bin/zot*
+```
+
+```bash
+# Create and start a zot registry — binary must be downloaded on first use
+dvm create registry timeout-test --type zot --port 5010
+dvm start registry timeout-test
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Command returns (does not hang) | `dvm start` exits within a reasonable time (≤ 5 min on slow connections) | |
+| Download completes successfully | Registry reaches status: running | |
+| OR download fails with a clear error | Timeout/network error message shown, non-zero exit code (no hang) | |
+| No indefinite block | Terminal prompt returns after success or failure | |
+
+**Cleanup:**
+```bash
+dvm stop registry timeout-test 2>/dev/null || true
+dvm delete registry timeout-test
+```
+
+---
+
+### Scenario 65: Log File Persistence
+
+Verify that `zot.log` is created in the registry's storage directory and written to while the registry is running, and that the file is cleanly closed after the registry stops (no corruption or truncation).
+
+```bash
+# Create and start a registry
+dvm create registry log-test --type zot --port 5010
+dvm start registry log-test
+
+# Locate and inspect the log file
+# (storage directory is typically ~/.devopsmaestro/registries/log-test/)
+LOG_FILE=~/.devopsmaestro/registries/log-test/zot.log
+
+ls -lh "$LOG_FILE"
+cat "$LOG_FILE"
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `zot.log` exists | File is present in registry storage directory | |
+| Log file has content | File is non-empty (Zot writes startup lines on launch) | |
+| Log file is being written to | `tail -f "$LOG_FILE"` shows activity while registry runs | |
+
+```bash
+# Stop the registry
+dvm stop registry log-test
+
+# Verify the log file is intact after stop
+ls -lh "$LOG_FILE"
+tail -20 "$LOG_FILE"
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Log file still exists after stop | File not deleted on stop | |
+| Log file is not corrupted | `tail` outputs readable text, no binary garbage | |
+| Log file is not truncated | Content from startup still present | |
+
+**Cleanup:**
+```bash
+dvm delete registry log-test
+```
+
+---
+
+### Scenario 66: Version Defaulting — `dvm init`
+
+Verify that `dvm admin init` populates a non-empty default version for OCI registries in the generated YAML/config, and that the created registries show `version: 2.1.15` (not empty or blank).
+
+```bash
+# Fresh init
+rm -rf ~/.devopsmaestro
+dvm admin init
+
+# Check that the OCI registry has a version set
+dvm get registries
+dvm get registries -o yaml
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Init completes without error | No error message | |
+| OCI registry has a version | VERSION column shows `2.1.15` (not blank) | |
+| `-o yaml` shows `spec.version` | `spec.version: 2.1.15` present in YAML output | |
+| No other registry types have empty version | All bootstrapped registries show a non-empty version | |
+
+---
+
+### Scenario 67: Version Defaulting — `dvm create registry`
+
+Verify that `dvm create registry` without an explicit `--version` flag populates the default version (`2.1.15` for zot) in the stored resource.
+
+```bash
+# Create a registry without specifying a version
+dvm create registry default-ver-test --type zot --port 5010
+
+# Confirm the default version was applied
+dvm get registry default-ver-test
+dvm get registry default-ver-test -o yaml
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Create succeeds | No error | |
+| VERSION column shows `2.1.15` | `dvm get registries` table row shows `2.1.15`, not blank | |
+| `spec.version` in YAML | `spec.version: 2.1.15` in YAML output (not empty string) | |
+
+**Cleanup:**
+```bash
+dvm delete registry default-ver-test
+```
+
+---
+
+### Scenario 68: Version Defaulting — `dvm registry enable devpi`
+
+Verify that enabling a non-zot registry type (devpi) via `dvm registry enable` also has its default version populated.
+
+```bash
+# Enable the devpi registry
+dvm registry enable devpi
+
+# Confirm version is set
+dvm get registries
+dvm get registries -o yaml
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Enable command succeeds | No error | |
+| devpi registry appears in list | Row visible in `dvm get registries` table | |
+| devpi registry has a version | VERSION column is non-empty for the devpi registry | |
+| `-o yaml` confirms `spec.version` set | `spec.version` field present and non-empty for devpi | |
+
+---
+
+### Scenario 69: Idle Timer Deadlock (Informational)
+
+> **Note:** This scenario is primarily covered by automated tests. The deadlock is a latent race condition that manifests under specific timing — it is difficult to trigger manually. This entry documents the fix for tracking purposes and provides a smoke-test to confirm on-demand registries start cleanly.
+
+**Background:** On-demand registries with an idle timeout previously risked a deadlock in the start sequence if the idle timer fired during startup. The automated test covers this directly; the steps below are a smoke-test only.
+
+```bash
+# Create an on-demand registry (lifecycle: on-demand with idle timeout)
+dvm create registry idle-test --type zot --port 5010
+
+# Start it and confirm it becomes running without hanging
+dvm start registry idle-test
+dvm get registries
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| On-demand registry starts cleanly | Status: running, no hang or deadlock | |
+| `dvm start` returns promptly | Terminal prompt returns after start | |
+| No error about mutex or channel | No deadlock-related error messages in output | |
+| Automated test covers deadlock path | See `pkg/registry/..._test.go` for the definitive test | |
+
+**Cleanup:**
+```bash
+dvm stop registry idle-test
+dvm delete registry idle-test
+```
+
+---
+
 ## Test Results Summary
 
 | Part | Tests | Pass | Fail |
@@ -2272,6 +2460,7 @@ dvm delete credential legacy-cred  --ecosystem <your-ecosystem> --force
 | Part 8: Credential Injection & Env Vars | 7 scenarios | | |
 | Part 9: Runtime Credential & Env Injection | 7 scenarios | | |
 | Part 10: Keychain Dual-Field Credentials | 10 scenarios | | |
+| Part 11: Registry Bug Fix Verification | 6 scenarios | | |
 
 ---
 
@@ -2324,5 +2513,5 @@ colima nerdctl -- --namespace devopsmaestro images
 
 **Tested by:** ________________  
 **Date:** ________________  
-**Version:** v0.37.1  
+**Version:** v0.37.2  
 **Platform:** ________________

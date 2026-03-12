@@ -113,7 +113,9 @@ func (b *BaseServiceManager) ResetIdleTimerLocked(lifecycle string, timeout time
 	if b.idleTimer != nil {
 		b.idleTimer.Stop()
 	}
-	b.idleTimer = time.AfterFunc(timeout, stopFunc)
+	b.idleTimer = time.AfterFunc(timeout, func() {
+		go stopFunc() // Launch in goroutine to avoid blocking on mutex
+	})
 }
 
 // StopIdleTimer stops the idle timer without triggering shutdown.

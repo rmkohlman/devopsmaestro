@@ -55,6 +55,16 @@ func EnsureDefaultRegistry(
 	}
 	reg.ApplyDefaults()
 
+	// Apply strategy-based defaults (version) — RC-1: versions belong to strategy layer
+	if reg.Version == "" {
+		factory := NewServiceFactory()
+		if strategy, err := factory.GetStrategy(reg.Type); err == nil {
+			if v := strategy.GetDefaultVersion(); v != "" {
+				reg.Version = v
+			}
+		}
+	}
+
 	if err := reg.Validate(); err != nil {
 		return false, fmt.Errorf("validating default registry %q: %w", concreteType, err)
 	}

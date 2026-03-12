@@ -6,6 +6,7 @@ import (
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/envvalidation"
 	"devopsmaestro/pkg/mirror"
+	registrypkg "devopsmaestro/pkg/registry"
 	ws "devopsmaestro/pkg/workspace"
 	"devopsmaestro/render"
 	"fmt"
@@ -346,6 +347,17 @@ func createRegistry(cmd *cobra.Command, name string) error {
 
 	// Apply defaults for Port, Storage, and IdleTimeout
 	registry.ApplyDefaults()
+
+	// Apply strategy-based defaults (version) — RC-1: versions belong to strategy layer
+	if registry.Version == "" {
+		factory := registrypkg.NewServiceFactory()
+		if strategy, err := factory.GetStrategy(registry.Type); err == nil {
+			if v := strategy.GetDefaultVersion(); v != "" {
+				registry.Version = v
+			}
+		}
+	}
+
 	if registry.Lifecycle == "" {
 		registry.Lifecycle = "manual"
 	}

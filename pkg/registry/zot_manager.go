@@ -212,6 +212,13 @@ func (z *ZotManager) waitForReady(ctx context.Context) error {
 
 // getRegistryStats queries the registry API for image count and disk usage.
 func (z *ZotManager) getRegistryStats(ctx context.Context) (int, int64) {
+	// Apply defensive timeout if caller didn't set a deadline
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 5*time.Minute)
+		defer cancel()
+	}
+
 	// Query Zot's catalog API to get image count
 	endpoint := fmt.Sprintf("http://localhost:%d/v2/_catalog", z.config.Port)
 

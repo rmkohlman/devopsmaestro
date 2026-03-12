@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.37.2] - 2026-03-12 — Registry Bug Fixes
+
+### 🐛 Fixed
+
+#### Registry: Defensive Timeout on Binary Downloads — `pkg/registry/binary_manager.go`
+- **`downloadBinary()` now applies a defensive 5-minute context timeout when the caller's context has no deadline** — Prevents indefinite hangs when downloading Zot binaries over slow or stalled networks; the timeout is additive only and does not shorten any deadline already set by the caller
+  - Same fix applied to `getRegistryStats()` in `pkg/registry/zot_manager.go`
+  - Files changed: `pkg/registry/binary_manager.go`, `pkg/registry/zot_manager.go`
+
+#### Registry: Log File Closed Prematurely for Child Zot Process — `pkg/registry/process_manager.go`
+- **Log file handle is now stored in `DefaultProcessManager` and closed in `Stop()` and error paths** — The previous implementation closed the log file via `defer` when `Start()` returned, while the child Zot process still held a reference to it and continued writing; subsequent log writes by the child process silently failed
+  - Files changed: `pkg/registry/process_manager.go`
+
+#### Registry: Version Never Set at Creation Time — `pkg/resource/handlers/registry.go` and 3 creation paths
+- **All 4 registry creation paths now set the version field from the strategy layer's `GetDefaultVersion()`** when no version is specified by the caller — Previously, newly created registries had an empty version string regardless of the strategy's known default, causing `EnsureBinary()` to skip reconciliation on first start
+  - `omitempty` removed from `RegistrySpec.Version` YAML tag so the version field is always visible in YAML output
+  - Respects the RC-1 architectural invariant: `ApplyDefaults()` in models still does NOT set version
+  - Files changed: `pkg/resource/handlers/registry.go`, `cmd/create.go`, `pkg/registry/bootstrap.go`, `cmd/registry_enable.go`
+
+#### Registry: Latent Idle Timer Deadlock — `pkg/registry/base_manager.go`
+- **Idle timer callback in `ResetIdleTimerLocked()` now launches the stop function in a goroutine** — The previous implementation invoked the stop function synchronously from the timer callback; if the timer fired while another goroutine held the manager's mutex, the stop function would attempt to re-acquire it and deadlock
+  - Fix is centralized in `BaseServiceManager`, benefiting all 5 registry manager types: Zot, Athens, Devpi, Verdaccio, and Squid
+  - Files changed: `pkg/registry/base_manager.go`
+
+### 🧪 Tests Added
+
+- **`TestDownloadBinary_AppliesDefensiveTimeout`** — Verifies that `downloadBinary()` applies a defensive timeout when the caller's context has no deadline
+- **`TestProcessManager_LogFileRemainsOpenAfterStart`** — Verifies the log file handle remains open and usable after `Start()` returns
+- **`TestRegistryHandler_Apply_SetsDefaultVersionForZot`** — Verifies version defaulting flows through the handler's Apply path for Zot registries
+- **`TestResetIdleTimerLocked_StopFuncCalledFromLockedContext`** — Verifies the stop function is invoked from a goroutine and does not deadlock under mutex contention
+
+### 📊 v0.37.2 Summary
+
+| Metric | Value |
+|--------|-------|
+| Bugs fixed | 4 (download timeout, log file lifecycle, version defaulting, idle timer deadlock) |
+| Priority breakdown | 1× P0, 2× P1, 1× P2 |
+| Creation paths updated | 4 (handler Apply, `dvm init`, `dvm create registry`, `dvm registry enable`) |
+| Manager types benefiting from deadlock fix | 5 (Zot, Athens, Devpi, Verdaccio, Squid) |
+| New tests | 4 |
+| All tests pass | ✅ |
+
+---
+
 ## [v0.37.1] - 2026-03-11 — Keychain Dual-Field Credentials
 
 ### ✨ Added

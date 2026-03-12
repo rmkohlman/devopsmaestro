@@ -48,7 +48,7 @@ type RegistryMetadata struct {
 
 type RegistrySpec struct {
 	Type      string                 `yaml:"type"`
-	Version   string                 `yaml:"version,omitempty"`
+	Version   string                 `yaml:"version"`
 	Port      int                    `yaml:"port,omitempty"`
 	Lifecycle string                 `yaml:"lifecycle,omitempty"`
 	Config    map[string]interface{} `yaml:"config,omitempty"`
