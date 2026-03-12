@@ -33,6 +33,7 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
+	"devopsmaestro/pkg/envvalidation"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -1253,4 +1254,460 @@ func TestCreateCredential_RunE_DataStoreNotFound(t *testing.T) {
 	err := credCmd.RunE(credCmd, []string{"test-cred"})
 	assert.Error(t, err,
 		"RunE should return error when DataStore is not in context")
+}
+
+// === Dual-Field Credential CLI Tests (v0.37.1) ===
+
+// =============================================================================
+// A. Flag Existence Tests
+// =============================================================================
+
+// TestCreateCredentialCmd_HasUsernameVarFlag verifies that --username-var flag exists
+// on createCredentialCmd, is string type, and defaults to empty string.
+//
+// This test EXPECTS TO FAIL until --username-var is added to createCredentialCmd in
+// cmd/credential.go.
+func TestCreateCredentialCmd_HasUsernameVarFlag(t *testing.T) {
+	credCmd := findSubcommand(createCmd, "credential")
+	require.NotNil(t, credCmd, "create credential subcommand must exist")
+
+	flag := credCmd.Flags().Lookup("username-var")
+	assert.NotNil(t, flag, "create credential should have --username-var flag")
+	if flag != nil {
+		assert.Equal(t, "string", flag.Value.Type(), "--username-var should be a string flag")
+		assert.Equal(t, "", flag.DefValue, "--username-var should default to empty string")
+	}
+}
+
+// TestCreateCredentialCmd_HasPasswordVarFlag verifies that --password-var flag exists
+// on createCredentialCmd, is string type, and defaults to empty string.
+//
+// This test EXPECTS TO FAIL until --password-var is added to createCredentialCmd in
+// cmd/credential.go.
+func TestCreateCredentialCmd_HasPasswordVarFlag(t *testing.T) {
+	credCmd := findSubcommand(createCmd, "credential")
+	require.NotNil(t, credCmd, "create credential subcommand must exist")
+
+	flag := credCmd.Flags().Lookup("password-var")
+	assert.NotNil(t, flag, "create credential should have --password-var flag")
+	if flag != nil {
+		assert.Equal(t, "string", flag.Value.Type(), "--password-var should be a string flag")
+		assert.Equal(t, "", flag.DefValue, "--password-var should default to empty string")
+	}
+}
+
+// =============================================================================
+// B. Validation Tests (Table-Driven)
+// =============================================================================
+
+// validateDualFieldFlags implements the validation logic that createCredentialCmd.RunE
+// will need for the dual-field keychain feature.
+//
+// Rules:
+//   - If usernameVar or passwordVar is set, source MUST be "keychain"
+//   - usernameVar (if non-empty) must pass envvalidation.ValidateEnvKey
+//   - passwordVar (if non-empty) must pass envvalidation.ValidateEnvKey
+//   - Otherwise, delegate to existing validateCredentialFlags
+func validateDualFieldFlags(source, service, envVar, usernameVar, passwordVar string) error {
+	// If either dual-field var is set, enforce keychain-only constraint
+	if usernameVar != "" || passwordVar != "" {
+		if source != "keychain" {
+			return fmt.Errorf("--username-var and --password-var are only valid with --source=keychain")
+		}
+		// Validate the env key names
+		if usernameVar != "" {
+			if err := envvalidation.ValidateEnvKey(usernameVar); err != nil {
+				return fmt.Errorf("--username-var: %w", err)
+			}
+		}
+		if passwordVar != "" {
+			if err := envvalidation.ValidateEnvKey(passwordVar); err != nil {
+				return fmt.Errorf("--password-var: %w", err)
+			}
+		}
+		// Still need source/service validated
+		return validateCredentialFlags(source, service, envVar)
+	}
+	// Legacy path: no dual-field vars set
+	return validateCredentialFlags(source, service, envVar)
+}
+
+// TestCreateCredential_DualField_Validation is a table-driven test covering all
+// combinations of --username-var and --password-var flag validation.
+//
+// Some cases EXPECT TO FAIL until the validation logic is wired into RunE in
+// cmd/credential.go. Cases that exercise only validateDualFieldFlags (defined in
+// this test file) will pass immediately.
+func TestCreateCredential_DualField_Validation(t *testing.T) {
+	tests := []struct {
+		name        string
+		source      string
+		service     string
+		envVar      string
+		usernameVar string
+		passwordVar string
+		wantErr     bool
+		errSubstr   string
+	}{
+		{
+			name:        "username-var with keychain - valid",
+			source:      "keychain",
+			service:     "github.com",
+			usernameVar: "GH_USER",
+			wantErr:     false,
+		},
+		{
+			name:        "password-var with keychain - valid",
+			source:      "keychain",
+			service:     "github.com",
+			passwordVar: "GH_PAT",
+			wantErr:     false,
+		},
+		{
+			name:        "both vars with keychain - valid",
+			source:      "keychain",
+			service:     "github.com",
+			usernameVar: "GH_USER",
+			passwordVar: "GH_PAT",
+			wantErr:     false,
+		},
+		{
+			name:        "username-var with env source - rejected",
+			source:      "env",
+			envVar:      "TOKEN",
+			usernameVar: "GH_USER",
+			wantErr:     true,
+			errSubstr:   "keychain",
+		},
+		{
+			name:        "password-var with env source - rejected",
+			source:      "env",
+			envVar:      "TOKEN",
+			passwordVar: "GH_PAT",
+			wantErr:     true,
+			errSubstr:   "keychain",
+		},
+		{
+			name:        "invalid env key for username-var",
+			source:      "keychain",
+			service:     "svc",
+			usernameVar: "bad-key",
+			wantErr:     true,
+			errSubstr:   "invalid",
+		},
+		{
+			name:        "invalid env key for password-var",
+			source:      "keychain",
+			service:     "svc",
+			passwordVar: "bad-key",
+			wantErr:     true,
+			errSubstr:   "invalid",
+		},
+		{
+			name:        "reserved DVM_ prefix for username-var",
+			source:      "keychain",
+			service:     "svc",
+			usernameVar: "DVM_USER",
+			wantErr:     true,
+			errSubstr:   "DVM_",
+		},
+		{
+			name:        "dangerous env var for password-var",
+			source:      "keychain",
+			service:     "svc",
+			passwordVar: "LD_PRELOAD",
+			wantErr:     true,
+			errSubstr:   "denylist",
+		},
+		{
+			name:    "neither var set (legacy) - valid",
+			source:  "keychain",
+			service: "svc",
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateDualFieldFlags(tt.source, tt.service, tt.envVar, tt.usernameVar, tt.passwordVar)
+
+			if tt.wantErr {
+				assert.Error(t, err, "validation should fail for: %s", tt.name)
+				if tt.errSubstr != "" {
+					assert.Contains(t, err.Error(), tt.errSubstr,
+						"error should mention '%s'", tt.errSubstr)
+				}
+			} else {
+				assert.NoError(t, err, "validation should pass for: %s", tt.name)
+			}
+		})
+	}
+}
+
+// =============================================================================
+// C. DataStore Integration Tests
+// =============================================================================
+
+// TestCreateCredential_DualField_Keychain_Success verifies that a keychain credential
+// with both UsernameVar and PasswordVar set can be created and retrieved correctly.
+//
+// This test EXPECTS TO FAIL because CredentialDB.UsernameVar and CredentialDB.PasswordVar
+// fields do not yet exist in models/credential.go. That is expected — TDD RED.
+func TestCreateCredential_DualField_Keychain_Success(t *testing.T) {
+	mockStore, app := setupTestContext()
+
+	service := "com.github.token"
+	usernameVar := "GH_USER"
+	passwordVar := "GH_PAT"
+
+	cred := &models.CredentialDB{
+		Name:        "github-dual",
+		ScopeType:   models.CredentialScopeApp,
+		ScopeID:     int64(app.ID),
+		Source:      "keychain",
+		Service:     &service,
+		UsernameVar: &usernameVar,
+		PasswordVar: &passwordVar,
+	}
+
+	err := mockStore.CreateCredential(cred)
+	require.NoError(t, err, "CreateCredential should succeed for dual-field keychain credential")
+
+	// Verify it was stored correctly
+	stored, err := mockStore.GetCredential(models.CredentialScopeApp, int64(app.ID), "github-dual")
+	require.NoError(t, err)
+	require.NotNil(t, stored)
+
+	assert.Equal(t, "github-dual", stored.Name)
+	assert.Equal(t, models.CredentialScopeApp, stored.ScopeType)
+	assert.Equal(t, int64(app.ID), stored.ScopeID)
+	assert.Equal(t, "keychain", stored.Source)
+	require.NotNil(t, stored.Service)
+	assert.Equal(t, "com.github.token", *stored.Service)
+	require.NotNil(t, stored.UsernameVar, "UsernameVar should be populated")
+	assert.Equal(t, "GH_USER", *stored.UsernameVar)
+	require.NotNil(t, stored.PasswordVar, "PasswordVar should be populated")
+	assert.Equal(t, "GH_PAT", *stored.PasswordVar)
+	assert.Nil(t, stored.EnvVar, "EnvVar should be nil for dual-field keychain credential")
+}
+
+// TestCreateCredential_DualField_PasswordOnly_Success verifies that a keychain credential
+// with only PasswordVar set (no UsernameVar) can be created and retrieved correctly.
+//
+// This test EXPECTS TO FAIL because CredentialDB.PasswordVar field does not yet exist
+// in models/credential.go. That is expected — TDD RED.
+func TestCreateCredential_DualField_PasswordOnly_Success(t *testing.T) {
+	mockStore, app := setupTestContext()
+
+	service := "com.github.token"
+	passwordVar := "GH_PAT"
+
+	cred := &models.CredentialDB{
+		Name:        "github-password-only",
+		ScopeType:   models.CredentialScopeApp,
+		ScopeID:     int64(app.ID),
+		Source:      "keychain",
+		Service:     &service,
+		PasswordVar: &passwordVar,
+	}
+
+	err := mockStore.CreateCredential(cred)
+	require.NoError(t, err, "CreateCredential should succeed for password-only dual-field credential")
+
+	// Verify it was stored correctly
+	stored, err := mockStore.GetCredential(models.CredentialScopeApp, int64(app.ID), "github-password-only")
+	require.NoError(t, err)
+	require.NotNil(t, stored)
+
+	assert.Equal(t, "github-password-only", stored.Name)
+	assert.Equal(t, "keychain", stored.Source)
+	require.NotNil(t, stored.Service)
+	assert.Equal(t, "com.github.token", *stored.Service)
+	assert.Nil(t, stored.UsernameVar, "UsernameVar should be nil when not set")
+	require.NotNil(t, stored.PasswordVar, "PasswordVar should be populated")
+	assert.Equal(t, "GH_PAT", *stored.PasswordVar)
+}
+
+// === Dual-Field Get Credential Display Tests (v0.37.1) ===
+
+// TestGetCredential_DualField_Detail_HasUsernameVar verifies that a dual-field
+// keychain credential stores both UsernameVar and PasswordVar fields correctly
+// in the CredentialDB model — which is what the detail display code reads when
+// rendering "Username: ..." and "Password: ..." lines in `dvm get credential`.
+//
+// We test the DATA that the display code will read rather than capturing render
+// output directly, since render.Plainf writes to a real terminal.
+//
+// This test EXPECTS TO FAIL until CredentialDB.UsernameVar and
+// CredentialDB.PasswordVar fields are added to models/credential.go.
+func TestGetCredential_DualField_Detail_HasUsernameVar(t *testing.T) {
+	mockStore, app := setupTestContext()
+
+	service := "com.github.credentials"
+	usernameVar := "GITHUB_USERNAME"
+	passwordVar := "GITHUB_PAT"
+
+	// Create a dual-field keychain credential with both UsernameVar and PasswordVar
+	cred := &models.CredentialDB{
+		Name:        "github-creds",
+		ScopeType:   models.CredentialScopeApp,
+		ScopeID:     int64(app.ID),
+		Source:      "keychain",
+		Service:     &service,
+		UsernameVar: &usernameVar,
+		PasswordVar: &passwordVar,
+	}
+
+	err := mockStore.CreateCredential(cred)
+	require.NoError(t, err, "CreateCredential should succeed for dual-field keychain credential")
+
+	// Retrieve and verify both dual-field vars are stored and returned correctly
+	stored, err := mockStore.GetCredential(models.CredentialScopeApp, int64(app.ID), "github-creds")
+	require.NoError(t, err, "GetCredential should find the dual-field credential")
+	require.NotNil(t, stored)
+
+	// UsernameVar is set — display code renders "Username:  GITHUB_USERNAME"
+	require.NotNil(t, stored.UsernameVar,
+		"UsernameVar should not be nil for a dual-field credential")
+	assert.Equal(t, "GITHUB_USERNAME", *stored.UsernameVar,
+		"UsernameVar should match the stored value")
+
+	// PasswordVar is set — display code renders "Password:  GITHUB_PAT"
+	require.NotNil(t, stored.PasswordVar,
+		"PasswordVar should not be nil for a dual-field credential")
+	assert.Equal(t, "GITHUB_PAT", *stored.PasswordVar,
+		"PasswordVar should match the stored value")
+
+	// Other keychain fields remain intact
+	assert.Equal(t, "github-creds", stored.Name)
+	assert.Equal(t, "keychain", stored.Source)
+	require.NotNil(t, stored.Service)
+	assert.Equal(t, "com.github.credentials", *stored.Service)
+}
+
+// TestGetCredential_DualField_Detail_PasswordOnly verifies that a dual-field
+// credential with only PasswordVar set (no UsernameVar) is stored and retrieved
+// with the correct nil/non-nil field state.
+//
+// The display code must handle this asymmetry: it should NOT render a
+// "Username:" line when UsernameVar is nil, but MUST render a "Password:" line
+// when PasswordVar is non-nil.
+//
+// This test EXPECTS TO FAIL until CredentialDB.UsernameVar and
+// CredentialDB.PasswordVar fields are added to models/credential.go.
+func TestGetCredential_DualField_Detail_PasswordOnly(t *testing.T) {
+	mockStore, app := setupTestContext()
+
+	service := "com.npm.registry"
+	passwordVar := "NPM_AUTH_TOKEN"
+
+	// Create a credential with PasswordVar set but UsernameVar explicitly nil
+	cred := &models.CredentialDB{
+		Name:        "npm-token",
+		ScopeType:   models.CredentialScopeApp,
+		ScopeID:     int64(app.ID),
+		Source:      "keychain",
+		Service:     &service,
+		UsernameVar: nil,
+		PasswordVar: &passwordVar,
+	}
+
+	err := mockStore.CreateCredential(cred)
+	require.NoError(t, err, "CreateCredential should succeed for password-only dual-field credential")
+
+	// Retrieve and verify the nil/non-nil asymmetry is preserved
+	stored, err := mockStore.GetCredential(models.CredentialScopeApp, int64(app.ID), "npm-token")
+	require.NoError(t, err, "GetCredential should find the credential")
+	require.NotNil(t, stored)
+
+	// UsernameVar must be nil — display code must NOT render a "Username:" line
+	assert.Nil(t, stored.UsernameVar,
+		"UsernameVar should be nil when not set — display code handles nil gracefully")
+
+	// PasswordVar must be non-nil — display code renders "Password:  NPM_AUTH_TOKEN"
+	require.NotNil(t, stored.PasswordVar,
+		"PasswordVar should not be nil for password-only dual-field credential")
+	assert.Equal(t, "NPM_AUTH_TOKEN", *stored.PasswordVar,
+		"PasswordVar should match the stored value")
+}
+
+// TestGetCredentials_List_DualField_MixedDisplay verifies that a list of
+// credentials containing both legacy (single-field) and dual-field credentials
+// is returned correctly from the DataStore.
+//
+// This is the data foundation for the VARS column in `dvm get credentials`:
+//   - Legacy:     "NPM_TOKEN    (scope: app, source: env)"              → no vars column
+//   - Dual-field: "github-creds (scope: app, source: keychain, vars: GH_USER, GH_PAT)"
+//
+// This test EXPECTS TO FAIL until CredentialDB.UsernameVar and
+// CredentialDB.PasswordVar fields are added to models/credential.go.
+func TestGetCredentials_List_DualField_MixedDisplay(t *testing.T) {
+	mockStore, app := setupTestContext()
+
+	// --- Legacy credential (env source, single env var, no dual-field vars) ---
+	envVar := "NPM_TOKEN"
+	legacyCred := &models.CredentialDB{
+		Name:      "NPM_TOKEN",
+		ScopeType: models.CredentialScopeApp,
+		ScopeID:   int64(app.ID),
+		Source:    "env",
+		EnvVar:    &envVar,
+		// UsernameVar and PasswordVar intentionally nil — legacy single-field credential
+	}
+
+	// --- Dual-field credential (keychain source, two named env vars) ---
+	service := "com.github.credentials"
+	ghUser := "GH_USER"
+	ghPat := "GH_PAT"
+	dualCred := &models.CredentialDB{
+		Name:        "github-creds",
+		ScopeType:   models.CredentialScopeApp,
+		ScopeID:     int64(app.ID),
+		Source:      "keychain",
+		Service:     &service,
+		UsernameVar: &ghUser,
+		PasswordVar: &ghPat,
+	}
+
+	require.NoError(t, mockStore.CreateCredential(legacyCred),
+		"setup: legacy credential creation should succeed")
+	require.NoError(t, mockStore.CreateCredential(dualCred),
+		"setup: dual-field credential creation should succeed")
+
+	// List all credentials in the app scope
+	creds, err := mockStore.ListCredentialsByScope(models.CredentialScopeApp, int64(app.ID))
+	require.NoError(t, err, "ListCredentialsByScope should succeed")
+	assert.Len(t, creds, 2, "should return both the legacy and dual-field credentials")
+
+	// Find each credential by name for targeted assertions
+	var foundLegacy, foundDual *models.CredentialDB
+	for _, c := range creds {
+		switch c.Name {
+		case "NPM_TOKEN":
+			foundLegacy = c
+		case "github-creds":
+			foundDual = c
+		}
+	}
+
+	// Legacy credential: NO dual-field vars (list display omits the vars column)
+	require.NotNil(t, foundLegacy, "legacy credential 'NPM_TOKEN' should be in the list")
+	assert.Nil(t, foundLegacy.UsernameVar,
+		"legacy credential should have nil UsernameVar")
+	assert.Nil(t, foundLegacy.PasswordVar,
+		"legacy credential should have nil PasswordVar")
+	require.NotNil(t, foundLegacy.EnvVar,
+		"legacy credential should have EnvVar set")
+	assert.Equal(t, "NPM_TOKEN", *foundLegacy.EnvVar)
+
+	// Dual-field credential: BOTH vars populated (list display includes vars column)
+	require.NotNil(t, foundDual, "dual-field credential 'github-creds' should be in the list")
+	require.NotNil(t, foundDual.UsernameVar,
+		"dual-field credential should have UsernameVar set")
+	assert.Equal(t, "GH_USER", *foundDual.UsernameVar,
+		"dual-field UsernameVar should match")
+	require.NotNil(t, foundDual.PasswordVar,
+		"dual-field credential should have PasswordVar set")
+	assert.Equal(t, "GH_PAT", *foundDual.PasswordVar,
+		"dual-field PasswordVar should match")
 }

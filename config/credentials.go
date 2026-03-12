@@ -17,6 +17,16 @@ const (
 	SourceValue CredentialSource = "value"
 )
 
+// KeychainField specifies which field to extract from a keychain entry
+type KeychainField string
+
+const (
+	// KeychainFieldPassword extracts the password field (default behavior)
+	KeychainFieldPassword KeychainField = "password"
+	// KeychainFieldAccount extracts the account (username) field
+	KeychainFieldAccount KeychainField = "account"
+)
+
 // CredentialConfig defines how to retrieve a single credential
 type CredentialConfig struct {
 	// Source specifies where to retrieve the credential from
@@ -25,6 +35,8 @@ type CredentialConfig struct {
 	Service string `yaml:"service,omitempty" json:"service,omitempty" mapstructure:"service"`
 	// EnvVar is the environment variable name (when Source is "env")
 	EnvVar string `yaml:"env,omitempty" json:"env,omitempty" mapstructure:"env"`
+	// Field specifies which field to extract from a keychain entry (when Source is "keychain")
+	Field KeychainField `yaml:"field,omitempty" json:"field,omitempty" mapstructure:"field"`
 	// Value is the plaintext value (when Source is "value", not recommended)
 	Value string `yaml:"value,omitempty" json:"value,omitempty" mapstructure:"value"`
 }
@@ -46,6 +58,9 @@ func ResolveCredential(cfg CredentialConfig) (string, error) {
 	case SourceKeychain:
 		if cfg.Service == "" {
 			return "", fmt.Errorf("keychain source requires service name")
+		}
+		if cfg.Field == KeychainFieldAccount {
+			return GetAccountFromKeychain(cfg.Service)
 		}
 		return GetFromKeychain(cfg.Service)
 	case SourceEnv:

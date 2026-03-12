@@ -407,6 +407,268 @@ func createCredentialTestDataStore(t *testing.T) *db.SQLDataStore {
 	return db.NewSQLDataStore(driver, nil)
 }
 
+// === Dual-Field Credential Handler Tests (v0.37.1) ===
+
+// TestCredentialHandler_Apply_DualField_BothVars verifies that applying a keychain
+// credential YAML with both usernameVar and passwordVar stores both fields correctly.
+func TestCredentialHandler_Apply_DualField_BothVars(t *testing.T) {
+	h := NewCredentialHandler()
+	ds := createCredentialTestDataStore(t)
+	defer ds.Close()
+
+	eco := &models.Ecosystem{Name: "testlab"}
+	if err := ds.CreateEcosystem(eco); err != nil {
+		t.Fatalf("Setup: CreateEcosystem() error = %v", err)
+	}
+
+	ctx := resource.Context{DataStore: ds}
+
+	yamlData := `apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  name: github-creds
+  ecosystem: testlab
+spec:
+  source: keychain
+  service: github.com
+  usernameVar: GITHUB_USERNAME
+  passwordVar: GITHUB_PAT
+  description: GitHub dual-field credential`
+
+	res, err := h.Apply(ctx, []byte(yamlData))
+	if err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
+
+	if res.GetKind() != KindCredential {
+		t.Errorf("Apply() resource.Kind = %q, want %q", res.GetKind(), KindCredential)
+	}
+
+	credRes, ok := res.(*CredentialResource)
+	if !ok {
+		t.Fatalf("Apply() result is not *CredentialResource")
+	}
+
+	cred := credRes.Credential()
+
+	if cred.UsernameVar == nil {
+		t.Fatalf("Apply() UsernameVar is nil, want %q", "GITHUB_USERNAME")
+	}
+	if *cred.UsernameVar != "GITHUB_USERNAME" {
+		t.Errorf("Apply() UsernameVar = %q, want %q", *cred.UsernameVar, "GITHUB_USERNAME")
+	}
+
+	if cred.PasswordVar == nil {
+		t.Fatalf("Apply() PasswordVar is nil, want %q", "GITHUB_PAT")
+	}
+	if *cred.PasswordVar != "GITHUB_PAT" {
+		t.Errorf("Apply() PasswordVar = %q, want %q", *cred.PasswordVar, "GITHUB_PAT")
+	}
+}
+
+// TestCredentialHandler_Apply_DualField_PasswordOnly verifies that applying a keychain
+// credential YAML with only passwordVar (no usernameVar) stores passwordVar and
+// leaves UsernameVar nil.
+func TestCredentialHandler_Apply_DualField_PasswordOnly(t *testing.T) {
+	h := NewCredentialHandler()
+	ds := createCredentialTestDataStore(t)
+	defer ds.Close()
+
+	eco := &models.Ecosystem{Name: "testlab"}
+	if err := ds.CreateEcosystem(eco); err != nil {
+		t.Fatalf("Setup: CreateEcosystem() error = %v", err)
+	}
+
+	ctx := resource.Context{DataStore: ds}
+
+	yamlData := `apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  name: docker-token
+  ecosystem: testlab
+spec:
+  source: keychain
+  service: docker.io
+  passwordVar: DOCKER_TOKEN`
+
+	res, err := h.Apply(ctx, []byte(yamlData))
+	if err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
+
+	credRes, ok := res.(*CredentialResource)
+	if !ok {
+		t.Fatalf("Apply() result is not *CredentialResource")
+	}
+
+	cred := credRes.Credential()
+
+	if cred.UsernameVar != nil {
+		t.Errorf("Apply() UsernameVar = %q, want nil", *cred.UsernameVar)
+	}
+
+	if cred.PasswordVar == nil {
+		t.Fatalf("Apply() PasswordVar is nil, want %q", "DOCKER_TOKEN")
+	}
+	if *cred.PasswordVar != "DOCKER_TOKEN" {
+		t.Errorf("Apply() PasswordVar = %q, want %q", *cred.PasswordVar, "DOCKER_TOKEN")
+	}
+}
+
+// TestCredentialHandler_Apply_DualField_Update verifies that applying a credential
+// without vars and then re-applying with both usernameVar and passwordVar correctly
+// updates the stored credential to include those vars.
+func TestCredentialHandler_Apply_DualField_Update(t *testing.T) {
+	h := NewCredentialHandler()
+	ds := createCredentialTestDataStore(t)
+	defer ds.Close()
+
+	eco := &models.Ecosystem{Name: "dualfield-lab"}
+	if err := ds.CreateEcosystem(eco); err != nil {
+		t.Fatalf("Setup: CreateEcosystem() error = %v", err)
+	}
+
+	ctx := resource.Context{DataStore: ds}
+
+	// Step 1: create without vars
+	createYAML := `apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  name: hub-creds
+  ecosystem: dualfield-lab
+spec:
+  source: keychain
+  service: hub.example.com
+  description: initial no-vars credential`
+
+	_, err := h.Apply(ctx, []byte(createYAML))
+	if err != nil {
+		t.Fatalf("Apply() create error = %v", err)
+	}
+
+	// Step 2: update with both vars
+	updateYAML := `apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  name: hub-creds
+  ecosystem: dualfield-lab
+spec:
+  source: keychain
+  service: hub.example.com
+  usernameVar: HUB_USER
+  passwordVar: HUB_PASS
+  description: updated with dual-field vars`
+
+	res, err := h.Apply(ctx, []byte(updateYAML))
+	if err != nil {
+		t.Fatalf("Apply() update error = %v", err)
+	}
+
+	credRes, ok := res.(*CredentialResource)
+	if !ok {
+		t.Fatalf("Apply() result is not *CredentialResource")
+	}
+
+	cred := credRes.Credential()
+
+	if cred.UsernameVar == nil {
+		t.Fatalf("Apply() updated UsernameVar is nil, want %q", "HUB_USER")
+	}
+	if *cred.UsernameVar != "HUB_USER" {
+		t.Errorf("Apply() updated UsernameVar = %q, want %q", *cred.UsernameVar, "HUB_USER")
+	}
+
+	if cred.PasswordVar == nil {
+		t.Fatalf("Apply() updated PasswordVar is nil, want %q", "HUB_PASS")
+	}
+	if *cred.PasswordVar != "HUB_PASS" {
+		t.Errorf("Apply() updated PasswordVar = %q, want %q", *cred.PasswordVar, "HUB_PASS")
+	}
+}
+
+// TestCredentialHandler_Apply_DualField_WithEnvSource_Rejected verifies that
+// applying a credential YAML with usernameVar or passwordVar combined with
+// source: env is rejected because dual-field vars are only valid for keychain.
+func TestCredentialHandler_Apply_DualField_WithEnvSource_Rejected(t *testing.T) {
+	h := NewCredentialHandler()
+	ds := createCredentialTestDataStore(t)
+	defer ds.Close()
+
+	eco := &models.Ecosystem{Name: "testlab"}
+	if err := ds.CreateEcosystem(eco); err != nil {
+		t.Fatalf("Setup: CreateEcosystem() error = %v", err)
+	}
+
+	ctx := resource.Context{DataStore: ds}
+
+	yamlData := `apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  name: bad-cred
+  ecosystem: testlab
+spec:
+  source: env
+  envVar: TOKEN
+  usernameVar: MY_USER`
+
+	_, err := h.Apply(ctx, []byte(yamlData))
+	if err == nil {
+		t.Fatalf("Apply() expected error for env source with usernameVar, but got none")
+	}
+
+	if !contains(err.Error(), "keychain") {
+		t.Errorf("Apply() error = %q, want error containing %q", err.Error(), "keychain")
+	}
+}
+
+// TestCredentialHandler_ToYAML_DualField verifies that a CredentialDB with
+// UsernameVar and PasswordVar set produces YAML output containing
+// the usernameVar and passwordVar fields.
+func TestCredentialHandler_ToYAML_DualField(t *testing.T) {
+	h := NewCredentialHandler()
+
+	svc := "github.com"
+	desc := "GitHub dual-field credential"
+	user := "GITHUB_USERNAME"
+	pass := "GITHUB_PAT"
+
+	cred := &models.CredentialDB{
+		Name:        "github-creds",
+		ScopeType:   models.CredentialScopeEcosystem,
+		ScopeID:     1,
+		Source:      "keychain",
+		Service:     &svc,
+		Description: &desc,
+		UsernameVar: &user,
+		PasswordVar: &pass,
+	}
+
+	res := &CredentialResource{
+		credential: cred,
+		scopeName:  "testlab",
+	}
+
+	yamlBytes, err := h.ToYAML(res)
+	if err != nil {
+		t.Fatalf("ToYAML() error = %v", err)
+	}
+
+	yamlStr := string(yamlBytes)
+
+	if !contains(yamlStr, "usernameVar:") {
+		t.Errorf("ToYAML() missing 'usernameVar:', got:\n%s", yamlStr)
+	}
+	if !contains(yamlStr, "GITHUB_USERNAME") {
+		t.Errorf("ToYAML() missing 'GITHUB_USERNAME', got:\n%s", yamlStr)
+	}
+	if !contains(yamlStr, "passwordVar:") {
+		t.Errorf("ToYAML() missing 'passwordVar:', got:\n%s", yamlStr)
+	}
+	if !contains(yamlStr, "GITHUB_PAT") {
+		t.Errorf("ToYAML() missing 'GITHUB_PAT', got:\n%s", yamlStr)
+	}
+}
+
 // createCredentialTestSchema creates all tables needed for credential handler tests.
 // This includes the full scope hierarchy (ecosystems → domains → apps → workspaces)
 // plus the credentials table and dvm_context table.
@@ -471,16 +733,18 @@ func createCredentialTestSchema(driver db.Driver) error {
 		)`,
 
 		`CREATE TABLE IF NOT EXISTS credentials (
-			id          INTEGER PRIMARY KEY AUTOINCREMENT,
-			scope_type  TEXT    NOT NULL CHECK(scope_type IN ('ecosystem','domain','app','workspace')),
-			scope_id    INTEGER NOT NULL,
-			name        TEXT    NOT NULL,
-			source      TEXT    NOT NULL CHECK(source IN ('keychain','env')),
-			service     TEXT,
-			env_var     TEXT,
-			description TEXT,
-			created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+			id           INTEGER PRIMARY KEY AUTOINCREMENT,
+			scope_type   TEXT    NOT NULL CHECK(scope_type IN ('ecosystem','domain','app','workspace')),
+			scope_id     INTEGER NOT NULL,
+			name         TEXT    NOT NULL,
+			source       TEXT    NOT NULL CHECK(source IN ('keychain','env')),
+			service      TEXT,
+			env_var      TEXT,
+			description  TEXT,
+			username_var TEXT,
+			password_var TEXT,
+			created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(scope_type, scope_id, name)
 		)`,
 

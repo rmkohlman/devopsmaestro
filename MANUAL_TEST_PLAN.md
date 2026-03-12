@@ -1,6 +1,6 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.37.0  
+> **Version**: v0.37.1  
 > **Last Updated**: March 2026
 
 ---
@@ -1946,6 +1946,315 @@ rm /tmp/override-test.yaml
 
 ---
 
+## Part 10: Keychain Dual-Field Credentials (v0.37.1)
+
+These scenarios cover the new dual-field keychain credential feature: `--username-var` and `--password-var` flags on `dvm create credential`, the corresponding YAML fields (`usernameVar`, `passwordVar`), updated detail/list views, and runtime injection of both vars during `build` and `attach`.
+
+**Prerequisites:**
+- `dvm` binary built from v0.37.1+
+- At least one ecosystem configured
+- macOS Keychain entry with a username+password for `github.com` (for scenarios 62 and 63)
+- macOS Keychain entry for `registry.npmjs.org` (for scenario 55)
+
+---
+
+### Scenario 54: Create Dual-Field Credential — Both Vars
+
+Create a keychain-sourced credential with both `--username-var` and `--password-var`.
+
+```bash
+dvm create credential github-creds \
+  --source keychain --service github.com \
+  --username-var GITHUB_USERNAME \
+  --password-var GITHUB_PAT \
+  --ecosystem <your-ecosystem>
+
+# Verify it appears in the list
+dvm get credentials --ecosystem <your-ecosystem>
+
+# Verify detail view
+dvm get credential github-creds --ecosystem <your-ecosystem>
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Create succeeds | No error, success message shown | |
+| Credential appears in list | `github-creds` visible in `get credentials` | |
+| Detail view shows both vars | `Username: GITHUB_USERNAME` and `Password: GITHUB_PAT` fields present | |
+
+**Cleanup (defer to end of Part 10).**
+
+---
+
+### Scenario 55: Create Dual-Field Credential — Password-Var Only
+
+Create a keychain-sourced credential with only `--password-var` (no `--username-var`).
+
+```bash
+dvm create credential npm-token \
+  --source keychain --service registry.npmjs.org \
+  --password-var NPM_TOKEN \
+  --ecosystem <your-ecosystem>
+
+# Verify detail view
+dvm get credential npm-token --ecosystem <your-ecosystem>
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Create succeeds | No error, success message shown | |
+| Detail view shows password var | `Password: NPM_TOKEN` field present | |
+| Username field absent or empty | No `Username:` line, or value is empty | |
+
+**Cleanup (defer to end of Part 10).**
+
+---
+
+### Scenario 56: Reject Dual-Field Flags with Env Source
+
+Verify that `--username-var` and `--password-var` are rejected when `--source env` is specified.
+
+```bash
+# username-var with env source
+dvm create credential bad-cred \
+  --source env --env-var TOKEN \
+  --username-var MY_USER \
+  --ecosystem <your-ecosystem>
+
+# password-var with env source
+dvm create credential bad-cred \
+  --source env --env-var TOKEN \
+  --password-var MY_PASS \
+  --ecosystem <your-ecosystem>
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `--username-var` with env source fails | Error: `--username-var and --password-var are only valid with --source=keychain` | |
+| `--password-var` with env source fails | Same error message | |
+| No credential created | `get credentials` does not list `bad-cred` | |
+| Errors are non-panic | No stack trace in either case | |
+
+---
+
+### Scenario 57: Get Dual-Field Credential Detail View
+
+Verify the detail view renders all dual-field fields in order.
+
+```bash
+dvm get credential github-creds --ecosystem <your-ecosystem>
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `Name:` field present | `Name: github-creds` | |
+| `Scope:` field present | Scope information shown | |
+| `Source:` field present | `Source: keychain` | |
+| `Service:` field present | `Service: github.com` | |
+| `Username:` field present | `Username: GITHUB_USERNAME` | |
+| `Password:` field present | `Password: GITHUB_PAT` | |
+| No raw struct output | No `map[string]interface{}` or similar | |
+
+---
+
+### Scenario 58: List Credentials — Mixed Legacy and Dual-Field
+
+Verify that the credential list correctly differentiates legacy single-var credentials from dual-field credentials.
+
+```bash
+# Ensure a legacy credential exists alongside dual-field credentials
+dvm create credential legacy-cred \
+  --source keychain --service legacy.example.com \
+  --ecosystem <your-ecosystem>
+
+# List all credentials in the ecosystem
+dvm get credentials --ecosystem <your-ecosystem>
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Legacy cred shows single-var format | `legacy-cred` displays as `(source: keychain)` | |
+| Dual-field cred shows multi-var format | `github-creds` displays as `(source: keychain, vars: GITHUB_USERNAME, GITHUB_PAT)` | |
+| Password-only cred shows correctly | `npm-token` displays `(source: keychain, vars: NPM_TOKEN)` or similar | |
+| All credentials visible in one list | All three rows present | |
+
+**Cleanup (defer to end of Part 10).**
+
+---
+
+### Scenario 59: Apply Dual-Field Credential via YAML
+
+Verify `dvm apply -f` creates a credential from a YAML manifest with `usernameVar` and `passwordVar`.
+
+```bash
+cat <<EOF > /tmp/dual-field-cred.yaml
+apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  name: yaml-github-creds
+  ecosystem: <your-ecosystem>
+spec:
+  source: keychain
+  service: github.com
+  usernameVar: GITHUB_USERNAME
+  passwordVar: GITHUB_PAT
+EOF
+
+dvm apply -f /tmp/dual-field-cred.yaml
+
+# Verify
+dvm get credential yaml-github-creds --ecosystem <your-ecosystem>
+dvm get credential yaml-github-creds --ecosystem <your-ecosystem> -o yaml
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `dvm apply` succeeds | No error | |
+| Credential appears in list | `yaml-github-creds` visible | |
+| `usernameVar` stored | `Username: GITHUB_USERNAME` in detail view | |
+| `passwordVar` stored | `Password: GITHUB_PAT` in detail view | |
+| `-o yaml` round-trips both fields | `usernameVar: GITHUB_USERNAME` and `passwordVar: GITHUB_PAT` under spec | |
+
+**Cleanup:**
+```bash
+dvm delete credential yaml-github-creds --ecosystem <your-ecosystem> --force
+rm /tmp/dual-field-cred.yaml
+```
+
+---
+
+### Scenario 60: Reject Dual-Field Vars in YAML with Env Source
+
+Verify that a YAML manifest with `source: env` and a `usernameVar` set is rejected with a validation error.
+
+```bash
+cat <<EOF > /tmp/bad-dual-field-cred.yaml
+apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  name: bad-yaml-cred
+  ecosystem: <your-ecosystem>
+spec:
+  source: env
+  envVar: MY_TOKEN
+  usernameVar: MY_USER
+EOF
+
+dvm apply -f /tmp/bad-dual-field-cred.yaml
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Command fails | Non-zero exit code | |
+| Error mentions keychain | Error text references `keychain` (e.g., `usernameVar is only valid with source: keychain`) | |
+| Error is not a panic | No stack trace | |
+| No credential created | `get credentials` does not list `bad-yaml-cred` | |
+
+**Cleanup:**
+```bash
+rm /tmp/bad-dual-field-cred.yaml
+```
+
+---
+
+### Scenario 61: Env Var Name Validation on Dual-Field Flags
+
+Verify that invalid env var names are rejected for both `--username-var` and `--password-var`.
+
+```bash
+# Invalid username-var (contains space)
+dvm create credential test-cred \
+  --source keychain --service svc \
+  --username-var "invalid name" \
+  --ecosystem <your-ecosystem>
+
+# Invalid username-var (starts with number)
+dvm create credential test-cred \
+  --source keychain --service svc \
+  --username-var 1INVALID \
+  --ecosystem <your-ecosystem>
+
+# Invalid password-var (contains hyphen)
+dvm create credential test-cred \
+  --source keychain --service svc \
+  --password-var INVALID-NAME \
+  --ecosystem <your-ecosystem>
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Space in `--username-var` rejected | Error: invalid env var name | |
+| Leading digit in `--username-var` rejected | Error: invalid env var name | |
+| Hyphen in `--password-var` rejected | Error: invalid env var name | |
+| No credential created in any case | `get credentials` does not list `test-cred` | |
+| All errors are non-panic | No stack traces | |
+
+---
+
+### Scenario 62: Build with Dual-Field Credential
+
+Verify that both env vars are injected as build args when a dual-field credential is associated with a workspace build.
+
+> **Note:** Requires a macOS Keychain entry for `github.com` with a username and password set.
+
+```bash
+# Create the dual-field credential (if not already created in Scenario 54)
+dvm create credential github-creds \
+  --source keychain --service github.com \
+  --username-var GITHUB_USERNAME \
+  --password-var GITHUB_PAT \
+  --ecosystem <your-ecosystem>
+
+# Build a workspace — observe build output for both build args
+dvm build <workspace>
+```
+
+**Inspect build output for:**
+- `--build-arg GITHUB_USERNAME=...` (value redacted)
+- `--build-arg GITHUB_PAT=...` (value redacted)
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Build succeeds | No error, image built | |
+| Both build args present | `GITHUB_USERNAME` and `GITHUB_PAT` both passed as `--build-arg` | |
+| Values are redacted in log output | No plaintext credential values visible | |
+
+---
+
+### Scenario 63: Attach with Dual-Field Credential
+
+Verify that both env vars are available inside the container when attaching to a workspace with a dual-field credential.
+
+> **Note:** Requires a macOS Keychain entry for `github.com` with a username and password set.
+
+```bash
+# Build and attach (credential must be in hierarchy scope)
+dvm build <workspace>
+dvm attach <workspace>
+```
+
+**Inside the container, verify:**
+```bash
+echo $GITHUB_USERNAME   # Expected: username from Keychain entry
+echo $GITHUB_PAT        # Expected: password/token from Keychain entry
+exit
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `GITHUB_USERNAME` available in container | Non-empty value from Keychain | |
+| `GITHUB_PAT` available in container | Non-empty value from Keychain | |
+| No attach errors | `dvm attach` completes without credential-related errors | |
+
+**Cleanup (all Part 10 credentials):**
+```bash
+dvm delete credential github-creds --ecosystem <your-ecosystem> --force
+dvm delete credential npm-token    --ecosystem <your-ecosystem> --force
+dvm delete credential legacy-cred  --ecosystem <your-ecosystem> --force
+```
+
+---
+
 ## Test Results Summary
 
 | Part | Tests | Pass | Fail |
@@ -1962,6 +2271,7 @@ rm /tmp/override-test.yaml
 | Part 7: Registry Version Management | 8 scenarios | | |
 | Part 8: Credential Injection & Env Vars | 7 scenarios | | |
 | Part 9: Runtime Credential & Env Injection | 7 scenarios | | |
+| Part 10: Keychain Dual-Field Credentials | 10 scenarios | | |
 
 ---
 
@@ -2014,5 +2324,5 @@ colima nerdctl -- --namespace devopsmaestro images
 
 **Tested by:** ________________  
 **Date:** ________________  
-**Version:** v0.37.0  
+**Version:** v0.37.1  
 **Platform:** ________________

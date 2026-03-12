@@ -25,8 +25,8 @@ func (ds *SQLDataStore) CreateCredential(credential *models.CredentialDB) error 
 		return fmt.Errorf("env_var required for env credentials")
 	}
 
-	query := fmt.Sprintf(`INSERT INTO credentials (scope_type, scope_id, name, source, service, env_var, description, created_at, updated_at) 
-		VALUES (?, ?, ?, ?, ?, ?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
+	query := fmt.Sprintf(`INSERT INTO credentials (scope_type, scope_id, name, source, service, env_var, description, username_var, password_var, created_at, updated_at) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
 
 	result, err := ds.driver.Execute(query,
 		credential.ScopeType,
@@ -36,6 +36,8 @@ func (ds *SQLDataStore) CreateCredential(credential *models.CredentialDB) error 
 		credential.Service,
 		credential.EnvVar,
 		credential.Description,
+		credential.UsernameVar,
+		credential.PasswordVar,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create credential: %w", err)
@@ -52,7 +54,7 @@ func (ds *SQLDataStore) CreateCredential(credential *models.CredentialDB) error 
 // GetCredential retrieves a credential by scope and name.
 func (ds *SQLDataStore) GetCredential(scopeType models.CredentialScopeType, scopeID int64, name string) (*models.CredentialDB, error) {
 	credential := &models.CredentialDB{}
-	query := `SELECT id, scope_type, scope_id, name, source, service, env_var, description, created_at, updated_at 
+	query := `SELECT id, scope_type, scope_id, name, source, service, env_var, description, username_var, password_var, created_at, updated_at 
 		FROM credentials WHERE scope_type = ? AND scope_id = ? AND name = ?`
 
 	row := ds.driver.QueryRow(query, scopeType, scopeID, name)
@@ -65,6 +67,8 @@ func (ds *SQLDataStore) GetCredential(scopeType models.CredentialScopeType, scop
 		&credential.Service,
 		&credential.EnvVar,
 		&credential.Description,
+		&credential.UsernameVar,
+		&credential.PasswordVar,
 		&credential.CreatedAt,
 		&credential.UpdatedAt,
 	); err != nil {
@@ -81,7 +85,7 @@ func (ds *SQLDataStore) GetCredential(scopeType models.CredentialScopeType, scop
 // Returns the first match if multiple credentials have the same name in different scopes.
 func (ds *SQLDataStore) GetCredentialByName(name string) (*models.CredentialDB, error) {
 	credential := &models.CredentialDB{}
-	query := `SELECT id, scope_type, scope_id, name, source, service, env_var, description, created_at, updated_at 
+	query := `SELECT id, scope_type, scope_id, name, source, service, env_var, description, username_var, password_var, created_at, updated_at 
 		FROM credentials WHERE name = ? LIMIT 1`
 
 	row := ds.driver.QueryRow(query, name)
@@ -94,6 +98,8 @@ func (ds *SQLDataStore) GetCredentialByName(name string) (*models.CredentialDB, 
 		&credential.Service,
 		&credential.EnvVar,
 		&credential.Description,
+		&credential.UsernameVar,
+		&credential.PasswordVar,
 		&credential.CreatedAt,
 		&credential.UpdatedAt,
 	); err != nil {
@@ -121,7 +127,7 @@ func (ds *SQLDataStore) UpdateCredential(credential *models.CredentialDB) error 
 		return fmt.Errorf("env_var required for env credentials")
 	}
 
-	query := fmt.Sprintf(`UPDATE credentials SET source = ?, service = ?, env_var = ?, description = ?, updated_at = %s 
+	query := fmt.Sprintf(`UPDATE credentials SET source = ?, service = ?, env_var = ?, description = ?, username_var = ?, password_var = ?, updated_at = %s 
 		WHERE scope_type = ? AND scope_id = ? AND name = ?`, ds.queryBuilder.Now())
 
 	result, err := ds.driver.Execute(query,
@@ -129,6 +135,8 @@ func (ds *SQLDataStore) UpdateCredential(credential *models.CredentialDB) error 
 		credential.Service,
 		credential.EnvVar,
 		credential.Description,
+		credential.UsernameVar,
+		credential.PasswordVar,
 		credential.ScopeType,
 		credential.ScopeID,
 		credential.Name,
@@ -167,7 +175,7 @@ func (ds *SQLDataStore) DeleteCredential(scopeType models.CredentialScopeType, s
 
 // ListCredentialsByScope retrieves all credentials for a specific scope.
 func (ds *SQLDataStore) ListCredentialsByScope(scopeType models.CredentialScopeType, scopeID int64) ([]*models.CredentialDB, error) {
-	query := `SELECT id, scope_type, scope_id, name, source, service, env_var, description, created_at, updated_at 
+	query := `SELECT id, scope_type, scope_id, name, source, service, env_var, description, username_var, password_var, created_at, updated_at 
 		FROM credentials WHERE scope_type = ? AND scope_id = ? ORDER BY name`
 
 	rows, err := ds.driver.Query(query, scopeType, scopeID)
@@ -188,6 +196,8 @@ func (ds *SQLDataStore) ListCredentialsByScope(scopeType models.CredentialScopeT
 			&credential.Service,
 			&credential.EnvVar,
 			&credential.Description,
+			&credential.UsernameVar,
+			&credential.PasswordVar,
 			&credential.CreatedAt,
 			&credential.UpdatedAt,
 		); err != nil {
@@ -205,7 +215,7 @@ func (ds *SQLDataStore) ListCredentialsByScope(scopeType models.CredentialScopeT
 
 // ListAllCredentials retrieves all credentials across all scopes.
 func (ds *SQLDataStore) ListAllCredentials() ([]*models.CredentialDB, error) {
-	query := `SELECT id, scope_type, scope_id, name, source, service, env_var, description, created_at, updated_at 
+	query := `SELECT id, scope_type, scope_id, name, source, service, env_var, description, username_var, password_var, created_at, updated_at 
 		FROM credentials ORDER BY scope_type, scope_id, name`
 
 	rows, err := ds.driver.Query(query)
@@ -226,6 +236,8 @@ func (ds *SQLDataStore) ListAllCredentials() ([]*models.CredentialDB, error) {
 			&credential.Service,
 			&credential.EnvVar,
 			&credential.Description,
+			&credential.UsernameVar,
+			&credential.PasswordVar,
 			&credential.CreatedAt,
 			&credential.UpdatedAt,
 		); err != nil {

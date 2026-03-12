@@ -188,6 +188,8 @@ func createTestSchema(driver Driver) error {
 			service TEXT,
 			env_var TEXT,
 			description TEXT,
+			username_var TEXT,
+			password_var TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(scope_type, scope_id, name)

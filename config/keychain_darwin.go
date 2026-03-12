@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 )
 
@@ -83,4 +84,44 @@ func DeleteFromKeychain(service string) error {
 // KeychainAvailable returns true if macOS Keychain is available
 func KeychainAvailable() bool {
 	return true
+}
+
+// GetAccountFromKeychain retrieves the account (username) field from a macOS Keychain entry.
+// Unlike GetFromKeychain which uses -w to get the password, this function parses
+// the full entry output to extract the "acct" attribute.
+func GetAccountFromKeychain(service string) (string, error) {
+	cmd := exec.Command("security", "find-generic-password",
+		"-s", service)
+
+	output, err := cmd.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			switch exitErr.ExitCode() {
+			case 44:
+				return "", fmt.Errorf("credential %q not found in Keychain", service)
+			case 36:
+				return "", fmt.Errorf("keychain lookup cancelled by user for %q", service)
+			case 51:
+				return "", fmt.Errorf("keychain access denied for %q", service)
+			default:
+				return "", fmt.Errorf("keychain lookup failed for %q: %s", service, string(exitErr.Stderr))
+			}
+		}
+		return "", fmt.Errorf("keychain lookup failed for %q: %w", service, err)
+	}
+
+	// Parse the "acct" attribute from security output
+	// Format: "acct"<blob>="value"
+	acctRegex := regexp.MustCompile(`"acct"<blob>="([^"]*)"`)
+	matches := acctRegex.FindSubmatch(output)
+	if matches == nil {
+		return "", fmt.Errorf("account field not found in keychain entry for %q", service)
+	}
+
+	account := string(matches[1])
+	if account == "<NULL>" || account == "" {
+		return "", fmt.Errorf("account field is empty in keychain entry for %q", service)
+	}
+
+	return account, nil
 }

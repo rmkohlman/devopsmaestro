@@ -5,6 +5,7 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
+	"devopsmaestro/pkg/envvalidation"
 	"devopsmaestro/render"
 
 	"github.com/spf13/cobra"
@@ -150,6 +151,8 @@ Examples:
 		service, _ := cmd.Flags().GetString("service")
 		envVar, _ := cmd.Flags().GetString("env-var")
 		description, _ := cmd.Flags().GetString("description")
+		usernameVar, _ := cmd.Flags().GetString("username-var")
+		passwordVar, _ := cmd.Flags().GetString("password-var")
 
 		// Validate source
 		if source == "" {
@@ -165,6 +168,23 @@ Examples:
 		}
 		if source == "env" && envVar == "" {
 			return fmt.Errorf("--env-var is required when --source=env")
+		}
+
+		// Validate dual-field flags are only used with keychain source
+		if source != "keychain" && (usernameVar != "" || passwordVar != "") {
+			return fmt.Errorf("--username-var and --password-var are only valid with --source=keychain")
+		}
+
+		// Validate env var names if provided
+		if usernameVar != "" {
+			if err := envvalidation.ValidateEnvKey(usernameVar); err != nil {
+				return fmt.Errorf("invalid --username-var: %w", err)
+			}
+		}
+		if passwordVar != "" {
+			if err := envvalidation.ValidateEnvKey(passwordVar); err != nil {
+				return fmt.Errorf("invalid --password-var: %w", err)
+			}
 		}
 
 		// Resolve scope
@@ -190,6 +210,12 @@ Examples:
 		if description != "" {
 			cred.Description = &description
 		}
+		if usernameVar != "" {
+			cred.UsernameVar = &usernameVar
+		}
+		if passwordVar != "" {
+			cred.PasswordVar = &passwordVar
+		}
 
 		// Create credential
 		if err := ds.CreateCredential(cred); err != nil {
@@ -209,6 +235,8 @@ func init() {
 	createCredentialCmd.Flags().String("service", "", "Keychain service name (required when --source=keychain)")
 	createCredentialCmd.Flags().String("env-var", "", "Environment variable name (required when --source=env)")
 	createCredentialCmd.Flags().String("description", "", "Credential description")
+	createCredentialCmd.Flags().String("username-var", "", "Environment variable name for the keychain account/username (keychain source only)")
+	createCredentialCmd.Flags().String("password-var", "", "Environment variable name for the keychain password (keychain source only)")
 
 	// Scope flags
 	addCredentialScopeFlags(createCredentialCmd)

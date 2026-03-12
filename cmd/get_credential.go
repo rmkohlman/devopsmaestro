@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
+	"devopsmaestro/models"
 	"devopsmaestro/render"
 
 	"github.com/spf13/cobra"
@@ -46,7 +48,12 @@ Examples:
 			}
 
 			for _, c := range creds {
-				render.Plainf("  %s  (scope: %s, source: %s)", c.Name, c.ScopeType, c.Source)
+				if c.UsernameVar != nil || c.PasswordVar != nil {
+					vars := formatVarsList(c)
+					render.Plainf("  %s  (scope: %s, source: %s, vars: %s)", c.Name, c.ScopeType, c.Source, vars)
+				} else {
+					render.Plainf("  %s  (scope: %s, source: %s)", c.Name, c.ScopeType, c.Source)
+				}
 			}
 			return nil
 		}
@@ -68,7 +75,12 @@ Examples:
 		}
 
 		for _, c := range creds {
-			render.Plainf("  %s  (source: %s)", c.Name, c.Source)
+			if c.UsernameVar != nil || c.PasswordVar != nil {
+				vars := formatVarsList(c)
+				render.Plainf("  %s  (source: %s, vars: %s)", c.Name, c.Source, vars)
+			} else {
+				render.Plainf("  %s  (source: %s)", c.Name, c.Source)
+			}
 		}
 		return nil
 	},
@@ -121,6 +133,12 @@ Examples:
 		if cred.Description != nil {
 			render.Plainf("Desc:      %s", *cred.Description)
 		}
+		if cred.UsernameVar != nil {
+			render.Plainf("Username:  %s", *cred.UsernameVar)
+		}
+		if cred.PasswordVar != nil {
+			render.Plainf("Password:  %s", *cred.PasswordVar)
+		}
 
 		return nil
 	},
@@ -136,4 +154,17 @@ func init() {
 	// Scope flags for both commands
 	addCredentialScopeFlags(getCredentialsCmd)
 	addCredentialScopeFlags(getCredentialCmd)
+}
+
+// formatVarsList builds a comma-separated string of the dual-field env var names
+// (UsernameVar, PasswordVar) for display in credential list output.
+func formatVarsList(c *models.CredentialDB) string {
+	var parts []string
+	if c.UsernameVar != nil {
+		parts = append(parts, *c.UsernameVar)
+	}
+	if c.PasswordVar != nil {
+		parts = append(parts, *c.PasswordVar)
+	}
+	return strings.Join(parts, ", ")
 }

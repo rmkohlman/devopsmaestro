@@ -2,6 +2,7 @@ package models
 
 import (
 	"devopsmaestro/config"
+	"devopsmaestro/pkg/envvalidation"
 	"fmt"
 	"time"
 )
@@ -26,8 +27,39 @@ type CredentialDB struct {
 	Service     *string             `db:"service" json:"service"` // Keychain service name
 	EnvVar      *string             `db:"env_var" json:"env_var"` // Environment variable name
 	Description *string             `db:"description" json:"description"`
+	UsernameVar *string             `db:"username_var" json:"username_var,omitempty"`
+	PasswordVar *string             `db:"password_var" json:"password_var,omitempty"`
 	CreatedAt   time.Time           `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time           `db:"updated_at" json:"updated_at"`
+}
+
+// IsDualField returns true if the credential has explicit username or password var names.
+func (c *CredentialDB) IsDualField() bool {
+	return c.UsernameVar != nil || c.PasswordVar != nil
+}
+
+// ToUsernameConfig creates a CredentialConfig targeting the keychain account (username) field.
+func (c *CredentialDB) ToUsernameConfig() config.CredentialConfig {
+	cfg := config.CredentialConfig{
+		Source: config.SourceKeychain,
+		Field:  config.KeychainFieldAccount,
+	}
+	if c.Service != nil {
+		cfg.Service = *c.Service
+	}
+	return cfg
+}
+
+// ToPasswordConfig creates a CredentialConfig targeting the keychain password field.
+func (c *CredentialDB) ToPasswordConfig() config.CredentialConfig {
+	cfg := config.CredentialConfig{
+		Source: config.SourceKeychain,
+		Field:  config.KeychainFieldPassword,
+	}
+	if c.Service != nil {
+		cfg.Service = *c.Service
+	}
+	return cfg
 }
 
 // ToConfig converts a CredentialDB to a config.CredentialConfig
@@ -44,11 +76,22 @@ func (c *CredentialDB) ToConfig() config.CredentialConfig {
 	return cfg
 }
 
-// CredentialsToMap converts a slice of CredentialDB to a config.Credentials map
+// CredentialsToMap converts a slice of CredentialDB to a config.Credentials map.
+// For dual-field credentials, it fans out to produce separate map entries for
+// each defined var (UsernameVar and/or PasswordVar).
 func CredentialsToMap(creds []*CredentialDB) config.Credentials {
 	result := make(config.Credentials)
 	for _, c := range creds {
-		result[c.Name] = c.ToConfig()
+		if c.IsDualField() {
+			if c.UsernameVar != nil {
+				result[*c.UsernameVar] = c.ToUsernameConfig()
+			}
+			if c.PasswordVar != nil {
+				result[*c.PasswordVar] = c.ToPasswordConfig()
+			}
+		} else {
+			result[c.Name] = c.ToConfig()
+		}
 	}
 	return result
 }
@@ -80,6 +123,8 @@ type CredentialSpec struct {
 	Service     string `yaml:"service,omitempty" json:"service,omitempty"`
 	EnvVar      string `yaml:"envVar,omitempty" json:"envVar,omitempty"`
 	Description string `yaml:"description,omitempty" json:"description,omitempty"`
+	UsernameVar string `yaml:"usernameVar,omitempty" json:"usernameVar,omitempty"`
+	PasswordVar string `yaml:"passwordVar,omitempty" json:"passwordVar,omitempty"`
 }
 
 // ScopeInfo returns the scope type and scope name from metadata
@@ -134,6 +179,12 @@ func (c *CredentialDB) ToYAML(scopeName string) CredentialYAML {
 	if c.Description != nil {
 		y.Spec.Description = *c.Description
 	}
+	if c.UsernameVar != nil {
+		y.Spec.UsernameVar = *c.UsernameVar
+	}
+	if c.PasswordVar != nil {
+		y.Spec.PasswordVar = *c.PasswordVar
+	}
 
 	return y
 }
@@ -155,6 +206,14 @@ func (c *CredentialDB) FromYAML(y CredentialYAML) {
 	if y.Spec.Description != "" {
 		d := y.Spec.Description
 		c.Description = &d
+	}
+	if y.Spec.UsernameVar != "" {
+		u := y.Spec.UsernameVar
+		c.UsernameVar = &u
+	}
+	if y.Spec.PasswordVar != "" {
+		p := y.Spec.PasswordVar
+		c.PasswordVar = &p
 	}
 }
 
@@ -200,6 +259,23 @@ func ValidateCredentialYAML(y CredentialYAML) error {
 	}
 	if y.Spec.Source == "env" && y.Spec.EnvVar == "" {
 		return fmt.Errorf("env-var is required for env source")
+	}
+
+	// Validate dual-field vars are only used with keychain source
+	if y.Spec.Source != "keychain" && (y.Spec.UsernameVar != "" || y.Spec.PasswordVar != "") {
+		return fmt.Errorf("usernameVar and passwordVar are only valid with keychain source")
+	}
+
+	// Validate env key format for dual-field var names
+	if y.Spec.UsernameVar != "" {
+		if err := envvalidation.ValidateEnvKey(y.Spec.UsernameVar); err != nil {
+			return fmt.Errorf("invalid usernameVar: %w", err)
+		}
+	}
+	if y.Spec.PasswordVar != "" {
+		if err := envvalidation.ValidateEnvKey(y.Spec.PasswordVar); err != nil {
+			return fmt.Errorf("invalid passwordVar: %w", err)
+		}
 	}
 
 	return nil

@@ -3,6 +3,7 @@ package models
 import (
 	"testing"
 
+	"devopsmaestro/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -529,3 +530,389 @@ func TestCredentialMetadata_ScopeType(t *testing.T) {
 		})
 	}
 }
+
+// === Dual-Field Credential Tests (v0.37.1) ===
+
+// =============================================================================
+// Dual-Field Model Tests
+// =============================================================================
+
+func TestCredentialDB_IsDualField(t *testing.T) {
+	tests := []struct {
+		name        string
+		usernameVar *string
+		passwordVar *string
+		want        bool
+	}{
+		{
+			name:        "legacy single-field (no vars)",
+			usernameVar: nil,
+			passwordVar: nil,
+			want:        false,
+		},
+		{
+			name:        "password-only",
+			usernameVar: nil,
+			passwordVar: strPtr("GITHUB_PAT"),
+			want:        true,
+		},
+		{
+			name:        "username-only",
+			usernameVar: strPtr("GITHUB_USERNAME"),
+			passwordVar: nil,
+			want:        true,
+		},
+		{
+			name:        "both fields",
+			usernameVar: strPtr("GITHUB_USERNAME"),
+			passwordVar: strPtr("GITHUB_PAT"),
+			want:        true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cred := &CredentialDB{
+				Name:        "github-creds",
+				Source:      "keychain",
+				UsernameVar: tt.usernameVar,
+				PasswordVar: tt.passwordVar,
+			}
+			assert.Equal(t, tt.want, cred.IsDualField())
+		})
+	}
+}
+
+func TestCredentialDB_ToUsernameConfig(t *testing.T) {
+	service := "github.com"
+	usernameVar := "GITHUB_USERNAME"
+	passwordVar := "GITHUB_PAT"
+	cred := &CredentialDB{
+		Name:        "github-creds",
+		Source:      "keychain",
+		Service:     &service,
+		UsernameVar: &usernameVar,
+		PasswordVar: &passwordVar,
+	}
+
+	cfg := cred.ToUsernameConfig()
+
+	assert.Equal(t, config.SourceKeychain, cfg.Source)
+	assert.Equal(t, "github.com", cfg.Service)
+	assert.Equal(t, config.KeychainFieldAccount, cfg.Field)
+}
+
+func TestCredentialDB_ToPasswordConfig(t *testing.T) {
+	service := "github.com"
+	usernameVar := "GITHUB_USERNAME"
+	passwordVar := "GITHUB_PAT"
+	cred := &CredentialDB{
+		Name:        "github-creds",
+		Source:      "keychain",
+		Service:     &service,
+		UsernameVar: &usernameVar,
+		PasswordVar: &passwordVar,
+	}
+
+	cfg := cred.ToPasswordConfig()
+
+	assert.Equal(t, config.SourceKeychain, cfg.Source)
+	assert.Equal(t, "github.com", cfg.Service)
+	assert.Equal(t, config.KeychainFieldPassword, cfg.Field)
+}
+
+func TestCredentialsToMap_DualField_FanOut(t *testing.T) {
+	service := "github.com"
+	usernameVar := "GITHUB_USERNAME"
+	passwordVar := "GITHUB_PAT"
+	cred := &CredentialDB{
+		Name:        "github-creds",
+		Source:      "keychain",
+		Service:     &service,
+		UsernameVar: &usernameVar,
+		PasswordVar: &passwordVar,
+	}
+
+	result := CredentialsToMap([]*CredentialDB{cred})
+
+	require.Len(t, result, 2, "dual-field credential should fan out to 2 map entries")
+
+	userCfg, ok := result["GITHUB_USERNAME"]
+	require.True(t, ok, "map should contain GITHUB_USERNAME key")
+	assert.Equal(t, config.SourceKeychain, userCfg.Source)
+	assert.Equal(t, "github.com", userCfg.Service)
+	assert.Equal(t, config.KeychainFieldAccount, userCfg.Field)
+
+	passCfg, ok := result["GITHUB_PAT"]
+	require.True(t, ok, "map should contain GITHUB_PAT key")
+	assert.Equal(t, config.SourceKeychain, passCfg.Source)
+	assert.Equal(t, "github.com", passCfg.Service)
+	assert.Equal(t, config.KeychainFieldPassword, passCfg.Field)
+}
+
+func TestCredentialsToMap_MixedLegacyAndDualField(t *testing.T) {
+	npmEnvVar := "NPM_TOKEN"
+	legacyCred := &CredentialDB{
+		Name:   "NPM_TOKEN",
+		Source: "env",
+		EnvVar: &npmEnvVar,
+	}
+
+	service := "github.com"
+	ghUser := "GH_USER"
+	ghPat := "GH_PAT"
+	dualCred := &CredentialDB{
+		Name:        "github-creds",
+		Source:      "keychain",
+		Service:     &service,
+		UsernameVar: &ghUser,
+		PasswordVar: &ghPat,
+	}
+
+	result := CredentialsToMap([]*CredentialDB{legacyCred, dualCred})
+
+	require.Len(t, result, 3, "mixed credentials should produce 3 map entries")
+	assert.Contains(t, result, "NPM_TOKEN")
+	assert.Contains(t, result, "GH_USER")
+	assert.Contains(t, result, "GH_PAT")
+}
+
+func TestCredentialsToMap_DualField_PasswordOnly(t *testing.T) {
+	service := "github.com"
+	passwordVar := "GITHUB_PAT"
+	cred := &CredentialDB{
+		Name:        "github-creds",
+		Source:      "keychain",
+		Service:     &service,
+		UsernameVar: nil,
+		PasswordVar: &passwordVar,
+	}
+
+	result := CredentialsToMap([]*CredentialDB{cred})
+
+	require.Len(t, result, 1, "password-only dual-field should produce 1 map entry")
+	passCfg, ok := result["GITHUB_PAT"]
+	require.True(t, ok, "map should contain GITHUB_PAT key")
+	assert.Equal(t, config.KeychainFieldPassword, passCfg.Field)
+}
+
+// =============================================================================
+// Dual-Field YAML Tests
+// =============================================================================
+
+func TestCredentialDB_ToYAML_DualField(t *testing.T) {
+	service := "github.com"
+	usernameVar := "GITHUB_USERNAME"
+	passwordVar := "GITHUB_PAT"
+	cred := &CredentialDB{
+		Name:        "github-creds",
+		ScopeType:   CredentialScopeEcosystem,
+		Source:      "keychain",
+		Service:     &service,
+		UsernameVar: &usernameVar,
+		PasswordVar: &passwordVar,
+	}
+
+	y := cred.ToYAML("testlab")
+
+	assert.Equal(t, "GITHUB_USERNAME", y.Spec.UsernameVar)
+	assert.Equal(t, "GITHUB_PAT", y.Spec.PasswordVar)
+}
+
+func TestCredentialDB_FromYAML_DualField(t *testing.T) {
+	y := CredentialYAML{
+		APIVersion: "devopsmaestro.io/v1",
+		Kind:       "Credential",
+		Metadata: CredentialMetadata{
+			Name:      "github-creds",
+			Ecosystem: "testlab",
+		},
+		Spec: CredentialSpec{
+			Source:      "keychain",
+			Service:     "github.com",
+			UsernameVar: "GH_USER",
+			PasswordVar: "GH_PAT",
+		},
+	}
+
+	cred := &CredentialDB{}
+	cred.FromYAML(y)
+
+	require.NotNil(t, cred.UsernameVar, "UsernameVar should not be nil after FromYAML")
+	assert.Equal(t, "GH_USER", *cred.UsernameVar)
+	require.NotNil(t, cred.PasswordVar, "PasswordVar should not be nil after FromYAML")
+	assert.Equal(t, "GH_PAT", *cred.PasswordVar)
+}
+
+func TestCredentialDB_RoundTrip_DualField(t *testing.T) {
+	service := "github.com"
+	usernameVar := "GITHUB_USERNAME"
+	passwordVar := "GITHUB_PAT"
+	original := &CredentialDB{
+		Name:        "github-creds",
+		ScopeType:   CredentialScopeEcosystem,
+		Source:      "keychain",
+		Service:     &service,
+		UsernameVar: &usernameVar,
+		PasswordVar: &passwordVar,
+	}
+
+	y := original.ToYAML("testlab")
+	restored := &CredentialDB{}
+	restored.FromYAML(y)
+
+	require.NotNil(t, restored.UsernameVar, "UsernameVar should survive round trip")
+	assert.Equal(t, *original.UsernameVar, *restored.UsernameVar)
+	require.NotNil(t, restored.PasswordVar, "PasswordVar should survive round trip")
+	assert.Equal(t, *original.PasswordVar, *restored.PasswordVar)
+}
+
+// =============================================================================
+// Dual-Field Validation Tests
+// =============================================================================
+
+func TestValidateCredentialYAML_DualField(t *testing.T) {
+	tests := []struct {
+		name        string
+		source      string
+		service     string
+		envVar      string
+		usernameVar string
+		passwordVar string
+		wantErr     bool
+		errMsg      string
+	}{
+		{
+			name:        "valid dual-field keychain",
+			source:      "keychain",
+			service:     "github.com",
+			usernameVar: "GH_USER",
+			passwordVar: "GH_PAT",
+			wantErr:     false,
+		},
+		{
+			name:        "dual-field with env source rejected",
+			source:      "env",
+			envVar:      "X",
+			usernameVar: "GH_USER",
+			wantErr:     true,
+			errMsg:      "keychain",
+		},
+		{
+			name:        "valid keychain password-only",
+			source:      "keychain",
+			service:     "svc",
+			passwordVar: "TOKEN",
+			wantErr:     false,
+		},
+		{
+			name:        "valid keychain username-only",
+			source:      "keychain",
+			service:     "svc",
+			usernameVar: "USER",
+			wantErr:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			y := CredentialYAML{
+				APIVersion: "devopsmaestro.io/v1",
+				Kind:       "Credential",
+				Metadata:   CredentialMetadata{Name: "test-cred", Ecosystem: "testlab"},
+				Spec: CredentialSpec{
+					Source:      tt.source,
+					Service:     tt.service,
+					EnvVar:      tt.envVar,
+					UsernameVar: tt.usernameVar,
+					PasswordVar: tt.passwordVar,
+				},
+			}
+			err := ValidateCredentialYAML(y)
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// =============================================================================
+// Dual-Field Env Key Validation Tests (v0.37.1)
+// =============================================================================
+
+func TestValidateCredentialYAML_DualFieldEnvKeyValidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		usernameVar string
+		passwordVar string
+		wantErr     bool
+		errMsg      string
+	}{
+		{
+			name:        "invalid usernameVar - lowercase",
+			usernameVar: "github_user",
+			passwordVar: "GITHUB_PAT",
+			wantErr:     true,
+			errMsg:      "invalid usernameVar",
+		},
+		{
+			name:        "invalid passwordVar - lowercase",
+			usernameVar: "GITHUB_USERNAME",
+			passwordVar: "github_pat",
+			wantErr:     true,
+			errMsg:      "invalid passwordVar",
+		},
+		{
+			name:        "forbidden usernameVar - LD_PRELOAD denylist",
+			usernameVar: "LD_PRELOAD",
+			passwordVar: "GITHUB_PAT",
+			wantErr:     true,
+			errMsg:      "invalid usernameVar",
+		},
+		{
+			name:        "reserved usernameVar - DVM_ prefix",
+			usernameVar: "DVM_USER",
+			passwordVar: "GITHUB_PAT",
+			wantErr:     true,
+			errMsg:      "invalid usernameVar",
+		},
+		{
+			name:        "valid dual-field vars",
+			usernameVar: "GITHUB_USERNAME",
+			passwordVar: "GITHUB_PAT",
+			wantErr:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			y := CredentialYAML{
+				APIVersion: "devopsmaestro.io/v1",
+				Kind:       "Credential",
+				Metadata:   CredentialMetadata{Name: "test-cred", Ecosystem: "test"},
+				Spec: CredentialSpec{
+					Source:      "keychain",
+					Service:     "test.service",
+					UsernameVar: tt.usernameVar,
+					PasswordVar: tt.passwordVar,
+				},
+			}
+			err := ValidateCredentialYAML(y)
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// =============================================================================
+// Test Helpers
+// =============================================================================
+
+func strPtr(s string) *string { return &s }

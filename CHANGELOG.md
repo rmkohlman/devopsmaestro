@@ -7,6 +7,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.37.1] - 2026-03-11 — Keychain Dual-Field Credentials
+
+### ✨ Added
+
+#### Dual-Field Keychain Credentials — `--username-var` / `--password-var`
+- **A single `dvm create credential` can now extract both the account and password fields from one macOS Keychain entry** — Two new flags, `--username-var` and `--password-var`, each specify an environment variable name for the corresponding Keychain field. Both flags are only valid with `--source=keychain`; using them with `--source=env` is a hard error.
+  - `--username-var <VAR>` — env var name for the Keychain account (username) field
+  - `--password-var <VAR>` — env var name for the Keychain password field
+  - Both values go through the existing `envvalidation.ValidateEnvKey()` pipeline
+  - Legacy single-field credentials (`--env-var`) continue to work unchanged; new fields are nullable
+  - Files changed: `cmd/credential.go`, `models/credential.go`
+
+  **Example — CLI:**
+  ```bash
+  dvm create credential github-creds \
+    --source keychain --service github.com \
+    --username-var GITHUB_USERNAME \
+    --password-var GITHUB_PAT \
+    --ecosystem myorg
+  ```
+
+  **Example — YAML apply:**
+  ```yaml
+  apiVersion: devopsmaestro.io/v1
+  kind: Credential
+  metadata:
+    name: github-creds
+    ecosystem: myorg
+  spec:
+    source: keychain
+    service: github.com
+    usernameVar: GITHUB_USERNAME
+    passwordVar: GITHUB_PAT
+  ```
+
+#### Credential Model: Dual-Field Methods
+- **`IsDualField()` method** — Returns `true` when a credential has both `UsernameVar` and `PasswordVar` set
+- **`ToUsernameConfig()` / `ToPasswordConfig()`** — Produce individual single-field config entries from a dual-field credential, used by the credential-to-env-map fanout
+- **`KeychainField` type** — Typed constant set with `password` and `account` values, used to route extraction to the correct Keychain API call
+  - Files changed: `models/credential.go`
+
+#### Keychain Account Field Extraction
+- **`GetAccountFromKeychain()` function** — Reads the account (username) field from a Keychain entry by service name; symmetric to the existing password extraction function
+  - Files changed: `pkg/secrets/keychain.go`
+
+#### `CredentialsToMap()` Fanout
+- **`CredentialsToMap()` now fans out dual-field credentials into two separate env-map entries** — A credential with both `UsernameVar` and `PasswordVar` produces one entry for each field instead of a single entry; single-field credentials are unaffected
+  - Files changed: `pkg/secrets/credentials.go`
+
+#### `ResolveCredential()` Field Routing
+- **`ResolveCredential()` branches on `Field`** to route extraction to `GetAccountFromKeychain()` (account) or the existing password extraction path (password)
+  - Files changed: `pkg/secrets/credentials.go`
+
+#### Database Migration 010
+- **Migration 010 adds `username_var` and `password_var` columns** to the `credentials` table — Both columns are `TEXT`, nullable, with no default; all 7 CRUD methods updated to read and write the new columns
+  - Files changed: `db/migrations/sqlite/010_add_credential_dual_field.up.sql`, `db/migrations/sqlite/010_add_credential_dual_field.down.sql`, `db/store_credential.go`
+
+#### YAML `apply` Support
+- **`usernameVar` / `passwordVar` fields** wired into `CredentialSpec` and the apply pipeline — `FromYAML()` maps `spec.usernameVar` → `UsernameVar` and `spec.passwordVar` → `PasswordVar`; `ToYAML()` round-trips both fields
+  - Files changed: `models/credential.go`, `pkg/resource/handlers/credential.go`
+
+#### Display Updates
+- **`dvm get credential <name>` detail view** — Shows `Username Var:` and `Password Var:` lines when a dual-field credential is displayed
+- **`dvm get credentials` list view** — VARS column shows both var names (e.g., `GITHUB_USERNAME / GITHUB_PAT`) for dual-field entries; single-field entries show their existing var as before
+  - Files changed: `cmd/get_credential.go`
+
+### 📊 v0.37.1 Summary
+
+| Metric | Value |
+|--------|-------|
+| New CLI flags | 2 (`--username-var`, `--password-var` on `dvm create credential`) |
+| New model methods | 3 (`IsDualField`, `ToUsernameConfig`, `ToPasswordConfig`) |
+| New functions | 2 (`GetAccountFromKeychain`, `KeychainField` type + constants) |
+| DB migrations | 1 (migration 010: `username_var`, `password_var` on `credentials`) |
+| CRUD methods updated | 7 (all credential store methods) |
+| Backwards compatible | ✅ (existing single-field credentials unchanged) |
+| All tests pass | ✅ |
+
+---
+
 ## [v0.37.0] - 2026-03-11 — Runtime Credential & Env Injection
 
 ### ✨ Added

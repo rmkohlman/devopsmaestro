@@ -29,3 +29,9 @@ func DeleteFromKeychain(service string) error {
 func KeychainAvailable() bool {
 	return false
 }
+
+// GetAccountFromKeychain retrieves the account field from the system keychain
+// On non-macOS platforms, this returns an error
+func GetAccountFromKeychain(service string) (string, error) {
+	return "", fmt.Errorf("keychain integration not available on %s (only macOS supported)", runtime.GOOS)
+}
