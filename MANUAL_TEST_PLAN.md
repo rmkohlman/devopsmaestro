@@ -1,6 +1,6 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.39.0  
+> **Version**: v0.39.1  
 > **Last Updated**: March 12, 2026
 
 ---
@@ -3263,9 +3263,11 @@ go test ./...
 
 ---
 
-## Part 17: Keychain Label-Based Lookup (v0.39.0)
+## Part 17: Keychain Label-Based Lookup (v0.39.0+)
 
 These scenarios cover the redesigned keychain credential resolution introduced in v0.39.0: the `--keychain-label` flag, the `--keychain-type` flag, deprecation warnings for `--service`, mutual-exclusivity validation, and YAML apply with the new `keychainLabel:` field.
+
+> **v0.39.1 note:** The default `--keychain-type` changed from `generic` to `internet`. Scenario 61 and Scenario 68 reflect this — credentials created without `--keychain-type` now default to `internet`. To use generic-type entries (Keychain Access, non-Passwords-app), pass `--keychain-type generic` explicitly.
 
 **Prerequisites:**
 - `dvm` binary built from v0.39.0+
@@ -3275,9 +3277,9 @@ These scenarios cover the redesigned keychain credential resolution introduced i
 
 ---
 
-### Scenario 61: Create Credential with `--keychain-label` and Generic Type
+### Scenario 61: Create Credential with `--keychain-label` and Internet Type (Default)
 
-Create a credential using the new `--keychain-label` flag with the default generic keychain type.
+Create a credential using the new `--keychain-label` flag without specifying `--keychain-type` — the default is now `internet` (changed from `generic` in v0.39.1 to match the macOS Passwords app entry format).
 
 ```bash
 dvm create credential GITHUB_TOKEN \
@@ -3299,7 +3301,7 @@ dvm get credential GITHUB_TOKEN --ecosystem <your-ecosystem> -o yaml
 | Credential appears in list | `GITHUB_TOKEN` visible in `get credentials` | |
 | Detail view shows label | `Label: GitHub Token` field present | |
 | YAML shows `keychainLabel:` | `keychainLabel: "GitHub Token"` under spec | |
-| YAML shows `keychainType: generic` | `keychainType: generic` (or default) under spec | |
+| YAML shows `keychainType: internet` | `keychainType: internet` (new default as of v0.39.1) under spec | |
 
 **Cleanup (defer to end of Part 17).**
 
@@ -3494,9 +3496,9 @@ dvm get credential GITHUB_TOKEN --ecosystem <your-ecosystem> -o json | python3 -
 | Test | Expected | Result |
 |------|----------|--------|
 | Human-readable output shows `Label:` | `Label: GitHub Token` present | |
-| Human-readable output shows `KeychainType:` | `KeychainType: generic` (or `internet`) present | |
+| Human-readable output shows `KeychainType:` | `KeychainType: internet` (new default as of v0.39.1) present | |
 | YAML output has `keychainLabel` under spec | `keychainLabel: "GitHub Token"` in YAML | |
-| YAML output has `keychainType` under spec | `keychainType: generic` in YAML | |
+| YAML output has `keychainType` under spec | `keychainType: internet` in YAML | |
 | JSON output parses cleanly | No raw struct types, valid JSON | |
 | JSON output has label and type fields | `keychainLabel` and `keychainType` keys present in JSON | |
 
@@ -3615,5 +3617,5 @@ colima nerdctl -- --namespace devopsmaestro images
 
 **Tested by:** ________________  
 **Date:** ________________  
-**Version:** v0.38.2  
+**Version:** v0.39.1  
 **Platform:** ________________

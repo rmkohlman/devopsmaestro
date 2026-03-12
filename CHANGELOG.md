@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.39.1] - 2026-03-12 — Change Default Keychain Type to "internet"
+
+### 🐛 Bug Fixes
+
+#### Default Keychain Type Changed from `generic` to `internet` — `config/credentials.go`
+- **The default value for `--keychain-type` was `generic` (`find-generic-password`)**, which caused keychain lookups to fail silently when credentials were stored via the macOS Passwords app (macOS Sequoia's primary password manager), which exclusively creates `inet` (internet password) entries
+- **Default changed to `internet` (`find-internet-password`)** — credentials stored by the Passwords app, Safari, or iCloud Keychain are now resolved without requiring the user to explicitly pass `--keychain-type internet`
+- Users who explicitly need generic-type entries (e.g., Keychain Access tokens) must now pass `--keychain-type generic` to override the new default
+
+#### Help Text Updated for `--keychain-type` Flag — `cmd/credential.go`
+- **Updated the `--keychain-type` flag description** to reflect that `internet` is now the default and that `generic` must be specified explicitly for Keychain Access (non-Passwords-app) entries
+
+### 🏗️ Technical
+
+#### DB Migration 012 — `db/migrations/sqlite/012_change_keychain_type_default.up.sql` (new)
+- Migrates all existing credentials whose `keychain_type` is `"generic"` to `"internet"` so that credentials created under v0.39.0's old default are automatically updated to the new default; existing credentials with an explicit `"internet"` type are unaffected
+- Rollback (`down.sql`) reverts `"internet"` entries back to `"generic"`
+
+### ⚠️ Breaking Change
+
+- **Users on v0.39.0** who created credentials without specifying `--keychain-type` (relying on the `generic` default) and whose Keychain entries are truly generic-type (Keychain Access, not Passwords app) will need to pass `--keychain-type generic` explicitly going forward, or re-apply their credential YAML with `keychainType: generic` — however, since `--keychain-type` was introduced in v0.39.0 (released the same day), no users have had a release window to depend on this default
+
+### 📊 v0.39.1 Summary
+
+| Metric | Value |
+|--------|-------|
+| Bug fixes | 1 (default keychain type mismatched macOS Passwords app entry format) |
+| DB migration | 1 (migration 012: backfill `keychain_type` from `"generic"` to `"internet"`) |
+| Files changed | 4 (`config/credentials.go`, `cmd/credential.go`, `db/migrations/sqlite/012_change_keychain_type_default.{up,down}.sql`) |
+| Test files updated | 4 (`db/store_test.go`, `db/store_credential_test.go`, `pkg/resource/handlers/credential_test.go`, `cmd/credential_test.go`) |
+| All tests pass | ✅ |
+
+---
+
 ## [v0.39.0] - 2026-03-12 — Keychain Label-Based Lookup
 
 ### ✨ Features

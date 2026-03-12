@@ -283,7 +283,7 @@ func init() {
 	createCredentialCmd.Flags().String("source", "", "Credential source: keychain or env (required)")
 	createCredentialCmd.Flags().String("service", "", "Keychain service name (deprecated: use --keychain-label)")
 	createCredentialCmd.Flags().String("keychain-label", "", "Keychain entry label (display name) — identifies the entry in Keychain Access or Passwords app (required when --source=keychain)")
-	createCredentialCmd.Flags().String("keychain-type", "", "Keychain entry type: generic or internet (default: generic)")
+	createCredentialCmd.Flags().String("keychain-type", "", "Keychain entry type: generic or internet (default: internet)")
 	createCredentialCmd.Flags().String("env-var", "", "Environment variable name (required when --source=env)")
 	createCredentialCmd.Flags().String("description", "", "Credential description")
 	createCredentialCmd.Flags().String("username-var", "", "Environment variable name for the keychain account/username (keychain source only)")

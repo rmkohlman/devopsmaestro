@@ -1721,13 +1721,13 @@ func TestGetCredentials_List_DualField_MixedDisplay(t *testing.T) {
 //
 // New flags that MUST exist after implementation:
 //   --keychain-label  (string, replaces --service for keychain credentials)
-//   --keychain-type   (string, "generic" or "internet", default "generic")
+//   --keychain-type   (string, "generic" or "internet", default "internet")
 //   --service         (kept as deprecated alias for --keychain-label)
 //
 // Validation rules:
 //   1. --keychain-label and --service are mutually exclusive
 //   2. --keychain-type only valid when --source=keychain
-//   3. --keychain-type must be "generic" or "internet" (empty = default generic)
+//   3. --keychain-type must be "generic" or "internet" (empty = default internet)
 //   4. When --keychain-label is set, it satisfies the keychain-source requirement
 //   5. When only --service is set, it is accepted (deprecated path)
 //
@@ -1763,7 +1763,7 @@ func TestCreateCredential_KeychainLabel(t *testing.T) {
 
 // TestCreateCredential_KeychainType verifies that --keychain-type flag exists
 // on createCredentialCmd, is string type, and defaults to empty string (which
-// the implementation treats as "generic").
+// the implementation treats as "internet").
 //
 // WILL FAIL AT RUNTIME — createCredentialCmd does not yet have --keychain-type.
 func TestCreateCredential_KeychainType(t *testing.T) {
@@ -1779,7 +1779,7 @@ func TestCreateCredential_KeychainType(t *testing.T) {
 		assert.Equal(t, "string", flag.Value.Type(),
 			"--keychain-type should be a string flag")
 		assert.Equal(t, "", flag.DefValue,
-			"--keychain-type should default to empty string (treated as 'generic')")
+			"--keychain-type should default to empty string (treated as 'internet')")
 	}
 	// ─────────────────────────────────────────────────────────────────────────
 }
@@ -1850,7 +1850,7 @@ func TestCreateCredential_KeychainTypeValidation(t *testing.T) {
 			wantErr:      false,
 		},
 		{
-			name:         "empty string is valid (defaults to generic)",
+			name:         "empty string is valid (defaults to internet)",
 			keychainType: "",
 			wantErr:      false,
 		},

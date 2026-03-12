@@ -69,10 +69,10 @@ func ResolveCredential(cfg CredentialConfig) (string, error) {
 			return "", fmt.Errorf("keychain source requires label or service name")
 		}
 
-		// Determine keychain type: use KeychainType if set, default to "generic"
+		// Determine keychain type: use KeychainType if set, default to "internet"
 		keychainType := cfg.KeychainType
 		if keychainType == "" {
-			keychainType = KeychainTypeGeneric
+			keychainType = KeychainTypeInternet
 		}
 
 		lookup := KeychainLookup{
