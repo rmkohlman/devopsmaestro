@@ -1,6 +1,6 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.34.0  
+> **Version**: v0.35.0  
 > **Last Updated**: March 2026
 
 ---
@@ -806,6 +806,425 @@ dvm delete workspace go-explicit-ws
 
 ---
 
+## Part 6: Credential Management (v0.35.0+)
+
+These scenarios cover the full lifecycle of credential CLI commands. Credentials are scoped to a single hierarchy level (ecosystem, domain, app, or workspace) and reference a secret source (keychain or environment variable).
+
+**Prerequisites:**
+- `dvm` binary built from v0.35.0+
+- At least one ecosystem, domain, app, and workspace configured
+- macOS Keychain entry `dvm-github` with a value (for keychain tests)
+- Environment variable `MY_NPM_TOKEN` set (for env-source tests)
+
+---
+
+### Scenario 17: Create Credential — Keychain Source
+
+Create a credential backed by macOS Keychain, scoped to an ecosystem.
+
+```bash
+# Create keychain-sourced credential
+dvm create credential GITHUB_TOKEN \
+  --source keychain \
+  --service dvm-github \
+  --ecosystem <eco-name>
+
+# Verify it appears in the list
+dvm get credentials --ecosystem <eco-name>
+
+# Get it by name
+dvm get credential GITHUB_TOKEN --ecosystem <eco-name>
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Create succeeds | No error, credential appears in list | |
+| `get credentials` lists it | Credential visible with correct name and source | |
+| `get credential <NAME>` returns detail | Single credential detail shown | |
+
+**Cleanup:**
+```bash
+dvm delete credential GITHUB_TOKEN --ecosystem <eco-name> --force
+```
+
+---
+
+### Scenario 18: Create Credential — Env Source
+
+Create a credential backed by an environment variable, scoped to an app.
+
+```bash
+# Create env-sourced credential
+dvm create credential NPM_TOKEN \
+  --source env \
+  --env-var MY_NPM_TOKEN \
+  --app <app-name>
+
+# Verify
+dvm get credentials --app <app-name>
+dvm get credential NPM_TOKEN --app <app-name>
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Create succeeds | No error, credential appears in list | |
+| Source is "env" | `source: env` shown in detail output | |
+| `env-var` field preserved | `MY_NPM_TOKEN` visible in credential detail | |
+
+**Cleanup:**
+```bash
+dvm delete credential NPM_TOKEN --app <app-name> --force
+```
+
+---
+
+### Scenario 19: Create Credential — Optional Description
+
+Verify that `--description` is accepted and stored.
+
+```bash
+dvm create credential CI_TOKEN \
+  --source env \
+  --env-var CI_SECRET \
+  --description "Used for CI pipeline authentication" \
+  --domain <domain-name>
+
+dvm get credential CI_TOKEN --domain <domain-name> -o yaml
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `--description` flag accepted | No "unknown flag" error | |
+| Description stored | `description: "Used for CI pipeline authentication"` in yaml output | |
+
+**Cleanup:**
+```bash
+dvm delete credential CI_TOKEN --domain <domain-name> --force
+```
+
+---
+
+### Scenario 20: Create Credential — Alias
+
+Verify `cred` works as an alias for `credential` in all three verbs.
+
+```bash
+# create alias
+dvm create cred ALIAS_TOKEN --source env --env-var ALIAS_VAR --ecosystem <eco-name>
+
+# get alias
+dvm get cred ALIAS_TOKEN --ecosystem <eco-name>
+dvm get creds --ecosystem <eco-name>
+
+# delete alias
+dvm delete cred ALIAS_TOKEN --ecosystem <eco-name> --force
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `create cred` accepted | Command succeeds, no "unknown command" error | |
+| `get cred <NAME>` accepted | Returns credential detail | |
+| `get creds` accepted | Returns list | |
+| `delete cred` accepted | Deletion succeeds | |
+
+---
+
+### Scenario 21: Create Credential — Input Validation Errors
+
+Each of these should fail with a clear, non-panic error message.
+
+```bash
+# Missing --source
+dvm create credential BAD_TOKEN --ecosystem <eco-name>
+
+# Missing --service when source is keychain
+dvm create credential BAD_TOKEN --source keychain --ecosystem <eco-name>
+
+# Missing --env-var when source is env
+dvm create credential BAD_TOKEN --source env --ecosystem <eco-name>
+
+# No scope flag (should error: exactly one scope required)
+dvm create credential BAD_TOKEN --source env --env-var MY_VAR
+
+# Two scope flags at once
+dvm create credential BAD_TOKEN --source env --env-var MY_VAR \
+  --ecosystem <eco-name> --app <app-name>
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Missing `--source` | Error: `--source` is required | |
+| Keychain missing `--service` | Error: `--service` required for keychain source | |
+| Env missing `--env-var` | Error: `--env-var` required for env source | |
+| No scope flag | Error: exactly one scope flag required | |
+| Two scope flags | Error: only one scope flag allowed | |
+| All errors are non-panic | No stack trace in any of the above | |
+
+---
+
+### Scenario 22: Create Credential — Duplicate Name
+
+Creating a credential with an already-used name in the same scope should fail cleanly.
+
+```bash
+dvm create credential DUP_TOKEN --source env --env-var DUP_VAR --ecosystem <eco-name>
+dvm create credential DUP_TOKEN --source env --env-var DUP_VAR2 --ecosystem <eco-name>
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Second create fails | Clear error: credential already exists | |
+| Error is not a panic | No stack trace | |
+| First credential unaffected | Still present in `get credentials` | |
+
+**Cleanup:**
+```bash
+dvm delete credential DUP_TOKEN --ecosystem <eco-name> --force
+```
+
+---
+
+### Scenario 23: List Credentials
+
+Verify list commands, scope filtering, and the `-A/--all` flag.
+
+```bash
+# Setup: create credentials in different scopes
+dvm create credential ECO_CRED  --source env --env-var ECO_VAR  --ecosystem <eco-name>
+dvm create credential APP_CRED  --source env --env-var APP_VAR  --app <app-name>
+dvm create credential WORK_CRED --source env --env-var WORK_VAR --workspace <ws-name>
+
+# List all credentials across all scopes
+dvm get credentials -A
+
+# List filtered by scope
+dvm get credentials --ecosystem <eco-name>
+dvm get credentials --app <app-name>
+dvm get credentials --workspace <ws-name>
+
+# Output formats
+dvm get credentials -A -o yaml
+dvm get credentials -A -o json
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `-A` lists credentials from all scopes | All three credentials visible | |
+| `--ecosystem` filter returns only eco-scoped credentials | Only ECO_CRED listed | |
+| `--app` filter returns only app-scoped credentials | Only APP_CRED listed | |
+| `--workspace` filter returns only workspace-scoped credentials | Only WORK_CRED listed | |
+| `-o yaml` produces valid YAML | Parseable output | |
+| `-o json` produces valid JSON | Parseable output (`dvm get credentials -A -o json \| python3 -m json.tool`) | |
+
+**Cleanup:**
+```bash
+dvm delete credential ECO_CRED  --ecosystem <eco-name> --force
+dvm delete credential APP_CRED  --app <app-name> --force
+dvm delete credential WORK_CRED --workspace <ws-name> --force
+```
+
+---
+
+### Scenario 24: List Credentials — Empty State
+
+Verify the empty-list case produces an informational message rather than an error or blank output.
+
+```bash
+# Ensure no credentials exist in scope
+dvm get credentials --ecosystem <eco-name>
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Empty list | Info message shown (e.g., "No credentials found") | |
+| Exit code 0 | Command exits cleanly | |
+| No panic | No stack trace | |
+
+---
+
+### Scenario 25: Get Credential — Nonexistent Name
+
+```bash
+dvm get credential DOES_NOT_EXIST --ecosystem <eco-name>
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Command fails | Clear error: credential not found | |
+| Error is not a panic | No stack trace | |
+| Non-zero exit code | Exit code != 0 | |
+
+---
+
+### Scenario 26: Delete Credential — Force Flag
+
+```bash
+dvm create credential DEL_TOKEN --source env --env-var DEL_VAR --ecosystem <eco-name>
+
+# Delete with --force (no confirmation prompt)
+dvm delete credential DEL_TOKEN --ecosystem <eco-name> --force
+
+# Confirm it's gone
+dvm get credentials --ecosystem <eco-name>
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `--force` skips confirmation prompt | No interactive prompt appears | |
+| Credential removed | No longer appears in `get credentials` | |
+| `-f` short flag also works | `dvm delete credential ... -f` succeeds | |
+
+---
+
+### Scenario 27: Delete Credential — Interactive Confirmation
+
+```bash
+dvm create credential CONFIRM_TOKEN --source env --env-var CONFIRM_VAR --ecosystem <eco-name>
+
+# Delete without --force — type "y" when prompted
+dvm delete credential CONFIRM_TOKEN --ecosystem <eco-name>
+# > Confirm deletion? [y/N]: y
+
+# Verify gone
+dvm get credentials --ecosystem <eco-name>
+```
+
+```bash
+# Repeat, but type "N" to abort
+dvm create credential CONFIRM_TOKEN --source env --env-var CONFIRM_VAR --ecosystem <eco-name>
+dvm delete credential CONFIRM_TOKEN --ecosystem <eco-name>
+# > Confirm deletion? [y/N]: N
+dvm get credentials --ecosystem <eco-name>
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Confirmation prompt appears | `[y/N]` prompt shown | |
+| "y" confirms deletion | Credential removed | |
+| "N" aborts deletion | Credential still present | |
+
+**Cleanup:**
+```bash
+dvm delete credential CONFIRM_TOKEN --ecosystem <eco-name> --force
+```
+
+---
+
+### Scenario 28: Delete Credential — Nonexistent Name
+
+```bash
+dvm delete credential NO_SUCH_CRED --ecosystem <eco-name> --force
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Command fails | Clear error: credential not found | |
+| Error is not a panic | No stack trace | |
+| Non-zero exit code | Exit code != 0 | |
+
+---
+
+### Scenario 29: Apply Credential from YAML
+
+Verify `dvm apply -f credential.yaml` creates a credential from a YAML manifest.
+
+```bash
+# Create credential.yaml
+cat <<EOF > /tmp/credential.yaml
+apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  name: YAML_TOKEN
+  ecosystem: <eco-name>
+spec:
+  source: env
+  envVar: YAML_SECRET_VAR
+  description: Created via dvm apply
+EOF
+
+# Apply it
+dvm apply -f /tmp/credential.yaml
+
+# Verify it exists
+dvm get credential YAML_TOKEN --ecosystem <eco-name>
+dvm get credential YAML_TOKEN --ecosystem <eco-name> -o yaml
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `dvm apply` succeeds | No error | |
+| Credential appears in list | `get credentials` shows YAML_TOKEN | |
+| Description persisted | `description: Created via dvm apply` in yaml output | |
+
+---
+
+### Scenario 30: Apply Credential — Update (Re-Apply)
+
+Verify that re-applying a YAML with changed fields updates the credential.
+
+```bash
+# Modify the description in credential.yaml
+cat <<EOF > /tmp/credential.yaml
+apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  name: YAML_TOKEN
+  ecosystem: <eco-name>
+spec:
+  source: env
+  envVar: YAML_SECRET_VAR
+  description: Updated description via re-apply
+EOF
+
+dvm apply -f /tmp/credential.yaml
+
+# Verify update
+dvm get credential YAML_TOKEN --ecosystem <eco-name> -o yaml
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Re-apply succeeds | No error | |
+| Description updated | `description: Updated description via re-apply` in output | |
+
+**Cleanup:**
+```bash
+dvm delete credential YAML_TOKEN --ecosystem <eco-name> --force
+rm /tmp/credential.yaml
+```
+
+---
+
+### Scenario 31: Apply Credential — Invalid YAML (Missing source)
+
+```bash
+cat <<EOF > /tmp/bad-credential.yaml
+apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  name: BAD_YAML_TOKEN
+  ecosystem: <eco-name>
+spec:
+  envVar: SOME_VAR
+  description: Missing source field
+EOF
+
+dvm apply -f /tmp/bad-credential.yaml
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Command fails | Clear validation error: `source` is required | |
+| Error is not a panic | No stack trace | |
+| No credential created | `get credentials` shows no BAD_YAML_TOKEN | |
+
+**Cleanup:**
+```bash
+rm /tmp/bad-credential.yaml
+```
+
+---
+
 ## Test Results Summary
 
 | Section | Tests | Pass | Fail |
@@ -818,6 +1237,7 @@ dvm delete workspace go-explicit-ws
 | Part 3: Namespaced Commands | 5 checks | | |
 | Part 4: Registry System | 13 scenarios | | |
 | Part 5: Package Rename & Auto-Detection | 3 scenarios | | |
+| Part 6: Credential Management | 15 scenarios | | |
 
 ---
 
@@ -870,5 +1290,5 @@ colima nerdctl -- --namespace devopsmaestro images
 
 **Tested by:** ________________  
 **Date:** ________________  
-**Version:** v0.34.0  
+**Version:** v0.35.0  
 **Platform:** ________________

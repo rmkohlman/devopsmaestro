@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.35.0] - 2026-03-11 — Credential CLI Feature
+
+### ✨ Added
+
+> **User-facing CLI surface for credential management.** The credential backend (database, config resolution, keychain integration, build pipeline) already existed from v0.19.0. This release adds the missing CLI commands.
+
+#### New Commands
+
+- **`dvm create credential <name>`** — Create a credential with `--source keychain|env`, optional `--service <svc>` (keychain) or `--env-var <var>` (env), and scope flags (`--ecosystem`, `--domain`, `--app`, `--workspace`)
+- **`dvm get credentials`** — List credentials in the active context scope; `-A/--all` lists all scopes
+- **`dvm get credential <name>`** — Show a single credential by name with scope flags
+- **`dvm delete credential <name>`** — Delete a credential with interactive confirmation prompt; `--force/-f` skips confirmation
+- **`dvm apply -f credential.yaml`** — `Credential` kind now fully supported by the apply pipeline
+
+Aliases: `cred` (singular), `creds` (plural)
+
+#### Model Layer (`models/credential.go`)
+
+- **`CredentialYAML`**, **`CredentialMetadata`**, **`CredentialSpec`** — YAML-serialisable structs for Credential resources
+- **`ToYAML()`** / **`FromYAML()`** — Round-trip serialisation helpers
+- **`ScopeInfo()`** — Returns human-readable scope description from hierarchy flags
+- **`ValidateCredentialYAML()`** — Validates required fields before apply
+
+#### Apply Handler (`pkg/resource/handlers/credential.go`)
+
+- **`CredentialHandler`** — Full `resource.Handler` interface implementation (Apply, Get, List, Delete, ToYAML)
+- Registered in **`RegisterAll()`** alongside all existing resource handlers
+
+#### CLI Implementation
+
+- **`cmd/credential.go`** — `create credential` command with `--source`, `--service`, `--env-var`, and scope flags
+- **`cmd/get_credential.go`** — `get credential` (single) and `get credentials` (list) commands with `-A/--all` flag
+- **`cmd/delete.go`** — `delete credential` subcommand with `bufio.Reader`-based confirmation (not `fmt.Scanln`)
+
+#### Manual Test Plan
+
+- **Part 6: Credential Management** — 15 new scenarios (Scenarios 17–31) covering create, list, get, delete, apply, scope resolution, and error cases
+
+#### Key Design Decisions
+
+- Scope inferred from hierarchy flags; no flags → uses active context
+- `--env-var` flag (not `--env`) to avoid ambiguity with "environment"
+- `bufio.Reader` for delete confirmation for reliable terminal input
+- `-A/--all` follows kubectl pattern (consistent with `get workspaces -A`)
+
+### 📊 v0.35.0 Summary
+
+| Metric | Value |
+|--------|-------|
+| New CLI commands | 5 (`create credential`, `get credential`, `get credentials`, `delete credential`, `apply credential`) |
+| New files | 4 (`models/credential.go`, `pkg/resource/handlers/credential.go`, `cmd/credential.go`, `cmd/get_credential.go`) |
+| New tests | 69 (42 CLI + 13 model + 14 handler) |
+| Manual test scenarios | 15 (Part 6, Scenarios 17–31) |
+| All tests pass | ✅ (59 packages) |
+
+---
+
 ## [v0.34.6] - 2026-03-10 — Architecture Cleanup Sprint 4.2: Structural Refactors
 
 ### ♻️ Refactored

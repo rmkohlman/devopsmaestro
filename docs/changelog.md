@@ -4,6 +4,20 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.35.0 (2026-03-11)
+
+**✨ Credential CLI Feature**
+
+User-facing CLI commands for credential management. The credential backend (database, config resolution, keychain integration, build pipeline) already existed; this release adds the missing CLI surface.
+
+- **create credential** - `dvm create credential <name> --source keychain|env [--service svc] [--env-var var]` with scope flags; aliases `cred`/`creds`
+- **get credentials** - `dvm get credentials` lists credentials in active context; `-A/--all` lists all scopes
+- **get credential** - `dvm get credential <name>` shows a single credential with scope flags
+- **delete credential** - `dvm delete credential <name>` with interactive confirmation; `--force/-f` skips prompt
+- **apply credential** - `dvm apply -f credential.yaml` — `Credential` kind now fully supported
+
+New model structs (`CredentialYAML`, `CredentialMetadata`, `CredentialSpec`) with `ToYAML()`/`FromYAML()`, `ScopeInfo()`, and `ValidateCredentialYAML()`. Full `CredentialHandler` registered in the apply pipeline. 69 new tests (42 CLI + 13 model + 14 handler). Manual Test Plan Part 6 added (Scenarios 17–31).
+
 ### v0.32.8 (2026-03-05)
 
 **🐛 Bug Fixes & Integration Confirmations**

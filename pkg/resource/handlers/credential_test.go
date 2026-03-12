@@ -1,0 +1,507 @@
+package handlers
+
+import (
+	"testing"
+
+	"devopsmaestro/db"
+	"devopsmaestro/models"
+	"devopsmaestro/pkg/resource"
+)
+
+// =============================================================================
+// CredentialHandler Tests - Kind
+// =============================================================================
+
+func TestCredentialHandler_Kind(t *testing.T) {
+	h := NewCredentialHandler()
+	if h.Kind() != KindCredential {
+		t.Errorf("Kind() = %q, want %q", h.Kind(), KindCredential)
+	}
+}
+
+// =============================================================================
+// CredentialHandler Tests - Apply
+// =============================================================================
+
+func TestCredentialHandler_Apply(t *testing.T) {
+	h := NewCredentialHandler()
+	ds := createCredentialTestDataStore(t)
+	defer ds.Close()
+
+	// Pre-populate scope entities for tests that need them
+	eco := &models.Ecosystem{Name: "testlab"}
+	if err := ds.CreateEcosystem(eco); err != nil {
+		t.Fatalf("Setup: CreateEcosystem() error = %v", err)
+	}
+
+	domain := &models.Domain{EcosystemID: eco.ID, Name: "backend"}
+	if err := ds.CreateDomain(domain); err != nil {
+		t.Fatalf("Setup: CreateDomain() error = %v", err)
+	}
+
+	app := &models.App{DomainID: domain.ID, Name: "api-server"}
+	if err := ds.CreateApp(app); err != nil {
+		t.Fatalf("Setup: CreateApp() error = %v", err)
+	}
+
+	workspace := &models.Workspace{AppID: app.ID, Name: "dev"}
+	if err := ds.CreateWorkspace(workspace); err != nil {
+		t.Fatalf("Setup: CreateWorkspace() error = %v", err)
+	}
+
+	ctx := resource.Context{DataStore: ds}
+
+	tests := []struct {
+		name    string
+		yaml    string
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "create keychain credential in ecosystem scope",
+			yaml: `apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  name: github-token
+  ecosystem: testlab
+spec:
+  source: keychain
+  service: github.com
+  description: GitHub personal access token`,
+			wantErr: false,
+		},
+		{
+			name: "create env credential in app scope",
+			yaml: `apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  name: db-url
+  app: api-server
+spec:
+  source: env
+  envVar: DATABASE_URL`,
+			wantErr: false,
+		},
+		{
+			name: "create credential in domain scope",
+			yaml: `apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  name: domain-token
+  domain: backend
+spec:
+  source: keychain
+  service: internal.svc`,
+			wantErr: false,
+		},
+		{
+			name: "create credential in workspace scope",
+			yaml: `apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  name: ws-secret
+  workspace: dev
+spec:
+  source: env
+  envVar: WS_SECRET`,
+			wantErr: false,
+		},
+		{
+			name: "invalid source rejected",
+			yaml: `apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  name: bad-cred
+  ecosystem: testlab
+spec:
+  source: plaintext`,
+			wantErr: true,
+			errMsg:  "source must be",
+		},
+		{
+			name: "missing name rejected",
+			yaml: `apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  ecosystem: testlab
+spec:
+  source: keychain
+  service: some.service`,
+			wantErr: true,
+			errMsg:  "name is required",
+		},
+		{
+			name: "missing scope rejected",
+			yaml: `apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  name: no-scope-cred
+spec:
+  source: keychain
+  service: some.service`,
+			wantErr: true,
+			errMsg:  "exactly one scope",
+		},
+		{
+			name: "unknown ecosystem rejected",
+			yaml: `apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  name: ghost-cred
+  ecosystem: nonexistent
+spec:
+  source: keychain
+  service: ghost.service`,
+			wantErr: true,
+			errMsg:  "not found",
+		},
+		{
+			name:    "invalid YAML rejected",
+			yaml:    "{\x00this is not: [valid yaml",
+			wantErr: true,
+			errMsg:  "failed to parse",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := h.Apply(ctx, []byte(tt.yaml))
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("Apply() expected error but got none")
+				} else if tt.errMsg != "" && !contains(err.Error(), tt.errMsg) {
+					t.Errorf("Apply() error = %v, want error containing %q", err, tt.errMsg)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("Apply() error = %v", err)
+				}
+				if res.GetKind() != KindCredential {
+					t.Errorf("Apply() resource.Kind = %v, want %v", res.GetKind(), KindCredential)
+				}
+			}
+		})
+	}
+}
+
+func TestCredentialHandler_Apply_Update(t *testing.T) {
+	h := NewCredentialHandler()
+	ds := createCredentialTestDataStore(t)
+	defer ds.Close()
+
+	// Pre-populate ecosystem
+	eco := &models.Ecosystem{Name: "update-lab"}
+	if err := ds.CreateEcosystem(eco); err != nil {
+		t.Fatalf("Setup: CreateEcosystem() error = %v", err)
+	}
+
+	ctx := resource.Context{DataStore: ds}
+
+	// Create the initial credential
+	createYAML := `apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  name: update-cred
+  ecosystem: update-lab
+spec:
+  source: keychain
+  service: original.service
+  description: original description`
+
+	_, err := h.Apply(ctx, []byte(createYAML))
+	if err != nil {
+		t.Fatalf("Apply() create error = %v", err)
+	}
+
+	// Update with different source fields
+	updateYAML := `apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  name: update-cred
+  ecosystem: update-lab
+spec:
+  source: env
+  envVar: UPDATED_ENV_VAR
+  description: updated description`
+
+	res, err := h.Apply(ctx, []byte(updateYAML))
+	if err != nil {
+		t.Fatalf("Apply() update error = %v", err)
+	}
+
+	// Verify the update took effect by inspecting the returned resource
+	credRes, ok := res.(*CredentialResource)
+	if !ok {
+		t.Fatalf("Apply() result is not *CredentialResource")
+	}
+
+	cred := credRes.Credential()
+	if cred.Source != "env" {
+		t.Errorf("Apply() updated source = %q, want %q", cred.Source, "env")
+	}
+	if cred.EnvVar == nil || *cred.EnvVar != "UPDATED_ENV_VAR" {
+		t.Errorf("Apply() updated env_var = %v, want %q", cred.EnvVar, "UPDATED_ENV_VAR")
+	}
+}
+
+// =============================================================================
+// CredentialHandler Tests - ToYAML
+// =============================================================================
+
+func TestCredentialHandler_ToYAML(t *testing.T) {
+	h := NewCredentialHandler()
+
+	svc := "github.com"
+	desc := "github token"
+	cred := &models.CredentialDB{
+		Name:        "github-token",
+		ScopeType:   models.CredentialScopeEcosystem,
+		ScopeID:     1,
+		Source:      "keychain",
+		Service:     &svc,
+		Description: &desc,
+	}
+
+	res := &CredentialResource{
+		credential: cred,
+		scopeName:  "mylab",
+	}
+
+	yamlBytes, err := h.ToYAML(res)
+	if err != nil {
+		t.Fatalf("ToYAML() error = %v", err)
+	}
+
+	yamlStr := string(yamlBytes)
+
+	if !contains(yamlStr, "kind: Credential") {
+		t.Errorf("ToYAML() missing 'kind: Credential', got:\n%s", yamlStr)
+	}
+	if !contains(yamlStr, "name: github-token") {
+		t.Errorf("ToYAML() missing 'name: github-token', got:\n%s", yamlStr)
+	}
+	if !contains(yamlStr, "source: keychain") {
+		t.Errorf("ToYAML() missing 'source: keychain', got:\n%s", yamlStr)
+	}
+	if !contains(yamlStr, "service: github.com") {
+		t.Errorf("ToYAML() missing 'service: github.com', got:\n%s", yamlStr)
+	}
+	if !contains(yamlStr, "ecosystem: mylab") {
+		t.Errorf("ToYAML() missing 'ecosystem: mylab', got:\n%s", yamlStr)
+	}
+}
+
+// =============================================================================
+// CredentialResource Validation Tests
+// =============================================================================
+
+func TestCredentialResource_Validate(t *testing.T) {
+	svc := "some.service"
+	envVar := "MY_ENV_VAR"
+
+	tests := []struct {
+		name      string
+		cred      *models.CredentialDB
+		scopeName string
+		wantErr   bool
+	}{
+		{
+			name: "valid keychain credential",
+			cred: &models.CredentialDB{
+				Name:      "valid-cred",
+				ScopeType: models.CredentialScopeEcosystem,
+				ScopeID:   1,
+				Source:    "keychain",
+				Service:   &svc,
+			},
+			scopeName: "mylab",
+			wantErr:   false,
+		},
+		{
+			name: "missing name",
+			cred: &models.CredentialDB{
+				Name:      "",
+				ScopeType: models.CredentialScopeEcosystem,
+				ScopeID:   1,
+				Source:    "keychain",
+				Service:   &svc,
+			},
+			scopeName: "mylab",
+			wantErr:   true,
+		},
+		{
+			name: "invalid source",
+			cred: &models.CredentialDB{
+				Name:      "bad-source",
+				ScopeType: models.CredentialScopeEcosystem,
+				ScopeID:   1,
+				Source:    "plaintext",
+			},
+			scopeName: "mylab",
+			wantErr:   true,
+		},
+		{
+			name: "valid env credential",
+			cred: &models.CredentialDB{
+				Name:      "env-cred",
+				ScopeType: models.CredentialScopeApp,
+				ScopeID:   1,
+				Source:    "env",
+				EnvVar:    &envVar,
+			},
+			scopeName: "myapp",
+			wantErr:   false,
+		},
+		{
+			name: "missing scope name produces empty scope in YAML",
+			cred: &models.CredentialDB{
+				Name:      "no-scope",
+				ScopeType: models.CredentialScopeEcosystem,
+				ScopeID:   1,
+				Source:    "keychain",
+				Service:   &svc,
+			},
+			scopeName: "",
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res := &CredentialResource{
+				credential: tt.cred,
+				scopeName:  tt.scopeName,
+			}
+			err := res.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+// createCredentialTestDataStore creates an in-memory SQLite DataStore with the
+// full credential schema (all scope tables + credentials).
+func createCredentialTestDataStore(t *testing.T) *db.SQLDataStore {
+	t.Helper()
+
+	cfg := db.DriverConfig{Type: db.DriverMemory}
+	driver, err := db.NewMemorySQLiteDriver(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create test driver: %v", err)
+	}
+
+	if err := driver.Connect(); err != nil {
+		t.Fatalf("Failed to connect test driver: %v", err)
+	}
+
+	if err := createCredentialTestSchema(driver); err != nil {
+		driver.Close()
+		t.Fatalf("Failed to create credential test schema: %v", err)
+	}
+
+	return db.NewSQLDataStore(driver, nil)
+}
+
+// createCredentialTestSchema creates all tables needed for credential handler tests.
+// This includes the full scope hierarchy (ecosystems → domains → apps → workspaces)
+// plus the credentials table and dvm_context table.
+func createCredentialTestSchema(driver db.Driver) error {
+	statements := []string{
+		`CREATE TABLE IF NOT EXISTS ecosystems (
+			id          INTEGER PRIMARY KEY AUTOINCREMENT,
+			name        TEXT    NOT NULL UNIQUE,
+			description TEXT,
+			theme       TEXT,
+			created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+
+		`CREATE TABLE IF NOT EXISTS domains (
+			id           INTEGER PRIMARY KEY AUTOINCREMENT,
+			ecosystem_id INTEGER NOT NULL REFERENCES ecosystems(id),
+			name         TEXT    NOT NULL,
+			description  TEXT,
+			theme        TEXT,
+			created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(ecosystem_id, name)
+		)`,
+
+		`CREATE TABLE IF NOT EXISTS apps (
+			id           INTEGER PRIMARY KEY AUTOINCREMENT,
+			domain_id    INTEGER NOT NULL REFERENCES domains(id),
+			name         TEXT    NOT NULL,
+			path         TEXT,
+			description  TEXT,
+			theme        TEXT,
+			language     TEXT,
+			build_config TEXT,
+			git_repo_id  INTEGER,
+			created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(domain_id, name)
+		)`,
+
+		`CREATE TABLE IF NOT EXISTS workspaces (
+			id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+			app_id                INTEGER NOT NULL REFERENCES apps(id),
+			name                  TEXT    NOT NULL,
+			slug                  TEXT,
+			description           TEXT,
+			image_name            TEXT    DEFAULT '',
+			container_id          TEXT,
+			status                TEXT    DEFAULT 'stopped',
+			ssh_agent_forwarding  INTEGER DEFAULT 0,
+			nvim_structure        TEXT,
+			nvim_plugins          TEXT,
+			theme                 TEXT,
+			terminal_prompt       TEXT,
+			terminal_plugins      TEXT,
+			terminal_package      TEXT,
+			git_repo_id           INTEGER,
+			created_at            DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at            DATETIME DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(app_id, name)
+		)`,
+
+		`CREATE TABLE IF NOT EXISTS credentials (
+			id          INTEGER PRIMARY KEY AUTOINCREMENT,
+			scope_type  TEXT    NOT NULL CHECK(scope_type IN ('ecosystem','domain','app','workspace')),
+			scope_id    INTEGER NOT NULL,
+			name        TEXT    NOT NULL,
+			source      TEXT    NOT NULL CHECK(source IN ('keychain','env')),
+			service     TEXT,
+			env_var     TEXT,
+			description TEXT,
+			created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(scope_type, scope_id, name)
+		)`,
+
+		// context holds one row (id=1) with the active selection state.
+		`CREATE TABLE IF NOT EXISTS context (
+			id                  INTEGER PRIMARY KEY DEFAULT 1,
+			active_ecosystem_id INTEGER REFERENCES ecosystems(id),
+			active_domain_id    INTEGER REFERENCES domains(id),
+			active_app_id       INTEGER REFERENCES apps(id),
+			active_workspace_id INTEGER REFERENCES workspaces(id),
+			updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+
+		// Seed the single context row.
+		`INSERT OR IGNORE INTO context (id) VALUES (1)`,
+	}
+
+	for _, stmt := range statements {
+		if _, err := driver.Execute(stmt); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

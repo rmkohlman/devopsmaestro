@@ -1,8 +1,11 @@
 package cmd
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"os"
+	"strings"
 
 	"devopsmaestro/db"
 	"devopsmaestro/pkg/registry"
@@ -277,6 +280,69 @@ Examples:
 }
 
 // =============================================================================
+// Credential Resource Commands (dvm delete credential <name>)
+// =============================================================================
+
+// deleteCredentialCmd deletes a credential
+var deleteCredentialCmd = &cobra.Command{
+	Use:     "credential <name>",
+	Aliases: []string{"cred"},
+	Short:   "Delete a credential",
+	Long: `Delete a credential by name within a scope.
+
+Requires exactly one scope flag to identify which credential to delete.
+By default, you will be prompted for confirmation.
+
+Examples:
+  dvm delete credential github-token --app my-api
+  dvm delete credential api-key --ecosystem prod --force
+  dvm delete cred db-pass --domain backend -f`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		credName := args[0]
+
+		// Get DataStore from context
+		ds, err := getDataStore(cmd)
+		if err != nil {
+			return fmt.Errorf("dataStore not found in context")
+		}
+
+		// Resolve scope
+		scopeType, scopeID, err := resolveCredentialScopeFromFlags(cmd, ds)
+		if err != nil {
+			return err
+		}
+
+		// Verify credential exists
+		cred, err := ds.GetCredential(scopeType, scopeID, credName)
+		if err != nil {
+			return fmt.Errorf("credential '%s' not found in %s scope: %w", credName, scopeType, err)
+		}
+
+		// Confirm deletion
+		force, _ := cmd.Flags().GetBool("force")
+		if !force {
+			fmt.Printf("Delete credential '%s' (scope: %s, source: %s)? (y/N): ", cred.Name, cred.ScopeType, cred.Source)
+			reader := bufio.NewReader(os.Stdin)
+			response, _ := reader.ReadString('\n')
+			response = strings.TrimSpace(response)
+			if response != "y" && response != "Y" {
+				render.Info("Aborted")
+				return nil
+			}
+		}
+
+		// Delete the credential
+		if err := ds.DeleteCredential(scopeType, scopeID, credName); err != nil {
+			return fmt.Errorf("failed to delete credential: %w", err)
+		}
+
+		render.Success(fmt.Sprintf("Credential '%s' deleted (scope: %s)", credName, scopeType))
+		return nil
+	},
+}
+
+// =============================================================================
 // Registry Resource Commands (dvm delete registry <name>)
 // =============================================================================
 
@@ -396,4 +462,11 @@ func init() {
 
 	// Registry deletion flags
 	deleteRegistryCmd.Flags().BoolP("force", "f", false, "Skip confirmation prompt")
+
+	// Credential command
+	deleteCmd.AddCommand(deleteCredentialCmd)
+
+	// Credential deletion flags
+	deleteCredentialCmd.Flags().BoolP("force", "f", false, "Skip confirmation prompt")
+	addCredentialScopeFlags(deleteCredentialCmd)
 }
