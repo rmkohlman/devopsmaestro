@@ -1,6 +1,6 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.35.0  
+> **Version**: v0.35.2  
 > **Last Updated**: March 2026
 
 ---
@@ -1225,10 +1225,206 @@ rm /tmp/bad-credential.yaml
 
 ---
 
+---
+
+## Part 7: Registry Version Management (v0.35.1+)
+
+These scenarios cover declarative version management for registry resources. Run them from a clean registry state unless a scenario explicitly depends on prior state.
+
+**Prerequisites:**
+- `dvm` binary built from v0.35.1+
+- `zot` binary available in PATH (or will be downloaded)
+- Port 5003 available for test registry
+
+---
+
+### Scenario 32: Create Registry with `--version`
+
+Create a registry specifying an explicit version via the `--version` flag.
+
+```bash
+dvm create registry test --type zot --version 2.1.14 --port 5003
+
+# Verify it appears in the list with the correct version
+dvm get registries
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Create succeeds | No error | |
+| Registry appears in `get registries` | Row visible in table | |
+| Version: 2.1.14 in table | VERSION column shows `2.1.14` | |
+
+**Cleanup (defer to end of Part 7).**
+
+---
+
+### Scenario 33: VERSION Column in `get registries` Table
+
+Verify the VERSION column appears after the TYPE column in the list output.
+
+```bash
+dvm get registries
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| VERSION column present | Column header `VERSION` visible | |
+| VERSION column position | Appears after TYPE column | |
+| Version value correct | `2.1.14` shown for the test registry | |
+
+---
+
+### Scenario 34: Version in `get registry <name>` Detail View
+
+Verify the version field is shown in the single-registry detail view.
+
+```bash
+dvm get registry test
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `Version:` field shown | `Version: 2.1.14` present in output | |
+| Field appears alongside Name, Type, Port, Status | Layout matches existing detail fields | |
+
+---
+
+### Scenario 35: Version in YAML Output
+
+Verify the version is serialized under `spec.version` in YAML output.
+
+```bash
+dvm get registry test -o yaml
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `spec.version` field present | `spec.version: 2.1.14` in YAML | |
+| Valid YAML | Parses without error | |
+| Other spec fields intact | `spec.type`, `spec.port` still present | |
+
+---
+
+### Scenario 36: Start Downloads Correct Version
+
+Verify that `dvm start registry` downloads the version declared in the registry spec before launching.
+
+```bash
+dvm start registry test
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Start succeeds | No error | |
+| Binary at v2.1.14 downloaded | Version reconciliation log or binary at correct version | |
+| Registry reaches "running" status | `dvm get registries` shows status: running | |
+
+```bash
+dvm stop registry test
+```
+
+---
+
+### Scenario 37: Upgrade via Apply
+
+Apply a YAML manifest that changes the version from `2.1.14` to `2.1.15`, then restart to trigger binary reconciliation.
+
+```bash
+cat <<EOF > /tmp/registry-upgrade.yaml
+apiVersion: devopsmaestro.io/v1
+kind: Registry
+metadata:
+  name: test
+spec:
+  type: zot
+  port: 5003
+  version: 2.1.15
+EOF
+
+dvm apply -f /tmp/registry-upgrade.yaml
+
+# Verify version updated in the DB
+dvm get registry test
+
+# Restart — EnsureBinary() should detect mismatch and download v2.1.15
+dvm start registry test
+dvm get registries
+dvm stop registry test
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Apply succeeds | No error | |
+| `get registry test` shows 2.1.15 | `Version: 2.1.15` in detail output | |
+| Start reconciles binary | v2.1.15 downloaded on start | |
+| Registry reaches "running" status | Status: running after restart | |
+
+**Cleanup:**
+```bash
+rm /tmp/registry-upgrade.yaml
+```
+
+---
+
+### Scenario 38: Invalid Version Rejected
+
+Verify that a non-semver string is rejected at creation time with a clear error.
+
+```bash
+dvm create registry x --type zot --version "abc" --port 5004
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Command fails | Non-zero exit code | |
+| Error mentions semver | Error text: "invalid version" or "must be semver" | |
+| Error is not a panic | No stack trace | |
+| No registry created | `dvm get registries` does not list `x` | |
+
+---
+
+### Scenario 39: Rollback on Failed Download
+
+Apply a manifest referencing a nonexistent version, then attempt to start. Verify the original binary is preserved and a clear error is returned.
+
+```bash
+cat <<EOF > /tmp/registry-bad-version.yaml
+apiVersion: devopsmaestro.io/v1
+kind: Registry
+metadata:
+  name: test
+spec:
+  type: zot
+  port: 5003
+  version: 99.99.99
+EOF
+
+dvm apply -f /tmp/registry-bad-version.yaml
+
+# Start should fail — binary download for 99.99.99 will fail
+dvm start registry test
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Start fails | Non-zero exit code, clear download error | |
+| Error is not a panic | No stack trace | |
+| Original binary preserved | Previous zot binary still present and intact | |
+| Registry not left in broken state | `dvm get registries` shows status: stopped (not running) | |
+
+**Cleanup:**
+```bash
+rm /tmp/registry-bad-version.yaml
+dvm delete registry test
+```
+
+---
+
 ## Test Results Summary
 
-| Section | Tests | Pass | Fail |
-|---------|-------|------|------|
+| Part | Tests | Pass | Fail |
+|------|-------|------|------|
 | Part 1: Setup & Build | 5 segments | | |
 | Interactive: Environment | 6 checks | | |
 | Interactive: Python | 5 checks | | |
@@ -1238,6 +1434,7 @@ rm /tmp/bad-credential.yaml
 | Part 4: Registry System | 13 scenarios | | |
 | Part 5: Package Rename & Auto-Detection | 3 scenarios | | |
 | Part 6: Credential Management | 15 scenarios | | |
+| Part 7: Registry Version Management | 8 scenarios | | |
 
 ---
 
@@ -1290,5 +1487,5 @@ colima nerdctl -- --namespace devopsmaestro images
 
 **Tested by:** ________________  
 **Date:** ________________  
-**Version:** v0.35.0  
+**Version:** v0.35.2  
 **Platform:** ________________

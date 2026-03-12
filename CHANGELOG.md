@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.35.2] - 2026-03-12 — Registry Binary Version Reconciliation Fix
+
+### 🐛 Fixed
+
+#### Registry: `GetVersion()` Parses Zot Stderr Output Correctly
+- **`GetVersion()` now reads Zot's `--version` JSON output from stderr** — The previous implementation ran `zot version` (an invalid subcommand), which always failed and returned an empty string; Zot outputs its version JSON to stderr when invoked with `--version`
+  - `EnsureBinary()` no longer silently skips version updates when the installed version cannot be determined
+  - Files changed: `pkg/registry/binary_zot.go`
+
+#### Registry: Backup/Rollback Preserved on Failed Download
+- **Original binary is preserved when a version-change download fails** — If a new version download fails mid-transfer, the backup copy is restored so the registry remains runnable at the previously installed version
+  - Files changed: `pkg/registry/binary_manager.go`
+
+---
+
+## [v0.35.1] - 2026-03-12 — Declarative Registry Version Management
+
+### ✨ Added
+
+#### Registry: `version` Field on Registry Resource
+- **`--version` flag on `dvm create registry`** — Specifies the desired binary version for a registry at creation time; no short form; validated as semver (e.g., `2.1.15`); rejects non-semver strings with a clear error
+- **VERSION column in `dvm get registries`** — New column appears after TYPE in the list table output
+- **Version in `dvm get registry <name>` detail view** — `Version:` field shown alongside Name, Type, Port, and Status
+- **Version in YAML output (`-o yaml`)** — Exposed under `spec.version` in all YAML representations of the Registry resource
+- **Database migration 008** — Adds `version` column to the `registries` table (nullable, default empty string); applied automatically on startup
+
+#### Registry Strategy: `GetDefaultVersion()` Interface Method
+- **`GetDefaultVersion() string` added to `RegistryStrategy` interface** — Each strategy returns its bundled default version; Zot returns `"2.1.15"`, all other strategies return `""`
+  - Files changed: `pkg/registry/strategy.go`, `pkg/registry/binary_zot.go`
+
+#### Registry: `EnsureBinary()` Version Reconciliation
+- **`EnsureBinary()` now checks the installed version against the desired version on every start** — If a mismatch is detected, the correct version is downloaded before the registry process is launched; reconciliation runs at startup, not just at creation time
+  - Files changed: `pkg/registry/binary_manager.go`
+
+#### Manual Test Plan
+- **Part 7: Registry Version Management** — 8 new scenarios (Scenarios 32–39) covering create with version, table/detail/yaml output, start download, upgrade via apply, invalid version rejection, and rollback on failed download
+
+### 📊 v0.35.1 Summary
+
+| Metric | Value |
+|--------|-------|
+| New flags | 1 (`--version` on `dvm create registry`) |
+| New table columns | 1 (VERSION in `get registries`) |
+| DB migrations | 1 (migration 008: `version` column on `registries`) |
+| New interface methods | 1 (`GetDefaultVersion()` on `RegistryStrategy`) |
+| All tests pass | ✅ |
+
+---
+
 ## [v0.35.0] - 2026-03-11 — Credential CLI Feature
 
 ### ✨ Added
