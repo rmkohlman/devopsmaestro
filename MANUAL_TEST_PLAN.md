@@ -1,6 +1,6 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.36.0  
+> **Version**: v0.37.0  
 > **Last Updated**: March 2026
 
 ---
@@ -1717,6 +1717,235 @@ EOF
 
 ---
 
+## Part 9: Runtime Credential & Env Injection (v0.37.0)
+
+These scenarios cover runtime credential injection, runtime registry env injection, the `--env` flag on workspace creation, DVM_* prefix reservation, and bootstrapping all 5 registries on init.
+
+**Prerequisites:**
+- `dvm` binary built from v0.37.0+
+- At least one ecosystem, domain, app, and workspace configured
+- At least one credential created (for scenarios 48 and 49)
+- Environment variable `MY_TEST_SECRET` set (for env source tests)
+
+---
+
+### Scenario 47: Bootstrap All 5 Registries on Init
+
+Verify that `dvm admin init` creates all 5 default registries (oci, pypi, npm, go, http).
+
+```bash
+# Fresh init (or re-init)
+rm -rf ~/.devopsmaestro
+dvm admin init
+
+# All 5 registries should exist
+dvm get registries
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Init creates OCI registry | `oci-default` (or similar) with type zot, port 5001 | |
+| Init creates PyPI registry | Registry with type devpi, port 5002 | |
+| Init creates npm registry | Registry with type verdaccio, port 5003 | |
+| Init creates Go registry | Registry with type athens, port 5004 | |
+| Init creates HTTP registry | Registry with type squid, port 5005 | |
+| All registries are on-demand | Lifecycle is `on-demand` for all | |
+| Re-running init is idempotent | Running `dvm admin init` again does not duplicate registries | |
+
+---
+
+### Scenario 48: Runtime Credential Injection in Attach
+
+Verify that credentials from the hierarchy are injected into the container at runtime.
+
+```bash
+# Create a credential
+dvm create credential MY_SECRET --source env --env-var MY_TEST_SECRET --ecosystem <eco-name>
+
+# Build and attach to a workspace
+dvm build --workspace <ws-name>
+dvm attach --workspace <ws-name>
+```
+
+**Inside the container, verify:**
+```bash
+echo $MY_SECRET    # Expected: value of MY_TEST_SECRET from host
+exit
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Credential injected at runtime | `MY_SECRET` env var available inside container | |
+| Value matches host env var | Value equals `MY_TEST_SECRET` from host environment | |
+| No error on attach | `dvm attach` succeeds without credential-related errors | |
+
+**Cleanup:**
+```bash
+dvm delete credential MY_SECRET --ecosystem <eco-name> --force
+```
+
+---
+
+### Scenario 49: Dangerous Credential Names Filtered at Runtime
+
+Verify that credentials with dangerous names (LD_PRELOAD, etc.) are silently filtered from runtime injection.
+
+```bash
+# Create a credential with a dangerous name (if the create command allows it)
+# NOTE: This tests the runtime filter in buildRuntimeEnv, not the create command
+dvm attach --workspace <ws-name>
+```
+
+**Inside the container, verify:**
+```bash
+echo $LD_PRELOAD    # Expected: empty (not injected)
+exit
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Dangerous env vars not injected | `LD_PRELOAD` is empty inside container even if a credential with that name exists | |
+| No error or warning on attach | Filtering is silent, attach succeeds normally | |
+
+---
+
+### Scenario 50: Runtime Registry Env Injection in Attach
+
+Verify that registry-specific environment variables are injected into the container at runtime.
+
+```bash
+# Ensure at least one registry is enabled (should be after init)
+dvm get registries
+
+# Attach to a workspace
+dvm attach --workspace <ws-name>
+```
+
+**Inside the container, verify:**
+```bash
+# Check for registry env vars (depends on which registries are enabled)
+env | grep -i proxy
+env | grep -i pip_index
+env | grep -i goproxy
+env | grep -i npm_config
+exit
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| HTTP_PROXY set (if squid enabled) | `HTTP_PROXY=http://host.docker.internal:5005` or similar | |
+| NO_PROXY includes RFC1918 | `10.0.0.0/8,172.16.0.0/12,192.168.0.0/16` in NO_PROXY | |
+| PIP_INDEX_URL set (if devpi enabled) | Points to devpi registry URL | |
+| GOPROXY set (if athens enabled) | Points to athens registry URL | |
+| NPM_CONFIG_REGISTRY set (if verdaccio enabled) | Points to verdaccio registry URL | |
+
+---
+
+### Scenario 51: `--env` Flag on Workspace Creation
+
+Verify that the `--env` / `-e` flag on `dvm create workspace` stores environment variables.
+
+```bash
+# Create a workspace with env vars
+dvm create workspace env-test-ws --app <app-name> \
+  --env MY_VAR=hello \
+  --env LOG_LEVEL=debug \
+  -e FEATURE_FLAG=enabled
+
+# Verify env vars are stored
+dvm get workspace env-test-ws -o yaml
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `--env` flag accepted | No "unknown flag" error | |
+| `-e` short flag works | No error on `-e FEATURE_FLAG=enabled` | |
+| `MY_VAR` stored | `MY_VAR: hello` in yaml output | |
+| `LOG_LEVEL` stored | `LOG_LEVEL: debug` in yaml output | |
+| `FEATURE_FLAG` stored | `FEATURE_FLAG: enabled` in yaml output | |
+| Multiple `--env` flags supported | All three vars present in yaml | |
+
+**Cleanup:**
+```bash
+dvm delete workspace env-test-ws --force
+```
+
+---
+
+### Scenario 52: `--env` Flag Validation Errors
+
+Verify that invalid env var names and dangerous/reserved names are rejected.
+
+```bash
+# Missing value (no = sign)
+dvm create workspace bad-env-ws --app <app-name> --env INVALID_FORMAT
+
+# Invalid key (starts with number)
+dvm create workspace bad-env-ws --app <app-name> --env 1BAD_KEY=value
+
+# Dangerous key (denylisted)
+dvm create workspace bad-env-ws --app <app-name> --env LD_PRELOAD=/tmp/evil.so
+
+# Reserved DVM_* prefix
+dvm create workspace bad-env-ws --app <app-name> --env DVM_WORKSPACE=override
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Missing `=` rejected | Error: invalid format, expected KEY=VALUE | |
+| Invalid key format rejected | Error: invalid env var name | |
+| Dangerous key rejected (hard error) | Error: env var name is not permitted | |
+| DVM_* prefix rejected | Error: reserved key prefix | |
+| No workspace created for any invalid case | `dvm get workspaces` does not list `bad-env-ws` | |
+| All errors are non-panic | No stack traces | |
+
+---
+
+### Scenario 53: DVM_* Metadata Cannot Be Overridden
+
+Verify that workspace env vars cannot override DVM_WORKSPACE, DVM_APP, etc.
+
+```bash
+# Create a workspace with env attempting to override DVM_WORKSPACE
+# This should be blocked by the --env flag validation
+dvm create workspace override-ws --app <app-name> --env DVM_WORKSPACE=hacked
+
+# Even if set via YAML apply, metadata should win at runtime
+cat <<EOF > /tmp/override-test.yaml
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: override-ws
+  app: <app-name>
+spec:
+  env:
+    DVM_WORKSPACE: hacked
+EOF
+
+dvm apply -f /tmp/override-test.yaml
+dvm attach --workspace override-ws
+```
+
+**Inside container:**
+```bash
+echo $DVM_WORKSPACE   # Expected: "override-ws" (the REAL workspace name, not "hacked")
+exit
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `--env DVM_WORKSPACE=...` rejected | Hard error on create | |
+| YAML apply may accept it | No crash (validation may or may not catch it in YAML path) | |
+| Runtime metadata always wins | `DVM_WORKSPACE` equals real workspace name inside container | |
+
+**Cleanup:**
+```bash
+dvm delete workspace override-ws --force
+rm /tmp/override-test.yaml
+```
+
+---
+
 ## Test Results Summary
 
 | Part | Tests | Pass | Fail |
@@ -1732,6 +1961,7 @@ EOF
 | Part 6: Credential Management | 15 scenarios | | |
 | Part 7: Registry Version Management | 8 scenarios | | |
 | Part 8: Credential Injection & Env Vars | 7 scenarios | | |
+| Part 9: Runtime Credential & Env Injection | 7 scenarios | | |
 
 ---
 
@@ -1784,5 +2014,5 @@ colima nerdctl -- --namespace devopsmaestro images
 
 **Tested by:** ________________  
 **Date:** ________________  
-**Version:** v0.36.0  
+**Version:** v0.37.0  
 **Platform:** ________________

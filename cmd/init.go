@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"devopsmaestro/db"
 	"devopsmaestro/pkg/paths"
 	"devopsmaestro/pkg/registry"
@@ -116,18 +117,8 @@ templates:
 		}
 		slog.Info("database migrations completed")
 
-		// Bootstrap default OCI registry (non-fatal)
-		render.Progress("Creating default OCI registry...")
-		created, regErr := registry.EnsureDefaultRegistry(ctx, ds, ds, "oci", "on-demand")
-		if regErr != nil {
-			slog.Warn("failed to create default OCI registry", "error", regErr)
-			render.Warning("Could not create default OCI registry: " + regErr.Error())
-			render.Info("  You can set it up later with: dvm registry enable oci")
-		} else if created {
-			render.Success("Default OCI registry configured (zot on port 5001)")
-		} else {
-			render.Info("Default OCI registry already configured")
-		}
+		// Bootstrap default registries (non-fatal)
+		bootstrapAllDefaultRegistries(ctx, ds, ds, "on-demand")
 
 		render.Blank()
 		render.Success("DevOpsMaestro initialized successfully!")
@@ -145,4 +136,40 @@ templates:
 
 func init() {
 	adminCmd.AddCommand(initCmd)
+}
+
+// bootstrapAllDefaultRegistries creates default registries for all supported
+// package manager types. Each alias resolves to a concrete registry type:
+// oci→zot, pypi→devpi, npm→verdaccio, go→athens, http→squid.
+// Failures are collected and returned (non-fatal), one per alias that failed.
+func bootstrapAllDefaultRegistries(ctx context.Context, registryStore db.RegistryStore, defaultsStore db.DefaultsStore, lifecycle string) []error {
+	aliases := []string{"oci", "pypi", "npm", "go", "http"}
+	render.Progress("Bootstrapping default registries...")
+
+	errs := make([]error, 0)
+	var created, existing int
+	for _, alias := range aliases {
+		wasCreated, err := registry.EnsureDefaultRegistry(ctx, registryStore, defaultsStore, alias, lifecycle)
+		if err != nil {
+			slog.Warn("failed to create default registry", "alias", alias, "error", err)
+			render.Warning(fmt.Sprintf("Could not create default %s registry: %s", alias, err.Error()))
+			errs = append(errs, err)
+			continue
+		}
+		if wasCreated {
+			created++
+			slog.Info("created default registry", "alias", alias)
+		} else {
+			existing++
+		}
+	}
+
+	if created > 0 {
+		render.Success(fmt.Sprintf("Created %d default registries (oci, pypi, npm, go, http)", created))
+	}
+	if existing > 0 {
+		render.Info(fmt.Sprintf("%d registries already configured", existing))
+	}
+
+	return errs
 }

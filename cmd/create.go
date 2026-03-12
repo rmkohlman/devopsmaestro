@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"devopsmaestro/db"
 	"devopsmaestro/models"
+	"devopsmaestro/pkg/envvalidation"
 	"devopsmaestro/pkg/mirror"
 	ws "devopsmaestro/pkg/workspace"
 	"devopsmaestro/render"
@@ -70,7 +71,11 @@ Examples:
   dvm create workspace feature-auth --description "Auth feature branch"
   
   # Create with custom image name
-  dvm create workspace staging --image my-app:staging`,
+  dvm create workspace staging --image my-app:staging
+
+  # Create with environment variables
+  dvm create workspace dev --env API_URL=https://api.example.com
+  dvm create workspace dev --env DB_HOST=localhost --env DB_PORT=5432`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		workspaceName := args[0]
@@ -101,6 +106,18 @@ Examples:
 		// Validate --branch and --create-branch are mutually exclusive
 		if workspaceBranch != "" && workspaceCreateBranch != "" {
 			return fmt.Errorf("--branch and --create-branch are mutually exclusive")
+		}
+
+		// Parse --env flags
+		envFlags, _ := cmd.Flags().GetStringArray("env")
+		var envMap map[string]string
+		if len(envFlags) > 0 {
+			var err error
+			envMap, err = parseEnvFlags(envFlags)
+			if err != nil {
+				render.Error(err.Error())
+				return errSilent
+			}
 		}
 
 		// Get datastore from context
@@ -184,6 +201,9 @@ Examples:
 
 		if err := ws.PrepareDefaults(workspace, ds); err != nil {
 			return fmt.Errorf("failed to prepare workspace defaults: %w", err)
+		}
+		if len(envMap) > 0 {
+			workspace.SetEnv(envMap)
 		}
 		if err := ds.CreateWorkspace(workspace); err != nil {
 			return fmt.Errorf("failed to create workspace: %w", err)
@@ -401,6 +421,29 @@ func classifyMirrorError(err error) string {
 	return "clone"
 }
 
+// parseEnvFlags parses and validates --env KEY=VALUE flag values.
+// Keys must match [A-Z_][A-Z0-9_]*, must not be on the security denylist,
+// and must not use the reserved DVM_ prefix. Duplicate keys use last-one-wins.
+func parseEnvFlags(pairs []string) (map[string]string, error) {
+	result := make(map[string]string)
+	for _, pair := range pairs {
+		idx := strings.IndexByte(pair, '=')
+		if idx == -1 {
+			return nil, fmt.Errorf("invalid --env format %q: must be KEY=VALUE", pair)
+		}
+		key := pair[:idx]
+		value := pair[idx+1:]
+		if key == "" {
+			return nil, fmt.Errorf("invalid --env format %q: key cannot be empty", pair)
+		}
+		if err := envvalidation.ValidateEnvKey(key); err != nil {
+			return nil, fmt.Errorf("invalid --env key %q: %w", key, err)
+		}
+		result[key] = value // last-one-wins for duplicates
+	}
+	return result, nil
+}
+
 // =============================================================================
 // Create Branch Command (dvm create branch <name>)
 // =============================================================================
@@ -516,6 +559,7 @@ func init() {
 	createWorkspaceCmd.Flags().StringVar(&workspaceRepo, "repo", "", "GitRepo to clone into workspace (see: dvm get gitrepos)")
 	createWorkspaceCmd.Flags().StringVar(&workspaceBranch, "branch", "", "Git branch to checkout (default: repo's DefaultRef)")
 	createWorkspaceCmd.Flags().StringVar(&workspaceCreateBranch, "create-branch", "", "Create a new local branch in the workspace repo")
+	createWorkspaceCmd.Flags().StringArrayP("env", "e", []string{}, "Set environment variable (KEY=VALUE, repeatable)")
 
 	// --branch and --create-branch are mutually exclusive
 	createWorkspaceCmd.MarkFlagsMutuallyExclusive("branch", "create-branch")

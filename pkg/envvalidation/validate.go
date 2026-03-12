@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 )
 
 // ErrInvalidKey is returned when an env var key fails validation.
@@ -16,6 +17,9 @@ var ErrInvalidKey = errors.New("invalid env var key")
 
 // ErrForbiddenKey is returned when an env var key is in the forbidden list.
 var ErrForbiddenKey = errors.New("forbidden env var key")
+
+// ErrReservedKey is returned when an env var key uses the reserved DVM_ prefix.
+var ErrReservedKey = errors.New("key uses reserved DVM_ prefix")
 
 // validEnvKeyPattern matches strict environment variable names.
 // Must start with uppercase letter or underscore, followed by uppercase letters,
@@ -40,6 +44,7 @@ var dangerousEnvVars = map[string]bool{
 // Keys must be non-empty, contain only [A-Z0-9_], and not start with a digit.
 // Returns ErrInvalidKey (wrapped) if the key is malformed.
 // Returns ErrForbiddenKey (wrapped) if the key is in the security denylist.
+// Returns ErrReservedKey (wrapped) if the key uses the reserved DVM_ prefix.
 func ValidateEnvKey(key string) error {
 	if key == "" {
 		return fmt.Errorf("environment variable name cannot be empty: %w", ErrInvalidKey)
@@ -49,6 +54,9 @@ func ValidateEnvKey(key string) error {
 	}
 	if dangerousEnvVars[key] {
 		return fmt.Errorf("environment variable %q is in the security denylist (potentially dangerous): %w", key, ErrForbiddenKey)
+	}
+	if IsDVMReservedKey(key) {
+		return fmt.Errorf("environment variable %q uses the reserved DVM_ prefix: %w", key, ErrReservedKey)
 	}
 	return nil
 }
@@ -81,4 +89,9 @@ func SanitizeEnvMap(env map[string]string) (sanitized map[string]string, skipped
 // IsDangerousEnvVar returns true if the env var name is in the security denylist.
 func IsDangerousEnvVar(name string) bool {
 	return dangerousEnvVars[name]
+}
+
+// IsDVMReservedKey returns true if the key uses the reserved DVM_ prefix.
+func IsDVMReservedKey(key string) bool {
+	return strings.HasPrefix(key, "DVM_")
 }

@@ -240,3 +240,198 @@ func TestEnsureDefaultRegistry_ErrorWhenSetDefaultFails(t *testing.T) {
 	require.Error(t, err, "error from SetDefault must be propagated")
 	assert.ErrorIs(t, err, setErr, "propagated error should wrap or equal the original error")
 }
+
+// =============================================================================
+// TDD Phase 2 (RED): WI-5 — Bootstrap all 5 default registries on init
+// =============================================================================
+
+// aliasToDefaultKey maps each alias to its expected defaults store key.
+// Used to assert SetDefault is called with the right key per alias.
+var aliasToDefaultKey = map[string]string{
+	AliasOCI:  DefaultKeyOCI,
+	AliasPyPI: DefaultKeyPyPI,
+	AliasNPM:  DefaultKeyNPM,
+	AliasGo:   DefaultKeyGo,
+	AliasHTTP: DefaultKeyHTTP,
+}
+
+// aliasToConcreteType maps each alias to the expected concrete registry type.
+var aliasToConcreteType = map[string]string{
+	AliasOCI:  TypeZot,
+	AliasPyPI: TypeDevpi,
+	AliasNPM:  TypeVerdaccio,
+	AliasGo:   TypeAthens,
+	AliasHTTP: TypeSquid,
+}
+
+// TestEnsureDefaultRegistry_AllAliases verifies that EnsureDefaultRegistry works
+// correctly for each of the 5 supported aliases: "oci", "pypi", "npm", "go", "http".
+// Each alias must resolve to the correct concrete type and set the right defaults key.
+//
+// This test WILL FAIL (RED) until EnsureDefaultRegistry has been verified to
+// handle all 5 aliases end-to-end (WI-5: bootstrap all aliases on init).
+func TestEnsureDefaultRegistry_AllAliases(t *testing.T) {
+	allAliases := []string{AliasOCI, AliasPyPI, AliasNPM, AliasGo, AliasHTTP}
+
+	for _, alias := range allAliases {
+		alias := alias // capture for sub-test closure
+		t.Run("alias="+alias, func(t *testing.T) {
+			ctx := context.Background()
+
+			registryStore := &mockRegistryStore{
+				// Default: GetRegistryByName returns "not found", triggering creation.
+			}
+			defaultsStore := &mockDefaultsStore{}
+
+			created, err := EnsureDefaultRegistry(ctx, registryStore, defaultsStore, alias, "on-demand")
+			require.NoError(t, err, "alias %q must not return an error", alias)
+			assert.True(t, created, "alias %q should create a new registry (created=true)", alias)
+
+			// Verify CreateRegistry was called exactly once.
+			require.Len(t, registryStore.createRegistryCalls, 1,
+				"alias %q: CreateRegistry should be called exactly once", alias)
+
+			reg := registryStore.createRegistryCalls[0]
+			expectedType := aliasToConcreteType[alias]
+
+			assert.Equal(t, expectedType, reg.Type,
+				"alias %q: registry type should be %q", alias, expectedType)
+			assert.Equal(t, expectedType, reg.Name,
+				"alias %q: registry name should equal the concrete type %q", alias, expectedType)
+			assert.True(t, reg.Enabled,
+				"alias %q: registry should be enabled", alias)
+			assert.Equal(t, "stopped", reg.Status,
+				"alias %q: initial status should be stopped", alias)
+
+			// Verify SetDefault was called with the correct defaults key.
+			require.Len(t, defaultsStore.setDefaultCalls, 1,
+				"alias %q: SetDefault must be called exactly once", alias)
+
+			expectedKey := aliasToDefaultKey[alias]
+			assert.Equal(t, expectedKey, defaultsStore.setDefaultCalls[0].Key,
+				"alias %q: SetDefault key should be %q", alias, expectedKey)
+			assert.Equal(t, expectedType, defaultsStore.setDefaultCalls[0].Value,
+				"alias %q: SetDefault value should be %q", alias, expectedType)
+		})
+	}
+}
+
+// TestEnsureDefaultRegistry_AllIdempotent verifies that calling EnsureDefaultRegistry
+// twice for each alias is idempotent: the second call returns (false, nil) and does
+// not create an additional registry, resulting in exactly 5 registries total for 10 calls.
+//
+// This test WILL FAIL (RED) until the idempotency path works correctly for all 5 aliases.
+func TestEnsureDefaultRegistry_AllIdempotent(t *testing.T) {
+	ctx := context.Background()
+	allAliases := []string{AliasOCI, AliasPyPI, AliasNPM, AliasGo, AliasHTTP}
+
+	// Shared registry store that accumulates all created registries.
+	// This simulates a real DB: after first call creates it, second call finds it.
+	registryStore := &mockRegistryStore{}
+	defaultsStore := &mockDefaultsStore{}
+
+	// Track all created registries by name so the second call can find them.
+	createdRegistries := make(map[string]*models.Registry)
+	registryStore.CreateRegistryFunc = func(r *models.Registry) error {
+		createdRegistries[r.Name] = r
+		registryStore.createRegistryCalls = append(registryStore.createRegistryCalls, r)
+		return nil
+	}
+	registryStore.GetRegistryByNameFunc = func(name string) (*models.Registry, error) {
+		if r, ok := createdRegistries[name]; ok {
+			return r, nil
+		}
+		return nil, errors.New("registry '" + name + "' not found")
+	}
+
+	// First pass: all 5 aliases should create new registries.
+	for _, alias := range allAliases {
+		created, err := EnsureDefaultRegistry(ctx, registryStore, defaultsStore, alias, "on-demand")
+		require.NoError(t, err, "first call for alias %q should not error", alias)
+		assert.True(t, created, "first call for alias %q should return created=true", alias)
+	}
+
+	// Verify 5 registries were created after the first pass.
+	assert.Len(t, registryStore.createRegistryCalls, 5,
+		"exactly 5 registries should be created after first pass")
+
+	// Reset create call tracking for the second pass.
+	registryStore.createRegistryCalls = nil
+
+	// Second pass: all 5 aliases should find existing registries — no new creation.
+	for _, alias := range allAliases {
+		created, err := EnsureDefaultRegistry(ctx, registryStore, defaultsStore, alias, "on-demand")
+		require.NoError(t, err, "second call for alias %q should not error", alias)
+		assert.False(t, created, "second call for alias %q should return created=false (already exists)", alias)
+	}
+
+	// Verify no additional registries were created in the second pass.
+	assert.Empty(t, registryStore.createRegistryCalls,
+		"no registries should be created on the second pass (idempotency)")
+
+	// Total unique registries in createdRegistries map must be exactly 5.
+	assert.Len(t, createdRegistries, 5,
+		"total unique registries should be exactly 5, not 10")
+}
+
+// TestEnsureDefaultRegistry_PartialFailure verifies that a failure for one alias
+// does not prevent the others from succeeding. This tests that callers can iterate
+// all aliases and that each is independent.
+//
+// NOTE: EnsureDefaultRegistry itself is per-alias and has no cross-alias logic.
+// This test validates the CALLER PATTERN for WI-5: when bootstrapping all 5 aliases,
+// a failure in one (e.g., "pypi" CreateRegistry fails) should not prevent the others.
+// The test simulates calling EnsureDefaultRegistry in a loop and collecting errors.
+//
+// This test WILL FAIL (RED) until EnsureAllDefaultRegistries (or equivalent loop
+// logic in cmd/init.go) is implemented to continue past partial failures.
+func TestEnsureDefaultRegistry_PartialFailure(t *testing.T) {
+	ctx := context.Background()
+
+	pypiErr := errors.New("pypi creation failed: disk quota exceeded")
+
+	registryStore := &mockRegistryStore{
+		// Default: GetRegistryByName returns "not found" for all → triggers creation.
+		CreateRegistryFunc: func(r *models.Registry) error {
+			// Fail only for devpi (the pypi concrete type).
+			if r.Type == TypeDevpi {
+				return pypiErr
+			}
+			// All other types succeed.
+			return nil
+		},
+	}
+	defaultsStore := &mockDefaultsStore{}
+
+	// Track which aliases succeeded and which failed.
+	type result struct {
+		created bool
+		err     error
+	}
+	results := make(map[string]result)
+
+	allAliases := []string{AliasOCI, AliasPyPI, AliasNPM, AliasGo, AliasHTTP}
+	for _, alias := range allAliases {
+		created, err := EnsureDefaultRegistry(ctx, registryStore, defaultsStore, alias, "on-demand")
+		results[alias] = result{created: created, err: err}
+	}
+
+	// "pypi" should have failed.
+	require.Error(t, results[AliasPyPI].err,
+		"pypi alias should return an error when CreateRegistry fails")
+	assert.False(t, results[AliasPyPI].created,
+		"pypi alias should not be created on failure")
+
+	// All others should have succeeded.
+	successAliases := []string{AliasOCI, AliasNPM, AliasGo, AliasHTTP}
+	for _, alias := range successAliases {
+		assert.NoError(t, results[alias].err,
+			"alias %q should succeed even though pypi failed", alias)
+		assert.True(t, results[alias].created,
+			"alias %q should be created (created=true)", alias)
+	}
+}
+
+// =============================================================================
+// End of WI-5 tests
+// =============================================================================

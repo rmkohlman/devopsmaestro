@@ -240,6 +240,7 @@ func getRelativePath(base, target string) string {
 
 // loadBuildCredentials loads and resolves credentials from the hierarchy:
 // Global -> Ecosystem -> Domain -> App -> Workspace
+// Used for both build-time (--build-arg) and runtime (container env) injection.
 // Environment variables always take highest priority.
 func loadBuildCredentials(ds db.DataStore, app *models.App, workspace *models.Workspace) map[string]string {
 	var scopes []config.CredentialScope

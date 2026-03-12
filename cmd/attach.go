@@ -6,8 +6,10 @@ import (
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/operators"
+	"devopsmaestro/pkg/envvalidation"
 	"devopsmaestro/pkg/mirror"
 	"devopsmaestro/pkg/nvimops/theme/library"
+	"devopsmaestro/pkg/registry/envinjector"
 	"devopsmaestro/pkg/resolver"
 	ws "devopsmaestro/pkg/workspace"
 	"devopsmaestro/render"
@@ -221,34 +223,29 @@ func runAttach(cmd *cobra.Command) error {
 	render.Progress("Attaching to workspace...")
 	slog.Info("attaching to container", "name", containerName)
 
-	// Build base environment variables
-	envVars := map[string]string{
-		"TERM":          "xterm-256color",
-		"DVM_WORKSPACE": workspaceName,
-		"DVM_APP":       appName,
-	}
+	// Load workspace env
+	wsEnv := workspace.GetEnv()
 
-	// Add ecosystem and domain if available
-	if ecosystemName != "" {
-		envVars["DVM_ECOSYSTEM"] = ecosystemName
-	}
-	if domainName != "" {
-		envVars["DVM_DOMAIN"] = domainName
-	}
-
-	// Load theme colors and add to environment
+	// Load theme env
+	themeEnv := map[string]string{}
 	themeName := getThemeName(workspace)
 	if themeName != "" {
-		if themeEnvVars, err := loadThemeEnvVars(themeName); err == nil {
-			// Merge theme env vars
-			for k, v := range themeEnvVars {
-				envVars[k] = v
-			}
-			slog.Info("loaded theme colors", "theme", themeName, "colors", len(themeEnvVars))
+		if te, err := loadThemeEnvVars(themeName); err == nil {
+			themeEnv = te
+			slog.Info("loaded theme colors", "theme", themeName, "colors", len(themeEnv))
 		} else {
 			slog.Warn("failed to load theme colors", "theme", themeName, "error", err)
 		}
 	}
+
+	// Load registry env (WI-3)
+	registryEnv, _ := loadRegistryEnv(ds)
+
+	// Load credential env (WI-2)
+	credentialEnv := loadBuildCredentials(ds, app, workspace)
+
+	// Build the merged env
+	envVars := buildRuntimeEnv(appName, workspaceName, ecosystemName, domainName, themeEnv, registryEnv, credentialEnv, wsEnv)
 
 	// Build AttachOptions with environment variables for proper terminal and workspace context
 	attachOpts := operators.AttachOptions{
@@ -339,18 +336,48 @@ func getMountPath(ds db.DataStore, workspace *models.Workspace, appPath string) 
 }
 
 // buildRuntimeEnv assembles the environment variable map for a workspace shell session.
-// It merges (in increasing priority order): theme env vars, workspace env vars,
-// and standard DVM metadata vars.
+// It merges env vars in increasing priority order:
 //
-// TODO (WI-4): Implement full runtime credential injection and registry vars.
-// Currently only includes metadata vars; wsEnv and themeEnv merging is stubbed.
-func buildRuntimeEnv(appName, workspaceName, ecosystemName, domainName string, wsEnv, themeEnv map[string]string) map[string]string {
-	env := map[string]string{
-		"TERM":          "xterm-256color",
-		"DVM_WORKSPACE": workspaceName,
-		"DVM_APP":       appName,
+//	Layer 1 (lowest): themeEnv     — terminal color vars from the active theme
+//	Layer 2:          registryEnv  — PIP_INDEX_URL, GOPROXY, NPM_CONFIG_REGISTRY, etc.
+//	Layer 3:          credentialEnv — GITHUB_TOKEN, AWS_ACCESS_KEY_ID, etc. (dangerous vars filtered)
+//	Layer 4:          wsEnv        — workspace spec.env (highest user-defined priority)
+//	Layer 5 (highest): metadata    — TERM, DVM_WORKSPACE, DVM_APP, DVM_ECOSYSTEM, DVM_DOMAIN
+//
+// Metadata vars are applied last so they can never be overridden by any env layer.
+func buildRuntimeEnv(appName, workspaceName, ecosystemName, domainName string, themeEnv, registryEnv, credentialEnv, wsEnv map[string]string) map[string]string {
+	env := make(map[string]string)
+
+	// Layer 1 (lowest priority): theme env
+	for k, v := range themeEnv {
+		env[k] = v
 	}
 
+	// Layer 2: registry env
+	for k, v := range registryEnv {
+		env[k] = v
+	}
+
+	// Layer 3: credential env (filter dangerous vars)
+	for k, v := range credentialEnv {
+		if envvalidation.IsDangerousEnvVar(k) {
+			slog.Warn("blocked dangerous credential env var", "key", k)
+			continue
+		}
+		env[k] = v
+	}
+
+	// Layer 4: workspace env (highest user-defined priority)
+	// Note: DVM_WORKSPACE, DVM_APP, DVM_ECOSYSTEM, DVM_DOMAIN, and TERM are
+	// protected by Layer 5 metadata which is applied last and always wins.
+	for k, v := range wsEnv {
+		env[k] = v
+	}
+
+	// Layer 5 (highest priority): DVM metadata — CANNOT be overridden
+	env["TERM"] = "xterm-256color"
+	env["DVM_WORKSPACE"] = workspaceName
+	env["DVM_APP"] = appName
 	if ecosystemName != "" {
 		env["DVM_ECOSYSTEM"] = ecosystemName
 	}
@@ -358,16 +385,35 @@ func buildRuntimeEnv(appName, workspaceName, ecosystemName, domainName string, w
 		env["DVM_DOMAIN"] = domainName
 	}
 
-	// Merge theme env first (lower priority)
-	for k, v := range themeEnv {
-		env[k] = v
-	}
-	// Merge workspace env next (higher priority — overrides theme)
-	for k, v := range wsEnv {
-		env[k] = v
+	return env
+}
+
+// loadRegistryEnv loads env vars from all enabled registries.
+// Returns a map of registry-injected env vars (e.g., PIP_INDEX_URL, GOPROXY).
+func loadRegistryEnv(ds db.DataStore) (map[string]string, error) {
+	registries, err := ds.ListRegistries()
+	if err != nil {
+		slog.Warn("failed to list registries for env injection", "error", err)
+		return nil, err
 	}
 
-	return env
+	var enabled []*models.Registry
+	for _, reg := range registries {
+		if reg.Enabled {
+			enabled = append(enabled, reg)
+		}
+	}
+
+	if len(enabled) == 0 {
+		return map[string]string{}, nil
+	}
+
+	injector := envinjector.NewEnvironmentInjector()
+	envVars := injector.InjectForAttachMultiple(enabled)
+	if len(envVars) > 0 {
+		slog.Info("injected registry env vars", "count", len(envVars), "registries", len(enabled))
+	}
+	return envVars, nil
 }
 
 // Initializes the attach command

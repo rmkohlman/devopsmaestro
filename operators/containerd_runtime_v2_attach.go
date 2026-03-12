@@ -59,7 +59,9 @@ func (r *ContainerdRuntimeV2) attachViaColima(ctx context.Context, opts AttachOp
 
 	// Add environment variables
 	for key, value := range opts.Env {
-		cmdParts = append(cmdParts, "-e", fmt.Sprintf("%s=%s", key, value))
+		// Shell-escape the value to prevent shell metacharacter interpretation
+		escaped := strings.ReplaceAll(value, "'", "'\\''")
+		cmdParts = append(cmdParts, "-e", fmt.Sprintf("%s='%s'", key, escaped))
 	}
 
 	// Add container name
