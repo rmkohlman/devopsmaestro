@@ -51,7 +51,9 @@ func detectPythonPrivateRepos(appPath string, info *PrivateRepoInfo) {
 
 	// Pattern: git+https://${VAR}:${VAR}@github.com or git+ssh://git@github.com
 	httpsGitPattern := regexp.MustCompile(`git\+https?://`)
-	sshGitPattern := regexp.MustCompile(`git\+ssh://|git@`)
+	// Match git+ssh:// anywhere, or git@ only when NOT preceded by a dot
+	// (prevents ".git@v1.0" in HTTPS URLs like repo.git@v1.0 from false-matching)
+	sshGitPattern := regexp.MustCompile(`git\+ssh://|[^.]git@|^git@`)
 	varPattern := regexp.MustCompile(`\$\{([^}]+)\}`)
 
 	hasHTTPS := httpsGitPattern.MatchString(text)

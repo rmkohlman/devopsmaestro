@@ -208,14 +208,13 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 			dockerfile.WriteString("    build-essential\n\n")
 		}
 
-		// For Python with SSH keys, install deps with SSH mount
-		if privateRepoInfo.NeedsSSH {
-			dockerfile.WriteString("# Install dependencies with SSH key mount\n")
-			dockerfile.WriteString("COPY requirements.txt /tmp/\n")
-			dockerfile.WriteString("RUN --mount=type=ssh \\\n")
-			dockerfile.WriteString("    --mount=type=cache,target=/root/.cache/pip \\\n")
-			dockerfile.WriteString("    pip install -r /tmp/requirements.txt\n\n")
-		} else if len(privateRepoInfo.RequiredBuildArgs) > 0 {
+		// Dispatch on GitURLType for correct pip install strategy:
+		//   "https" → sed substitution for token variables, then pip install (no SSH mount)
+		//   "ssh"   → pip install with --mount=type=ssh (no sed substitution)
+		//   "mixed" → sed substitution for HTTPS token lines, then pip install with SSH mount
+		//   default → plain pip install (no private repos)
+		switch privateRepoInfo.GitURLType {
+		case "https":
 			dockerfile.WriteString("# Copy and process requirements with build args\n")
 			dockerfile.WriteString("COPY requirements.txt /tmp/requirements-template.txt\n")
 
@@ -228,7 +227,30 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 
 			dockerfile.WriteString("RUN --mount=type=cache,target=/root/.cache/pip \\\n")
 			dockerfile.WriteString("    pip install -r /tmp/requirements.txt\n\n")
-		} else {
+
+		case "ssh":
+			dockerfile.WriteString("# Install dependencies with SSH key mount\n")
+			dockerfile.WriteString("COPY requirements.txt /tmp/\n")
+			dockerfile.WriteString("RUN --mount=type=ssh \\\n")
+			dockerfile.WriteString("    --mount=type=cache,target=/root/.cache/pip \\\n")
+			dockerfile.WriteString("    pip install -r /tmp/requirements.txt\n\n")
+
+		case "mixed":
+			// Both: sed substitution for HTTPS token lines, then pip install with SSH mount
+			dockerfile.WriteString("# Copy and process requirements with build args, then install with SSH mount\n")
+			dockerfile.WriteString("COPY requirements.txt /tmp/requirements-template.txt\n")
+
+			dockerfile.WriteString("RUN cat /tmp/requirements-template.txt | \\\n")
+			for _, arg := range privateRepoInfo.RequiredBuildArgs {
+				dockerfile.WriteString(fmt.Sprintf("    sed \"s/\\${%s}/$%s/g\" | \\\n", arg, arg))
+			}
+			dockerfile.WriteString("    tee /tmp/requirements.txt > /dev/null\n\n")
+
+			dockerfile.WriteString("RUN --mount=type=ssh \\\n")
+			dockerfile.WriteString("    --mount=type=cache,target=/root/.cache/pip \\\n")
+			dockerfile.WriteString("    pip install -r /tmp/requirements.txt\n\n")
+
+		default:
 			dockerfile.WriteString("# Copy requirements and install\n")
 			dockerfile.WriteString("COPY requirements.txt /tmp/\n")
 			dockerfile.WriteString("RUN --mount=type=cache,target=/root/.cache/pip \\\n")

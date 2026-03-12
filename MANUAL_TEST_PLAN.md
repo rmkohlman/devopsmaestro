@@ -1,6 +1,6 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.38.0  
+> **Version**: v0.38.1  
 > **Last Updated**: March 12, 2026
 
 ---
@@ -2885,6 +2885,213 @@ go test ./builders/... -v -run 'TestGenerate_NvimConfig_GracefulSkip'
 
 ---
 
+## Part 15: Python HTTPS Token Substitution (v0.38.1)
+
+These scenarios verify the two bug fixes in v0.38.1: the SSH detection regex false positive and the Dockerfile generator dispatch for Python private dependencies. Each scenario focuses on the generated Dockerfile content, which can be inspected without a live Docker build using `--dry-run`.
+
+**Prerequisites:**
+- `dvm` binary built from v0.38.1+
+- A Python workspace with a `requirements.txt` accessible to `dvm build`
+- No live Docker build environment required for Scenarios 52–54 (dry-run only)
+
+---
+
+### Scenario 52: HTTPS-Only Private Dependencies — sed Substitution Path
+
+Verify that a `requirements.txt` containing only HTTPS private dependencies (with `${VAR}` token placeholders) generates a Dockerfile with sed substitution — and does **not** include an SSH mount.
+
+**Setup:** Create a `requirements.txt` with HTTPS private deps:
+
+```
+flask==2.3.0
+beansmodels @ git+https://${GITHUB_USERNAME}:${GITHUB_PAT}@github.com/RogersCommunications/beans-models.git@2025.03.27.1430
+```
+
+```bash
+# Dry-run the build and save the generated Dockerfile
+dvm build --workspace <your-python-workspace> --dry-run 2>&1 > /tmp/Dockerfile.https.dvm
+```
+
+**Verify sed substitution is present:**
+
+```bash
+# ARG declarations for both token variables
+grep "ARG GITHUB_USERNAME" /tmp/Dockerfile.https.dvm
+grep "ARG GITHUB_PAT" /tmp/Dockerfile.https.dvm
+
+# requirements-template.txt is copied (sed operates on the template)
+grep "requirements-template.txt" /tmp/Dockerfile.https.dvm
+
+# sed substitution rewrites placeholders before pip install
+grep 'sed.*GITHUB_USERNAME' /tmp/Dockerfile.https.dvm
+grep 'sed.*GITHUB_PAT' /tmp/Dockerfile.https.dvm
+```
+
+**Verify SSH mount is absent:**
+
+```bash
+# Must return 0 (no match) — HTTPS-only deps should not produce an SSH mount
+grep -c -- '--mount=type=ssh' /tmp/Dockerfile.https.dvm
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `ARG GITHUB_USERNAME` declared | Present in Dockerfile | |
+| `ARG GITHUB_PAT` declared | Present in Dockerfile | |
+| `requirements-template.txt` referenced | Template copy step present | |
+| `sed` substitution for `GITHUB_USERNAME` | `sed "s/\${GITHUB_USERNAME}/$GITHUB_USERNAME/g"` (or equivalent) present | |
+| `sed` substitution for `GITHUB_PAT` | `sed "s/\${GITHUB_PAT}/$GITHUB_PAT/g"` (or equivalent) present | |
+| No SSH mount in pip install | `grep -c '--mount=type=ssh'` returns `0` | |
+
+---
+
+### Scenario 53: SSH-Only Private Dependencies — SSH Mount Path
+
+Verify that a `requirements.txt` containing only SSH private dependencies generates a Dockerfile with an SSH mount — and does **not** include sed substitution.
+
+**Setup:** Create a `requirements.txt` with SSH-only private deps:
+
+```
+flask==2.3.0
+mylib @ git+ssh://git@github.com/myorg/mylib.git@v1.2.3
+```
+
+```bash
+# Dry-run the build and save the generated Dockerfile
+dvm build --workspace <your-python-workspace> --dry-run 2>&1 > /tmp/Dockerfile.ssh.dvm
+```
+
+**Verify SSH mount is present:**
+
+```bash
+# pip install should use --mount=type=ssh
+grep -- '--mount=type=ssh' /tmp/Dockerfile.ssh.dvm
+```
+
+**Verify sed substitution is absent:**
+
+```bash
+# Must return 0 — SSH-only deps should not produce sed substitution
+grep -c 'requirements-template.txt' /tmp/Dockerfile.ssh.dvm
+grep -c 'sed.*GITHUB' /tmp/Dockerfile.ssh.dvm
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `--mount=type=ssh` present in pip install | SSH mount directive present | |
+| No `requirements-template.txt` | `grep -c 'requirements-template.txt'` returns `0` | |
+| No sed substitution | `grep -c 'sed.*GITHUB'` returns `0` | |
+
+---
+
+### Scenario 54: Mixed Dependencies — Both sed and SSH Mount
+
+Verify that a `requirements.txt` containing both HTTPS token deps and SSH deps generates a Dockerfile with **both** sed substitution and an SSH mount in the pip install step.
+
+**Setup:** Create a `requirements.txt` with mixed private deps:
+
+```
+flask==2.3.0
+beansmodels @ git+https://${GITHUB_USERNAME}:${GITHUB_PAT}@github.com/RogersCommunications/beans-models.git@2025.03.27.1430
+mylib @ git+ssh://git@github.com/myorg/mylib.git@v1.2.3
+```
+
+```bash
+# Dry-run the build and save the generated Dockerfile
+dvm build --workspace <your-python-workspace> --dry-run 2>&1 > /tmp/Dockerfile.mixed.dvm
+```
+
+**Verify both mechanisms are present:**
+
+```bash
+# sed substitution for HTTPS credentials
+grep 'sed.*GITHUB_USERNAME' /tmp/Dockerfile.mixed.dvm
+grep 'sed.*GITHUB_PAT'      /tmp/Dockerfile.mixed.dvm
+
+# SSH mount for SSH dependencies
+grep -- '--mount=type=ssh'  /tmp/Dockerfile.mixed.dvm
+
+# ARG declarations for token variables
+grep 'ARG GITHUB_USERNAME'  /tmp/Dockerfile.mixed.dvm
+grep 'ARG GITHUB_PAT'       /tmp/Dockerfile.mixed.dvm
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `ARG GITHUB_USERNAME` declared | Present | |
+| `ARG GITHUB_PAT` declared | Present | |
+| sed substitution for `GITHUB_USERNAME` | Present | |
+| sed substitution for `GITHUB_PAT` | Present | |
+| `--mount=type=ssh` present | Present | |
+
+---
+
+### Scenario 55: Version-Pinned HTTPS URL Not Misclassified as SSH
+
+Verify that an HTTPS URL containing `.git@<tag>` (e.g., `repo.git@2025.03.27.1430`) does **not** trigger SSH detection — this was the root cause of the v0.38.1 regression.
+
+**Setup:** Create a `requirements.txt` with a version-pinned HTTPS URL (no `${VAR}` tokens):
+
+```
+flask==2.3.0
+beansmodels @ git+https://github.com/RogersCommunications/beans-models.git@2025.03.27.1430
+```
+
+```bash
+# Dry-run the build and save the generated Dockerfile
+dvm build --workspace <your-python-workspace> --dry-run 2>&1 > /tmp/Dockerfile.noprivate.dvm
+echo "Exit code: $?"
+```
+
+**Verify neither SSH nor sed substitution is injected:**
+
+```bash
+# Plain pip install — no credential handling expected
+grep -c -- '--mount=type=ssh' /tmp/Dockerfile.noprivate.dvm
+grep -c 'requirements-template.txt' /tmp/Dockerfile.noprivate.dvm
+grep -c 'ARG GITHUB' /tmp/Dockerfile.noprivate.dvm
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Build completes without error | Exit code 0 | |
+| No SSH mount injected | `grep -c '--mount=type=ssh'` returns `0` | |
+| No sed substitution injected | `grep -c 'requirements-template.txt'` returns `0` | |
+| No ARG declarations for GitHub vars | `grep -c 'ARG GITHUB'` returns `0` | |
+| Plain `pip install -r requirements.txt` | Standard pip install command present | |
+
+---
+
+### Scenario 56: Automated Test Coverage (Regression Gate)
+
+Run the automated tests added in v0.38.1 to confirm the regression is covered and all 12 subtests pass.
+
+```bash
+# Run both new test functions
+go test ./utils/... -v -run 'TestDetectPythonPrivateRepos'
+go test ./builders/... -v -run 'TestDockerfileGenerator_PythonPrivateRepos'
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `TestDetectPythonPrivateRepos` passes | All 8 subtests ✅ | |
+| `TestDockerfileGenerator_PythonPrivateRepos` passes | All 4 subtests ✅ | |
+| No regressions in existing tests | `go test ./...` all green ✅ | |
+
+**Verify individual subtests:**
+
+```bash
+go test ./utils/... -v -run 'TestDetectPythonPrivateRepos/HTTPS-only'
+go test ./utils/... -v -run 'TestDetectPythonPrivateRepos/SSH-only'
+go test ./utils/... -v -run 'TestDetectPythonPrivateRepos/Mixed'
+go test ./builders/... -v -run 'TestDockerfileGenerator_PythonPrivateRepos/HTTPS-only_sed_path'
+go test ./builders/... -v -run 'TestDockerfileGenerator_PythonPrivateRepos/SSH-only_mount_path'
+go test ./builders/... -v -run 'TestDockerfileGenerator_PythonPrivateRepos/Mixed'
+go test ./builders/... -v -run 'TestDockerfileGenerator_PythonPrivateRepos/No_private_repos_plain_install'
+```
+
+---
+
 ## Test Results Summary
 
 | Part | Tests | Pass | Fail |
@@ -2906,6 +3113,7 @@ go test ./builders/... -v -run 'TestGenerate_NvimConfig_GracefulSkip'
 | Part 12: BuildKit Builder Stage Robustness | 3 scenarios | | |
 | Part 13: BuildKit Structural Improvements | 3 scenarios | | |
 | Part 14: Dockerfile Generator Purity | 3 scenarios | | |
+| Part 15: Python HTTPS Token Substitution | 5 scenarios | | |
 
 ---
 
@@ -2958,5 +3166,5 @@ colima nerdctl -- --namespace devopsmaestro images
 
 **Tested by:** ________________  
 **Date:** ________________  
-**Version:** v0.38.0  
+**Version:** v0.38.1  
 **Platform:** ________________

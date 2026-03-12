@@ -2253,3 +2253,118 @@ func TestGenerateNvimSection_UsesPathConfig(t *testing.T) {
 		t.Errorf("Generate() should include chown for nvim config")
 	}
 }
+
+// TestDockerfileGenerator_PythonPrivateRepos verifies that the Dockerfile generator
+// correctly handles all GitURLType scenarios (https, ssh, mixed, none) for Python workspaces.
+// This is the regression test for the v0.38.1 bug where the NeedsSSH flag incorrectly
+// shadowed the HTTPS token-substitution path in the if/else if/else chain.
+func TestDockerfileGenerator_PythonPrivateRepos(t *testing.T) {
+	tests := []struct {
+		name                string
+		requirementsContent string
+		wantContain         []string
+		wantNotContain      []string
+	}{
+		{
+			name: "HTTPS-only — sed substitution path",
+			requirementsContent: "flask==2.3.0\n" +
+				"git+https://${GITHUB_USERNAME}:${GITHUB_PAT}@github.com/Org/repo.git@v1.0\n",
+			wantContain: []string{
+				"sed",
+				"GITHUB_USERNAME",
+				"GITHUB_PAT",
+				"requirements-template.txt",
+				"ARG GITHUB_USERNAME",
+				"ARG GITHUB_PAT",
+			},
+			wantNotContain: []string{
+				"--mount=type=ssh",
+			},
+		},
+		{
+			name:                "SSH-only — SSH mount path",
+			requirementsContent: "mylib @ git+ssh://git@github.com/Org/repo.git@v1.0\n",
+			wantContain: []string{
+				"--mount=type=ssh",
+				"ssh-keyscan",
+				"openssh-client",
+			},
+			wantNotContain: []string{
+				"requirements-template.txt",
+			},
+		},
+		{
+			// KEY FAILING TEST: mixed case must produce BOTH sed substitution AND SSH mount.
+			// Current code (if NeedsSSH { ... } else if RequiredBuildArgs { ... }) takes only
+			// the SSH path, so "sed" and "requirements-template.txt" are absent — test fails RED.
+			name: "Mixed HTTPS+SSH — both sed substitution AND SSH mount",
+			requirementsContent: "git+https://${GITHUB_USERNAME}:${GITHUB_PAT}@github.com/Org/private-lib.git@v1.0\n" +
+				"mylib @ git+ssh://git@github.com/Org/repo.git@v2.0\n",
+			wantContain: []string{
+				"sed",
+				"--mount=type=ssh",
+				"GITHUB_USERNAME",
+				"ssh-keyscan",
+				"requirements-template.txt",
+			},
+			wantNotContain: []string{},
+		},
+		{
+			name:                "No private repos — plain pip install",
+			requirementsContent: "flask==2.3.0\nrequests>=2.28\n",
+			wantContain: []string{
+				"COPY requirements.txt /tmp/",
+				"pip install -r /tmp/requirements.txt",
+			},
+			wantNotContain: []string{
+				"--mount=type=ssh",
+				"requirements-template.txt",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			appPath := t.TempDir()
+
+			// Write requirements.txt so DetectPrivateRepos can scan it
+			reqPath := filepath.Join(appPath, "requirements.txt")
+			if err := os.WriteFile(reqPath, []byte(tt.requirementsContent), 0644); err != nil {
+				t.Fatalf("failed to write requirements.txt: %v", err)
+			}
+
+			ws := &models.Workspace{
+				ID:        1,
+				Name:      "test-ws",
+				ImageName: "test:latest",
+			}
+			wsYAML := models.WorkspaceSpec{}
+
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: wsYAML,
+				Language:      "python",
+				Version:       "3.11",
+				AppPath:       appPath,
+				PathConfig:    paths.New(t.TempDir()),
+			})
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			for _, want := range tt.wantContain {
+				if !strings.Contains(dockerfile, want) {
+					t.Errorf("Generate() missing expected content: %q\nDockerfile:\n%s", want, dockerfile)
+				}
+			}
+
+			for _, notWant := range tt.wantNotContain {
+				if strings.Contains(dockerfile, notWant) {
+					t.Errorf("Generate() contains unexpected content: %q\nDockerfile:\n%s", notWant, dockerfile)
+				}
+			}
+		})
+	}
+}

@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.38.1] - 2026-03-12 — Fix Python HTTPS Token Substitution
+
+### 🐛 Bug Fixes
+
+#### SSH Detection Regex False Positive — `utils/private_repo_detector.go`
+- **The SSH detection regex `git\+ssh://|git@` falsely matched `.git@v1.0` inside HTTPS URLs** (e.g., `repo.git@v1.0`), causing `NeedsSSH=true` and `GitURLType="mixed"` for requirements files that contained only HTTPS private dependencies — any workspace whose `requirements.txt` used the `repo.git@<tag>` version-pinning syntax was misclassified as needing SSH
+- **Fixed to `git\+ssh://|[^.]git@|^git@`** — The updated regex requires `git@` to NOT be immediately preceded by a dot, so `.git@v1.0` (a version pin on an HTTPS URL) is correctly ignored while true SSH remote syntax (`git@github.com:org/repo.git`) continues to match
+
+#### Python Dependency Install Dispatch — `builders/dockerfile_generator.go`
+- **The `if NeedsSSH / else if RequiredBuildArgs / else` priority chain skipped HTTPS token substitution whenever `NeedsSSH` was true** — In "mixed" mode (SSH + HTTPS deps in the same requirements file) and in any workspace where the regex bug above caused a false `NeedsSSH=true`, the `sed`-based token substitution stage was bypassed entirely; the generated Dockerfile used SSH mounts but never rewrote the HTTPS credential placeholders
+- **Replaced the if/else chain with a `switch` on `privateRepoInfo.GitURLType`** — Each case dispatches to the correct code path: `"https"` → sed substitution only, `"ssh"` → SSH mount only, `"mixed"` → both sed substitution and SSH mount, `default` → plain `pip install` with no credential handling; all four cases are now independent and cannot accidentally shadow one another
+
+### 🧪 Tests Added (12 new subtests)
+
+- **`TestDetectPythonPrivateRepos`** — 8 subtests covering the full detection matrix:
+  - `HTTPS-only with token variables` — detects HTTPS deps and extracts env var names
+  - `SSH-only` — detects SSH deps, no false HTTPS detection
+  - `Mixed HTTPS and SSH` — detects both correctly
+  - `No private repos` — clean requirements file returns empty result
+  - `No requirements.txt` — gracefully returns empty result with no error
+  - `HTTPS without variables` — HTTPS URL with no `${VAR}` placeholders is not flagged
+  - `Multiple token variables deduplicated` — two references to the same `${GITHUB_PAT}` produce a single build arg
+  - `git@ SSH syntax` — bare `git@github.com:org/repo.git` form is detected as SSH
+- **`TestDockerfileGenerator_PythonPrivateRepos`** — 4 subtests verifying end-to-end Dockerfile generation:
+  - `HTTPS-only sed path` — generated Dockerfile contains sed substitution, `requirements-template.txt`, and `ARG` declarations; does NOT contain `--mount=type=ssh`
+  - `SSH-only mount path` — generated Dockerfile contains `--mount=type=ssh`; does NOT contain sed substitution
+  - `Mixed (both sed + SSH)` — generated Dockerfile contains both sed substitution and SSH mount
+  - `No private repos plain install` — generated Dockerfile uses plain `pip install -r requirements.txt`
+
+### 📊 v0.38.1 Summary
+
+| Metric | Value |
+|--------|-------|
+| Bugs fixed | 2 (regex false positive, dispatch chain priority error) |
+| Files changed | 2 (`utils/private_repo_detector.go`, `builders/dockerfile_generator.go`) |
+| New test files | 1 (`utils/private_repo_detector_test.go`) |
+| New test functions | 2 (`TestDetectPythonPrivateRepos`, `TestDockerfileGenerator_PythonPrivateRepos`) |
+| New subtests | 12 (8 + 4) |
+| All tests pass | ✅ |
+
+---
+
 ## [v0.38.0] - 2026-03-12 — Dockerfile Generator Purity & Robustness
 
 ### 🐛 Bug Fixes
