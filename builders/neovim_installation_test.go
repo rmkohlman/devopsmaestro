@@ -2,6 +2,7 @@ package builders
 
 import (
 	"devopsmaestro/models"
+	"devopsmaestro/pkg/paths"
 	"strings"
 	"testing"
 )
@@ -31,7 +32,7 @@ func TestNeovimInstallation_PythonSlim(t *testing.T) {
 		},
 	}
 
-	generator := NewDockerfileGenerator(ws, wsYAML, "python", "3.11", "/tmp/test", "")
+	generator := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: wsYAML, Language: "python", Version: "3.11", AppPath: "/tmp/test", PathConfig: paths.New(t.TempDir())})
 
 	dockerfile, err := generator.Generate()
 	if err != nil {
@@ -99,7 +100,7 @@ func TestNeovimInstallation_GolangAlpine(t *testing.T) {
 		},
 	}
 
-	generator := NewDockerfileGenerator(ws, wsYAML, "golang", "1.22", "/tmp/test", "")
+	generator := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: wsYAML, Language: "golang", Version: "1.22", AppPath: "/tmp/test", PathConfig: paths.New(t.TempDir())})
 
 	dockerfile, err := generator.Generate()
 	if err != nil {
@@ -154,7 +155,7 @@ func TestLazygitInstallation_PythonSlim(t *testing.T) {
 		},
 	}
 
-	generator := NewDockerfileGenerator(ws, wsYAML, "python", "3.11", "/tmp/test", "")
+	generator := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: wsYAML, Language: "python", Version: "3.11", AppPath: "/tmp/test", PathConfig: paths.New(t.TempDir())})
 
 	dockerfile, err := generator.Generate()
 	if err != nil {
@@ -212,7 +213,7 @@ func TestLazygitInstallation_GolangAlpine(t *testing.T) {
 		},
 	}
 
-	generator := NewDockerfileGenerator(ws, wsYAML, "golang", "1.22", "/tmp/test", "")
+	generator := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: wsYAML, Language: "golang", Version: "1.22", AppPath: "/tmp/test", PathConfig: paths.New(t.TempDir())})
 
 	dockerfile, err := generator.Generate()
 	if err != nil {

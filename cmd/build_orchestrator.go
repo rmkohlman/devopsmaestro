@@ -244,14 +244,15 @@ func buildWorkspace(cmd *cobra.Command) error {
 	render.Blank()
 	render.Progress("Generating Dockerfile.dvm...")
 	slog.Debug("generating Dockerfile", "language", languageName, "version", version)
-	generator := builders.NewDockerfileGenerator(
-		workspace,
-		workspaceYAML.Spec,
-		languageName,
-		version,
-		sourcePath, // Use sourcePath (not app.Path) so nvim config staging dir is found correctly (Issue #18)
-		dockerfilePath,
-	)
+	generator := builders.NewDockerfileGenerator(builders.DockerfileGeneratorOptions{
+		Workspace:      workspace,
+		WorkspaceSpec:  workspaceYAML.Spec,
+		Language:       languageName,
+		Version:        version,
+		AppPath:        sourcePath, // Use sourcePath (not app.Path) so nvim config staging dir is found correctly (Issue #18)
+		BaseDockerfile: dockerfilePath,
+		PathConfig:     paths.New(homeDir),
+	})
 
 	// Set plugin manifest for conditional feature detection
 	if pluginManifest != nil {

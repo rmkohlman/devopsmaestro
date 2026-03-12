@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.38.0] - 2026-03-12 — Dockerfile Generator Purity & Robustness
+
+### 🐛 Bug Fixes
+
+#### (D2) `isAlpineImage()` Uses Computed Field Instead of Language Heuristic — `builders/dockerfile_generator.go`
+- **`isAlpineImage()` now reads the `isAlpine` field set during base stage generation** instead of hardcoding `language == "golang"` as the Alpine indicator — Golang workspaces that elect a Debian base image were incorrectly treated as Alpine, causing wrong package manager selection and user-creation commands
+- The `isAlpine` field is computed once in `generateBaseStage()` from the actual image name and remains authoritative for the lifetime of the generator
+
+#### (A2) `getDefaultPackages()` Uses `isAlpineImage()` Instead of Direct String Check — `builders/dockerfile_generator.go`
+- **`getDefaultPackages()` now calls `isAlpineImage()` for Alpine detection** instead of directly calling `strings.Contains(ImageName, "alpine")` — The direct check bypassed the computed field entirely, producing mismatched package lists when the Alpine state had already been resolved; both callers are now consistent
+
+### 🏗️ Improvements
+
+#### (A1) Unified `effectiveVersion()` Replaces Duplicated Version Defaults — `builders/dockerfile_generator.go`
+- **New `effectiveVersion()` method centralises language-default version resolution** — Previously, each of the 3 language branches (golang, python, nodejs) contained its own `if version == "" { version = "..." }` block; all three are now delegated to a single method
+- **`effectiveGoVersion()` delegates to `effectiveVersion()`** — Removes the last inline version-default from the golang branch; both helpers now share the same code path
+
+#### (A4) `activeBuilderStages()` Computed Once and Passed to Both Callsites — `builders/dockerfile_generator.go`
+- **`Generate()` now computes the active builder stage list once** and passes the result to both `emitBuilderStages()` and `emitCopyFromBuilders()` — Previously each method recomputed the list independently, creating a window where a mid-execution change (or a future bug) could produce a `COPY --from=<stage>` referencing a stage that was not emitted
+
+#### (D3) `PathConfig` Injection via Options Struct — `builders/dockerfile_generator.go`
+- **`DockerfileGeneratorOptions` now accepts an optional `PathConfig *paths.PathConfig` field** — `generateNvimSection()` uses the injected path configuration instead of calling `os.UserHomeDir()` directly, enabling test-time path control without filesystem side-effects
+- **Nil `PathConfig` falls back to `os.UserHomeDir()`** — Existing production callsites with no `PathConfig` set continue to work unchanged
+
+#### (D1) `generateNvimSection()` Returns `error`; `Generate()` Propagates It — `builders/dockerfile_generator.go`
+- **`generateNvimSection()` now has return type `(string, error)`** — Previously it returned only `string` and silently skipped the nvim config section on any filesystem error (e.g., `os.UserHomeDir()` failure, stat failure); errors are now propagated to `Generate()` and returned to the caller
+- **`Generate()` propagates the nvim section error** — No silent skips; callers receive a structured error
+
+### ⚙️ Internal
+
+#### (A5) `NewDockerfileGenerator()` Accepts Options Struct — `builders/dockerfile_generator.go`
+- **`NewDockerfileGenerator()` signature changed from 6 positional parameters to a single `DockerfileGeneratorOptions` struct** — Eliminates argument-order bugs, makes intent clear at callsites, and accommodates new optional fields (`PathConfig`) without further signature churn
+- **All callsites updated**: `cmd/build_orchestrator.go` (production), `builders/dockerfile_generator_test.go`, and `builders/neovim_installation_test.go`
+
+### 🧪 Tests Added (6 new)
+
+- **`TestIsAlpine_ComputedPerLanguage`** — Table-driven: golang→Alpine, python→Debian, nodejs→Alpine, default→Debian; guards against regression of the D2 fix
+- **`TestIsAlpine_FieldMatchesGeneratedImage`** — Verifies the `FROM` line image name matches the package manager and user-creation commands selected, confirming the computed Alpine field drives consistent output
+- **`TestEffectiveGoVersion_PythonGenerator_ExposesMissingUnification`** — Regression guard: confirms unified `effectiveVersion()` resolves defaults consistently across all language branches (A1 fix)
+- **`TestActiveBuilderStages_GolangDebian_IncludesNeovimBuilder`** — Verifies the stage list returned by `activeBuilderStages()` is correct for a golang/Debian configuration, and that the neovim builder is always included
+- **`TestGenerate_NvimConfig_GracefulSkip`** — No nvim config directory present → graceful skip with a Dockerfile comment rather than a nil-pointer or silent empty section (D1 fix)
+- **`TestGenerateNvimSection_UsesPathConfig`** — End-to-end: injected `PathConfig` controls the path used inside `generateNvimSection()`, confirming DI works without calling `os.UserHomeDir()` (D3 fix)
+
+### 📊 v0.38.0 Summary
+
+| Metric | Value |
+|--------|-------|
+| Issues addressed | 7 (2 bug fixes, 4 improvements, 1 internal breaking change) |
+| Structural improvements | `effectiveVersion()`, `DockerfileGeneratorOptions`, `PathConfig` injection |
+| Files changed | 4 (`builders/dockerfile_generator.go`, `builders/dockerfile_generator_test.go`, `builders/neovim_installation_test.go`, `cmd/build_orchestrator.go`) |
+| New tests | 6 |
+| All tests pass | ✅ |
+
+---
+
 ## [v0.37.5] - 2026-03-12 — BuildKit Structural Improvements
 
 ### 🏗️ Improvements

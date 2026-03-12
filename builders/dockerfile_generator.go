@@ -47,18 +47,32 @@ type DefaultDockerfileGenerator struct {
 	appPath        string
 	baseDockerfile string
 	pluginManifest *plugin.PluginManifest
+	pathConfig     *paths.PathConfig
+	isAlpine       bool // computed in generateBaseStage() based on the actual image chosen
+}
+
+// DockerfileGeneratorOptions contains all configuration for creating a DockerfileGenerator.
+type DockerfileGeneratorOptions struct {
+	Workspace      *models.Workspace
+	WorkspaceSpec  models.WorkspaceSpec
+	Language       string
+	Version        string
+	AppPath        string
+	BaseDockerfile string
+	PathConfig     *paths.PathConfig // Injected for filesystem operations (nil = fallback to os.UserHomeDir)
 }
 
 // NewDockerfileGenerator creates a new Dockerfile generator.
 // Returns the DockerfileGenerator interface for loose coupling.
-func NewDockerfileGenerator(ws *models.Workspace, wsYAML models.WorkspaceSpec, lang, version, appPath, baseDockerfile string) DockerfileGenerator {
+func NewDockerfileGenerator(opts DockerfileGeneratorOptions) DockerfileGenerator {
 	return &DefaultDockerfileGenerator{
-		workspace:      ws,
-		workspaceYAML:  wsYAML,
-		language:       lang,
-		version:        version,
-		appPath:        appPath,
-		baseDockerfile: baseDockerfile,
+		workspace:      opts.Workspace,
+		workspaceYAML:  opts.WorkspaceSpec,
+		language:       opts.Language,
+		version:        opts.Version,
+		appPath:        opts.AppPath,
+		baseDockerfile: opts.BaseDockerfile,
+		pathConfig:     opts.PathConfig,
 	}
 }
 
@@ -99,8 +113,11 @@ func (g *DefaultDockerfileGenerator) Generate() (string, error) {
 	// Future: Support extending existing production Dockerfiles
 	g.generateBaseStage(&dockerfile, privateRepoInfo)
 
+	// Compute builder stages once — single source of truth for both emission and COPY
+	stages := g.activeBuilderStages()
+
 	// Parallel builder stages - BuildKit runs these concurrently
-	g.generateBuilderStages(&dockerfile)
+	g.emitBuilderStages(&dockerfile, stages)
 
 	// Dev stage
 	dockerfile.WriteString("# Development stage with additional tools\n")
@@ -110,7 +127,7 @@ func (g *DefaultDockerfileGenerator) Generate() (string, error) {
 	dockerfile.WriteString("USER root\n\n")
 
 	// Copy binaries from parallel builder stages
-	g.copyFromBuilders(&dockerfile)
+	g.emitCopyFromBuilders(&dockerfile, stages)
 
 	// Generate dev stage content based on language and config
 	g.generateDevStage(&dockerfile)
@@ -119,7 +136,9 @@ func (g *DefaultDockerfileGenerator) Generate() (string, error) {
 	g.generateDevUser(&dockerfile)
 
 	// Add Neovim configuration after user is created
-	g.generateNvimSection(&dockerfile)
+	if err := g.generateNvimSection(&dockerfile); err != nil {
+		return "", fmt.Errorf("nvim section: %w", err)
+	}
 
 	// Switch to dev user
 	dockerfile.WriteString("USER dev\n\n")
@@ -148,10 +167,8 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 
 	switch g.language {
 	case "python":
-		version := g.version
-		if version == "" {
-			version = "3.11"
-		}
+		version := g.effectiveVersion()
+		g.isAlpine = false
 		dockerfile.WriteString(fmt.Sprintf("FROM python:%s-slim-bookworm AS base\n\n", version))
 
 		// Install git if needed for private repos
@@ -219,10 +236,8 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 		}
 
 	case "golang":
-		version := g.version
-		if version == "" {
-			version = "1.22"
-		}
+		version := g.effectiveVersion()
+		g.isAlpine = true
 		dockerfile.WriteString(fmt.Sprintf("FROM golang:%s-alpine AS base\n\n", version))
 
 		dockerfile.WriteString("# Install basic dependencies\n")
@@ -241,10 +256,8 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 		}
 
 	case "nodejs":
-		version := g.version
-		if version == "" {
-			version = "18"
-		}
+		version := g.effectiveVersion()
+		g.isAlpine = true
 		dockerfile.WriteString(fmt.Sprintf("FROM node:%s-alpine AS base\n\n", version))
 
 		if privateRepoInfo.NeedsGit {
@@ -266,6 +279,7 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 
 	default:
 		// Generic Ubuntu base
+		g.isAlpine = false
 		dockerfile.WriteString("FROM ubuntu:22.04 AS base\n\n")
 
 		packages := []string{"ca-certificates"}
@@ -360,7 +374,7 @@ func (g *DefaultDockerfileGenerator) activeBuilderStages() []builderStage {
 	return stages
 }
 
-// generateBuilderStages emits parallel multi-stage builds for binary downloads.
+// emitBuilderStages emits parallel multi-stage builds for binary downloads.
 // BuildKit runs these concurrently since they have no dependencies on each other.
 //
 // Builder image selection rationale:
@@ -377,8 +391,8 @@ func (g *DefaultDockerfileGenerator) activeBuilderStages() []builderStage {
 // Exception: go-tools-builder uses Go module/build cache mounts because `go install`
 // downloads significant dependencies that benefit from caching.
 // The dev stage (long-lived) uses cache mounts for all package managers.
-func (g *DefaultDockerfileGenerator) generateBuilderStages(dockerfile *strings.Builder) {
-	for _, stage := range g.activeBuilderStages() {
+func (g *DefaultDockerfileGenerator) emitBuilderStages(dockerfile *strings.Builder, stages []builderStage) {
+	for _, stage := range stages {
 		stage.emitFunc(dockerfile)
 	}
 }
@@ -524,10 +538,11 @@ func (g *DefaultDockerfileGenerator) generateGoToolsBuilder(dockerfile *strings.
 	dockerfile.WriteString("    " + strings.Join(installCmds, " && \\\n    ") + "\n\n")
 }
 
-// copyFromBuilders emits COPY --from= directives to pull binaries from parallel stages
-func (g *DefaultDockerfileGenerator) copyFromBuilders(dockerfile *strings.Builder) {
+// emitCopyFromBuilders emits COPY --from= directives to pull binaries from parallel stages.
+// Iterates the pre-computed stages slice to stay in sync with emitBuilderStages().
+func (g *DefaultDockerfileGenerator) emitCopyFromBuilders(dockerfile *strings.Builder, stages []builderStage) {
 	dockerfile.WriteString("# Copy binaries from parallel builder stages\n")
-	for _, stage := range g.activeBuilderStages() {
+	for _, stage := range stages {
 		for _, line := range stage.copyLines {
 			dockerfile.WriteString(line + "\n")
 		}
@@ -535,12 +550,29 @@ func (g *DefaultDockerfileGenerator) copyFromBuilders(dockerfile *strings.Builde
 	dockerfile.WriteString("\n")
 }
 
-// effectiveGoVersion returns the Go version to use (with default)
-func (g *DefaultDockerfileGenerator) effectiveGoVersion() string {
+// effectiveVersion returns the language-appropriate version to use, falling back
+// to a sensible default when the user hasn't specified one. This is the single
+// source of truth for version defaulting, replacing per-language inline logic.
+func (g *DefaultDockerfileGenerator) effectiveVersion() string {
 	if g.version != "" {
 		return g.version
 	}
-	return "1.22"
+	switch g.language {
+	case "python":
+		return "3.11"
+	case "golang":
+		return "1.22"
+	case "nodejs":
+		return "18"
+	default:
+		return ""
+	}
+}
+
+// effectiveGoVersion returns the version for Go-based stages.
+// Delegates to effectiveVersion() for unified version defaulting.
+func (g *DefaultDockerfileGenerator) effectiveGoVersion() string {
+	return g.effectiveVersion()
 }
 
 func (g *DefaultDockerfileGenerator) generateDevStage(dockerfile *strings.Builder) {
@@ -695,7 +727,7 @@ func (g *DefaultDockerfileGenerator) getDefaultPackages() []string {
 	// Add language-specific base packages
 	switch g.language {
 	case "python":
-		if !strings.Contains(g.workspace.ImageName, "alpine") {
+		if !g.isAlpineImage() {
 			base = append(base, "build-essential", "python3-pip")
 		}
 	case "golang":
@@ -705,10 +737,12 @@ func (g *DefaultDockerfileGenerator) getDefaultPackages() []string {
 	return base
 }
 
-// isAlpineImage returns true if the base image is Alpine-based
-// This affects user creation commands, package manager, and binary compatibility
+// isAlpineImage returns true if the base image is Alpine-based.
+// This value is computed in generateBaseStage() based on the actual image chosen,
+// not guessed from workspace metadata. It affects user creation commands,
+// package manager selection, and binary compatibility.
 func (g *DefaultDockerfileGenerator) isAlpineImage() bool {
-	return g.language == "golang" || strings.Contains(g.workspace.ImageName, "alpine")
+	return g.isAlpine
 }
 
 func (g *DefaultDockerfileGenerator) getDefaultLanguageTools() []string {
@@ -759,23 +793,37 @@ func (g *DefaultDockerfileGenerator) effectiveUser() string {
 	return "dev"
 }
 
-// generateNvimSection copies nvim config and installs plugins (called after user creation)
-func (g *DefaultDockerfileGenerator) generateNvimSection(dockerfile *strings.Builder) {
+// generateNvimSection copies nvim config and installs plugins (called after user creation).
+// Returns an error if filesystem operations fail unexpectedly (NOT for missing nvim config,
+// which is a normal condition handled gracefully with a skip comment).
+func (g *DefaultDockerfileGenerator) generateNvimSection(dockerfile *strings.Builder) error {
 	// Skip if explicitly disabled
 	if g.workspaceYAML.Nvim.Structure == "none" {
-		return
+		return nil
 	}
 
 	// Check if staging nvim config directory exists
 	// The copyNvimConfig function now creates config in staging directory
-	homeDir, _ := os.UserHomeDir()
-	stagingDir := paths.New(homeDir).BuildStagingDir(filepath.Base(g.appPath))
+	pc := g.pathConfig
+	if pc == nil {
+		// Fallback for backward compatibility
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("cannot determine home directory: %w", err)
+		}
+		pc = paths.New(homeDir)
+	}
+	stagingDir := pc.BuildStagingDir(filepath.Base(g.appPath))
 	nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
-	if _, err := os.Stat(nvimConfigPath); os.IsNotExist(err) {
-		// Nvim config doesn't exist - skip this section
-		dockerfile.WriteString("# Skipping Neovim configuration (no config generated)\n")
-		dockerfile.WriteString("# Run 'dvm build' after setting up nvim plugins to enable nvim config\n\n")
-		return
+	if _, err := os.Stat(nvimConfigPath); err != nil {
+		if os.IsNotExist(err) {
+			// Nvim config doesn't exist - skip this section (normal for fresh workspace)
+			dockerfile.WriteString("# Skipping Neovim configuration (no config generated)\n")
+			dockerfile.WriteString("# Run 'dvm build' after setting up nvim plugins to enable nvim config\n\n")
+			return nil
+		}
+		// Unexpected filesystem error (permission denied, etc.)
+		return fmt.Errorf("checking nvim config at %s: %w", nvimConfigPath, err)
 	}
 
 	// Copy nvim configuration from staging directory
@@ -799,6 +847,7 @@ func (g *DefaultDockerfileGenerator) generateNvimSection(dockerfile *strings.Bui
 	g.installMasonLSPs(dockerfile)
 
 	dockerfile.WriteString("USER root\n\n")
+	return nil
 }
 
 // getMasonLSPsForLanguage returns the Mason LSP package names for the detected language

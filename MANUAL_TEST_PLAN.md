@@ -1,6 +1,6 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.37.5  
+> **Version**: v0.38.0  
 > **Last Updated**: March 12, 2026
 
 ---
@@ -2735,6 +2735,156 @@ grep "/home/dev/" Dockerfile.dvm
 
 ---
 
+## Part 14: Dockerfile Generator Purity (v0.38.0)
+
+These scenarios verify the correctness fixes and structural improvements made to the Dockerfile generator in v0.38.0: computed Alpine detection, PathConfig injection for nvim staging, and error propagation from the nvim section.
+
+**Prerequisites:**
+- `dvm` binary built from v0.38.0+
+- A working Docker / Colima environment with BuildKit enabled
+
+---
+
+### Scenario 49: Computed Alpine Detection Matches Generated Image
+
+Verify that the generated Dockerfile's package manager (`apk` vs `apt-get`) and user-creation command (`adduser` vs `useradd`) are consistent with the `FROM` image selected for the given language, and that switching a golang workspace to a Debian base image correctly uses Debian tooling throughout.
+
+**Setup:** Two workspaces — one golang workspace using the default Alpine image, one golang workspace explicitly configured with a Debian base image.
+
+```bash
+# Inspect the generated Dockerfile for an Alpine golang workspace
+dvm build --workspace <golang-alpine-workspace> --dry-run 2>&1 > /tmp/Dockerfile.alpine.dvm
+```
+
+**Verify Alpine workspace:**
+
+```bash
+# Base image should be Alpine (e.g., golang:1.x-alpine)
+grep "^FROM golang" /tmp/Dockerfile.alpine.dvm | head -1
+
+# Package manager should be apk
+grep "apk add" /tmp/Dockerfile.alpine.dvm
+
+# User creation should use adduser (Alpine style)
+grep "adduser" /tmp/Dockerfile.alpine.dvm
+```
+
+```bash
+# Inspect the generated Dockerfile for a Debian golang workspace
+dvm build --workspace <golang-debian-workspace> --dry-run 2>&1 > /tmp/Dockerfile.debian.dvm
+```
+
+**Verify Debian workspace:**
+
+```bash
+# Base image should be Debian (e.g., golang:1.x or golang:1.x-bookworm)
+grep "^FROM golang" /tmp/Dockerfile.debian.dvm | head -1
+
+# Package manager should be apt-get (not apk)
+grep "apt-get install" /tmp/Dockerfile.debian.dvm
+grep -c "apk add" /tmp/Dockerfile.debian.dvm    # Expected: 0
+
+# User creation should use useradd (Debian style)
+grep "useradd" /tmp/Dockerfile.debian.dvm
+grep -c "adduser" /tmp/Dockerfile.debian.dvm    # Expected: 0 (or only in Alpine stages)
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Alpine workspace uses `apk add` | Package install uses `apk`, not `apt-get` | |
+| Alpine workspace uses `adduser` | User creation uses `adduser` | |
+| Debian workspace uses `apt-get install` | Package install uses `apt-get`, not `apk` | |
+| Debian workspace uses `useradd` | User creation uses `useradd`, not `adduser` | |
+| Automated tests pass | `TestIsAlpine_ComputedPerLanguage` and `TestIsAlpine_FieldMatchesGeneratedImage` ✅ | |
+
+```bash
+# Automated coverage
+go test ./builders/... -v -run 'TestIsAlpine'
+```
+
+---
+
+### Scenario 50: PathConfig Injection Works for Nvim Staging
+
+Verify that the nvim config staging section in the generated Dockerfile references the correct path from the host, and that the path used is derived from the PathConfig rather than a hardcoded `os.UserHomeDir()` call.
+
+**Prerequisites:** A workspace configured to include neovim (i.e., a plugin manifest with nvim enabled).
+
+```bash
+# Build (or dry-run) with a workspace that has nvim enabled
+dvm build --workspace <nvim-enabled-workspace> --dry-run 2>&1 > /tmp/Dockerfile.nvim.dvm
+```
+
+**Verify the nvim config COPY path is present and plausible:**
+
+```bash
+# The COPY directive for nvim config should reference a path
+grep -i "nvim" /tmp/Dockerfile.nvim.dvm
+
+# The path in the COPY instruction should match ~/.config/nvim or equivalent
+grep "COPY.*nvim" /tmp/Dockerfile.nvim.dvm
+```
+
+**Verify the automated path injection test:**
+
+```bash
+go test ./builders/... -v -run 'TestGenerateNvimSection_UsesPathConfig'
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Nvim COPY present when nvim config exists | `COPY` directive for nvim config appears in Dockerfile | |
+| Path is consistent with host home dir | No literal `/Users/dev` or other hardcoded developer path | |
+| `TestGenerateNvimSection_UsesPathConfig` passes | Injected PathConfig controls path used in section ✅ | |
+
+---
+
+### Scenario 51: Error Propagation from Nvim Section
+
+Verify that when the nvim config directory is absent, `dvm build` either succeeds with a graceful skip comment in the Dockerfile **or** returns a clear error — not a silent empty section or a panic.
+
+**Setup:** A workspace where no `~/.config/nvim` directory exists on the host.
+
+```bash
+# Temporarily rename or remove the nvim config directory
+mv ~/.config/nvim ~/.config/nvim.bak 2>/dev/null || echo "No nvim config to move"
+
+# Run a build (or dry-run) that would include the nvim section
+dvm build --workspace <nvim-enabled-workspace> --dry-run 2>&1 > /tmp/Dockerfile.nonvim.dvm
+echo "Exit code: $?"
+```
+
+**Verify behavior:**
+
+```bash
+# Option A: Build succeeds with a skip comment
+grep -i "nvim" /tmp/Dockerfile.nonvim.dvm
+# Expected: a comment like "# nvim config not found, skipping"
+
+# Option B: Build returns a clear error (non-zero exit, no panic)
+# Expected: error message references nvim config path, no stack trace
+```
+
+```bash
+# Restore nvim config
+mv ~/.config/nvim.bak ~/.config/nvim 2>/dev/null || true
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| No panic when nvim config absent | No stack trace or nil pointer dereference | |
+| Graceful skip: comment in Dockerfile | `# nvim config not found` (or similar) in Dockerfile output | |
+| OR clear error returned | Non-zero exit with descriptive error message referencing nvim path | |
+| Silent empty section NOT acceptable | Dockerfile does not contain an empty/incomplete nvim section | |
+| Automated test passes | `TestGenerate_NvimConfig_GracefulSkip` ✅ | |
+
+```bash
+# Automated coverage
+go test ./builders/... -v -run 'TestGenerate_NvimConfig_GracefulSkip'
+```
+
+---
+
 ## Test Results Summary
 
 | Part | Tests | Pass | Fail |
@@ -2755,6 +2905,7 @@ grep "/home/dev/" Dockerfile.dvm
 | Part 11: Registry Bug Fix Verification | 6 scenarios | | |
 | Part 12: BuildKit Builder Stage Robustness | 3 scenarios | | |
 | Part 13: BuildKit Structural Improvements | 3 scenarios | | |
+| Part 14: Dockerfile Generator Purity | 3 scenarios | | |
 
 ---
 
@@ -2807,5 +2958,5 @@ colima nerdctl -- --namespace devopsmaestro images
 
 **Tested by:** ________________  
 **Date:** ________________  
-**Version:** v0.37.5  
+**Version:** v0.38.0  
 **Platform:** ________________

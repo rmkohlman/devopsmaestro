@@ -8,6 +8,7 @@ import (
 
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/nvimops/plugin"
+	"devopsmaestro/pkg/paths"
 )
 
 func TestDockerfileGenerator_GenerateBaseStage_Python(t *testing.T) {
@@ -50,7 +51,14 @@ func TestDockerfileGenerator_GenerateBaseStage_Python(t *testing.T) {
 			}
 			wsYAML := models.WorkspaceSpec{}
 
-			gen := NewDockerfileGenerator(ws, wsYAML, "python", tt.version, "/tmp/test", "")
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: wsYAML,
+				Language:      "python",
+				Version:       tt.version,
+				AppPath:       "/tmp/test",
+				PathConfig:    paths.New(t.TempDir()),
+			})
 
 			dockerfile, err := gen.Generate()
 			if err != nil {
@@ -105,7 +113,14 @@ func TestDockerfileGenerator_GenerateBaseStage_Golang(t *testing.T) {
 			}
 			wsYAML := models.WorkspaceSpec{}
 
-			gen := NewDockerfileGenerator(ws, wsYAML, "golang", tt.version, "/tmp/test", "")
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: wsYAML,
+				Language:      "golang",
+				Version:       tt.version,
+				AppPath:       "/tmp/test",
+				PathConfig:    paths.New(t.TempDir()),
+			})
 
 			dockerfile, err := gen.Generate()
 			if err != nil {
@@ -159,7 +174,14 @@ func TestDockerfileGenerator_GenerateBaseStage_NodeJS(t *testing.T) {
 			}
 			wsYAML := models.WorkspaceSpec{}
 
-			gen := NewDockerfileGenerator(ws, wsYAML, "nodejs", tt.version, "/tmp/test", "")
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: wsYAML,
+				Language:      "nodejs",
+				Version:       tt.version,
+				AppPath:       "/tmp/test",
+				PathConfig:    paths.New(t.TempDir()),
+			})
 
 			dockerfile, err := gen.Generate()
 			if err != nil {
@@ -183,7 +205,13 @@ func TestDockerfileGenerator_GenerateBaseStage_Unknown(t *testing.T) {
 	}
 	wsYAML := models.WorkspaceSpec{}
 
-	gen := NewDockerfileGenerator(ws, wsYAML, "unknown", "", "/tmp/test", "")
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "unknown",
+		AppPath:       "/tmp/test",
+		PathConfig:    paths.New(t.TempDir()),
+	})
 
 	dockerfile, err := gen.Generate()
 	if err != nil {
@@ -204,7 +232,7 @@ func TestDockerfileGenerator_GenerateDevStage(t *testing.T) {
 	}
 	wsYAML := models.WorkspaceSpec{}
 
-	gen := NewDockerfileGenerator(ws, wsYAML, "python", "3.11", "/tmp/test", "")
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: wsYAML, Language: "python", Version: "3.11", AppPath: "/tmp/test", PathConfig: paths.New(t.TempDir())})
 
 	dockerfile, err := gen.Generate()
 	if err != nil {
@@ -244,7 +272,7 @@ func TestDockerfileGenerator_DevStage_CustomPackages(t *testing.T) {
 		},
 	}
 
-	gen := NewDockerfileGenerator(ws, wsYAML, "python", "3.11", "/tmp/test", "")
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: wsYAML, Language: "python", Version: "3.11", AppPath: "/tmp/test", PathConfig: paths.New(t.TempDir())})
 
 	dockerfile, err := gen.Generate()
 	if err != nil {
@@ -275,7 +303,7 @@ func TestDockerfileGenerator_DevStage_CustomDevTools(t *testing.T) {
 		},
 	}
 
-	gen := NewDockerfileGenerator(ws, wsYAML, "python", "3.11", "/tmp/test", "")
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: wsYAML, Language: "python", Version: "3.11", AppPath: "/tmp/test", PathConfig: paths.New(t.TempDir())})
 
 	dockerfile, err := gen.Generate()
 	if err != nil {
@@ -306,7 +334,7 @@ func TestDockerfileGenerator_DevStage_GolangTools(t *testing.T) {
 		},
 	}
 
-	gen := NewDockerfileGenerator(ws, wsYAML, "golang", "1.22", "/tmp/test", "")
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: wsYAML, Language: "golang", Version: "1.22", AppPath: "/tmp/test", PathConfig: paths.New(t.TempDir())})
 
 	dockerfile, err := gen.Generate()
 	if err != nil {
@@ -375,7 +403,7 @@ func TestDockerfileGenerator_DevUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gen := NewDockerfileGenerator(ws, tt.wsYAML, "python", "3.11", "/tmp/test", "")
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: tt.wsYAML, Language: "python", Version: "3.11", AppPath: "/tmp/test", PathConfig: paths.New(t.TempDir())})
 
 			dockerfile, err := gen.Generate()
 			if err != nil {
@@ -399,7 +427,7 @@ func TestDockerfileGenerator_DevUserAlpine(t *testing.T) {
 		ImageName: "test:latest",
 	}
 
-	gen := NewDockerfileGenerator(ws, models.WorkspaceSpec{}, "golang", "1.23", "/tmp/test", "")
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: models.WorkspaceSpec{}, Language: "golang", Version: "1.23", AppPath: "/tmp/test", PathConfig: paths.New(t.TempDir())})
 
 	dockerfile, err := gen.Generate()
 	if err != nil {
@@ -440,7 +468,7 @@ func TestDockerfileGenerator_CustomWorkDir(t *testing.T) {
 		},
 	}
 
-	gen := NewDockerfileGenerator(ws, wsYAML, "python", "3.11", "/tmp/test", "")
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: wsYAML, Language: "python", Version: "3.11", AppPath: "/tmp/test", PathConfig: paths.New(t.TempDir())})
 
 	dockerfile, err := gen.Generate()
 	if err != nil {
@@ -464,7 +492,7 @@ func TestDockerfileGenerator_CustomCommand(t *testing.T) {
 		},
 	}
 
-	gen := NewDockerfileGenerator(ws, wsYAML, "python", "3.11", "/tmp/test", "")
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: wsYAML, Language: "python", Version: "3.11", AppPath: "/tmp/test", PathConfig: paths.New(t.TempDir())})
 
 	dockerfile, err := gen.Generate()
 	if err != nil {
@@ -523,7 +551,7 @@ func TestDockerfileGenerator_LanguageVersionTable(t *testing.T) {
 			}
 			wsYAML := models.WorkspaceSpec{}
 
-			gen := NewDockerfileGenerator(ws, wsYAML, tt.language, tt.version, "/tmp/test", "")
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: wsYAML, Language: tt.language, Version: tt.version, AppPath: "/tmp/test", PathConfig: paths.New(t.TempDir())})
 
 			dockerfile, err := gen.Generate()
 			if err != nil {
@@ -545,7 +573,7 @@ func TestNewDockerfileGenerator(t *testing.T) {
 	}
 	wsYAML := models.WorkspaceSpec{}
 
-	gen := NewDockerfileGenerator(ws, wsYAML, "python", "3.11", "/app/path", "/app/path/Dockerfile")
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: wsYAML, Language: "python", Version: "3.11", AppPath: "/app/path", BaseDockerfile: "/app/path/Dockerfile", PathConfig: paths.New(t.TempDir())})
 
 	// Type assert to access internal fields for verification
 	impl := gen.(*DefaultDockerfileGenerator)
@@ -609,7 +637,7 @@ func TestDockerfileGenerator_NvimSection_WithGitRepo(t *testing.T) {
 	// This simulates the correct behavior after the fix
 	sourcePath := filepath.Join("/tmp", "dvm-clone-xyz", repoName)
 
-	gen := NewDockerfileGenerator(ws, wsYAML, "python", "3.11", sourcePath, "")
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: wsYAML, Language: "python", Version: "3.11", AppPath: sourcePath, PathConfig: paths.New(homeDir)})
 
 	dockerfile, err := gen.Generate()
 	if err != nil {
@@ -663,7 +691,7 @@ func TestDockerfileGenerator_NvimSection_AppPathMismatch(t *testing.T) {
 	// This is the buggy behavior: app.Path = "/path/to/my-app" but staging uses "test-git-repo"
 	appPath := "/Users/test/apps/my-app" // Different basename than "test-git-repo"
 
-	gen := NewDockerfileGenerator(ws, wsYAML, "python", "3.11", appPath, "")
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: wsYAML, Language: "python", Version: "3.11", AppPath: appPath, PathConfig: paths.New(homeDir)})
 
 	dockerfile, err := gen.Generate()
 	if err != nil {
@@ -729,7 +757,7 @@ func TestDockerfileGenerator_BuilderStage_SetE(t *testing.T) {
 			}
 			wsYAML := models.WorkspaceSpec{}
 
-			gen := NewDockerfileGenerator(ws, wsYAML, tt.language, tt.version, "/tmp/test", "")
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: wsYAML, Language: tt.language, Version: tt.version, AppPath: "/tmp/test", PathConfig: paths.New(t.TempDir())})
 
 			dockerfile, err := gen.Generate()
 			if err != nil {
@@ -852,7 +880,7 @@ func TestDockerfileGenerator_BuilderStage_CurlHardened(t *testing.T) {
 			}
 			wsYAML := models.WorkspaceSpec{}
 
-			gen := NewDockerfileGenerator(ws, wsYAML, tt.language, tt.version, "/tmp/test", "")
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: wsYAML, Language: tt.language, Version: tt.version, AppPath: "/tmp/test", PathConfig: paths.New(t.TempDir())})
 
 			dockerfile, err := gen.Generate()
 			if err != nil {
@@ -890,7 +918,7 @@ func TestDockerfileGenerator_StarshipBuilder_NoShellPipe(t *testing.T) {
 	// Default shell theme triggers starship builder
 	wsYAML := models.WorkspaceSpec{}
 
-	gen := NewDockerfileGenerator(ws, wsYAML, "python", "3.11", "/tmp/test", "")
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: wsYAML, Language: "python", Version: "3.11", AppPath: "/tmp/test", PathConfig: paths.New(t.TempDir())})
 
 	dockerfile, err := gen.Generate()
 	if err != nil {
@@ -968,7 +996,7 @@ func TestDockerfileGenerator_LazygitBuilder_VersionValidation(t *testing.T) {
 			}
 			wsYAML := models.WorkspaceSpec{}
 
-			gen := NewDockerfileGenerator(ws, wsYAML, tt.language, tt.version, "/tmp/test", "")
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: wsYAML, Language: tt.language, Version: tt.version, AppPath: "/tmp/test", PathConfig: paths.New(t.TempDir())})
 
 			dockerfile, err := gen.Generate()
 			if err != nil {
@@ -1104,7 +1132,7 @@ func TestDockerfileGenerator_BuilderStage_BinaryVerification(t *testing.T) {
 			}
 			wsYAML := models.WorkspaceSpec{}
 
-			gen := NewDockerfileGenerator(ws, wsYAML, tt.language, tt.version, "/tmp/test", "")
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: wsYAML, Language: tt.language, Version: tt.version, AppPath: "/tmp/test", PathConfig: paths.New(t.TempDir())})
 
 			dockerfile, err := gen.Generate()
 			if err != nil {
@@ -1149,7 +1177,7 @@ func TestDockerfileGenerator_GolangciLint_NoShellPipe(t *testing.T) {
 	// Default golang tools include golangci-lint
 	wsYAML := models.WorkspaceSpec{}
 
-	gen := NewDockerfileGenerator(ws, wsYAML, "golang", "1.22", "/tmp/test", "")
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: wsYAML, Language: "golang", Version: "1.22", AppPath: "/tmp/test", PathConfig: paths.New(t.TempDir())})
 
 	dockerfile, err := gen.Generate()
 	if err != nil {
@@ -1297,7 +1325,7 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 				},
 			}
 
-			gen := NewDockerfileGenerator(ws, wsYAML, "python", "3.11", stagingDir, "")
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: wsYAML, Language: "python", Version: "3.11", AppPath: stagingDir, PathConfig: paths.New(homeDir)})
 
 			// Set manifest if provided
 			if tt.manifest != nil {
@@ -1358,7 +1386,7 @@ func TestDockerfileGenerator_TreeSitterBuilder_DynamicVersion(t *testing.T) {
 	}
 	wsYAML := models.WorkspaceSpec{}
 
-	gen := NewDockerfileGenerator(ws, wsYAML, "python", "3.11", "/tmp/test", "")
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: wsYAML, Language: "python", Version: "3.11", AppPath: "/tmp/test", PathConfig: paths.New(t.TempDir())})
 
 	dockerfile, err := gen.Generate()
 	if err != nil {
@@ -1422,7 +1450,7 @@ func TestDockerfileGenerator_TreeSitterBuilder_DynamicVersion(t *testing.T) {
 func TestDockerfileGenerator_Generate_NilWorkspace(t *testing.T) {
 	wsYAML := models.WorkspaceSpec{}
 
-	gen := NewDockerfileGenerator(nil, wsYAML, "python", "3.11", "/tmp/test", "")
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: nil, WorkspaceSpec: wsYAML, Language: "python", Version: "3.11", AppPath: "/tmp/test", PathConfig: paths.New(t.TempDir())})
 
 	// Recover from panic so the test can report failure rather than crashing the suite
 	defer func() {
@@ -1470,7 +1498,7 @@ func TestDockerfileGenerator_BuilderStageConsistency(t *testing.T) {
 			}
 			wsYAML := models.WorkspaceSpec{}
 
-			gen := NewDockerfileGenerator(ws, wsYAML, tt.language, tt.version, "/tmp/test", "")
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: wsYAML, Language: tt.language, Version: tt.version, AppPath: "/tmp/test", PathConfig: paths.New(t.TempDir())})
 
 			dockerfile, err := gen.Generate()
 			if err != nil {
@@ -1565,7 +1593,7 @@ func TestDockerfileGenerator_ArchDetection_NoSilentFallback(t *testing.T) {
 			}
 			wsYAML := models.WorkspaceSpec{}
 
-			gen := NewDockerfileGenerator(ws, wsYAML, tt.language, tt.version, "/tmp/test", "")
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: wsYAML, Language: tt.language, Version: tt.version, AppPath: "/tmp/test", PathConfig: paths.New(t.TempDir())})
 
 			dockerfile, err := gen.Generate()
 			if err != nil {
@@ -1656,7 +1684,7 @@ func TestDockerfileGenerator_LazygitBuilder_UnifiedDownload(t *testing.T) {
 			}
 			wsYAML := models.WorkspaceSpec{}
 
-			gen := NewDockerfileGenerator(ws, wsYAML, tt.language, tt.version, "/tmp/test", "")
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: wsYAML, Language: tt.language, Version: tt.version, AppPath: "/tmp/test", PathConfig: paths.New(t.TempDir())})
 
 			dockerfile, err := gen.Generate()
 			if err != nil {
@@ -1780,7 +1808,7 @@ func TestDockerfileGenerator_NvimSection_CustomUser(t *testing.T) {
 			// Pass the sourcePath whose basename matches the staging dir name
 			sourcePath := filepath.Join("/tmp", "dvm-clone-xyz", repoName)
 
-			gen := NewDockerfileGenerator(ws, wsYAML, "python", "3.11", sourcePath, "")
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: wsYAML, Language: "python", Version: "3.11", AppPath: sourcePath, PathConfig: paths.New(homeDir)})
 
 			dockerfile, err := gen.Generate()
 			if err != nil {
@@ -1841,3 +1869,387 @@ func extractNvimSection(dockerfile string) string {
 // in generateBuilderStages(). Comments are not testable, so no test is written for L4.
 // The fix updates the comment to note that go-tools-builder IS an exception that uses
 // cache mounts (--mount=type=cache), which is already verified by existing tests.
+
+// =============================================================================
+// v0.38.0 RED-phase tests: Dockerfile Generator Purity & Robustness
+// These tests are written to FAIL against the current implementation, exposing
+// bugs and gaps that the v0.38.0 sprint items (D2, A1, A2, A4) will fix.
+// =============================================================================
+
+// TestIsAlpine_ComputedPerLanguage verifies that the isAlpine computed field
+// (set in generateBaseStage) correctly reflects the base image chosen for each
+// language. This is a regression guard replacing the former D2 test that expected
+// Debian behavior for golang workspaces — golang always uses Alpine base images,
+// so isAlpine=true is correct behavior, not a bug.
+func TestIsAlpine_ComputedPerLanguage(t *testing.T) {
+	tests := []struct {
+		language     string
+		version      string
+		expectAlpine bool
+		alpineMarker string // command that MUST be present when alpine
+		debianMarker string // command that MUST be present when debian
+		alpineAbsent string // command that must NOT be present when alpine
+		debianAbsent string // command that must NOT be present when debian
+	}{
+		{
+			language:     "golang",
+			version:      "1.22",
+			expectAlpine: true,
+			alpineMarker: "apk add",
+			alpineAbsent: "apt-get",
+		},
+		{
+			language:     "python",
+			version:      "3.11",
+			expectAlpine: false,
+			debianMarker: "apt-get",
+			debianAbsent: "apk add",
+		},
+		{
+			language:     "nodejs",
+			version:      "18",
+			expectAlpine: true,
+			alpineMarker: "apk add",
+			alpineAbsent: "apt-get",
+		},
+		{
+			language:     "", // default/ubuntu
+			version:      "",
+			expectAlpine: false,
+			debianMarker: "apt-get",
+			debianAbsent: "apk add",
+		},
+	}
+
+	for _, tt := range tests {
+		name := tt.language
+		if name == "" {
+			name = "default"
+		}
+		t.Run(name, func(t *testing.T) {
+			ws := &models.Workspace{
+				ID:        1,
+				Name:      "test-ws",
+				ImageName: "test:latest",
+			}
+			wsYAML := models.WorkspaceSpec{}
+
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: wsYAML,
+				Language:      tt.language,
+				Version:       tt.version,
+				AppPath:       "/tmp/test",
+				PathConfig:    paths.New(t.TempDir()),
+			})
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			// Extract dev stage to check package manager commands
+			devStageIdx := strings.Index(dockerfile, "FROM base AS dev")
+			if devStageIdx < 0 {
+				t.Fatalf("missing dev stage in generated Dockerfile")
+			}
+			devStage := dockerfile[devStageIdx:]
+
+			if tt.expectAlpine {
+				if tt.alpineMarker != "" && !strings.Contains(devStage, tt.alpineMarker) {
+					t.Errorf("language=%q: expected Alpine marker %q in dev stage", tt.language, tt.alpineMarker)
+				}
+				if tt.alpineAbsent != "" && strings.Contains(devStage, tt.alpineAbsent) {
+					t.Errorf("language=%q: Alpine dev stage should not contain %q", tt.language, tt.alpineAbsent)
+				}
+			} else {
+				if tt.debianMarker != "" && !strings.Contains(devStage, tt.debianMarker) {
+					t.Errorf("language=%q: expected Debian marker %q in dev stage", tt.language, tt.debianMarker)
+				}
+				if tt.debianAbsent != "" && strings.Contains(devStage, tt.debianAbsent) {
+					t.Errorf("language=%q: Debian dev stage should not contain %q", tt.language, tt.debianAbsent)
+				}
+			}
+
+			// Verify the computed field via type assertion
+			impl := gen.(*DefaultDockerfileGenerator)
+			if impl.isAlpine != tt.expectAlpine {
+				t.Errorf("language=%q: isAlpine=%v, want %v", tt.language, impl.isAlpine, tt.expectAlpine)
+			}
+		})
+	}
+}
+
+// TestIsAlpine_FieldMatchesGeneratedImage verifies end-to-end consistency: the generated
+// base image (FROM line) and the package manager commands in the dev stage must agree.
+// If the FROM line uses an Alpine image tag, the dev stage must use apk; if it uses a
+// Debian/Ubuntu image, the dev stage must use apt-get. This is a stronger invariant than
+// checking the language alone.
+func TestIsAlpine_FieldMatchesGeneratedImage(t *testing.T) {
+	tests := []struct {
+		language string
+		version  string
+	}{
+		{"golang", "1.22"},
+		{"python", "3.11"},
+		{"nodejs", "18"},
+		{"", ""},     // default/ubuntu
+		{"rust", ""}, // unknown → ubuntu
+	}
+
+	for _, tt := range tests {
+		name := tt.language
+		if name == "" {
+			name = "default"
+		}
+		t.Run(name, func(t *testing.T) {
+			ws := &models.Workspace{
+				ID:        1,
+				Name:      "test-ws",
+				ImageName: "test:latest",
+			}
+			wsYAML := models.WorkspaceSpec{}
+
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: wsYAML,
+				Language:      tt.language,
+				Version:       tt.version,
+				AppPath:       "/tmp/test",
+				PathConfig:    paths.New(t.TempDir()),
+			})
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			// Determine if the FROM line is Alpine-based
+			hasAlpineBase := strings.Contains(dockerfile, "-alpine AS base")
+
+			// Extract dev stage
+			devStageIdx := strings.Index(dockerfile, "FROM base AS dev")
+			if devStageIdx < 0 {
+				t.Fatalf("missing dev stage")
+			}
+			devStage := dockerfile[devStageIdx:]
+
+			hasApk := strings.Contains(devStage, "apk add")
+			hasAptGet := strings.Contains(devStage, "apt-get")
+
+			if hasAlpineBase {
+				if !hasApk {
+					t.Errorf("FROM *-alpine but dev stage missing 'apk add'")
+				}
+				if hasAptGet {
+					t.Errorf("FROM *-alpine but dev stage has 'apt-get' (inconsistent)")
+				}
+			} else {
+				if !hasAptGet {
+					t.Errorf("FROM non-Alpine base but dev stage missing 'apt-get'")
+				}
+				if hasApk {
+					t.Errorf("FROM non-Alpine base but dev stage has 'apk add' (inconsistent)")
+				}
+			}
+
+			// Also verify user creation commands are consistent
+			hasAdduser := strings.Contains(devStage, "adduser -D")
+			hasUseradd := strings.Contains(devStage, "useradd -m")
+
+			if hasAlpineBase {
+				if !hasAdduser {
+					t.Errorf("FROM *-alpine but dev stage missing Alpine 'adduser -D'")
+				}
+				if hasUseradd {
+					t.Errorf("FROM *-alpine but dev stage has Debian 'useradd' (inconsistent)")
+				}
+			} else {
+				if !hasUseradd {
+					t.Errorf("FROM non-Alpine base but dev stage missing Debian 'useradd -m'")
+				}
+				if hasAdduser {
+					t.Errorf("FROM non-Alpine base but dev stage has Alpine 'adduser -D' (inconsistent)")
+				}
+			}
+		})
+	}
+}
+
+// TestEffectiveGoVersion_PythonGenerator_ExposesMissingUnification exposes A1 gap:
+// effectiveGoVersion() has no language awareness — it returns the Go default "1.22"
+// even when called on a python generator with no version set. After A1, a unified
+// effectiveVersion() will return language-appropriate defaults (python→3.11, etc.).
+func TestEffectiveGoVersion_PythonGenerator_ExposesMissingUnification(t *testing.T) {
+	ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: models.WorkspaceSpec{}, Language: "python", AppPath: "/tmp/test", PathConfig: paths.New(t.TempDir())})
+	impl := gen.(*DefaultDockerfileGenerator)
+
+	// effectiveGoVersion() is language-agnostic — returns Go default for any language.
+	// After A1, there will be a unified effectiveVersion() that returns "3.11" for python.
+	// For now, effectiveGoVersion() returns "1.22" even for python — that's the bug.
+	got := impl.effectiveGoVersion()
+	want := "3.11"
+	if got != want {
+		t.Errorf("effectiveGoVersion() on python generator = %q, want %q.\n"+
+			"A1 fix: implement effectiveVersion() that returns language-appropriate defaults:\n"+
+			"  python → 3.11, golang → 1.22, nodejs → 18, unknown → \"\"",
+			got, want)
+	}
+}
+
+// TestActiveBuilderStages_GolangDebian_IncludesNeovimBuilder exposes D2+A4 interaction:
+// For a golang workspace with a Debian ImageName, neovim-builder should be included
+// (Debian needs compiled neovim from GitHub releases). Currently FAILS because
+// isAlpineImage() hardcodes golang=Alpine, excluding the neovim-builder stage.
+func TestActiveBuilderStages_GolangDebian_IncludesNeovimBuilder(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "golang:1.22-bookworm", // Debian
+	}
+	wsYAML := models.WorkspaceSpec{}
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{Workspace: ws, WorkspaceSpec: wsYAML, Language: "golang", Version: "1.22", AppPath: "/tmp/test", PathConfig: paths.New(t.TempDir())})
+	impl := gen.(*DefaultDockerfileGenerator)
+
+	stages := impl.activeBuilderStages()
+
+	// With D2 fix: Debian golang image → isAlpine=false → neovim-builder included
+	// Expected stages: neovim-builder, lazygit-builder, starship-builder, treesitter-builder, go-tools-builder = 5
+	stageNames := make([]string, len(stages))
+	for i, s := range stages {
+		stageNames[i] = s.name
+	}
+
+	hasNeovim := false
+	for _, name := range stageNames {
+		if name == "neovim-builder" {
+			hasNeovim = true
+			break
+		}
+	}
+
+	if !hasNeovim {
+		t.Errorf("activeBuilderStages() for golang:1.22-bookworm (Debian) should include neovim-builder.\n"+
+			"After D2: isAlpine must be computed from ImageName, not hardcoded from language.\n"+
+			"Got stages: %v", stageNames)
+	}
+}
+
+// =============================================================================
+// D1 Tests: generateNvimSection() error propagation
+// =============================================================================
+
+// TestGenerate_NvimConfig_GracefulSkip verifies that when no nvim staging directory
+// exists (the normal case for a fresh workspace), Generate() succeeds and includes the
+// skip comment. This is a regression guard confirming the D1 error-return refactor
+// didn't break the happy path.
+func TestGenerate_NvimConfig_GracefulSkip(t *testing.T) {
+	// Use a temp dir as home — no nvim staging dir will exist
+	tmpHome := t.TempDir()
+
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{
+		Nvim: models.NvimConfig{
+			Structure: "custom", // Enable nvim section (not "none")
+		},
+	}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "python",
+		Version:       "3.11",
+		AppPath:       "/tmp/test-app",
+		PathConfig:    paths.New(tmpHome),
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() should succeed when nvim config is missing (graceful skip), got error: %v", err)
+	}
+
+	// Must contain the skip comment
+	if !strings.Contains(dockerfile, "Skipping Neovim configuration (no config generated)") {
+		t.Errorf("Generate() should include skip comment when no nvim staging dir exists.\n"+
+			"Generated Dockerfile:\n%s", dockerfile)
+	}
+
+	// Must NOT contain nvim COPY directive
+	if strings.Contains(dockerfile, "COPY .config/nvim") {
+		t.Errorf("Generate() should not include nvim COPY when staging dir doesn't exist")
+	}
+}
+
+// TestGenerateNvimSection_UsesPathConfig verifies that generateNvimSection() uses the
+// injected PathConfig to locate the nvim staging directory and generates the correct
+// COPY directive when the nvim config exists. This validates D3 (PathConfig injection)
+// end-to-end through the nvim section.
+func TestGenerateNvimSection_UsesPathConfig(t *testing.T) {
+	// Create a temp dir that acts as home, with a real nvim config inside
+	tmpHome := t.TempDir()
+	appName := "my-test-app"
+
+	// Create the nvim config structure that generateNvimSection looks for
+	pc := paths.New(tmpHome)
+	stagingDir := pc.BuildStagingDir(appName)
+	nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
+	if err := os.MkdirAll(nvimConfigPath, 0755); err != nil {
+		t.Fatalf("failed to create nvim config dir: %v", err)
+	}
+
+	// Create a dummy init.lua so the directory is detected as valid nvim config
+	initLuaPath := filepath.Join(nvimConfigPath, "init.lua")
+	if err := os.WriteFile(initLuaPath, []byte("-- test nvim config"), 0644); err != nil {
+		t.Fatalf("failed to create init.lua: %v", err)
+	}
+
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{
+		Nvim: models.NvimConfig{
+			Structure: "custom",
+		},
+	}
+
+	// appPath basename must match the staging dir name
+	appPath := filepath.Join("/tmp", "some-clone-dir", appName)
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "python",
+		Version:       "3.11",
+		AppPath:       appPath,
+		PathConfig:    pc,
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// The output must include the COPY directive for the nvim config
+	if !strings.Contains(dockerfile, "COPY .config/nvim /home/dev/.config/nvim") {
+		t.Errorf("Generate() should include nvim COPY when PathConfig points to existing config.\n"+
+			"Expected: COPY .config/nvim /home/dev/.config/nvim\n"+
+			"Generated Dockerfile:\n%s", dockerfile)
+	}
+
+	// Must NOT contain the skip comment
+	if strings.Contains(dockerfile, "Skipping Neovim configuration") {
+		t.Errorf("Generate() should not skip nvim when config exists at PathConfig staging dir")
+	}
+
+	// Verify chown uses the default user
+	if !strings.Contains(dockerfile, "RUN chown -R dev:dev /home/dev/.config") {
+		t.Errorf("Generate() should include chown for nvim config")
+	}
+}
