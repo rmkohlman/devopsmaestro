@@ -464,6 +464,7 @@ func createCredentialTestSchema(driver db.Driver) error {
 			terminal_plugins      TEXT,
 			terminal_package      TEXT,
 			git_repo_id           INTEGER,
+			env                   TEXT    NOT NULL DEFAULT '{}',
 			created_at            DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at            DATETIME DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(app_id, name)

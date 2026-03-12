@@ -1181,6 +1181,23 @@ func (m *MockDataStore) GetCredential(scopeType models.CredentialScopeType, scop
 	return nil, fmt.Errorf("credential not found: %s", name)
 }
 
+// GetCredentialByName retrieves a credential by name across all scopes.
+// Returns the first match found.
+func (m *MockDataStore) GetCredentialByName(name string) (*models.CredentialDB, error) {
+	m.recordCall("GetCredentialByName", name)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.Credentials == nil {
+		return nil, fmt.Errorf("credential not found: %s", name)
+	}
+	for _, cred := range m.Credentials {
+		if cred.Name == name {
+			return cred, nil
+		}
+	}
+	return nil, fmt.Errorf("credential not found: %s", name)
+}
+
 func (m *MockDataStore) UpdateCredential(credential *models.CredentialDB) error {
 	m.recordCall("UpdateCredential", credential)
 	m.mu.Lock()

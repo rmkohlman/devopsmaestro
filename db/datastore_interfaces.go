@@ -345,6 +345,11 @@ type CredentialStore interface {
 	// GetCredential retrieves a credential by scope and name.
 	GetCredential(scopeType models.CredentialScopeType, scopeID int64, name string) (*models.CredentialDB, error)
 
+	// GetCredentialByName retrieves a credential by name across all scopes.
+	// Returns the first match if multiple credentials have the same name in different scopes.
+	// This is useful for CLI convenience (e.g., --credential flag on gitrepo create).
+	GetCredentialByName(name string) (*models.CredentialDB, error)
+
 	// UpdateCredential updates an existing credential.
 	UpdateCredential(credential *models.CredentialDB) error
 

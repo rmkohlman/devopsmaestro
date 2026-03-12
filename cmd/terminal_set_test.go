@@ -727,6 +727,7 @@ func createMinimalTestSchema(driver db.Driver) error {
 			terminal_prompt TEXT,
 			terminal_plugins TEXT,
 			terminal_package TEXT,
+			env TEXT NOT NULL DEFAULT '{}',
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(app_id, name)

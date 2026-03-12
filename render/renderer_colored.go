@@ -191,6 +191,9 @@ func (r *ColoredRenderer) RenderWithContext(ctx context.Context, w io.Writer, da
 	case map[string]string:
 		kv := NewKeyValueData(v)
 		return r.renderKeyValueWithStyles(w, kv, styles)
+	case map[string]interface{}:
+		kv := mapToKeyValueData(v)
+		return r.renderKeyValueWithStyles(w, kv, styles)
 	default:
 		// For other types, just print
 		fmt.Fprintf(w, "%v\n", data)

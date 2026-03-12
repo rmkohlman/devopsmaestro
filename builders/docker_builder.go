@@ -121,7 +121,7 @@ func (b *DockerBuilder) Build(ctx context.Context, opts BuildOptions) error {
 	// Add build context (project path) last
 	args = append(args, ".")
 
-	render.Infof("Command: docker %s", strings.Join(args, " "))
+	render.Infof("Command: docker %s", strings.Join(redactBuildArgs(args), " "))
 	render.Blank()
 
 	// Prepare docker build command
@@ -192,4 +192,31 @@ func (b *DockerBuilder) ImageExists(ctx context.Context) (bool, error) {
 // Close is a no-op for the CLI-based builder.
 func (b *DockerBuilder) Close() error {
 	return nil
+}
+
+// redactBuildArgs returns a copy of args with --build-arg values redacted.
+// Input:  ["build", "--build-arg", "KEY=secret", "-t", "img"]
+// Output: ["build", "--build-arg", "KEY=***", "-t", "img"]
+func redactBuildArgs(args []string) []string {
+	redacted := make([]string, len(args))
+	copy(redacted, args)
+	for i, arg := range redacted {
+		if i > 0 && redacted[i-1] == "--build-arg" {
+			// This arg is a build-arg value (KEY=VALUE format)
+			if eqIdx := strings.Index(arg, "="); eqIdx >= 0 {
+				redacted[i] = arg[:eqIdx+1] + "***"
+			}
+		}
+	}
+	return redacted
+}
+
+// buildDockerArgsForLog returns a version of the docker build args suitable for
+// logging, with --build-arg values replaced by "***" to prevent secret exposure.
+func buildDockerArgsForLog(opts BuildOptions) []string {
+	var args []string
+	for key := range opts.BuildArgs {
+		args = append(args, "--build-arg", fmt.Sprintf("%s=***", key))
+	}
+	return args
 }

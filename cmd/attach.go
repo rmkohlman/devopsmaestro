@@ -338,6 +338,38 @@ func getMountPath(ds db.DataStore, workspace *models.Workspace, appPath string) 
 	return appPath, nil
 }
 
+// buildRuntimeEnv assembles the environment variable map for a workspace shell session.
+// It merges (in increasing priority order): theme env vars, workspace env vars,
+// and standard DVM metadata vars.
+//
+// TODO (WI-4): Implement full runtime credential injection and registry vars.
+// Currently only includes metadata vars; wsEnv and themeEnv merging is stubbed.
+func buildRuntimeEnv(appName, workspaceName, ecosystemName, domainName string, wsEnv, themeEnv map[string]string) map[string]string {
+	env := map[string]string{
+		"TERM":          "xterm-256color",
+		"DVM_WORKSPACE": workspaceName,
+		"DVM_APP":       appName,
+	}
+
+	if ecosystemName != "" {
+		env["DVM_ECOSYSTEM"] = ecosystemName
+	}
+	if domainName != "" {
+		env["DVM_DOMAIN"] = domainName
+	}
+
+	// Merge theme env first (lower priority)
+	for k, v := range themeEnv {
+		env[k] = v
+	}
+	// Merge workspace env next (higher priority — overrides theme)
+	for k, v := range wsEnv {
+		env[k] = v
+	}
+
+	return env
+}
+
 // Initializes the attach command
 func init() {
 	rootCmd.AddCommand(attachCmd)

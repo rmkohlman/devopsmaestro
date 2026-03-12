@@ -244,3 +244,114 @@ func TestWorkspace_ToYAML_MarshalToBytes(t *testing.T) {
 	// When gitRepoName is empty, gitrepo should not appear in YAML
 	assert.False(t, strings.Contains(yamlStr, "gitrepo:"), "gitrepo should be omitted when empty")
 }
+
+// =============================================================================
+// WI-5: Workspace env YAML Tests
+// RED: These tests FAIL until WorkspaceSpec has Env and GetEnv/SetEnv are added.
+// =============================================================================
+
+// TestWorkspace_GetEnv_DefaultsToNil verifies that a workspace with no env
+// returns an empty (non-nil) map from GetEnv.
+func TestWorkspace_GetEnv_DefaultsToEmpty(t *testing.T) {
+	ws := &Workspace{Name: "no-env"}
+	got := ws.GetEnv()
+	// Should return empty map, not nil
+	if got == nil {
+		t.Error("GetEnv() returned nil; expected empty map for workspace with no env set")
+	}
+	if len(got) != 0 {
+		t.Errorf("GetEnv() = %v; expected empty map for workspace with no env set", got)
+	}
+}
+
+// TestWorkspace_SetEnv_RoundTrip verifies that SetEnv encodes env and GetEnv
+// decodes it back to the same map.
+func TestWorkspace_SetEnv_RoundTrip(t *testing.T) {
+	tests := []struct {
+		name    string
+		envMap  map[string]string
+		wantLen int
+	}{
+		{
+			name:    "single key",
+			envMap:  map[string]string{"MY_VAR": "hello"},
+			wantLen: 1,
+		},
+		{
+			name:    "multiple keys",
+			envMap:  map[string]string{"KEY1": "val1", "KEY2": "val2", "KEY3": "val3"},
+			wantLen: 3,
+		},
+		{
+			name:    "empty map clears env",
+			envMap:  map[string]string{},
+			wantLen: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws := &Workspace{}
+			ws.SetEnv(tt.envMap)
+
+			got := ws.GetEnv()
+			require.NotNil(t, got, "GetEnv() returned nil after SetEnv")
+			assert.Equal(t, tt.wantLen, len(got), "GetEnv() length mismatch")
+			for k, v := range tt.envMap {
+				assert.Equal(t, v, got[k], "GetEnv()[%s] mismatch", k)
+			}
+		})
+	}
+}
+
+// TestWorkspace_ToYAML_IncludesEnv verifies that ToYAML includes the env map
+// when it is populated on the workspace.
+func TestWorkspace_ToYAML_IncludesEnv(t *testing.T) {
+	ws := &Workspace{
+		Name:      "env-ws",
+		ImageName: "ubuntu:22.04",
+	}
+	ws.SetEnv(map[string]string{
+		"BUILD_ENV": "production",
+		"LOG_LEVEL": "info",
+	})
+
+	yamlDoc := ws.ToYAML("my-app", "")
+	data, err := yaml.Marshal(yamlDoc)
+	require.NoError(t, err)
+
+	yamlStr := string(data)
+	assert.Contains(t, yamlStr, "env:", "YAML should contain env section")
+	assert.Contains(t, yamlStr, "BUILD_ENV", "YAML env should contain BUILD_ENV key")
+	assert.Contains(t, yamlStr, "production", "YAML env should contain BUILD_ENV value")
+}
+
+// TestWorkspace_FromYAML_ParsesEnv verifies that FromYAML correctly parses
+// the env map from a workspace YAML document.
+func TestWorkspace_FromYAML_ParsesEnv(t *testing.T) {
+	yamlContent := `
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: env-parse-test
+  app: my-app
+spec:
+  image:
+    name: python:3.11
+  env:
+    SECRET_KEY: my-secret
+    API_URL: https://api.example.com
+`
+
+	var wsYAML WorkspaceYAML
+	err := yaml.Unmarshal([]byte(yamlContent), &wsYAML)
+	require.NoError(t, err)
+
+	ws := &Workspace{AppID: 1}
+	ws.FromYAML(wsYAML)
+
+	gotEnv := ws.GetEnv()
+	require.NotNil(t, gotEnv, "GetEnv() returned nil after FromYAML with env spec")
+	assert.Equal(t, "my-secret", gotEnv["SECRET_KEY"], "env SECRET_KEY mismatch")
+	assert.Equal(t, "https://api.example.com", gotEnv["API_URL"], "env API_URL mismatch")
+}

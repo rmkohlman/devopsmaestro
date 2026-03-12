@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"devopsmaestro/operators"
@@ -326,5 +327,50 @@ RUN sleep 60
 	// Build should fail with cancelled context
 	if err == nil {
 		t.Log("Build() did not immediately fail with cancelled context (docker may queue the build)")
+	}
+}
+
+// =============================================================================
+// SM-7: Build Arg Redaction Tests
+// RED: These tests FAIL until --build-arg values are redacted in log output.
+// =============================================================================
+
+// TestDockerBuilder_BuildArgLogRedaction verifies that --build-arg values
+// are redacted (replaced with ***) in the rendered command log output,
+// so secrets don't appear in CI logs or console output.
+func TestDockerBuilder_BuildArgLogRedaction(t *testing.T) {
+	// buildDockerArgs is the function that constructs the docker args slice
+	// which is then logged. It must exist after SM-7 is implemented.
+	opts := BuildOptions{
+		BuildArgs: map[string]string{
+			"SECRET_TOKEN": "super-secret-value",
+			"API_KEY":      "another-secret",
+			"SAFE_ARG":     "not-sensitive",
+		},
+	}
+
+	// buildDockerArgsForLog should return the args with values redacted,
+	// while buildDockerArgs returns the actual args (with real values) for docker.
+	redacted := buildDockerArgsForLog(opts)
+
+	// Verify secret values are not present in the redacted args
+	for _, arg := range redacted {
+		if arg == "super-secret-value" {
+			t.Error("buildDockerArgsForLog() exposed SECRET_TOKEN value in log output")
+		}
+		if arg == "another-secret" {
+			t.Error("buildDockerArgsForLog() exposed API_KEY value in log output")
+		}
+	}
+
+	// Verify the keys are still present (for debugging purposes)
+	argsStr := strings.Join(redacted, " ")
+	if !strings.Contains(argsStr, "SECRET_TOKEN") {
+		t.Error("buildDockerArgsForLog() should still include arg key names, got no SECRET_TOKEN")
+	}
+
+	// Verify redaction marker is present
+	if !strings.Contains(argsStr, "***") {
+		t.Error("buildDockerArgsForLog() should use *** as redaction marker for --build-arg values")
 	}
 }

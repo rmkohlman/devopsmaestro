@@ -567,6 +567,7 @@ func createIntegrationSchema(driver Driver) error {
 			slug TEXT NOT NULL UNIQUE,
 			ssh_agent_forwarding INTEGER DEFAULT 0,
 			git_repo_id INTEGER,
+			env TEXT NOT NULL DEFAULT '{}',
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (app_id) REFERENCES apps(id),

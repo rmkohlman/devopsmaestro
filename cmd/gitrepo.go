@@ -281,11 +281,19 @@ func runCreateGitRepo(cmd *cobra.Command, args []string) error {
 		UpdatedAt:           time.Now(),
 	}
 
-	// Set credential ID if provided (would need to look up credential by name)
+	// Set credential ID if provided
 	if credential != "" {
-		// For now, we just store the info - credential lookup would be done separately
-		// This is a simplified implementation
-		_ = credential
+		// Validate auth-type/credential consistency
+		if authType == "none" {
+			return fmt.Errorf("cannot use --credential with --auth-type none")
+		}
+
+		// Look up credential by name
+		cred, err := dataStore.GetCredentialByName(credential)
+		if err != nil {
+			return fmt.Errorf("credential '%s' not found: %w", credential, err)
+		}
+		repo.CredentialID = sql.NullInt64{Int64: cred.ID, Valid: true}
 	}
 
 	// Create the repo in the database
@@ -416,8 +424,16 @@ func runGetGitRepo(cmd *cobra.Command, args []string) error {
 	// Get output format
 	format, _ := cmd.Flags().GetString("output")
 
-	// Output as YAML or JSON
-	return render.OutputWith(format, gitRepoToYAML(repo), render.Options{})
+	// JSON/YAML: use map for serialization
+	if format == "json" || format == "yaml" {
+		return render.OutputWith(format, gitRepoToMap(repo), render.Options{})
+	}
+
+	// Human output: use KeyValueData
+	return render.OutputWith(format, gitRepoToYAML(repo), render.Options{
+		Type:  render.TypeKeyValue,
+		Title: "GitRepo Details",
+	})
 }
 
 // runDeleteGitRepo implements the delete gitrepo command
@@ -590,8 +606,8 @@ func getGitRepoBaseDir() string {
 	return paths.New(homeDir).ReposDir()
 }
 
-// gitRepoToYAML converts a GitRepoDB to a YAML-friendly map
-func gitRepoToYAML(repo *models.GitRepoDB) map[string]interface{} {
+// gitRepoToMap converts a GitRepoDB to a map for JSON/YAML serialization
+func gitRepoToMap(repo *models.GitRepoDB) map[string]interface{} {
 	result := map[string]interface{}{
 		"name":       repo.Name,
 		"url":        repo.URL,
@@ -617,7 +633,38 @@ func gitRepoToYAML(repo *models.GitRepoDB) map[string]interface{} {
 func gitReposToYAML(repos []models.GitRepoDB) []map[string]interface{} {
 	result := make([]map[string]interface{}, len(repos))
 	for i, repo := range repos {
-		result[i] = gitRepoToYAML(&repo)
+		result[i] = gitRepoToMap(&repo)
 	}
 	return result
+}
+
+// gitRepoToYAML converts a GitRepoDB to KeyValueData for human-readable output.
+// This follows the get_registry.go pattern for detail views.
+func gitRepoToYAML(repo *models.GitRepoDB) render.KeyValueData {
+	lastSynced := "never"
+	if repo.LastSyncedAt.Valid {
+		lastSynced = repo.LastSyncedAt.Time.Format(time.RFC3339)
+	}
+
+	pairs := []render.KeyValue{
+		{Key: "Name", Value: repo.Name},
+		{Key: "URL", Value: repo.URL},
+		{Key: "Slug", Value: repo.Slug},
+		{Key: "Default Ref", Value: repo.DefaultRef},
+		{Key: "Auth Type", Value: repo.AuthType},
+		{Key: "Auto Sync", Value: fmt.Sprintf("%v", repo.AutoSync)},
+		{Key: "Sync Status", Value: repo.SyncStatus},
+		{Key: "Last Synced", Value: lastSynced},
+	}
+
+	if repo.SyncError.Valid {
+		pairs = append(pairs, render.KeyValue{Key: "Sync Error", Value: repo.SyncError.String})
+	}
+
+	// Show credential if associated
+	if repo.CredentialID.Valid {
+		pairs = append(pairs, render.KeyValue{Key: "Credential ID", Value: fmt.Sprintf("%d", repo.CredentialID.Int64)})
+	}
+
+	return render.NewOrderedKeyValueData(pairs...)
 }

@@ -74,8 +74,8 @@ func TestSQLiteDriver_DSN(t *testing.T) {
 
 	dsn := driver.DSN()
 	// Uses :memory: with cache=shared for test isolation with concurrent access support
-	if dsn != ":memory:?cache=shared" {
-		t.Errorf("DSN() = %q, want %q", dsn, ":memory:?cache=shared")
+	if dsn != ":memory:?cache=shared&_foreign_keys=on" {
+		t.Errorf("DSN() = %q, want %q", dsn, ":memory:?cache=shared&_foreign_keys=on")
 	}
 }
 
@@ -678,6 +678,67 @@ func TestDriverRegistry_Memory(t *testing.T) {
 
 	if driver.Type() != DriverMemory {
 		t.Errorf("Type() = %v, want %v", driver.Type(), DriverMemory)
+	}
+}
+
+// =============================================================================
+// WI-1: Foreign Keys Enforcement Tests
+// =============================================================================
+
+// TestSQLiteDriver_ForeignKeysEnabled_Memory verifies that PRAGMA foreign_keys = ON
+// is applied after connecting to an in-memory SQLite database.
+// RED: This test will FAIL until NewMemorySQLiteDriver runs PRAGMA foreign_keys = ON.
+func TestSQLiteDriver_ForeignKeysEnabled_Memory(t *testing.T) {
+	cfg := DriverConfig{Type: DriverMemory}
+	driver, err := NewMemorySQLiteDriver(cfg)
+	if err != nil {
+		t.Fatalf("NewMemorySQLiteDriver() error = %v", err)
+	}
+	defer driver.Close()
+
+	if err := driver.Connect(); err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+
+	// Query PRAGMA foreign_keys to verify it's ON (1 = ON, 0 = OFF)
+	row := driver.QueryRow("PRAGMA foreign_keys")
+	var fkEnabled int
+	if err := row.Scan(&fkEnabled); err != nil {
+		t.Fatalf("failed to scan PRAGMA foreign_keys: %v", err)
+	}
+	if fkEnabled != 1 {
+		t.Errorf("PRAGMA foreign_keys = %d, want 1 (ON); foreign key enforcement is disabled", fkEnabled)
+	}
+}
+
+// TestSQLiteDriver_ForeignKeysEnabled_File verifies that PRAGMA foreign_keys = ON
+// is applied after connecting to a file-based SQLite database.
+// RED: This test will FAIL until NewSQLiteDriver runs PRAGMA foreign_keys = ON.
+func TestSQLiteDriver_ForeignKeysEnabled_File(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "fk_test.db")
+
+	cfg := DriverConfig{
+		Type: DriverSQLite,
+		Path: dbPath,
+	}
+	driver, err := NewSQLiteDriver(cfg)
+	if err != nil {
+		t.Fatalf("NewSQLiteDriver() error = %v", err)
+	}
+	defer driver.Close()
+
+	if err := driver.Connect(); err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+
+	row := driver.QueryRow("PRAGMA foreign_keys")
+	var fkEnabled int
+	if err := row.Scan(&fkEnabled); err != nil {
+		t.Fatalf("failed to scan PRAGMA foreign_keys: %v", err)
+	}
+	if fkEnabled != 1 {
+		t.Errorf("PRAGMA foreign_keys = %d, want 1 (ON); foreign key enforcement is disabled", fkEnabled)
 	}
 }
 

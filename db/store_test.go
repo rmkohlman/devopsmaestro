@@ -54,7 +54,7 @@ func createTestSchema(driver Driver) error {
 			theme TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY (ecosystem_id) REFERENCES ecosystems(id),
+			FOREIGN KEY (ecosystem_id) REFERENCES ecosystems(id) ON DELETE CASCADE,
 			UNIQUE(ecosystem_id, name)
 		)`,
 		`CREATE TABLE IF NOT EXISTS apps (
@@ -90,6 +90,7 @@ func createTestSchema(driver Driver) error {
 			slug TEXT NOT NULL UNIQUE,
 			ssh_agent_forwarding INTEGER DEFAULT 0,
 			git_repo_id INTEGER,
+			env TEXT NOT NULL DEFAULT '{}',
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (app_id) REFERENCES apps(id),
@@ -2118,6 +2119,23 @@ func TestSQLDataStore_MigrationSchema_AppsTableHasLanguageAndBuildConfig(t *test
 			FOREIGN KEY (ecosystem_id) REFERENCES ecosystems(id),
 			UNIQUE(ecosystem_id, name)
 		);
+
+		CREATE TABLE IF NOT EXISTS git_repos (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL UNIQUE,
+			url TEXT NOT NULL,
+			slug TEXT NOT NULL UNIQUE,
+			default_ref TEXT NOT NULL DEFAULT 'main',
+			auth_type TEXT NOT NULL CHECK(auth_type IN ('none', 'ssh', 'token')),
+			credential_id INTEGER,
+			auto_sync BOOLEAN NOT NULL DEFAULT 0,
+			sync_interval_minutes INTEGER NOT NULL DEFAULT 0,
+			last_synced_at DATETIME,
+			sync_status TEXT NOT NULL DEFAULT 'pending',
+			sync_error TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
 		
 		CREATE TABLE IF NOT EXISTS apps (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2802,5 +2820,146 @@ error_symbol = "[❯](bold red)"`,
 	_, err = ds.GetTerminalPromptByName("integration-starship")
 	if err == nil {
 		t.Error("Delete did not propagate through layers")
+	}
+}
+
+// =============================================================================
+// WI-1: Cascade Delete Tests
+// RED: These tests FAIL until PRAGMA foreign_keys = ON is enforced in the driver.
+// =============================================================================
+
+// TestSQLDataStore_CascadeDelete_DomainDeletedWithEcosystem verifies that deleting
+// an ecosystem cascades to delete its child domains.
+func TestSQLDataStore_CascadeDelete_DomainDeletedWithEcosystem(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	eco := &models.Ecosystem{Name: "cascade-eco-wi1"}
+	if err := ds.CreateEcosystem(eco); err != nil {
+		t.Fatalf("CreateEcosystem() error = %v", err)
+	}
+
+	domain := &models.Domain{Name: "cascade-domain-wi1", EcosystemID: eco.ID}
+	if err := ds.CreateDomain(domain); err != nil {
+		t.Fatalf("CreateDomain() error = %v", err)
+	}
+
+	if err := ds.DeleteEcosystem(eco.Name); err != nil {
+		t.Fatalf("DeleteEcosystem() error = %v", err)
+	}
+
+	_, err := ds.GetDomainByID(domain.ID)
+	if err == nil {
+		t.Error("domain still exists after ecosystem was deleted; expected cascade delete to remove it")
+	}
+}
+
+// =============================================================================
+// WI-5: Workspace Env Field Tests
+// RED: These tests FAIL until Workspace has Env field and GetEnv/SetEnv methods.
+// =============================================================================
+
+// TestSQLDataStore_CreateWorkspace_WithEnv verifies that a workspace env map is
+// persisted and retrieved correctly from the database.
+func TestSQLDataStore_CreateWorkspace_WithEnv(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	// Create required hierarchy
+	eco := &models.Ecosystem{Name: "env-eco"}
+	if err := ds.CreateEcosystem(eco); err != nil {
+		t.Fatalf("CreateEcosystem() error = %v", err)
+	}
+
+	domain := &models.Domain{Name: "env-domain", EcosystemID: eco.ID}
+	if err := ds.CreateDomain(domain); err != nil {
+		t.Fatalf("CreateDomain() error = %v", err)
+	}
+
+	app := &models.App{Name: "env-app", DomainID: domain.ID, Path: "/env/path"}
+	if err := ds.CreateApp(app); err != nil {
+		t.Fatalf("CreateApp() error = %v", err)
+	}
+
+	// Create workspace with Env set
+	ws := &models.Workspace{
+		AppID:     app.ID,
+		Name:      "env-workspace",
+		ImageName: "ubuntu:22.04",
+	}
+	envMap := map[string]string{
+		"MY_TOKEN": "abc123",
+		"DB_HOST":  "localhost",
+	}
+	// SetEnv should persist the env map as JSON into the DB field
+	ws.SetEnv(envMap)
+
+	if err := ds.CreateWorkspace(ws); err != nil {
+		t.Fatalf("CreateWorkspace() error = %v", err)
+	}
+
+	// Retrieve and verify
+	retrieved, err := ds.GetWorkspaceByName(app.ID, "env-workspace")
+	if err != nil {
+		t.Fatalf("GetWorkspaceByName() error = %v", err)
+	}
+
+	gotEnv := retrieved.GetEnv()
+	if len(gotEnv) == 0 {
+		t.Fatal("GetEnv() returned empty map; env was not persisted")
+	}
+	if gotEnv["MY_TOKEN"] != "abc123" {
+		t.Errorf("GetEnv()[MY_TOKEN] = %q, want %q", gotEnv["MY_TOKEN"], "abc123")
+	}
+	if gotEnv["DB_HOST"] != "localhost" {
+		t.Errorf("GetEnv()[DB_HOST] = %q, want %q", gotEnv["DB_HOST"], "localhost")
+	}
+}
+
+// TestSQLDataStore_UpdateWorkspace_Env verifies that updating a workspace's env
+// is correctly persisted and retrieved.
+func TestSQLDataStore_UpdateWorkspace_Env(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	eco := &models.Ecosystem{Name: "env-update-eco"}
+	if err := ds.CreateEcosystem(eco); err != nil {
+		t.Fatalf("CreateEcosystem() error = %v", err)
+	}
+
+	domain := &models.Domain{Name: "env-update-domain", EcosystemID: eco.ID}
+	if err := ds.CreateDomain(domain); err != nil {
+		t.Fatalf("CreateDomain() error = %v", err)
+	}
+
+	app := &models.App{Name: "env-update-app", DomainID: domain.ID, Path: "/env/update"}
+	if err := ds.CreateApp(app); err != nil {
+		t.Fatalf("CreateApp() error = %v", err)
+	}
+
+	// Create workspace without env
+	ws := &models.Workspace{
+		AppID:     app.ID,
+		Name:      "env-update-ws",
+		ImageName: "ubuntu:22.04",
+	}
+	if err := ds.CreateWorkspace(ws); err != nil {
+		t.Fatalf("CreateWorkspace() error = %v", err)
+	}
+
+	// Update with env
+	ws.SetEnv(map[string]string{"UPDATED_KEY": "updated_value"})
+	if err := ds.UpdateWorkspace(ws); err != nil {
+		t.Fatalf("UpdateWorkspace() error = %v", err)
+	}
+
+	retrieved, err := ds.GetWorkspaceByID(ws.ID)
+	if err != nil {
+		t.Fatalf("GetWorkspaceByID() error = %v", err)
+	}
+
+	gotEnv := retrieved.GetEnv()
+	if gotEnv["UPDATED_KEY"] != "updated_value" {
+		t.Errorf("GetEnv()[UPDATED_KEY] = %q, want %q", gotEnv["UPDATED_KEY"], "updated_value")
 	}
 }

@@ -1,6 +1,6 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.35.2  
+> **Version**: v0.36.0  
 > **Last Updated**: March 2026
 
 ---
@@ -1421,6 +1421,302 @@ dvm delete registry test
 
 ---
 
+## Part 8: Credential Injection & Environment Variables (v0.36.0)
+
+These scenarios cover the new workspace `env` field, runtime environment injection, GitRepo credential wiring, SQLite foreign key enforcement, build-arg redaction, and the new env var validation package.
+
+**Prerequisites:**
+- `dvm` binary built from v0.36.0+
+- At least one ecosystem, domain, app, and workspace configured
+- At least one credential created (for scenarios 42 and 45)
+
+---
+
+### Scenario 40: Foreign Key Cascade Delete
+
+Verify that deleting a credential cascades to any GitRepo that references it.
+
+```bash
+# Create a credential
+dvm create credential GH_TOKEN --source env --env-var GITHUB_TOKEN --ecosystem <eco-name>
+
+# Create a gitrepo referencing the credential
+dvm create gitrepo test-cascade-repo \
+  --url https://github.com/test/repo \
+  --auth-type token \
+  --credential GH_TOKEN
+
+# Delete the credential
+dvm delete credential GH_TOKEN --ecosystem <eco-name> --force
+
+# Verify the gitrepo was cascade-deleted
+dvm get gitrepos
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Credential delete succeeds | No error | |
+| GitRepo is cascade-deleted | `test-cascade-repo` no longer appears in `dvm get gitrepos` | |
+| No orphaned rows | No gitrepo entry references a deleted credential | |
+
+---
+
+### Scenario 41: GitRepo Single-Item Detail View
+
+Verify `dvm get gitrepo <name>` renders cleanly in all output formats.
+
+```bash
+# Create a gitrepo (no credential required)
+dvm create gitrepo detail-test-repo --url https://github.com/test/repo --auth-type none
+
+# Human-readable (Key: Value format)
+dvm get gitrepo detail-test-repo
+
+# YAML output
+dvm get gitrepo detail-test-repo -o yaml
+
+# JSON output
+dvm get gitrepo detail-test-repo -o json
+```
+
+**For JSON validation:**
+```bash
+dvm get gitrepo detail-test-repo -o json | python3 -m json.tool
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Default output renders cleanly | `Key: Value` format, no `map[string]interface{}` raw output | |
+| `-o yaml` produces valid YAML | Parseable YAML, no error | |
+| `-o json` produces valid JSON | Parseable JSON, no error | |
+| All fields present | Name, URL, auth type visible in output | |
+
+**Cleanup:**
+```bash
+dvm delete gitrepo detail-test-repo --force
+```
+
+---
+
+### Scenario 42: GitRepo Credential Wiring
+
+Verify that `--credential` on `dvm create gitrepo` is stored and retrievable.
+
+```bash
+# Create the credential first
+dvm create credential MY_CRED --source env --env-var MY_GH_TOKEN --ecosystem <eco-name>
+
+# Create a gitrepo referencing the credential
+dvm create gitrepo test-wired-repo \
+  --url https://github.com/test/repo \
+  --auth-type token \
+  --credential MY_CRED
+
+# Verify the credential reference is stored
+dvm get gitrepo test-wired-repo
+dvm get gitrepo test-wired-repo -o yaml
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Create succeeds | No error | |
+| Credential reference shown | `Credential: MY_CRED` visible in detail output | |
+| Credential in YAML | `credential: MY_CRED` (or equivalent) present under spec in yaml output | |
+
+**Cleanup:**
+```bash
+dvm delete gitrepo test-wired-repo --force
+dvm delete credential MY_CRED --ecosystem <eco-name> --force
+```
+
+---
+
+### Scenario 43: Runtime Environment Injection
+
+Verify that `dvm attach` injects workspace env vars and theme env vars into the running container.
+
+```bash
+# Create a workspace YAML with env vars
+cat <<EOF > /tmp/env-test-workspace.yaml
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: env-inject-ws
+  app: <app-name>
+spec:
+  env:
+    MY_CUSTOM_VAR: hello-from-workspace
+    BUILD_ENV: testing
+EOF
+
+dvm apply -f /tmp/env-test-workspace.yaml
+
+# Build and attach
+dvm build --workspace env-inject-ws
+dvm attach --workspace env-inject-ws
+```
+
+**Inside the container, verify:**
+```bash
+# Workspace env vars
+echo $MY_CUSTOM_VAR    # Expected: hello-from-workspace
+echo $BUILD_ENV        # Expected: testing
+
+# Theme env vars (if a theme is set)
+echo $NVIM_THEME       # Expected: theme name
+
+exit
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Workspace env vars injected | `MY_CUSTOM_VAR=hello-from-workspace` inside container | |
+| `BUILD_ENV` injected | `BUILD_ENV=testing` inside container | |
+| Theme env vars present | `NVIM_THEME` (and related vars) set inside container | |
+| No env injection errors on attach | `dvm attach` succeeds without error | |
+
+**Cleanup:**
+```bash
+dvm delete workspace env-inject-ws --force
+rm /tmp/env-test-workspace.yaml
+```
+
+---
+
+### Scenario 44: Workspace `env` Field Round-Trip
+
+Verify that the `env` section in a workspace YAML is stored and retrievable without data loss.
+
+```bash
+# Create workspace YAML with env section
+cat <<EOF > /tmp/roundtrip-workspace.yaml
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: roundtrip-env-ws
+  app: <app-name>
+spec:
+  env:
+    DATABASE_URL: postgres://localhost/mydb
+    LOG_LEVEL: debug
+    FEATURE_FLAGS: flag1,flag2,flag3
+EOF
+
+# Apply it
+dvm apply -f /tmp/roundtrip-workspace.yaml
+
+# Retrieve and verify env section is preserved
+dvm get workspace roundtrip-env-ws -o yaml
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Apply succeeds | No error | |
+| `DATABASE_URL` preserved | `DATABASE_URL: postgres://localhost/mydb` in yaml output | |
+| `LOG_LEVEL` preserved | `LOG_LEVEL: debug` in yaml output | |
+| `FEATURE_FLAGS` preserved | `FEATURE_FLAGS: flag1,flag2,flag3` in yaml output | |
+| `env` section present | `spec.env` (or equivalent) block visible in output | |
+
+**Cleanup:**
+```bash
+dvm delete workspace roundtrip-env-ws --force
+rm /tmp/roundtrip-workspace.yaml
+```
+
+---
+
+### Scenario 45: Build-Arg Credential Redaction
+
+Verify that credential values are redacted in build command output and never printed in plain text.
+
+```bash
+# Create a credential with a known value
+dvm create credential BUILD_SECRET --source env --env-var MY_SECRET_VALUE --ecosystem <eco-name>
+
+# Run a build with the credential (observe output carefully)
+dvm build --workspace <your-workspace> --credential BUILD_SECRET
+```
+
+**Inspect the build output:**
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Build-arg value not shown in plain text | No raw secret values visible in output | |
+| Redacted placeholder shown | `--build-arg BUILD_SECRET=***REDACTED***` (or similar) in output | |
+| Build still succeeds | Image built successfully despite redaction in logs | |
+
+**Cleanup:**
+```bash
+dvm delete credential BUILD_SECRET --ecosystem <eco-name> --force
+```
+
+---
+
+### Scenario 46: Env Var Validation
+
+Verify that invalid env var names and dangerous env var names are rejected with clear errors.
+
+```bash
+# Invalid name: starts with a number
+dvm apply -f - <<EOF
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: invalid-env-ws
+  app: <app-name>
+spec:
+  env:
+    1INVALID_VAR: some-value
+EOF
+
+# Invalid name: contains special characters
+dvm apply -f - <<EOF
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: invalid-env-ws
+  app: <app-name>
+spec:
+  env:
+    INVALID-VAR-NAME: some-value
+EOF
+
+# Dangerous env var: LD_PRELOAD (denylisted)
+dvm apply -f - <<EOF
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: invalid-env-ws
+  app: <app-name>
+spec:
+  env:
+    LD_PRELOAD: /tmp/evil.so
+EOF
+
+# Dangerous env var: DYLD_INSERT_LIBRARIES (denylisted)
+dvm apply -f - <<EOF
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: invalid-env-ws
+  app: <app-name>
+spec:
+  env:
+    DYLD_INSERT_LIBRARIES: /tmp/evil.dylib
+EOF
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `1INVALID_VAR` rejected | Error: invalid env var name (must start with letter or `_`) | |
+| `INVALID-VAR-NAME` rejected | Error: invalid env var name (hyphens not allowed) | |
+| `LD_PRELOAD` rejected | Error: env var name is denylisted / not permitted | |
+| `DYLD_INSERT_LIBRARIES` rejected | Error: env var name is denylisted / not permitted | |
+| All errors are non-panic | No stack traces in any of the above | |
+| No workspace created for any invalid case | `dvm get workspaces` does not list `invalid-env-ws` | |
+
+---
+
 ## Test Results Summary
 
 | Part | Tests | Pass | Fail |
@@ -1435,6 +1731,7 @@ dvm delete registry test
 | Part 5: Package Rename & Auto-Detection | 3 scenarios | | |
 | Part 6: Credential Management | 15 scenarios | | |
 | Part 7: Registry Version Management | 8 scenarios | | |
+| Part 8: Credential Injection & Env Vars | 7 scenarios | | |
 
 ---
 
@@ -1487,5 +1784,5 @@ colima nerdctl -- --namespace devopsmaestro images
 
 **Tested by:** ________________  
 **Date:** ________________  
-**Version:** v0.35.2  
+**Version:** v0.36.0  
 **Platform:** ________________

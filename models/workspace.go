@@ -25,6 +25,7 @@ type Workspace struct {
 	TerminalPlugins    sql.NullString `db:"terminal_plugins" json:"terminal_plugins,omitempty" yaml:"-"` // JSON array
 	TerminalPackage    sql.NullString `db:"terminal_package" json:"terminal_package,omitempty" yaml:"-"`
 	GitRepoID          sql.NullInt64  `db:"git_repo_id" json:"git_repo_id,omitempty" yaml:"-"`
+	Env                sql.NullString `db:"env" json:"env,omitempty" yaml:"-"`
 	CreatedAt          time.Time      `db:"created_at" json:"created_at" yaml:"-"`
 	UpdatedAt          time.Time      `db:"updated_at" json:"updated_at" yaml:"-"`
 }
@@ -189,6 +190,12 @@ func (w *Workspace) ToYAML(appName string, gitRepoName string) WorkspaceYAML {
 		terminalConfig.Package = w.TerminalPackage.String
 	}
 
+	// Include env variables if any are set
+	envMap := w.GetEnv()
+	if len(envMap) == 0 {
+		envMap = nil // Ensure omitempty works for YAML serialization
+	}
+
 	// Create default spec with minimal configuration
 	// This will be enhanced when we implement config storage in DB
 	spec := WorkspaceSpec{
@@ -197,6 +204,7 @@ func (w *Workspace) ToYAML(appName string, gitRepoName string) WorkspaceYAML {
 		},
 		Nvim:     nvimConfig,
 		Terminal: terminalConfig,
+		Env:      envMap,
 		Container: ContainerConfig{
 			User:       "dev",
 			UID:        1000,
@@ -256,6 +264,11 @@ func (w *Workspace) FromYAML(yaml WorkspaceYAML) {
 	if yaml.Spec.Terminal.Package != "" {
 		w.TerminalPackage = sql.NullString{String: yaml.Spec.Terminal.Package, Valid: true}
 	}
+
+	// Environment variables
+	if len(yaml.Spec.Env) > 0 {
+		w.SetEnv(yaml.Spec.Env)
+	}
 	// Note: GitRepo resolution (name→ID) happens in the handler, not here
 }
 
@@ -287,4 +300,31 @@ func (w *Workspace) SetTerminalPlugins(plugins []string) {
 		return
 	}
 	w.TerminalPlugins = sql.NullString{String: string(data), Valid: true}
+}
+
+// GetEnv returns the environment variables configured for this workspace.
+// Returns an empty (non-nil) map if no env vars are configured.
+func (w *Workspace) GetEnv() map[string]string {
+	if !w.Env.Valid || w.Env.String == "" || w.Env.String == "{}" {
+		return map[string]string{}
+	}
+	var env map[string]string
+	if err := json.Unmarshal([]byte(w.Env.String), &env); err != nil {
+		return map[string]string{}
+	}
+	return env
+}
+
+// SetEnv stores the environment variables for this workspace.
+func (w *Workspace) SetEnv(env map[string]string) {
+	if len(env) == 0 {
+		w.Env = sql.NullString{String: "{}", Valid: true}
+		return
+	}
+	data, err := json.Marshal(env)
+	if err != nil {
+		w.Env = sql.NullString{String: "{}", Valid: true}
+		return
+	}
+	w.Env = sql.NullString{String: string(data), Valid: true}
 }

@@ -65,6 +65,9 @@ func (r *PlainRenderer) RenderWithContext(ctx context.Context, w io.Writer, data
 		return r.renderList(w, ListData{Items: v})
 	case map[string]string:
 		return r.renderMap(w, v)
+	case map[string]interface{}:
+		kv := mapToKeyValueData(v)
+		return r.renderKeyValue(w, kv)
 	default:
 		// For other types, try to render as key-value if it's a struct
 		fmt.Fprintf(w, "%v\n", data)

@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.36.0] - 2026-03-11 — Credential Injection & Bug Fixes
+
+### 🐛 Fixed
+
+#### DB: SQLite Foreign Key Enforcement
+- **`Connect()` now enables foreign key enforcement via `_foreign_keys=on` DSN parameter and PRAGMA verification** — The previous implementation never activated foreign key constraints in SQLite, causing cascade deletes to silently leave orphaned rows instead of propagating the deletion
+  - Files changed: `db/sqlite_driver.go`
+
+#### GitRepo: Single-Item Render Fix
+- **`dvm get gitrepo <name>` now renders correctly with `KeyValueData` instead of `map[string]interface{}`** — Created `gitRepoToKeyValue()` helper; split human vs JSON/YAML output paths; added `mapToKeyValueData()` fallback to both colored and plain renderers
+  - Files changed: `cmd/gitrepo.go`, `render/renderer_colored.go`, `render/renderer_plain.go`
+
+### ✨ Added
+
+#### GitRepo: `--credential` Flag Wiring
+- **`--credential` flag on `dvm create gitrepo` now stores the credential reference** — Previously the flag was parsed but discarded as dead code; the flag now validates auth-type/credential consistency and looks up the credential by name via `GetCredentialByName()`
+  - Files changed: `cmd/gitrepo.go`
+
+#### Runtime Environment Injection
+- **`dvm attach` now injects workspace env vars and theme env vars into the container at runtime** — Merge order: metadata → theme → registry → credentials → workspace YAML env (later layers win without clobbering earlier ones)
+  - Files changed: `cmd/attach.go`
+
+#### Workspace `env` Field
+- **New `env` field on the Workspace resource** — DB migration 009 adds an `env` column to the `workspaces` table; `GetEnv()`/`SetEnv()` helpers on the Workspace model; env values round-trip through `ToYAML()`/`FromYAML()`; all 8 workspace query methods updated
+  - Files changed: `db/migrations/sqlite/009_add_workspace_env.up.sql`, `db/migrations/sqlite/009_add_workspace_env.down.sql`, `db/store_workspace.go`, `models/workspace.go`
+
+### 🔒 Security
+
+#### SM-7: Build-Arg Credential Redaction
+- **Build-arg values are now redacted in command output** — New `redactBuildArgs()` function replaces credential values with `***REDACTED***` in any logged or displayed Docker build-arg strings
+  - Files changed: `builders/docker_builder.go`
+
+#### SM-8/SM-13/SM-14: Environment Variable Validation
+- **New `pkg/envvalidation/` package** — Provides POSIX env var name validation, a dangerous env var denylist (`LD_PRELOAD`, `DYLD_INSERT_LIBRARIES`, etc.), and value sanitization; invalid names and denylisted vars are rejected with clear error messages
+  - Files changed: `pkg/envvalidation/validate.go`
+
+### 📊 v0.36.0 Summary
+
+| Metric | Value |
+|--------|-------|
+| Bug fixes | 2 (FK enforcement, gitrepo render) |
+| New features | 3 (credential wiring, runtime env injection, workspace env field) |
+| Security hardening | 3 (build-arg redaction, env validation, denylist) |
+| DB migrations | 1 (migration 009: workspace `env` column) |
+| New packages | 1 (`pkg/envvalidation/`) |
+| All tests pass | 57/57 packages |
+
+---
+
 ## [v0.35.2] - 2026-03-12 — Registry Binary Version Reconciliation Fix
 
 ### 🐛 Fixed

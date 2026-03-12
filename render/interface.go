@@ -2,7 +2,9 @@ package render
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"sort"
 )
 
 // Renderer is the interface that all renderers must implement.
@@ -66,5 +68,17 @@ func NewKeyValueData(m map[string]string) KeyValueData {
 
 // NewOrderedKeyValueData creates KeyValueData with guaranteed order
 func NewOrderedKeyValueData(pairs ...KeyValue) KeyValueData {
+	return KeyValueData{Pairs: pairs}
+}
+
+// mapToKeyValueData converts a map[string]interface{} to KeyValueData.
+// This is a safety net for data that should have been converted to KeyValueData
+// by the caller but wasn't. Keys are sorted for deterministic output.
+func mapToKeyValueData(m map[string]interface{}) KeyValueData {
+	pairs := make([]KeyValue, 0, len(m))
+	for k, v := range m {
+		pairs = append(pairs, KeyValue{Key: k, Value: fmt.Sprintf("%v", v)})
+	}
+	sort.Slice(pairs, func(i, j int) bool { return pairs[i].Key < pairs[j].Key })
 	return KeyValueData{Pairs: pairs}
 }

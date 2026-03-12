@@ -74,6 +74,19 @@ func TestSQLDataStore_GetGitRepoByName(t *testing.T) {
 	ds := createTestDataStore(t)
 	defer ds.Close()
 
+	// Create a credential to satisfy FK constraint
+	svc := "test-service"
+	cred := &models.CredentialDB{
+		ScopeType: "global",
+		ScopeID:   0,
+		Name:      "test-cred-for-gitrepo",
+		Source:    "keychain",
+		Service:   &svc,
+	}
+	if err := ds.CreateCredential(cred); err != nil {
+		t.Fatalf("Setup: CreateCredential() error = %v", err)
+	}
+
 	repo := &models.GitRepoDB{
 		Name:       "findme-repo",
 		URL:        "https://github.com/user/findme",
@@ -81,7 +94,7 @@ func TestSQLDataStore_GetGitRepoByName(t *testing.T) {
 		DefaultRef: "main",
 		AuthType:   "ssh",
 		CredentialID: sql.NullInt64{
-			Int64: 42,
+			Int64: cred.ID,
 			Valid: true,
 		},
 		AutoSync:            true,
@@ -113,8 +126,8 @@ func TestSQLDataStore_GetGitRepoByName(t *testing.T) {
 	if retrieved.AuthType != "ssh" {
 		t.Errorf("GetGitRepoByName() AuthType = %q, want %q", retrieved.AuthType, "ssh")
 	}
-	if !retrieved.CredentialID.Valid || retrieved.CredentialID.Int64 != 42 {
-		t.Errorf("GetGitRepoByName() CredentialID = %v, want 42", retrieved.CredentialID)
+	if !retrieved.CredentialID.Valid || retrieved.CredentialID.Int64 != cred.ID {
+		t.Errorf("GetGitRepoByName() CredentialID = %v, want %d", retrieved.CredentialID, cred.ID)
 	}
 	if !retrieved.AutoSync {
 		t.Errorf("GetGitRepoByName() AutoSync = %v, want true", retrieved.AutoSync)
@@ -184,6 +197,19 @@ func TestSQLDataStore_UpdateGitRepo(t *testing.T) {
 	ds := createTestDataStore(t)
 	defer ds.Close()
 
+	// Create a credential to satisfy FK constraint on update
+	svc := "update-service"
+	cred := &models.CredentialDB{
+		ScopeType: "global",
+		ScopeID:   0,
+		Name:      "test-cred-for-update",
+		Source:    "keychain",
+		Service:   &svc,
+	}
+	if err := ds.CreateCredential(cred); err != nil {
+		t.Fatalf("Setup: CreateCredential() error = %v", err)
+	}
+
 	repo := &models.GitRepoDB{
 		Name:                "update-repo",
 		URL:                 "https://github.com/user/original",
@@ -202,7 +228,7 @@ func TestSQLDataStore_UpdateGitRepo(t *testing.T) {
 	// Update the repo
 	repo.DefaultRef = "develop"
 	repo.AuthType = "ssh"
-	repo.CredentialID = sql.NullInt64{Int64: 99, Valid: true}
+	repo.CredentialID = sql.NullInt64{Int64: cred.ID, Valid: true}
 	repo.AutoSync = true
 	repo.SyncIntervalMinutes = 60
 	repo.SyncStatus = "synced"
@@ -224,8 +250,8 @@ func TestSQLDataStore_UpdateGitRepo(t *testing.T) {
 	if retrieved.AuthType != "ssh" {
 		t.Errorf("UpdateGitRepo() AuthType = %q, want %q", retrieved.AuthType, "ssh")
 	}
-	if !retrieved.CredentialID.Valid || retrieved.CredentialID.Int64 != 99 {
-		t.Errorf("UpdateGitRepo() CredentialID = %v, want 99", retrieved.CredentialID)
+	if !retrieved.CredentialID.Valid || retrieved.CredentialID.Int64 != cred.ID {
+		t.Errorf("UpdateGitRepo() CredentialID = %v, want %d", retrieved.CredentialID, cred.ID)
 	}
 	if !retrieved.AutoSync {
 		t.Errorf("UpdateGitRepo() AutoSync = %v, want true", retrieved.AutoSync)

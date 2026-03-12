@@ -77,6 +77,35 @@ func (ds *SQLDataStore) GetCredential(scopeType models.CredentialScopeType, scop
 	return credential, nil
 }
 
+// GetCredentialByName retrieves a credential by name across all scopes.
+// Returns the first match if multiple credentials have the same name in different scopes.
+func (ds *SQLDataStore) GetCredentialByName(name string) (*models.CredentialDB, error) {
+	credential := &models.CredentialDB{}
+	query := `SELECT id, scope_type, scope_id, name, source, service, env_var, description, created_at, updated_at 
+		FROM credentials WHERE name = ? LIMIT 1`
+
+	row := ds.driver.QueryRow(query, name)
+	if err := row.Scan(
+		&credential.ID,
+		&credential.ScopeType,
+		&credential.ScopeID,
+		&credential.Name,
+		&credential.Source,
+		&credential.Service,
+		&credential.EnvVar,
+		&credential.Description,
+		&credential.CreatedAt,
+		&credential.UpdatedAt,
+	); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, NewErrNotFound("credential", name)
+		}
+		return nil, fmt.Errorf("failed to scan credential: %w", err)
+	}
+
+	return credential, nil
+}
+
 // UpdateCredential updates an existing credential.
 func (ds *SQLDataStore) UpdateCredential(credential *models.CredentialDB) error {
 	// Validate source - only keychain and env allowed

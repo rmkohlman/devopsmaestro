@@ -14,10 +14,15 @@ import (
 // Callers must ensure defaults (nvim config, slug) are set via
 // workspace.PrepareDefaults() before calling this method.
 func (ds *SQLDataStore) CreateWorkspace(workspace *models.Workspace) error {
-	query := fmt.Sprintf(`INSERT INTO workspaces (app_id, name, slug, description, image_name, status, ssh_agent_forwarding, nvim_structure, nvim_plugins, theme, terminal_prompt, terminal_plugins, terminal_package, git_repo_id, created_at, updated_at) 
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
+	// Default env to empty JSON object if not set
+	if !workspace.Env.Valid {
+		workspace.Env = sql.NullString{String: "{}", Valid: true}
+	}
 
-	result, err := ds.driver.Execute(query, workspace.AppID, workspace.Name, workspace.Slug, workspace.Description, workspace.ImageName, workspace.Status, workspace.SSHAgentForwarding, workspace.NvimStructure, workspace.NvimPlugins, workspace.Theme, workspace.TerminalPrompt, workspace.TerminalPlugins, workspace.TerminalPackage, workspace.GitRepoID)
+	query := fmt.Sprintf(`INSERT INTO workspaces (app_id, name, slug, description, image_name, status, ssh_agent_forwarding, nvim_structure, nvim_plugins, theme, terminal_prompt, terminal_plugins, terminal_package, git_repo_id, env, created_at, updated_at) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
+
+	result, err := ds.driver.Execute(query, workspace.AppID, workspace.Name, workspace.Slug, workspace.Description, workspace.ImageName, workspace.Status, workspace.SSHAgentForwarding, workspace.NvimStructure, workspace.NvimPlugins, workspace.Theme, workspace.TerminalPrompt, workspace.TerminalPlugins, workspace.TerminalPackage, workspace.GitRepoID, workspace.Env)
 	if err != nil {
 		return fmt.Errorf("failed to create workspace: %w", err)
 	}
@@ -33,13 +38,13 @@ func (ds *SQLDataStore) CreateWorkspace(workspace *models.Workspace) error {
 // GetWorkspaceByName retrieves a workspace by app ID and name.
 func (ds *SQLDataStore) GetWorkspaceByName(appID int, name string) (*models.Workspace, error) {
 	workspace := &models.Workspace{}
-	query := `SELECT id, app_id, name, slug, description, image_name, container_id, status, ssh_agent_forwarding, nvim_structure, nvim_plugins, theme, terminal_prompt, terminal_plugins, terminal_package, git_repo_id, created_at, updated_at 
+	query := `SELECT id, app_id, name, slug, description, image_name, container_id, status, ssh_agent_forwarding, nvim_structure, nvim_plugins, theme, terminal_prompt, terminal_plugins, terminal_package, git_repo_id, env, created_at, updated_at 
 		FROM workspaces WHERE app_id = ? AND name = ?`
 
 	row := ds.driver.QueryRow(query, appID, name)
 	if err := row.Scan(&workspace.ID, &workspace.AppID, &workspace.Name, &workspace.Slug, &workspace.Description,
 		&workspace.ImageName, &workspace.ContainerID, &workspace.Status, &workspace.SSHAgentForwarding, &workspace.NvimStructure,
-		&workspace.NvimPlugins, &workspace.Theme, &workspace.TerminalPrompt, &workspace.TerminalPlugins, &workspace.TerminalPackage, &workspace.GitRepoID, &workspace.CreatedAt, &workspace.UpdatedAt); err != nil {
+		&workspace.NvimPlugins, &workspace.Theme, &workspace.TerminalPrompt, &workspace.TerminalPlugins, &workspace.TerminalPackage, &workspace.GitRepoID, &workspace.Env, &workspace.CreatedAt, &workspace.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, NewErrNotFound("workspace", name)
 		}
@@ -52,13 +57,13 @@ func (ds *SQLDataStore) GetWorkspaceByName(appID int, name string) (*models.Work
 // GetWorkspaceByID retrieves a workspace by its ID.
 func (ds *SQLDataStore) GetWorkspaceByID(id int) (*models.Workspace, error) {
 	workspace := &models.Workspace{}
-	query := `SELECT id, app_id, name, slug, description, image_name, container_id, status, ssh_agent_forwarding, nvim_structure, nvim_plugins, theme, terminal_prompt, terminal_plugins, terminal_package, git_repo_id, created_at, updated_at 
+	query := `SELECT id, app_id, name, slug, description, image_name, container_id, status, ssh_agent_forwarding, nvim_structure, nvim_plugins, theme, terminal_prompt, terminal_plugins, terminal_package, git_repo_id, env, created_at, updated_at 
 		FROM workspaces WHERE id = ?`
 
 	row := ds.driver.QueryRow(query, id)
 	if err := row.Scan(&workspace.ID, &workspace.AppID, &workspace.Name, &workspace.Slug, &workspace.Description,
 		&workspace.ImageName, &workspace.ContainerID, &workspace.Status, &workspace.SSHAgentForwarding, &workspace.NvimStructure,
-		&workspace.NvimPlugins, &workspace.Theme, &workspace.TerminalPrompt, &workspace.TerminalPlugins, &workspace.TerminalPackage, &workspace.GitRepoID, &workspace.CreatedAt, &workspace.UpdatedAt); err != nil {
+		&workspace.NvimPlugins, &workspace.Theme, &workspace.TerminalPrompt, &workspace.TerminalPlugins, &workspace.TerminalPackage, &workspace.GitRepoID, &workspace.Env, &workspace.CreatedAt, &workspace.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, NewErrNotFound("workspace", id)
 		}
@@ -71,13 +76,13 @@ func (ds *SQLDataStore) GetWorkspaceByID(id int) (*models.Workspace, error) {
 // GetWorkspaceBySlug retrieves a workspace by its hierarchical slug.
 func (ds *SQLDataStore) GetWorkspaceBySlug(slug string) (*models.Workspace, error) {
 	workspace := &models.Workspace{}
-	query := `SELECT id, app_id, name, slug, description, image_name, container_id, status, ssh_agent_forwarding, nvim_structure, nvim_plugins, theme, terminal_prompt, terminal_plugins, terminal_package, git_repo_id, created_at, updated_at 
+	query := `SELECT id, app_id, name, slug, description, image_name, container_id, status, ssh_agent_forwarding, nvim_structure, nvim_plugins, theme, terminal_prompt, terminal_plugins, terminal_package, git_repo_id, env, created_at, updated_at 
 		FROM workspaces WHERE slug = ?`
 
 	row := ds.driver.QueryRow(query, slug)
 	if err := row.Scan(&workspace.ID, &workspace.AppID, &workspace.Name, &workspace.Slug, &workspace.Description,
 		&workspace.ImageName, &workspace.ContainerID, &workspace.Status, &workspace.SSHAgentForwarding, &workspace.NvimStructure,
-		&workspace.NvimPlugins, &workspace.Theme, &workspace.TerminalPrompt, &workspace.TerminalPlugins, &workspace.TerminalPackage, &workspace.GitRepoID, &workspace.CreatedAt, &workspace.UpdatedAt); err != nil {
+		&workspace.NvimPlugins, &workspace.Theme, &workspace.TerminalPrompt, &workspace.TerminalPlugins, &workspace.TerminalPackage, &workspace.GitRepoID, &workspace.Env, &workspace.CreatedAt, &workspace.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, NewErrNotFound("workspace", slug)
 		}
@@ -90,11 +95,11 @@ func (ds *SQLDataStore) GetWorkspaceBySlug(slug string) (*models.Workspace, erro
 // UpdateWorkspace updates an existing workspace.
 func (ds *SQLDataStore) UpdateWorkspace(workspace *models.Workspace) error {
 	query := fmt.Sprintf(`UPDATE workspaces SET name = ?, slug = ?, description = ?, image_name = ?, container_id = ?, 
-		status = ?, ssh_agent_forwarding = ?, nvim_structure = ?, nvim_plugins = ?, theme = ?, terminal_prompt = ?, terminal_plugins = ?, terminal_package = ?, git_repo_id = ?, updated_at = %s WHERE id = ?`,
+		status = ?, ssh_agent_forwarding = ?, nvim_structure = ?, nvim_plugins = ?, theme = ?, terminal_prompt = ?, terminal_plugins = ?, terminal_package = ?, git_repo_id = ?, env = ?, updated_at = %s WHERE id = ?`,
 		ds.queryBuilder.Now())
 
 	_, err := ds.driver.Execute(query, workspace.Name, workspace.Slug, workspace.Description, workspace.ImageName,
-		workspace.ContainerID, workspace.Status, workspace.SSHAgentForwarding, workspace.NvimStructure, workspace.NvimPlugins, workspace.Theme, workspace.TerminalPrompt, workspace.TerminalPlugins, workspace.TerminalPackage, workspace.GitRepoID, workspace.ID)
+		workspace.ContainerID, workspace.Status, workspace.SSHAgentForwarding, workspace.NvimStructure, workspace.NvimPlugins, workspace.Theme, workspace.TerminalPrompt, workspace.TerminalPlugins, workspace.TerminalPackage, workspace.GitRepoID, workspace.Env, workspace.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update workspace: %w", err)
 	}
@@ -120,7 +125,7 @@ func (ds *SQLDataStore) DeleteWorkspace(id int) error {
 
 // ListWorkspacesByApp retrieves all workspaces for an app.
 func (ds *SQLDataStore) ListWorkspacesByApp(appID int) ([]*models.Workspace, error) {
-	query := `SELECT id, app_id, name, slug, description, image_name, container_id, status, ssh_agent_forwarding, nvim_structure, nvim_plugins, theme, terminal_prompt, terminal_plugins, terminal_package, git_repo_id, created_at, updated_at 
+	query := `SELECT id, app_id, name, slug, description, image_name, container_id, status, ssh_agent_forwarding, nvim_structure, nvim_plugins, theme, terminal_prompt, terminal_plugins, terminal_package, git_repo_id, env, created_at, updated_at 
 		FROM workspaces WHERE app_id = ? ORDER BY name`
 
 	rows, err := ds.driver.Query(query, appID)
@@ -134,7 +139,7 @@ func (ds *SQLDataStore) ListWorkspacesByApp(appID int) ([]*models.Workspace, err
 		workspace := &models.Workspace{}
 		if err := rows.Scan(&workspace.ID, &workspace.AppID, &workspace.Name, &workspace.Slug, &workspace.Description,
 			&workspace.ImageName, &workspace.ContainerID, &workspace.Status, &workspace.SSHAgentForwarding, &workspace.NvimStructure,
-			&workspace.NvimPlugins, &workspace.Theme, &workspace.TerminalPrompt, &workspace.TerminalPlugins, &workspace.TerminalPackage, &workspace.GitRepoID, &workspace.CreatedAt, &workspace.UpdatedAt); err != nil {
+			&workspace.NvimPlugins, &workspace.Theme, &workspace.TerminalPrompt, &workspace.TerminalPlugins, &workspace.TerminalPackage, &workspace.GitRepoID, &workspace.Env, &workspace.CreatedAt, &workspace.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan workspace: %w", err)
 		}
 		workspaces = append(workspaces, workspace)
@@ -149,7 +154,7 @@ func (ds *SQLDataStore) ListWorkspacesByApp(appID int) ([]*models.Workspace, err
 
 // ListAllWorkspaces retrieves all workspaces across all apps.
 func (ds *SQLDataStore) ListAllWorkspaces() ([]*models.Workspace, error) {
-	query := `SELECT id, app_id, name, slug, description, image_name, container_id, status, ssh_agent_forwarding, nvim_structure, nvim_plugins, theme, terminal_prompt, terminal_plugins, terminal_package, git_repo_id, created_at, updated_at 
+	query := `SELECT id, app_id, name, slug, description, image_name, container_id, status, ssh_agent_forwarding, nvim_structure, nvim_plugins, theme, terminal_prompt, terminal_plugins, terminal_package, git_repo_id, env, created_at, updated_at 
 		FROM workspaces ORDER BY app_id, name`
 
 	rows, err := ds.driver.Query(query)
@@ -163,7 +168,7 @@ func (ds *SQLDataStore) ListAllWorkspaces() ([]*models.Workspace, error) {
 		workspace := &models.Workspace{}
 		if err := rows.Scan(&workspace.ID, &workspace.AppID, &workspace.Name, &workspace.Slug, &workspace.Description,
 			&workspace.ImageName, &workspace.ContainerID, &workspace.Status, &workspace.SSHAgentForwarding, &workspace.NvimStructure,
-			&workspace.NvimPlugins, &workspace.Theme, &workspace.TerminalPrompt, &workspace.TerminalPlugins, &workspace.TerminalPackage, &workspace.GitRepoID, &workspace.CreatedAt, &workspace.UpdatedAt); err != nil {
+			&workspace.NvimPlugins, &workspace.Theme, &workspace.TerminalPrompt, &workspace.TerminalPlugins, &workspace.TerminalPackage, &workspace.GitRepoID, &workspace.Env, &workspace.CreatedAt, &workspace.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan workspace: %w", err)
 		}
 		workspaces = append(workspaces, workspace)
@@ -182,7 +187,7 @@ func (ds *SQLDataStore) ListAllWorkspaces() ([]*models.Workspace, error) {
 func (ds *SQLDataStore) FindWorkspaces(filter models.WorkspaceFilter) ([]*models.WorkspaceWithHierarchy, error) {
 	// Build query with JOINs to get full hierarchy
 	query := `SELECT 
-		w.id, w.app_id, w.name, w.description, w.image_name, w.container_id, w.status, w.nvim_structure, w.nvim_plugins, w.theme, w.terminal_prompt, w.terminal_plugins, w.terminal_package, w.slug, w.ssh_agent_forwarding, w.git_repo_id, w.created_at, w.updated_at,
+		w.id, w.app_id, w.name, w.description, w.image_name, w.container_id, w.status, w.nvim_structure, w.nvim_plugins, w.theme, w.terminal_prompt, w.terminal_plugins, w.terminal_package, w.slug, w.ssh_agent_forwarding, w.git_repo_id, w.env, w.created_at, w.updated_at,
 		a.id, a.domain_id, a.name, a.path, a.description, a.language, a.build_config, a.created_at, a.updated_at,
 		d.id, d.ecosystem_id, d.name, d.description, d.created_at, d.updated_at,
 		e.id, e.name, e.description, e.created_at, e.updated_at
@@ -231,7 +236,7 @@ func (ds *SQLDataStore) FindWorkspaces(filter models.WorkspaceFilter) ([]*models
 			// Workspace fields
 			&workspace.ID, &workspace.AppID, &workspace.Name, &workspace.Description,
 			&workspace.ImageName, &workspace.ContainerID, &workspace.Status, &workspace.NvimStructure,
-			&workspace.NvimPlugins, &workspace.Theme, &workspace.TerminalPrompt, &workspace.TerminalPlugins, &workspace.TerminalPackage, &workspace.Slug, &workspace.SSHAgentForwarding, &workspace.GitRepoID, &workspace.CreatedAt, &workspace.UpdatedAt,
+			&workspace.NvimPlugins, &workspace.Theme, &workspace.TerminalPrompt, &workspace.TerminalPlugins, &workspace.TerminalPackage, &workspace.Slug, &workspace.SSHAgentForwarding, &workspace.GitRepoID, &workspace.Env, &workspace.CreatedAt, &workspace.UpdatedAt,
 			// App fields
 			&app.ID, &app.DomainID, &app.Name, &app.Path, &app.Description,
 			&app.Language, &app.BuildConfig, &app.CreatedAt, &app.UpdatedAt,

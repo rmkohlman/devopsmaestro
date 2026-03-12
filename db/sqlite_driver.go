@@ -108,7 +108,7 @@ func NewSQLiteDriver(cfg DriverConfig) (Driver, error) {
 		return nil, fmt.Errorf("failed to expand path: %w", err)
 	}
 
-	dsn := fmt.Sprintf("file:%s?cache=shared&mode=rwc", path)
+	dsn := fmt.Sprintf("file:%s?cache=shared&mode=rwc&_foreign_keys=on", path)
 
 	conn, err := sql.Open("sqlite3", dsn)
 	if err != nil {
@@ -138,7 +138,7 @@ func NewMemorySQLiteDriver(cfg DriverConfig) (Driver, error) {
 	// 1. Each test gets its own isolated database (via unique name)
 	// 2. Multiple connections from the same test can share the database (via cache=shared)
 	// 3. Connection pooling works correctly for concurrent access tests
-	dsn := ":memory:?cache=shared"
+	dsn := ":memory:?cache=shared&_foreign_keys=on"
 
 	conn, err := sql.Open("sqlite3", dsn)
 	if err != nil {
@@ -158,7 +158,20 @@ func NewMemorySQLiteDriver(cfg DriverConfig) (Driver, error) {
 
 // Connect establishes the database connection.
 func (d *SQLiteDriver) Connect() error {
-	return d.conn.Ping()
+	if err := d.conn.Ping(); err != nil {
+		return err
+	}
+
+	// Verify foreign keys are enabled
+	var fkEnabled int
+	if err := d.conn.QueryRow("PRAGMA foreign_keys").Scan(&fkEnabled); err != nil {
+		return fmt.Errorf("failed to check foreign_keys pragma: %w", err)
+	}
+	if fkEnabled != 1 {
+		return fmt.Errorf("foreign_keys pragma is not enabled (got %d, want 1)", fkEnabled)
+	}
+
+	return nil
 }
 
 // Close closes the database connection.

@@ -1,0 +1,3 @@
+-- SQLite does not support DROP COLUMN in older versions.
+-- No-op: the env column will remain but be unused after rollback.
+-- For a full rollback, recreate the workspaces table without the env column.

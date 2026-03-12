@@ -425,6 +425,16 @@ func TestCreateGitRepoCmd_WithAuthType(t *testing.T) {
 func TestCreateGitRepoCmd_WithCredential(t *testing.T) {
 	mockStore := db.NewMockDataStore()
 
+	// Create the credential that will be referenced
+	err := mockStore.CreateCredential(&models.CredentialDB{
+		ID:        1,
+		ScopeType: models.CredentialScopeEcosystem,
+		ScopeID:   0,
+		Name:      "github-ssh",
+		Source:    "keychain",
+	})
+	assert.NoError(t, err)
+
 	cmd := newTestCreateGitRepoCmd()
 	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
 	cmd.SetContext(ctx)
@@ -435,13 +445,14 @@ func TestCreateGitRepoCmd_WithCredential(t *testing.T) {
 	cmd.Flags().Set("credential", "github-ssh")
 	cmd.Flags().Set("no-sync", "true")
 
-	err := cmd.Execute()
+	err = cmd.Execute()
 	assert.NoError(t, err)
 
 	repo, err := mockStore.GetGitRepoByName("private-repo")
 	assert.NoError(t, err)
 	assert.Equal(t, "ssh", repo.AuthType)
-	// Credential should be linked (implementation will verify credential exists)
+	assert.True(t, repo.CredentialID.Valid, "credential ID should be set")
+	assert.Equal(t, int64(1), repo.CredentialID.Int64, "credential ID should match")
 }
 
 // TestCreateGitRepoCmd_NoSync creates with --no-sync flag
@@ -744,4 +755,133 @@ func TestSyncGitReposCmd_Empty(t *testing.T) {
 
 	err := cmd.Execute()
 	assert.NoError(t, err, "should handle empty list gracefully")
+}
+
+// =============================================================================
+// WI-2: GitRepo Single-Item Render Fix Tests
+// RED: These tests FAIL until gitRepoToYAML returns render.KeyValueData.
+// =============================================================================
+
+// TestGitRepoToYAML_ReturnsKeyValueData verifies that gitRepoToYAML returns
+// render.KeyValueData (not map[string]interface{}) for proper human-readable output.
+func TestGitRepoToYAML_ReturnsKeyValueData(t *testing.T) {
+	repo := &models.GitRepoDB{
+		Name:       "my-repo",
+		URL:        "https://github.com/org/repo.git",
+		Slug:       "org-repo",
+		DefaultRef: "main",
+		AuthType:   "none",
+		AutoSync:   true,
+		SyncStatus: "synced",
+	}
+
+	result := gitRepoToYAML(repo)
+
+	// The result must be render.KeyValueData (not map[string]interface{})
+	// We cast to any first to allow type assertion regardless of declared return type.
+	var resultAny any = result
+	_, ok := resultAny.(render.KeyValueData)
+	if !ok {
+		t.Errorf("gitRepoToYAML() returned %T, want render.KeyValueData", result)
+	}
+}
+
+// TestRunGetGitRepo_HumanOutput verifies that get gitrepo outputs human-readable
+// key-value format (not raw YAML of a map) when format is yaml.
+func TestRunGetGitRepo_HumanOutput(t *testing.T) {
+	mockStore := db.NewMockDataStore()
+	repo := &models.GitRepoDB{
+		Name:       "test-repo",
+		URL:        "https://github.com/test/repo.git",
+		Slug:       "test-repo",
+		DefaultRef: "main",
+		AuthType:   "none",
+		AutoSync:   true,
+		SyncStatus: "pending",
+	}
+	require.NoError(t, mockStore.CreateGitRepo(repo))
+
+	var buf bytes.Buffer
+	render.SetWriter(&buf)
+	defer render.SetWriter(os.Stdout)
+
+	cmd := newTestGetGitRepoCmd()
+	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	cmd.SetContext(ctx)
+	cmd.SetArgs([]string{"test-repo"})
+
+	err := cmd.Execute()
+	require.NoError(t, err)
+
+	output := buf.String()
+	// With KeyValueData, the output should contain the repo name as a value
+	// With the buggy map[string]interface{}, the output is unstructured
+	assert.Contains(t, output, "test-repo", "output should contain the repo name")
+}
+
+// =============================================================================
+// WI-3: GitRepo --credential Wiring Tests
+// RED: These tests FAIL until credential lookup + GitRepoDB.CredentialID are wired.
+// =============================================================================
+
+// TestRunCreateGitRepo_WithCredential verifies that --credential flag causes
+// the credential to be looked up and its ID set on the created GitRepo.
+func TestRunCreateGitRepo_WithCredential(t *testing.T) {
+	mockStore := db.NewMockDataStore()
+
+	// Create a credential in the mock store
+	svc := "github.com"
+	cred := &models.CredentialDB{
+		Name:      "my-gh-token",
+		ScopeType: models.CredentialScopeEcosystem,
+		ScopeID:   0, // global scope
+		Source:    "keychain",
+		Service:   &svc,
+	}
+	require.NoError(t, mockStore.CreateCredential(cred))
+
+	cmd := newTestCreateGitRepoCmd()
+	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	cmd.SetContext(ctx)
+	cmd.SetArgs([]string{
+		"cred-repo",
+		"--url", "https://github.com/org/cred-repo.git",
+		"--auth-type", "token",
+		"--credential", "my-gh-token",
+		"--no-sync",
+	})
+
+	err := cmd.Execute()
+	require.NoError(t, err, "create gitrepo with --credential should succeed")
+
+	// Verify the created repo has CredentialID set
+	createdRepo, err := mockStore.GetGitRepoByName("cred-repo")
+	require.NoError(t, err)
+	if !createdRepo.CredentialID.Valid {
+		t.Error("GitRepoDB.CredentialID is not set after --credential flag; credential wiring is missing")
+	}
+	if createdRepo.CredentialID.Int64 != cred.ID {
+		t.Errorf("GitRepoDB.CredentialID = %d, want %d", createdRepo.CredentialID.Int64, cred.ID)
+	}
+}
+
+// TestRunCreateGitRepo_InvalidCredential verifies that providing a nonexistent
+// credential name with --credential causes an error.
+func TestRunCreateGitRepo_InvalidCredential(t *testing.T) {
+	mockStore := db.NewMockDataStore()
+
+	cmd := newTestCreateGitRepoCmd()
+	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	cmd.SetContext(ctx)
+	cmd.SetArgs([]string{
+		"bad-cred-repo",
+		"--url", "https://github.com/org/repo.git",
+		"--auth-type", "token",
+		"--credential", "nonexistent-cred",
+		"--no-sync",
+	})
+
+	err := cmd.Execute()
+	assert.Error(t, err, "create gitrepo with nonexistent --credential should fail")
+	assert.Contains(t, err.Error(), "credential", "error should mention credential")
 }

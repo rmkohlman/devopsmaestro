@@ -255,6 +255,9 @@ func (m *MockDataStore) ListCredentialsByScope(scopeType models.CredentialScopeT
 	return nil, nil
 }
 func (m *MockDataStore) ListAllCredentials() ([]*models.CredentialDB, error) { return nil, nil }
+func (m *MockDataStore) GetCredentialByName(name string) (*models.CredentialDB, error) {
+	return nil, nil
+}
 
 // Driver access
 func (m *MockDataStore) Driver() db.Driver { return nil }

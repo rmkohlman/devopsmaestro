@@ -498,3 +498,87 @@ func TestAttach_MultipleWorkspaces_DifferentRepos(t *testing.T) {
 		assert.Equal(t, expectedCalls, syncCalls, "sync call count mismatch at iteration %d", i)
 	}
 }
+
+// =============================================================================
+// WI-4: Runtime Env Injection Tests
+// RED: These tests FAIL until buildRuntimeEnv (or equivalent) is implemented.
+// =============================================================================
+
+// TestBuildRuntimeEnv_IncludesWorkspaceMetadata verifies that the env map
+// passed to AttachOptions includes the standard DVM workspace metadata vars.
+func TestBuildRuntimeEnv_IncludesWorkspaceMetadata(t *testing.T) {
+	envVars := buildRuntimeEnv("my-app", "dev-ws", "my-eco", "my-domain", nil, nil)
+
+	tests := []struct {
+		key   string
+		value string
+	}{
+		{"DVM_APP", "my-app"},
+		{"DVM_WORKSPACE", "dev-ws"},
+		{"DVM_ECOSYSTEM", "my-eco"},
+		{"DVM_DOMAIN", "my-domain"},
+		{"TERM", "xterm-256color"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.key, func(t *testing.T) {
+			got, ok := envVars[tt.key]
+			if !ok {
+				t.Errorf("env missing key %q", tt.key)
+			} else if got != tt.value {
+				t.Errorf("env[%q] = %q, want %q", tt.key, got, tt.value)
+			}
+		})
+	}
+}
+
+// TestBuildRuntimeEnv_MergesWorkspaceEnv verifies that workspace-level env vars
+// (from spec.env) are included in the runtime env.
+func TestBuildRuntimeEnv_MergesWorkspaceEnv(t *testing.T) {
+	wsEnv := map[string]string{
+		"MY_API_KEY": "secret",
+		"LOG_LEVEL":  "debug",
+	}
+
+	envVars := buildRuntimeEnv("app", "ws", "", "", wsEnv, nil)
+
+	if envVars["MY_API_KEY"] != "secret" {
+		t.Errorf("env[MY_API_KEY] = %q, want %q", envVars["MY_API_KEY"], "secret")
+	}
+	if envVars["LOG_LEVEL"] != "debug" {
+		t.Errorf("env[LOG_LEVEL] = %q, want %q", envVars["LOG_LEVEL"], "debug")
+	}
+}
+
+// TestBuildRuntimeEnv_ThemeVarsOverridable verifies that theme vars are merged
+// into the env and can be passed in via the themeEnv parameter.
+func TestBuildRuntimeEnv_ThemeVarsIncluded(t *testing.T) {
+	themeEnv := map[string]string{
+		"DVM_COLOR_BG":   "#1a1b26",
+		"DVM_COLOR_TEXT": "#c0caf5",
+	}
+
+	envVars := buildRuntimeEnv("app", "ws", "", "", nil, themeEnv)
+
+	if envVars["DVM_COLOR_BG"] != "#1a1b26" {
+		t.Errorf("env[DVM_COLOR_BG] = %q, want %q", envVars["DVM_COLOR_BG"], "#1a1b26")
+	}
+}
+
+// TestBuildRuntimeEnv_WorkspaceEnvOverridesTheme verifies that workspace-level
+// env vars take precedence over theme env vars when there is a key collision.
+func TestBuildRuntimeEnv_WorkspaceEnvPriority(t *testing.T) {
+	wsEnv := map[string]string{
+		"DVM_COLOR_BG": "workspace-override",
+	}
+	themeEnv := map[string]string{
+		"DVM_COLOR_BG": "theme-value",
+	}
+
+	envVars := buildRuntimeEnv("app", "ws", "", "", wsEnv, themeEnv)
+
+	if envVars["DVM_COLOR_BG"] != "workspace-override" {
+		t.Errorf("workspace env should override theme env; env[DVM_COLOR_BG] = %q, want %q",
+			envVars["DVM_COLOR_BG"], "workspace-override")
+	}
+}

@@ -70,6 +70,16 @@ func createTestSchema(driver db.Driver) error {
 			FOREIGN KEY (domain_id) REFERENCES domains(id),
 			UNIQUE(domain_id, name)
 		)`,
+		`CREATE TABLE IF NOT EXISTS git_repos (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL UNIQUE,
+			url TEXT NOT NULL,
+			slug TEXT NOT NULL UNIQUE,
+			default_ref TEXT NOT NULL DEFAULT 'main',
+			auth_type TEXT NOT NULL DEFAULT 'none',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
 		`CREATE TABLE IF NOT EXISTS workspaces (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			app_id INTEGER NOT NULL,
@@ -87,6 +97,7 @@ func createTestSchema(driver db.Driver) error {
 			terminal_plugins TEXT,
 			terminal_package TEXT,
 			git_repo_id INTEGER,
+			env TEXT NOT NULL DEFAULT '{}',
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (app_id) REFERENCES apps(id),
