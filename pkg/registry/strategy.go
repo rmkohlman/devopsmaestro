@@ -84,7 +84,12 @@ func (s *ZotStrategy) CreateManager(reg *models.Registry) (ServiceManager, error
 	}
 
 	// Create managers with explicit dependency construction.
-	binaryManager := NewBinaryManager(config.Storage, "2.0.0") // Zot v2.0.0
+	// Use explicit version from registry if set, otherwise fall back to strategy default (RC-2)
+	version := reg.Version
+	if version == "" {
+		version = s.GetDefaultVersion()
+	}
+	binaryManager := NewBinaryManager(filepath.Join(config.Storage, "bin"), version)
 	processManager := NewProcessManager(ProcessConfig{
 		PIDFile: filepath.Join(config.Storage, "zot.pid"),
 		LogFile: filepath.Join(config.Storage, "zot.log"),
@@ -104,6 +109,11 @@ func (s *ZotStrategy) GetDefaultPort() int {
 // GetDefaultStorage returns the default Zot storage path.
 func (s *ZotStrategy) GetDefaultStorage() string {
 	return "/var/lib/zot"
+}
+
+// GetDefaultVersion returns the default Zot binary version.
+func (s *ZotStrategy) GetDefaultVersion() string {
+	return "2.1.15"
 }
 
 // --- Athens Strategy ---
@@ -169,6 +179,11 @@ func (s *AthensStrategy) GetDefaultPort() int {
 // GetDefaultStorage returns the default Athens storage path.
 func (s *AthensStrategy) GetDefaultStorage() string {
 	return "/var/lib/athens"
+}
+
+// GetDefaultVersion returns empty string (Athens is externally managed).
+func (s *AthensStrategy) GetDefaultVersion() string {
+	return ""
 }
 
 // AthensManagerAdapter adapts AthensManager to ServiceManager interface.
@@ -260,6 +275,11 @@ func (s *DevpiStrategy) GetDefaultPort() int {
 // GetDefaultStorage returns the default devpi storage path.
 func (s *DevpiStrategy) GetDefaultStorage() string {
 	return "/var/lib/devpi"
+}
+
+// GetDefaultVersion returns empty string (devpi is externally managed via pipx).
+func (s *DevpiStrategy) GetDefaultVersion() string {
+	return ""
 }
 
 // DevpiManagerAdapter adapts DevpiManager to ServiceManager interface.
@@ -355,6 +375,11 @@ func (s *VerdaccioStrategy) GetDefaultPort() int {
 // GetDefaultStorage returns the default verdaccio storage path.
 func (s *VerdaccioStrategy) GetDefaultStorage() string {
 	return "/var/lib/verdaccio"
+}
+
+// GetDefaultVersion returns empty string (verdaccio is externally managed via npm).
+func (s *VerdaccioStrategy) GetDefaultVersion() string {
+	return ""
 }
 
 // VerdaccioManagerAdapter adapts VerdaccioManager to ServiceManager interface.
@@ -497,4 +522,9 @@ func (s *SquidStrategy) GetDefaultPort() int {
 // GetDefaultStorage returns the default squid storage path.
 func (s *SquidStrategy) GetDefaultStorage() string {
 	return "/var/cache/squid"
+}
+
+// GetDefaultVersion returns empty string (squid is externally managed via brew).
+func (s *SquidStrategy) GetDefaultVersion() string {
+	return ""
 }

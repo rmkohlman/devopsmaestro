@@ -252,6 +252,7 @@ Examples:
 // Registry creation flags
 var (
 	registryType        string
+	registryVersion     string
 	registryPort        int
 	registryLifecycle   string
 	registryDescription string
@@ -305,15 +306,11 @@ func createRegistry(cmd *cobra.Command, name string) error {
 		return fmt.Errorf("registry '%s' already exists", name)
 	}
 
-	// Type is required
-	if registryType == "" {
-		return fmt.Errorf("--type is required (valid types: zot, athens, devpi, verdaccio, squid)")
-	}
-
 	// Create registry model
 	registry := &models.Registry{
 		Name:      name,
 		Type:      registryType,
+		Version:   registryVersion,
 		Port:      registryPort,
 		Lifecycle: registryLifecycle,
 		Enabled:   true, // Default to enabled
@@ -531,6 +528,8 @@ func init() {
 	createRegistryCmd.Flags().IntVarP(&registryPort, "port", "p", 0, "Port number (default: type-specific)")
 	createRegistryCmd.Flags().StringVarP(&registryLifecycle, "lifecycle", "l", "", "Lifecycle mode: persistent, on-demand, manual (default)")
 	createRegistryCmd.Flags().StringVarP(&registryDescription, "description", "d", "", "Registry description")
+	createRegistryCmd.Flags().StringVar(&registryVersion, "version", "", "Desired binary version (e.g., 2.1.15)")
+	createRegistryCmd.MarkFlagRequired("type")
 
 	// Branch command
 	createCmd.AddCommand(createBranchCmd)

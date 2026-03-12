@@ -852,3 +852,247 @@ func TestRegistryYAML_StatusOmittedWhenNil(t *testing.T) {
 	// When nil, "status" must NOT appear in JSON (omitempty)
 	assert.NotContains(t, jsonStr, `"status"`, "JSON should NOT include 'status' when Status is nil (omitempty)")
 }
+
+// =============================================================================
+// TDD Phase 2 (RED): Declarative Registry Version (v0.35.1)
+//
+// These tests WILL NOT COMPILE until Phase 3 adds:
+//   - Registry.Version field (models/registry.go)
+//   - RegistrySpec.Version field (models/registry.go)
+//   - Registry.ValidateVersion() method (models/registry.go)
+//
+// WHY THEY FAIL:
+//   - Registry struct has no Version field → compiler error
+//   - RegistrySpec struct has no Version field → compiler error
+//   - Registry has no ValidateVersion() method → compiler error
+// =============================================================================
+
+// TestRegistry_VersionField verifies that the Registry model has a Version field
+// that can be set and read back.
+// FAILS TO COMPILE: Registry struct has no Version field.
+func TestRegistry_VersionField(t *testing.T) {
+	tests := []struct {
+		name    string
+		version string
+		want    string
+	}{
+		{
+			name:    "empty version (use strategy default)",
+			version: "",
+			want:    "",
+		},
+		{
+			name:    "explicit version 2.1.15",
+			version: "2.1.15",
+			want:    "2.1.15",
+		},
+		{
+			name:    "semver 1.0.0",
+			version: "1.0.0",
+			want:    "1.0.0",
+		},
+		{
+			name:    "pre-release version 2.0.0-rc1",
+			version: "2.0.0-rc1",
+			want:    "2.0.0-rc1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reg := &Registry{
+				Name:    "test-registry",
+				Type:    "zot",
+				Port:    5001,
+				Version: tt.version, // COMPILE ERROR: Registry has no Version field
+			}
+			assert.Equal(t, tt.want, reg.Version,
+				"Registry.Version should be settable and readable")
+		})
+	}
+}
+
+// TestRegistry_ToYAML_IncludesVersion verifies that ToYAML() propagates the
+// Registry.Version field into RegistrySpec.Version in the output YAML.
+// FAILS TO COMPILE: Registry.Version and RegistrySpec.Version don't exist.
+func TestRegistry_ToYAML_IncludesVersion(t *testing.T) {
+	reg := &Registry{
+		Name:      "my-zot",
+		Type:      "zot",
+		Port:      5001,
+		Lifecycle: "persistent",
+		Storage:   "/var/lib/zot",
+		Version:   "2.1.15", // COMPILE ERROR: Registry has no Version field
+	}
+
+	yamlOut := reg.ToYAML()
+
+	// RegistrySpec must carry the version forward
+	assert.Equal(t, "2.1.15", yamlOut.Spec.Version, // COMPILE ERROR: RegistrySpec has no Version field
+		"ToYAML() must include Version in spec when set on Registry")
+}
+
+// TestRegistry_FromYAML_SetsVersion verifies that FromYAML() reads the version
+// from RegistrySpec.Version and sets it on Registry.Version.
+// FAILS TO COMPILE: Registry.Version and RegistrySpec.Version don't exist.
+func TestRegistry_FromYAML_SetsVersion(t *testing.T) {
+	yamlIn := RegistryYAML{
+		APIVersion: "devopsmaestro.io/v1",
+		Kind:       "Registry",
+		Metadata:   RegistryMetadata{Name: "my-zot"},
+		Spec: RegistrySpec{
+			Type:      "zot",
+			Port:      5001,
+			Lifecycle: "persistent",
+			Version:   "2.1.15", // COMPILE ERROR: RegistrySpec has no Version field
+		},
+	}
+
+	reg := &Registry{}
+	reg.FromYAML(yamlIn)
+
+	assert.Equal(t, "2.1.15", reg.Version, // COMPILE ERROR: Registry has no Version field
+		"FromYAML() must read Version from RegistrySpec.Version and set it on Registry")
+}
+
+// TestRegistry_RoundTrip_Version verifies that Version survives a full
+// ToYAML → FromYAML round-trip without data loss or mutation.
+// FAILS TO COMPILE: Registry.Version and RegistrySpec.Version don't exist.
+func TestRegistry_RoundTrip_Version(t *testing.T) {
+	original := &Registry{
+		Name:      "my-zot",
+		Type:      "zot",
+		Port:      5001,
+		Lifecycle: "persistent",
+		Storage:   "/var/lib/zot",
+		Version:   "2.1.15", // COMPILE ERROR: Registry has no Version field
+	}
+
+	// Convert to YAML and back
+	intermediate := original.ToYAML()
+	restored := &Registry{}
+	restored.FromYAML(intermediate)
+
+	// Version must survive the round-trip intact
+	assert.Equal(t, original.Version, restored.Version, // COMPILE ERROR: Registry has no Version field
+		"Version must survive ToYAML→FromYAML round-trip unchanged: got %q, want %q",
+		restored.Version, original.Version)
+}
+
+// TestRegistry_ValidateVersion verifies the light semver validation on Registry.Version.
+// Per RC-1: empty string is valid (means "use strategy default").
+// Leading 'v' is NOT allowed (consistent with Go module conventions).
+// FAILS TO COMPILE: Registry.ValidateVersion() method doesn't exist.
+func TestRegistry_ValidateVersion(t *testing.T) {
+	tests := []struct {
+		name    string
+		version string
+		wantErr bool
+		errMsg  string
+	}{
+		// Valid versions
+		{
+			name:    "empty string is valid (use strategy default)",
+			version: "",
+			wantErr: false,
+		},
+		{
+			name:    "canonical version 2.1.15",
+			version: "2.1.15",
+			wantErr: false,
+		},
+		{
+			name:    "canonical version 1.0.0",
+			version: "1.0.0",
+			wantErr: false,
+		},
+		{
+			name:    "patch 0.1.0",
+			version: "0.1.0",
+			wantErr: false,
+		},
+		{
+			name:    "pre-release 2.0.0-rc1",
+			version: "2.0.0-rc1",
+			wantErr: false,
+		},
+		{
+			name:    "pre-release with dot 1.2.3-beta.1",
+			version: "1.2.3-beta.1",
+			wantErr: false,
+		},
+		// Invalid versions
+		{
+			name:    "non-numeric string abc",
+			version: "abc",
+			wantErr: true,
+			errMsg:  "invalid version",
+		},
+		{
+			name:    "leading v prefix v2.1.15",
+			version: "v2.1.15",
+			wantErr: true,
+			errMsg:  "invalid version",
+		},
+		{
+			name:    "incomplete semver 2.1 (missing patch)",
+			version: "2.1",
+			wantErr: true,
+			errMsg:  "invalid version",
+		},
+		{
+			name:    "major only 2",
+			version: "2",
+			wantErr: true,
+			errMsg:  "invalid version",
+		},
+		{
+			name:    "leading dot .1.2.3",
+			version: ".1.2.3",
+			wantErr: true,
+			errMsg:  "invalid version",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reg := &Registry{
+				Name:    "test-registry",
+				Type:    "zot",
+				Port:    5001,
+				Version: tt.version, // COMPILE ERROR: Registry has no Version field
+			}
+			err := reg.ValidateVersion() // COMPILE ERROR: ValidateVersion() doesn't exist
+			if tt.wantErr {
+				assert.Error(t, err,
+					"ValidateVersion() should return error for version %q", tt.version)
+				assert.Contains(t, err.Error(), tt.errMsg,
+					"error message should contain %q for version %q", tt.errMsg, tt.version)
+			} else {
+				assert.NoError(t, err,
+					"ValidateVersion() should accept version %q as valid", tt.version)
+			}
+		})
+	}
+}
+
+// TestRegistry_ApplyDefaults_Version verifies that ApplyDefaults() does NOT set
+// a Version on the Registry model.
+// Per RC-1: version defaulting is the strategy layer's responsibility.
+// ApplyDefaults() must NOT touch Version — that would violate the architecture.
+// FAILS TO COMPILE: Registry.Version field doesn't exist.
+func TestRegistry_ApplyDefaults_Version(t *testing.T) {
+	reg := &Registry{
+		Name:      "my-zot",
+		Type:      "zot",
+		Lifecycle: "persistent",
+		Storage:   "",
+		// Version intentionally left empty — ApplyDefaults must leave it alone
+	}
+
+	reg.ApplyDefaults()
+
+	// ApplyDefaults must NOT set a version — that is the strategy layer's job (RC-1).
+	assert.Equal(t, "", reg.Version, // COMPILE ERROR: Registry has no Version field
+		"ApplyDefaults() must NOT set a default Version — version defaulting belongs to the strategy layer (RC-1)")
+}

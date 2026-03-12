@@ -99,12 +99,7 @@ func getRegistries(cmd *cobra.Command) error {
 	isWide := getOutputFormat == "wide"
 
 	// For human output, build table data
-	var headers []string
-	if isWide {
-		headers = []string{"NAME", "TYPE", "PORT", "LIFECYCLE", "STATE", "UPTIME", "CREATED"}
-	} else {
-		headers = []string{"NAME", "TYPE", "PORT", "LIFECYCLE", "STATE", "UPTIME"}
-	}
+	headers := getRegistriesTableHeaders(isWide)
 
 	tableData := render.TableData{
 		Headers: headers,
@@ -124,6 +119,7 @@ func getRegistries(cmd *cobra.Command) error {
 		row := []string{
 			r.Name,
 			r.Type,
+			r.Version,
 			fmt.Sprintf("%d", r.Port),
 			r.Lifecycle,
 			status,
@@ -185,6 +181,7 @@ func getRegistry(cmd *cobra.Command, name string) error {
 	kvData := render.NewOrderedKeyValueData(
 		render.KeyValue{Key: "Name", Value: registry.Name},
 		render.KeyValue{Key: "Type", Value: registry.Type},
+		render.KeyValue{Key: "Version", Value: registry.Version},
 		render.KeyValue{Key: "Port", Value: fmt.Sprintf("%d", registry.Port)},
 		render.KeyValue{Key: "Lifecycle", Value: registry.Lifecycle},
 		render.KeyValue{Key: "Status", Value: status},
@@ -196,6 +193,21 @@ func getRegistry(cmd *cobra.Command, name string) error {
 		Type:  render.TypeKeyValue,
 		Title: "Registry Details",
 	})
+}
+
+// getRegistriesTableHeaders returns the table headers for registry list output.
+// CC-3: VERSION column is positioned after TYPE.
+func getRegistriesTableHeaders(wide bool) []string {
+	if wide {
+		return []string{"NAME", "TYPE", "VERSION", "PORT", "LIFECYCLE", "STATE", "UPTIME", "CREATED"}
+	}
+	return []string{"NAME", "TYPE", "VERSION", "PORT", "LIFECYCLE", "STATE", "UPTIME"}
+}
+
+// getRegistryDetailViewKeys returns the ordered keys for registry detail view.
+// CC-5: Version key is positioned after Type.
+func getRegistryDetailViewKeys() []string {
+	return []string{"Name", "Type", "Version", "Port", "Lifecycle", "Status", "Description", "Created"}
 }
 
 // registryLiveStatus checks whether a registry process is actually running

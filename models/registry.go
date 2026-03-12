@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"time"
 )
 
@@ -12,6 +13,7 @@ type Registry struct {
 	ID          int
 	Name        string
 	Type        string // zot, athens, devpi, verdaccio, squid
+	Version     string // Desired binary version (e.g., "2.1.15")
 	Enabled     bool   // Whether the registry is enabled
 	Port        int
 	Lifecycle   string // persistent, on-demand, manual
@@ -46,6 +48,7 @@ type RegistryMetadata struct {
 
 type RegistrySpec struct {
 	Type      string                 `yaml:"type"`
+	Version   string                 `yaml:"version,omitempty"`
 	Port      int                    `yaml:"port,omitempty"`
 	Lifecycle string                 `yaml:"lifecycle,omitempty"`
 	Config    map[string]interface{} `yaml:"config,omitempty"`
@@ -95,6 +98,7 @@ func (r *Registry) ToYAML() RegistryYAML {
 		},
 		Spec: RegistrySpec{
 			Type:      r.Type,
+			Version:   r.Version,
 			Port:      r.Port,
 			Lifecycle: r.Lifecycle,
 		},
@@ -118,6 +122,7 @@ func (r *Registry) ToYAML() RegistryYAML {
 func (r *Registry) FromYAML(yaml RegistryYAML) {
 	r.Name = yaml.Metadata.Name
 	r.Type = yaml.Spec.Type
+	r.Version = yaml.Spec.Version
 	r.Port = yaml.Spec.Port
 	r.Lifecycle = yaml.Spec.Lifecycle
 
@@ -176,6 +181,20 @@ func (r *Registry) ValidateLifecycle() error {
 	return nil
 }
 
+// ValidateVersion checks if the version string is valid semver (without leading 'v').
+// Empty string is valid (means "use strategy default").
+func (r *Registry) ValidateVersion() error {
+	if r.Version == "" {
+		return nil
+	}
+	// Light semver regex: MAJOR.MINOR.PATCH with optional pre-release
+	matched, _ := regexp.MatchString(`^\d+\.\d+\.\d+(-[a-zA-Z0-9]+(\.[a-zA-Z0-9]+)*)?$`, r.Version)
+	if !matched {
+		return fmt.Errorf("invalid version %q: must be semver format (e.g., 2.1.15, 1.0.0-rc1)", r.Version)
+	}
+	return nil
+}
+
 // Validate performs all validation checks
 func (r *Registry) Validate() error {
 	if r.Name == "" {
@@ -191,6 +210,10 @@ func (r *Registry) Validate() error {
 	}
 
 	if err := r.ValidateLifecycle(); err != nil {
+		return err
+	}
+
+	if err := r.ValidateVersion(); err != nil {
 		return err
 	}
 

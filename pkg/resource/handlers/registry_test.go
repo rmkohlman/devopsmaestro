@@ -468,6 +468,7 @@ func createTestSchema(driver db.Driver) error {
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		name TEXT NOT NULL UNIQUE,
 		type TEXT NOT NULL,
+		version TEXT NOT NULL DEFAULT '',
 		enabled INTEGER NOT NULL DEFAULT 1,
 		port INTEGER NOT NULL,
 		lifecycle TEXT NOT NULL DEFAULT 'manual',

@@ -47,4 +47,8 @@ type RegistryStrategy interface {
 
 	// GetDefaultStorage returns the default storage path for this registry type.
 	GetDefaultStorage() string
+
+	// GetDefaultVersion returns the default binary version for this registry type.
+	// Returns empty string for externally-managed registries (athens, devpi, verdaccio, squid).
+	GetDefaultVersion() string
 }

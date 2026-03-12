@@ -210,7 +210,7 @@ func TestNewBinaryManager_ConfiguresVersion(t *testing.T) {
 		version string
 	}{
 		{"stable version", "1.4.3"},
-		{"latest version", "2.0.0"},
+		{"latest version", "2.1.15"},
 		{"patch version", "1.4.3-patch1"},
 	}
 

@@ -212,6 +212,7 @@ func createTestSchema(driver Driver) error {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT NOT NULL UNIQUE,
 			type TEXT NOT NULL CHECK(type IN ('zot', 'athens', 'devpi', 'verdaccio', 'squid')),
+			version TEXT NOT NULL DEFAULT '',
 			enabled BOOLEAN NOT NULL DEFAULT 1,
 			lifecycle TEXT NOT NULL DEFAULT 'manual' CHECK(lifecycle IN ('persistent', 'on-demand', 'manual')),
 			port INTEGER NOT NULL UNIQUE,

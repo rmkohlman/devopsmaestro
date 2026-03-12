@@ -32,6 +32,19 @@ func (b *DefaultBinaryManager) EnsureBinary(ctx context.Context) (string, error)
 			// Re-download if not executable
 			return b.downloadBinary(ctx, binaryPath)
 		}
+
+		// Check if installed version matches desired version
+		needsUpdate, err := b.NeedsUpdate(ctx)
+		if err != nil {
+			// If we can't determine version, assume it's fine
+			return binaryPath, nil
+		}
+		if needsUpdate {
+			// Version mismatch — download the correct version
+			if err := b.Update(ctx); err != nil {
+				return "", fmt.Errorf("failed to download binary version %s: %w", b.version, err)
+			}
+		}
 		return binaryPath, nil
 	}
 

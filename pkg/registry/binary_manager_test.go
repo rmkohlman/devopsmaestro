@@ -482,3 +482,152 @@ func TestBinaryManager_NeedsUpdate_ErrorsIs_CorrectPattern(t *testing.T) {
 			"which is fragile. err = %v", err)
 	}
 }
+
+// =============================================================================
+// Version Reconciliation Tests (TDD RED phase)
+//
+// Bug: EnsureBinary() returns an existing binary regardless of version mismatch.
+// The fix: EnsureBinary() must call NeedsUpdate() when the binary exists and
+// is executable; if an update is needed, it must call Update() / downloadBinary.
+//
+// These tests are written BEFORE the fix so they demonstrate the current bug
+// and will drive the correct implementation.
+// =============================================================================
+
+// makeFakeZotScript writes a tiny shell script that acts as a "zot" binary,
+// responding to "version" with "zot v<ver>" and exiting 0.
+// This lets us test EnsureBinary version-checking without network access.
+func makeFakeZotScript(t *testing.T, dir, ver string) string {
+	t.Helper()
+	binPath := filepath.Join(dir, "zot")
+	script := "#!/bin/sh\nif [ \"$1\" = \"version\" ]; then echo \"zot v" + ver + "\"; exit 0; fi\nexit 1\n"
+	require.NoError(t, os.WriteFile(binPath, []byte(script), 0755))
+	return binPath
+}
+
+// TestEnsureBinary_ChecksVersionWhenBinaryExists verifies that EnsureBinary
+// does NOT silently return a stale binary when the installed version differs
+// from the desired version.
+//
+// Current behaviour (BUG): the existing-and-executable branch returns the path
+// immediately without ever consulting NeedsUpdate.
+//
+// Expected behaviour after fix: EnsureBinary calls NeedsUpdate, gets true,
+// then calls Update/downloadBinary. Because there is no network in the test
+// environment, the download attempt fails — but the important thing is that it
+// TRIES rather than silently returning the wrong version.
+//
+// We detect the bug by checking the *type* of error returned:
+//   - BUG present  → no error at all (EnsureBinary returns the old path)
+//   - BUG fixed    → an error containing "download" (it tried to update)
+func TestEnsureBinary_ChecksVersionWhenBinaryExists(t *testing.T) {
+	binDir := t.TempDir()
+
+	// Place a fake "zot" binary that reports version 2.0.0.
+	makeFakeZotScript(t, binDir, "2.0.0")
+
+	// Manager is configured to want version 3.0.0 — a mismatch.
+	bm := &DefaultBinaryManager{binDir: binDir, version: "3.0.0"}
+	ctx := context.Background()
+
+	// Confirm the version mismatch is detectable.
+	needsUpdate, err := bm.NeedsUpdate(ctx)
+	require.NoError(t, err, "NeedsUpdate should succeed with a fake executable binary")
+	require.True(t, needsUpdate, "NeedsUpdate must return true when versions differ")
+
+	// Now call EnsureBinary.
+	// BUG: currently returns the old path with no error.
+	// FIXED: returns an error because it tries to download 3.0.0 (no network).
+	_, ensureErr := bm.EnsureBinary(ctx)
+
+	if ensureErr == nil {
+		// This is the current (buggy) path: EnsureBinary returned the stale binary.
+		// Mark the test as failed with a clear message that describes what should happen.
+		t.Errorf("BUG DETECTED: EnsureBinary returned nil error even though installed " +
+			"version (2.0.0) does not match desired version (3.0.0). " +
+			"After the fix, EnsureBinary must call NeedsUpdate and attempt to download " +
+			"the new version, returning a download error in a network-less test environment.")
+	} else {
+		// After the fix: ensure the error is about a download attempt, not something else.
+		assert.Contains(t, ensureErr.Error(), "download",
+			"EnsureBinary should fail with a download error when update is needed but network is unavailable")
+	}
+}
+
+// TestEnsureBinary_SkipsUpdateWhenVersionMatches verifies that EnsureBinary
+// does NOT attempt a download when the installed version already matches.
+//
+// This is the happy path after the fix: binary present, version correct → return
+// the path without touching the network.
+func TestEnsureBinary_SkipsUpdateWhenVersionMatches(t *testing.T) {
+	binDir := t.TempDir()
+
+	// Place a fake "zot" that reports the same version the manager wants.
+	makeFakeZotScript(t, binDir, "2.0.0")
+	expectedPath := filepath.Join(binDir, "zot")
+
+	bm := &DefaultBinaryManager{binDir: binDir, version: "2.0.0"}
+	ctx := context.Background()
+
+	// Confirm no update is needed.
+	needsUpdate, err := bm.NeedsUpdate(ctx)
+	require.NoError(t, err, "NeedsUpdate should succeed with matching fake binary")
+	require.False(t, needsUpdate, "NeedsUpdate must return false when versions match")
+
+	// EnsureBinary should return the existing path with no error.
+	// This should pass both before and after the fix (it's not the bug scenario).
+	path, err := bm.EnsureBinary(ctx)
+	require.NoError(t, err, "EnsureBinary should not error when version already matches")
+	assert.Equal(t, expectedPath, path, "EnsureBinary should return the existing binary path")
+}
+
+// TestNeedsUpdate_VersionMismatch verifies the core NeedsUpdate logic:
+// when the installed binary reports a different version than desired, return true.
+func TestNeedsUpdate_VersionMismatch(t *testing.T) {
+	binDir := t.TempDir()
+
+	// Fake binary reporting version 2.0.0.
+	makeFakeZotScript(t, binDir, "2.0.0")
+
+	// Manager wants 3.0.0 — definite mismatch.
+	bm := &DefaultBinaryManager{binDir: binDir, version: "3.0.0"}
+	ctx := context.Background()
+
+	needsUpdate, err := bm.NeedsUpdate(ctx)
+	require.NoError(t, err, "NeedsUpdate should not error when binary exists and is executable")
+	assert.True(t, needsUpdate, "NeedsUpdate must return true when installed version differs from desired")
+}
+
+// TestNeedsUpdate_VersionMatch verifies the core NeedsUpdate logic:
+// when the installed binary reports the same version as desired, return false.
+func TestNeedsUpdate_VersionMatch(t *testing.T) {
+	binDir := t.TempDir()
+
+	// Fake binary reporting version 2.0.0.
+	makeFakeZotScript(t, binDir, "2.0.0")
+
+	// Manager also wants 2.0.0 — exact match.
+	bm := &DefaultBinaryManager{binDir: binDir, version: "2.0.0"}
+	ctx := context.Background()
+
+	needsUpdate, err := bm.NeedsUpdate(ctx)
+	require.NoError(t, err, "NeedsUpdate should not error when binary exists and is executable")
+	assert.False(t, needsUpdate, "NeedsUpdate must return false when installed version matches desired")
+}
+
+// TestNeedsUpdate_FakeScriptVersionParsing verifies GetVersion correctly strips
+// the "zot v" prefix from the fake script's output, which is the same format the
+// real Zot binary uses.  If parsing breaks, NeedsUpdate tests above become
+// unreliable.
+func TestNeedsUpdate_FakeScriptVersionParsing(t *testing.T) {
+	binDir := t.TempDir()
+	makeFakeZotScript(t, binDir, "1.2.3")
+
+	bm := &DefaultBinaryManager{binDir: binDir, version: "anything"}
+	ctx := context.Background()
+
+	ver, err := bm.GetVersion(ctx)
+	require.NoError(t, err, "GetVersion should succeed with the fake script")
+	assert.Equal(t, "1.2.3", ver,
+		"GetVersion must strip 'zot v' prefix and return bare semver string")
+}
