@@ -52,11 +52,11 @@ func TestLoadBuildCredentials_ReturnsWarningsForFailedKeychain(t *testing.T) {
 	credName := "MY_MISSING_CRED"
 
 	cred := &models.CredentialDB{
-		Name:      credName,
-		ScopeType: models.CredentialScopeApp,
-		ScopeID:   int64(app.ID),
-		Source:    "keychain",
-		Service:   &service,
+		Name:        credName,
+		ScopeType:   models.CredentialScopeApp,
+		ScopeID:     int64(app.ID),
+		Source:      "vault",
+		VaultSecret: &service,
 	}
 	err := mockStore.CreateCredential(cred)
 	require.NoError(t, err, "setup: CreateCredential should succeed")
@@ -152,11 +152,11 @@ func TestLoadBuildCredentials_WarningMentionsCredentialName(t *testing.T) {
 
 			service := tt.service
 			cred := &models.CredentialDB{
-				Name:      tt.credName,
-				ScopeType: models.CredentialScopeApp,
-				ScopeID:   int64(app.ID),
-				Source:    "keychain",
-				Service:   &service,
+				Name:        tt.credName,
+				ScopeType:   models.CredentialScopeApp,
+				ScopeID:     int64(app.ID),
+				Source:      "vault",
+				VaultSecret: &service,
 			}
 			require.NoError(t, mockStore.CreateCredential(cred))
 
@@ -203,11 +203,11 @@ func TestLoadBuildCredentials_WorkspaceCredentialWarning(t *testing.T) {
 	service := "dvm-test-nonexistent-ws-service-99999"
 	credName := "WS_MISSING_CRED"
 	cred := &models.CredentialDB{
-		Name:      credName,
-		ScopeType: models.CredentialScopeWorkspace,
-		ScopeID:   int64(workspace.ID),
-		Source:    "keychain",
-		Service:   &service,
+		Name:        credName,
+		ScopeType:   models.CredentialScopeWorkspace,
+		ScopeID:     int64(workspace.ID),
+		Source:      "vault",
+		VaultSecret: &service,
 	}
 	err = mockStore.CreateCredential(cred)
 	require.NoError(t, err, "setup: CreateCredential should succeed")

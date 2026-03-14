@@ -9,40 +9,22 @@ import (
 type CredentialSource string
 
 const (
-	// SourceKeychain retrieves the credential from macOS Keychain
-	SourceKeychain CredentialSource = "keychain"
+	// SourceVault retrieves the credential from MaestroVault
+	SourceVault CredentialSource = "vault"
 	// SourceEnv retrieves the credential from an environment variable
 	SourceEnv CredentialSource = "env"
-	// SourceValue uses a plaintext value (not recommended for secrets)
-	SourceValue CredentialSource = "value"
-)
-
-// KeychainField specifies which field to extract from a keychain entry
-type KeychainField string
-
-const (
-	// KeychainFieldPassword extracts the password field (default behavior)
-	KeychainFieldPassword KeychainField = "password"
-	// KeychainFieldAccount extracts the account (username) field
-	KeychainFieldAccount KeychainField = "account"
 )
 
 // CredentialConfig defines how to retrieve a single credential
 type CredentialConfig struct {
 	// Source specifies where to retrieve the credential from
 	Source CredentialSource `yaml:"source" json:"source" mapstructure:"source"`
-	// Label is the keychain entry label for lookup (when Source is "keychain")
-	Label string `yaml:"label,omitempty" json:"label,omitempty" mapstructure:"label"`
-	// Service is the Keychain service name (when Source is "keychain") — DEPRECATED, use Label
-	Service string `yaml:"service,omitempty" json:"service,omitempty" mapstructure:"service"`
-	// KeychainType specifies the keychain entry type: "generic" or "internet" (when Source is "keychain")
-	KeychainType KeychainType `yaml:"keychainType,omitempty" json:"keychainType,omitempty" mapstructure:"keychainType"`
+	// VaultSecret is the secret name in MaestroVault (when Source is "vault")
+	VaultSecret string `yaml:"vaultSecret,omitempty" json:"vaultSecret,omitempty" mapstructure:"vaultSecret"`
+	// VaultEnv is the vault environment (when Source is "vault", optional)
+	VaultEnv string `yaml:"vaultEnvironment,omitempty" json:"vaultEnvironment,omitempty" mapstructure:"vaultEnvironment"`
 	// EnvVar is the environment variable name (when Source is "env")
 	EnvVar string `yaml:"env,omitempty" json:"env,omitempty" mapstructure:"env"`
-	// Field specifies which field to extract from a keychain entry (when Source is "keychain")
-	Field KeychainField `yaml:"field,omitempty" json:"field,omitempty" mapstructure:"field"`
-	// Value is the plaintext value (when Source is "value", not recommended)
-	Value string `yaml:"value,omitempty" json:"value,omitempty" mapstructure:"value"`
 }
 
 // Credentials is a map of credential name to its configuration
@@ -56,41 +38,39 @@ type CredentialScope struct {
 	Credentials Credentials // Credentials at this scope
 }
 
-// ResolveCredential resolves a single credential config to its actual value
+// ResolveCredential resolves a single credential config to its actual value.
+// For vault-sourced credentials, use ResolveCredentialWithBackend instead.
 func ResolveCredential(cfg CredentialConfig) (string, error) {
 	switch cfg.Source {
-	case SourceKeychain:
-		// Determine the lookup label: prefer Label, fall back to Service
-		label := cfg.Label
-		if label == "" {
-			label = cfg.Service
-		}
-		if label == "" {
-			return "", fmt.Errorf("keychain source requires label or service name")
-		}
-
-		// Determine keychain type: use KeychainType if set, default to "internet"
-		keychainType := cfg.KeychainType
-		if keychainType == "" {
-			keychainType = KeychainTypeInternet
-		}
-
-		lookup := KeychainLookup{
-			Label:        label,
-			KeychainType: keychainType,
-		}
-
-		if cfg.Field == KeychainFieldAccount {
-			return GetAccountFromKeychain(lookup)
-		}
-		return GetFromKeychain(lookup)
+	case SourceVault:
+		return "", fmt.Errorf("vault credentials require a backend; use ResolveCredentialWithBackend")
 	case SourceEnv:
 		if cfg.EnvVar == "" {
 			return "", fmt.Errorf("env source requires env var name")
 		}
 		return os.Getenv(cfg.EnvVar), nil
-	case SourceValue:
-		return cfg.Value, nil
+	default:
+		return "", fmt.Errorf("unknown credential source: %s", cfg.Source)
+	}
+}
+
+// ResolveCredentialWithBackend resolves a credential using the provided SecretBackend
+// for vault-sourced credentials. For env-sourced credentials, the backend is ignored.
+func ResolveCredentialWithBackend(cfg CredentialConfig, backend SecretBackend) (string, error) {
+	switch cfg.Source {
+	case SourceVault:
+		if backend == nil {
+			return "", fmt.Errorf("vault backend is required for vault-sourced credentials")
+		}
+		if cfg.VaultSecret == "" {
+			return "", fmt.Errorf("vault source requires vault secret name")
+		}
+		return backend.Get(cfg.VaultSecret, cfg.VaultEnv)
+	case SourceEnv:
+		if cfg.EnvVar == "" {
+			return "", fmt.Errorf("env source requires env var name")
+		}
+		return os.Getenv(cfg.EnvVar), nil
 	default:
 		return "", fmt.Errorf("unknown credential source: %s", cfg.Source)
 	}
@@ -132,6 +112,46 @@ func ResolveCredentialsWithErrors(scopes ...CredentialScope) (map[string]string,
 		if envVal := os.Getenv(name); envVal != "" {
 			result[name] = envVal
 			delete(errors, name) // Env var rescued this credential
+		}
+	}
+
+	return result, errors
+}
+
+// ResolveCredentialsWithBackend is like ResolveCredentialsWithErrors but accepts a SecretBackend
+// for resolving vault-sourced credentials. If backend is nil, vault credentials will fail
+// (same behavior as ResolveCredentialsWithErrors).
+func ResolveCredentialsWithBackend(backend SecretBackend, scopes ...CredentialScope) (map[string]string, map[string]error) {
+	result := make(map[string]string)
+	errors := make(map[string]error)
+	allNames := make(map[string]struct{})
+
+	for _, scope := range scopes {
+		for name, cfg := range scope.Credentials {
+			allNames[name] = struct{}{}
+			var val string
+			var err error
+			if cfg.Source == SourceVault && backend != nil {
+				val, err = ResolveCredentialWithBackend(cfg, backend)
+			} else {
+				val, err = ResolveCredential(cfg)
+			}
+			if err != nil {
+				errors[name] = fmt.Errorf("[%s] %w", scope.Type, err)
+				continue
+			}
+			if val != "" {
+				result[name] = val
+				delete(errors, name)
+			}
+		}
+	}
+
+	// Environment variables always win
+	for name := range allNames {
+		if envVal := os.Getenv(name); envVal != "" {
+			result[name] = envVal
+			delete(errors, name)
 		}
 	}
 

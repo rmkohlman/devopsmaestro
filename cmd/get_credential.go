@@ -124,14 +124,14 @@ Examples:
 		render.Plainf("Name:      %s", cred.Name)
 		render.Plainf("Scope:     %s (ID: %d)", cred.ScopeType, cred.ScopeID)
 		render.Plainf("Source:    %s", cred.Source)
-		if cred.Label != nil {
-			render.Plainf("Label:     %s", *cred.Label)
+		if cred.VaultSecret != nil {
+			render.Plainf("Secret:    %s", *cred.VaultSecret)
 		}
-		if cred.KeychainType != nil {
-			render.Plainf("Type:      %s", *cred.KeychainType)
+		if cred.VaultEnv != nil {
+			render.Plainf("Vault Env: %s", *cred.VaultEnv)
 		}
-		if cred.Service != nil {
-			render.Plainf("Service:   %s (deprecated)", *cred.Service)
+		if cred.VaultUsernameSecret != nil {
+			render.Plainf("Username Secret: %s", *cred.VaultUsernameSecret)
 		}
 		if cred.EnvVar != nil {
 			render.Plainf("EnvVar:    %s", *cred.EnvVar)

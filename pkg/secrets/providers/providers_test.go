@@ -3,7 +3,6 @@ package providers
 import (
 	"context"
 	"os"
-	"runtime"
 	"testing"
 
 	"devopsmaestro/pkg/secrets"
@@ -15,10 +14,6 @@ import (
 
 func TestEnvProvider_ImplementsSecretProvider(t *testing.T) {
 	var _ secrets.SecretProvider = (*EnvProvider)(nil)
-}
-
-func TestKeychainProvider_ImplementsSecretProvider(t *testing.T) {
-	var _ secrets.SecretProvider = (*KeychainProvider)(nil)
 }
 
 // =============================================================================
@@ -147,48 +142,73 @@ func TestEnvProvider_Prefix(t *testing.T) {
 }
 
 // =============================================================================
-// KeychainProvider Tests
+// TDD Phase 2 (GREEN): VaultProvider Tests (v0.40.0)
+// =============================================================================
+// These tests verify the VaultProvider implementation in vault.go.
+// VaultProvider reads secrets from MaestroVault via the MAV client.
+//
+// Key design:
+//   - NewVaultProvider() reads MAV_TOKEN env var by default
+//   - NewVaultProvider(WithVaultToken("tok")) uses an explicit token
+//   - IsAvailable() returns true iff the token is non-empty
+//   - GetSecret respects context cancellation
 // =============================================================================
 
-func TestKeychainProvider_Name(t *testing.T) {
-	provider := NewKeychainProvider()
-	if provider.Name() != "keychain" {
-		t.Errorf("got %q, want %q", provider.Name(), "keychain")
+// TestVaultProvider_ImplementsSecretProvider verifies that VaultProvider
+// satisfies the secrets.SecretProvider interface at compile time.
+func TestVaultProvider_ImplementsSecretProvider(t *testing.T) {
+	var _ secrets.SecretProvider = (*VaultProvider)(nil)
+}
+
+// TestVaultProvider_Name verifies that VaultProvider.Name() returns "vault".
+func TestVaultProvider_Name(t *testing.T) {
+	provider := NewVaultProvider(WithVaultToken("test-token"))
+
+	if provider.Name() != "vault" {
+		t.Errorf("got %q, want %q", provider.Name(), "vault")
 	}
 }
 
-func TestKeychainProvider_IsAvailable(t *testing.T) {
-	provider := NewKeychainProvider()
-	expected := runtime.GOOS == "darwin"
+// TestVaultProvider_IsAvailable verifies that VaultProvider.IsAvailable()
+// returns true when a token is configured.
+func TestVaultProvider_IsAvailable(t *testing.T) {
+	provider := NewVaultProvider(WithVaultToken("test-token"))
 
-	if provider.IsAvailable() != expected {
-		t.Errorf("IsAvailable() = %v, want %v (GOOS=%s)", provider.IsAvailable(), expected, runtime.GOOS)
+	if !provider.IsAvailable() {
+		t.Error("VaultProvider should always be available when a token is configured")
 	}
 }
 
-func TestKeychainProvider_Service(t *testing.T) {
-	t.Run("returns default service", func(t *testing.T) {
-		provider := NewKeychainProvider()
-		if provider.Service() != DefaultKeychainService {
-			t.Errorf("got %q, want %q", provider.Service(), DefaultKeychainService)
-		}
-	})
+// TestVaultProvider_IsAvailable_NoToken verifies that VaultProvider.IsAvailable()
+// returns false when no token is provided.
+func TestVaultProvider_IsAvailable_NoToken(t *testing.T) {
+	provider := NewVaultProvider() // no token — not available
 
-	t.Run("returns custom service", func(t *testing.T) {
-		provider := NewKeychainProvider(WithKeychainService("custom-service"))
-		if provider.Service() != "custom-service" {
-			t.Errorf("got %q, want %q", provider.Service(), "custom-service")
-		}
-	})
+	if provider.IsAvailable() {
+		t.Error("VaultProvider with empty token should NOT be available")
+	}
 }
 
-func TestKeychainProvider_GetSecret_Unavailable(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("skipping unavailability test on macOS")
-	}
+// TestVaultProvider_GetSecret_ContextCancellation verifies that VaultProvider
+// respects context cancellation and returns context.Canceled.
+func TestVaultProvider_GetSecret_ContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately
 
+	provider := NewVaultProvider(WithVaultToken("test-token"))
+
+	_, err := provider.GetSecret(ctx, secrets.SecretRequest{Name: "test"})
+	if err != context.Canceled {
+		t.Errorf("got %v, want context.Canceled", err)
+	}
+}
+
+// TestVaultProvider_GetSecret_Unavailable verifies that calling GetSecret
+// on a VaultProvider with no token returns ErrProviderNotAvailable.
+func TestVaultProvider_GetSecret_Unavailable(t *testing.T) {
 	ctx := context.Background()
-	provider := NewKeychainProvider()
+
+	provider := NewVaultProvider() // no token → not available
 
 	_, err := provider.GetSecret(ctx, secrets.SecretRequest{Name: "test"})
 	if !secrets.IsProviderNotAvailable(err) {
@@ -196,27 +216,41 @@ func TestKeychainProvider_GetSecret_Unavailable(t *testing.T) {
 	}
 }
 
-// TestKeychainProvider_GetSecret_MockExec tests the keychain provider with a mocked exec command.
-// This allows testing the command construction and output parsing without actually calling keychain.
-func TestKeychainProvider_GetSecret_MockExec(t *testing.T) {
-	if runtime.GOOS != "darwin" {
-		t.Skip("keychain tests only run on macOS")
+// TestVaultProvider_Name_TableDriven is a table-driven test that verifies
+// VaultProvider properties across different configurations.
+func TestVaultProvider_Name_TableDriven(t *testing.T) {
+	tests := []struct {
+		name          string
+		opts          []VaultProviderOption
+		wantName      string
+		wantAvailable bool
+	}{
+		{
+			name:          "with valid token",
+			opts:          []VaultProviderOption{WithVaultToken("my-vault-token")},
+			wantName:      "vault",
+			wantAvailable: true,
+		},
+		{
+			name:          "with empty token (no options)",
+			opts:          nil,
+			wantName:      "vault",
+			wantAvailable: false,
+		},
 	}
 
-	// Note: Full integration tests with real keychain would require setup/teardown
-	// of actual keychain entries. For CI, we rely on the mocked exec tests.
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			provider := NewVaultProvider(tt.opts...)
 
-	t.Run("context cancellation", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-
-		provider := NewKeychainProvider()
-		_, err := provider.GetSecret(ctx, secrets.SecretRequest{Name: "test"})
-
-		if err != context.Canceled {
-			t.Errorf("got %v, want context.Canceled", err)
-		}
-	})
+			if provider.Name() != tt.wantName {
+				t.Errorf("Name() = %q, want %q", provider.Name(), tt.wantName)
+			}
+			if provider.IsAvailable() != tt.wantAvailable {
+				t.Errorf("IsAvailable() = %v, want %v", provider.IsAvailable(), tt.wantAvailable)
+			}
+		})
+	}
 }
 
 // =============================================================================

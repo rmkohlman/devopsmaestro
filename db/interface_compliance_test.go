@@ -480,11 +480,11 @@ func TestMockDataStore_AllCredentialMethods(t *testing.T) {
 	// CreateCredential
 	service := "test-service"
 	cred := &models.CredentialDB{
-		Name:      "test-cred",
-		ScopeType: models.CredentialScopeEcosystem,
-		ScopeID:   int64(ecosystem.ID),
-		Source:    "keychain",
-		Service:   &service,
+		Name:        "test-cred",
+		ScopeType:   models.CredentialScopeEcosystem,
+		ScopeID:     int64(ecosystem.ID),
+		Source:      "vault",
+		VaultSecret: &service,
 	}
 	err := store.CreateCredential(cred)
 	require.NoError(t, err)
@@ -496,7 +496,7 @@ func TestMockDataStore_AllCredentialMethods(t *testing.T) {
 
 	// UpdateCredential
 	newService := "updated-service"
-	cred.Service = &newService
+	cred.VaultSecret = &newService
 	err = store.UpdateCredential(cred)
 	require.NoError(t, err)
 

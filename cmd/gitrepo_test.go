@@ -426,12 +426,14 @@ func TestCreateGitRepoCmd_WithCredential(t *testing.T) {
 	mockStore := db.NewMockDataStore()
 
 	// Create the credential that will be referenced
+	svc := "github.com"
 	err := mockStore.CreateCredential(&models.CredentialDB{
-		ID:        1,
-		ScopeType: models.CredentialScopeEcosystem,
-		ScopeID:   0,
-		Name:      "github-ssh",
-		Source:    "keychain",
+		ID:          1,
+		ScopeType:   models.CredentialScopeEcosystem,
+		ScopeID:     0,
+		Name:        "github-ssh",
+		Source:      "vault",
+		VaultSecret: &svc,
 	})
 	assert.NoError(t, err)
 
@@ -832,11 +834,11 @@ func TestRunCreateGitRepo_WithCredential(t *testing.T) {
 	// Create a credential in the mock store
 	svc := "github.com"
 	cred := &models.CredentialDB{
-		Name:      "my-gh-token",
-		ScopeType: models.CredentialScopeEcosystem,
-		ScopeID:   0, // global scope
-		Source:    "keychain",
-		Service:   &svc,
+		Name:        "my-gh-token",
+		ScopeType:   models.CredentialScopeEcosystem,
+		ScopeID:     0, // global scope
+		Source:      "vault",
+		VaultSecret: &svc,
 	}
 	require.NoError(t, mockStore.CreateCredential(cred))
 

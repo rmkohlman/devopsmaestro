@@ -7,6 +7,90 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.40.0] - 2026-03-14 — MaestroVault Integration (Breaking)
+
+### ⚠️ Breaking Changes
+
+#### macOS Keychain Replaced by MaestroVault — ALL credential files
+- **ALL macOS Keychain integration has been removed** — `--service`, `--keychain-label`, `--keychain-type` flags are gone; `source: keychain` is no longer valid
+- **MaestroVault is now the sole secrets backend** — credentials with `source: vault` are resolved via the MaestroVault daemon using `MAV_TOKEN` for authentication
+- **Existing credentials are auto-migrated** — DB migration 013 converts `source=keychain` → `source=vault` and backfills `vault_secret` from the keychain label/service name; migration 014 drops keychain columns entirely
+- **Downgrade from v0.40.0 is NOT supported** without re-installing a pre-v0.40.0 binary and rolling back both migrations
+
+### ✨ Features
+
+#### MaestroVault SecretBackend Interface — `config/secret_backend.go` (new), `config/vault.go` (new)
+- **New `SecretBackend` interface** with `Get(name, env)` and `Health()` methods — enables swapping secrets backends without touching callers
+- **`VaultBackend` implementation** wraps MaestroVault Go client (`github.com/rmkohlman/MaestroVault/pkg/client`) — token from `MAV_TOKEN` env var, lazy connectivity validation
+- **`NewVaultBackend(token)` constructor** — returns error if token is empty, does NOT validate connectivity at construction time
+
+#### Auto-Start Vault Daemon — `config/vault_autostart.go` (new)
+- **`EnsureVaultDaemon()` checks for running daemon** and starts `mav serve --no-touchid` if the socket is unresponsive — waits up to 5 seconds for initialization
+- **`DefaultVaultSocketPath()` returns `~/.maestrovault/maestrovault.sock`** with proper error handling if home directory cannot be determined
+- **Security: filtered environment** — spawned daemon receives only `PATH`, `HOME`, and `MAV_TOKEN` (not the full parent env)
+
+#### Vault-Aware Credential Resolution — `config/credentials.go`
+- **`ResolveCredentialsWithBackend(backend, scopes...)`** resolves vault-sourced credentials through the `SecretBackend` while env-sourced credentials continue to work as before
+- **Build pipeline wired** — `loadBuildCredentials()` in `cmd/build_helpers.go` now initializes a `VaultBackend` when `MAV_TOKEN` is set, calls `EnsureVaultDaemon()`, and resolves vault credentials end-to-end
+- **Environment variable rescue preserved** — if vault resolution fails, credentials matching an env var name are still rescued
+
+#### Vault CLI Flags — `cmd/credential.go`, `cmd/get_credential.go`
+- **`--vault-secret`** — the secret name in MaestroVault (replaces `--service` and `--keychain-label`)
+- **`--vault-environment`** — the vault environment (optional, replaces the implicit keychain type)
+- **`--vault-username-secret`** — a second vault secret for dual-field credentials (replaces the keychain account lookup)
+- **`dvm get credential` display** updated to show vault fields instead of keychain fields
+
+#### VaultProvider for GitHub Token Resolution — `pkg/secrets/providers/vault.go` (new)
+- **`VaultProvider` implements `SecretProvider`** using MaestroVault Go client with functional options (`WithVaultToken`)
+- **Used by `pkg/source/github_directory.go`** to resolve GitHub tokens for API access (replaces `KeychainProvider`)
+
+### 🏗️ Technical
+
+#### DB Migrations 013 + 014 — Two-Phase Schema Migration
+- **Migration 013** (`013_add_vault_columns.up.sql`): Adds `vault_secret`, `vault_env`, `vault_username_secret` columns; backfills `vault_secret` from `COALESCE(label, service)`; changes `source='keychain'` → `source='vault'`
+- **Migration 014** (`014_drop_keychain_columns.up.sql`): SQLite table rebuild dropping `service`, `label`, `keychain_type` columns; updates CHECK constraint to `source IN ('vault', 'env')`
+- Both migrations have fully reversible down scripts
+
+#### Model Updates — `models/credential.go`
+- `CredentialDB` gains `VaultSecret`, `VaultEnv`, `VaultUsernameSecret` fields (nullable `*string`)
+- `CredentialSpec` gains `VaultSecret`, `VaultEnvironment`, `VaultUsernameSecret` YAML fields
+- `ToConfig()`, `ToUsernameConfig()`, `ToPasswordConfig()`, `ToYAML()`, `FromYAML()`, `ValidateCredentialYAML()` all updated
+- Removed `Service`, `Label`, `KeychainType` fields
+
+#### Keychain Code Deleted — 5 files removed
+- `config/keychain_darwin.go` — macOS `security` CLI wrapper
+- `config/keychain_stub.go` — non-macOS stub
+- `config/keychain_types.go` — KeychainType enum
+- `config/keychain_darwin_test.go` — keychain tests
+- `pkg/secrets/providers/keychain.go` — KeychainProvider
+
+#### Config File Permissions — `config/config.go`
+- Default config file permissions changed from `0644` to `0600` (owner-only read/write)
+- Default config template updated with vault credential examples
+
+### 🔒 Security
+
+- **Token never logged** — `MAV_TOKEN` value never appears in log output or error messages
+- **Filtered daemon env** — spawned `mav serve` process receives only essential env vars
+- **Socket path validated** — `DefaultVaultSocketPath()` returns error if home dir cannot be determined (prevents relative path attacks)
+- **Config file permissions** — `0600` for config files that may reference vault secrets
+
+### 📊 v0.40.0 Summary
+
+| Metric | Value |
+|--------|-------|
+| Breaking changes | 1 (macOS Keychain replaced by MaestroVault) |
+| New production files | 8 (`secret_backend.go`, `vault.go`, `vault_autostart.go`, `vault_test.go`, 4 migration files, `providers/vault.go`) |
+| Deleted files | 5 (all keychain code) |
+| Modified production files | 8 (`credentials.go`, `config.go`, `credential.go`, `get_credential.go`, `store_credential.go`, `credential model`, `github_directory.go`, `build_helpers.go`) |
+| Modified test files | 11 |
+| DB migrations | 2 (013: add vault columns, 014: drop keychain columns) |
+| All tests pass | ✅ (60 packages) |
+| Architecture review | APPROVED with modifications (all addressed) |
+| Security review | APPROVED with advice (all MEDIUM items addressed) |
+
+---
+
 ## [v0.39.1] - 2026-03-12 — Change Default Keychain Type to "internet"
 
 ### 🐛 Bug Fixes

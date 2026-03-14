@@ -77,11 +77,11 @@ func TestSQLDataStore_GetGitRepoByName(t *testing.T) {
 	// Create a credential to satisfy FK constraint
 	svc := "test-service"
 	cred := &models.CredentialDB{
-		ScopeType: "global",
-		ScopeID:   0,
-		Name:      "test-cred-for-gitrepo",
-		Source:    "keychain",
-		Service:   &svc,
+		ScopeType:   models.CredentialScopeEcosystem,
+		ScopeID:     0,
+		Name:        "test-cred-for-gitrepo",
+		Source:      "vault",
+		VaultSecret: &svc,
 	}
 	if err := ds.CreateCredential(cred); err != nil {
 		t.Fatalf("Setup: CreateCredential() error = %v", err)
@@ -200,11 +200,11 @@ func TestSQLDataStore_UpdateGitRepo(t *testing.T) {
 	// Create a credential to satisfy FK constraint on update
 	svc := "update-service"
 	cred := &models.CredentialDB{
-		ScopeType: "global",
-		ScopeID:   0,
-		Name:      "test-cred-for-update",
-		Source:    "keychain",
-		Service:   &svc,
+		ScopeType:   models.CredentialScopeEcosystem,
+		ScopeID:     0,
+		Name:        "test-cred-for-update",
+		Source:      "vault",
+		VaultSecret: &svc,
 	}
 	if err := ds.CreateCredential(cred); err != nil {
 		t.Fatalf("Setup: CreateCredential() error = %v", err)

@@ -49,22 +49,22 @@ func createTestCredentialStore(t *testing.T) *SQLDataStore {
 			updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
 
-		// Credentials — includes the post-migration-011 columns
+		// Credentials — includes the post-migration-012 columns (vault fields)
 		`CREATE TABLE credentials (
-			id            INTEGER PRIMARY KEY AUTOINCREMENT,
-			scope_type    TEXT NOT NULL CHECK(scope_type IN ('ecosystem','domain','app','workspace')),
-			scope_id      INTEGER NOT NULL,
-			name          TEXT NOT NULL,
-			source        TEXT NOT NULL CHECK(source IN ('keychain','env')),
-			service       TEXT,
-			env_var       TEXT,
-			description   TEXT,
-			username_var  TEXT,
-			password_var  TEXT,
-			label         TEXT,
-			keychain_type TEXT DEFAULT 'internet' CHECK(keychain_type IN ('generic', 'internet')),
-			created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+			id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+			scope_type           TEXT NOT NULL CHECK(scope_type IN ('ecosystem','domain','app','workspace')),
+			scope_id             INTEGER NOT NULL,
+			name                 TEXT NOT NULL,
+			source               TEXT NOT NULL CHECK(source IN ('vault','env')),
+			env_var              TEXT,
+			description          TEXT,
+			username_var         TEXT,
+			password_var         TEXT,
+			vault_secret         TEXT,
+			vault_env            TEXT,
+			vault_username_secret TEXT,
+			created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(scope_type, scope_id, name)
 		)`,
 	}
@@ -99,10 +99,10 @@ func TestSQLDataStore_CreateCredential_DualField(t *testing.T) {
 		ScopeType:   models.CredentialScopeEcosystem,
 		ScopeID:     int64(eco.ID),
 		Name:        "gh-dual",
-		Source:      "keychain",
-		Service:     strPtr("github.com"),
-		UsernameVar: strPtr("GH_USER"), // NEW — does not exist yet → compile error
-		PasswordVar: strPtr("GH_PAT"),  // NEW — does not exist yet → compile error
+		Source:      "vault",
+		VaultSecret: strPtr("github.com"),
+		UsernameVar: strPtr("GH_USER"),
+		PasswordVar: strPtr("GH_PAT"),
 	}
 
 	// Act
@@ -141,8 +141,8 @@ func TestSQLDataStore_CreateCredential_DualField_NilVars(t *testing.T) {
 		ScopeType:   models.CredentialScopeEcosystem,
 		ScopeID:     int64(eco.ID),
 		Name:        "legacy-keychain",
-		Source:      "keychain",
-		Service:     strPtr("legacy.service"),
+		Source:      "vault",
+		VaultSecret: strPtr("legacy.service"),
 		UsernameVar: nil, // intentionally absent
 		PasswordVar: nil, // intentionally absent
 	}
@@ -174,8 +174,8 @@ func TestSQLDataStore_GetCredentialByName_DualField(t *testing.T) {
 		ScopeType:   models.CredentialScopeEcosystem,
 		ScopeID:     int64(eco.ID),
 		Name:        "npm-registry",
-		Source:      "keychain",
-		Service:     strPtr("registry.npmjs.org"),
+		Source:      "vault",
+		VaultSecret: strPtr("registry.npmjs.org"),
 		UsernameVar: strPtr("NPM_USER"),
 		PasswordVar: strPtr("NPM_TOKEN"),
 	}
@@ -210,11 +210,11 @@ func TestSQLDataStore_UpdateCredential_DualField(t *testing.T) {
 
 	// Create a legacy credential (no dual-field vars)
 	cred := &models.CredentialDB{
-		ScopeType: models.CredentialScopeEcosystem,
-		ScopeID:   int64(eco.ID),
-		Name:      "docker-hub",
-		Source:    "keychain",
-		Service:   strPtr("hub.docker.com"),
+		ScopeType:   models.CredentialScopeEcosystem,
+		ScopeID:     int64(eco.ID),
+		Name:        "docker-hub",
+		Source:      "vault",
+		VaultSecret: strPtr("hub.docker.com"),
 	}
 	require.NoError(t, ds.CreateCredential(cred))
 
@@ -258,11 +258,11 @@ func TestSQLDataStore_ListCredentialsByScope_DualField(t *testing.T) {
 
 	// Legacy credential — no dual-field vars
 	legacy := &models.CredentialDB{
-		ScopeType: models.CredentialScopeEcosystem,
-		ScopeID:   scopeID,
-		Name:      "legacy-svc",
-		Source:    "keychain",
-		Service:   strPtr("legacy.internal"),
+		ScopeType:   models.CredentialScopeEcosystem,
+		ScopeID:     scopeID,
+		Name:        "legacy-svc",
+		Source:      "vault",
+		VaultSecret: strPtr("legacy.internal"),
 	}
 	require.NoError(t, ds.CreateCredential(legacy))
 
@@ -271,8 +271,8 @@ func TestSQLDataStore_ListCredentialsByScope_DualField(t *testing.T) {
 		ScopeType:   models.CredentialScopeEcosystem,
 		ScopeID:     scopeID,
 		Name:        "github-svc",
-		Source:      "keychain",
-		Service:     strPtr("github.com"),
+		Source:      "vault",
+		VaultSecret: strPtr("github.com"),
 		UsernameVar: strPtr("GH_USER"),
 		PasswordVar: strPtr("GH_PAT"),
 	}
@@ -302,6 +302,327 @@ func TestSQLDataStore_ListCredentialsByScope_DualField(t *testing.T) {
 	assert.Equal(t, "GH_USER", *dualResult.UsernameVar)
 	require.NotNil(t, dualResult.PasswordVar, "dual credential: PasswordVar must not be nil")
 	assert.Equal(t, "GH_PAT", *dualResult.PasswordVar)
+}
+
+// =============================================================================
+// TDD Phase 2 (RED): MaestroVault DB Tests (v0.40.0)
+// =============================================================================
+// These tests verify that the DB store methods correctly read/write the new
+// vault_secret, vault_env, and vault_username_secret columns added in
+// migration 012 (MaestroVault integration).
+//
+// RED PHASE: These tests DO NOT COMPILE until the following are added:
+//   - models.CredentialDB.VaultSecret         (*string, db:"vault_secret")
+//   - models.CredentialDB.VaultEnv            (*string, db:"vault_env")
+//   - models.CredentialDB.VaultUsernameSecret (*string, db:"vault_username_secret")
+//
+// They also fail at runtime until:
+//   - credentials table source CHECK is updated to ('vault','env')
+//   - store_credential.go INSERT/SELECT/UPDATE includes vault columns
+// =============================================================================
+
+// createTestVaultCredentialStore creates an in-memory SQLite DataStore whose
+// credentials table has the post-migration-012 schema (vault columns, vault
+// source in CHECK constraint).
+func createTestVaultCredentialStore(t *testing.T) *SQLDataStore {
+	t.Helper()
+
+	cfg := DriverConfig{Type: DriverMemory}
+	driver, err := NewMemorySQLiteDriver(cfg)
+	require.NoError(t, err)
+	require.NoError(t, driver.Connect())
+
+	stmts := []string{
+		// Ecosystems — needed for scope_type='ecosystem' credentials
+		`CREATE TABLE ecosystems (
+			id          INTEGER PRIMARY KEY AUTOINCREMENT,
+			name        TEXT NOT NULL UNIQUE,
+			description TEXT,
+			theme       TEXT,
+			created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+
+		// Credentials — post-migration-012: vault columns, vault source allowed
+		`CREATE TABLE credentials (
+			id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+			scope_type           TEXT NOT NULL CHECK(scope_type IN ('ecosystem','domain','app','workspace')),
+			scope_id             INTEGER NOT NULL,
+			name                 TEXT NOT NULL,
+			source               TEXT NOT NULL CHECK(source IN ('vault','env')),
+			env_var              TEXT,
+			description          TEXT,
+			username_var         TEXT,
+			password_var         TEXT,
+			vault_secret         TEXT,
+			vault_env            TEXT,
+			vault_username_secret TEXT,
+			created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(scope_type, scope_id, name)
+		)`,
+	}
+
+	for _, stmt := range stmts {
+		_, err := driver.Execute(stmt)
+		require.NoError(t, err, "failed to execute schema statement: %s", stmt)
+	}
+
+	return NewSQLDataStore(driver, nil)
+}
+
+// -----------------------------------------------------------------------------
+// TestSQLDataStore_CreateCredential_VaultSource
+//
+// Creates a vault credential with vault_secret set.
+// After creation, GetCredential must return the vault fields correctly.
+// -----------------------------------------------------------------------------
+
+func TestSQLDataStore_CreateCredential_VaultSource(t *testing.T) {
+	ds := createTestVaultCredentialStore(t)
+	defer ds.Close()
+
+	eco := &models.Ecosystem{Name: "vault-source-eco"}
+	require.NoError(t, ds.CreateEcosystem(eco))
+
+	vaultSecret := "my-org/github-pat"
+
+	// ── COMPILE FAILURE EXPECTED BELOW ───────────────────────────────────────
+	// models.CredentialDB.VaultSecret does not exist yet.
+	cred := &models.CredentialDB{
+		ScopeType:   models.CredentialScopeEcosystem,
+		ScopeID:     int64(eco.ID),
+		Name:        "github-pat",
+		Source:      "vault",
+		VaultSecret: strPtr(vaultSecret), // NEW field — does not exist yet → compile error
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	err := ds.CreateCredential(cred)
+	require.NoError(t, err, "CreateCredential must succeed for vault source credential")
+	assert.NotZero(t, cred.ID, "CreateCredential must populate ID")
+
+	got, err := ds.GetCredential(models.CredentialScopeEcosystem, int64(eco.ID), "github-pat")
+	require.NoError(t, err)
+
+	assert.Equal(t, "vault", got.Source)
+	require.NotNil(t, got.VaultSecret, "VaultSecret must not be nil after round-trip")
+	assert.Equal(t, "my-org/github-pat", *got.VaultSecret)
+	assert.Nil(t, got.VaultEnv, "VaultEnv must be nil when not set")
+	assert.Nil(t, got.VaultUsernameSecret, "VaultUsernameSecret must be nil when not set")
+}
+
+// -----------------------------------------------------------------------------
+// TestSQLDataStore_CreateCredential_VaultSource_RequiresVaultSecret
+//
+// Attempts to create a vault credential with VaultSecret=nil.
+// The DB store must return an error (vault source requires vault_secret).
+// -----------------------------------------------------------------------------
+
+func TestSQLDataStore_CreateCredential_VaultSource_RequiresVaultSecret(t *testing.T) {
+	ds := createTestVaultCredentialStore(t)
+	defer ds.Close()
+
+	eco := &models.Ecosystem{Name: "vault-required-eco"}
+	require.NoError(t, ds.CreateEcosystem(eco))
+
+	// ── COMPILE FAILURE EXPECTED BELOW ───────────────────────────────────────
+	// models.CredentialDB.VaultSecret does not exist yet.
+	cred := &models.CredentialDB{
+		ScopeType:   models.CredentialScopeEcosystem,
+		ScopeID:     int64(eco.ID),
+		Name:        "no-vault-secret",
+		Source:      "vault",
+		VaultSecret: nil, // intentionally absent — should fail
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	err := ds.CreateCredential(cred)
+	assert.Error(t, err,
+		"CreateCredential must return error when Source=vault and VaultSecret is nil")
+}
+
+// -----------------------------------------------------------------------------
+// TestSQLDataStore_GetCredential_VaultFields
+//
+// Creates a vault credential with all vault fields set, then retrieves it.
+// All vault fields must be populated correctly after a round-trip.
+// -----------------------------------------------------------------------------
+
+func TestSQLDataStore_GetCredential_VaultFields(t *testing.T) {
+	ds := createTestVaultCredentialStore(t)
+	defer ds.Close()
+
+	eco := &models.Ecosystem{Name: "vault-fields-eco"}
+	require.NoError(t, ds.CreateEcosystem(eco))
+
+	// ── COMPILE FAILURE EXPECTED BELOW ───────────────────────────────────────
+	// VaultSecret, VaultEnv, VaultUsernameSecret do not exist yet.
+	cred := &models.CredentialDB{
+		ScopeType:           models.CredentialScopeEcosystem,
+		ScopeID:             int64(eco.ID),
+		Name:                "full-vault-cred",
+		Source:              "vault",
+		VaultSecret:         strPtr("my-org/api-key"),
+		VaultEnv:            strPtr("production"),
+		VaultUsernameSecret: strPtr("my-org/api-username"),
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	require.NoError(t, ds.CreateCredential(cred))
+
+	got, err := ds.GetCredential(models.CredentialScopeEcosystem, int64(eco.ID), "full-vault-cred")
+	require.NoError(t, err)
+
+	assert.Equal(t, "vault", got.Source)
+
+	require.NotNil(t, got.VaultSecret, "VaultSecret must not be nil after round-trip")
+	assert.Equal(t, "my-org/api-key", *got.VaultSecret)
+
+	require.NotNil(t, got.VaultEnv, "VaultEnv must not be nil after round-trip")
+	assert.Equal(t, "production", *got.VaultEnv)
+
+	require.NotNil(t, got.VaultUsernameSecret, "VaultUsernameSecret must not be nil after round-trip")
+	assert.Equal(t, "my-org/api-username", *got.VaultUsernameSecret)
+}
+
+// -----------------------------------------------------------------------------
+// TestSQLDataStore_UpdateCredential_VaultFields
+//
+// Creates a vault credential, then updates the vault_env field.
+// The updated field must persist after re-read via GetCredential.
+// -----------------------------------------------------------------------------
+
+func TestSQLDataStore_UpdateCredential_VaultFields(t *testing.T) {
+	ds := createTestVaultCredentialStore(t)
+	defer ds.Close()
+
+	eco := &models.Ecosystem{Name: "vault-update-eco"}
+	require.NoError(t, ds.CreateEcosystem(eco))
+
+	// ── COMPILE FAILURE EXPECTED BELOW ───────────────────────────────────────
+	// VaultSecret does not exist yet.
+	cred := &models.CredentialDB{
+		ScopeType:   models.CredentialScopeEcosystem,
+		ScopeID:     int64(eco.ID),
+		Name:        "updateable-cred",
+		Source:      "vault",
+		VaultSecret: strPtr("my-org/db-password"),
+		// VaultEnv intentionally nil initially
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	require.NoError(t, ds.CreateCredential(cred))
+
+	// Verify starting state: VaultEnv is nil
+	before, err := ds.GetCredential(models.CredentialScopeEcosystem, int64(eco.ID), "updateable-cred")
+	require.NoError(t, err)
+	assert.Nil(t, before.VaultEnv, "pre-update: VaultEnv should be nil")
+
+	// ── COMPILE FAILURE EXPECTED BELOW ───────────────────────────────────────
+	// VaultEnv does not exist yet.
+	before.VaultEnv = strPtr("staging")
+	// ─────────────────────────────────────────────────────────────────────────
+	require.NoError(t, ds.UpdateCredential(before))
+
+	after, err := ds.GetCredential(models.CredentialScopeEcosystem, int64(eco.ID), "updateable-cred")
+	require.NoError(t, err)
+
+	require.NotNil(t, after.VaultEnv, "post-update: VaultEnv must not be nil")
+	assert.Equal(t, "staging", *after.VaultEnv)
+}
+
+// -----------------------------------------------------------------------------
+// TestSQLDataStore_CreateCredential_KeychainSourceRejected
+//
+// Attempts to create a credential with Source="keychain".
+// The DB store must reject this — the CHECK constraint now only allows
+// 'vault' and 'env'.
+// -----------------------------------------------------------------------------
+
+func TestSQLDataStore_CreateCredential_KeychainSourceRejected(t *testing.T) {
+	ds := createTestVaultCredentialStore(t)
+	defer ds.Close()
+
+	eco := &models.Ecosystem{Name: "keychain-reject-eco"}
+	require.NoError(t, ds.CreateEcosystem(eco))
+
+	// Attempt to insert with the old "keychain" source value.
+	// The CHECK constraint CHECK(source IN ('vault','env')) must reject this.
+	cred := &models.CredentialDB{
+		ScopeType: models.CredentialScopeEcosystem,
+		ScopeID:   int64(eco.ID),
+		Name:      "old-keychain-cred",
+		Source:    "keychain", // INVALID in the new schema
+	}
+
+	err := ds.CreateCredential(cred)
+	assert.Error(t, err,
+		"CreateCredential must return error when Source=keychain (deprecated, use vault)")
+}
+
+// -----------------------------------------------------------------------------
+// TestSQLDataStore_ListCredentialsByScope_VaultFields
+//
+// Creates vault and env credentials in the same scope.
+// ListCredentialsByScope must return both and vault fields must be populated.
+// -----------------------------------------------------------------------------
+
+func TestSQLDataStore_ListCredentialsByScope_VaultFields(t *testing.T) {
+	ds := createTestVaultCredentialStore(t)
+	defer ds.Close()
+
+	eco := &models.Ecosystem{Name: "vault-list-eco"}
+	require.NoError(t, ds.CreateEcosystem(eco))
+	scopeID := int64(eco.ID)
+
+	// env credential — no vault fields
+	envCred := &models.CredentialDB{
+		ScopeType: models.CredentialScopeEcosystem,
+		ScopeID:   scopeID,
+		Name:      "env-cred",
+		Source:    "env",
+		EnvVar:    strPtr("MY_TOKEN"),
+	}
+	require.NoError(t, ds.CreateCredential(envCred))
+
+	// ── COMPILE FAILURE EXPECTED BELOW ───────────────────────────────────────
+	// VaultSecret does not exist yet.
+	vaultCred := &models.CredentialDB{
+		ScopeType:   models.CredentialScopeEcosystem,
+		ScopeID:     scopeID,
+		Name:        "vault-cred",
+		Source:      "vault",
+		VaultSecret: strPtr("my-org/api-key"),
+		VaultEnv:    strPtr("production"),
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+	require.NoError(t, ds.CreateCredential(vaultCred))
+
+	results, err := ds.ListCredentialsByScope(models.CredentialScopeEcosystem, scopeID)
+	require.NoError(t, err)
+	require.Len(t, results, 2, "expected 2 credentials in scope")
+
+	byName := make(map[string]*models.CredentialDB, len(results))
+	for _, c := range results {
+		byName[c.Name] = c
+	}
+
+	// env credential: source=env, no vault fields
+	envResult, ok := byName["env-cred"]
+	require.True(t, ok, "env-cred must appear in list")
+	assert.Equal(t, "env", envResult.Source)
+	assert.Nil(t, envResult.VaultSecret, "env credential: VaultSecret must be nil")
+	assert.Nil(t, envResult.VaultEnv, "env credential: VaultEnv must be nil")
+
+	// vault credential: source=vault, vault fields populated
+	vaultResult, ok := byName["vault-cred"]
+	require.True(t, ok, "vault-cred must appear in list")
+	assert.Equal(t, "vault", vaultResult.Source)
+	require.NotNil(t, vaultResult.VaultSecret, "vault credential: VaultSecret must not be nil")
+	assert.Equal(t, "my-org/api-key", *vaultResult.VaultSecret)
+	require.NotNil(t, vaultResult.VaultEnv, "vault credential: VaultEnv must not be nil")
+	assert.Equal(t, "production", *vaultResult.VaultEnv)
 }
 
 // -----------------------------------------------------------------------------
@@ -341,8 +662,8 @@ func TestSQLDataStore_ListAllCredentials_DualField(t *testing.T) {
 		ScopeType:   models.CredentialScopeEcosystem,
 		ScopeID:     int64(eco1.ID),
 		Name:        "dual-one",
-		Source:      "keychain",
-		Service:     strPtr("dual.svc"),
+		Source:      "vault",
+		VaultSecret: strPtr("dual.svc"),
 		UsernameVar: strPtr("DUAL_USER"),
 		PasswordVar: strPtr("DUAL_PASS"),
 	}

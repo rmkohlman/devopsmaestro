@@ -16,15 +16,15 @@ import (
 )
 
 // SecretProvider defines the interface for retrieving secrets from a backend.
-// Implementations include keychain, environment variables, 1Password, etc.
+// Implementations include vault, environment variables, 1Password, etc.
 //
 // All implementations must be safe for concurrent use.
 type SecretProvider interface {
-	// Name returns the provider identifier (e.g., "keychain", "env")
+	// Name returns the provider identifier (e.g., "vault", "env")
 	Name() string
 
 	// IsAvailable checks if this provider can be used in the current environment.
-	// For example, keychain is only available on macOS.
+	// For example, vault requires network access to the MaestroVault service.
 	IsAvailable() bool
 
 	// GetSecret retrieves a secret by name.
@@ -38,7 +38,7 @@ type SecretProvider interface {
 type SecretRequest struct {
 	// Name is the secret identifier (required).
 	// For env provider: "github-token" maps to "DVM_SECRET_GITHUB_TOKEN"
-	// For keychain: the account name in the keychain
+	// For vault: the secret path in MaestroVault
 	Name string
 
 	// Key is a specific field within a structured secret (optional).
@@ -46,7 +46,7 @@ type SecretRequest struct {
 	Key string
 
 	// Options are provider-specific options.
-	// For example, keychain might accept "service" to override the default.
+	// For example, vault might accept "env" to specify the vault environment.
 	Options map[string]string
 }
 
@@ -76,7 +76,7 @@ type SecretReference struct {
 //	    valueFrom:
 //	      secretRef:
 //	        name: github-token
-//	        provider: keychain
+//	        provider: vault
 type ValueSource struct {
 	SecretRef *SecretReference `yaml:"secretRef,omitempty"`
 }

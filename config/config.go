@@ -115,20 +115,18 @@ theme: auto
 #
 # Example:
 # credentials:
-#   GITHUB_USERNAME:
-#     source: keychain
-#     service: dvm-github-username
 #   GITHUB_PAT:
-#     source: keychain
-#     service: dvm-github-pat
+#     source: vault
+#     vaultSecret: github-pat
+#     vaultEnvironment: production
 #   NPM_TOKEN:
 #     source: env
 #     env: MY_NPM_TOKEN
 #
-# To add credentials to macOS Keychain:
-#   security add-generic-password -s "dvm-github-pat" -a "$USER" -w "ghp_yourtoken"
+# To store secrets in MaestroVault:
+#   mav set github-pat production "ghp_yourtoken"
 credentials: {}
 `
 
-	return os.WriteFile(configFile, []byte(defaultConfig), 0644)
+	return os.WriteFile(configFile, []byte(defaultConfig), 0600)
 }

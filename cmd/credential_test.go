@@ -150,19 +150,16 @@ func TestCreateCredentialCmd_HasSourceFlag(t *testing.T) {
 	}
 }
 
-// TestCreateCredentialCmd_HasServiceFlag verifies the --service flag for keychain source.
+// TestCreateCredentialCmd_HasVaultSecretFlag_Legacy verifies that --service flag
+// no longer exists (replaced by --vault-secret in v0.40.0).
 //
-// This test EXPECTS TO FAIL until createCredentialCmd is implemented.
+// This test verifies the old --service flag has been removed.
 func TestCreateCredentialCmd_HasServiceFlag(t *testing.T) {
 	credCmd := findSubcommand(createCmd, "credential")
 	require.NotNil(t, credCmd, "create credential subcommand must exist")
 
 	flag := credCmd.Flags().Lookup("service")
-	assert.NotNil(t, flag, "create credential should have --service flag")
-	if flag != nil {
-		assert.Equal(t, "string", flag.Value.Type(), "--service should be a string flag")
-		assert.Equal(t, "", flag.DefValue, "--service should default to empty")
-	}
+	assert.Nil(t, flag, "--service flag should no longer exist (replaced by --vault-secret in v0.40.0)")
 }
 
 // TestCreateCredentialCmd_HasEnvVarFlag verifies the --env-var flag for env source.
@@ -477,12 +474,12 @@ func TestCredentialScopeFlags_ZeroValue(t *testing.T) {
 // calling ds.CreateCredential().
 func TestCreateCredential_Validation_TableDriven(t *testing.T) {
 	tests := []struct {
-		name      string
-		source    string
-		service   string
-		envVar    string
-		wantErr   bool
-		errSubstr string
+		name        string
+		source      string
+		vaultSecret string
+		envVar      string
+		wantErr     bool
+		errSubstr   string
 	}{
 		{
 			name:      "missing --source flag",
@@ -491,11 +488,10 @@ func TestCreateCredential_Validation_TableDriven(t *testing.T) {
 			errSubstr: "source",
 		},
 		{
-			name:      "source=keychain without --service",
-			source:    "keychain",
-			service:   "",
+			name:      "source=vault without --vault-secret",
+			source:    "vault",
 			wantErr:   true,
-			errSubstr: "service",
+			errSubstr: "vault-secret",
 		},
 		{
 			name:      "source=env without --env-var",
@@ -511,10 +507,10 @@ func TestCreateCredential_Validation_TableDriven(t *testing.T) {
 			errSubstr: "source",
 		},
 		{
-			name:    "valid keychain",
-			source:  "keychain",
-			service: "my-service",
-			wantErr: false,
+			name:        "valid vault",
+			source:      "vault",
+			vaultSecret: "my-secret",
+			wantErr:     false,
 		},
 		{
 			name:    "valid env",
@@ -528,7 +524,7 @@ func TestCreateCredential_Validation_TableDriven(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Simulate the validation logic that createCredentialCmd.RunE must implement.
 			// This directly tests the business rules, independent of cobra wiring.
-			err := validateCredentialFlags(tt.source, tt.service, tt.envVar)
+			err := validateCredentialFlags(tt.source, tt.vaultSecret, tt.envVar)
 
 			if tt.wantErr {
 				assert.Error(t, err,
@@ -551,15 +547,15 @@ func TestCreateCredential_Validation_TableDriven(t *testing.T) {
 //
 // NOTE: Once cmd/credential.go is implemented, this function should be removed
 // and tests should call the real validation directly.
-func validateCredentialFlags(source, service, envVar string) error {
+func validateCredentialFlags(source, vaultSecret, envVar string) error {
 	if source == "" {
-		return fmt.Errorf("--source is required (keychain or env)")
+		return fmt.Errorf("--source is required (vault or env)")
 	}
-	if source != "keychain" && source != "env" {
-		return fmt.Errorf("--source must be 'keychain' or 'env', got '%s'", source)
+	if source != "vault" && source != "env" {
+		return fmt.Errorf("--source must be 'vault' or 'env', got '%s'", source)
 	}
-	if source == "keychain" && service == "" {
-		return fmt.Errorf("--service is required when --source=keychain")
+	if source == "vault" && vaultSecret == "" {
+		return fmt.Errorf("--vault-secret is required when --source=vault")
 	}
 	if source == "env" && envVar == "" {
 		return fmt.Errorf("--env-var is required when --source=env")
@@ -571,29 +567,29 @@ func validateCredentialFlags(source, service, envVar string) error {
 // E. Create / Delete Credential Core Logic Tests
 // =============================================================================
 
-// TestCreateCredential_Success_Keychain verifies that creating a keychain-source
+// TestCreateCredential_Success_Vault verifies that creating a vault-source
 // credential calls ds.CreateCredential with the correct fields populated.
 //
 // This test EXPECTS TO FAIL until createCredentialCmd.RunE is implemented.
 // The test validates the DataStore call is correct — it is intentionally
 // NOT testing through the cobra command to keep it unit-level.
-func TestCreateCredential_Success_Keychain(t *testing.T) {
+func TestCreateCredential_Success_Vault(t *testing.T) {
 	mockStore, app := setupTestContext()
 
-	service := "com.example.my-service"
+	vaultSecret := "com.example.my-secret"
 	desc := "API key for example.com"
 
 	cred := &models.CredentialDB{
 		Name:        "my-api-key",
 		ScopeType:   models.CredentialScopeApp,
 		ScopeID:     int64(app.ID),
-		Source:      "keychain",
-		Service:     &service,
+		Source:      "vault",
+		VaultSecret: &vaultSecret,
 		Description: &desc,
 	}
 
 	err := mockStore.CreateCredential(cred)
-	require.NoError(t, err, "CreateCredential should succeed for valid keychain credential")
+	require.NoError(t, err, "CreateCredential should succeed for valid vault credential")
 
 	// Verify it was stored correctly
 	stored, err := mockStore.GetCredential(models.CredentialScopeApp, int64(app.ID), "my-api-key")
@@ -603,10 +599,10 @@ func TestCreateCredential_Success_Keychain(t *testing.T) {
 	assert.Equal(t, "my-api-key", stored.Name)
 	assert.Equal(t, models.CredentialScopeApp, stored.ScopeType)
 	assert.Equal(t, int64(app.ID), stored.ScopeID)
-	assert.Equal(t, "keychain", stored.Source)
-	require.NotNil(t, stored.Service)
-	assert.Equal(t, "com.example.my-service", *stored.Service)
-	assert.Nil(t, stored.EnvVar, "EnvVar should be nil for keychain source")
+	assert.Equal(t, "vault", stored.Source)
+	require.NotNil(t, stored.VaultSecret)
+	assert.Equal(t, "com.example.my-secret", *stored.VaultSecret)
+	assert.Nil(t, stored.EnvVar, "EnvVar should be nil for vault source")
 }
 
 // TestCreateCredential_Success_Env verifies that creating an env-source credential
@@ -638,7 +634,7 @@ func TestCreateCredential_Success_Env(t *testing.T) {
 	assert.Equal(t, "env", stored.Source)
 	require.NotNil(t, stored.EnvVar)
 	assert.Equal(t, "MY_API_KEY", *stored.EnvVar)
-	assert.Nil(t, stored.Service, "Service should be nil for env source")
+	assert.Nil(t, stored.VaultSecret, "VaultSecret should be nil for env source")
 }
 
 // TestCreateCredential_AlreadyExists verifies that attempting to create a
@@ -654,22 +650,22 @@ func TestCreateCredential_AlreadyExists(t *testing.T) {
 
 	// Create first credential
 	cred := &models.CredentialDB{
-		Name:      "duplicate-cred",
-		ScopeType: models.CredentialScopeApp,
-		ScopeID:   int64(app.ID),
-		Source:    "keychain",
-		Service:   &service,
+		Name:        "duplicate-cred",
+		ScopeType:   models.CredentialScopeApp,
+		ScopeID:     int64(app.ID),
+		Source:      "vault",
+		VaultSecret: &service,
 	}
 	err := mockStore.CreateCredential(cred)
 	require.NoError(t, err, "first CreateCredential should succeed")
 
 	// Attempt to create the same credential again
 	cred2 := &models.CredentialDB{
-		Name:      "duplicate-cred",
-		ScopeType: models.CredentialScopeApp,
-		ScopeID:   int64(app.ID),
-		Source:    "keychain",
-		Service:   &service,
+		Name:        "duplicate-cred",
+		ScopeType:   models.CredentialScopeApp,
+		ScopeID:     int64(app.ID),
+		Source:      "vault",
+		VaultSecret: &service,
 	}
 	err = mockStore.CreateCredential(cred2)
 	assert.Error(t, err,
@@ -689,11 +685,11 @@ func TestDeleteCredential_Success(t *testing.T) {
 
 	// Create a credential to delete
 	cred := &models.CredentialDB{
-		Name:      "to-delete",
-		ScopeType: models.CredentialScopeApp,
-		ScopeID:   int64(app.ID),
-		Source:    "keychain",
-		Service:   &service,
+		Name:        "to-delete",
+		ScopeType:   models.CredentialScopeApp,
+		ScopeID:     int64(app.ID),
+		Source:      "vault",
+		VaultSecret: &service,
 	}
 	err := mockStore.CreateCredential(cred)
 	require.NoError(t, err, "setup: CreateCredential should succeed")
@@ -736,18 +732,18 @@ func TestGetCredentials_ListAll(t *testing.T) {
 
 	creds := []*models.CredentialDB{
 		{
-			Name:      "eco-cred",
-			ScopeType: models.CredentialScopeEcosystem,
-			ScopeID:   int64(eco.ID),
-			Source:    "keychain",
-			Service:   &service1,
+			Name:        "eco-cred",
+			ScopeType:   models.CredentialScopeEcosystem,
+			ScopeID:     int64(eco.ID),
+			Source:      "vault",
+			VaultSecret: &service1,
 		},
 		{
-			Name:      "app-cred",
-			ScopeType: models.CredentialScopeApp,
-			ScopeID:   int64(app.ID),
-			Source:    "keychain",
-			Service:   &service2,
+			Name:        "app-cred",
+			ScopeType:   models.CredentialScopeApp,
+			ScopeID:     int64(app.ID),
+			Source:      "vault",
+			VaultSecret: &service2,
 		},
 		{
 			Name:      "env-cred",
@@ -795,18 +791,18 @@ func TestGetCredentials_FilterByScope(t *testing.T) {
 
 	// Create credentials at different scopes
 	ecoCred := &models.CredentialDB{
-		Name:      "eco-only",
-		ScopeType: models.CredentialScopeEcosystem,
-		ScopeID:   int64(eco.ID),
-		Source:    "keychain",
-		Service:   &service1,
+		Name:        "eco-only",
+		ScopeType:   models.CredentialScopeEcosystem,
+		ScopeID:     int64(eco.ID),
+		Source:      "vault",
+		VaultSecret: &service1,
 	}
 	appCred := &models.CredentialDB{
-		Name:      "app-only",
-		ScopeType: models.CredentialScopeApp,
-		ScopeID:   int64(app.ID),
-		Source:    "keychain",
-		Service:   &service2,
+		Name:        "app-only",
+		ScopeType:   models.CredentialScopeApp,
+		ScopeID:     int64(app.ID),
+		Source:      "vault",
+		VaultSecret: &service2,
 	}
 
 	require.NoError(t, mockStore.CreateCredential(ecoCred))
@@ -919,8 +915,8 @@ func TestCredentialLifecycle_CreateGetDelete(t *testing.T) {
 		Name:        "lifecycle-cred",
 		ScopeType:   models.CredentialScopeApp,
 		ScopeID:     int64(app.ID),
-		Source:      "keychain",
-		Service:     &service,
+		Source:      "vault",
+		VaultSecret: &service,
 		Description: &desc,
 	}
 	err := mockStore.CreateCredential(cred)
@@ -931,7 +927,7 @@ func TestCredentialLifecycle_CreateGetDelete(t *testing.T) {
 	require.NoError(t, err, "Get: should find credential after create")
 	require.NotNil(t, stored)
 	assert.Equal(t, "lifecycle-cred", stored.Name)
-	assert.Equal(t, "keychain", stored.Source)
+	assert.Equal(t, "vault", stored.Source)
 	assert.Equal(t, models.CredentialScopeApp, stored.ScopeType)
 	require.NotNil(t, stored.Description)
 	assert.Equal(t, "lifecycle test credential", *stored.Description)
@@ -967,22 +963,22 @@ func TestCredentialCompositeKey_SameNameDifferentScope(t *testing.T) {
 
 	// Create "github-token" at ecosystem scope
 	ecoCred := &models.CredentialDB{
-		Name:      "github-token",
-		ScopeType: models.CredentialScopeEcosystem,
-		ScopeID:   int64(eco.ID),
-		Source:    "keychain",
-		Service:   &service,
+		Name:        "github-token",
+		ScopeType:   models.CredentialScopeEcosystem,
+		ScopeID:     int64(eco.ID),
+		Source:      "vault",
+		VaultSecret: &service,
 	}
 	err = mockStore.CreateCredential(ecoCred)
 	require.NoError(t, err, "creating github-token at ecosystem scope should succeed")
 
 	// Create "github-token" at app scope (same name, different scope — should NOT conflict)
 	appCred := &models.CredentialDB{
-		Name:      "github-token",
-		ScopeType: models.CredentialScopeApp,
-		ScopeID:   int64(app.ID),
-		Source:    "keychain",
-		Service:   &service,
+		Name:        "github-token",
+		ScopeType:   models.CredentialScopeApp,
+		ScopeID:     int64(app.ID),
+		Source:      "vault",
+		VaultSecret: &service,
 	}
 	err = mockStore.CreateCredential(appCred)
 	require.NoError(t, err,
@@ -1114,8 +1110,8 @@ func TestDeleteCredentialCmd_HasRunE(t *testing.T) {
 //
 // This is a design constraint test: credentials MUST NOT store plaintext values.
 func TestCredentialSource_ValidValues(t *testing.T) {
-	validSources := []string{"keychain", "env"}
-	invalidSources := []string{"plaintext", "value", "secret", "raw", "", "KEYCHAIN", "ENV"}
+	validSources := []string{"vault", "env"}
+	invalidSources := []string{"plaintext", "value", "secret", "raw", "", "VAULT", "ENV", "keychain"}
 
 	for _, src := range validSources {
 		t.Run("valid source: "+src, func(t *testing.T) {
@@ -1170,26 +1166,26 @@ func TestCreateCredential_AllScopeTypes(t *testing.T) {
 	envVar := "SCOPE_TOKEN"
 
 	tests := []struct {
-		name      string
-		scopeType models.CredentialScopeType
-		scopeID   int64
-		source    string
-		service   *string
-		envVar    *string
+		name        string
+		scopeType   models.CredentialScopeType
+		scopeID     int64
+		source      string
+		vaultSecret *string
+		envVar      *string
 	}{
 		{
-			name:      "ecosystem scope credential",
-			scopeType: models.CredentialScopeEcosystem,
-			scopeID:   int64(eco.ID),
-			source:    "keychain",
-			service:   &service,
+			name:        "ecosystem scope credential",
+			scopeType:   models.CredentialScopeEcosystem,
+			scopeID:     int64(eco.ID),
+			source:      "vault",
+			vaultSecret: &service,
 		},
 		{
-			name:      "domain scope credential",
-			scopeType: models.CredentialScopeDomain,
-			scopeID:   int64(domain.ID),
-			source:    "keychain",
-			service:   &service,
+			name:        "domain scope credential",
+			scopeType:   models.CredentialScopeDomain,
+			scopeID:     int64(domain.ID),
+			source:      "vault",
+			vaultSecret: &service,
 		},
 		{
 			name:      "app scope credential",
@@ -1199,23 +1195,23 @@ func TestCreateCredential_AllScopeTypes(t *testing.T) {
 			envVar:    &envVar,
 		},
 		{
-			name:      "workspace scope credential",
-			scopeType: models.CredentialScopeWorkspace,
-			scopeID:   int64(workspace.ID),
-			source:    "keychain",
-			service:   &service,
+			name:        "workspace scope credential",
+			scopeType:   models.CredentialScopeWorkspace,
+			scopeID:     int64(workspace.ID),
+			source:      "vault",
+			vaultSecret: &service,
 		},
 	}
 
 	for i, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cred := &models.CredentialDB{
-				Name:      fmt.Sprintf("cred-%d", i),
-				ScopeType: tt.scopeType,
-				ScopeID:   tt.scopeID,
-				Source:    tt.source,
-				Service:   tt.service,
-				EnvVar:    tt.envVar,
+				Name:        fmt.Sprintf("cred-%d", i),
+				ScopeType:   tt.scopeType,
+				ScopeID:     tt.scopeID,
+				Source:      tt.source,
+				VaultSecret: tt.vaultSecret,
+				EnvVar:      tt.envVar,
 			}
 
 			err := mockStore.CreateCredential(cred)
@@ -1301,18 +1297,18 @@ func TestCreateCredentialCmd_HasPasswordVarFlag(t *testing.T) {
 // =============================================================================
 
 // validateDualFieldFlags implements the validation logic that createCredentialCmd.RunE
-// will need for the dual-field keychain feature.
+// will need for the dual-field vault feature.
 //
 // Rules:
-//   - If usernameVar or passwordVar is set, source MUST be "keychain"
+//   - If usernameVar or passwordVar is set, source MUST be "vault"
 //   - usernameVar (if non-empty) must pass envvalidation.ValidateEnvKey
 //   - passwordVar (if non-empty) must pass envvalidation.ValidateEnvKey
 //   - Otherwise, delegate to existing validateCredentialFlags
-func validateDualFieldFlags(source, service, envVar, usernameVar, passwordVar string) error {
-	// If either dual-field var is set, enforce keychain-only constraint
+func validateDualFieldFlags(source, vaultSecret, envVar, usernameVar, passwordVar string) error {
+	// If either dual-field var is set, enforce vault-only constraint
 	if usernameVar != "" || passwordVar != "" {
-		if source != "keychain" {
-			return fmt.Errorf("--username-var and --password-var are only valid with --source=keychain")
+		if source != "vault" {
+			return fmt.Errorf("--username-var and --password-var are only valid with --source=vault")
 		}
 		// Validate the env key names
 		if usernameVar != "" {
@@ -1325,11 +1321,11 @@ func validateDualFieldFlags(source, service, envVar, usernameVar, passwordVar st
 				return fmt.Errorf("--password-var: %w", err)
 			}
 		}
-		// Still need source/service validated
-		return validateCredentialFlags(source, service, envVar)
+		// Still need source/vaultSecret validated
+		return validateCredentialFlags(source, vaultSecret, envVar)
 	}
 	// Legacy path: no dual-field vars set
-	return validateCredentialFlags(source, service, envVar)
+	return validateCredentialFlags(source, vaultSecret, envVar)
 }
 
 // TestCreateCredential_DualField_Validation is a table-driven test covering all
@@ -1351,21 +1347,21 @@ func TestCreateCredential_DualField_Validation(t *testing.T) {
 	}{
 		{
 			name:        "username-var with keychain - valid",
-			source:      "keychain",
+			source:      "vault",
 			service:     "github.com",
 			usernameVar: "GH_USER",
 			wantErr:     false,
 		},
 		{
 			name:        "password-var with keychain - valid",
-			source:      "keychain",
+			source:      "vault",
 			service:     "github.com",
 			passwordVar: "GH_PAT",
 			wantErr:     false,
 		},
 		{
 			name:        "both vars with keychain - valid",
-			source:      "keychain",
+			source:      "vault",
 			service:     "github.com",
 			usernameVar: "GH_USER",
 			passwordVar: "GH_PAT",
@@ -1377,7 +1373,7 @@ func TestCreateCredential_DualField_Validation(t *testing.T) {
 			envVar:      "TOKEN",
 			usernameVar: "GH_USER",
 			wantErr:     true,
-			errSubstr:   "keychain",
+			errSubstr:   "vault",
 		},
 		{
 			name:        "password-var with env source - rejected",
@@ -1385,11 +1381,11 @@ func TestCreateCredential_DualField_Validation(t *testing.T) {
 			envVar:      "TOKEN",
 			passwordVar: "GH_PAT",
 			wantErr:     true,
-			errSubstr:   "keychain",
+			errSubstr:   "vault",
 		},
 		{
 			name:        "invalid env key for username-var",
-			source:      "keychain",
+			source:      "vault",
 			service:     "svc",
 			usernameVar: "bad-key",
 			wantErr:     true,
@@ -1397,7 +1393,7 @@ func TestCreateCredential_DualField_Validation(t *testing.T) {
 		},
 		{
 			name:        "invalid env key for password-var",
-			source:      "keychain",
+			source:      "vault",
 			service:     "svc",
 			passwordVar: "bad-key",
 			wantErr:     true,
@@ -1405,7 +1401,7 @@ func TestCreateCredential_DualField_Validation(t *testing.T) {
 		},
 		{
 			name:        "reserved DVM_ prefix for username-var",
-			source:      "keychain",
+			source:      "vault",
 			service:     "svc",
 			usernameVar: "DVM_USER",
 			wantErr:     true,
@@ -1413,7 +1409,7 @@ func TestCreateCredential_DualField_Validation(t *testing.T) {
 		},
 		{
 			name:        "dangerous env var for password-var",
-			source:      "keychain",
+			source:      "vault",
 			service:     "svc",
 			passwordVar: "LD_PRELOAD",
 			wantErr:     true,
@@ -1421,7 +1417,7 @@ func TestCreateCredential_DualField_Validation(t *testing.T) {
 		},
 		{
 			name:    "neither var set (legacy) - valid",
-			source:  "keychain",
+			source:  "vault",
 			service: "svc",
 			wantErr: false,
 		},
@@ -1448,15 +1444,15 @@ func TestCreateCredential_DualField_Validation(t *testing.T) {
 // C. DataStore Integration Tests
 // =============================================================================
 
-// TestCreateCredential_DualField_Keychain_Success verifies that a keychain credential
+// TestCreateCredential_DualField_Vault_Success verifies that a vault credential
 // with both UsernameVar and PasswordVar set can be created and retrieved correctly.
 //
 // This test EXPECTS TO FAIL because CredentialDB.UsernameVar and CredentialDB.PasswordVar
 // fields do not yet exist in models/credential.go. That is expected — TDD RED.
-func TestCreateCredential_DualField_Keychain_Success(t *testing.T) {
+func TestCreateCredential_DualField_Vault_Success(t *testing.T) {
 	mockStore, app := setupTestContext()
 
-	service := "com.github.token"
+	vaultSecret := "com.github.token"
 	usernameVar := "GH_USER"
 	passwordVar := "GH_PAT"
 
@@ -1464,14 +1460,14 @@ func TestCreateCredential_DualField_Keychain_Success(t *testing.T) {
 		Name:        "github-dual",
 		ScopeType:   models.CredentialScopeApp,
 		ScopeID:     int64(app.ID),
-		Source:      "keychain",
-		Service:     &service,
+		Source:      "vault",
+		VaultSecret: &vaultSecret,
 		UsernameVar: &usernameVar,
 		PasswordVar: &passwordVar,
 	}
 
 	err := mockStore.CreateCredential(cred)
-	require.NoError(t, err, "CreateCredential should succeed for dual-field keychain credential")
+	require.NoError(t, err, "CreateCredential should succeed for dual-field vault credential")
 
 	// Verify it was stored correctly
 	stored, err := mockStore.GetCredential(models.CredentialScopeApp, int64(app.ID), "github-dual")
@@ -1481,14 +1477,14 @@ func TestCreateCredential_DualField_Keychain_Success(t *testing.T) {
 	assert.Equal(t, "github-dual", stored.Name)
 	assert.Equal(t, models.CredentialScopeApp, stored.ScopeType)
 	assert.Equal(t, int64(app.ID), stored.ScopeID)
-	assert.Equal(t, "keychain", stored.Source)
-	require.NotNil(t, stored.Service)
-	assert.Equal(t, "com.github.token", *stored.Service)
+	assert.Equal(t, "vault", stored.Source)
+	require.NotNil(t, stored.VaultSecret)
+	assert.Equal(t, "com.github.token", *stored.VaultSecret)
 	require.NotNil(t, stored.UsernameVar, "UsernameVar should be populated")
 	assert.Equal(t, "GH_USER", *stored.UsernameVar)
 	require.NotNil(t, stored.PasswordVar, "PasswordVar should be populated")
 	assert.Equal(t, "GH_PAT", *stored.PasswordVar)
-	assert.Nil(t, stored.EnvVar, "EnvVar should be nil for dual-field keychain credential")
+	assert.Nil(t, stored.EnvVar, "EnvVar should be nil for dual-field vault credential")
 }
 
 // TestCreateCredential_DualField_PasswordOnly_Success verifies that a keychain credential
@@ -1499,15 +1495,15 @@ func TestCreateCredential_DualField_Keychain_Success(t *testing.T) {
 func TestCreateCredential_DualField_PasswordOnly_Success(t *testing.T) {
 	mockStore, app := setupTestContext()
 
-	service := "com.github.token"
+	vaultSecret := "com.github.token"
 	passwordVar := "GH_PAT"
 
 	cred := &models.CredentialDB{
 		Name:        "github-password-only",
 		ScopeType:   models.CredentialScopeApp,
 		ScopeID:     int64(app.ID),
-		Source:      "keychain",
-		Service:     &service,
+		Source:      "vault",
+		VaultSecret: &vaultSecret,
 		PasswordVar: &passwordVar,
 	}
 
@@ -1520,9 +1516,9 @@ func TestCreateCredential_DualField_PasswordOnly_Success(t *testing.T) {
 	require.NotNil(t, stored)
 
 	assert.Equal(t, "github-password-only", stored.Name)
-	assert.Equal(t, "keychain", stored.Source)
-	require.NotNil(t, stored.Service)
-	assert.Equal(t, "com.github.token", *stored.Service)
+	assert.Equal(t, "vault", stored.Source)
+	require.NotNil(t, stored.VaultSecret)
+	assert.Equal(t, "com.github.token", *stored.VaultSecret)
 	assert.Nil(t, stored.UsernameVar, "UsernameVar should be nil when not set")
 	require.NotNil(t, stored.PasswordVar, "PasswordVar should be populated")
 	assert.Equal(t, "GH_PAT", *stored.PasswordVar)
@@ -1543,23 +1539,23 @@ func TestCreateCredential_DualField_PasswordOnly_Success(t *testing.T) {
 func TestGetCredential_DualField_Detail_HasUsernameVar(t *testing.T) {
 	mockStore, app := setupTestContext()
 
-	service := "com.github.credentials"
+	vaultSecret := "com.github.credentials"
 	usernameVar := "GITHUB_USERNAME"
 	passwordVar := "GITHUB_PAT"
 
-	// Create a dual-field keychain credential with both UsernameVar and PasswordVar
+	// Create a dual-field vault credential with both UsernameVar and PasswordVar
 	cred := &models.CredentialDB{
 		Name:        "github-creds",
 		ScopeType:   models.CredentialScopeApp,
 		ScopeID:     int64(app.ID),
-		Source:      "keychain",
-		Service:     &service,
+		Source:      "vault",
+		VaultSecret: &vaultSecret,
 		UsernameVar: &usernameVar,
 		PasswordVar: &passwordVar,
 	}
 
 	err := mockStore.CreateCredential(cred)
-	require.NoError(t, err, "CreateCredential should succeed for dual-field keychain credential")
+	require.NoError(t, err, "CreateCredential should succeed for dual-field vault credential")
 
 	// Retrieve and verify both dual-field vars are stored and returned correctly
 	stored, err := mockStore.GetCredential(models.CredentialScopeApp, int64(app.ID), "github-creds")
@@ -1578,11 +1574,11 @@ func TestGetCredential_DualField_Detail_HasUsernameVar(t *testing.T) {
 	assert.Equal(t, "GITHUB_PAT", *stored.PasswordVar,
 		"PasswordVar should match the stored value")
 
-	// Other keychain fields remain intact
+	// Other vault fields remain intact
 	assert.Equal(t, "github-creds", stored.Name)
-	assert.Equal(t, "keychain", stored.Source)
-	require.NotNil(t, stored.Service)
-	assert.Equal(t, "com.github.credentials", *stored.Service)
+	assert.Equal(t, "vault", stored.Source)
+	require.NotNil(t, stored.VaultSecret)
+	assert.Equal(t, "com.github.credentials", *stored.VaultSecret)
 }
 
 // TestGetCredential_DualField_Detail_PasswordOnly verifies that a dual-field
@@ -1598,7 +1594,7 @@ func TestGetCredential_DualField_Detail_HasUsernameVar(t *testing.T) {
 func TestGetCredential_DualField_Detail_PasswordOnly(t *testing.T) {
 	mockStore, app := setupTestContext()
 
-	service := "com.npm.registry"
+	vaultSecret := "com.npm.registry"
 	passwordVar := "NPM_AUTH_TOKEN"
 
 	// Create a credential with PasswordVar set but UsernameVar explicitly nil
@@ -1606,8 +1602,8 @@ func TestGetCredential_DualField_Detail_PasswordOnly(t *testing.T) {
 		Name:        "npm-token",
 		ScopeType:   models.CredentialScopeApp,
 		ScopeID:     int64(app.ID),
-		Source:      "keychain",
-		Service:     &service,
+		Source:      "vault",
+		VaultSecret: &vaultSecret,
 		UsernameVar: nil,
 		PasswordVar: &passwordVar,
 	}
@@ -1655,16 +1651,16 @@ func TestGetCredentials_List_DualField_MixedDisplay(t *testing.T) {
 		// UsernameVar and PasswordVar intentionally nil — legacy single-field credential
 	}
 
-	// --- Dual-field credential (keychain source, two named env vars) ---
-	service := "com.github.credentials"
+	// --- Dual-field credential (vault source, two named env vars) ---
+	vaultSecret := "com.github.credentials"
 	ghUser := "GH_USER"
 	ghPat := "GH_PAT"
 	dualCred := &models.CredentialDB{
 		Name:        "github-creds",
 		ScopeType:   models.CredentialScopeApp,
 		ScopeID:     int64(app.ID),
-		Source:      "keychain",
-		Service:     &service,
+		Source:      "vault",
+		VaultSecret: &vaultSecret,
 		UsernameVar: &ghUser,
 		PasswordVar: &ghPat,
 	}
@@ -1713,298 +1709,494 @@ func TestGetCredentials_List_DualField_MixedDisplay(t *testing.T) {
 }
 
 // =============================================================================
-// TDD Phase 2 (RED): Keychain Label Redesign — CLI Tests (v0.39.0)
+// TDD Phase 2 (RED): MaestroVault CLI Tests (v0.40.0)
 // =============================================================================
-// Design change: Add --keychain-label (replaces --service), add --keychain-type,
-// keep --service as a deprecated alias, enforce mutual-exclusivity of
-// --service and --keychain-label, and validate keychainType values.
+// These tests define the specification for the MaestroVault integration.
+// They replace the macOS Keychain-based credential source with MaestroVault.
 //
-// New flags that MUST exist after implementation:
-//   --keychain-label  (string, replaces --service for keychain credentials)
-//   --keychain-type   (string, "generic" or "internet", default "internet")
-//   --service         (kept as deprecated alias for --keychain-label)
+// New/changed flags:
+//   --source         now accepts "vault" or "env" (not "keychain" or "env")
+//   --vault-secret   required for vault source (replaces --service)
+//   --vault-environment  optional vault environment qualifier
+//   --vault-username-secret  dual-field vault: separate secret for username
 //
-// Validation rules:
-//   1. --keychain-label and --service are mutually exclusive
-//   2. --keychain-type only valid when --source=keychain
-//   3. --keychain-type must be "generic" or "internet" (empty = default internet)
-//   4. When --keychain-label is set, it satisfies the keychain-source requirement
-//   5. When only --service is set, it is accepted (deprecated path)
+// Removed flags:
+//   --keychain-label, --keychain-type, --service
 //
-// Tests in this section WILL FAIL TO COMPILE or FAIL AT RUNTIME until
-// --keychain-label and --keychain-type are added to cmd/credential.go.
+// Cross-validation rules:
+//   - --source=vault requires --vault-secret
+//   - --vault-username-secret requires --username-var
+//   - --vault-environment is only valid with --source=vault
+//   - --source=keychain shows a helpful migration error (not silently accepted)
+//
+// Tests in this section WILL FAIL AT RUNTIME until the flags and validation
+// are implemented in cmd/credential.go (v0.40.0).
 // =============================================================================
+
+// ---------------------------------------------------------------------------
+// Section: Removed Flag Absence Tests
+// ---------------------------------------------------------------------------
+
+// TestCreateCredential_KeychainLabel verifies that --keychain-label flag
+// no longer exists on createCredentialCmd (removed in v0.39.0 redesign).
+func TestCreateCredential_KeychainLabel(t *testing.T) {
+	credCmd := findSubcommand(createCmd, "credential")
+	require.NotNil(t, credCmd, "create credential subcommand must exist")
+
+	flag := credCmd.Flags().Lookup("keychain-label")
+	assert.Nil(t, flag, "--keychain-label flag should not exist (removed in v0.39.0)")
+}
+
+// TestCreateCredential_KeychainType verifies that --keychain-type flag
+// no longer exists on createCredentialCmd (removed in v0.39.0 redesign).
+func TestCreateCredential_KeychainType(t *testing.T) {
+	credCmd := findSubcommand(createCmd, "credential")
+	require.NotNil(t, credCmd, "create credential subcommand must exist")
+
+	flag := credCmd.Flags().Lookup("keychain-type")
+	assert.Nil(t, flag, "--keychain-type flag should not exist (removed in v0.39.0)")
+}
 
 // ---------------------------------------------------------------------------
 // Section: Flag Existence Tests
 // ---------------------------------------------------------------------------
 
-// TestCreateCredential_KeychainLabel verifies that --keychain-label flag exists
-// on createCredentialCmd, is string type, and defaults to empty string.
+// TestCreateCredentialCmd_HasVaultSecretFlag verifies that --vault-secret flag
+// exists on createCredentialCmd, is string type, and defaults to empty string.
 //
-// WILL FAIL AT RUNTIME — createCredentialCmd does not yet have --keychain-label.
-func TestCreateCredential_KeychainLabel(t *testing.T) {
+// WILL FAIL AT RUNTIME — createCredentialCmd does not yet have --vault-secret.
+func TestCreateCredentialCmd_HasVaultSecretFlag(t *testing.T) {
 	credCmd := findSubcommand(createCmd, "credential")
 	require.NotNil(t, credCmd, "create credential subcommand must exist")
 
 	// ── RUNTIME FAILURE EXPECTED BELOW ───────────────────────────────────────
-	// --keychain-label flag does not exist yet on createCredentialCmd.
-	flag := credCmd.Flags().Lookup("keychain-label")
+	// --vault-secret flag does not exist yet on createCredentialCmd.
+	flag := credCmd.Flags().Lookup("vault-secret")
 	assert.NotNil(t, flag,
-		"create credential should have --keychain-label flag (replaces --service)")
+		"create credential should have --vault-secret flag (v0.40.0 vault integration)")
 	if flag != nil {
 		assert.Equal(t, "string", flag.Value.Type(),
-			"--keychain-label should be a string flag")
+			"--vault-secret should be a string flag")
 		assert.Equal(t, "", flag.DefValue,
-			"--keychain-label should default to empty string")
+			"--vault-secret should default to empty string")
 	}
 	// ─────────────────────────────────────────────────────────────────────────
 }
 
-// TestCreateCredential_KeychainType verifies that --keychain-type flag exists
-// on createCredentialCmd, is string type, and defaults to empty string (which
-// the implementation treats as "internet").
+// TestCreateCredentialCmd_HasVaultEnvironmentFlag verifies that --vault-env
+// flag exists on createCredentialCmd, is string type, and defaults to empty string.
+// Note: the flag name is --vault-env (not --vault-environment).
+func TestCreateCredentialCmd_HasVaultEnvironmentFlag(t *testing.T) {
+	credCmd := findSubcommand(createCmd, "credential")
+	require.NotNil(t, credCmd, "create credential subcommand must exist")
+
+	flag := credCmd.Flags().Lookup("vault-env")
+	assert.NotNil(t, flag,
+		"create credential should have --vault-env flag (v0.40.0 vault integration)")
+	if flag != nil {
+		assert.Equal(t, "string", flag.Value.Type(),
+			"--vault-env should be a string flag")
+		assert.Equal(t, "", flag.DefValue,
+			"--vault-env should default to empty string (optional)")
+	}
+}
+
+// TestCreateCredentialCmd_HasVaultUsernameSecretFlag verifies that
+// --vault-username-secret flag exists on createCredentialCmd for dual-field
+// vault credentials.
 //
-// WILL FAIL AT RUNTIME — createCredentialCmd does not yet have --keychain-type.
-func TestCreateCredential_KeychainType(t *testing.T) {
+// WILL FAIL AT RUNTIME — createCredentialCmd does not yet have --vault-username-secret.
+func TestCreateCredentialCmd_HasVaultUsernameSecretFlag(t *testing.T) {
 	credCmd := findSubcommand(createCmd, "credential")
 	require.NotNil(t, credCmd, "create credential subcommand must exist")
 
 	// ── RUNTIME FAILURE EXPECTED BELOW ───────────────────────────────────────
-	// --keychain-type flag does not exist yet on createCredentialCmd.
-	flag := credCmd.Flags().Lookup("keychain-type")
+	flag := credCmd.Flags().Lookup("vault-username-secret")
 	assert.NotNil(t, flag,
-		"create credential should have --keychain-type flag")
+		"create credential should have --vault-username-secret flag (v0.40.0 dual-field vault)")
 	if flag != nil {
 		assert.Equal(t, "string", flag.Value.Type(),
-			"--keychain-type should be a string flag")
+			"--vault-username-secret should be a string flag")
 		assert.Equal(t, "", flag.DefValue,
-			"--keychain-type should default to empty string (treated as 'internet')")
+			"--vault-username-secret should default to empty string")
 	}
 	// ─────────────────────────────────────────────────────────────────────────
 }
 
-// TestCreateCredential_ServiceDeprecated verifies that --service flag still
-// exists on createCredentialCmd (as a deprecated alias) and works for backwards
-// compatibility.
-//
-// This test should PASS today (--service already exists). It is included as a
-// regression guard to ensure --service is NOT removed during the redesign.
-func TestCreateCredential_ServiceDeprecated(t *testing.T) {
-	credCmd := findSubcommand(createCmd, "credential")
-	require.NotNil(t, credCmd, "create credential subcommand must exist")
+// ---------------------------------------------------------------------------
+// Section: Source Validation — vault and env accepted; keychain rejected
+// ---------------------------------------------------------------------------
 
-	flag := credCmd.Flags().Lookup("service")
-	assert.NotNil(t, flag,
-		"--service flag must be kept as a deprecated alias (for backwards compat)")
-	if flag != nil {
-		assert.Equal(t, "string", flag.Value.Type(),
-			"--service should remain a string flag")
+// TestCreateCredential_VaultSource verifies that --source=vault with
+// --vault-secret is accepted, and a credential is created with the correct
+// source="vault" and vault_secret fields.
+//
+// WILL FAIL AT RUNTIME — vault source is not yet accepted by the validation
+// logic in createCredentialCmd.RunE.
+func TestCreateCredential_VaultSource(t *testing.T) {
+	mockStore, app := setupTestContext()
+
+	vaultSecret := "my-org/github-pat"
+
+	// Act: create a vault-source credential via the DataStore directly.
+	// This validates the MODEL and STORE accept vault fields; CLI integration
+	// is covered by the flag+validation tests above.
+	cred := &models.CredentialDB{
+		Name:        "github-pat",
+		ScopeType:   models.CredentialScopeApp,
+		ScopeID:     int64(app.ID),
+		Source:      "vault",      // NEW source value — not yet in CHECK constraint
+		VaultSecret: &vaultSecret, // NEW field — does not exist yet → compile error
 	}
+
+	err := mockStore.CreateCredential(cred)
+	// ── COMPILE/RUNTIME FAILURE EXPECTED ABOVE ───────────────────────────────
+	// models.CredentialDB.VaultSecret does not exist yet → compile error.
+	// Even if it compiles, MockDataStore.CreateCredential may reject "vault" source.
+	require.NoError(t, err, "CreateCredential should succeed for vault source credential")
+
+	stored, err := mockStore.GetCredential(models.CredentialScopeApp, int64(app.ID), "github-pat")
+	require.NoError(t, err)
+	require.NotNil(t, stored)
+
+	assert.Equal(t, "vault", stored.Source)
+	require.NotNil(t, stored.VaultSecret, "VaultSecret should be populated")
+	assert.Equal(t, "my-org/github-pat", *stored.VaultSecret)
+	assert.Nil(t, stored.EnvVar, "EnvVar should be nil for vault source")
 }
 
-// ---------------------------------------------------------------------------
-// Section: Validation Logic Tests
-// ---------------------------------------------------------------------------
-
-// TestCreateCredential_ServiceAndLabelMutuallyExclusive verifies that
-// passing both --service and --keychain-label produces an error.
+// TestCreateCredential_VaultRequiresVaultSecret verifies that --source=vault
+// without --vault-secret produces a validation error.
 //
-// WILL FAIL AT RUNTIME — this mutual-exclusivity rule is not yet enforced.
-func TestCreateCredential_ServiceAndLabelMutuallyExclusive(t *testing.T) {
+// WILL FAIL AT RUNTIME — vault source validation not yet implemented in RunE.
+func TestCreateCredential_VaultRequiresVaultSecret(t *testing.T) {
 	// ── RUNTIME FAILURE EXPECTED BELOW ───────────────────────────────────────
-	// validateKeychainLabelFlags does not exist yet; using the helper below.
-	err := validateKeychainLabelFlags(
-		"keychain",
-		"com.example.old-service", // --service (deprecated)
-		"com.example.new-label",   // --keychain-label (new)
-		"",                        // --keychain-type
+	// validateVaultFlags does not exist yet.
+	err := validateVaultFlags(
+		"vault", // --source=vault
+		"",      // --vault-secret NOT provided
+		"",      // --vault-environment
+		"",      // --vault-username-secret
+		"",      // --username-var
+		"",      // --env-var
 	)
 	// ─────────────────────────────────────────────────────────────────────────
 
 	assert.Error(t, err,
-		"providing both --service and --keychain-label must produce an error")
-	assert.Contains(t, err.Error(), "mutually exclusive",
-		"error must explain that --service and --keychain-label cannot be used together")
+		"--source=vault without --vault-secret must produce a validation error")
+	assert.Contains(t, err.Error(), "vault-secret",
+		"error should mention the missing --vault-secret flag")
 }
 
-// TestCreateCredential_KeychainTypeValidation is a table-driven test verifying
-// that --keychain-type only accepts "generic", "internet", or "" (default).
+// TestCreateCredential_VaultWithEnvironment verifies that --vault-environment
+// is stored correctly alongside --vault-secret when --source=vault.
 //
-// WILL FAIL AT RUNTIME — this validation is not yet implemented.
-func TestCreateCredential_KeychainTypeValidation(t *testing.T) {
+// WILL FAIL AT RUNTIME — VaultEnv field does not exist yet → compile error.
+func TestCreateCredential_VaultWithEnvironment(t *testing.T) {
+	mockStore, app := setupTestContext()
+
+	vaultSecret := "my-org/db-password"
+	vaultEnv := "production"
+
+	cred := &models.CredentialDB{
+		Name:        "db-password",
+		ScopeType:   models.CredentialScopeApp,
+		ScopeID:     int64(app.ID),
+		Source:      "vault",
+		VaultSecret: &vaultSecret, // NEW field — does not exist yet → compile error
+		VaultEnv:    &vaultEnv,    // NEW field — does not exist yet → compile error
+	}
+
+	err := mockStore.CreateCredential(cred)
+	require.NoError(t, err, "CreateCredential should succeed for vault credential with environment")
+
+	stored, err := mockStore.GetCredential(models.CredentialScopeApp, int64(app.ID), "db-password")
+	require.NoError(t, err)
+	require.NotNil(t, stored)
+
+	assert.Equal(t, "vault", stored.Source)
+	require.NotNil(t, stored.VaultSecret, "VaultSecret should be populated")
+	assert.Equal(t, "my-org/db-password", *stored.VaultSecret)
+	require.NotNil(t, stored.VaultEnv, "VaultEnv should be populated")
+	assert.Equal(t, "production", *stored.VaultEnv)
+}
+
+// TestCreateCredential_VaultUsernameSecretRequiresUsernameVar verifies the
+// cross-validation rule: --vault-username-secret requires --username-var.
+//
+// WILL FAIL AT RUNTIME — cross-validation not yet implemented.
+func TestCreateCredential_VaultUsernameSecretRequiresUsernameVar(t *testing.T) {
+	// ── RUNTIME FAILURE EXPECTED BELOW ───────────────────────────────────────
+	// validateVaultFlags does not exist yet.
+	err := validateVaultFlags(
+		"vault",               // --source=vault
+		"my-org/github-creds", // --vault-secret provided
+		"",                    // --vault-environment
+		"my-org/github-user",  // --vault-username-secret provided
+		"",                    // --username-var NOT provided (required when vault-username-secret is set)
+		"",                    // --env-var
+	)
+	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.Error(t, err,
+		"--vault-username-secret without --username-var must produce a validation error")
+	assert.Contains(t, err.Error(), "username-var",
+		"error should mention the required --username-var flag")
+}
+
+// TestCreateCredential_KeychainSourceShowsMigrationMessage verifies that
+// passing --source=keychain (now unsupported) produces a helpful error
+// message that guides the user to migrate to --source=vault.
+//
+// WILL FAIL AT RUNTIME — migration error message not yet implemented.
+func TestCreateCredential_KeychainSourceShowsMigrationMessage(t *testing.T) {
+	// ── RUNTIME FAILURE EXPECTED BELOW ───────────────────────────────────────
+	// validateVaultFlags does not exist yet.
+	err := validateVaultFlags(
+		"keychain", // deprecated --source value
+		"",         // --vault-secret
+		"",         // --vault-environment
+		"",         // --vault-username-secret
+		"",         // --username-var
+		"",         // --env-var
+	)
+	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.Error(t, err,
+		"--source=keychain must produce an error (keychain is no longer supported)")
+	assert.Contains(t, err.Error(), "vault",
+		"migration error should mention 'vault' as the replacement")
+}
+
+// TestCreateCredential_VaultDualField verifies that a vault credential with
+// both --vault-username-secret and --username-var/--password-var creates a
+// correct dual-field vault credential.
+//
+// WILL FAIL AT RUNTIME — VaultSecret and VaultUsernameSecret fields don't exist.
+func TestCreateCredential_VaultDualField(t *testing.T) {
+	mockStore, app := setupTestContext()
+
+	vaultSecret := "my-org/github-pat"
+	vaultUsernameSecret := "my-org/github-username"
+	usernameVar := "GITHUB_USERNAME"
+	passwordVar := "GITHUB_PAT"
+
+	cred := &models.CredentialDB{
+		Name:                "github-creds-vault",
+		ScopeType:           models.CredentialScopeApp,
+		ScopeID:             int64(app.ID),
+		Source:              "vault",
+		VaultSecret:         &vaultSecret,         // NEW — compile error
+		VaultUsernameSecret: &vaultUsernameSecret, // NEW — compile error
+		UsernameVar:         &usernameVar,
+		PasswordVar:         &passwordVar,
+	}
+
+	err := mockStore.CreateCredential(cred)
+	require.NoError(t, err, "CreateCredential should succeed for dual-field vault credential")
+
+	stored, err := mockStore.GetCredential(models.CredentialScopeApp, int64(app.ID), "github-creds-vault")
+	require.NoError(t, err)
+	require.NotNil(t, stored)
+
+	assert.Equal(t, "vault", stored.Source)
+	require.NotNil(t, stored.VaultSecret)
+	assert.Equal(t, "my-org/github-pat", *stored.VaultSecret)
+	require.NotNil(t, stored.VaultUsernameSecret)
+	assert.Equal(t, "my-org/github-username", *stored.VaultUsernameSecret)
+	require.NotNil(t, stored.UsernameVar)
+	assert.Equal(t, "GITHUB_USERNAME", *stored.UsernameVar)
+	require.NotNil(t, stored.PasswordVar)
+	assert.Equal(t, "GITHUB_PAT", *stored.PasswordVar)
+}
+
+// TestCreateCredential_VaultEnvironmentOnlyWithVaultSource verifies that
+// --vault-environment is rejected when --source=env.
+//
+// WILL FAIL AT RUNTIME — validateVaultFlags does not exist yet.
+func TestCreateCredential_VaultEnvironmentOnlyWithVaultSource(t *testing.T) {
+	// ── RUNTIME FAILURE EXPECTED BELOW ───────────────────────────────────────
+	// validateVaultFlags does not exist yet.
+	err := validateVaultFlags(
+		"env",        // --source=env
+		"",           // --vault-secret (not applicable)
+		"production", // --vault-environment (invalid with env source)
+		"",           // --vault-username-secret
+		"",           // --username-var
+		"MY_TOKEN",   // --env-var
+	)
+	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.Error(t, err,
+		"--vault-environment should be rejected when --source=env")
+	assert.Contains(t, err.Error(), "vault",
+		"error should explain that --vault-environment is only valid with vault source")
+}
+
+// ---------------------------------------------------------------------------
+// Section: validateVaultFlags Helper
+// ---------------------------------------------------------------------------
+
+// validateVaultFlags implements the combined validation logic that
+// createCredentialCmd.RunE will need for the MaestroVault integration.
+//
+// Rules:
+//  1. --source must be "vault" or "env" ("keychain" shows migration error)
+//  2. --source=vault requires --vault-secret
+//  3. --vault-environment is only valid with --source=vault
+//  4. --vault-username-secret requires --username-var
+//  5. --source=env requires --env-var
+//
+// NOTE: This function lives in the test file as a specification of the
+// validation logic that MUST be implemented in cmd/credential.go RunE for v0.40.0.
+// Once the real implementation exists, these tests should call the real
+// validation function, and this helper should be removed.
+func validateVaultFlags(source, vaultSecret, vaultEnv, vaultUsernameSecret, usernameVar, envVar string) error {
+	// Rule 1: keychain source is no longer supported — show migration message
+	if source == "keychain" {
+		return fmt.Errorf("--source=keychain is no longer supported; migrate to --source=vault (MaestroVault)")
+	}
+
+	// Rule 1: source must be "vault" or "env"
+	if source != "vault" && source != "env" {
+		return fmt.Errorf("--source must be 'vault' or 'env', got %q", source)
+	}
+
+	// Rule 3: --vault-environment only valid with vault source
+	if vaultEnv != "" && source != "vault" {
+		return fmt.Errorf("--vault-environment is only valid with --source=vault")
+	}
+
+	// Rule 2: vault source requires --vault-secret
+	if source == "vault" && vaultSecret == "" {
+		return fmt.Errorf("--vault-secret is required when --source=vault")
+	}
+
+	// Rule 4: --vault-username-secret requires --username-var
+	if vaultUsernameSecret != "" && usernameVar == "" {
+		return fmt.Errorf("--username-var is required when --vault-username-secret is set")
+	}
+
+	// Rule 5: env source requires --env-var
+	if source == "env" && envVar == "" {
+		return fmt.Errorf("--env-var is required when --source=env")
+	}
+
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// Section: validateVaultFlags Table-Driven Tests
+// ---------------------------------------------------------------------------
+
+// TestCreateCredential_VaultFlags_TableDriven is a comprehensive table-driven
+// test covering all combinations of vault flag validation.
+//
+// WILL FAIL AT RUNTIME until validateVaultFlags (above) is moved to cmd/credential.go
+// and wired into createCredentialCmd.RunE.
+func TestCreateCredential_VaultFlags_TableDriven(t *testing.T) {
 	tests := []struct {
-		name         string
-		keychainType string
-		wantErr      bool
-		errMsg       string
+		name                string
+		source              string
+		vaultSecret         string
+		vaultEnv            string
+		vaultUsernameSecret string
+		usernameVar         string
+		envVar              string
+		wantErr             bool
+		errSubstr           string
 	}{
 		{
-			name:         "generic is valid",
-			keychainType: "generic",
-			wantErr:      false,
+			name:        "vault source with vault-secret - valid",
+			source:      "vault",
+			vaultSecret: "my-org/api-key",
+			wantErr:     false,
 		},
 		{
-			name:         "internet is valid",
-			keychainType: "internet",
-			wantErr:      false,
+			name:      "vault source without vault-secret - error",
+			source:    "vault",
+			wantErr:   true,
+			errSubstr: "vault-secret",
 		},
 		{
-			name:         "empty string is valid (defaults to internet)",
-			keychainType: "",
-			wantErr:      false,
+			name:        "vault source with environment - valid",
+			source:      "vault",
+			vaultSecret: "my-org/db-pass",
+			vaultEnv:    "staging",
+			wantErr:     false,
 		},
 		{
-			name:         "keychain is invalid",
-			keychainType: "keychain",
-			wantErr:      true,
-			errMsg:       "keychain-type",
+			name:      "env source with vault-environment - error",
+			source:    "env",
+			envVar:    "MY_TOKEN",
+			vaultEnv:  "production",
+			wantErr:   true,
+			errSubstr: "vault",
 		},
 		{
-			name:         "GENERIC uppercase is invalid",
-			keychainType: "GENERIC",
-			wantErr:      true,
-			errMsg:       "keychain-type",
+			name:                "vault-username-secret without username-var - error",
+			source:              "vault",
+			vaultSecret:         "my-org/creds",
+			vaultUsernameSecret: "my-org/username",
+			usernameVar:         "",
+			wantErr:             true,
+			errSubstr:           "username-var",
 		},
 		{
-			name:         "INTERNET uppercase is invalid",
-			keychainType: "INTERNET",
-			wantErr:      true,
-			errMsg:       "keychain-type",
+			name:                "vault-username-secret with username-var - valid",
+			source:              "vault",
+			vaultSecret:         "my-org/creds",
+			vaultUsernameSecret: "my-org/username",
+			usernameVar:         "GITHUB_USERNAME",
+			wantErr:             false,
 		},
 		{
-			name:         "arbitrary value is invalid",
-			keychainType: "any",
-			wantErr:      true,
-			errMsg:       "keychain-type",
+			name:      "keychain source - migration error",
+			source:    "keychain",
+			wantErr:   true,
+			errSubstr: "vault",
+		},
+		{
+			name:      "env source without env-var - error",
+			source:    "env",
+			envVar:    "",
+			wantErr:   true,
+			errSubstr: "env-var",
+		},
+		{
+			name:    "env source with env-var - valid",
+			source:  "env",
+			envVar:  "MY_API_TOKEN",
+			wantErr: false,
+		},
+		{
+			name:      "invalid source - error",
+			source:    "plaintext",
+			wantErr:   true,
+			errSubstr: "source",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// ── RUNTIME FAILURE EXPECTED BELOW ───────────────────────────────
-			// validateKeychainLabelFlags does not exist yet.
-			err := validateKeychainLabelFlags(
-				"keychain",
-				"",                     // no --service
-				"com.example.my-label", // --keychain-label provided
-				tt.keychainType,        // --keychain-type under test
+			err := validateVaultFlags(
+				tt.source,
+				tt.vaultSecret,
+				tt.vaultEnv,
+				tt.vaultUsernameSecret,
+				tt.usernameVar,
+				tt.envVar,
 			)
-			// ─────────────────────────────────────────────────────────────────
 
 			if tt.wantErr {
-				assert.Error(t, err,
-					"keychain-type %q should be rejected", tt.keychainType)
-				if tt.errMsg != "" {
-					assert.Contains(t, err.Error(), tt.errMsg,
-						"error should mention %q", tt.errMsg)
+				assert.Error(t, err, "validation should fail for: %s", tt.name)
+				if tt.errSubstr != "" {
+					assert.Contains(t, err.Error(), tt.errSubstr,
+						"error should mention %q", tt.errSubstr)
 				}
 			} else {
-				assert.NoError(t, err,
-					"keychain-type %q should be accepted", tt.keychainType)
+				assert.NoError(t, err, "validation should pass for: %s", tt.name)
 			}
 		})
 	}
-}
-
-// TestCreateCredential_KeychainTypeRequiresKeychainSource verifies that
-// --keychain-type is only valid when --source=keychain. When used with
-// --source=env, it must return an error.
-//
-// WILL FAIL AT RUNTIME — this constraint is not yet enforced.
-func TestCreateCredential_KeychainTypeRequiresKeychainSource(t *testing.T) {
-	// ── RUNTIME FAILURE EXPECTED BELOW ───────────────────────────────────────
-	// validateKeychainLabelFlags does not exist yet.
-	err := validateKeychainLabelFlags(
-		"env",     // --source=env
-		"",        // no --service
-		"",        // no --keychain-label
-		"generic", // --keychain-type=generic (invalid when source=env)
-	)
-	// ─────────────────────────────────────────────────────────────────────────
-
-	assert.Error(t, err,
-		"--keychain-type should be rejected when --source=env")
-	assert.Contains(t, err.Error(), "keychain",
-		"error should explain that --keychain-type is only valid with --source=keychain")
-}
-
-// TestCreateCredential_KeychainLabelSatisfiesKeychainRequirement verifies that
-// when --keychain-label is set (and --service is NOT set), the keychain-source
-// requirement is satisfied by the label.
-//
-// WILL FAIL AT RUNTIME — the current validation requires --service for keychain
-// source. After the redesign, --keychain-label must also satisfy this requirement.
-func TestCreateCredential_KeychainLabelSatisfiesKeychainRequirement(t *testing.T) {
-	// ── RUNTIME FAILURE EXPECTED BELOW ───────────────────────────────────────
-	// validateKeychainLabelFlags does not exist yet.
-	err := validateKeychainLabelFlags(
-		"keychain",             // --source=keychain
-		"",                     // no --service (old way)
-		"com.example.my-label", // --keychain-label (new way) — should satisfy requirement
-		"generic",              // --keychain-type
-	)
-	// ─────────────────────────────────────────────────────────────────────────
-
-	assert.NoError(t, err,
-		"--keychain-label should satisfy the keychain source requirement (replacing --service)")
-}
-
-// TestCreateCredential_ServiceAloneStillWorks verifies that using only
-// --service (without --keychain-label) still works as a deprecated path.
-//
-// WILL PASS TODAY (--service is already supported). Included as a regression
-// guard to ensure the deprecated path is not broken during the redesign.
-func TestCreateCredential_ServiceAloneStillWorks(t *testing.T) {
-	// ── This should PASS with current code and continue to pass after redesign ──
-	err := validateKeychainLabelFlags(
-		"keychain",                // --source=keychain
-		"com.example.old-service", // --service (deprecated but still valid)
-		"",                        // no --keychain-label
-		"",                        // no --keychain-type
-	)
-
-	assert.NoError(t, err,
-		"--service alone (deprecated path) must still work for backwards compatibility")
-}
-
-// ---------------------------------------------------------------------------
-// Section: validateKeychainLabelFlags Helper
-// ---------------------------------------------------------------------------
-
-// validateKeychainLabelFlags implements the combined validation logic that
-// createCredentialCmd.RunE will need for the keychain label redesign.
-//
-// Rules:
-//  1. --service and --keychain-label are mutually exclusive
-//  2. For keychain source: either --service OR --keychain-label must be provided
-//  3. --keychain-type must be "" (default), "generic", or "internet"
-//  4. --keychain-type is only valid with --source=keychain
-//
-// NOTE: This function lives in the test file as a specification of the
-// validation logic that MUST be implemented in cmd/credential.go RunE.
-// Once the real implementation exists, these tests should call the real
-// validation, and this helper should be removed.
-func validateKeychainLabelFlags(source, service, keychainLabel, keychainType string) error {
-	// Rule 1: --service and --keychain-label are mutually exclusive
-	if service != "" && keychainLabel != "" {
-		return fmt.Errorf("--service and --keychain-label are mutually exclusive; use --keychain-label (--service is deprecated)")
-	}
-
-	// Rule 4: --keychain-type only valid with keychain source
-	if keychainType != "" && source != "keychain" {
-		return fmt.Errorf("--keychain-type is only valid with --source=keychain")
-	}
-
-	// Rule 3: --keychain-type must be "generic" or "internet" (if provided)
-	if keychainType != "" && keychainType != "generic" && keychainType != "internet" {
-		return fmt.Errorf("--keychain-type must be 'generic' or 'internet', got %q", keychainType)
-	}
-
-	// Rule 2: For keychain source, either --service or --keychain-label must be set
-	if source == "keychain" && service == "" && keychainLabel == "" {
-		return fmt.Errorf("--keychain-label (or deprecated --service) is required when --source=keychain")
-	}
-
-	return nil
 }

@@ -9,7 +9,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"runtime"
 	"strings"
 	"time"
 
@@ -188,7 +187,7 @@ func (s *GitHubSource) Name() string {
 
 // getGitHubToken retrieves the GitHub token using the secret provider system.
 // It tries providers in this order:
-//  1. Keychain (macOS only) - looks for "github-token" in devopsmaestro service
+//  1. MaestroVault - looks for "github-token" secret
 //  2. Environment variable DVM_SECRET_GITHUB_TOKEN
 //  3. Environment variable GITHUB_TOKEN (backward compatibility)
 //
@@ -196,19 +195,16 @@ func (s *GitHubSource) Name() string {
 func getGitHubToken() string {
 	ctx := context.Background()
 
-	// Try keychain first on macOS
-	if runtime.GOOS == "darwin" {
-		kc := providers.NewKeychainProvider()
-		if kc.IsAvailable() {
-			token, err := kc.GetSecret(ctx, secrets.SecretRequest{Name: "github-token"})
-			if err == nil && token != "" {
-				slog.Debug("using GitHub token from keychain")
-				return token
-			}
-			// Log if there was an error other than "not found"
-			if err != nil && !secrets.IsNotFound(err) {
-				slog.Debug("keychain lookup failed", "error", err)
-			}
+	// Try vault first
+	vault := providers.NewVaultProvider()
+	if vault.IsAvailable() {
+		token, err := vault.GetSecret(ctx, secrets.SecretRequest{Name: "github-token"})
+		if err == nil && token != "" {
+			slog.Debug("using GitHub token from vault")
+			return token
+		}
+		if err != nil && !secrets.IsNotFound(err) {
+			slog.Debug("vault lookup failed", "error", err)
 		}
 	}
 

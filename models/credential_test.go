@@ -21,8 +21,8 @@ func TestCredentialYAML_StructFields(t *testing.T) {
 			Ecosystem: "testlab",
 		},
 		Spec: CredentialSpec{
-			Source:      "keychain",
-			Service:     "dvm-github-token",
+			Source:      "vault",
+			VaultSecret: "dvm-github-token",
 			Description: "GitHub PAT for private repo access",
 		},
 	}
@@ -31,8 +31,8 @@ func TestCredentialYAML_StructFields(t *testing.T) {
 	assert.Equal(t, "Credential", yaml.Kind)
 	assert.Equal(t, "GITHUB_TOKEN", yaml.Metadata.Name)
 	assert.Equal(t, "testlab", yaml.Metadata.Ecosystem)
-	assert.Equal(t, "keychain", yaml.Spec.Source)
-	assert.Equal(t, "dvm-github-token", yaml.Spec.Service)
+	assert.Equal(t, "vault", yaml.Spec.Source)
+	assert.Equal(t, "dvm-github-token", yaml.Spec.VaultSecret)
 	assert.Equal(t, "GitHub PAT for private repo access", yaml.Spec.Description)
 }
 
@@ -98,21 +98,21 @@ func TestCredentialSpec_EnvSource(t *testing.T) {
 
 	assert.Equal(t, "env", yaml.Spec.Source)
 	assert.Equal(t, "MY_NPM", yaml.Spec.EnvVar)
-	assert.Empty(t, yaml.Spec.Service)
+	assert.Empty(t, yaml.Spec.VaultSecret)
 }
 
 // =============================================================================
 // Credential ToYAML Tests
 // =============================================================================
 
-func TestCredentialDB_ToYAML_Keychain(t *testing.T) {
-	service := "dvm-github-token"
+func TestCredentialDB_ToYAML_Vault(t *testing.T) {
+	vaultSecret := "dvm-github-token"
 	desc := "GitHub PAT"
 	cred := &CredentialDB{
 		Name:        "GITHUB_TOKEN",
 		ScopeType:   CredentialScopeEcosystem,
-		Source:      "keychain",
-		Service:     &service,
+		Source:      "vault",
+		VaultSecret: &vaultSecret,
 		Description: &desc,
 	}
 
@@ -125,8 +125,8 @@ func TestCredentialDB_ToYAML_Keychain(t *testing.T) {
 	assert.Empty(t, yaml.Metadata.Domain)
 	assert.Empty(t, yaml.Metadata.App)
 	assert.Empty(t, yaml.Metadata.Workspace)
-	assert.Equal(t, "keychain", yaml.Spec.Source)
-	assert.Equal(t, "dvm-github-token", yaml.Spec.Service)
+	assert.Equal(t, "vault", yaml.Spec.Source)
+	assert.Equal(t, "dvm-github-token", yaml.Spec.VaultSecret)
 	assert.Empty(t, yaml.Spec.EnvVar)
 	assert.Equal(t, "GitHub PAT", yaml.Spec.Description)
 }
@@ -149,7 +149,7 @@ func TestCredentialDB_ToYAML_Env(t *testing.T) {
 	assert.Empty(t, yaml.Metadata.Ecosystem)
 	assert.Equal(t, "env", yaml.Spec.Source)
 	assert.Equal(t, "MY_NPM", yaml.Spec.EnvVar)
-	assert.Empty(t, yaml.Spec.Service)
+	assert.Empty(t, yaml.Spec.VaultSecret)
 }
 
 func TestCredentialDB_ToYAML_AllScopes(t *testing.T) {
@@ -190,12 +190,12 @@ func TestCredentialDB_ToYAML_AllScopes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service := "dvm-test"
+			vaultSecret := "dvm-test"
 			cred := &CredentialDB{
-				Name:      "TEST_CRED",
-				ScopeType: tt.scopeType,
-				Source:    "keychain",
-				Service:   &service,
+				Name:        "TEST_CRED",
+				ScopeType:   tt.scopeType,
+				Source:      "vault",
+				VaultSecret: &vaultSecret,
 			}
 
 			yaml := cred.ToYAML(tt.scopeName)
@@ -212,15 +212,15 @@ func TestCredentialDB_ToYAML_NilOptionals(t *testing.T) {
 	cred := &CredentialDB{
 		Name:        "BARE_CRED",
 		ScopeType:   CredentialScopeEcosystem,
-		Source:      "keychain",
-		Service:     nil,
+		Source:      "vault",
+		VaultSecret: nil,
 		EnvVar:      nil,
 		Description: nil,
 	}
 
 	yaml := cred.ToYAML("testlab")
 
-	assert.Empty(t, yaml.Spec.Service)
+	assert.Empty(t, yaml.Spec.VaultSecret)
 	assert.Empty(t, yaml.Spec.EnvVar)
 	assert.Empty(t, yaml.Spec.Description)
 }
@@ -229,7 +229,7 @@ func TestCredentialDB_ToYAML_NilOptionals(t *testing.T) {
 // Credential FromYAML Tests
 // =============================================================================
 
-func TestCredentialDB_FromYAML_Keychain(t *testing.T) {
+func TestCredentialDB_FromYAML_Vault(t *testing.T) {
 	yaml := CredentialYAML{
 		APIVersion: "devopsmaestro.io/v1",
 		Kind:       "Credential",
@@ -238,8 +238,8 @@ func TestCredentialDB_FromYAML_Keychain(t *testing.T) {
 			Ecosystem: "testlab",
 		},
 		Spec: CredentialSpec{
-			Source:      "keychain",
-			Service:     "dvm-github-token",
+			Source:      "vault",
+			VaultSecret: "dvm-github-token",
 			Description: "GitHub PAT",
 		},
 	}
@@ -248,9 +248,9 @@ func TestCredentialDB_FromYAML_Keychain(t *testing.T) {
 	cred.FromYAML(yaml)
 
 	assert.Equal(t, "GITHUB_TOKEN", cred.Name)
-	assert.Equal(t, "keychain", cred.Source)
-	require.NotNil(t, cred.Service)
-	assert.Equal(t, "dvm-github-token", *cred.Service)
+	assert.Equal(t, "vault", cred.Source)
+	require.NotNil(t, cred.VaultSecret)
+	assert.Equal(t, "dvm-github-token", *cred.VaultSecret)
 	assert.Nil(t, cred.EnvVar)
 	require.NotNil(t, cred.Description)
 	assert.Equal(t, "GitHub PAT", *cred.Description)
@@ -275,7 +275,7 @@ func TestCredentialDB_FromYAML_Env(t *testing.T) {
 
 	assert.Equal(t, "NPM_TOKEN", cred.Name)
 	assert.Equal(t, "env", cred.Source)
-	assert.Nil(t, cred.Service)
+	assert.Nil(t, cred.VaultSecret)
 	require.NotNil(t, cred.EnvVar)
 	assert.Equal(t, "MY_NPM", *cred.EnvVar)
 	assert.Nil(t, cred.Description)
@@ -290,7 +290,8 @@ func TestCredentialDB_FromYAML_EmptyOptionals(t *testing.T) {
 			Ecosystem: "testlab",
 		},
 		Spec: CredentialSpec{
-			Source: "keychain",
+			Source:      "vault",
+			VaultSecret: "bare-secret",
 		},
 	}
 
@@ -298,8 +299,9 @@ func TestCredentialDB_FromYAML_EmptyOptionals(t *testing.T) {
 	cred.FromYAML(yaml)
 
 	assert.Equal(t, "BARE_CRED", cred.Name)
-	assert.Equal(t, "keychain", cred.Source)
-	assert.Nil(t, cred.Service)
+	assert.Equal(t, "vault", cred.Source)
+	require.NotNil(t, cred.VaultSecret)
+	assert.Equal(t, "bare-secret", *cred.VaultSecret)
 	assert.Nil(t, cred.EnvVar)
 	assert.Nil(t, cred.Description)
 }
@@ -308,14 +310,14 @@ func TestCredentialDB_FromYAML_EmptyOptionals(t *testing.T) {
 // Credential RoundTrip Tests
 // =============================================================================
 
-func TestCredentialDB_RoundTrip_Keychain(t *testing.T) {
-	service := "dvm-gh"
+func TestCredentialDB_RoundTrip_Vault(t *testing.T) {
+	vaultSecret := "dvm-gh"
 	desc := "GitHub token"
 	original := &CredentialDB{
 		Name:        "GITHUB_TOKEN",
 		ScopeType:   CredentialScopeEcosystem,
-		Source:      "keychain",
-		Service:     &service,
+		Source:      "vault",
+		VaultSecret: &vaultSecret,
 		Description: &desc,
 	}
 
@@ -325,8 +327,8 @@ func TestCredentialDB_RoundTrip_Keychain(t *testing.T) {
 
 	assert.Equal(t, original.Name, restored.Name)
 	assert.Equal(t, original.Source, restored.Source)
-	require.NotNil(t, restored.Service)
-	assert.Equal(t, *original.Service, *restored.Service)
+	require.NotNil(t, restored.VaultSecret)
+	assert.Equal(t, *original.VaultSecret, *restored.VaultSecret)
 	require.NotNil(t, restored.Description)
 	assert.Equal(t, *original.Description, *restored.Description)
 }
@@ -348,7 +350,7 @@ func TestCredentialDB_RoundTrip_Env(t *testing.T) {
 	assert.Equal(t, original.Source, restored.Source)
 	require.NotNil(t, restored.EnvVar)
 	assert.Equal(t, *original.EnvVar, *restored.EnvVar)
-	assert.Nil(t, restored.Service)
+	assert.Nil(t, restored.VaultSecret)
 }
 
 // =============================================================================
@@ -363,12 +365,12 @@ func TestValidateCredentialYAML(t *testing.T) {
 		errMsg  string
 	}{
 		{
-			name: "valid keychain credential",
+			name: "valid vault credential",
 			yaml: CredentialYAML{
 				APIVersion: "devopsmaestro.io/v1",
 				Kind:       "Credential",
 				Metadata:   CredentialMetadata{Name: "GITHUB_TOKEN", Ecosystem: "testlab"},
-				Spec:       CredentialSpec{Source: "keychain", Service: "dvm-gh"},
+				Spec:       CredentialSpec{Source: "vault", VaultSecret: "dvm-gh"},
 			},
 			wantErr: false,
 		},
@@ -388,7 +390,7 @@ func TestValidateCredentialYAML(t *testing.T) {
 				APIVersion: "devopsmaestro.io/v1",
 				Kind:       "Credential",
 				Metadata:   CredentialMetadata{Ecosystem: "testlab"},
-				Spec:       CredentialSpec{Source: "keychain", Service: "dvm-gh"},
+				Spec:       CredentialSpec{Source: "vault", VaultSecret: "dvm-gh"},
 			},
 			wantErr: true,
 			errMsg:  "name is required",
@@ -399,7 +401,7 @@ func TestValidateCredentialYAML(t *testing.T) {
 				APIVersion: "devopsmaestro.io/v1",
 				Kind:       "Credential",
 				Metadata:   CredentialMetadata{Name: "TOKEN", Ecosystem: "testlab"},
-				Spec:       CredentialSpec{Service: "dvm-gh"},
+				Spec:       CredentialSpec{VaultSecret: "dvm-gh"},
 			},
 			wantErr: true,
 			errMsg:  "source is required",
@@ -413,18 +415,18 @@ func TestValidateCredentialYAML(t *testing.T) {
 				Spec:       CredentialSpec{Source: "plaintext"},
 			},
 			wantErr: true,
-			errMsg:  "source must be 'keychain' or 'env'",
+			errMsg:  "source must be 'vault' or 'env'",
 		},
 		{
-			name: "keychain missing service",
+			name: "vault missing vaultSecret",
 			yaml: CredentialYAML{
 				APIVersion: "devopsmaestro.io/v1",
 				Kind:       "Credential",
 				Metadata:   CredentialMetadata{Name: "TOKEN", Ecosystem: "testlab"},
-				Spec:       CredentialSpec{Source: "keychain"},
+				Spec:       CredentialSpec{Source: "vault"},
 			},
 			wantErr: true,
-			errMsg:  "service is required for keychain source",
+			errMsg:  "vaultSecret is required for vault source",
 		},
 		{
 			name: "env missing env-var",
@@ -443,7 +445,7 @@ func TestValidateCredentialYAML(t *testing.T) {
 				APIVersion: "devopsmaestro.io/v1",
 				Kind:       "Credential",
 				Metadata:   CredentialMetadata{Name: "TOKEN"},
-				Spec:       CredentialSpec{Source: "keychain", Service: "dvm-gh"},
+				Spec:       CredentialSpec{Source: "vault", VaultSecret: "dvm-gh"},
 			},
 			wantErr: true,
 			errMsg:  "exactly one scope",
@@ -454,7 +456,7 @@ func TestValidateCredentialYAML(t *testing.T) {
 				APIVersion: "devopsmaestro.io/v1",
 				Kind:       "Credential",
 				Metadata:   CredentialMetadata{Name: "TOKEN", Ecosystem: "testlab", App: "rust-svc"},
-				Spec:       CredentialSpec{Source: "keychain", Service: "dvm-gh"},
+				Spec:       CredentialSpec{Source: "vault", VaultSecret: "dvm-gh"},
 			},
 			wantErr: true,
 			errMsg:  "exactly one scope",
@@ -465,7 +467,7 @@ func TestValidateCredentialYAML(t *testing.T) {
 				APIVersion: "devopsmaestro.io/v1",
 				Kind:       "Registry",
 				Metadata:   CredentialMetadata{Name: "TOKEN", Ecosystem: "testlab"},
-				Spec:       CredentialSpec{Source: "keychain", Service: "dvm-gh"},
+				Spec:       CredentialSpec{Source: "vault", VaultSecret: "dvm-gh"},
 			},
 			wantErr: true,
 			errMsg:  "kind must be 'Credential'",
@@ -531,7 +533,7 @@ func TestCredentialMetadata_ScopeType(t *testing.T) {
 	}
 }
 
-// === Dual-Field Credential Tests (v0.37.1) ===
+// === Dual-Field Credential Tests (v0.37.1 / v0.40.0 vault) ===
 
 // =============================================================================
 // Dual-Field Model Tests
@@ -574,7 +576,7 @@ func TestCredentialDB_IsDualField(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cred := &CredentialDB{
 				Name:        "github-creds",
-				Source:      "keychain",
+				Source:      "vault",
 				UsernameVar: tt.usernameVar,
 				PasswordVar: tt.passwordVar,
 			}
@@ -584,53 +586,56 @@ func TestCredentialDB_IsDualField(t *testing.T) {
 }
 
 func TestCredentialDB_ToUsernameConfig(t *testing.T) {
-	service := "github.com"
+	vaultSecret := "github-pat"
+	vaultUsernameSecret := "github-username"
 	usernameVar := "GITHUB_USERNAME"
 	passwordVar := "GITHUB_PAT"
 	cred := &CredentialDB{
-		Name:        "github-creds",
-		Source:      "keychain",
-		Service:     &service,
-		UsernameVar: &usernameVar,
-		PasswordVar: &passwordVar,
+		Name:                "github-creds",
+		Source:              "vault",
+		VaultSecret:         &vaultSecret,
+		VaultUsernameSecret: &vaultUsernameSecret,
+		UsernameVar:         &usernameVar,
+		PasswordVar:         &passwordVar,
 	}
 
 	cfg := cred.ToUsernameConfig()
 
-	assert.Equal(t, config.SourceKeychain, cfg.Source)
-	assert.Equal(t, "github.com", cfg.Service)
-	assert.Equal(t, config.KeychainFieldAccount, cfg.Field)
+	assert.Equal(t, config.SourceVault, cfg.Source)
+	// ToUsernameConfig uses VaultUsernameSecret when available
+	assert.Equal(t, "github-username", cfg.VaultSecret)
 }
 
 func TestCredentialDB_ToPasswordConfig(t *testing.T) {
-	service := "github.com"
+	vaultSecret := "github-pat"
 	usernameVar := "GITHUB_USERNAME"
 	passwordVar := "GITHUB_PAT"
 	cred := &CredentialDB{
 		Name:        "github-creds",
-		Source:      "keychain",
-		Service:     &service,
+		Source:      "vault",
+		VaultSecret: &vaultSecret,
 		UsernameVar: &usernameVar,
 		PasswordVar: &passwordVar,
 	}
 
 	cfg := cred.ToPasswordConfig()
 
-	assert.Equal(t, config.SourceKeychain, cfg.Source)
-	assert.Equal(t, "github.com", cfg.Service)
-	assert.Equal(t, config.KeychainFieldPassword, cfg.Field)
+	assert.Equal(t, config.SourceVault, cfg.Source)
+	assert.Equal(t, "github-pat", cfg.VaultSecret)
 }
 
 func TestCredentialsToMap_DualField_FanOut(t *testing.T) {
-	service := "github.com"
+	vaultSecret := "github-pat"
+	vaultUsernameSecret := "github-username"
 	usernameVar := "GITHUB_USERNAME"
 	passwordVar := "GITHUB_PAT"
 	cred := &CredentialDB{
-		Name:        "github-creds",
-		Source:      "keychain",
-		Service:     &service,
-		UsernameVar: &usernameVar,
-		PasswordVar: &passwordVar,
+		Name:                "github-creds",
+		Source:              "vault",
+		VaultSecret:         &vaultSecret,
+		VaultUsernameSecret: &vaultUsernameSecret,
+		UsernameVar:         &usernameVar,
+		PasswordVar:         &passwordVar,
 	}
 
 	result := CredentialsToMap([]*CredentialDB{cred})
@@ -639,15 +644,14 @@ func TestCredentialsToMap_DualField_FanOut(t *testing.T) {
 
 	userCfg, ok := result["GITHUB_USERNAME"]
 	require.True(t, ok, "map should contain GITHUB_USERNAME key")
-	assert.Equal(t, config.SourceKeychain, userCfg.Source)
-	assert.Equal(t, "github.com", userCfg.Service)
-	assert.Equal(t, config.KeychainFieldAccount, userCfg.Field)
+	assert.Equal(t, config.SourceVault, userCfg.Source)
+	// ToUsernameConfig uses VaultUsernameSecret for the username lookup
+	assert.Equal(t, "github-username", userCfg.VaultSecret)
 
 	passCfg, ok := result["GITHUB_PAT"]
 	require.True(t, ok, "map should contain GITHUB_PAT key")
-	assert.Equal(t, config.SourceKeychain, passCfg.Source)
-	assert.Equal(t, "github.com", passCfg.Service)
-	assert.Equal(t, config.KeychainFieldPassword, passCfg.Field)
+	assert.Equal(t, config.SourceVault, passCfg.Source)
+	assert.Equal(t, "github-pat", passCfg.VaultSecret)
 }
 
 func TestCredentialsToMap_MixedLegacyAndDualField(t *testing.T) {
@@ -658,15 +662,17 @@ func TestCredentialsToMap_MixedLegacyAndDualField(t *testing.T) {
 		EnvVar: &npmEnvVar,
 	}
 
-	service := "github.com"
+	vaultSecret := "github-pat"
+	vaultUsernameSecret := "github-username"
 	ghUser := "GH_USER"
 	ghPat := "GH_PAT"
 	dualCred := &CredentialDB{
-		Name:        "github-creds",
-		Source:      "keychain",
-		Service:     &service,
-		UsernameVar: &ghUser,
-		PasswordVar: &ghPat,
+		Name:                "github-creds",
+		Source:              "vault",
+		VaultSecret:         &vaultSecret,
+		VaultUsernameSecret: &vaultUsernameSecret,
+		UsernameVar:         &ghUser,
+		PasswordVar:         &ghPat,
 	}
 
 	result := CredentialsToMap([]*CredentialDB{legacyCred, dualCred})
@@ -678,12 +684,12 @@ func TestCredentialsToMap_MixedLegacyAndDualField(t *testing.T) {
 }
 
 func TestCredentialsToMap_DualField_PasswordOnly(t *testing.T) {
-	service := "github.com"
+	vaultSecret := "github-pat"
 	passwordVar := "GITHUB_PAT"
 	cred := &CredentialDB{
 		Name:        "github-creds",
-		Source:      "keychain",
-		Service:     &service,
+		Source:      "vault",
+		VaultSecret: &vaultSecret,
 		UsernameVar: nil,
 		PasswordVar: &passwordVar,
 	}
@@ -693,7 +699,8 @@ func TestCredentialsToMap_DualField_PasswordOnly(t *testing.T) {
 	require.Len(t, result, 1, "password-only dual-field should produce 1 map entry")
 	passCfg, ok := result["GITHUB_PAT"]
 	require.True(t, ok, "map should contain GITHUB_PAT key")
-	assert.Equal(t, config.KeychainFieldPassword, passCfg.Field)
+	assert.Equal(t, config.SourceVault, passCfg.Source)
+	assert.Equal(t, "github-pat", passCfg.VaultSecret)
 }
 
 // =============================================================================
@@ -701,14 +708,14 @@ func TestCredentialsToMap_DualField_PasswordOnly(t *testing.T) {
 // =============================================================================
 
 func TestCredentialDB_ToYAML_DualField(t *testing.T) {
-	service := "github.com"
+	vaultSecret := "github-pat"
 	usernameVar := "GITHUB_USERNAME"
 	passwordVar := "GITHUB_PAT"
 	cred := &CredentialDB{
 		Name:        "github-creds",
 		ScopeType:   CredentialScopeEcosystem,
-		Source:      "keychain",
-		Service:     &service,
+		Source:      "vault",
+		VaultSecret: &vaultSecret,
 		UsernameVar: &usernameVar,
 		PasswordVar: &passwordVar,
 	}
@@ -728,8 +735,8 @@ func TestCredentialDB_FromYAML_DualField(t *testing.T) {
 			Ecosystem: "testlab",
 		},
 		Spec: CredentialSpec{
-			Source:      "keychain",
-			Service:     "github.com",
+			Source:      "vault",
+			VaultSecret: "github-pat",
 			UsernameVar: "GH_USER",
 			PasswordVar: "GH_PAT",
 		},
@@ -745,14 +752,14 @@ func TestCredentialDB_FromYAML_DualField(t *testing.T) {
 }
 
 func TestCredentialDB_RoundTrip_DualField(t *testing.T) {
-	service := "github.com"
+	vaultSecret := "github-pat"
 	usernameVar := "GITHUB_USERNAME"
 	passwordVar := "GITHUB_PAT"
 	original := &CredentialDB{
 		Name:        "github-creds",
 		ScopeType:   CredentialScopeEcosystem,
-		Source:      "keychain",
-		Service:     &service,
+		Source:      "vault",
+		VaultSecret: &vaultSecret,
 		UsernameVar: &usernameVar,
 		PasswordVar: &passwordVar,
 	}
@@ -775,7 +782,7 @@ func TestValidateCredentialYAML_DualField(t *testing.T) {
 	tests := []struct {
 		name        string
 		source      string
-		service     string
+		vaultSecret string
 		envVar      string
 		usernameVar string
 		passwordVar string
@@ -783,9 +790,9 @@ func TestValidateCredentialYAML_DualField(t *testing.T) {
 		errMsg      string
 	}{
 		{
-			name:        "valid dual-field keychain",
-			source:      "keychain",
-			service:     "github.com",
+			name:        "valid dual-field vault",
+			source:      "vault",
+			vaultSecret: "github-pat",
 			usernameVar: "GH_USER",
 			passwordVar: "GH_PAT",
 			wantErr:     false,
@@ -796,19 +803,19 @@ func TestValidateCredentialYAML_DualField(t *testing.T) {
 			envVar:      "X",
 			usernameVar: "GH_USER",
 			wantErr:     true,
-			errMsg:      "keychain",
+			errMsg:      "vault",
 		},
 		{
-			name:        "valid keychain password-only",
-			source:      "keychain",
-			service:     "svc",
+			name:        "valid vault password-only",
+			source:      "vault",
+			vaultSecret: "svc-secret",
 			passwordVar: "TOKEN",
 			wantErr:     false,
 		},
 		{
-			name:        "valid keychain username-only",
-			source:      "keychain",
-			service:     "svc",
+			name:        "valid vault username-only",
+			source:      "vault",
+			vaultSecret: "svc-secret",
 			usernameVar: "USER",
 			wantErr:     false,
 		},
@@ -822,7 +829,7 @@ func TestValidateCredentialYAML_DualField(t *testing.T) {
 				Metadata:   CredentialMetadata{Name: "test-cred", Ecosystem: "testlab"},
 				Spec: CredentialSpec{
 					Source:      tt.source,
-					Service:     tt.service,
+					VaultSecret: tt.vaultSecret,
 					EnvVar:      tt.envVar,
 					UsernameVar: tt.usernameVar,
 					PasswordVar: tt.passwordVar,
@@ -894,8 +901,8 @@ func TestValidateCredentialYAML_DualFieldEnvKeyValidation(t *testing.T) {
 				Kind:       "Credential",
 				Metadata:   CredentialMetadata{Name: "test-cred", Ecosystem: "test"},
 				Spec: CredentialSpec{
-					Source:      "keychain",
-					Service:     "test.service",
+					Source:      "vault",
+					VaultSecret: "test-secret",
 					UsernameVar: tt.usernameVar,
 					PasswordVar: tt.passwordVar,
 				},
@@ -912,456 +919,675 @@ func TestValidateCredentialYAML_DualFieldEnvKeyValidation(t *testing.T) {
 }
 
 // =============================================================================
-// TDD Phase 2 (RED): Keychain Label Redesign Tests (v0.39.0)
+// Test Helpers
 // =============================================================================
-// Design change: Introduce keychainLabel: (canonical YAML field), keep service:
-// as a fallback for backwards-compatibility, add keychainType: field, and add
-// Label / KeychainType columns to CredentialDB.
+
+func strPtr(s string) *string { return &s }
+
+// =============================================================================
+// TDD Phase 2 (RED): MaestroVault Credential Tests (v0.40.0)
+// =============================================================================
+// Replacing macOS Keychain with MaestroVault as the secrets backend.
 //
-// New CredentialSpec fields that MUST exist after implementation:
-//
-//	type CredentialSpec struct {
-//	    ...existing fields...
-//	    KeychainLabel string `yaml:"keychainLabel,omitempty"`
-//	    KeychainType  string `yaml:"keychainType,omitempty"`
-//	}
-//
-// New CredentialDB fields that MUST exist after implementation:
+// New fields on CredentialDB that MUST exist after implementation:
 //
 //	type CredentialDB struct {
-//	    ...existing fields...
-//	    Label        *string `db:"label" json:"label,omitempty"`
-//	    KeychainType *string `db:"keychain_type" json:"keychain_type,omitempty"`
+//	    ...existing fields (keep: EnvVar, UsernameVar, PasswordVar, Description)...
+//	    VaultSecret         *string `db:"vault_secret" json:"vault_secret,omitempty"`
+//	    VaultEnv            *string `db:"vault_env" json:"vault_env,omitempty"`
+//	    VaultUsernameSecret *string `db:"vault_username_secret" json:"vault_username_secret,omitempty"`
 //	}
 //
-// ALL tests in this section WILL FAIL TO COMPILE (or FAIL AT RUNTIME) until
-// the above fields are added to models/credential.go.
+// New fields on CredentialSpec that MUST exist after implementation:
+//
+//	type CredentialSpec struct {
+//	    ...existing fields (keep: EnvVar, Description, UsernameVar, PasswordVar)...
+//	    VaultSecret         string `yaml:"vaultSecret,omitempty" json:"vaultSecret,omitempty"`
+//	    VaultEnvironment    string `yaml:"vaultEnvironment,omitempty" json:"vaultEnvironment,omitempty"`
+//	    VaultUsernameSecret string `yaml:"vaultUsernameSecret,omitempty" json:"vaultUsernameSecret,omitempty"`
+//	}
+//
+// ALL tests in this section WILL FAIL TO COMPILE until the above fields are
+// added to models/credential.go.
 // =============================================================================
 
 // ---------------------------------------------------------------------------
-// Section: CredentialSpec keychainLabel Field Tests
+// Section: CredentialDB Vault Field Tests
 // ---------------------------------------------------------------------------
 
-// TestCredentialSpec_KeychainLabel verifies that CredentialSpec has a
-// KeychainLabel field that survives a YAML round-trip through CredentialDB.
+// TestCredentialDB_VaultFields verifies that CredentialDB has the three vault
+// fields: VaultSecret, VaultEnv, and VaultUsernameSecret, all of type *string.
 //
-// WILL FAIL TO COMPILE — CredentialSpec.KeychainLabel does not exist yet.
-func TestCredentialSpec_KeychainLabel(t *testing.T) {
-	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
-	// CredentialSpec.KeychainLabel field does not exist yet.
-	spec := CredentialSpec{
-		Source:        "keychain",
-		KeychainLabel: "com.example.my-new-label",
+// WILL FAIL TO COMPILE — the three VaultXxx fields do not exist yet.
+func TestCredentialDB_VaultFields(t *testing.T) {
+	vaultSecret := "github-pat"
+	vaultEnv := "production"
+	vaultUsernameSecret := "github-username"
+
+	// ── COMPILE ERRORS EXPECTED BELOW ────────────────────────────────────────
+	// CredentialDB.VaultSecret, .VaultEnv, .VaultUsernameSecret do not exist yet.
+	cred := &CredentialDB{
+		Name:                "github-creds",
+		Source:              "vault",
+		VaultSecret:         &vaultSecret,
+		VaultEnv:            &vaultEnv,
+		VaultUsernameSecret: &vaultUsernameSecret,
 	}
 	// ─────────────────────────────────────────────────────────────────────────
 
-	assert.Equal(t, "com.example.my-new-label", spec.KeychainLabel,
-		"KeychainLabel should be stored and retrievable on CredentialSpec")
-	assert.Empty(t, spec.Service,
-		"Service should be empty when only KeychainLabel is set")
+	require.NotNil(t, cred.VaultSecret, "VaultSecret must be non-nil when set")
+	assert.Equal(t, "github-pat", *cred.VaultSecret,
+		"VaultSecret must store and return the secret name")
+
+	require.NotNil(t, cred.VaultEnv, "VaultEnv must be non-nil when set")
+	assert.Equal(t, "production", *cred.VaultEnv,
+		"VaultEnv must store and return the environment name")
+
+	require.NotNil(t, cred.VaultUsernameSecret, "VaultUsernameSecret must be non-nil when set")
+	assert.Equal(t, "github-username", *cred.VaultUsernameSecret,
+		"VaultUsernameSecret must store and return the username secret name")
 }
 
-// TestCredentialSpec_KeychainType verifies that CredentialSpec has a
-// KeychainType field that survives a YAML round-trip through CredentialDB.
+// TestCredentialDB_VaultFields_NilDefaults verifies that the three vault fields
+// default to nil when not set (they are *string, not string).
 //
-// WILL FAIL TO COMPILE — CredentialSpec.KeychainType does not exist yet.
-func TestCredentialSpec_KeychainType(t *testing.T) {
-	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
-	// CredentialSpec.KeychainType field does not exist yet.
-	spec := CredentialSpec{
-		Source:        "keychain",
-		KeychainLabel: "com.example.label",
-		KeychainType:  "internet",
+// WILL FAIL TO COMPILE — the three VaultXxx fields do not exist yet.
+func TestCredentialDB_VaultFields_NilDefaults(t *testing.T) {
+	// ── COMPILE ERRORS EXPECTED BELOW ────────────────────────────────────────
+	cred := &CredentialDB{
+		Name:   "non-vault-cred",
+		Source: "env",
 	}
+	assert.Nil(t, cred.VaultSecret,
+		"VaultSecret must default to nil when not set")
+	assert.Nil(t, cred.VaultEnv,
+		"VaultEnv must default to nil when not set")
+	assert.Nil(t, cred.VaultUsernameSecret,
+		"VaultUsernameSecret must default to nil when not set")
 	// ─────────────────────────────────────────────────────────────────────────
-
-	assert.Equal(t, "internet", spec.KeychainType,
-		"KeychainType should be stored and retrievable on CredentialSpec")
 }
 
-// TestCredentialSpec_KeychainLabel_RoundTrip verifies that keychainLabel
-// survives a ToYAML → FromYAML round-trip through CredentialDB.
+// ---------------------------------------------------------------------------
+// Section: CredentialDB.ToConfig Vault Tests
+// ---------------------------------------------------------------------------
+
+// TestCredentialDB_ToConfig_Vault verifies that ToConfig correctly maps the
+// vault source and VaultSecret / VaultEnv fields into a config.CredentialConfig.
 //
-// WILL FAIL TO COMPILE — CredentialSpec.KeychainLabel and CredentialDB.Label
+// WILL FAIL TO COMPILE — CredentialDB.VaultSecret, .VaultEnv, and
+// config.SourceVault, config.CredentialConfig.VaultSecret, .VaultEnv
 // do not exist yet.
-func TestCredentialSpec_KeychainLabel_RoundTrip(t *testing.T) {
+func TestCredentialDB_ToConfig_Vault(t *testing.T) {
+	vaultSecret := "my-secret"
+	vaultEnv := "staging"
+
 	// ── COMPILE ERRORS EXPECTED BELOW ────────────────────────────────────────
-	// CredentialDB.Label field does not exist yet.
-	label := "com.example.round-trip-label"
-	original := &CredentialDB{
-		Name:      "MY_LABEL_CRED",
-		ScopeType: CredentialScopeApp,
-		Source:    "keychain",
-		Label:     &label,
+	cred := &CredentialDB{
+		Name:        "test-cred",
+		Source:      "vault",
+		VaultSecret: &vaultSecret,
+		VaultEnv:    &vaultEnv,
 	}
+	cfg := cred.ToConfig()
 	// ─────────────────────────────────────────────────────────────────────────
 
-	y := original.ToYAML("test-app")
-	restored := &CredentialDB{}
-	restored.FromYAML(y)
-
-	// ── COMPILE ERRORS EXPECTED BELOW ────────────────────────────────────────
-	// CredentialDB.Label field does not exist yet.
-	require.NotNil(t, restored.Label,
-		"Label should survive ToYAML → FromYAML round-trip")
-	assert.Equal(t, *original.Label, *restored.Label,
-		"Label value should be preserved across round-trip")
-	// ─────────────────────────────────────────────────────────────────────────
+	assert.Equal(t, config.SourceVault, cfg.Source,
+		"ToConfig must set Source to SourceVault for vault-sourced credentials")
+	assert.Equal(t, "my-secret", cfg.VaultSecret,
+		"ToConfig must copy VaultSecret from CredentialDB to CredentialConfig")
+	assert.Equal(t, "staging", cfg.VaultEnv,
+		"ToConfig must copy VaultEnv from CredentialDB to CredentialConfig")
 }
 
-// TestCredentialSpec_KeychainType_RoundTrip verifies that keychainType
-// survives a ToYAML → FromYAML round-trip through CredentialDB.
+// TestCredentialDB_ToConfig_Vault_NilVaultEnv verifies that when VaultEnv is nil,
+// ToConfig produces a CredentialConfig with an empty VaultEnv (zero value).
 //
-// WILL FAIL TO COMPILE — CredentialDB.KeychainType does not exist yet.
-func TestCredentialSpec_KeychainType_RoundTrip(t *testing.T) {
+// WILL FAIL TO COMPILE — vault fields do not exist yet.
+func TestCredentialDB_ToConfig_Vault_NilVaultEnv(t *testing.T) {
+	vaultSecret := "my-secret"
+
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	cred := &CredentialDB{
+		Name:        "test-cred",
+		Source:      "vault",
+		VaultSecret: &vaultSecret,
+		VaultEnv:    nil, // optional
+	}
+	cfg := cred.ToConfig()
+	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.Equal(t, config.SourceVault, cfg.Source)
+	assert.Equal(t, "my-secret", cfg.VaultSecret)
+	assert.Empty(t, cfg.VaultEnv,
+		"nil VaultEnv in DB must produce empty string in CredentialConfig")
+}
+
+// ---------------------------------------------------------------------------
+// Section: CredentialDB.ToUsernameConfig Vault Tests
+// ---------------------------------------------------------------------------
+
+// TestCredentialDB_ToUsernameConfig_Vault verifies that for vault-sourced
+// dual-field credentials, ToUsernameConfig uses VaultUsernameSecret (not
+// VaultSecret) as the secret name for the username lookup.
+//
+// WILL FAIL TO COMPILE — vault fields and config.SourceVault do not exist yet.
+func TestCredentialDB_ToUsernameConfig_Vault(t *testing.T) {
+	vaultSecret := "github-pat"
+	vaultUsernameSecret := "github-user"
+	usernameVar := "GITHUB_USERNAME"
+	passwordVar := "GITHUB_PAT"
+
 	// ── COMPILE ERRORS EXPECTED BELOW ────────────────────────────────────────
-	// CredentialDB.KeychainType field does not exist yet.
-	label := "com.example.type-round-trip"
-	keychainType := "internet"
-	original := &CredentialDB{
-		Name:         "MY_INTERNET_CRED",
-		ScopeType:    CredentialScopeApp,
-		Source:       "keychain",
-		Label:        &label,
-		KeychainType: &keychainType,
+	cred := &CredentialDB{
+		Name:                "github-creds",
+		Source:              "vault",
+		VaultSecret:         &vaultSecret,
+		VaultUsernameSecret: &vaultUsernameSecret,
+		UsernameVar:         &usernameVar,
+		PasswordVar:         &passwordVar,
+	}
+	cfg := cred.ToUsernameConfig()
+	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.Equal(t, config.SourceVault, cfg.Source,
+		"ToUsernameConfig must preserve vault source")
+	// For vault dual-field, the username lookup uses VaultUsernameSecret
+	// (the dedicated username secret), not VaultSecret (the password secret).
+	assert.Equal(t, "github-user", cfg.VaultSecret,
+		"ToUsernameConfig must use VaultUsernameSecret as the VaultSecret for username lookup")
+}
+
+// TestCredentialDB_ToPasswordConfig_Vault verifies that for vault-sourced
+// dual-field credentials, ToPasswordConfig uses VaultSecret for the password
+// lookup (the main/primary secret).
+//
+// WILL FAIL TO COMPILE — vault fields and config.SourceVault do not exist yet.
+func TestCredentialDB_ToPasswordConfig_Vault(t *testing.T) {
+	vaultSecret := "github-pat"
+	vaultUsernameSecret := "github-user"
+	usernameVar := "GITHUB_USERNAME"
+	passwordVar := "GITHUB_PAT"
+
+	// ── COMPILE ERRORS EXPECTED BELOW ────────────────────────────────────────
+	cred := &CredentialDB{
+		Name:                "github-creds",
+		Source:              "vault",
+		VaultSecret:         &vaultSecret,
+		VaultUsernameSecret: &vaultUsernameSecret,
+		UsernameVar:         &usernameVar,
+		PasswordVar:         &passwordVar,
+	}
+	cfg := cred.ToPasswordConfig()
+	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.Equal(t, config.SourceVault, cfg.Source,
+		"ToPasswordConfig must preserve vault source")
+	assert.Equal(t, "github-pat", cfg.VaultSecret,
+		"ToPasswordConfig must use VaultSecret (primary secret) for password lookup")
+}
+
+// ---------------------------------------------------------------------------
+// Section: CredentialSpec Vault Field Tests
+// ---------------------------------------------------------------------------
+
+// TestCredentialSpec_VaultFields verifies that CredentialSpec has three vault
+// fields: VaultSecret, VaultEnvironment (note: "Environment", not "Env"),
+// and VaultUsernameSecret.
+//
+// WILL FAIL TO COMPILE — the vault fields on CredentialSpec do not exist yet.
+func TestCredentialSpec_VaultFields(t *testing.T) {
+	// ── COMPILE ERRORS EXPECTED BELOW ────────────────────────────────────────
+	// CredentialSpec.VaultSecret, .VaultEnvironment, .VaultUsernameSecret
+	// do not exist yet.
+	spec := CredentialSpec{
+		Source:              "vault",
+		VaultSecret:         "my-secret",
+		VaultEnvironment:    "production",
+		VaultUsernameSecret: "my-user-secret",
 	}
 	// ─────────────────────────────────────────────────────────────────────────
 
-	y := original.ToYAML("test-app")
-	restored := &CredentialDB{}
-	restored.FromYAML(y)
+	assert.Equal(t, "my-secret", spec.VaultSecret,
+		"VaultSecret must be stored and retrievable on CredentialSpec")
+	assert.Equal(t, "production", spec.VaultEnvironment,
+		"VaultEnvironment must be stored and retrievable on CredentialSpec")
+	assert.Equal(t, "my-user-secret", spec.VaultUsernameSecret,
+		"VaultUsernameSecret must be stored and retrievable on CredentialSpec")
+}
 
-	// ── COMPILE ERRORS EXPECTED BELOW ────────────────────────────────────────
-	require.NotNil(t, restored.KeychainType,
-		"KeychainType should survive ToYAML → FromYAML round-trip")
-	assert.Equal(t, "internet", *restored.KeychainType,
-		"KeychainType value should be preserved across round-trip")
+// TestCredentialSpec_VaultFields_ZeroValues verifies that vault fields on
+// CredentialSpec have empty string zero values (not pointer types).
+//
+// WILL FAIL TO COMPILE — the vault fields on CredentialSpec do not exist yet.
+func TestCredentialSpec_VaultFields_ZeroValues(t *testing.T) {
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	spec := CredentialSpec{
+		Source: "env",
+		EnvVar: "SOME_VAR",
+	}
+	assert.Empty(t, spec.VaultSecret, "VaultSecret must default to empty string")
+	assert.Empty(t, spec.VaultEnvironment, "VaultEnvironment must default to empty string")
+	assert.Empty(t, spec.VaultUsernameSecret, "VaultUsernameSecret must default to empty string")
 	// ─────────────────────────────────────────────────────────────────────────
 }
 
 // ---------------------------------------------------------------------------
-// Section: FromYAML service: Fallback Tests
+// Section: CredentialDB.ToYAML Vault Tests
 // ---------------------------------------------------------------------------
 
-// TestCredentialSpec_ServiceFallback verifies that FromYAML still accepts
-// service: as a fallback for keychainLabel: for backwards compatibility.
-// When service: is present and keychainLabel: is absent, the credential should
-// be treated as if keychainLabel: was set with the same value.
+// TestCredentialDB_ToYAML_VaultFull verifies that ToYAML correctly serializes
+// vault fields from CredentialDB into CredentialSpec.
 //
-// WILL FAIL AT RUNTIME — the current FromYAML populates c.Service from
-// y.Spec.Service but does not populate c.Label. After the fix, a non-empty
-// y.Spec.Service should also populate c.Label (fallback behaviour).
-func TestCredentialSpec_ServiceFallback(t *testing.T) {
-	// A YAML with the legacy service: field (no keychainLabel:)
+// WILL FAIL TO COMPILE — vault fields on CredentialDB and CredentialSpec
+// do not exist yet.
+func TestCredentialDB_ToYAML_VaultFull(t *testing.T) {
+	vaultSecret := "my-github-pat"
+	vaultEnv := "production"
+
+	// ── COMPILE ERRORS EXPECTED BELOW ────────────────────────────────────────
+	cred := &CredentialDB{
+		Name:        "GITHUB_TOKEN",
+		ScopeType:   CredentialScopeEcosystem,
+		Source:      "vault",
+		VaultSecret: &vaultSecret,
+		VaultEnv:    &vaultEnv,
+	}
+	y := cred.ToYAML("testlab")
+	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.Equal(t, "devopsmaestro.io/v1", y.APIVersion)
+	assert.Equal(t, "Credential", y.Kind)
+	assert.Equal(t, "GITHUB_TOKEN", y.Metadata.Name)
+	assert.Equal(t, "testlab", y.Metadata.Ecosystem)
+	assert.Equal(t, "vault", y.Spec.Source)
+	assert.Equal(t, "my-github-pat", y.Spec.VaultSecret,
+		"ToYAML must serialize VaultSecret into Spec.VaultSecret")
+	assert.Equal(t, "production", y.Spec.VaultEnvironment,
+		"ToYAML must serialize VaultEnv into Spec.VaultEnvironment")
+}
+
+// TestCredentialDB_ToYAML_Vault_WithUsernameSecret verifies that ToYAML
+// correctly serializes VaultUsernameSecret.
+//
+// WILL FAIL TO COMPILE — vault fields do not exist yet.
+func TestCredentialDB_ToYAML_Vault_WithUsernameSecret(t *testing.T) {
+	vaultSecret := "github-pat"
+	vaultUsernameSecret := "github-username"
+	usernameVar := "GITHUB_USERNAME"
+	passwordVar := "GITHUB_PAT"
+
+	// ── COMPILE ERRORS EXPECTED BELOW ────────────────────────────────────────
+	cred := &CredentialDB{
+		Name:                "github-creds",
+		ScopeType:           CredentialScopeEcosystem,
+		Source:              "vault",
+		VaultSecret:         &vaultSecret,
+		VaultUsernameSecret: &vaultUsernameSecret,
+		UsernameVar:         &usernameVar,
+		PasswordVar:         &passwordVar,
+	}
+	y := cred.ToYAML("testlab")
+	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.Equal(t, "vault", y.Spec.Source)
+	assert.Equal(t, "github-pat", y.Spec.VaultSecret)
+	assert.Equal(t, "github-username", y.Spec.VaultUsernameSecret,
+		"ToYAML must serialize VaultUsernameSecret into Spec.VaultUsernameSecret")
+	assert.Equal(t, "GITHUB_USERNAME", y.Spec.UsernameVar)
+	assert.Equal(t, "GITHUB_PAT", y.Spec.PasswordVar)
+}
+
+// TestCredentialDB_ToYAML_Vault_NilVaultEnv verifies that nil VaultEnv
+// produces an empty VaultEnvironment in the YAML spec.
+//
+// WILL FAIL TO COMPILE — vault fields do not exist yet.
+func TestCredentialDB_ToYAML_Vault_NilVaultEnv(t *testing.T) {
+	vaultSecret := "my-secret"
+
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	cred := &CredentialDB{
+		Name:        "MY_SECRET",
+		ScopeType:   CredentialScopeApp,
+		Source:      "vault",
+		VaultSecret: &vaultSecret,
+		VaultEnv:    nil,
+	}
+	y := cred.ToYAML("test-app")
+	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.Equal(t, "vault", y.Spec.Source)
+	assert.Equal(t, "my-secret", y.Spec.VaultSecret)
+	assert.Empty(t, y.Spec.VaultEnvironment,
+		"nil VaultEnv must produce empty VaultEnvironment in YAML spec")
+}
+
+// ---------------------------------------------------------------------------
+// Section: CredentialDB.FromYAML Vault Tests
+// ---------------------------------------------------------------------------
+
+// TestCredentialDB_FromYAML_VaultFull verifies that FromYAML correctly
+// deserializes vault fields from CredentialSpec into CredentialDB.
+//
+// WILL FAIL TO COMPILE — vault fields on CredentialDB and CredentialSpec
+// do not exist yet.
+func TestCredentialDB_FromYAML_VaultFull(t *testing.T) {
+	// ── COMPILE ERRORS EXPECTED BELOW ────────────────────────────────────────
 	y := CredentialYAML{
 		APIVersion: "devopsmaestro.io/v1",
 		Kind:       "Credential",
-		Metadata:   CredentialMetadata{Name: "LEGACY_CRED", Ecosystem: "testlab"},
+		Metadata:   CredentialMetadata{Name: "GITHUB_TOKEN", Ecosystem: "testlab"},
 		Spec: CredentialSpec{
-			Source:  "keychain",
-			Service: "com.example.legacy-service", // old field — still accepted
+			Source:           "vault",
+			VaultSecret:      "my-github-pat",
+			VaultEnvironment: "production",
 		},
 	}
-
 	cred := &CredentialDB{}
 	cred.FromYAML(y)
-
-	// The legacy service: field MUST still populate Service for backwards compat
-	require.NotNil(t, cred.Service,
-		"service: field in YAML must still populate CredentialDB.Service")
-	assert.Equal(t, "com.example.legacy-service", *cred.Service)
-
-	// ── RUNTIME FAILURE EXPECTED BELOW ───────────────────────────────────────
-	// After the fix, FromYAML must also copy service: → Label (fallback).
-	// Currently c.Label is never populated, so this assertion fails.
-	require.NotNil(t, cred.Label,
-		"service: field must also populate CredentialDB.Label as fallback for keychainLabel:")
-	assert.Equal(t, "com.example.legacy-service", *cred.Label,
-		"Label must mirror Service when only service: is provided (backwards compat fallback)")
 	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.Equal(t, "GITHUB_TOKEN", cred.Name)
+	assert.Equal(t, "vault", cred.Source)
+	require.NotNil(t, cred.VaultSecret,
+		"FromYAML must populate VaultSecret from Spec.VaultSecret")
+	assert.Equal(t, "my-github-pat", *cred.VaultSecret)
+	require.NotNil(t, cred.VaultEnv,
+		"FromYAML must populate VaultEnv from Spec.VaultEnvironment")
+	assert.Equal(t, "production", *cred.VaultEnv)
+	assert.Nil(t, cred.VaultUsernameSecret,
+		"VaultUsernameSecret must be nil when not in spec")
 }
 
-// TestCredentialSpec_KeychainLabelTakesPrecedenceOverService verifies that when
-// BOTH keychainLabel: and service: appear in YAML, keychainLabel: wins.
+// TestCredentialDB_FromYAML_Vault_WithUsernameSecret verifies that FromYAML
+// correctly deserializes VaultUsernameSecret.
 //
-// WILL FAIL TO COMPILE — CredentialSpec.KeychainLabel does not exist yet.
-func TestCredentialSpec_KeychainLabelTakesPrecedenceOverService(t *testing.T) {
+// WILL FAIL TO COMPILE — vault fields do not exist yet.
+func TestCredentialDB_FromYAML_Vault_WithUsernameSecret(t *testing.T) {
+	// ── COMPILE ERRORS EXPECTED BELOW ────────────────────────────────────────
+	y := CredentialYAML{
+		APIVersion: "devopsmaestro.io/v1",
+		Kind:       "Credential",
+		Metadata:   CredentialMetadata{Name: "github-creds", Ecosystem: "testlab"},
+		Spec: CredentialSpec{
+			Source:              "vault",
+			VaultSecret:         "github-pat",
+			VaultEnvironment:    "staging",
+			VaultUsernameSecret: "github-username",
+			UsernameVar:         "GITHUB_USERNAME",
+			PasswordVar:         "GITHUB_PAT",
+		},
+	}
+	cred := &CredentialDB{}
+	cred.FromYAML(y)
+	// ─────────────────────────────────────────────────────────────────────────
+
+	require.NotNil(t, cred.VaultSecret)
+	assert.Equal(t, "github-pat", *cred.VaultSecret)
+	require.NotNil(t, cred.VaultEnv)
+	assert.Equal(t, "staging", *cred.VaultEnv)
+	require.NotNil(t, cred.VaultUsernameSecret,
+		"FromYAML must populate VaultUsernameSecret from Spec.VaultUsernameSecret")
+	assert.Equal(t, "github-username", *cred.VaultUsernameSecret)
+	require.NotNil(t, cred.UsernameVar)
+	assert.Equal(t, "GITHUB_USERNAME", *cred.UsernameVar)
+	require.NotNil(t, cred.PasswordVar)
+	assert.Equal(t, "GITHUB_PAT", *cred.PasswordVar)
+}
+
+// TestCredentialDB_FromYAML_Vault_EmptyVaultEnvironment verifies that when
+// VaultEnvironment is absent from the spec, VaultEnv is nil in the DB.
+//
+// WILL FAIL TO COMPILE — vault fields do not exist yet.
+func TestCredentialDB_FromYAML_Vault_EmptyVaultEnvironment(t *testing.T) {
 	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
 	y := CredentialYAML{
 		APIVersion: "devopsmaestro.io/v1",
 		Kind:       "Credential",
-		Metadata:   CredentialMetadata{Name: "DUAL_LABEL_CRED", Ecosystem: "testlab"},
+		Metadata:   CredentialMetadata{Name: "MY_SECRET", App: "test-app"},
 		Spec: CredentialSpec{
-			Source:        "keychain",
-			Service:       "com.example.old-service",
-			KeychainLabel: "com.example.new-label", // should win
+			Source:      "vault",
+			VaultSecret: "my-secret",
+			// VaultEnvironment intentionally omitted
 		},
 	}
-	// ─────────────────────────────────────────────────────────────────────────
-
 	cred := &CredentialDB{}
 	cred.FromYAML(y)
-
-	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
-	require.NotNil(t, cred.Label,
-		"Label must be populated when keychainLabel: is present in YAML")
-	assert.Equal(t, "com.example.new-label", *cred.Label,
-		"keychainLabel: must take precedence over service: when both are present")
 	// ─────────────────────────────────────────────────────────────────────────
+
+	require.NotNil(t, cred.VaultSecret)
+	assert.Equal(t, "my-secret", *cred.VaultSecret)
+	assert.Nil(t, cred.VaultEnv,
+		"absent VaultEnvironment in spec must produce nil VaultEnv in DB")
 }
 
 // ---------------------------------------------------------------------------
-// Section: ValidateCredentialYAML keychainType Validation Tests
+// Section: CredentialDB Vault RoundTrip Tests
 // ---------------------------------------------------------------------------
 
-// TestValidateCredentialYAML_KeychainType is a table-driven test verifying
-// that ValidateCredentialYAML accepts only "generic" and "internet" as valid
-// keychainType values (when provided), and rejects anything else.
+// TestCredentialDB_RoundTrip_VaultFull verifies that vault credential data
+// survives a complete ToYAML → FromYAML round trip.
 //
-// WILL FAIL AT RUNTIME — ValidateCredentialYAML does not yet validate
-// keychainType (the field doesn't exist in CredentialSpec yet either).
-func TestValidateCredentialYAML_KeychainType(t *testing.T) {
+// WILL FAIL TO COMPILE — vault fields do not exist yet.
+func TestCredentialDB_RoundTrip_VaultFull(t *testing.T) {
+	vaultSecret := "my-vault-secret"
+	vaultEnv := "production"
+
+	// ── COMPILE ERRORS EXPECTED BELOW ────────────────────────────────────────
+	original := &CredentialDB{
+		Name:        "MY_TOKEN",
+		ScopeType:   CredentialScopeEcosystem,
+		Source:      "vault",
+		VaultSecret: &vaultSecret,
+		VaultEnv:    &vaultEnv,
+	}
+	y := original.ToYAML("testlab")
+	restored := &CredentialDB{}
+	restored.FromYAML(y)
+	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.Equal(t, original.Name, restored.Name)
+	assert.Equal(t, original.Source, restored.Source)
+	require.NotNil(t, restored.VaultSecret,
+		"VaultSecret must survive ToYAML → FromYAML round trip")
+	assert.Equal(t, *original.VaultSecret, *restored.VaultSecret)
+	require.NotNil(t, restored.VaultEnv,
+		"VaultEnv must survive ToYAML → FromYAML round trip")
+	assert.Equal(t, *original.VaultEnv, *restored.VaultEnv)
+}
+
+// TestCredentialDB_RoundTrip_Vault_WithUsernameSecret verifies a round trip
+// for vault dual-field credentials (username + password secrets).
+//
+// WILL FAIL TO COMPILE — vault fields do not exist yet.
+func TestCredentialDB_RoundTrip_Vault_WithUsernameSecret(t *testing.T) {
+	vaultSecret := "github-pat-secret"
+	vaultEnv := "staging"
+	vaultUsernameSecret := "github-username-secret"
+	usernameVar := "GH_USER"
+	passwordVar := "GH_PAT"
+
+	// ── COMPILE ERRORS EXPECTED BELOW ────────────────────────────────────────
+	original := &CredentialDB{
+		Name:                "github-creds",
+		ScopeType:           CredentialScopeEcosystem,
+		Source:              "vault",
+		VaultSecret:         &vaultSecret,
+		VaultEnv:            &vaultEnv,
+		VaultUsernameSecret: &vaultUsernameSecret,
+		UsernameVar:         &usernameVar,
+		PasswordVar:         &passwordVar,
+	}
+	y := original.ToYAML("testlab")
+	restored := &CredentialDB{}
+	restored.FromYAML(y)
+	// ─────────────────────────────────────────────────────────────────────────
+
+	require.NotNil(t, restored.VaultSecret)
+	assert.Equal(t, *original.VaultSecret, *restored.VaultSecret)
+	require.NotNil(t, restored.VaultEnv)
+	assert.Equal(t, *original.VaultEnv, *restored.VaultEnv)
+	require.NotNil(t, restored.VaultUsernameSecret,
+		"VaultUsernameSecret must survive round trip")
+	assert.Equal(t, *original.VaultUsernameSecret, *restored.VaultUsernameSecret)
+	require.NotNil(t, restored.UsernameVar)
+	assert.Equal(t, *original.UsernameVar, *restored.UsernameVar)
+	require.NotNil(t, restored.PasswordVar)
+	assert.Equal(t, *original.PasswordVar, *restored.PasswordVar)
+}
+
+// ---------------------------------------------------------------------------
+// Section: ValidateCredentialYAML Vault Tests
+// ---------------------------------------------------------------------------
+
+// TestValidateCredentialYAML_Vault validates that the "vault" source is
+// accepted and that vault-specific validation rules are enforced.
+//
+// WILL FAIL AT RUNTIME (and possibly compile) — ValidateCredentialYAML
+// currently rejects "vault" as an invalid source. After implementation it
+// must accept it, and vault fields must be defined on CredentialSpec.
+func TestValidateCredentialYAML_Vault(t *testing.T) {
 	tests := []struct {
-		name         string
-		keychainType string
-		wantErr      bool
-		errMsg       string
+		name    string
+		spec    CredentialSpec
+		wantErr bool
+		errMsg  string
 	}{
 		{
-			name:         "generic is valid",
-			keychainType: "generic",
-			wantErr:      false,
+			// ── COMPILE ERRORS EXPECTED — vault fields don't exist yet ────────
+			name: "valid vault credential",
+			spec: CredentialSpec{
+				Source:      "vault",
+				VaultSecret: "my-github-pat",
+			},
+			wantErr: false,
 		},
 		{
-			name:         "internet is valid",
-			keychainType: "internet",
-			wantErr:      false,
+			name: "valid vault credential with environment",
+			spec: CredentialSpec{
+				Source:           "vault",
+				VaultSecret:      "my-github-pat",
+				VaultEnvironment: "production",
+			},
+			wantErr: false,
 		},
 		{
-			name:         "empty string is valid (defaults to generic)",
-			keychainType: "",
-			wantErr:      false,
+			name: "valid vault dual-field credential",
+			spec: CredentialSpec{
+				Source:              "vault",
+				VaultSecret:         "github-pat",
+				VaultUsernameSecret: "github-username",
+				UsernameVar:         "GITHUB_USERNAME",
+				PasswordVar:         "GITHUB_PAT",
+			},
+			wantErr: false,
 		},
 		{
-			name:         "keychain is rejected (old wrong value)",
-			keychainType: "keychain",
-			wantErr:      true,
-			errMsg:       "keychainType",
+			name: "vault missing vaultSecret",
+			spec: CredentialSpec{
+				Source:           "vault",
+				VaultEnvironment: "production",
+				// VaultSecret intentionally omitted
+			},
+			wantErr: true,
+			errMsg:  "vault",
 		},
-		{
-			name:         "GENERIC uppercase rejected",
-			keychainType: "GENERIC",
-			wantErr:      true,
-			errMsg:       "keychainType",
-		},
-		{
-			name:         "INTERNET uppercase rejected",
-			keychainType: "INTERNET",
-			wantErr:      true,
-			errMsg:       "keychainType",
-		},
-		{
-			name:         "arbitrary string rejected",
-			keychainType: "plaintext",
-			wantErr:      true,
-			errMsg:       "keychainType",
-		},
+		// ─────────────────────────────────────────────────────────────────────
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────
-			// CredentialSpec.KeychainLabel and CredentialSpec.KeychainType
-			// do not exist yet.
 			y := CredentialYAML{
 				APIVersion: "devopsmaestro.io/v1",
 				Kind:       "Credential",
-				Metadata:   CredentialMetadata{Name: "TYPE_TEST", Ecosystem: "testlab"},
-				Spec: CredentialSpec{
-					Source:        "keychain",
-					KeychainLabel: "com.example.label",
-					KeychainType:  tt.keychainType,
-				},
+				Metadata:   CredentialMetadata{Name: "TEST_CRED", Ecosystem: "testlab"},
+				Spec:       tt.spec,
 			}
-			// ─────────────────────────────────────────────────────────────────
-
 			err := ValidateCredentialYAML(y)
 			if tt.wantErr {
-				assert.Error(t, err,
-					"keychainType %q should be rejected by ValidateCredentialYAML", tt.keychainType)
-				assert.Contains(t, err.Error(), tt.errMsg,
-					"error message should mention keychainType")
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
 			} else {
-				assert.NoError(t, err,
-					"keychainType %q should be accepted by ValidateCredentialYAML", tt.keychainType)
+				assert.NoError(t, err)
 			}
 		})
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Section: CredentialDB Label and KeychainType Field Tests
-// ---------------------------------------------------------------------------
-
-// TestCredentialDB_LabelField verifies that CredentialDB has a Label field
-// of type *string with the correct db/json tags.
+// TestValidateCredentialYAML_Vault_SourceAccepted verifies that the string
+// "vault" is accepted as a valid source value (currently rejected).
 //
-// WILL FAIL TO COMPILE — CredentialDB.Label does not exist yet.
-func TestCredentialDB_LabelField(t *testing.T) {
-	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
-	// CredentialDB.Label field does not exist yet.
-	label := "com.example.db-label"
-	cred := &CredentialDB{
-		Name:   "LABEL_CRED",
-		Source: "keychain",
-		Label:  &label,
+// WILL FAIL AT RUNTIME — ValidateCredentialYAML currently only accepts
+// "keychain" and "env". After implementation it must also accept "vault".
+func TestValidateCredentialYAML_Vault_SourceAccepted(t *testing.T) {
+	// ── COMPILE ERRORS EXPECTED — vault fields don't exist yet ───────────────
+	y := CredentialYAML{
+		APIVersion: "devopsmaestro.io/v1",
+		Kind:       "Credential",
+		Metadata:   CredentialMetadata{Name: "TEST_CRED", Ecosystem: "testlab"},
+		Spec: CredentialSpec{
+			Source:      "vault",
+			VaultSecret: "my-secret",
+		},
 	}
 	// ─────────────────────────────────────────────────────────────────────────
 
-	require.NotNil(t, cred.Label,
-		"CredentialDB.Label should be non-nil when set")
-	assert.Equal(t, "com.example.db-label", *cred.Label,
-		"CredentialDB.Label should store and return the label string")
+	err := ValidateCredentialYAML(y)
+
+	assert.NoError(t, err,
+		"source='vault' must be accepted by ValidateCredentialYAML after implementation")
 }
 
-// TestCredentialDB_KeychainTypeField verifies that CredentialDB has a
-// KeychainType field of type *string with the correct db/json tags.
+// TestValidateCredentialYAML_Vault_RequiresVaultSecret verifies that vault
+// source requires the vaultSecret field to be set.
 //
-// WILL FAIL TO COMPILE — CredentialDB.KeychainType does not exist yet.
-func TestCredentialDB_KeychainTypeField(t *testing.T) {
-	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
-	// CredentialDB.KeychainType field does not exist yet.
-	kt := "internet"
-	cred := &CredentialDB{
-		Name:         "KTYPE_CRED",
-		Source:       "keychain",
-		KeychainType: &kt,
+// WILL FAIL AT RUNTIME (the "vault" source itself will be rejected first)
+// and WILL FAIL TO COMPILE — vault fields don't exist yet.
+func TestValidateCredentialYAML_Vault_RequiresVaultSecret(t *testing.T) {
+	// ── COMPILE ERRORS EXPECTED — vault fields don't exist yet ───────────────
+	y := CredentialYAML{
+		APIVersion: "devopsmaestro.io/v1",
+		Kind:       "Credential",
+		Metadata:   CredentialMetadata{Name: "TEST_CRED", Ecosystem: "testlab"},
+		Spec: CredentialSpec{
+			Source: "vault",
+			// VaultSecret intentionally absent
+		},
 	}
 	// ─────────────────────────────────────────────────────────────────────────
 
-	require.NotNil(t, cred.KeychainType,
-		"CredentialDB.KeychainType should be non-nil when set")
-	assert.Equal(t, "internet", *cred.KeychainType,
-		"CredentialDB.KeychainType should store and return the type string")
+	err := ValidateCredentialYAML(y)
+
+	assert.Error(t, err,
+		"vault source without vaultSecret must be rejected by ValidateCredentialYAML")
+	assert.Contains(t, err.Error(), "vault",
+		"error must mention vault or vaultSecret")
 }
 
-// TestCredentialDB_LabelField_NilDefault verifies that a zero-value
-// CredentialDB has a nil Label (the field is optional/*string).
+// TestValidateCredentialYAML_Vault_UsernameSecretRequiresUsernameVar verifies
+// that when VaultUsernameSecret is set, UsernameVar must also be set
+// (cross-field validation).
 //
-// WILL FAIL TO COMPILE — CredentialDB.Label does not exist yet.
-func TestCredentialDB_LabelField_NilDefault(t *testing.T) {
-	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
-	cred := &CredentialDB{
-		Name:   "NO_LABEL_CRED",
-		Source: "env",
+// WILL FAIL AT RUNTIME — this cross-validation does not exist yet.
+// Also WILL FAIL TO COMPILE — vault fields don't exist yet.
+func TestValidateCredentialYAML_Vault_UsernameSecretRequiresUsernameVar(t *testing.T) {
+	// ── COMPILE ERRORS EXPECTED — vault fields don't exist yet ───────────────
+	y := CredentialYAML{
+		APIVersion: "devopsmaestro.io/v1",
+		Kind:       "Credential",
+		Metadata:   CredentialMetadata{Name: "TEST_CRED", Ecosystem: "testlab"},
+		Spec: CredentialSpec{
+			Source:              "vault",
+			VaultSecret:         "my-pat",
+			VaultUsernameSecret: "my-username-secret",
+			// UsernameVar intentionally absent — must trigger validation error
+		},
 	}
-	assert.Nil(t, cred.Label,
-		"CredentialDB.Label should default to nil when not set")
 	// ─────────────────────────────────────────────────────────────────────────
+
+	err := ValidateCredentialYAML(y)
+
+	assert.Error(t, err,
+		"vaultUsernameSecret requires usernameVar to be set")
+	assert.Contains(t, err.Error(), "usernameVar",
+		"error must mention usernameVar when vaultUsernameSecret is set without it")
 }
-
-// TestCredentialDB_KeychainTypeField_NilDefault verifies that a zero-value
-// CredentialDB has a nil KeychainType.
-//
-// WILL FAIL TO COMPILE — CredentialDB.KeychainType does not exist yet.
-func TestCredentialDB_KeychainTypeField_NilDefault(t *testing.T) {
-	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
-	cred := &CredentialDB{
-		Name:   "NO_KTYPE_CRED",
-		Source: "keychain",
-	}
-	assert.Nil(t, cred.KeychainType,
-		"CredentialDB.KeychainType should default to nil when not set")
-	// ─────────────────────────────────────────────────────────────────────────
-}
-
-// ---------------------------------------------------------------------------
-// Section: ToUsernameConfig and ToPasswordConfig Label Propagation
-// ---------------------------------------------------------------------------
-
-// TestToUsernameConfig_Label verifies that ToUsernameConfig propagates the
-// Label field from CredentialDB into the returned CredentialConfig.Label.
-//
-// WILL FAIL TO COMPILE — CredentialDB.Label does not exist yet AND
-// CredentialConfig.Label does not exist yet (must also be added to
-// config/credentials.go).
-func TestToUsernameConfig_Label(t *testing.T) {
-	// ── COMPILE ERRORS EXPECTED BELOW ────────────────────────────────────────
-	// CredentialDB.Label and CredentialConfig.Label do not exist yet.
-	label := "com.example.dual-label"
-	usernameVar := "GH_USER"
-	passwordVar := "GH_PAT"
-	cred := &CredentialDB{
-		Name:        "github-creds",
-		Source:      "keychain",
-		Label:       &label,
-		UsernameVar: &usernameVar,
-		PasswordVar: &passwordVar,
-	}
-
-	cfg := cred.ToUsernameConfig()
-
-	assert.Equal(t, config.SourceKeychain, cfg.Source)
-	assert.Equal(t, "com.example.dual-label", cfg.Label,
-		"ToUsernameConfig must populate Label from CredentialDB.Label")
-	assert.Equal(t, config.KeychainFieldAccount, cfg.Field)
-	// ─────────────────────────────────────────────────────────────────────────
-}
-
-// TestToPasswordConfig_Label verifies that ToPasswordConfig propagates the
-// Label field from CredentialDB into the returned CredentialConfig.Label.
-//
-// WILL FAIL TO COMPILE — CredentialDB.Label does not exist yet AND
-// CredentialConfig.Label does not exist yet.
-func TestToPasswordConfig_Label(t *testing.T) {
-	// ── COMPILE ERRORS EXPECTED BELOW ────────────────────────────────────────
-	// CredentialDB.Label and CredentialConfig.Label do not exist yet.
-	label := "com.example.dual-label"
-	usernameVar := "GH_USER"
-	passwordVar := "GH_PAT"
-	cred := &CredentialDB{
-		Name:        "github-creds",
-		Source:      "keychain",
-		Label:       &label,
-		UsernameVar: &usernameVar,
-		PasswordVar: &passwordVar,
-	}
-
-	cfg := cred.ToPasswordConfig()
-
-	assert.Equal(t, config.SourceKeychain, cfg.Source)
-	assert.Equal(t, "com.example.dual-label", cfg.Label,
-		"ToPasswordConfig must populate Label from CredentialDB.Label")
-	assert.Equal(t, config.KeychainFieldPassword, cfg.Field)
-	// ─────────────────────────────────────────────────────────────────────────
-}
-
-// TestToUsernameConfig_ServiceFallback verifies that ToUsernameConfig falls
-// back to Service when Label is nil (backwards compatibility).
-//
-// WILL FAIL AT RUNTIME — ToUsernameConfig does not yet set cfg.Label.
-func TestToUsernameConfig_ServiceFallback(t *testing.T) {
-	service := "com.example.legacy-service"
-	usernameVar := "GH_USER"
-	cred := &CredentialDB{
-		Name:        "legacy-cred",
-		Source:      "keychain",
-		Service:     &service,
-		UsernameVar: &usernameVar,
-		// Label intentionally nil — should fall back to Service
-	}
-
-	cfg := cred.ToUsernameConfig()
-
-	assert.Equal(t, config.SourceKeychain, cfg.Source)
-	// When Label is nil, the old Service should still be passed through
-	// via cfg.Service for backwards-compat (the credential system falls back)
-	assert.Equal(t, "com.example.legacy-service", cfg.Service,
-		"ToUsernameConfig must still set Service for backwards compat when Label is nil")
-}
-
-// =============================================================================
-// Test Helpers
-// =============================================================================
-
-func strPtr(s string) *string { return &s }

@@ -125,22 +125,19 @@ var createCredentialCmd = &cobra.Command{
 	Short:   "Create a credential",
 	Long: `Create a new credential configuration.
 
-Credentials reference secrets stored in the macOS Keychain or environment variables.
+Credentials reference secrets stored in MaestroVault or environment variables.
 They are scoped to exactly one resource (ecosystem, domain, app, or workspace).
 
 Sources:
-  keychain - Reference a macOS Keychain item (requires --keychain-label)
-  env      - Reference an environment variable (requires --env-var)
-
-Keychain Types:
-  generic  - Generic password (Keychain Access → login keychain)
-  internet - Internet password (Passwords app / Safari autofill)
+  vault - Reference a MaestroVault secret (requires --vault-secret)
+  env   - Reference an environment variable (requires --env-var)
 
 Examples:
-  # GitHub PAT stored as a generic keychain entry
+  # GitHub PAT stored in MaestroVault
   dvm create credential github-creds \
-    --source keychain \
-    --keychain-label "github-pat" \
+    --source vault \
+    --vault-secret "github-pat" \
+    --vault-env production \
     --username-var GITHUB_USERNAME \
     --password-var GITHUB_PAT \
     --ecosystem myorg
@@ -149,15 +146,7 @@ Examples:
   dvm create credential api-key \
     --source env \
     --env-var MY_API_KEY \
-    --ecosystem prod
-
-  # Internet keychain entry (Passwords app / Safari)
-  dvm create credential docker-hub \
-    --source keychain \
-    --keychain-label "hub.docker.com" \
-    --keychain-type internet \
-    --password-var DOCKER_TOKEN \
-    --domain infra`,
+    --ecosystem prod`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		credName := args[0]
@@ -170,9 +159,9 @@ Examples:
 
 		// Read flags
 		source, _ := cmd.Flags().GetString("source")
-		service, _ := cmd.Flags().GetString("service")
-		keychainLabel, _ := cmd.Flags().GetString("keychain-label")
-		keychainType, _ := cmd.Flags().GetString("keychain-type")
+		vaultSecret, _ := cmd.Flags().GetString("vault-secret")
+		vaultEnv, _ := cmd.Flags().GetString("vault-env")
+		vaultUsernameSecret, _ := cmd.Flags().GetString("vault-username-secret")
 		envVar, _ := cmd.Flags().GetString("env-var")
 		description, _ := cmd.Flags().GetString("description")
 		usernameVar, _ := cmd.Flags().GetString("username-var")
@@ -180,43 +169,28 @@ Examples:
 
 		// Validate source
 		if source == "" {
-			return fmt.Errorf("--source is required (keychain or env)")
+			return fmt.Errorf("--source is required (vault or env)")
 		}
-		if source != "keychain" && source != "env" {
-			return fmt.Errorf("--source must be 'keychain' or 'env', got '%s'", source)
-		}
-
-		// Mutual exclusivity: --service and --keychain-label cannot both be set
-		if cmd.Flags().Changed("keychain-label") && cmd.Flags().Changed("service") {
-			return fmt.Errorf("--service and --keychain-label are mutually exclusive; use --keychain-label")
-		}
-
-		// Handle --service → --keychain-label fallback (deprecated path)
-		if keychainLabel == "" && service != "" {
-			keychainLabel = service
-		}
-
-		// Validate --keychain-type values
-		if keychainType != "" && keychainType != "generic" && keychainType != "internet" {
-			return fmt.Errorf("--keychain-type must be 'generic' or 'internet', got %q", keychainType)
-		}
-
-		// Validate --keychain-type only valid with keychain source
-		if cmd.Flags().Changed("keychain-type") && source != "keychain" {
-			return fmt.Errorf("--keychain-type is only valid when --source=keychain")
+		if source != "vault" && source != "env" {
+			return fmt.Errorf("--source must be 'vault' or 'env', got '%s'", source)
 		}
 
 		// Validate conditional flags
-		if source == "keychain" && keychainLabel == "" {
-			return fmt.Errorf("--keychain-label is required when --source=keychain")
+		if source == "vault" && vaultSecret == "" {
+			return fmt.Errorf("--vault-secret is required when --source=vault")
 		}
 		if source == "env" && envVar == "" {
 			return fmt.Errorf("--env-var is required when --source=env")
 		}
 
-		// Validate dual-field flags are only used with keychain source
-		if source != "keychain" && (usernameVar != "" || passwordVar != "") {
-			return fmt.Errorf("--username-var and --password-var are only valid with --source=keychain")
+		// Validate vault-only flags
+		if source != "vault" && (vaultSecret != "" || vaultEnv != "" || vaultUsernameSecret != "") {
+			return fmt.Errorf("--vault-secret, --vault-env, and --vault-username-secret are only valid with --source=vault")
+		}
+
+		// Validate dual-field flags are only used with vault source
+		if source != "vault" && (usernameVar != "" || passwordVar != "") {
+			return fmt.Errorf("--username-var and --password-var are only valid with --source=vault")
 		}
 
 		// Validate env var names if provided
@@ -245,13 +219,14 @@ Examples:
 			Source:    source,
 		}
 
-		if keychainLabel != "" {
-			cred.Label = &keychainLabel
-			// Set Service for backward compat (same value as label)
-			cred.Service = &keychainLabel
+		if vaultSecret != "" {
+			cred.VaultSecret = &vaultSecret
 		}
-		if keychainType != "" {
-			cred.KeychainType = &keychainType
+		if vaultEnv != "" {
+			cred.VaultEnv = &vaultEnv
+		}
+		if vaultUsernameSecret != "" {
+			cred.VaultUsernameSecret = &vaultUsernameSecret
 		}
 		if envVar != "" {
 			cred.EnvVar = &envVar
@@ -280,17 +255,14 @@ func init() {
 	createCmd.AddCommand(createCredentialCmd)
 
 	// Source flags
-	createCredentialCmd.Flags().String("source", "", "Credential source: keychain or env (required)")
-	createCredentialCmd.Flags().String("service", "", "Keychain service name (deprecated: use --keychain-label)")
-	createCredentialCmd.Flags().String("keychain-label", "", "Keychain entry label (display name) — identifies the entry in Keychain Access or Passwords app (required when --source=keychain)")
-	createCredentialCmd.Flags().String("keychain-type", "", "Keychain entry type: generic or internet (default: internet)")
+	createCredentialCmd.Flags().String("source", "", "Credential source: vault or env (required)")
+	createCredentialCmd.Flags().String("vault-secret", "", "MaestroVault secret name (required when --source=vault)")
+	createCredentialCmd.Flags().String("vault-env", "", "MaestroVault environment (optional, e.g. production)")
+	createCredentialCmd.Flags().String("vault-username-secret", "", "MaestroVault secret name for username (vault source only)")
 	createCredentialCmd.Flags().String("env-var", "", "Environment variable name (required when --source=env)")
 	createCredentialCmd.Flags().String("description", "", "Credential description")
-	createCredentialCmd.Flags().String("username-var", "", "Environment variable name for the keychain account/username (keychain source only)")
-	createCredentialCmd.Flags().String("password-var", "", "Environment variable name for the keychain password (keychain source only)")
-
-	// Mark --service as deprecated (cobra handles the warning automatically)
-	createCredentialCmd.Flags().MarkDeprecated("service", "use --keychain-label instead")
+	createCredentialCmd.Flags().String("username-var", "", "Environment variable name for the username (vault source only)")
+	createCredentialCmd.Flags().String("password-var", "", "Environment variable name for the password (vault source only)")
 
 	// Scope flags
 	addCredentialScopeFlags(createCredentialCmd)

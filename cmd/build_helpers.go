@@ -315,8 +315,24 @@ func loadBuildCredentials(ds db.DataStore, app *models.App, workspace *models.Wo
 		}
 	}
 
+	// Initialize vault backend if MAV_TOKEN is set
+	var backend config.SecretBackend
+	if token := os.Getenv("MAV_TOKEN"); token != "" {
+		// Ensure vault daemon is running
+		if err := config.EnsureVaultDaemon(); err != nil {
+			slog.Warn("failed to start vault daemon", "error", err)
+		} else {
+			vb, err := config.NewVaultBackend(token)
+			if err != nil {
+				slog.Warn("failed to create vault backend", "error", err)
+			} else {
+				backend = vb
+			}
+		}
+	}
+
 	// Resolve all credentials (env vars checked last internally)
-	resolved, errors := config.ResolveCredentialsWithErrors(scopes...)
+	resolved, errors := config.ResolveCredentialsWithBackend(backend, scopes...)
 
 	// Collect warnings for failed credential resolutions
 	var warnings []string

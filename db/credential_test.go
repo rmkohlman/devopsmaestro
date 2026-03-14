@@ -51,13 +51,13 @@ func TestCredentialRejectPlaintextSource(t *testing.T) {
 			errMsg:  "plaintext credentials not allowed",
 		},
 		{
-			name: "allow keychain source",
+			name: "allow vault source",
 			cred: &models.CredentialDB{
-				ScopeType: models.CredentialScopeEcosystem,
-				ScopeID:   int64(ecosystem.ID),
-				Name:      "GITHUB_TOKEN",
-				Source:    "keychain", // ALLOWED
-				Service:   stringPtr("github.com"),
+				ScopeType:   models.CredentialScopeEcosystem,
+				ScopeID:     int64(ecosystem.ID),
+				Name:        "GITHUB_TOKEN",
+				Source:      "vault", // ALLOWED
+				VaultSecret: stringPtr("github.com"),
 			},
 			wantErr: false,
 		},
@@ -116,13 +116,13 @@ func TestCredentialSchemaEnforcement(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "allow keychain source",
+			name: "allow vault source",
 			cred: &models.CredentialDB{
-				ScopeType: models.CredentialScopeEcosystem,
-				ScopeID:   int64(ecosystem.ID),
-				Name:      "VALID_KEY",
-				Source:    "keychain",
-				Service:   stringPtr("valid.service"),
+				ScopeType:   models.CredentialScopeEcosystem,
+				ScopeID:     int64(ecosystem.ID),
+				Name:        "VALID_KEY",
+				Source:      "vault",
+				VaultSecret: stringPtr("valid.service"),
 			},
 			wantErr: false,
 		},
@@ -156,7 +156,7 @@ func TestCredentialSchemaEnforcement(t *testing.T) {
 	}
 }
 
-// TestCredentialAllowKeychain verifies keychain source with service succeeds
+// TestCredentialAllowKeychain verifies vault source with vault_secret succeeds
 func TestCredentialAllowKeychain(t *testing.T) {
 	ds := createTestDataStore(t)
 	defer ds.Close()
@@ -174,27 +174,27 @@ func TestCredentialAllowKeychain(t *testing.T) {
 		errMsg  string
 	}{
 		{
-			name: "keychain with service",
+			name: "vault with vault_secret",
 			cred: &models.CredentialDB{
-				ScopeType: models.CredentialScopeEcosystem,
-				ScopeID:   int64(ecosystem.ID),
-				Name:      "GITHUB_TOKEN",
-				Source:    "keychain",
-				Service:   stringPtr("github.com"),
+				ScopeType:   models.CredentialScopeEcosystem,
+				ScopeID:     int64(ecosystem.ID),
+				Name:        "GITHUB_TOKEN",
+				Source:      "vault",
+				VaultSecret: stringPtr("github.com"),
 			},
 			wantErr: false,
 		},
 		{
-			name: "keychain without service should fail",
+			name: "vault without vault_secret should fail",
 			cred: &models.CredentialDB{
-				ScopeType: models.CredentialScopeEcosystem,
-				ScopeID:   int64(ecosystem.ID),
-				Name:      "MISSING_SERVICE",
-				Source:    "keychain",
-				Service:   nil, // Missing required field
+				ScopeType:   models.CredentialScopeEcosystem,
+				ScopeID:     int64(ecosystem.ID),
+				Name:        "MISSING_SECRET",
+				Source:      "vault",
+				VaultSecret: nil, // Missing required field
 			},
 			wantErr: true,
-			errMsg:  "service required",
+			errMsg:  "vault_secret required",
 		},
 	}
 
@@ -291,13 +291,13 @@ func TestCredentialValidationOnUpdate(t *testing.T) {
 		t.Fatalf("Setup error: %v", err)
 	}
 
-	// Create a valid credential (keychain)
+	// Create a valid credential (vault)
 	cred := &models.CredentialDB{
-		ScopeType: models.CredentialScopeEcosystem,
-		ScopeID:   int64(ecosystem.ID),
-		Name:      "TEST_CRED",
-		Source:    "keychain",
-		Service:   stringPtr("test.service"),
+		ScopeType:   models.CredentialScopeEcosystem,
+		ScopeID:     int64(ecosystem.ID),
+		Name:        "TEST_CRED",
+		Source:      "vault",
+		VaultSecret: stringPtr("test.service"),
 	}
 
 	// FIXME: This will fail if CreateCredential validates properly
@@ -316,15 +316,15 @@ func TestCredentialValidationOnUpdate(t *testing.T) {
 			name: "update to plaintext source",
 			updateFunc: func(c *models.CredentialDB) {
 				c.Source = "value" // Try to change to plaintext (prohibited by schema)
-				c.Service = nil
+				c.VaultSecret = nil
 			},
 			wantErr: true,
 			errMsg:  "plaintext",
 		},
 		{
-			name: "valid update - change service",
+			name: "valid update - change vault_secret",
 			updateFunc: func(c *models.CredentialDB) {
-				c.Service = stringPtr("new-service.com")
+				c.VaultSecret = stringPtr("new-service.com")
 			},
 			wantErr: false,
 		},
@@ -332,7 +332,7 @@ func TestCredentialValidationOnUpdate(t *testing.T) {
 			name: "valid update - switch to env",
 			updateFunc: func(c *models.CredentialDB) {
 				c.Source = "env"
-				c.Service = nil
+				c.VaultSecret = nil
 				c.EnvVar = stringPtr("TEST_CRED_ENV")
 			},
 			wantErr: false,
@@ -412,12 +412,12 @@ func TestCredentialOnlyKeychainAndEnvAllowed(t *testing.T) {
 		source     string
 		shouldFail bool
 	}{
-		{name: "keychain allowed", source: "keychain", shouldFail: false},
+		{name: "keychain rejected", source: "keychain", shouldFail: true},
 		{name: "env allowed", source: "env", shouldFail: false},
 		{name: "value rejected", source: "value", shouldFail: true},
 		{name: "plaintext rejected", source: "plaintext", shouldFail: true},
 		{name: "file rejected", source: "file", shouldFail: true},
-		{name: "vault rejected", source: "vault", shouldFail: true},
+		{name: "vault allowed", source: "vault", shouldFail: false},
 	}
 
 	for _, tt := range tests {
@@ -430,8 +430,8 @@ func TestCredentialOnlyKeychainAndEnvAllowed(t *testing.T) {
 			}
 
 			// Add required fields based on source
-			if tt.source == "keychain" {
-				cred.Service = stringPtr("test.service")
+			if tt.source == "vault" {
+				cred.VaultSecret = stringPtr("test.service")
 			} else if tt.source == "env" {
 				cred.EnvVar = stringPtr("TEST_VAR")
 			}
@@ -481,11 +481,11 @@ func TestListAllCredentials_ScanMismatch(t *testing.T) {
 	// Insert two credentials with different sources
 	creds := []*models.CredentialDB{
 		{
-			ScopeType: models.CredentialScopeEcosystem,
-			ScopeID:   int64(ecosystem.ID),
-			Name:      "GITHUB_TOKEN",
-			Source:    "keychain",
-			Service:   stringPtr("github.com"),
+			ScopeType:   models.CredentialScopeEcosystem,
+			ScopeID:     int64(ecosystem.ID),
+			Name:        "GITHUB_TOKEN",
+			Source:      "vault",
+			VaultSecret: stringPtr("github.com"),
 		},
 		{
 			ScopeType: models.CredentialScopeEcosystem,
@@ -547,11 +547,11 @@ func TestListAllCredentials_MultiScope(t *testing.T) {
 
 	// Create one credential in each ecosystem
 	cred1 := &models.CredentialDB{
-		ScopeType: models.CredentialScopeEcosystem,
-		ScopeID:   int64(eco1.ID),
-		Name:      "ECO1_CRED",
-		Source:    "keychain",
-		Service:   stringPtr("eco1.service"),
+		ScopeType:   models.CredentialScopeEcosystem,
+		ScopeID:     int64(eco1.ID),
+		Name:        "ECO1_CRED",
+		Source:      "vault",
+		VaultSecret: stringPtr("eco1.service"),
 	}
 	cred2 := &models.CredentialDB{
 		ScopeType: models.CredentialScopeEcosystem,

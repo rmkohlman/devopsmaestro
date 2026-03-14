@@ -58,15 +58,15 @@ func TestCredentialHandler_Apply(t *testing.T) {
 		errMsg  string
 	}{
 		{
-			name: "create keychain credential in ecosystem scope",
+			name: "create vault credential in ecosystem scope",
 			yaml: `apiVersion: devopsmaestro.io/v1
 kind: Credential
 metadata:
   name: github-token
   ecosystem: testlab
 spec:
-  source: keychain
-  service: github.com
+  source: vault
+  vaultSecret: github/token
   description: GitHub personal access token`,
 			wantErr: false,
 		},
@@ -90,8 +90,8 @@ metadata:
   name: domain-token
   domain: backend
 spec:
-  source: keychain
-  service: internal.svc`,
+  source: vault
+  vaultSecret: internal/token`,
 			wantErr: false,
 		},
 		{
@@ -125,8 +125,8 @@ kind: Credential
 metadata:
   ecosystem: testlab
 spec:
-  source: keychain
-  service: some.service`,
+  source: vault
+  vaultSecret: some/secret`,
 			wantErr: true,
 			errMsg:  "name is required",
 		},
@@ -137,8 +137,8 @@ kind: Credential
 metadata:
   name: no-scope-cred
 spec:
-  source: keychain
-  service: some.service`,
+  source: vault
+  vaultSecret: some/secret`,
 			wantErr: true,
 			errMsg:  "exactly one scope",
 		},
@@ -150,8 +150,8 @@ metadata:
   name: ghost-cred
   ecosystem: nonexistent
 spec:
-  source: keychain
-  service: ghost.service`,
+  source: vault
+  vaultSecret: ghost/secret`,
 			wantErr: true,
 			errMsg:  "not found",
 		},
@@ -204,8 +204,8 @@ metadata:
   name: update-cred
   ecosystem: update-lab
 spec:
-  source: keychain
-  service: original.service
+  source: vault
+  vaultSecret: original/secret
   description: original description`
 
 	_, err := h.Apply(ctx, []byte(createYAML))
@@ -251,14 +251,14 @@ spec:
 func TestCredentialHandler_ToYAML(t *testing.T) {
 	h := NewCredentialHandler()
 
-	svc := "github.com"
+	vaultSecret := "github/token"
 	desc := "github token"
 	cred := &models.CredentialDB{
 		Name:        "github-token",
 		ScopeType:   models.CredentialScopeEcosystem,
 		ScopeID:     1,
-		Source:      "keychain",
-		Service:     &svc,
+		Source:      "vault",
+		VaultSecret: &vaultSecret,
 		Description: &desc,
 	}
 
@@ -280,11 +280,11 @@ func TestCredentialHandler_ToYAML(t *testing.T) {
 	if !contains(yamlStr, "name: github-token") {
 		t.Errorf("ToYAML() missing 'name: github-token', got:\n%s", yamlStr)
 	}
-	if !contains(yamlStr, "source: keychain") {
-		t.Errorf("ToYAML() missing 'source: keychain', got:\n%s", yamlStr)
+	if !contains(yamlStr, "source: vault") {
+		t.Errorf("ToYAML() missing 'source: vault', got:\n%s", yamlStr)
 	}
-	if !contains(yamlStr, "service: github.com") {
-		t.Errorf("ToYAML() missing 'service: github.com', got:\n%s", yamlStr)
+	if !contains(yamlStr, "vaultSecret: github/token") {
+		t.Errorf("ToYAML() missing 'vaultSecret: github/token', got:\n%s", yamlStr)
 	}
 	if !contains(yamlStr, "ecosystem: mylab") {
 		t.Errorf("ToYAML() missing 'ecosystem: mylab', got:\n%s", yamlStr)
@@ -296,7 +296,7 @@ func TestCredentialHandler_ToYAML(t *testing.T) {
 // =============================================================================
 
 func TestCredentialResource_Validate(t *testing.T) {
-	svc := "some.service"
+	vaultSecret := "some/secret"
 	envVar := "MY_ENV_VAR"
 
 	tests := []struct {
@@ -306,13 +306,13 @@ func TestCredentialResource_Validate(t *testing.T) {
 		wantErr   bool
 	}{
 		{
-			name: "valid keychain credential",
+			name: "valid vault credential",
 			cred: &models.CredentialDB{
-				Name:      "valid-cred",
-				ScopeType: models.CredentialScopeEcosystem,
-				ScopeID:   1,
-				Source:    "keychain",
-				Service:   &svc,
+				Name:        "valid-cred",
+				ScopeType:   models.CredentialScopeEcosystem,
+				ScopeID:     1,
+				Source:      "vault",
+				VaultSecret: &vaultSecret,
 			},
 			scopeName: "mylab",
 			wantErr:   false,
@@ -320,11 +320,11 @@ func TestCredentialResource_Validate(t *testing.T) {
 		{
 			name: "missing name",
 			cred: &models.CredentialDB{
-				Name:      "",
-				ScopeType: models.CredentialScopeEcosystem,
-				ScopeID:   1,
-				Source:    "keychain",
-				Service:   &svc,
+				Name:        "",
+				ScopeType:   models.CredentialScopeEcosystem,
+				ScopeID:     1,
+				Source:      "vault",
+				VaultSecret: &vaultSecret,
 			},
 			scopeName: "mylab",
 			wantErr:   true,
@@ -355,11 +355,11 @@ func TestCredentialResource_Validate(t *testing.T) {
 		{
 			name: "missing scope name produces empty scope in YAML",
 			cred: &models.CredentialDB{
-				Name:      "no-scope",
-				ScopeType: models.CredentialScopeEcosystem,
-				ScopeID:   1,
-				Source:    "keychain",
-				Service:   &svc,
+				Name:        "no-scope",
+				ScopeType:   models.CredentialScopeEcosystem,
+				ScopeID:     1,
+				Source:      "vault",
+				VaultSecret: &vaultSecret,
 			},
 			scopeName: "",
 			wantErr:   true,
@@ -409,7 +409,7 @@ func createCredentialTestDataStore(t *testing.T) *db.SQLDataStore {
 
 // === Dual-Field Credential Handler Tests (v0.37.1) ===
 
-// TestCredentialHandler_Apply_DualField_BothVars verifies that applying a keychain
+// TestCredentialHandler_Apply_DualField_BothVars verifies that applying a vault
 // credential YAML with both usernameVar and passwordVar stores both fields correctly.
 func TestCredentialHandler_Apply_DualField_BothVars(t *testing.T) {
 	h := NewCredentialHandler()
@@ -429,8 +429,8 @@ metadata:
   name: github-creds
   ecosystem: testlab
 spec:
-  source: keychain
-  service: github.com
+  source: vault
+  vaultSecret: github/token
   usernameVar: GITHUB_USERNAME
   passwordVar: GITHUB_PAT
   description: GitHub dual-field credential`
@@ -466,7 +466,7 @@ spec:
 	}
 }
 
-// TestCredentialHandler_Apply_DualField_PasswordOnly verifies that applying a keychain
+// TestCredentialHandler_Apply_DualField_PasswordOnly verifies that applying a vault
 // credential YAML with only passwordVar (no usernameVar) stores passwordVar and
 // leaves UsernameVar nil.
 func TestCredentialHandler_Apply_DualField_PasswordOnly(t *testing.T) {
@@ -487,8 +487,8 @@ metadata:
   name: docker-token
   ecosystem: testlab
 spec:
-  source: keychain
-  service: docker.io
+  source: vault
+  vaultSecret: docker/token
   passwordVar: DOCKER_TOKEN`
 
 	res, err := h.Apply(ctx, []byte(yamlData))
@@ -537,8 +537,8 @@ metadata:
   name: hub-creds
   ecosystem: dualfield-lab
 spec:
-  source: keychain
-  service: hub.example.com
+  source: vault
+  vaultSecret: hub/token
   description: initial no-vars credential`
 
 	_, err := h.Apply(ctx, []byte(createYAML))
@@ -553,8 +553,8 @@ metadata:
   name: hub-creds
   ecosystem: dualfield-lab
 spec:
-  source: keychain
-  service: hub.example.com
+  source: vault
+  vaultSecret: hub/token
   usernameVar: HUB_USER
   passwordVar: HUB_PASS
   description: updated with dual-field vars`
@@ -588,7 +588,7 @@ spec:
 
 // TestCredentialHandler_Apply_DualField_WithEnvSource_Rejected verifies that
 // applying a credential YAML with usernameVar or passwordVar combined with
-// source: env is rejected because dual-field vars are only valid for keychain.
+// source: env is rejected because dual-field vars are only valid for vault.
 func TestCredentialHandler_Apply_DualField_WithEnvSource_Rejected(t *testing.T) {
 	h := NewCredentialHandler()
 	ds := createCredentialTestDataStore(t)
@@ -616,8 +616,8 @@ spec:
 		t.Fatalf("Apply() expected error for env source with usernameVar, but got none")
 	}
 
-	if !contains(err.Error(), "keychain") {
-		t.Errorf("Apply() error = %q, want error containing %q", err.Error(), "keychain")
+	if !contains(err.Error(), "vault") {
+		t.Errorf("Apply() error = %q, want error containing %q", err.Error(), "vault")
 	}
 }
 
@@ -627,7 +627,7 @@ spec:
 func TestCredentialHandler_ToYAML_DualField(t *testing.T) {
 	h := NewCredentialHandler()
 
-	svc := "github.com"
+	vaultSecret := "github/token"
 	desc := "GitHub dual-field credential"
 	user := "GITHUB_USERNAME"
 	pass := "GITHUB_PAT"
@@ -636,8 +636,8 @@ func TestCredentialHandler_ToYAML_DualField(t *testing.T) {
 		Name:        "github-creds",
 		ScopeType:   models.CredentialScopeEcosystem,
 		ScopeID:     1,
-		Source:      "keychain",
-		Service:     &svc,
+		Source:      "vault",
+		VaultSecret: &vaultSecret,
 		Description: &desc,
 		UsernameVar: &user,
 		PasswordVar: &pass,
@@ -733,20 +733,20 @@ func createCredentialTestSchema(driver db.Driver) error {
 		)`,
 
 		`CREATE TABLE IF NOT EXISTS credentials (
-			id            INTEGER PRIMARY KEY AUTOINCREMENT,
-			scope_type    TEXT    NOT NULL CHECK(scope_type IN ('ecosystem','domain','app','workspace')),
-			scope_id      INTEGER NOT NULL,
-			name          TEXT    NOT NULL,
-			source        TEXT    NOT NULL CHECK(source IN ('keychain','env')),
-			service       TEXT,
-			env_var       TEXT,
-			description   TEXT,
-			username_var  TEXT,
-			password_var  TEXT,
-			label         TEXT,
-			keychain_type TEXT DEFAULT 'internet' CHECK(keychain_type IN ('generic', 'internet')),
-			created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+			id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+			scope_type           TEXT    NOT NULL CHECK(scope_type IN ('ecosystem','domain','app','workspace')),
+			scope_id             INTEGER NOT NULL,
+			name                 TEXT    NOT NULL,
+			source               TEXT    NOT NULL CHECK(source IN ('vault','env')),
+			env_var              TEXT,
+			description          TEXT,
+			username_var         TEXT,
+			password_var         TEXT,
+			vault_secret         TEXT,
+			vault_env            TEXT,
+			vault_username_secret TEXT,
+			created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(scope_type, scope_id, name)
 		)`,
 
