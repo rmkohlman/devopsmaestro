@@ -10,8 +10,32 @@ import (
 // Credential Operations
 // =============================================================================
 
+// credentialColumns is the canonical SELECT column list for credentials.
+// Every SELECT and every Scan must use this exact order.
+const credentialColumns = `id, scope_type, scope_id, name, source, env_var, description, username_var, password_var, vault_secret, vault_env, vault_username_secret, vault_fields, created_at, updated_at`
+
+// scanCredential scans a database row into a CredentialDB model.
+// The scanner interface matches both *sql.Row and *sql.Rows.
+func scanCredential(scanner interface{ Scan(...any) error }) (*models.CredentialDB, error) {
+	c := &models.CredentialDB{}
+	err := scanner.Scan(
+		&c.ID, &c.ScopeType, &c.ScopeID, &c.Name, &c.Source,
+		&c.EnvVar, &c.Description, &c.UsernameVar, &c.PasswordVar,
+		&c.VaultSecret, &c.VaultEnv, &c.VaultUsernameSecret, &c.VaultFields,
+		&c.CreatedAt, &c.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
 // CreateCredential inserts a new credential configuration.
 func (ds *SQLDataStore) CreateCredential(credential *models.CredentialDB) error {
+	if err := credential.Validate(); err != nil {
+		return err
+	}
+
 	// Validate source - only vault and env allowed
 	if credential.Source != "vault" && credential.Source != "env" {
 		return fmt.Errorf("plaintext credentials not allowed: source must be 'vault' or 'env', got '%s'", credential.Source)
@@ -25,8 +49,8 @@ func (ds *SQLDataStore) CreateCredential(credential *models.CredentialDB) error 
 		return fmt.Errorf("env_var required for env credentials")
 	}
 
-	query := fmt.Sprintf(`INSERT INTO credentials (scope_type, scope_id, name, source, env_var, description, username_var, password_var, vault_secret, vault_env, vault_username_secret, created_at, updated_at) 
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
+	query := fmt.Sprintf(`INSERT INTO credentials (scope_type, scope_id, name, source, env_var, description, username_var, password_var, vault_secret, vault_env, vault_username_secret, vault_fields, created_at, updated_at) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
 
 	result, err := ds.driver.Execute(query,
 		credential.ScopeType,
@@ -40,6 +64,7 @@ func (ds *SQLDataStore) CreateCredential(credential *models.CredentialDB) error 
 		credential.VaultSecret,
 		credential.VaultEnv,
 		credential.VaultUsernameSecret,
+		credential.VaultFields,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create credential: %w", err)
@@ -55,27 +80,12 @@ func (ds *SQLDataStore) CreateCredential(credential *models.CredentialDB) error 
 
 // GetCredential retrieves a credential by scope and name.
 func (ds *SQLDataStore) GetCredential(scopeType models.CredentialScopeType, scopeID int64, name string) (*models.CredentialDB, error) {
-	credential := &models.CredentialDB{}
-	query := `SELECT id, scope_type, scope_id, name, source, env_var, description, username_var, password_var, vault_secret, vault_env, vault_username_secret, created_at, updated_at 
+	query := `SELECT ` + credentialColumns + ` 
 		FROM credentials WHERE scope_type = ? AND scope_id = ? AND name = ?`
 
 	row := ds.driver.QueryRow(query, scopeType, scopeID, name)
-	if err := row.Scan(
-		&credential.ID,
-		&credential.ScopeType,
-		&credential.ScopeID,
-		&credential.Name,
-		&credential.Source,
-		&credential.EnvVar,
-		&credential.Description,
-		&credential.UsernameVar,
-		&credential.PasswordVar,
-		&credential.VaultSecret,
-		&credential.VaultEnv,
-		&credential.VaultUsernameSecret,
-		&credential.CreatedAt,
-		&credential.UpdatedAt,
-	); err != nil {
+	credential, err := scanCredential(row)
+	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, NewErrNotFound("credential", fmt.Sprintf("%s (scope: %s, id: %d)", name, scopeType, scopeID))
 		}
@@ -88,27 +98,12 @@ func (ds *SQLDataStore) GetCredential(scopeType models.CredentialScopeType, scop
 // GetCredentialByName retrieves a credential by name across all scopes.
 // Returns the first match if multiple credentials have the same name in different scopes.
 func (ds *SQLDataStore) GetCredentialByName(name string) (*models.CredentialDB, error) {
-	credential := &models.CredentialDB{}
-	query := `SELECT id, scope_type, scope_id, name, source, env_var, description, username_var, password_var, vault_secret, vault_env, vault_username_secret, created_at, updated_at 
+	query := `SELECT ` + credentialColumns + ` 
 		FROM credentials WHERE name = ? LIMIT 1`
 
 	row := ds.driver.QueryRow(query, name)
-	if err := row.Scan(
-		&credential.ID,
-		&credential.ScopeType,
-		&credential.ScopeID,
-		&credential.Name,
-		&credential.Source,
-		&credential.EnvVar,
-		&credential.Description,
-		&credential.UsernameVar,
-		&credential.PasswordVar,
-		&credential.VaultSecret,
-		&credential.VaultEnv,
-		&credential.VaultUsernameSecret,
-		&credential.CreatedAt,
-		&credential.UpdatedAt,
-	); err != nil {
+	credential, err := scanCredential(row)
+	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, NewErrNotFound("credential", name)
 		}
@@ -120,6 +115,10 @@ func (ds *SQLDataStore) GetCredentialByName(name string) (*models.CredentialDB, 
 
 // UpdateCredential updates an existing credential.
 func (ds *SQLDataStore) UpdateCredential(credential *models.CredentialDB) error {
+	if err := credential.Validate(); err != nil {
+		return err
+	}
+
 	// Validate source - only vault and env allowed
 	if credential.Source != "vault" && credential.Source != "env" {
 		return fmt.Errorf("plaintext credentials not allowed: source must be 'vault' or 'env', got '%s'", credential.Source)
@@ -133,7 +132,7 @@ func (ds *SQLDataStore) UpdateCredential(credential *models.CredentialDB) error 
 		return fmt.Errorf("env_var required for env credentials")
 	}
 
-	query := fmt.Sprintf(`UPDATE credentials SET source = ?, env_var = ?, description = ?, username_var = ?, password_var = ?, vault_secret = ?, vault_env = ?, vault_username_secret = ?, updated_at = %s 
+	query := fmt.Sprintf(`UPDATE credentials SET source = ?, env_var = ?, description = ?, username_var = ?, password_var = ?, vault_secret = ?, vault_env = ?, vault_username_secret = ?, vault_fields = ?, updated_at = %s 
 		WHERE scope_type = ? AND scope_id = ? AND name = ?`, ds.queryBuilder.Now())
 
 	result, err := ds.driver.Execute(query,
@@ -145,6 +144,7 @@ func (ds *SQLDataStore) UpdateCredential(credential *models.CredentialDB) error 
 		credential.VaultSecret,
 		credential.VaultEnv,
 		credential.VaultUsernameSecret,
+		credential.VaultFields,
 		credential.ScopeType,
 		credential.ScopeID,
 		credential.Name,
@@ -183,7 +183,7 @@ func (ds *SQLDataStore) DeleteCredential(scopeType models.CredentialScopeType, s
 
 // ListCredentialsByScope retrieves all credentials for a specific scope.
 func (ds *SQLDataStore) ListCredentialsByScope(scopeType models.CredentialScopeType, scopeID int64) ([]*models.CredentialDB, error) {
-	query := `SELECT id, scope_type, scope_id, name, source, env_var, description, username_var, password_var, vault_secret, vault_env, vault_username_secret, created_at, updated_at 
+	query := `SELECT ` + credentialColumns + ` 
 		FROM credentials WHERE scope_type = ? AND scope_id = ? ORDER BY name`
 
 	rows, err := ds.driver.Query(query, scopeType, scopeID)
@@ -194,23 +194,8 @@ func (ds *SQLDataStore) ListCredentialsByScope(scopeType models.CredentialScopeT
 
 	var credentials []*models.CredentialDB
 	for rows.Next() {
-		credential := &models.CredentialDB{}
-		if err := rows.Scan(
-			&credential.ID,
-			&credential.ScopeType,
-			&credential.ScopeID,
-			&credential.Name,
-			&credential.Source,
-			&credential.EnvVar,
-			&credential.Description,
-			&credential.UsernameVar,
-			&credential.PasswordVar,
-			&credential.VaultSecret,
-			&credential.VaultEnv,
-			&credential.VaultUsernameSecret,
-			&credential.CreatedAt,
-			&credential.UpdatedAt,
-		); err != nil {
+		credential, err := scanCredential(rows)
+		if err != nil {
 			return nil, fmt.Errorf("failed to scan credential: %w", err)
 		}
 		credentials = append(credentials, credential)
@@ -225,7 +210,7 @@ func (ds *SQLDataStore) ListCredentialsByScope(scopeType models.CredentialScopeT
 
 // ListAllCredentials retrieves all credentials across all scopes.
 func (ds *SQLDataStore) ListAllCredentials() ([]*models.CredentialDB, error) {
-	query := `SELECT id, scope_type, scope_id, name, source, env_var, description, username_var, password_var, vault_secret, vault_env, vault_username_secret, created_at, updated_at 
+	query := `SELECT ` + credentialColumns + ` 
 		FROM credentials ORDER BY scope_type, scope_id, name`
 
 	rows, err := ds.driver.Query(query)
@@ -236,23 +221,8 @@ func (ds *SQLDataStore) ListAllCredentials() ([]*models.CredentialDB, error) {
 
 	var credentials []*models.CredentialDB
 	for rows.Next() {
-		credential := &models.CredentialDB{}
-		if err := rows.Scan(
-			&credential.ID,
-			&credential.ScopeType,
-			&credential.ScopeID,
-			&credential.Name,
-			&credential.Source,
-			&credential.EnvVar,
-			&credential.Description,
-			&credential.UsernameVar,
-			&credential.PasswordVar,
-			&credential.VaultSecret,
-			&credential.VaultEnv,
-			&credential.VaultUsernameSecret,
-			&credential.CreatedAt,
-			&credential.UpdatedAt,
-		); err != nil {
+		credential, err := scanCredential(rows)
+		if err != nil {
 			return nil, fmt.Errorf("failed to scan credential: %w", err)
 		}
 		credentials = append(credentials, credential)

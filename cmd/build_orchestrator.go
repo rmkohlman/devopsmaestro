@@ -5,6 +5,7 @@ import (
 	"devopsmaestro/builders"
 	"devopsmaestro/config"
 	"devopsmaestro/models"
+	"devopsmaestro/pkg/envvalidation"
 	"devopsmaestro/pkg/nvimops/plugin"
 	"devopsmaestro/pkg/paths"
 	"devopsmaestro/pkg/registry"
@@ -342,6 +343,14 @@ func buildWorkspace(cmd *cobra.Command) error {
 		render.Warning(w)
 	}
 	for k, v := range resolvedCreds {
+		if envvalidation.IsDangerousEnvVar(k) {
+			slog.Warn("blocked dangerous credential build arg", "key", k)
+			continue
+		}
+		if err := envvalidation.ValidateEnvKey(k); err != nil {
+			slog.Warn("skipped credential with invalid env key", "key", k, "error", err)
+			continue
+		}
 		buildArgs[k] = v
 		slog.Debug("using credential", "key", k)
 	}

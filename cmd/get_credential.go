@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"devopsmaestro/models"
@@ -48,7 +49,7 @@ Examples:
 			}
 
 			for _, c := range creds {
-				if c.UsernameVar != nil || c.PasswordVar != nil {
+				if c.HasVaultFields() || c.UsernameVar != nil || c.PasswordVar != nil {
 					vars := formatVarsList(c)
 					render.Plainf("  %s  (scope: %s, source: %s, vars: %s)", c.Name, c.ScopeType, c.Source, vars)
 				} else {
@@ -75,7 +76,7 @@ Examples:
 		}
 
 		for _, c := range creds {
-			if c.UsernameVar != nil || c.PasswordVar != nil {
+			if c.HasVaultFields() || c.UsernameVar != nil || c.PasswordVar != nil {
 				vars := formatVarsList(c)
 				render.Plainf("  %s  (source: %s, vars: %s)", c.Name, c.Source, vars)
 			} else {
@@ -145,6 +146,26 @@ Examples:
 		if cred.PasswordVar != nil {
 			render.Plainf("Password:  %s", *cred.PasswordVar)
 		}
+		if cred.HasVaultFields() {
+			fields, err := cred.GetVaultFieldsMap()
+			if err == nil && len(fields) > 0 {
+				render.Plainf("Fields:")
+				// Sort keys for deterministic output
+				keys := make([]string, 0, len(fields))
+				for k := range fields {
+					keys = append(keys, k)
+				}
+				sort.Strings(keys)
+				for _, envVar := range keys {
+					fieldName := fields[envVar]
+					if envVar == fieldName {
+						render.Plainf("  %s", envVar)
+					} else {
+						render.Plainf("  %s <- %s", envVar, fieldName)
+					}
+				}
+			}
+		}
 
 		return nil
 	},
@@ -162,10 +183,21 @@ func init() {
 	addCredentialScopeFlags(getCredentialCmd)
 }
 
-// formatVarsList builds a comma-separated string of the dual-field env var names
-// (UsernameVar, PasswordVar) for display in credential list output.
+// formatVarsList builds a comma-separated string of the env var names
+// for display in credential list output. Handles vault fields, dual-field,
+// and falls back to username/password vars.
 func formatVarsList(c *models.CredentialDB) string {
 	var parts []string
+	if c.HasVaultFields() {
+		fields, err := c.GetVaultFieldsMap()
+		if err == nil {
+			for envVar := range fields {
+				parts = append(parts, envVar)
+			}
+			sort.Strings(parts)
+			return strings.Join(parts, ", ")
+		}
+	}
 	if c.UsernameVar != nil {
 		parts = append(parts, *c.UsernameVar)
 	}

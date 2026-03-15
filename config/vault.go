@@ -47,5 +47,20 @@ func (v *VaultBackend) Health() error {
 	return v.client.Health()
 }
 
+// GetField retrieves a single field from a MaestroVault secret by name, environment, and field key.
+func (v *VaultBackend) GetField(name, env, field string) (string, error) {
+	if name == "" {
+		return "", fmt.Errorf("vault secret name is required")
+	}
+	if field == "" {
+		return "", fmt.Errorf("vault field name is required")
+	}
+	value, err := v.client.GetField(name, env, field)
+	if err != nil {
+		return "", fmt.Errorf("vault field lookup failed for %q field %q (env=%q): %w", name, field, env, err)
+	}
+	return value, nil
+}
+
 // Compile-time interface check
-var _ SecretBackend = (*VaultBackend)(nil)
+var _ FieldCapableBackend = (*VaultBackend)(nil)

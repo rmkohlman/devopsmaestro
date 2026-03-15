@@ -10,3 +10,10 @@ type SecretBackend interface {
 	// Health checks if the backend is reachable.
 	Health() error
 }
+
+// FieldCapableBackend extends SecretBackend with field-level secret access.
+// Only backends that support N fields per secret implement this.
+type FieldCapableBackend interface {
+	SecretBackend
+	GetField(name, env, field string) (string, error)
+}

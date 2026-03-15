@@ -188,6 +188,7 @@ func createTestSchema(driver Driver) error {
 			vault_secret TEXT,
 			vault_env TEXT,
 			vault_username_secret TEXT,
+			vault_fields TEXT,
 			env_var TEXT,
 			description TEXT,
 			username_var TEXT,

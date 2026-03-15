@@ -49,7 +49,7 @@ func createTestCredentialStore(t *testing.T) *SQLDataStore {
 			updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
 
-		// Credentials — includes the post-migration-012 columns (vault fields)
+		// Credentials — includes the post-migration-013 columns (vault_fields)
 		`CREATE TABLE credentials (
 			id                   INTEGER PRIMARY KEY AUTOINCREMENT,
 			scope_type           TEXT NOT NULL CHECK(scope_type IN ('ecosystem','domain','app','workspace')),
@@ -63,6 +63,7 @@ func createTestCredentialStore(t *testing.T) *SQLDataStore {
 			vault_secret         TEXT,
 			vault_env            TEXT,
 			vault_username_secret TEXT,
+			vault_fields         TEXT,
 			created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(scope_type, scope_id, name)
@@ -343,7 +344,7 @@ func createTestVaultCredentialStore(t *testing.T) *SQLDataStore {
 			updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
 
-		// Credentials — post-migration-012: vault columns, vault source allowed
+		// Credentials — post-migration-013: vault columns + vault_fields
 		`CREATE TABLE credentials (
 			id                   INTEGER PRIMARY KEY AUTOINCREMENT,
 			scope_type           TEXT NOT NULL CHECK(scope_type IN ('ecosystem','domain','app','workspace')),
@@ -357,6 +358,7 @@ func createTestVaultCredentialStore(t *testing.T) *SQLDataStore {
 			vault_secret         TEXT,
 			vault_env            TEXT,
 			vault_username_secret TEXT,
+			vault_fields         TEXT,
 			created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(scope_type, scope_id, name)
@@ -709,4 +711,215 @@ func TestSQLDataStore_ListAllCredentials_DualField(t *testing.T) {
 	require.True(t, ok, "legacy-two must appear in ListAllCredentials")
 	assert.Nil(t, l2.UsernameVar, "legacy-two: UsernameVar must be nil")
 	assert.Nil(t, l2.PasswordVar, "legacy-two: PasswordVar must be nil")
+}
+
+// =============================================================================
+// TDD Phase 2 (RED): VaultFields DB Tests (v0.41.0)
+// =============================================================================
+// These tests verify that the DB store methods correctly read/write the new
+// vault_fields column added in migration 013.
+//
+// RED PHASE: These tests DO NOT COMPILE until the following are added:
+//   - models.CredentialDB.VaultFields (*string, db:"vault_fields")
+//
+// They also fail at runtime until store_credential.go is updated to:
+//   - include vault_fields in INSERT (CreateCredential)
+//   - include vault_fields in SELECT + Scan (Get*, List*)
+//   - include vault_fields in UPDATE SET (UpdateCredential)
+// =============================================================================
+
+// createTestVaultFieldsCredentialStore creates an in-memory SQLite DataStore
+// whose credentials table has the post-migration-013 schema (vault_fields column).
+func createTestVaultFieldsCredentialStore(t *testing.T) *SQLDataStore {
+	t.Helper()
+	// Reuse the createTestVaultCredentialStore since it already includes vault_fields.
+	return createTestVaultCredentialStore(t)
+}
+
+// -----------------------------------------------------------------------------
+// TestSQLDataStore_CreateCredential_VaultFields
+//
+// Creates a vault credential with vault_fields set (JSON map of env→field).
+// After creation, GetCredential must return vault_fields intact.
+// -----------------------------------------------------------------------------
+
+// TestSQLDataStore_CreateCredential_VaultFields verifies that CreateCredential
+// correctly persists the vault_fields JSON blob.
+//
+// WILL FAIL TO COMPILE — models.CredentialDB.VaultFields does not exist yet.
+func TestSQLDataStore_CreateCredential_VaultFields(t *testing.T) {
+	ds := createTestVaultFieldsCredentialStore(t)
+	defer ds.Close()
+
+	eco := &models.Ecosystem{Name: "vf-eco"}
+	require.NoError(t, ds.CreateEcosystem(eco))
+
+	vaultFieldsJSON := `{"GITHUB_TOKEN":"token","GITHUB_USER":"username"}`
+
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	cred := &models.CredentialDB{
+		ScopeType:   models.CredentialScopeEcosystem,
+		ScopeID:     int64(eco.ID),
+		Name:        "github-creds",
+		Source:      "vault",
+		VaultSecret: strPtr("github/creds"),
+		VaultEnv:    strPtr("production"),
+		VaultFields: strPtr(vaultFieldsJSON),
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	err := ds.CreateCredential(cred)
+	require.NoError(t, err, "CreateCredential with VaultFields must succeed")
+	assert.NotZero(t, cred.ID, "CreateCredential must populate ID")
+
+	// Read back.
+	got, err := ds.GetCredential(models.CredentialScopeEcosystem, int64(eco.ID), "github-creds")
+	require.NoError(t, err)
+
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	require.NotNil(t, got.VaultFields, "VaultFields must not be nil after round-trip")
+	assert.Equal(t, vaultFieldsJSON, *got.VaultFields,
+		"VaultFields JSON must be returned unchanged")
+	// ─────────────────────────────────────────────────────────────────────────
+}
+
+// TestSQLDataStore_UpdateCredential_VaultFieldsColumn verifies that UpdateCredential
+// correctly updates the vault_fields column.
+//
+// WILL FAIL TO COMPILE — models.CredentialDB.VaultFields does not exist yet.
+func TestSQLDataStore_UpdateCredential_VaultFieldsColumn(t *testing.T) {
+	ds := createTestVaultFieldsCredentialStore(t)
+	defer ds.Close()
+
+	eco := &models.Ecosystem{Name: "vf-update-eco"}
+	require.NoError(t, ds.CreateEcosystem(eco))
+
+	initialJSON := `{"OLD_TOKEN":"token"}`
+	updatedJSON := `{"NEW_TOKEN":"token","NEW_USER":"username"}`
+
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	cred := &models.CredentialDB{
+		ScopeType:   models.CredentialScopeEcosystem,
+		ScopeID:     int64(eco.ID),
+		Name:        "updatable-creds",
+		Source:      "vault",
+		VaultSecret: strPtr("my-org/creds"),
+		VaultFields: strPtr(initialJSON),
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	require.NoError(t, ds.CreateCredential(cred))
+
+	// Update vault_fields.
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	cred.VaultFields = strPtr(updatedJSON)
+	// ─────────────────────────────────────────────────────────────────────────
+
+	require.NoError(t, ds.UpdateCredential(cred), "UpdateCredential must succeed")
+
+	got, err := ds.GetCredential(models.CredentialScopeEcosystem, int64(eco.ID), "updatable-creds")
+	require.NoError(t, err)
+
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	require.NotNil(t, got.VaultFields, "VaultFields must not be nil after update")
+	assert.Equal(t, updatedJSON, *got.VaultFields,
+		"UpdateCredential must persist the new VaultFields value")
+	// ─────────────────────────────────────────────────────────────────────────
+}
+
+// TestSQLDataStore_UpdateCredential_ClearVaultFields verifies that setting
+// VaultFields to nil in an update clears the column.
+//
+// WILL FAIL TO COMPILE — models.CredentialDB.VaultFields does not exist yet.
+func TestSQLDataStore_UpdateCredential_ClearVaultFields(t *testing.T) {
+	ds := createTestVaultFieldsCredentialStore(t)
+	defer ds.Close()
+
+	eco := &models.Ecosystem{Name: "vf-clear-eco"}
+	require.NoError(t, ds.CreateEcosystem(eco))
+
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	cred := &models.CredentialDB{
+		ScopeType:   models.CredentialScopeEcosystem,
+		ScopeID:     int64(eco.ID),
+		Name:        "clearable-creds",
+		Source:      "vault",
+		VaultSecret: strPtr("my-org/creds"),
+		VaultFields: strPtr(`{"SOME_VAR":"field"}`),
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	require.NoError(t, ds.CreateCredential(cred))
+
+	// Clear vault_fields.
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	cred.VaultFields = nil
+	// ─────────────────────────────────────────────────────────────────────────
+
+	require.NoError(t, ds.UpdateCredential(cred))
+
+	got, err := ds.GetCredential(models.CredentialScopeEcosystem, int64(eco.ID), "clearable-creds")
+	require.NoError(t, err)
+
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	assert.Nil(t, got.VaultFields,
+		"VaultFields must be nil after being cleared via UpdateCredential")
+	// ─────────────────────────────────────────────────────────────────────────
+}
+
+// TestSQLDataStore_ListCredentialsByScope_VaultFieldsColumn verifies that
+// ListCredentialsByScope correctly returns vault_fields for each credential.
+//
+// WILL FAIL TO COMPILE — models.CredentialDB.VaultFields does not exist yet.
+func TestSQLDataStore_ListCredentialsByScope_VaultFieldsColumn(t *testing.T) {
+	ds := createTestVaultFieldsCredentialStore(t)
+	defer ds.Close()
+
+	eco := &models.Ecosystem{Name: "vf-list-eco"}
+	require.NoError(t, ds.CreateEcosystem(eco))
+	scopeID := int64(eco.ID)
+
+	fieldsJSON := `{"API_KEY":"api_key","API_SECRET":"api_secret"}`
+
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	withFields := &models.CredentialDB{
+		ScopeType:   models.CredentialScopeEcosystem,
+		ScopeID:     scopeID,
+		Name:        "multi-field-cred",
+		Source:      "vault",
+		VaultSecret: strPtr("my-org/api"),
+		VaultFields: strPtr(fieldsJSON),
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	require.NoError(t, ds.CreateCredential(withFields))
+
+	withoutFields := &models.CredentialDB{
+		ScopeType:   models.CredentialScopeEcosystem,
+		ScopeID:     scopeID,
+		Name:        "simple-cred",
+		Source:      "vault",
+		VaultSecret: strPtr("my-org/simple"),
+	}
+	require.NoError(t, ds.CreateCredential(withoutFields))
+
+	results, err := ds.ListCredentialsByScope(models.CredentialScopeEcosystem, scopeID)
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+
+	byName := make(map[string]*models.CredentialDB, len(results))
+	for _, c := range results {
+		byName[c.Name] = c
+	}
+
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	mfc, ok := byName["multi-field-cred"]
+	require.True(t, ok)
+	require.NotNil(t, mfc.VaultFields, "multi-field-cred VaultFields must not be nil")
+	assert.Equal(t, fieldsJSON, *mfc.VaultFields)
+
+	sc, ok := byName["simple-cred"]
+	require.True(t, ok)
+	assert.Nil(t, sc.VaultFields, "simple-cred VaultFields must be nil")
+	// ─────────────────────────────────────────────────────────────────────────
 }

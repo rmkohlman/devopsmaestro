@@ -23,6 +23,8 @@ type CredentialConfig struct {
 	VaultSecret string `yaml:"vaultSecret,omitempty" json:"vaultSecret,omitempty" mapstructure:"vaultSecret"`
 	// VaultEnv is the vault environment (when Source is "vault", optional)
 	VaultEnv string `yaml:"vaultEnvironment,omitempty" json:"vaultEnvironment,omitempty" mapstructure:"vaultEnvironment"`
+	// VaultField is a specific field within a vault secret (when Source is "vault", optional)
+	VaultField string `yaml:"vaultField,omitempty" json:"vaultField,omitempty" mapstructure:"vaultField"`
 	// EnvVar is the environment variable name (when Source is "env")
 	EnvVar string `yaml:"env,omitempty" json:"env,omitempty" mapstructure:"env"`
 }
@@ -64,6 +66,13 @@ func ResolveCredentialWithBackend(cfg CredentialConfig, backend SecretBackend) (
 		}
 		if cfg.VaultSecret == "" {
 			return "", fmt.Errorf("vault source requires vault secret name")
+		}
+		if cfg.VaultField != "" {
+			fb, ok := backend.(FieldCapableBackend)
+			if !ok {
+				return "", fmt.Errorf("backend does not support field-level access")
+			}
+			return fb.GetField(cfg.VaultSecret, cfg.VaultEnv, cfg.VaultField)
 		}
 		return backend.Get(cfg.VaultSecret, cfg.VaultEnv)
 	case SourceEnv:

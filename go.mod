@@ -13,7 +13,7 @@ require (
 	github.com/moby/term v0.5.2
 	github.com/opencontainers/runtime-spec v1.3.0
 	github.com/pelletier/go-toml/v2 v2.2.4
-	github.com/rmkohlman/MaestroVault v0.6.0
+	github.com/rmkohlman/MaestroVault v0.7.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	github.com/spf13/cobra v1.10.2
 	gopkg.in/yaml.v3 v3.0.1

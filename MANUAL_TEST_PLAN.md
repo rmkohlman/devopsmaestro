@@ -1,6 +1,6 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.40.0  
+> **Version**: v0.41.0  
 > **Last Updated**: March 14, 2026
 
 ---
@@ -3428,6 +3428,218 @@ go test $(go list ./... | grep -v integration_test) -short -count=1
 
 ---
 
+## Part 18: MaestroVault Fields Integration (v0.41.0)
+
+> **Prerequisite**: MaestroVault v0.7.0+ installed (`brew install rmkohlman/tap/maestrovault`), `mav serve` running, `MAV_TOKEN` set, vault secret with multiple fields (e.g., `mav set github-multi default --field username=rmkohlman --field pat=ghp_abc123`)
+
+### Scenario 70: Create Credential with Vault Fields (CLI)
+
+**Goal**: Create a credential using `--vault-field` in both mapped and shorthand syntax, verify storage
+
+```bash
+# Store a multi-field secret in MaestroVault
+mav set github-multi default --field username=rmkohlman --field pat=ghp_abc123
+
+# Create credential using mapped syntax
+dvm create credential github-fields \
+  --source vault \
+  --vault-secret github-multi \
+  --vault-environment default \
+  --vault-field GITHUB_USERNAME=username \
+  --vault-field GITHUB_PAT=pat \
+  --ecosystem myorg
+
+# Verify display
+dvm get credential github-fields --ecosystem myorg
+```
+
+**Expected**: Credential created; `dvm get credential` shows vault field mappings:
+- `GITHUB_PAT` → `pat`
+- `GITHUB_USERNAME` → `username`
+(displayed in sorted alphabetical order)
+
+```bash
+# Also test shorthand syntax (field name == env var name)
+dvm create credential github-shorthand \
+  --source vault \
+  --vault-secret github-multi \
+  --vault-environment default \
+  --vault-field GITHUB_USERNAME \
+  --vault-field GITHUB_PAT \
+  --ecosystem myorg
+
+dvm get credential github-shorthand --ecosystem myorg
+```
+
+**Expected**: Field mapping stored as `GITHUB_USERNAME` → `GITHUB_USERNAME`, `GITHUB_PAT` → `GITHUB_PAT`
+
+### Scenario 71: Vault Fields Mutual Exclusivity
+
+**Goal**: Verify `--vault-field` cannot be combined with legacy dual-field flags
+
+```bash
+# Attempt 1: --vault-field + --username-var
+dvm create credential bad-cred-1 \
+  --source vault \
+  --vault-secret github-multi \
+  --vault-field GITHUB_PAT=pat \
+  --username-var GITHUB_USERNAME \
+  --ecosystem myorg
+```
+
+**Expected**: Error — `--vault-field` is mutually exclusive with `--username-var`/`--password-var`
+
+```bash
+# Attempt 2: --vault-field + --vault-username-secret
+dvm create credential bad-cred-2 \
+  --source vault \
+  --vault-secret github-multi \
+  --vault-field GITHUB_PAT=pat \
+  --vault-username-secret github-username \
+  --ecosystem myorg
+```
+
+**Expected**: Error — `--vault-field` is mutually exclusive with `--vault-username-secret`
+
+### Scenario 72: YAML Apply with Vault Fields
+
+**Goal**: Apply a credential YAML with a `vaultFields` map and verify field mappings are stored
+
+```bash
+cat <<EOF | dvm apply -f -
+apiVersion: dvm/v1
+kind: Credential
+metadata:
+  name: yaml-vault-fields
+  ecosystem: myorg
+spec:
+  source: vault
+  vaultSecret: github-multi
+  vaultEnvironment: default
+  vaultFields:
+    GITHUB_USERNAME: username
+    GITHUB_PAT: pat
+    GITHUB_EMAIL: email
+EOF
+
+dvm get credential yaml-vault-fields --ecosystem myorg
+```
+
+**Expected**: Credential created; field mappings show:
+- `GITHUB_EMAIL` → `email`
+- `GITHUB_PAT` → `pat`
+- `GITHUB_USERNAME` → `username`
+
+### Scenario 73: YAML Mutual Exclusivity Validation
+
+**Goal**: Verify YAML apply rejects `vaultFields` combined with legacy dual-field YAML syntax
+
+```bash
+cat <<EOF | dvm apply -f -
+apiVersion: dvm/v1
+kind: Credential
+metadata:
+  name: bad-yaml-cred
+  ecosystem: myorg
+spec:
+  source: vault
+  vaultSecret: github-multi
+  vaultFields:
+    GITHUB_PAT: pat
+  usernameVar: GITHUB_USERNAME
+EOF
+```
+
+**Expected**: Error — `vaultFields` and `usernameVar`/`passwordVar` are mutually exclusive
+
+```bash
+# Also test vaultFields + vaultUsernameSecret
+cat <<EOF | dvm apply -f -
+apiVersion: dvm/v1
+kind: Credential
+metadata:
+  name: bad-yaml-cred-2
+  ecosystem: myorg
+spec:
+  source: vault
+  vaultSecret: github-multi
+  vaultFields:
+    GITHUB_PAT: pat
+  vaultUsernameSecret: github-username
+EOF
+```
+
+**Expected**: Error — `vaultFields` and `vaultUsernameSecret` are mutually exclusive
+
+### Scenario 74: Max 50 Fields Cap
+
+**Goal**: Creating a credential with 51 vault fields is rejected
+
+```bash
+# Build a create command with 51 --vault-field flags
+ARGS=""
+for i in $(seq 1 51); do
+  ARGS="$ARGS --vault-field FIELD_${i}=field_${i}"
+done
+
+dvm create credential too-many-fields \
+  --source vault \
+  --vault-secret big-secret \
+  $ARGS \
+  --ecosystem myorg
+```
+
+**Expected**: Error — credential exceeds the maximum of 50 vault fields
+
+### Scenario 75: Build Resolves Vault Fields
+
+**Goal**: `dvm build -v` resolves field-level vault secrets and injects them as env vars
+
+```bash
+# Ensure credential with vault fields is configured for the current workspace
+# (use yaml-vault-fields from Scenario 72 or github-fields from Scenario 70)
+
+export MAV_TOKEN=mvt_your_token
+
+# Run build with verbose output
+dvm build -v
+```
+
+**Expected**: Build log shows field-level credential resolution — each `vaultFields` entry injected as a separate env var. No warnings about unresolved credentials.
+
+### Scenario 76: Vault Fields Display
+
+**Goal**: `dvm get credential` shows vault field mappings sorted alphabetically
+
+```bash
+# Create a credential with intentionally unsorted fields
+dvm create credential display-test \
+  --source vault \
+  --vault-secret github-multi \
+  --vault-field ZEBRA_VAR=z_field \
+  --vault-field APPLE_VAR=a_field \
+  --vault-field MIDDLE_VAR=m_field \
+  --ecosystem myorg
+
+dvm get credential display-test --ecosystem myorg
+```
+
+**Expected**: Output lists field mappings in alphabetical order regardless of insertion order:
+- `APPLE_VAR` → `a_field`
+- `MIDDLE_VAR` → `m_field`
+- `ZEBRA_VAR` → `z_field`
+
+### Scenario 77: Automated Test Coverage (Regression Gate)
+
+```bash
+cd ~/Developer/tools/devopsmaestro
+go test $(go list ./... | grep -v integration_test) -short -count=1
+```
+
+**Expected**: All 57 packages pass, 0 failures
+
+---
+
 ## Test Results Summary
 
 | Part | Tests | Pass | Fail |
@@ -3452,6 +3664,7 @@ go test $(go list ./... | grep -v integration_test) -short -count=1
 | Part 15: Python HTTPS Token Substitution | 5 scenarios | | |
 | Part 16: Credential Resolution Robustness | 4 scenarios | | |
 | Part 17: MaestroVault Integration | 9 scenarios | | |
+| Part 18: MaestroVault Fields Integration | 8 scenarios | | |
 
 ---
 
@@ -3504,5 +3717,5 @@ colima nerdctl -- --namespace devopsmaestro images
 
 **Tested by:** ________________  
 **Date:** ________________  
-**Version:** v0.40.0  
+**Version**: v0.41.0  
 **Platform:** ________________

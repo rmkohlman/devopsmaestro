@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // === MaestroVault Credential Tests (v0.40.0) ===
@@ -417,4 +418,127 @@ func contains(s, substr string) bool {
 			}
 			return false
 		}())
+}
+
+// =============================================================================
+// TDD Phase 2 (RED): VaultField Credential Resolution Tests (v0.41.0)
+// =============================================================================
+// New field on CredentialConfig:
+//
+//	type CredentialConfig struct {
+//	    ...
+//	    VaultField string `yaml:"vaultField,omitempty"`
+//	}
+//
+// When VaultField is set, ResolveCredentialWithBackend must call
+// backend.GetField(name, env, field) via the FieldCapableBackend interface.
+//
+// ALL tests in this section WILL FAIL TO COMPILE until VaultField is added to
+// CredentialConfig in config/credentials.go.
+// =============================================================================
+
+// ---------------------------------------------------------------------------
+// Section: CredentialConfig.VaultField Field Tests
+// ---------------------------------------------------------------------------
+
+// TestCredentialConfig_VaultField_FieldExists verifies that CredentialConfig
+// has a VaultField string field with yaml tag "vaultField".
+//
+// WILL FAIL TO COMPILE — CredentialConfig.VaultField does not exist yet.
+func TestCredentialConfig_VaultField_FieldExists(t *testing.T) {
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	cfg := CredentialConfig{
+		Source:      SourceVault,
+		VaultSecret: "github/creds",
+		VaultField:  "password",
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.Equal(t, "password", cfg.VaultField,
+		"CredentialConfig.VaultField must be accessible and hold the set value")
+}
+
+// TestCredentialConfig_VaultField_EmptyByDefault verifies that VaultField
+// defaults to the empty string (zero value for string).
+//
+// WILL FAIL TO COMPILE — CredentialConfig.VaultField does not exist yet.
+func TestCredentialConfig_VaultField_EmptyByDefault(t *testing.T) {
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	cfg := CredentialConfig{
+		Source:      SourceVault,
+		VaultSecret: "github/token",
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.Equal(t, "", cfg.VaultField,
+		"VaultField must default to empty string when not set")
+}
+
+// TestResolveCredentialWithBackend_VaultField_CredentialsConfig verifies that
+// when a CredentialConfig specifies a VaultField, the resolution correctly
+// routes to GetField on a FieldCapableBackend.
+//
+// This test focuses on the config package's integration of VaultField with the
+// resolution function (field routing / dispatch logic).
+//
+// WILL FAIL TO COMPILE — CredentialConfig.VaultField and FieldCapableBackend
+// do not exist yet.
+func TestResolveCredentialWithBackend_VaultField_CredentialsConfig(t *testing.T) {
+	tests := []struct {
+		name           string
+		vaultField     string
+		expectGetField bool
+		expectGet      bool
+		expectedValue  string
+	}{
+		{
+			name:           "with vault field set — uses GetField",
+			vaultField:     "username",
+			expectGetField: true,
+			expectGet:      false,
+			expectedValue:  "resolved-username",
+		},
+		{
+			name:           "without vault field — uses Get",
+			vaultField:     "",
+			expectGetField: false,
+			expectGet:      true,
+			expectedValue:  "resolved-secret",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			getFieldCalled := false
+			getCalled := false
+
+			mock := &mockFieldCapableBackend{
+				GetFunc: func(name, env string) (string, error) {
+					getCalled = true
+					return "resolved-secret", nil
+				},
+				GetFieldFunc: func(name, env, field string) (string, error) {
+					getFieldCalled = true
+					return "resolved-username", nil
+				},
+			}
+
+			// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────
+			cfg := CredentialConfig{
+				Source:      SourceVault,
+				VaultSecret: "my-org/creds",
+				VaultEnv:    "staging",
+				VaultField:  tt.vaultField,
+			}
+			value, err := ResolveCredentialWithBackend(cfg, mock)
+			// ─────────────────────────────────────────────────────────────────
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedValue, value)
+			assert.Equal(t, tt.expectGetField, getFieldCalled,
+				"GetField called mismatch for case %q", tt.name)
+			assert.Equal(t, tt.expectGet, getCalled,
+				"Get called mismatch for case %q", tt.name)
+		})
+	}
 }

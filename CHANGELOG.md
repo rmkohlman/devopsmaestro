@@ -7,6 +7,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.41.0] - 2026-03-14 — MaestroVault Fields Integration
+
+### ✨ Features
+
+#### `--vault-field` Flag — `cmd/credential.go`
+- **New repeatable `--vault-field` flag (StringArray)** maps individual vault secret fields to environment variables — a single vault entry can provide all credentials for an ecosystem, domain, app, or workspace
+- **Mapped syntax**: `--vault-field GITHUB_USERNAME=username` — injects the `username` field from the vault secret as `GITHUB_USERNAME`
+- **Shorthand syntax**: `--vault-field GITHUB_PAT` — injects the field named `GITHUB_PAT` from the vault secret as `GITHUB_PAT` (field name equals env var name)
+- **Repeatable**: multiple `--vault-field` flags accepted; max 50 fields per credential
+- **Mutually exclusive** with `--username-var`/`--password-var` and `--vault-username-secret` — mixing these produces a validation error
+
+#### `vaultFields` YAML Map — `pkg/resource/handlers/credential.go`, `models/credential.go`
+- **`CredentialSpec` gains `VaultFields map[string]string`** YAML field: `vaultFields: { GITHUB_USERNAME: username, GITHUB_PAT: pat_token }`
+- **Backward compatible** — existing `usernameVar`/`passwordVar` and `vaultUsernameSecret` YAML fields continue to work; `vaultFields` and the legacy dual-field syntax are mutually exclusive
+
+#### `FieldCapableBackend` Interface — `config/secret_backend.go`
+- **New `FieldCapableBackend` interface** extends `SecretBackend` with `GetField(name, env, field) (string, error)` — enables field-level secret resolution without touching non-field-aware callers
+- **`VaultBackend.GetField()` implementation** — `config/vault.go` — fetches a named field from a MaestroVault secret
+
+#### `dvm get credential` Vault Fields Display
+- **Field mappings displayed** in sorted (alphabetical) order when a credential has `vaultFields` set
+- Sorted output ensures deterministic display regardless of insertion order
+
+### 🏗️ Technical
+
+#### DB Migration 015 — `db/migrations/sqlite/015_add_vault_fields.up.sql` (new)
+- **`ALTER TABLE credentials ADD COLUMN vault_fields TEXT`** — stores vault field mappings as JSON; nullable, no default
+- Fully reversible down script drops the column
+
+#### `CredentialDB` Model Updates — `models/credential.go`
+- **`VaultFields *string`** (JSON-encoded) field added to `CredentialDB`
+- **`HasVaultFields() bool`** — returns true when vault fields are configured
+- **`GetVaultFieldsMap() (map[string]string, error)`** — deserializes the JSON field map
+- **`ToFieldConfig() ([]FieldMapping, error)`** — converts stored JSON to ordered field mapping structs
+- **`ToMapEntries() ([]EnvEntry, error)`** — produces `(envKey, value)` pairs for injection; logs `slog.Warn` on JSON parse failure to prevent silent credential loss
+- **`Validate()`** — enforces field count cap (max 50), mutual exclusivity with dual-field syntax, and dangerous env var denylist on all fields
+
+#### `scanCredential()` Helper + `credentialColumns` Const — `db/store_credential.go`
+- **`credentialColumns` const** centralises the credential SELECT column list — eliminates duplication across all credential queries
+- **`scanCredential()` DRY helper** reduces per-query scan boilerplate
+
+#### MaestroVault Dependency Bump
+- **MaestroVault updated from v0.6.0 → v0.7.0** — required for field-level `GetField` API support
+
+### 🔒 Security
+
+#### Defense-in-Depth Improvements (Phase 4)
+- **Persistence-layer guardrail**: `credential.Validate()` now called inside `CreateCredential()` and `UpdateCredential()` in the database layer — catches invalid credentials even when not routed through the CLI validation path
+- **Silent-loss prevention**: `slog.Warn` emitted on JSON parse failure in `ToMapEntries()` — credential injection failures are now always logged, never silently dropped
+- **Build-path denylist enforcement**: Dangerous env var denylist (`IsDangerousEnvVar`) now enforced at build time — previously enforced only at attach time; ensures `PATH`, `HOME`, `MAV_TOKEN`, and similar vars cannot be overwritten at build
+- **Re-validation at injection**: `ValidateEnvKey()` called at both build and attach injection time — double-validation prevents malformed keys reaching the container environment regardless of how the credential was created
+
+### 📊 v0.41.0 Summary
+
+| Metric | Value |
+|--------|-------|
+| Breaking changes | 0 (fully backward compatible) |
+| New production files | 1 (`config/secret_backend.go` extended; `015_add_vault_fields.up.sql`) |
+| Modified production files | 6 (`config/vault.go`, `config/credentials.go`, `models/credential.go`, `db/store_credential.go`, `cmd/credential.go`, `cmd/get_credential.go`) |
+| DB migrations | 1 (015: add `vault_fields` column) |
+| MaestroVault dependency | v0.6.0 → v0.7.0 |
+| Max vault fields per credential | 50 |
+| All tests pass | ✅ (57 packages) |
+| Architecture review | APPROVE WITH MODIFICATIONS (all addressed) |
+| Security review | PASS with 2 MEDIUM findings (all addressed) |
+
+---
+
 ## [v0.40.0] - 2026-03-14 — MaestroVault Integration (Breaking)
 
 ### ⚠️ Breaking Changes

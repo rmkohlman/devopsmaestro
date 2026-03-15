@@ -1,11 +1,13 @@
 package models
 
 import (
+	"fmt"
 	"testing"
 
 	"devopsmaestro/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yamlv3 "gopkg.in/yaml.v3"
 )
 
 // =============================================================================
@@ -1590,4 +1592,427 @@ func TestValidateCredentialYAML_Vault_UsernameSecretRequiresUsernameVar(t *testi
 		"vaultUsernameSecret requires usernameVar to be set")
 	assert.Contains(t, err.Error(), "usernameVar",
 		"error must mention usernameVar when vaultUsernameSecret is set without it")
+}
+
+// =============================================================================
+// TDD Phase 2 (RED): VaultFields Tests (v0.41.0)
+// =============================================================================
+// New field on CredentialDB:
+//
+//	VaultFields *string `db:"vault_fields" json:"vault_fields,omitempty"`
+//	// Stores JSON: {"ENV_VAR_NAME": "field_name", ...}
+//
+// New methods on CredentialDB:
+//
+//	func (c *CredentialDB) HasVaultFields() bool
+//	func (c *CredentialDB) GetVaultFieldsMap() (map[string]string, error)
+//	func (c *CredentialDB) ToMapEntries() []config.CredentialConfig
+//
+// New field on CredentialSpec:
+//
+//	VaultFields map[string]string `yaml:"vaultFields,omitempty"`
+//
+// ALL tests in this section WILL FAIL TO COMPILE until the above types/methods
+// are added to models/credential.go.
+// =============================================================================
+
+// ---------------------------------------------------------------------------
+// Section: CredentialDB.VaultFields Field Tests
+// ---------------------------------------------------------------------------
+
+// TestCredentialDB_VaultFields_FieldExists verifies that CredentialDB has a
+// VaultFields *string field with db tag "vault_fields".
+//
+// WILL FAIL TO COMPILE — CredentialDB.VaultFields does not exist yet.
+func TestCredentialDB_VaultFields_FieldExists(t *testing.T) {
+	raw := `{"GITHUB_TOKEN":"token","GITHUB_USER":"username"}`
+
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	cred := &CredentialDB{
+		Name:        "github-creds",
+		Source:      "vault",
+		VaultSecret: strPtr("github/creds"),
+		VaultFields: strPtr(raw),
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	require.NotNil(t, cred.VaultFields, "VaultFields must not be nil when set")
+	assert.Equal(t, raw, *cred.VaultFields, "VaultFields must hold the JSON blob")
+}
+
+// TestCredentialDB_VaultFields_NilByDefault verifies that VaultFields is nil
+// for credentials that do not use vault fields.
+//
+// WILL FAIL TO COMPILE — CredentialDB.VaultFields does not exist yet.
+func TestCredentialDB_VaultFields_NilByDefault(t *testing.T) {
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	cred := &CredentialDB{
+		Name:        "env-cred",
+		Source:      "env",
+		EnvVar:      strPtr("MY_TOKEN"),
+		VaultFields: nil,
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.Nil(t, cred.VaultFields, "VaultFields must be nil when not set")
+}
+
+// ---------------------------------------------------------------------------
+// Section: CredentialDB.HasVaultFields Tests
+// ---------------------------------------------------------------------------
+
+// TestCredentialDB_HasVaultFields_True verifies that HasVaultFields returns
+// true when VaultFields contains a non-empty JSON object.
+//
+// WILL FAIL TO COMPILE — HasVaultFields does not exist yet.
+func TestCredentialDB_HasVaultFields_True(t *testing.T) {
+	raw := `{"API_TOKEN":"token"}`
+
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	cred := &CredentialDB{
+		VaultFields: strPtr(raw),
+	}
+	result := cred.HasVaultFields()
+	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.True(t, result, "HasVaultFields must return true when VaultFields is set")
+}
+
+// TestCredentialDB_HasVaultFields_FalseWhenNil verifies that HasVaultFields
+// returns false when VaultFields is nil.
+//
+// WILL FAIL TO COMPILE — HasVaultFields does not exist yet.
+func TestCredentialDB_HasVaultFields_FalseWhenNil(t *testing.T) {
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	cred := &CredentialDB{VaultFields: nil}
+	result := cred.HasVaultFields()
+	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.False(t, result, "HasVaultFields must return false when VaultFields is nil")
+}
+
+// TestCredentialDB_HasVaultFields_FalseWhenEmptyJSON verifies that HasVaultFields
+// returns false when VaultFields is an empty JSON object "{}".
+//
+// WILL FAIL TO COMPILE — HasVaultFields does not exist yet.
+func TestCredentialDB_HasVaultFields_FalseWhenEmptyJSON(t *testing.T) {
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	cred := &CredentialDB{VaultFields: strPtr("{}")}
+	result := cred.HasVaultFields()
+	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.False(t, result, "HasVaultFields must return false when VaultFields is empty JSON")
+}
+
+// ---------------------------------------------------------------------------
+// Section: CredentialDB.GetVaultFieldsMap Tests
+// ---------------------------------------------------------------------------
+
+// TestCredentialDB_GetVaultFieldsMap_ParsesJSON verifies that GetVaultFieldsMap
+// correctly deserializes the vault_fields JSON blob into a Go map.
+//
+// WILL FAIL TO COMPILE — GetVaultFieldsMap does not exist yet.
+func TestCredentialDB_GetVaultFieldsMap_ParsesJSON(t *testing.T) {
+	raw := `{"GITHUB_TOKEN":"token","GITHUB_USER":"username"}`
+
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	cred := &CredentialDB{
+		VaultFields: strPtr(raw),
+	}
+	result, err := cred.GetVaultFieldsMap()
+	// ─────────────────────────────────────────────────────────────────────────
+
+	require.NoError(t, err, "GetVaultFieldsMap must not return error for valid JSON")
+	require.Len(t, result, 2, "map must contain 2 entries")
+	assert.Equal(t, "token", result["GITHUB_TOKEN"])
+	assert.Equal(t, "username", result["GITHUB_USER"])
+}
+
+// TestCredentialDB_GetVaultFieldsMap_ReturnsEmptyMapWhenNil verifies that
+// GetVaultFieldsMap returns an empty (non-nil) map when VaultFields is nil.
+//
+// WILL FAIL TO COMPILE — GetVaultFieldsMap does not exist yet.
+func TestCredentialDB_GetVaultFieldsMap_ReturnsEmptyMapWhenNil(t *testing.T) {
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	cred := &CredentialDB{VaultFields: nil}
+	result, err := cred.GetVaultFieldsMap()
+	// ─────────────────────────────────────────────────────────────────────────
+
+	require.NoError(t, err, "GetVaultFieldsMap must not error when VaultFields is nil")
+	assert.Nil(t, result, "GetVaultFieldsMap must return nil when VaultFields is nil")
+	assert.Empty(t, result, "returned map must be empty when VaultFields is nil")
+}
+
+// TestCredentialDB_GetVaultFieldsMap_ErrorOnInvalidJSON verifies that
+// GetVaultFieldsMap returns an error when VaultFields contains invalid JSON.
+//
+// WILL FAIL TO COMPILE — GetVaultFieldsMap does not exist yet.
+func TestCredentialDB_GetVaultFieldsMap_ErrorOnInvalidJSON(t *testing.T) {
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	cred := &CredentialDB{VaultFields: strPtr("not-valid-json")}
+	_, err := cred.GetVaultFieldsMap()
+	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.Error(t, err, "GetVaultFieldsMap must return error for invalid JSON in VaultFields")
+}
+
+// ---------------------------------------------------------------------------
+// Section: CredentialDB.ToMapEntries Tests
+// ---------------------------------------------------------------------------
+
+// TestCredentialDB_ToMapEntries_VaultFields_FansOut verifies that ToMapEntries
+// expands a credential with VaultFields into one CredentialConfig per field
+// (fan-out), where each config has VaultField set to the specific field name
+// and the env var name as the key.
+//
+// WILL FAIL TO COMPILE — ToMapEntries does not exist yet.
+func TestCredentialDB_ToMapEntries_VaultFields_FansOut(t *testing.T) {
+	raw := `{"GITHUB_TOKEN":"token","GITHUB_USER":"username"}`
+
+	cred := &CredentialDB{
+		Name:        "github-creds",
+		Source:      "vault",
+		VaultSecret: strPtr("github/creds"),
+		VaultEnv:    strPtr("production"),
+		VaultFields: strPtr(raw),
+	}
+	entries := cred.ToMapEntries()
+
+	assert.Len(t, entries, 2, "one CredentialConfig per vault field")
+
+	assert.Contains(t, entries, "GITHUB_TOKEN",
+		"ToMapEntries must produce an entry for GITHUB_TOKEN")
+	assert.Contains(t, entries, "GITHUB_USER",
+		"ToMapEntries must produce an entry for GITHUB_USER")
+
+	// Verify VaultField is set correctly on each entry
+	assert.Equal(t, "token", entries["GITHUB_TOKEN"].VaultField)
+	assert.Equal(t, "username", entries["GITHUB_USER"].VaultField)
+}
+
+// TestCredentialDB_ToMapEntries_NoVaultFields_SingleEntry verifies that a
+// credential without VaultFields produces exactly one CredentialConfig (the
+// existing non-fan-out behaviour is preserved).
+//
+// WILL FAIL TO COMPILE — ToMapEntries does not exist yet.
+func TestCredentialDB_ToMapEntries_NoVaultFields_SingleEntry(t *testing.T) {
+	cred := &CredentialDB{
+		Name:        "github-token",
+		Source:      "vault",
+		VaultSecret: strPtr("github/token"),
+	}
+	entries := cred.ToMapEntries()
+
+	assert.Len(t, entries, 1, "non-fan-out credential must produce exactly 1 entry")
+	assert.Contains(t, entries, "github-token", "key should be credential name for simple credentials")
+}
+
+// TestCredentialDB_ToMapEntries_EnvSource verifies that an env-sourced
+// credential also produces a single CredentialConfig entry.
+//
+// WILL FAIL TO COMPILE — ToMapEntries does not exist yet.
+func TestCredentialDB_ToMapEntries_EnvSource(t *testing.T) {
+	cred := &CredentialDB{
+		Name:   "my-token",
+		Source: "env",
+		EnvVar: strPtr("MY_API_TOKEN"),
+	}
+	entries := cred.ToMapEntries()
+
+	assert.Len(t, entries, 1, "env credential must produce exactly 1 entry")
+	assert.Contains(t, entries, "my-token", "key should be credential name for simple credentials")
+}
+
+// ---------------------------------------------------------------------------
+// Section: CredentialSpec.VaultFields Field Tests
+// ---------------------------------------------------------------------------
+
+// TestCredentialSpec_VaultFields_FieldExists verifies that CredentialSpec has
+// a VaultFields map[string]string field with yaml tag "vaultFields".
+//
+// WILL FAIL TO COMPILE — CredentialSpec.VaultFields does not exist yet.
+func TestCredentialSpec_VaultFields_FieldExists(t *testing.T) {
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	spec := CredentialSpec{
+		Source:      "vault",
+		VaultSecret: "github/creds",
+		VaultFields: map[string]string{
+			"GITHUB_TOKEN": "token",
+			"GITHUB_USER":  "username",
+		},
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.Len(t, spec.VaultFields, 2)
+	assert.Equal(t, "token", spec.VaultFields["GITHUB_TOKEN"])
+	assert.Equal(t, "username", spec.VaultFields["GITHUB_USER"])
+}
+
+// TestCredentialSpec_VaultFields_NilByDefault verifies that VaultFields is nil
+// when not set.
+//
+// WILL FAIL TO COMPILE — CredentialSpec.VaultFields does not exist yet.
+func TestCredentialSpec_VaultFields_NilByDefault(t *testing.T) {
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	spec := CredentialSpec{
+		Source: "env",
+		EnvVar: "MY_TOKEN",
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	// VaultFields should be nil (zero value for a map).
+	assert.Nil(t, spec.VaultFields, "VaultFields must be nil when not set")
+}
+
+// ---------------------------------------------------------------------------
+// Section: CredentialYAML VaultFields Round-Trip Tests
+// ---------------------------------------------------------------------------
+
+// TestCredentialYAML_VaultFields_RoundTrip verifies that a CredentialYAML with
+// vaultFields can be marshalled to YAML and back with values intact.
+//
+// WILL FAIL TO COMPILE — CredentialSpec.VaultFields does not exist yet.
+func TestCredentialYAML_VaultFields_RoundTrip(t *testing.T) {
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	original := CredentialYAML{
+		APIVersion: "devopsmaestro.io/v1",
+		Kind:       "Credential",
+		Metadata:   CredentialMetadata{Name: "github-creds", Ecosystem: "mylab"},
+		Spec: CredentialSpec{
+			Source:      "vault",
+			VaultSecret: "github/creds",
+			VaultFields: map[string]string{
+				"GITHUB_TOKEN": "token",
+				"GITHUB_USER":  "username",
+			},
+		},
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	// Marshal to YAML.
+	data, err := yamlv3.Marshal(original)
+	require.NoError(t, err, "yaml.Marshal must not error")
+
+	// Unmarshal back.
+	var restored CredentialYAML
+	err = yamlv3.Unmarshal(data, &restored)
+	require.NoError(t, err, "yaml.Unmarshal must not error")
+
+	assert.Equal(t, original.Spec.VaultFields, restored.Spec.VaultFields,
+		"VaultFields must survive a marshal/unmarshal round-trip")
+}
+
+// ---------------------------------------------------------------------------
+// Section: ValidateCredentialYAML VaultFields Validation Tests
+// ---------------------------------------------------------------------------
+
+// TestValidateCredentialYAML_VaultFields_RequiresVaultSource verifies that
+// vaultFields is only valid with source=vault.
+//
+// WILL FAIL TO COMPILE and FAIL AT RUNTIME — VaultFields does not exist yet.
+func TestValidateCredentialYAML_VaultFields_RequiresVaultSource(t *testing.T) {
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	y := CredentialYAML{
+		APIVersion: "devopsmaestro.io/v1",
+		Kind:       "Credential",
+		Metadata:   CredentialMetadata{Name: "MY_CRED", Ecosystem: "testlab"},
+		Spec: CredentialSpec{
+			Source: "env",
+			EnvVar: "MY_VAR",
+			VaultFields: map[string]string{
+				"SOME_VAR": "some-field",
+			},
+		},
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	err := ValidateCredentialYAML(y)
+	assert.Error(t, err,
+		"vaultFields with env source must be rejected by ValidateCredentialYAML")
+}
+
+// TestValidateCredentialYAML_VaultFields_MutuallyExclusiveWithUsernameVar
+// verifies that vaultFields cannot be combined with usernameVar/passwordVar
+// (they represent different resolution modes).
+//
+// WILL FAIL TO COMPILE and FAIL AT RUNTIME.
+func TestValidateCredentialYAML_VaultFields_MutuallyExclusiveWithUsernameVar(t *testing.T) {
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	y := CredentialYAML{
+		APIVersion: "devopsmaestro.io/v1",
+		Kind:       "Credential",
+		Metadata:   CredentialMetadata{Name: "MY_CRED", Ecosystem: "testlab"},
+		Spec: CredentialSpec{
+			Source:      "vault",
+			VaultSecret: "my-org/creds",
+			UsernameVar: "MY_USER",
+			VaultFields: map[string]string{
+				"TOKEN": "token",
+			},
+		},
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	err := ValidateCredentialYAML(y)
+	assert.Error(t, err,
+		"vaultFields and usernameVar are mutually exclusive")
+}
+
+// TestValidateCredentialYAML_VaultFields_MaxFiftyFields verifies that
+// ValidateCredentialYAML rejects a credential with more than 50 vault fields.
+//
+// WILL FAIL TO COMPILE and FAIL AT RUNTIME.
+func TestValidateCredentialYAML_VaultFields_MaxFiftyFields(t *testing.T) {
+	// Build a map with 51 entries.
+	fields := make(map[string]string, 51)
+	for i := 0; i < 51; i++ {
+		key := fmt.Sprintf("ENV_VAR_%03d", i)
+		fields[key] = fmt.Sprintf("field_%03d", i)
+	}
+
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	y := CredentialYAML{
+		APIVersion: "devopsmaestro.io/v1",
+		Kind:       "Credential",
+		Metadata:   CredentialMetadata{Name: "MY_CRED", Ecosystem: "testlab"},
+		Spec: CredentialSpec{
+			Source:      "vault",
+			VaultSecret: "my-org/creds",
+			VaultFields: fields,
+		},
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	err := ValidateCredentialYAML(y)
+	assert.Error(t, err, "vaultFields with more than 50 entries must be rejected")
+	assert.Contains(t, err.Error(), "50",
+		"error message must mention the 50-field limit")
+}
+
+// TestValidateCredentialYAML_VaultFields_ExactlyFiftyFields verifies that
+// a credential with exactly 50 vault fields is valid.
+//
+// WILL FAIL TO COMPILE and FAIL AT RUNTIME.
+func TestValidateCredentialYAML_VaultFields_ExactlyFiftyFields(t *testing.T) {
+	fields := make(map[string]string, 50)
+	for i := 0; i < 50; i++ {
+		key := fmt.Sprintf("ENV_VAR_%03d", i)
+		fields[key] = fmt.Sprintf("field_%03d", i)
+	}
+
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	y := CredentialYAML{
+		APIVersion: "devopsmaestro.io/v1",
+		Kind:       "Credential",
+		Metadata:   CredentialMetadata{Name: "MY_CRED", Ecosystem: "testlab"},
+		Spec: CredentialSpec{
+			Source:      "vault",
+			VaultSecret: "my-org/creds",
+			VaultFields: fields,
+		},
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	err := ValidateCredentialYAML(y)
+	assert.NoError(t, err, "exactly 50 vault fields must be accepted")
 }

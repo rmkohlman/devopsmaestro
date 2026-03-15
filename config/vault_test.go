@@ -388,3 +388,249 @@ func TestResolveCredentialWithBackend_EnvSource(t *testing.T) {
 	assert.Equal(t, "env-resolved-value", value,
 		"env source must read from the environment variable")
 }
+
+// =============================================================================
+// TDD Phase 2 (RED): FieldCapableBackend Interface Tests (v0.41.0)
+// =============================================================================
+// New interface being introduced to support per-field vault secret resolution.
+//
+//	type FieldCapableBackend interface {
+//	    SecretBackend
+//	    GetField(name, env, field string) (string, error)
+//	}
+//
+// DESIGN DECISION: GetField is NOT added to SecretBackend directly.
+// It lives on the narrower FieldCapableBackend sub-interface so callers that
+// don't need field access don't have to implement it.
+//
+// ALL tests in this section WILL FAIL TO COMPILE until FieldCapableBackend
+// is declared in config/secret_backend.go.
+// =============================================================================
+
+// ---------------------------------------------------------------------------
+// Section: FieldCapableBackend Interface Declaration
+// ---------------------------------------------------------------------------
+
+// mockFieldCapableBackend is a test double that implements FieldCapableBackend.
+// It is declared separately from mockSecretBackend to test the narrower interface.
+//
+// WILL FAIL TO COMPILE — FieldCapableBackend does not exist yet.
+type mockFieldCapableBackend struct {
+	// Embed the GetFunc / HealthFunc from the existing mock to satisfy SecretBackend.
+	GetFunc    func(name, env string) (string, error)
+	HealthFunc func() error
+	// GetFieldFunc satisfies the FieldCapableBackend extension.
+	GetFieldFunc func(name, env, field string) (string, error)
+}
+
+// ── COMPILE ERROR EXPECTED ──────────────────────────────────────────────────
+// FieldCapableBackend does not exist yet — this interface assertion will fail.
+var _ FieldCapableBackend = (*mockFieldCapableBackend)(nil)
+
+// ───────────────────────────────────────────────────────────────────────────
+
+func (m *mockFieldCapableBackend) Get(name, env string) (string, error) {
+	if m.GetFunc != nil {
+		return m.GetFunc(name, env)
+	}
+	return "", nil
+}
+
+func (m *mockFieldCapableBackend) Health() error {
+	if m.HealthFunc != nil {
+		return m.HealthFunc()
+	}
+	return nil
+}
+
+func (m *mockFieldCapableBackend) GetField(name, env, field string) (string, error) {
+	if m.GetFieldFunc != nil {
+		return m.GetFieldFunc(name, env, field)
+	}
+	return "", nil
+}
+
+// TestFieldCapableBackend_InterfaceExists verifies that FieldCapableBackend is
+// declared with the correct embedded SecretBackend + GetField method.
+//
+// WILL FAIL TO COMPILE — FieldCapableBackend does not exist yet.
+func TestFieldCapableBackend_InterfaceExists(t *testing.T) {
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	var _ FieldCapableBackend = nil // proves type exists
+	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.True(t, true, "FieldCapableBackend interface must exist")
+}
+
+// TestFieldCapableBackend_EmbedssSecretBackend verifies that FieldCapableBackend
+// is a superset of SecretBackend — any FieldCapableBackend must also be usable
+// as a SecretBackend (Liskov substitution).
+//
+// WILL FAIL TO COMPILE — FieldCapableBackend does not exist yet.
+func TestFieldCapableBackend_EmbedsSecretBackend(t *testing.T) {
+	mock := &mockFieldCapableBackend{
+		GetFunc: func(name, env string) (string, error) { return "value", nil },
+	}
+
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	// Assign a FieldCapableBackend to a SecretBackend variable.
+	// If FieldCapableBackend embeds SecretBackend this compiles; otherwise fails.
+	var sb SecretBackend = mock
+	// ─────────────────────────────────────────────────────────────────────────
+
+	value, err := sb.Get("some-secret", "prod")
+	require.NoError(t, err)
+	assert.Equal(t, "value", value)
+}
+
+// TestFieldCapableBackend_GetFieldMethod verifies the GetField signature:
+//
+//	GetField(name, env, field string) (string, error)
+//
+// WILL FAIL TO COMPILE — FieldCapableBackend does not exist yet.
+func TestFieldCapableBackend_GetFieldMethod(t *testing.T) {
+	called := false
+	mock := &mockFieldCapableBackend{
+		GetFieldFunc: func(name, env, field string) (string, error) {
+			called = true
+			assert.Equal(t, "github/creds", name)
+			assert.Equal(t, "production", env)
+			assert.Equal(t, "password", field)
+			return "super-secret-password", nil
+		},
+	}
+
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	var backend FieldCapableBackend = mock
+	value, err := backend.GetField("github/creds", "production", "password")
+	// ─────────────────────────────────────────────────────────────────────────
+
+	require.NoError(t, err)
+	assert.Equal(t, "super-secret-password", value)
+	assert.True(t, called, "GetField must be called on the backend")
+}
+
+// TestFieldCapableBackend_GetField_EmptyEnv verifies that GetField handles an
+// empty env string gracefully (implementations should treat it as "default").
+//
+// WILL FAIL TO COMPILE — FieldCapableBackend does not exist yet.
+func TestFieldCapableBackend_GetField_EmptyEnv(t *testing.T) {
+	mock := &mockFieldCapableBackend{
+		GetFieldFunc: func(name, env, field string) (string, error) {
+			assert.Equal(t, "", env, "empty env should be passed through unchanged")
+			return "value", nil
+		},
+	}
+
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	var backend FieldCapableBackend = mock
+	_, err := backend.GetField("some-secret", "", "username")
+	// ─────────────────────────────────────────────────────────────────────────
+
+	require.NoError(t, err, "empty env must not cause an error at the interface level")
+}
+
+// TestResolveCredentialWithBackend_VaultField_UsesGetField verifies that when
+// a CredentialConfig has a VaultField set, ResolveCredentialWithBackend calls
+// backend.GetField instead of backend.Get.
+//
+// WILL FAIL TO COMPILE — FieldCapableBackend and CredentialConfig.VaultField
+// do not exist yet.
+func TestResolveCredentialWithBackend_VaultField_UsesGetField(t *testing.T) {
+	getFieldCalled := false
+	getCalled := false
+
+	mock := &mockFieldCapableBackend{
+		GetFunc: func(name, env string) (string, error) {
+			getCalled = true
+			return "wrong-value", nil
+		},
+		GetFieldFunc: func(name, env, field string) (string, error) {
+			getFieldCalled = true
+			assert.Equal(t, "github/creds", name)
+			assert.Equal(t, "production", env)
+			assert.Equal(t, "password", field)
+			return "correct-password", nil
+		},
+	}
+
+	// ── COMPILE ERRORS EXPECTED BELOW ────────────────────────────────────────
+	// CredentialConfig.VaultField does not exist yet.
+	cfg := CredentialConfig{
+		Source:      SourceVault,
+		VaultSecret: "github/creds",
+		VaultEnv:    "production",
+		VaultField:  "password",
+	}
+	value, err := ResolveCredentialWithBackend(cfg, mock)
+	// ─────────────────────────────────────────────────────────────────────────
+
+	require.NoError(t, err)
+	assert.Equal(t, "correct-password", value)
+	assert.True(t, getFieldCalled, "GetField must be called when VaultField is set")
+	assert.False(t, getCalled, "Get must NOT be called when VaultField is set")
+}
+
+// TestResolveCredentialWithBackend_VaultField_FallsBackToGet verifies that when
+// VaultField is empty, ResolveCredentialWithBackend uses the regular Get method
+// (backward-compatible behavior).
+//
+// WILL FAIL TO COMPILE — FieldCapableBackend and CredentialConfig.VaultField
+// do not exist yet.
+func TestResolveCredentialWithBackend_VaultField_FallsBackToGet(t *testing.T) {
+	getCalled := false
+	getFieldCalled := false
+
+	mock := &mockFieldCapableBackend{
+		GetFunc: func(name, env string) (string, error) {
+			getCalled = true
+			return "the-token", nil
+		},
+		GetFieldFunc: func(name, env, field string) (string, error) {
+			getFieldCalled = true
+			return "should-not-be-called", nil
+		},
+	}
+
+	// ── COMPILE ERRORS EXPECTED BELOW ────────────────────────────────────────
+	cfg := CredentialConfig{
+		Source:      SourceVault,
+		VaultSecret: "github/token",
+		VaultEnv:    "staging",
+		VaultField:  "", // empty — must fall back to Get
+	}
+	value, err := ResolveCredentialWithBackend(cfg, mock)
+	// ─────────────────────────────────────────────────────────────────────────
+
+	require.NoError(t, err)
+	assert.Equal(t, "the-token", value)
+	assert.True(t, getCalled, "Get must be called when VaultField is empty")
+	assert.False(t, getFieldCalled, "GetField must NOT be called when VaultField is empty")
+}
+
+// TestResolveCredentialWithBackend_VaultField_NonFieldCapableBackend verifies
+// that when a VaultField is requested but the backend does NOT implement
+// FieldCapableBackend, the function returns an error rather than silently
+// ignoring the field.
+//
+// WILL FAIL TO COMPILE — CredentialConfig.VaultField does not exist yet.
+func TestResolveCredentialWithBackend_VaultField_NonFieldCapableBackend(t *testing.T) {
+	// Use the basic mockSecretBackend (not FieldCapableBackend).
+	mock := &mockSecretBackend{
+		GetFunc: func(name, env string) (string, error) { return "value", nil },
+	}
+
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	cfg := CredentialConfig{
+		Source:      SourceVault,
+		VaultSecret: "github/creds",
+		VaultField:  "password",
+	}
+	_, err := ResolveCredentialWithBackend(cfg, mock)
+	// ─────────────────────────────────────────────────────────────────────────
+
+	assert.Error(t, err,
+		"requesting VaultField from a non-FieldCapableBackend must return an error")
+	assert.Contains(t, err.Error(), "field",
+		"error must mention 'field' to guide the caller")
+}

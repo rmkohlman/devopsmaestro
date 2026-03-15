@@ -361,10 +361,14 @@ func buildRuntimeEnv(appName, workspaceName, ecosystemName, domainName string, t
 		env[k] = v
 	}
 
-	// Layer 3: credential env (filter dangerous vars)
+	// Layer 3: credential env (filter dangerous vars, re-validate keys)
 	for k, v := range credentialEnv {
 		if envvalidation.IsDangerousEnvVar(k) {
 			slog.Warn("blocked dangerous credential env var", "key", k)
+			continue
+		}
+		if err := envvalidation.ValidateEnvKey(k); err != nil {
+			slog.Warn("skipped credential with invalid env key", "key", k, "error", err)
 			continue
 		}
 		env[k] = v

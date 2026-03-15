@@ -669,7 +669,230 @@ func TestCredentialHandler_ToYAML_DualField(t *testing.T) {
 	}
 }
 
-// createCredentialTestSchema creates all tables needed for credential handler tests.
+// =============================================================================
+// TDD Phase 2 (RED): VaultFields Handler Tests (v0.41.0)
+// =============================================================================
+// Tests verify that the CredentialHandler.Apply correctly handles credentials
+// with vaultFields YAML.
+//
+// New YAML shape for vault fields:
+//
+//	spec:
+//	  source: vault
+//	  vaultSecret: github/creds
+//	  vaultFields:
+//	    GITHUB_TOKEN: token
+//	    GITHUB_USER: username
+//
+// ALL tests in this section WILL FAIL AT RUNTIME until:
+//   - CredentialSpec.VaultFields is added to models
+//   - vault_fields column exists in the DB schema
+//   - CredentialHandler.Apply stores VaultFields from YAML to DB
+// =============================================================================
+
+// TestCredentialHandler_Apply_VaultFields verifies that Apply correctly stores
+// a credential with vaultFields populated in the YAML spec.
+//
+// WILL FAIL AT RUNTIME — VaultFields parsing and storage not implemented yet.
+// Also WILL FAIL TO COMPILE if CredentialDB.VaultFields doesn't exist when
+// verifying the result.
+func TestCredentialHandler_Apply_VaultFields(t *testing.T) {
+	h := NewCredentialHandler()
+	ds := createCredentialTestDataStore(t)
+	defer ds.Close()
+
+	eco := &models.Ecosystem{Name: "vf-handler-eco"}
+	if err := ds.CreateEcosystem(eco); err != nil {
+		t.Fatalf("Setup: CreateEcosystem() error = %v", err)
+	}
+
+	ctx := resource.Context{DataStore: ds}
+
+	yamlInput := `apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  name: github-creds
+  ecosystem: vf-handler-eco
+spec:
+  source: vault
+  vaultSecret: github/creds
+  vaultEnvironment: production
+  vaultFields:
+    GITHUB_TOKEN: token
+    GITHUB_USER: username`
+
+	_, err := h.Apply(ctx, []byte(yamlInput))
+	if err != nil {
+		t.Fatalf("Apply() with vaultFields error = %v", err)
+	}
+
+	// Read back and verify vault_fields was persisted.
+	cred, err := ds.GetCredential(models.CredentialScopeEcosystem, int64(eco.ID), "github-creds")
+	if err != nil {
+		t.Fatalf("GetCredential() after Apply() error = %v", err)
+	}
+
+	// ── COMPILE ERROR EXPECTED BELOW — VaultFields does not exist yet ─────────
+	if cred.VaultFields == nil {
+		t.Error("VaultFields must not be nil after Apply() with vaultFields YAML")
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	// VaultFields should be JSON containing both entries.
+	vaultFieldsStr := *cred.VaultFields // COMPILE ERROR EXPECTED
+	if !contains(vaultFieldsStr, "GITHUB_TOKEN") {
+		t.Errorf("VaultFields JSON missing GITHUB_TOKEN, got: %s", vaultFieldsStr)
+	}
+	if !contains(vaultFieldsStr, "GITHUB_USER") {
+		t.Errorf("VaultFields JSON missing GITHUB_USER, got: %s", vaultFieldsStr)
+	}
+}
+
+// TestCredentialHandler_Apply_VaultFields_MutuallyExclusiveWithUsernameVar
+// verifies that Apply returns an error when both vaultFields and usernameVar
+// are set in the YAML spec.
+//
+// WILL FAIL AT RUNTIME — mutual-exclusivity validation not implemented yet.
+func TestCredentialHandler_Apply_VaultFields_MutuallyExclusiveWithUsernameVar(t *testing.T) {
+	h := NewCredentialHandler()
+	ds := createCredentialTestDataStore(t)
+	defer ds.Close()
+
+	eco := &models.Ecosystem{Name: "vf-mutex-eco"}
+	if err := ds.CreateEcosystem(eco); err != nil {
+		t.Fatalf("Setup: CreateEcosystem() error = %v", err)
+	}
+
+	ctx := resource.Context{DataStore: ds}
+
+	yamlInput := `apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  name: bad-creds
+  ecosystem: vf-mutex-eco
+spec:
+  source: vault
+  vaultSecret: github/creds
+  usernameVar: GITHUB_USER
+  vaultFields:
+    GITHUB_TOKEN: token`
+
+	_, err := h.Apply(ctx, []byte(yamlInput))
+	if err == nil {
+		t.Error("Apply() must return an error when vaultFields and usernameVar are both set")
+	}
+}
+
+// TestCredentialHandler_Apply_VaultFields_MaxFiftyFields verifies that Apply
+// returns an error when vaultFields contains more than 50 entries.
+//
+// WILL FAIL AT RUNTIME — max-50 validation not implemented yet.
+func TestCredentialHandler_Apply_VaultFields_MaxFiftyFields(t *testing.T) {
+	h := NewCredentialHandler()
+	ds := createCredentialTestDataStore(t)
+	defer ds.Close()
+
+	eco := &models.Ecosystem{Name: "vf-maxfields-eco"}
+	if err := ds.CreateEcosystem(eco); err != nil {
+		t.Fatalf("Setup: CreateEcosystem() error = %v", err)
+	}
+
+	ctx := resource.Context{DataStore: ds}
+
+	// Build YAML with 51 vault fields.
+	vaultFieldsYAML := ""
+	for i := 0; i < 51; i++ {
+		vaultFieldsYAML += "\n    " + "ENV_VAR_" + padInt(i) + ": " + "field_" + padInt(i)
+	}
+
+	yamlInput := `apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  name: too-many-fields
+  ecosystem: vf-maxfields-eco
+spec:
+  source: vault
+  vaultSecret: my-org/creds
+  vaultFields:` + vaultFieldsYAML
+
+	_, err := h.Apply(ctx, []byte(yamlInput))
+	if err == nil {
+		t.Error("Apply() must return an error when vaultFields has more than 50 entries")
+	}
+}
+
+// TestCredentialHandler_ToYAML_VaultFields verifies that ToYAML correctly
+// includes the vaultFields section when VaultFields is set on the credential.
+//
+// WILL FAIL TO COMPILE — CredentialDB.VaultFields does not exist yet.
+func TestCredentialHandler_ToYAML_VaultFields(t *testing.T) {
+	h := NewCredentialHandler()
+
+	vaultSecret := "github/creds"
+	vaultFieldsJSON := `{"GITHUB_TOKEN":"token","GITHUB_USER":"username"}`
+
+	// ── COMPILE ERROR EXPECTED BELOW — VaultFields does not exist yet ─────────
+	cred := &models.CredentialDB{
+		Name:        "github-creds",
+		ScopeType:   models.CredentialScopeEcosystem,
+		ScopeID:     1,
+		Source:      "vault",
+		VaultSecret: &vaultSecret,
+		VaultFields: &vaultFieldsJSON,
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	res := &CredentialResource{
+		credential: cred,
+		scopeName:  "testlab",
+	}
+
+	yamlBytes, err := h.ToYAML(res)
+	if err != nil {
+		t.Fatalf("ToYAML() error = %v", err)
+	}
+
+	yamlStr := string(yamlBytes)
+
+	if !contains(yamlStr, "vaultFields:") {
+		t.Errorf("ToYAML() missing 'vaultFields:' section, got:\n%s", yamlStr)
+	}
+	if !contains(yamlStr, "GITHUB_TOKEN") {
+		t.Errorf("ToYAML() missing 'GITHUB_TOKEN' in vaultFields, got:\n%s", yamlStr)
+	}
+	if !contains(yamlStr, "GITHUB_USER") {
+		t.Errorf("ToYAML() missing 'GITHUB_USER' in vaultFields, got:\n%s", yamlStr)
+	}
+}
+
+// padInt returns a zero-padded 3-digit string for integer i.
+// Used only in TestCredentialHandler_Apply_VaultFields_MaxFiftyFields.
+func padInt(i int) string {
+	s := "000" + itoa(i)
+	return s[len(s)-3:]
+}
+
+// itoa converts an int to string without importing strconv.
+func itoa(i int) string {
+	if i == 0 {
+		return "0"
+	}
+	neg := false
+	if i < 0 {
+		neg = true
+		i = -i
+	}
+	digits := make([]byte, 0, 10)
+	for i > 0 {
+		digits = append([]byte{byte('0' + i%10)}, digits...)
+		i /= 10
+	}
+	if neg {
+		digits = append([]byte{'-'}, digits...)
+	}
+	return string(digits)
+}
+
 // This includes the full scope hierarchy (ecosystems → domains → apps → workspaces)
 // plus the credentials table and dvm_context table.
 func createCredentialTestSchema(driver db.Driver) error {
@@ -745,6 +968,7 @@ func createCredentialTestSchema(driver db.Driver) error {
 			vault_secret         TEXT,
 			vault_env            TEXT,
 			vault_username_secret TEXT,
+			vault_fields         TEXT,
 			created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(scope_type, scope_id, name)

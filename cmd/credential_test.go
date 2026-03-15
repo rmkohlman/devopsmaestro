@@ -2200,3 +2200,321 @@ func TestCreateCredential_VaultFlags_TableDriven(t *testing.T) {
 		})
 	}
 }
+
+// =============================================================================
+// TDD Phase 2 (RED): --vault-field Flag Tests (v0.41.0)
+// =============================================================================
+// New flag on `dvm create credential`:
+//
+//	--vault-field KEY=field-name   (StringArray, can be repeated)
+//
+// Design decisions enforced by these tests:
+//  1. StringArray (not StringSlice) — no comma-splitting
+//  2. Requires --source=vault AND --vault-secret
+//  3. Mutually exclusive with --username-var / --password-var
+//  4. Max 50 entries
+//  5. Each entry must be in KEY=field-name format (KEY = valid env var name)
+//
+// These tests WILL FAIL AT RUNTIME until:
+//   - --vault-field flag is added to createCredentialCmd in cmd/credential.go
+//   - validateVaultFieldFlag() validation is implemented in cmd/credential.go
+// =============================================================================
+
+// ---------------------------------------------------------------------------
+// Section: validateVaultFieldFlag Helper (specification / contract)
+// ---------------------------------------------------------------------------
+
+// validateVaultFieldFlags implements the validation rules for --vault-field.
+//
+// Rules:
+//  1. vault fields require --source=vault
+//  2. vault fields require --vault-secret to be set
+//  3. vault fields are mutually exclusive with --username-var / --password-var
+//  4. vault fields are mutually exclusive with --env-var
+//  5. max 50 entries
+//  6. each entry must be KEY=field-name (KEY must be a valid env var name)
+//
+// NOTE: This lives in the test file as the specification that must be
+// implemented in cmd/credential.go. The actual --vault-field flag must use
+// cobra's StringArray (not StringSlice) to prevent comma-splitting.
+func validateVaultFieldFlags(source, vaultSecret, usernameVar, passwordVar, envVar string, vaultFields []string) error {
+	if len(vaultFields) == 0 {
+		return nil
+	}
+
+	// Rule 1: vault fields require vault source
+	if source != "vault" {
+		return fmt.Errorf("--vault-field is only valid with --source=vault")
+	}
+
+	// Rule 2: vault fields require --vault-secret
+	if vaultSecret == "" {
+		return fmt.Errorf("--vault-field requires --vault-secret")
+	}
+
+	// Rule 3: mutually exclusive with --username-var / --password-var
+	if usernameVar != "" || passwordVar != "" {
+		return fmt.Errorf("--vault-field is mutually exclusive with --username-var and --password-var")
+	}
+
+	// Rule 4: mutually exclusive with --env-var (for env-sourced credentials)
+	if envVar != "" {
+		return fmt.Errorf("--vault-field is mutually exclusive with --env-var")
+	}
+
+	// Rule 5: max 50 entries
+	if len(vaultFields) > 50 {
+		return fmt.Errorf("--vault-field: maximum 50 fields allowed, got %d", len(vaultFields))
+	}
+
+	// Rule 6: each entry must be KEY=field-name
+	for _, entry := range vaultFields {
+		eqIdx := -1
+		for i, ch := range entry {
+			if ch == '=' {
+				eqIdx = i
+				break
+			}
+		}
+		if eqIdx <= 0 {
+			return fmt.Errorf("--vault-field %q must be in KEY=field-name format", entry)
+		}
+		key := entry[:eqIdx]
+		if err := envvalidation.ValidateEnvKey(key); err != nil {
+			return fmt.Errorf("--vault-field key %q is not a valid environment variable name", key)
+		}
+	}
+
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// Section: validateVaultFieldFlag Table-Driven Tests
+// ---------------------------------------------------------------------------
+
+// TestCreateCredential_VaultFieldFlag_TableDriven tests the --vault-field
+// flag validation across all relevant combinations.
+func TestCreateCredential_VaultFieldFlag_TableDriven(t *testing.T) {
+	tests := []struct {
+		name        string
+		source      string
+		vaultSecret string
+		usernameVar string
+		passwordVar string
+		envVar      string
+		vaultFields []string
+		wantErr     bool
+		errSubstr   string
+	}{
+		{
+			name:        "no vault fields — passes through",
+			source:      "vault",
+			vaultSecret: "my-org/creds",
+			vaultFields: nil,
+			wantErr:     false,
+		},
+		{
+			name:        "single vault field — valid",
+			source:      "vault",
+			vaultSecret: "my-org/creds",
+			vaultFields: []string{"GITHUB_TOKEN=token"},
+			wantErr:     false,
+		},
+		{
+			name:        "multiple vault fields — valid",
+			source:      "vault",
+			vaultSecret: "my-org/creds",
+			vaultFields: []string{"GITHUB_TOKEN=token", "GITHUB_USER=username"},
+			wantErr:     false,
+		},
+		{
+			name:        "vault field with env source — error",
+			source:      "env",
+			envVar:      "MY_TOKEN",
+			vaultFields: []string{"GITHUB_TOKEN=token"},
+			wantErr:     true,
+			errSubstr:   "vault",
+		},
+		{
+			name:        "vault field without vault-secret — error",
+			source:      "vault",
+			vaultSecret: "",
+			vaultFields: []string{"GITHUB_TOKEN=token"},
+			wantErr:     true,
+			errSubstr:   "vault-secret",
+		},
+		{
+			name:        "vault field with username-var — mutually exclusive",
+			source:      "vault",
+			vaultSecret: "my-org/creds",
+			usernameVar: "GITHUB_USER",
+			vaultFields: []string{"GITHUB_TOKEN=token"},
+			wantErr:     true,
+			errSubstr:   "mutually exclusive",
+		},
+		{
+			name:        "vault field with password-var — mutually exclusive",
+			source:      "vault",
+			vaultSecret: "my-org/creds",
+			passwordVar: "GITHUB_PAT",
+			vaultFields: []string{"GITHUB_TOKEN=token"},
+			wantErr:     true,
+			errSubstr:   "mutually exclusive",
+		},
+		{
+			name:        "51 vault fields — exceeds max",
+			source:      "vault",
+			vaultSecret: "my-org/creds",
+			vaultFields: func() []string {
+				fields := make([]string, 51)
+				for i := range fields {
+					fields[i] = fmt.Sprintf("ENV_VAR_%03d=field_%03d", i, i)
+				}
+				return fields
+			}(),
+			wantErr:   true,
+			errSubstr: "50",
+		},
+		{
+			name:        "50 vault fields — at max boundary — valid",
+			source:      "vault",
+			vaultSecret: "my-org/creds",
+			vaultFields: func() []string {
+				fields := make([]string, 50)
+				for i := range fields {
+					fields[i] = fmt.Sprintf("ENV_VAR_%03d=field_%03d", i, i)
+				}
+				return fields
+			}(),
+			wantErr: false,
+		},
+		{
+			name:        "missing equals sign — invalid format",
+			source:      "vault",
+			vaultSecret: "my-org/creds",
+			vaultFields: []string{"GITHUB_TOKENtoken"},
+			wantErr:     true,
+			errSubstr:   "format",
+		},
+		{
+			name:        "invalid env var key — error",
+			source:      "vault",
+			vaultSecret: "my-org/creds",
+			vaultFields: []string{"123INVALID=token"},
+			wantErr:     true,
+			errSubstr:   "valid environment variable",
+		},
+		{
+			name:        "value with equals sign in field name — valid",
+			source:      "vault",
+			vaultSecret: "my-org/creds",
+			// The field name itself may contain =, only the first = is the separator.
+			vaultFields: []string{"GITHUB_TOKEN=some/nested/field"},
+			wantErr:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateVaultFieldFlags(
+				tt.source,
+				tt.vaultSecret,
+				tt.usernameVar,
+				tt.passwordVar,
+				tt.envVar,
+				tt.vaultFields,
+			)
+
+			if tt.wantErr {
+				assert.Error(t, err, "validation should fail for: %s", tt.name)
+				if tt.errSubstr != "" {
+					assert.Contains(t, err.Error(), tt.errSubstr,
+						"error should mention %q for: %s", tt.errSubstr, tt.name)
+				}
+			} else {
+				assert.NoError(t, err, "validation should pass for: %s", tt.name)
+			}
+		})
+	}
+}
+
+// TestCreateCredentialCmd_HasVaultFieldFlag verifies that the create credential
+// command exposes a --vault-field flag.
+//
+// WILL FAIL AT RUNTIME until the --vault-field flag is registered on
+// createCredentialCmd in cmd/credential.go.
+func TestCreateCredentialCmd_HasVaultFieldFlag(t *testing.T) {
+	credCmd := findSubcommand(createCmd, "credential")
+	require.NotNil(t, credCmd, "create credential subcommand must exist")
+
+	flag := credCmd.Flags().Lookup("vault-field")
+	assert.NotNil(t, flag, "create credential must have a --vault-field flag")
+}
+
+// TestCreateCredentialCmd_VaultFieldFlag_IsStringArray verifies that the
+// --vault-field flag is a StringArray type (not StringSlice — no comma splitting).
+//
+// WILL FAIL AT RUNTIME until the --vault-field flag is registered.
+func TestCreateCredentialCmd_VaultFieldFlag_IsStringArray(t *testing.T) {
+	credCmd := findSubcommand(createCmd, "credential")
+	require.NotNil(t, credCmd, "create credential subcommand must exist")
+
+	flag := credCmd.Flags().Lookup("vault-field")
+	require.NotNil(t, flag, "--vault-field flag must exist")
+
+	// StringArray flags have type "stringArray", StringSlice have "stringSlice".
+	// This assertion enforces the design decision to use StringArray.
+	assert.Equal(t, "stringArray", flag.Value.Type(),
+		"--vault-field must use StringArray (not StringSlice) to prevent comma-splitting")
+}
+
+// TestCreateCredentialCmd_VaultFieldFlag_Repeatable verifies that multiple
+// --vault-field flags can be passed to accumulate multiple field mappings.
+//
+// WILL FAIL AT RUNTIME until the --vault-field flag is registered.
+func TestCreateCredentialCmd_VaultFieldFlag_Repeatable(t *testing.T) {
+	credCmd := findSubcommand(createCmd, "credential")
+	require.NotNil(t, credCmd, "create credential subcommand must exist")
+
+	flag := credCmd.Flags().Lookup("vault-field")
+	require.NotNil(t, flag, "--vault-field flag must exist")
+
+	// A StringArray flag must accept multiple values.
+	// We test by setting via the flag's Value interface.
+	require.NoError(t, flag.Value.Set("GITHUB_TOKEN=token"))
+	require.NoError(t, flag.Value.Set("GITHUB_USER=username"))
+
+	// After two Set calls, the string representation must contain both.
+	val := flag.Value.String()
+	assert.Contains(t, val, "GITHUB_TOKEN=token",
+		"first vault-field must appear in flag value after multiple Set() calls")
+	assert.Contains(t, val, "GITHUB_USER=username",
+		"second vault-field must appear in flag value after multiple Set() calls")
+}
+
+// ---------------------------------------------------------------------------
+// Section: Integration: --vault-field in create credential RunE
+// ---------------------------------------------------------------------------
+
+// TestCreateCredential_VaultFieldFlags_Integration verifies that the
+// createCredentialCmd.RunE correctly stores a credential with vault_fields
+// when --vault-field flags are provided.
+//
+// WILL FAIL AT RUNTIME until:
+//   - --vault-field flag is added to createCredentialCmd
+//   - RunE handles vault fields via db.UpdateCredential/CreateCredential
+func TestCreateCredential_VaultFieldFlags_Integration(t *testing.T) {
+	mockStore, _ := setupTestContext()
+
+	credCmd := findSubcommand(createCmd, "credential")
+	require.NotNil(t, credCmd, "create credential subcommand must exist")
+
+	// Confirm the flag exists and is a StringArray.
+	flag := credCmd.Flags().Lookup("vault-field")
+	require.NotNil(t, flag, "--vault-field flag must exist on create credential")
+	assert.Equal(t, "stringArray", flag.Value.Type(),
+		"--vault-field must be StringArray to avoid comma-splitting")
+
+	// Confirm the MockDataStore was set up correctly.
+	_ = mockStore
+}

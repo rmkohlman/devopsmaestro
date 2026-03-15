@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
+	"strings"
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
@@ -132,6 +134,13 @@ Sources:
   vault - Reference a MaestroVault secret (requires --vault-secret)
   env   - Reference an environment variable (requires --env-var)
 
+Vault Fields:
+  Use --vault-field to map individual fields from a multi-field vault secret
+  to environment variables. Each --vault-field maps one field.
+
+  Format: --vault-field ENV_VAR=field_name   (explicit mapping)
+          --vault-field FIELD_NAME           (auto-map: env var = field name)
+
 Examples:
   # GitHub PAT stored in MaestroVault
   dvm create credential github-creds \
@@ -141,6 +150,15 @@ Examples:
     --username-var GITHUB_USERNAME \
     --password-var GITHUB_PAT \
     --ecosystem myorg
+
+  # Multi-field vault secret with explicit field mapping
+  dvm create credential db-creds \
+    --source vault \
+    --vault-secret "database/prod" \
+    --vault-field DB_HOST=host \
+    --vault-field DB_PORT=port \
+    --vault-field DB_PASSWORD=password \
+    --ecosystem prod
 
   # API key from environment variable
   dvm create credential api-key \
@@ -241,6 +259,57 @@ Examples:
 			cred.PasswordVar = &passwordVar
 		}
 
+		// Parse --vault-field flags
+		vaultFieldFlags, _ := cmd.Flags().GetStringArray("vault-field")
+		if len(vaultFieldFlags) > 0 {
+			// Requires vault source
+			if source != "vault" {
+				return fmt.Errorf("--vault-field requires --source=vault")
+			}
+			// Requires vault secret
+			if vaultSecret == "" {
+				return fmt.Errorf("--vault-field requires --vault-secret")
+			}
+			// Mutual exclusivity
+			if usernameVar != "" || passwordVar != "" {
+				return fmt.Errorf("--vault-field cannot be used with --username-var or --password-var")
+			}
+			if vaultUsernameSecret != "" {
+				return fmt.Errorf("--vault-field cannot be used with --vault-username-secret")
+			}
+			// Max 50 fields
+			if len(vaultFieldFlags) > 50 {
+				return fmt.Errorf("too many vault fields (%d): maximum is 50", len(vaultFieldFlags))
+			}
+			// Parse fields
+			vaultFields := make(map[string]string)
+			for _, vf := range vaultFieldFlags {
+				if strings.Contains(vf, "=") {
+					parts := strings.SplitN(vf, "=", 2)
+					envVarName := parts[0]
+					fieldName := parts[1]
+					if err := envvalidation.ValidateEnvKey(envVarName); err != nil {
+						return fmt.Errorf("invalid env var in --vault-field %q: %w", vf, err)
+					}
+					if fieldName == "" {
+						return fmt.Errorf("field name cannot be empty in --vault-field %q", vf)
+					}
+					vaultFields[envVarName] = fieldName
+				} else {
+					if err := envvalidation.ValidateEnvKey(vf); err != nil {
+						return fmt.Errorf("invalid --vault-field name %q: %w", vf, err)
+					}
+					vaultFields[vf] = vf
+				}
+			}
+			vaultFieldsJSON, err := json.Marshal(vaultFields)
+			if err != nil {
+				return fmt.Errorf("failed to serialize vault fields: %w", err)
+			}
+			vfStr := string(vaultFieldsJSON)
+			cred.VaultFields = &vfStr
+		}
+
 		// Create credential
 		if err := ds.CreateCredential(cred); err != nil {
 			return fmt.Errorf("failed to create credential: %w", err)
@@ -263,6 +332,8 @@ func init() {
 	createCredentialCmd.Flags().String("description", "", "Credential description")
 	createCredentialCmd.Flags().String("username-var", "", "Environment variable name for the username (vault source only)")
 	createCredentialCmd.Flags().String("password-var", "", "Environment variable name for the password (vault source only)")
+	createCredentialCmd.Flags().StringArray("vault-field", nil,
+		"Map vault field to env var (repeatable): ENV_VAR=field_name or FIELD_NAME for auto-map")
 
 	// Scope flags
 	addCredentialScopeFlags(createCredentialCmd)

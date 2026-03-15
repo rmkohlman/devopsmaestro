@@ -3,7 +3,9 @@ package models
 import (
 	"devopsmaestro/config"
 	"devopsmaestro/pkg/envvalidation"
+	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 )
 
@@ -27,6 +29,7 @@ type CredentialDB struct {
 	VaultSecret         *string             `db:"vault_secret" json:"vault_secret,omitempty"`
 	VaultEnv            *string             `db:"vault_env" json:"vault_env,omitempty"`
 	VaultUsernameSecret *string             `db:"vault_username_secret" json:"vault_username_secret,omitempty"`
+	VaultFields         *string             `db:"vault_fields" json:"vault_fields,omitempty"`
 	EnvVar              *string             `db:"env_var" json:"env_var"` // Environment variable name
 	Description         *string             `db:"description" json:"description"`
 	UsernameVar         *string             `db:"username_var" json:"username_var,omitempty"`
@@ -38,6 +41,83 @@ type CredentialDB struct {
 // IsDualField returns true if the credential has explicit username or password var names.
 func (c *CredentialDB) IsDualField() bool {
 	return c.UsernameVar != nil || c.PasswordVar != nil
+}
+
+// HasVaultFields returns true if the credential has vault field mappings.
+func (c *CredentialDB) HasVaultFields() bool {
+	if c.VaultFields == nil || *c.VaultFields == "" || *c.VaultFields == "{}" {
+		return false
+	}
+	return true
+}
+
+// GetVaultFieldsMap parses the VaultFields JSON string into a map.
+// Returns nil, nil if no vault fields are set.
+func (c *CredentialDB) GetVaultFieldsMap() (map[string]string, error) {
+	if !c.HasVaultFields() {
+		return nil, nil
+	}
+	var fields map[string]string
+	if err := json.Unmarshal([]byte(*c.VaultFields), &fields); err != nil {
+		return nil, fmt.Errorf("failed to parse vault fields JSON: %w", err)
+	}
+	return fields, nil
+}
+
+// ToFieldConfig creates a CredentialConfig for a single vault field.
+func (c *CredentialDB) ToFieldConfig(field string) config.CredentialConfig {
+	return config.CredentialConfig{
+		Source:      config.SourceVault,
+		VaultSecret: deref(c.VaultSecret),
+		VaultEnv:    deref(c.VaultEnv),
+		VaultField:  field,
+	}
+}
+
+// ToMapEntries converts a single CredentialDB into its config.Credentials map entries.
+// Handles all three fan-out cases: vault fields, dual-field, and single credential.
+func (c *CredentialDB) ToMapEntries() config.Credentials {
+	result := make(config.Credentials)
+	switch {
+	case c.HasVaultFields():
+		fields, err := c.GetVaultFieldsMap()
+		if err != nil {
+			slog.Warn("failed to parse vault_fields JSON, skipping credential", "name", c.Name, "error", err)
+			return result
+		}
+		for envVar, field := range fields {
+			result[envVar] = c.ToFieldConfig(field)
+		}
+	case c.IsDualField():
+		if c.UsernameVar != nil {
+			result[*c.UsernameVar] = c.ToUsernameConfig()
+		}
+		if c.PasswordVar != nil {
+			result[*c.PasswordVar] = c.ToPasswordConfig()
+		}
+	default:
+		result[c.Name] = c.ToConfig()
+	}
+	return result
+}
+
+// Validate checks for mutual exclusivity constraints on the credential.
+func (c *CredentialDB) Validate() error {
+	if c.HasVaultFields() && c.IsDualField() {
+		return fmt.Errorf("vault fields cannot be used with username/password vars")
+	}
+	if c.HasVaultFields() && c.VaultUsernameSecret != nil && *c.VaultUsernameSecret != "" {
+		return fmt.Errorf("vault fields cannot be used with vault username secret")
+	}
+	return nil
+}
+
+// deref safely dereferences a string pointer, returning "" for nil.
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 // ToUsernameConfig creates a CredentialConfig targeting the vault username field.
@@ -89,20 +169,13 @@ func (c *CredentialDB) ToConfig() config.CredentialConfig {
 }
 
 // CredentialsToMap converts a slice of CredentialDB to a config.Credentials map.
-// For dual-field credentials, it fans out to produce separate map entries for
-// each defined var (UsernameVar and/or PasswordVar).
+// For each credential, delegates to ToMapEntries which handles vault fields,
+// dual-field, and single credential fan-out cases.
 func CredentialsToMap(creds []*CredentialDB) config.Credentials {
 	result := make(config.Credentials)
 	for _, c := range creds {
-		if c.IsDualField() {
-			if c.UsernameVar != nil {
-				result[*c.UsernameVar] = c.ToUsernameConfig()
-			}
-			if c.PasswordVar != nil {
-				result[*c.PasswordVar] = c.ToPasswordConfig()
-			}
-		} else {
-			result[c.Name] = c.ToConfig()
+		for k, v := range c.ToMapEntries() {
+			result[k] = v
 		}
 	}
 	return result
@@ -131,14 +204,15 @@ type CredentialMetadata struct {
 
 // CredentialSpec contains the credential specification
 type CredentialSpec struct {
-	Source              string `yaml:"source" json:"source"`
-	VaultSecret         string `yaml:"vaultSecret,omitempty" json:"vaultSecret,omitempty"`
-	VaultEnvironment    string `yaml:"vaultEnvironment,omitempty" json:"vaultEnvironment,omitempty"`
-	VaultUsernameSecret string `yaml:"vaultUsernameSecret,omitempty" json:"vaultUsernameSecret,omitempty"`
-	EnvVar              string `yaml:"envVar,omitempty" json:"envVar,omitempty"`
-	Description         string `yaml:"description,omitempty" json:"description,omitempty"`
-	UsernameVar         string `yaml:"usernameVar,omitempty" json:"usernameVar,omitempty"`
-	PasswordVar         string `yaml:"passwordVar,omitempty" json:"passwordVar,omitempty"`
+	Source              string            `yaml:"source" json:"source"`
+	VaultSecret         string            `yaml:"vaultSecret,omitempty" json:"vaultSecret,omitempty"`
+	VaultEnvironment    string            `yaml:"vaultEnvironment,omitempty" json:"vaultEnvironment,omitempty"`
+	VaultUsernameSecret string            `yaml:"vaultUsernameSecret,omitempty" json:"vaultUsernameSecret,omitempty"`
+	VaultFields         map[string]string `yaml:"vaultFields,omitempty" json:"vaultFields,omitempty"`
+	EnvVar              string            `yaml:"envVar,omitempty" json:"envVar,omitempty"`
+	Description         string            `yaml:"description,omitempty" json:"description,omitempty"`
+	UsernameVar         string            `yaml:"usernameVar,omitempty" json:"usernameVar,omitempty"`
+	PasswordVar         string            `yaml:"passwordVar,omitempty" json:"passwordVar,omitempty"`
 }
 
 // ScopeInfo returns the scope type and scope name from metadata
@@ -193,6 +267,12 @@ func (c *CredentialDB) ToYAML(scopeName string) CredentialYAML {
 	if c.VaultUsernameSecret != nil {
 		y.Spec.VaultUsernameSecret = *c.VaultUsernameSecret
 	}
+	if c.HasVaultFields() {
+		fields, err := c.GetVaultFieldsMap()
+		if err == nil {
+			y.Spec.VaultFields = fields
+		}
+	}
 	if c.EnvVar != nil {
 		y.Spec.EnvVar = *c.EnvVar
 	}
@@ -242,6 +322,13 @@ func (c *CredentialDB) FromYAML(y CredentialYAML) {
 	if y.Spec.PasswordVar != "" {
 		p := y.Spec.PasswordVar
 		c.PasswordVar = &p
+	}
+	if len(y.Spec.VaultFields) > 0 {
+		vfJSON, err := json.Marshal(y.Spec.VaultFields)
+		if err == nil {
+			s := string(vfJSON)
+			c.VaultFields = &s
+		}
 	}
 }
 
@@ -308,6 +395,32 @@ func ValidateCredentialYAML(y CredentialYAML) error {
 	if y.Spec.PasswordVar != "" {
 		if err := envvalidation.ValidateEnvKey(y.Spec.PasswordVar); err != nil {
 			return fmt.Errorf("invalid passwordVar: %w", err)
+		}
+	}
+
+	// vaultFields requires vault source
+	if len(y.Spec.VaultFields) > 0 && y.Spec.Source != "vault" {
+		return fmt.Errorf("vaultFields is only valid with vault source")
+	}
+	// vaultFields requires vaultSecret
+	if len(y.Spec.VaultFields) > 0 && y.Spec.VaultSecret == "" {
+		return fmt.Errorf("vaultFields requires vaultSecret to be set")
+	}
+	// vaultFields mutually exclusive with dual-field
+	if len(y.Spec.VaultFields) > 0 && (y.Spec.UsernameVar != "" || y.Spec.PasswordVar != "") {
+		return fmt.Errorf("vaultFields cannot be used with usernameVar/passwordVar")
+	}
+	// max 50 vault fields
+	if len(y.Spec.VaultFields) > 50 {
+		return fmt.Errorf("too many vault fields (%d): maximum is 50", len(y.Spec.VaultFields))
+	}
+	// validate env var keys and field names
+	for envVar, fieldName := range y.Spec.VaultFields {
+		if err := envvalidation.ValidateEnvKey(envVar); err != nil {
+			return fmt.Errorf("invalid env var in vaultFields %q: %w", envVar, err)
+		}
+		if fieldName == "" {
+			return fmt.Errorf("field name cannot be empty for env var %q in vaultFields", envVar)
 		}
 	}
 
