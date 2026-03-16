@@ -4,6 +4,28 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.43.0 (2026-03-16)
+
+**✨ Auto-Token Creation for MaestroVault**
+
+The build pipeline now automatically resolves a MaestroVault token through a priority chain, eliminating the need to manually run `mav token create` and export `MAV_TOKEN` before every build.
+
+- **Token resolution chain** — first non-empty value wins: `MAV_TOKEN` env var → `vault.token` viper config → `~/.devopsmaestro/.vault_token` file → auto-create via `mav token create --name "dvm-auto" --scope read -o json` (persisted to `.vault_token` for reuse)
+- **Graceful degradation** — if auto-creation fails (e.g., `mav` not in PATH, no vault database), build continues without vault; no hard failures
+- **New `config/vault_token.go`** — `ResolveVaultToken()`, `ResolveVaultTokenFromDir()`, injectable `TokenCreator` type, `persistToken()` with 0600 permissions
+- **`Config` struct gains `Vault VaultConfig`** — supports `vault.token` config file path
+- **`mav token create` subprocess** uses env allowlist (PATH, HOME only); token values never logged
+- 21 new tests in `config/vault_token_test.go`
+
+### v0.42.1 (2026-03-16)
+
+**🐛 Fix Python Private Repo Credential Injection**
+
+Two bugs that prevented Docker build args from reaching pip during Python builds with private git dependencies in `requirements.txt`:
+
+- **ARG before FROM** — `ARG GITHUB_USERNAME` and `ARG GITHUB_PAT` were declared before `FROM`; Docker only makes pre-FROM ARGs available to the `FROM` instruction, not to subsequent `RUN` commands. Fixed by moving `ARG` declarations into `generateBaseStage()` after the `FROM` line.
+- **Unnecessary sed substitution removed** — the generated Dockerfile used a `sed` pipeline to substitute `${VAR}` placeholders in `requirements.txt`, but pip natively expands `${VAR}` from environment variables. The sed pipeline was broken (incorrect syntax) and redundant. Removed entirely.
+
 ### v0.42.0 (2026-03-16)
 
 **✨ Dynamic Completions & Get All**
@@ -781,6 +803,8 @@ See the [full migration guide](https://github.com/rmkohlman/devopsmaestro/blob/m
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **0.43.0** | 2026-03-16 | Auto-token creation for MaestroVault — priority chain resolves token automatically; no manual `mav token create` required |
+| **0.42.1** | 2026-03-16 | Fix Python private repo credential injection — ARG moved after FROM; sed pipeline removed (pip handles `${VAR}` natively) |
 | **0.39.1** | 2026-03-12 | Default keychain type changed to "internet" — fixes Passwords app / Safari / iCloud Keychain silent failures; DB migration 012 |
 | **0.39.0** | 2026-03-12 | Keychain label-based lookup — `--keychain-label`, `--keychain-type`, `keychainLabel:` YAML, internet password support; `--service` deprecated |
 | **0.38.2** | 2026-03-12 | Credential resolution robustness — visible warnings, env var rescue, keychain `-a $USER` filter |

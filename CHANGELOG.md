@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.43.0] - 2026-03-16 — Auto-Token Creation for MaestroVault
+
+### ✨ Features
+
+#### Auto-Token Resolution Chain — `config/vault_token.go` (new)
+- **Token resolution priority chain** — `ResolveVaultToken()` checks four sources in order; the first non-empty value wins:
+  1. `MAV_TOKEN` environment variable
+  2. `vault.token` in viper config
+  3. `~/.devopsmaestro/.vault_token` file
+  4. Auto-create via `mav token create --name "dvm-auto" --scope read -o json` (persisted to `.vault_token` for reuse)
+- **Graceful degradation** — if auto-creation fails (e.g., `mav` not in PATH, no vault database), build continues without vault; no hard failures
+- **`TokenCreator` function type** — injectable for testability; production path and test path share the same resolution logic
+- **`resolveExistingToken(configDir)`** — pure function checking env, viper, and token file; no side effects
+- **`persistToken(configDir, token)`** — writes `.vault_token` with 0600 permissions for reuse across builds
+- **`defaultTokenCreator()`** — shells out to `mav token create` with env allowlist (PATH and HOME only); token value never logged
+- **`ResolveVaultTokenFromDir(configDir, ...TokenCreator)`** — full chain with injectable creator; used in tests
+- **`ResolveVaultToken(...TokenCreator)`** — production convenience wrapper using `~/.devopsmaestro/` as config dir
+
+#### Config Struct — `config/config.go`
+- **New `VaultConfig` struct** with `Token string` field supports `vault.token` viper config path
+- **`Config` struct gains `Vault VaultConfig` field** — enables token configuration via config file
+
+#### Build Pipeline — `cmd/build_helpers.go`
+- **Replaced `os.Getenv("MAV_TOKEN")` check** with `config.ResolveVaultToken()` — vault backend initialization now uses the full priority chain instead of requiring manual env var export
+- Users no longer need to run `mav token create` and `export MAV_TOKEN` before every build
+
+### 🔒 Security
+
+- **Token file uses 0600 permissions** — matches kubectl, aws cli, docker, and gh cli standards
+- **Subprocess env allowlist** — `mav token create` spawned with PATH and HOME only; no sensitive parent env vars leak to the subprocess
+- **Token values never logged** — token is handled as an opaque string throughout the resolution chain
+
+### 🏗️ Technical
+
+| Metric | Value |
+|--------|-------|
+| Breaking changes | 0 |
+| New production files | 1 (`config/vault_token.go`, 140 lines) |
+| New test files | 1 (`config/vault_token_test.go`, 21 tests) |
+| Modified files | 2 (`config/config.go`, `cmd/build_helpers.go`) |
+| All tests pass | ✅ (only pre-existing `TestVaultBackend_Health_ReturnsError_WhenDaemonNotRunning` fails) |
+| All 3 binaries build | ✅ |
+
+---
+
 ## [v0.42.0] - 2026-03-16 — Dynamic Completions & Get All
 
 ### ✨ Features
@@ -37,6 +82,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 📚 Documentation
 
 - `docs/configuration/shell-completion.md` updated with comprehensive completion reference, interactive menu selection (zsh), and all new dynamic completions
+
+---
+
+## [v0.42.1] - 2026-03-16 — Fix Python Private Repo Credential Injection
+
+### 🐛 Bug Fixes
+
+#### ARG Declarations Moved After FROM — `builders/dockerfile_generator.go`
+- **`ARG GITHUB_USERNAME` and `ARG GITHUB_PAT` were declared before `FROM`** in the generated Dockerfile — Docker only makes pre-FROM ARGs available to the `FROM` instruction itself, not to subsequent `RUN` commands; build args never reached pip, causing authentication failures when installing private git dependencies from `requirements.txt`
+- **Fixed by moving `ARG` declarations into `generateBaseStage()`** after the `FROM` line — build args are now in scope for all `RUN` commands in the base stage
+
+#### Unnecessary sed Pipeline Removed — `builders/dockerfile_generator.go`
+- **The generated Dockerfile used a `sed` pipeline to substitute `${VAR}` placeholders in requirements.txt** before passing the file to pip — pip natively expands `${VAR}` references from environment variables; the sed pipeline was both broken (incorrect syntax) and redundant
+- **Removed the sed substitution entirely** — pip receives the template file directly and performs `${VAR}` expansion itself; credentials are injected correctly without intermediate file rewriting
+
+### 🏗️ Technical
+
+| Metric | Value |
+|--------|-------|
+| Breaking changes | 0 |
+| Files changed | 2 (`builders/dockerfile_generator.go`, `builders/dockerfile_generator_test.go`) |
+| All tests pass | ✅ |
 
 ---
 

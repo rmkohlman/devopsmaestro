@@ -8,10 +8,16 @@ import (
 	"github.com/spf13/viper"
 )
 
+// VaultConfig holds MaestroVault-related configuration.
+type VaultConfig struct {
+	Token string `mapstructure:"token"` // Vault token (can also be set via MAV_TOKEN env or .vault_token file)
+}
+
 // Config represents the application configuration
 type Config struct {
 	Theme       string      `mapstructure:"theme"`       // UI theme (auto, catppuccin-mocha, etc.)
 	Credentials Credentials `mapstructure:"credentials"` // Global credentials for builds
+	Vault       VaultConfig `mapstructure:"vault"`       // MaestroVault configuration
 }
 
 // GetConfig returns the current configuration

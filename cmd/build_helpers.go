@@ -315,10 +315,13 @@ func loadBuildCredentials(ds db.DataStore, app *models.App, workspace *models.Wo
 		}
 	}
 
-	// Initialize vault backend if MAV_TOKEN is set
+	// Initialize vault backend via auto-token resolution chain
 	var backend config.SecretBackend
-	if token := os.Getenv("MAV_TOKEN"); token != "" {
-		// Ensure vault daemon is running
+	token, tokenErr := config.ResolveVaultToken()
+	if tokenErr != nil {
+		slog.Warn("failed to resolve vault token", "error", tokenErr)
+	}
+	if token != "" {
 		if err := config.EnsureVaultDaemon(); err != nil {
 			slog.Warn("failed to start vault daemon", "error", err)
 		} else {

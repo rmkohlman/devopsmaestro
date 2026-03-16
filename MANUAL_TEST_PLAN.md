@@ -1,7 +1,7 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.41.0  
-> **Last Updated**: March 14, 2026
+> **Version**: v0.43.0  
+> **Last Updated**: March 16, 2026
 
 ---
 
@@ -31,6 +31,7 @@ source tests/manual/part2-post-attach.sh
 | 1 | Automated | `tests/manual/part1-setup-and-build.sh` |
 | - | Manual | Interactive container testing (below) |
 | 2 | Automated | `tests/manual/part2-post-attach.sh` |
+| 19 | Manual | Auto-Token Creation (v0.43.0) |
 
 ---
 
@@ -3640,6 +3641,131 @@ go test $(go list ./... | grep -v integration_test) -short -count=1
 
 ---
 
+## Part 19: Auto-Token Creation (v0.43.0)
+
+> **Prerequisite**: MaestroVault (`mav`) available in PATH; a workspace with at least one vault credential configured. For scenarios testing graceful degradation, temporarily rename/remove `mav` from PATH.
+
+### Scenario 78: Auto-Token Creation Without MAV_TOKEN
+
+**Goal**: When no token source is available but `mav` is in PATH, `dvm build` auto-creates a read-only token and persists it
+
+**Prerequisites**: No `MAV_TOKEN` env var set, no `vault.token` in viper config, no `~/.devopsmaestro/.vault_token` file, `mav` is in PATH
+
+```bash
+# Ensure clean state — no existing token sources
+unset MAV_TOKEN
+rm -f ~/.devopsmaestro/.vault_token
+
+# Run build with verbose output against a workspace that has vault credentials
+dvm build -v
+```
+
+**Expected**:
+- Build log contains `"auto-created MaestroVault token"`
+- Token file created at `~/.devopsmaestro/.vault_token`
+- Build proceeds with full vault credential resolution (no unresolved credential warnings)
+
+---
+
+### Scenario 79: Token File Reuse
+
+**Goal**: On subsequent builds, the persisted token file is reused — no redundant auto-creation
+
+**Prerequisites**: `~/.devopsmaestro/.vault_token` file exists from Scenario 78 (or any prior auto-creation)
+
+```bash
+# Run build again (no MAV_TOKEN env var)
+dvm build -v
+```
+
+**Expected**:
+- Build log does NOT contain `"auto-created MaestroVault token"`
+- Vault credential resolution still works (token is read from file)
+
+---
+
+### Scenario 80: MAV_TOKEN Env Takes Priority
+
+**Goal**: `MAV_TOKEN` environment variable takes precedence over the persisted token file
+
+**Prerequisites**: `~/.devopsmaestro/.vault_token` file exists; set `MAV_TOKEN` to a known token value
+
+```bash
+export MAV_TOKEN=mvt_env_token_test
+
+# Confirm token file also exists
+ls ~/.devopsmaestro/.vault_token
+
+dvm build -v
+```
+
+**Expected**:
+- Vault resolution uses the `MAV_TOKEN` value (`mvt_env_token_test`), not the file token
+- No `"auto-created MaestroVault token"` log message (env var satisfied the resolution chain at step 1)
+
+---
+
+### Scenario 81: Graceful Degradation Without mav
+
+**Goal**: When `mav` is not in PATH and no token exists from any source, build continues without vault rather than failing
+
+**Prerequisites**: `mav` not in PATH (e.g., temporarily rename `mav` binary), no `MAV_TOKEN`, no `~/.devopsmaestro/.vault_token`
+
+```bash
+# Remove token sources
+unset MAV_TOKEN
+rm -f ~/.devopsmaestro/.vault_token
+
+# Simulate mav not in PATH (restore when done)
+# Option A: temporarily move it
+mv $(which mav) /tmp/mav_backup
+
+dvm build -v
+
+# Restore mav
+mv /tmp/mav_backup $(dirname $(which dvm))/mav
+```
+
+**Expected**:
+- Build log contains `"failed to auto-create vault token"` (or similar degradation message)
+- Build does NOT abort — it continues to completion
+- Credentials sourced from environment variables still resolve correctly
+- Vault-sourced credentials are skipped/warned, not fatal
+
+---
+
+### Scenario 82: Token File Permissions
+
+**Goal**: Auto-created token file has restrictive 0600 permissions (owner read/write only)
+
+**Prerequisites**: Auto-token creation has occurred (run Scenario 78 first if needed)
+
+```bash
+ls -la ~/.devopsmaestro/.vault_token
+```
+
+**Expected**: File permissions show `-rw-------` (0600), owned by the current user:
+```
+-rw------- 1 <user> <group> <size> <date> /Users/<user>/.devopsmaestro/.vault_token
+```
+
+No group or other read/write/execute bits set.
+
+---
+
+### Scenario 83: Automated Test Coverage (Regression Gate)
+
+**Goal**: All unit tests for vault token resolution pass
+
+```bash
+cd ~/Developer/tools/devopsmaestro
+go test ./config/ -run TestResolveVaultToken -v -count=1
+```
+
+**Expected**: All 21 tests pass, 0 failures
+
+---
+
 ## Test Results Summary
 
 | Part | Tests | Pass | Fail |
@@ -3665,6 +3791,7 @@ go test $(go list ./... | grep -v integration_test) -short -count=1
 | Part 16: Credential Resolution Robustness | 4 scenarios | | |
 | Part 17: MaestroVault Integration | 9 scenarios | | |
 | Part 18: MaestroVault Fields Integration | 8 scenarios | | |
+| Part 19: Auto-Token Creation | 6 scenarios | | |
 
 ---
 
@@ -3717,5 +3844,5 @@ colima nerdctl -- --namespace devopsmaestro images
 
 **Tested by:** ________________  
 **Date:** ________________  
-**Version**: v0.41.0  
+**Version**: v0.43.0  
 **Platform:** ________________
