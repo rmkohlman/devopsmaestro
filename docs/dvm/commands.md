@@ -493,16 +493,24 @@ dvm apply -f github:user/themes/my-custom-theme.yaml
 ```
 
 **Resource Types Supported:**
-- `NvimTheme` - Custom theme definitions
-- `NvimPlugin` - Plugin configurations  
-- `Workspace` - Workspace configurations
+- `Ecosystem` - Ecosystem definitions
+- `Domain` - Domain definitions
 - `App` - Application definitions
+- `Workspace` - Workspace configurations
+- `Credential` - Credential references
+- `Registry` - Container registry configurations
+- `NvimTheme` - Custom theme definitions
+- `NvimPlugin` - Plugin configurations
+- `NvimPackage` - Neovim package definitions
+- `TerminalPrompt` - Terminal prompt configurations
+- `TerminalPackage` - Terminal package definitions
+- `CustomResourceDefinition` - Custom resource type definitions
 
 ---
 
 ## Credentials
 
-Credentials store references to secrets in the macOS Keychain or host environment variables. They are scoped to a specific resource (ecosystem, domain, app, or workspace).
+Credentials store references to secrets in MaestroVault or host environment variables. They are scoped to a specific resource (ecosystem, domain, app, or workspace).
 
 See [Credential YAML Reference](../reference/credential.md) for full YAML spec and field details.
 
@@ -519,14 +527,15 @@ dvm create cred <name> [flags]        # Alias
 
 | Flag | Description |
 |------|-------------|
-| `--source <type>` | Secret source: `keychain` or `env` (required) |
-| `--keychain-label <label>` | Keychain entry label — required when `--source=keychain` |
-| `--keychain-type <type>` | Keychain item type: `generic` or `internet` (default: `internet`) |
+| `--source <type>` | Secret source: `vault` or `env` (required) |
+| `--vault-secret <name>` | MaestroVault secret name — required when `--source=vault` |
+| `--vault-env <name>` | MaestroVault environment |
+| `--vault-username-secret <name>` | MaestroVault secret name for username |
+| `--vault-field <ENV_VAR=field>` | Map a vault field to an env var (repeatable) |
 | `--env-var <name>` | Environment variable name — required when `--source=env` |
 | `--description <text>` | Human-readable description |
-| `--username-var <name>` | Env var for keychain account field (keychain only) |
-| `--password-var <name>` | Env var for keychain password field (keychain only) |
-| `--service <name>` | **Deprecated.** Use `--keychain-label` instead |
+| `--username-var <name>` | Env var for username (vault only) |
+| `--password-var <name>` | Env var for password (vault only) |
 
 **Scope flags (exactly one required):**
 
@@ -540,9 +549,9 @@ dvm create cred <name> [flags]        # Alias
 **Examples:**
 
 ```bash
-# GitHub PAT from Passwords app / iCloud Keychain
+# GitHub PAT from MaestroVault
 dvm create credential github-token \
-  --source keychain --keychain-label "GitHub PAT" \
+  --source vault --vault-secret "github-pat" \
   --app my-api
 
 # API key from environment variable
@@ -550,18 +559,17 @@ dvm create credential api-key \
   --source env --env-var MY_API_KEY \
   --ecosystem prod
 
-# Docker Hub credentials (split into username + password vars)
+# Docker Hub credentials with separate username and password vars
 dvm create credential docker-registry \
-  --source keychain --keychain-label "hub.docker.com" \
-  --keychain-type internet \
+  --source vault --vault-secret "hub.docker.com" \
   --username-var DOCKER_USERNAME \
   --password-var DOCKER_PASSWORD \
   --domain backend
 
-# Generic keychain entry (Keychain Access app)
+# Vault secret with explicit field mapping
 dvm create cred db-pass \
-  --source keychain --keychain-label "Postgres prod" \
-  --keychain-type generic \
+  --source vault --vault-secret "postgres-prod" \
+  --vault-field DB_PASSWORD=password \
   --description "Postgres prod password" \
   --app my-api
 ```

@@ -656,7 +656,7 @@ DevOpsMaestro validates YAML against the schema on import:
 
 **General validation:**
 - Required fields (`apiVersion`, `kind`, `metadata.name`)
-- Valid resource kinds (`NvimTheme`, `NvimPlugin`, `App`, `Workspace`)
+- Valid resource kinds (`Ecosystem`, `Domain`, `App`, `Workspace`, `Credential`, `Registry`, `NvimTheme`, `NvimPlugin`, `NvimPackage`, `TerminalPrompt`, `TerminalPackage`, `CustomResourceDefinition`)
 - API version compatibility
 
 **NvimTheme validation:**

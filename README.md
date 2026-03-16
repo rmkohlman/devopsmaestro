@@ -291,7 +291,7 @@ dvm status           # Full status overview
 - **Defaults management** - Set default nvim packages for new workspaces
 - **Auto-migration** - Database migrations run automatically on startup
 - **GitHub directory URL support** - Apply entire directories of YAML files with `dvm apply -f github:user/repo/directory/`
-- **Secret provider system** - Pluggable secret resolution (Keychain, environment variables)
+- **Secret provider system** - Pluggable secret resolution (MaestroVault, environment variables)
 - **Multi-platform** - OrbStack, Docker Desktop, Podman, Colima
 - **Container-native** - Isolated dev environments with Neovim pre-configured
 - **Default Nvim setup** - New workspaces auto-configured with lazyvim + "core" plugin package
@@ -467,8 +467,8 @@ dvm apply -f workspace.yaml   # Apply YAML configuration
 dvm get platforms             # List detected container platforms
 
 # Credential Management (v0.39.0+)
-dvm create credential <name> --source keychain --keychain-label <label> --ecosystem <eco>
-dvm create credential <name> --source keychain --keychain-label <label> --keychain-type internet --app <app>
+dvm create credential <name> --source vault --vault-secret <secret> --ecosystem <eco>
+dvm create credential <name> --source vault --vault-secret <secret> --vault-env <env> --app <app>
 dvm create credential <name> --source env --env-var <VAR> --domain <dom>
 dvm get credentials --all                         # List all credentials
 dvm get credentials -A                            # Same (short form)
@@ -568,15 +568,15 @@ dvt wezterm apply <name>      # Apply configuration to ~/.wezterm.lua
 
 ## Credentials
 
-DevOpsMaestro manages credentials as first-class resources scoped to your object hierarchy. Credentials reference secrets stored in the macOS Keychain or environment variables.
+DevOpsMaestro manages credentials as first-class resources scoped to your object hierarchy. Credentials reference secrets stored in MaestroVault or environment variables.
 
 ### Credential Commands (v0.39.0+)
 
 ```bash
-# Create a credential referencing a macOS Keychain entry (by label)
+# Create a credential referencing a MaestroVault secret
 dvm create credential github-creds \
-  --source keychain \
-  --keychain-label "github-pat" \
+  --source vault \
+  --vault-secret "github-pat" \
   --username-var GITHUB_USERNAME \
   --password-var GITHUB_PAT \
   --ecosystem myorg
@@ -587,20 +587,19 @@ dvm create credential api-key \
   --env-var MY_API_KEY \
   --app my-api
 
-# Use --keychain-type to select generic vs. internet passwords
-# (default: internet — matches Passwords app, Safari, iCloud Keychain entries)
+# Create a credential referencing a vault secret in a specific environment
 dvm create credential docker-hub \
-  --source keychain \
-  --keychain-label "hub.docker.com" \
-  --keychain-type internet \
+  --source vault \
+  --vault-secret "hub.docker.com" \
+  --vault-env production \
   --password-var DOCKER_TOKEN \
   --domain infra
 
-# For Keychain Access (non-Passwords-app) entries, use --keychain-type generic
+# Create a credential with separate vault secrets for username and password
 dvm create credential ci-token \
-  --source keychain \
-  --keychain-label "CI Service Token" \
-  --keychain-type generic \
+  --source vault \
+  --vault-secret "ci-service-token" \
+  --vault-username-secret "ci-service-user" \
   --password-var CI_TOKEN \
   --workspace dev
 
@@ -626,15 +625,8 @@ dvm create gitrepo my-private-repo \
 
 | Source | Backend | Flags |
 |--------|---------|-------|
-| `keychain` | macOS Keychain | `--keychain-label`, `--keychain-type`, `--username-var`, `--password-var` |
+| `vault` | MaestroVault | `--vault-secret`, `--vault-env`, `--vault-username-secret`, `--vault-field`, `--username-var`, `--password-var` |
 | `env` | Environment variable | `--env-var` |
-
-### Keychain Types
-
-| Type | Description | Use Case |
-|------|-------------|----------|
-| `internet` | Internet passwords (default) | Passwords app, Safari, iCloud Keychain |
-| `generic` | Generic passwords | Keychain Access entries, CLI-created tokens |
 
 ### Credential Scopes
 
@@ -1446,7 +1438,7 @@ dvm/nvp CLI
     │   └── library/     # Embedded plugin/theme library
     ├── pkg/terminalops/ # Terminal prompt/plugin management (dvt)
     ├── pkg/registry/    # Registry type implementations (Zot, devpi, Verdaccio, Athens, Squid)
-    ├── pkg/secrets/     # Secret provider system (Keychain, env)
+    ├── pkg/secrets/     # Secret provider system (MaestroVault, env)
     ├── pkg/crd/         # Custom Resource Definition support
     ├── pkg/colors/      # Color/theme provider system
     ├── pkg/mirror/      # Git repository mirror management

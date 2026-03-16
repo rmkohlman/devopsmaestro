@@ -173,6 +173,7 @@ spec:
 - [Ecosystem](ecosystem.md) - Parent organizational grouping
 - [App](app.md) - Applications within this domain
 - [Workspace](workspace.md) - Development environments
+- [Credential](credential.md) - Secrets scoped to this domain
 - [NvimTheme](nvim-theme.md) - Theme definitions
 
 ## Validation Rules

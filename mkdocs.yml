@@ -90,15 +90,20 @@ nav:
     - Shell Completion: configuration/shell-completion.md
     - WezTerm Integration: configuration/wezterm.md
   - Reference:
+    - YAML Templates: reference/yaml-templates.md
     - Overview: reference/index.md
     - Ecosystem: reference/ecosystem.md
     - Domain: reference/domain.md
     - App: reference/app.md
     - Workspace: reference/workspace.md
+    - Credential: reference/credential.md
+    - Registry: reference/registry.md
     - NvimTheme: reference/nvim-theme.md
     - NvimPlugin: reference/nvim-plugin.md
     - NvimPackage: reference/nvim-package.md
+    - TerminalPrompt: reference/terminal-prompt.md
     - WeztermConfig: reference/wezterm-config.md
+    - CustomResourceDefinition: reference/custom-resource-definition.md
   - Vision & Roadmap:
     - Architecture Vision: vision/architecture.md
   - Advanced:

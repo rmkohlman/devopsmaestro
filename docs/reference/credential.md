@@ -3,7 +3,7 @@
 **Kind:** `Credential`  
 **APIVersion:** `devopsmaestro.io/v1`
 
-A Credential stores a reference to a secret — not the secret itself. Credentials point to values stored in the macOS Keychain or in environment variables. They are scoped to exactly one resource (ecosystem, domain, app, or workspace) and resolve automatically when that scope is active.
+A Credential stores a reference to a secret — not the secret itself. Credentials point to values stored in MaestroVault or in environment variables. They are scoped to exactly one resource (ecosystem, domain, app, or workspace) and resolve automatically when that scope is active.
 
 ## Full Example
 
@@ -14,13 +14,35 @@ metadata:
   name: github-token
   app: api-service           # Scoped to this app
 spec:
-  source: keychain
-  keychainLabel: "GitHub PAT"
-  keychainType: internet
+  source: vault
+  vaultSecret: "github-pat"
+  vaultEnvironment: production
   description: "GitHub PAT for pulling private packages"
 ```
 
-### Dual-Field Keychain Example
+## Vault Fields Example
+
+A single MaestroVault secret with multiple fields, each mapped to a separate environment variable:
+
+```yaml
+apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  name: db-creds
+  app: api-service
+spec:
+  source: vault
+  vaultSecret: "database/prod"
+  description: "Database connection credentials"
+  vaultFields:
+    DB_HOST: host
+    DB_PORT: port
+    DB_PASSWORD: password
+```
+
+## Dual-Field Vault Example
+
+A single MaestroVault secret split into a username variable and a password variable:
 
 ```yaml
 apiVersion: devopsmaestro.io/v1
@@ -29,15 +51,14 @@ metadata:
   name: docker-registry
   ecosystem: prod-platform   # Scoped to this ecosystem
 spec:
-  source: keychain
-  keychainLabel: "hub.docker.com"
-  keychainType: internet
+  source: vault
+  vaultSecret: "hub.docker.com"
   description: "Docker Hub credentials"
-  usernameVar: DOCKER_USERNAME   # Injected as this env var (from keychain account field)
-  passwordVar: DOCKER_PASSWORD   # Injected as this env var (from keychain password field)
+  usernameVar: DOCKER_USERNAME   # Injected from vault username field
+  passwordVar: DOCKER_PASSWORD   # Injected from vault password field
 ```
 
-### Environment Variable Example
+## Environment Variable Example
 
 ```yaml
 apiVersion: devopsmaestro.io/v1
@@ -55,26 +76,30 @@ spec:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `apiVersion` | string | ✅ | Must be `devopsmaestro.io/v1` |
-| `kind` | string | ✅ | Must be `Credential` |
-| `metadata.name` | string | ✅ | Unique name for the credential within its scope |
-| `metadata.ecosystem` | string | ❌ | Scope to an ecosystem (exactly one scope required) |
-| `metadata.domain` | string | ❌ | Scope to a domain (exactly one scope required) |
-| `metadata.app` | string | ❌ | Scope to an app (exactly one scope required) |
-| `metadata.workspace` | string | ❌ | Scope to a workspace (exactly one scope required) |
-| `spec.source` | string | ✅ | Where the secret lives: `keychain` or `env` |
-| `spec.keychainLabel` | string | ✅ (keychain) | macOS Keychain label — required when `source: keychain` (preferred over `service`) |
-| `spec.keychainType` | string | ❌ | Keychain item type: `generic` or `internet` (default: `internet`) |
-| `spec.service` | string | ❌ | **Deprecated.** Keychain service name — use `keychainLabel` instead |
-| `spec.envVar` | string | ✅ (env) | Environment variable name — required when `source: env` |
-| `spec.description` | string | ❌ | Human-readable description of the credential |
-| `spec.usernameVar` | string | ❌ | Env var name to receive the keychain account field (keychain only) |
-| `spec.passwordVar` | string | ❌ | Env var name to receive the keychain password field (keychain only) |
+| `apiVersion` | string | Yes | Must be `devopsmaestro.io/v1` |
+| `kind` | string | Yes | Must be `Credential` |
+| `metadata.name` | string | Yes | Unique name for the credential within its scope |
+| `metadata.ecosystem` | string | No | Scope to an ecosystem (exactly one scope required) |
+| `metadata.domain` | string | No | Scope to a domain (exactly one scope required) |
+| `metadata.app` | string | No | Scope to an app (exactly one scope required) |
+| `metadata.workspace` | string | No | Scope to a workspace (exactly one scope required) |
+| `spec.source` | string | Yes | Where the secret lives: `vault` or `env` |
+| `spec.vaultSecret` | string | Yes (vault) | MaestroVault secret name — required when `source: vault` |
+| `spec.vaultEnvironment` | string | No | MaestroVault environment (e.g., `production`) — vault source only |
+| `spec.vaultUsernameSecret` | string | No | Separate MaestroVault secret name for the username — vault source only; requires `usernameVar` |
+| `spec.vaultFields` | map[string]string | No | Map of env var names to vault field names — vault source only; mutually exclusive with `usernameVar`/`passwordVar` |
+| `spec.envVar` | string | Yes (env) | Environment variable name — required when `source: env` |
+| `spec.description` | string | No | Human-readable description of the credential |
+| `spec.usernameVar` | string | No | Env var name to receive the vault username value — vault source only |
+| `spec.passwordVar` | string | No | Env var name to receive the vault password value — vault source only |
 
 ## Field Details
 
 ### metadata.name (required)
+
 The unique identifier for this credential within its scope. Two credentials in different scopes may share the same name — the narrower scope wins at resolution time (see [Scope Hierarchy](#scope-hierarchy)).
+
+For simple vault credentials (no `usernameVar`, `passwordVar`, or `vaultFields`), the credential name becomes the environment variable key when the credential is resolved.
 
 **Examples:**
 - `github-token` — GitHub Personal Access Token
@@ -83,6 +108,7 @@ The unique identifier for this credential within its scope. Two credentials in d
 - `api-key` — External service API key
 
 ### metadata scope (exactly one required)
+
 Credentials must be scoped to exactly one resource. Specify the name of the target resource in the matching field:
 
 ```yaml
@@ -95,44 +121,75 @@ metadata:
 ```
 
 ### spec.source (required)
-Defines where the secret value is stored at runtime.
+
+Defines where the secret value is retrieved from at runtime.
 
 | Value | Description |
 |-------|-------------|
-| `keychain` | macOS Keychain item (requires `spec.keychainLabel`) |
+| `vault` | MaestroVault secret (requires `spec.vaultSecret`) |
 | `env` | Host environment variable (requires `spec.envVar`) |
 
-### spec.keychainLabel (required for keychain)
-The macOS Keychain entry label used to look up the item. This is the display name shown in Keychain Access (for `generic` type) or in the Passwords app and Safari (for `internet` type).
+### spec.vaultSecret (required for vault)
+
+The MaestroVault secret name used to look up the credential.
 
 ```yaml
 spec:
-  source: keychain
-  keychainLabel: "GitHub PAT"   # Keychain entry label
+  source: vault
+  vaultSecret: "github-pat"
 ```
 
-The Keychain item's **password field** is the value retrieved by default. Use `usernameVar` / `passwordVar` to split a single Keychain entry into two environment variables.
+For simple credentials, the entire secret value is retrieved and injected as the environment variable named after the credential. For dual-field and vault fields credentials, the secret value is split into multiple environment variables.
 
-### spec.keychainType (optional, keychain only)
-Controls which macOS keychain store is searched:
+### spec.vaultEnvironment (optional, vault only)
 
-| Value | Description |
-|-------|-------------|
-| `internet` | Internet password item — appears in the Passwords app, Safari autofill, and iCloud Keychain (default) |
-| `generic` | Generic password item — appears only in the Keychain Access app |
+The MaestroVault environment to target when retrieving the secret. When omitted, MaestroVault uses its default environment.
 
 ```yaml
 spec:
-  source: keychain
-  keychainLabel: "hub.docker.com"
-  keychainType: internet   # default; searches the Passwords app / iCloud Keychain
+  source: vault
+  vaultSecret: "github-pat"
+  vaultEnvironment: production
 ```
 
-### spec.service (deprecated)
-**Deprecated since v0.39.0.** Use `spec.keychainLabel` instead. Existing credentials that use `spec.service` continue to work — the value is treated as the keychain label.
+### spec.vaultUsernameSecret (optional, vault only)
+
+An alternate MaestroVault secret name used exclusively for the username field of a dual-field credential. When set, `usernameVar` reads from this secret instead of from `vaultSecret`. Requires `usernameVar` to be set.
+
+```yaml
+spec:
+  source: vault
+  vaultSecret: "docker-hub-password"
+  vaultUsernameSecret: "docker-hub-username"
+  usernameVar: DOCKER_USERNAME
+  passwordVar: DOCKER_PASSWORD
+```
+
+### spec.vaultFields (optional, vault only)
+
+A map of environment variable names to vault field names. Each entry fans out to one injected environment variable. Maximum 50 entries.
+
+- Mutually exclusive with `usernameVar` and `passwordVar`
+- Requires `vaultSecret`
+- Environment variable keys must be valid env var names (uppercase letters, digits, and underscores; must not start with a digit)
+- Field names cannot be empty
+
+```yaml
+spec:
+  source: vault
+  vaultSecret: "database/prod"
+  vaultFields:
+    DB_HOST: host
+    DB_PORT: port
+    DB_PASSWORD: password
+    DB_USER: username
+```
+
+When resolved, this produces four injected environment variables: `DB_HOST`, `DB_PORT`, `DB_PASSWORD`, and `DB_USER`.
 
 ### spec.envVar (required for env)
-The name of a host environment variable. The value is read at resolution time from `os.Getenv`.
+
+The name of a host environment variable. The value is read from the host environment at resolution time.
 
 ```yaml
 spec:
@@ -140,25 +197,29 @@ spec:
   envVar: GITHUB_TOKEN   # Must exist in the host environment
 ```
 
-### spec.usernameVar and spec.passwordVar (optional, keychain only)
-Dual-field extraction splits a single Keychain entry into two injected environment variables:
+### spec.usernameVar and spec.passwordVar (optional, vault only)
 
-- `usernameVar` — receives the Keychain item's **account** field
-- `passwordVar` — receives the Keychain item's **password** field
+Dual-field extraction splits a single vault secret into two injected environment variables:
 
-Both are optional and independent — you can specify one or both.
+- `usernameVar` — receives the vault secret's username value
+- `passwordVar` — receives the vault secret's password value
+
+Both are optional and independent — you can specify one or both. When `vaultUsernameSecret` is also set, `usernameVar` reads from that separate secret instead of from `vaultSecret`.
+
+Mutually exclusive with `vaultFields`.
 
 ```yaml
 spec:
-  source: keychain
-  keychainLabel: "hub.docker.com"
-  usernameVar: DOCKER_USERNAME   # account field → DOCKER_USERNAME
-  passwordVar: DOCKER_PASSWORD   # password field → DOCKER_PASSWORD
+  source: vault
+  vaultSecret: "hub.docker.com"
+  usernameVar: DOCKER_USERNAME
+  passwordVar: DOCKER_PASSWORD
 ```
 
-`usernameVar` and `passwordVar` values must be valid environment variable names (uppercase letters, digits, and underscores; must not start with a digit).
+`usernameVar` and `passwordVar` values must be valid environment variable names.
 
 ### spec.description (optional)
+
 A human-readable note about what this credential is used for.
 
 ```yaml
@@ -171,17 +232,17 @@ spec:
 Credentials are resolved from broadest to narrowest scope. A credential defined at the workspace level overrides the same credential name at the app, domain, or ecosystem level.
 
 ```
-ecosystem → domain → app → workspace
- (lowest)                   (highest)
+global → ecosystem → domain → app → workspace
+(lowest)                              (highest)
 ```
 
-When dvm resolves credentials for an active workspace, it merges all credentials from each ancestor scope, with narrower scopes taking priority.
+When `dvm` resolves credentials for an active workspace, it merges all credentials from each ancestor scope, with narrower scopes taking priority.
 
 **Override behavior:**  
 If `GITHUB_TOKEN` is defined at both the ecosystem scope and the app scope, the app-scoped value wins when working in that app.
 
 **Environment variable precedence:**  
-Host environment variables always take the highest priority. If `DOCKER_PASSWORD` is already set in the host environment, that value is used regardless of any Keychain or credential configuration.
+Host environment variables always take the highest priority. If `DOCKER_PASSWORD` is already set in the host environment, that value is used regardless of any vault or credential configuration.
 
 ## CLI Commands
 
@@ -198,14 +259,24 @@ dvm create cred <name> [flags]        # Alias
 
 | Flag | Type | Required | Description |
 |------|------|----------|-------------|
-| `--source` | string | ✅ | Secret source: `keychain` or `env` |
-| `--keychain-label` | string | ✅ (keychain) | Keychain entry label — display name in Keychain Access or Passwords app |
-| `--keychain-type` | string | ❌ | Keychain item type: `generic` or `internet` (default: `internet`) |
-| `--env-var` | string | ✅ (env) | Environment variable name |
-| `--description` | string | ❌ | Human-readable description |
-| `--username-var` | string | ❌ | Env var for keychain account field (keychain only) |
-| `--password-var` | string | ❌ | Env var for keychain password field (keychain only) |
-| `--service` | string | ❌ | **Deprecated.** Keychain service name — use `--keychain-label` instead |
+| `--source` | string | Yes | Secret source: `vault` or `env` |
+| `--vault-secret` | string | Yes (vault) | MaestroVault secret name |
+| `--vault-env` | string | No | MaestroVault environment (e.g., `production`) |
+| `--vault-username-secret` | string | No | MaestroVault secret name for username (vault only) |
+| `--env-var` | string | Yes (env) | Environment variable name |
+| `--description` | string | No | Human-readable description |
+| `--username-var` | string | No | Env var for vault username value (vault only) |
+| `--password-var` | string | No | Env var for vault password value (vault only) |
+| `--vault-field` | string | No | Map vault field to env var (repeatable) — see format below |
+
+**`--vault-field` format:**
+
+```
+--vault-field ENV_VAR=field_name   # Explicit: map field_name to ENV_VAR
+--vault-field FIELD_NAME           # Auto-map: env var name equals field name
+```
+
+Repeatable. Maximum 50 entries. Mutually exclusive with `--username-var`, `--password-var`, and `--vault-username-secret`.
 
 **Scope flags (exactly one required):**
 
@@ -219,30 +290,44 @@ dvm create cred <name> [flags]        # Alias
 **Examples:**
 
 ```bash
-# Keychain credential scoped to an app (internet type — Passwords app / iCloud)
+# Simple vault credential scoped to an app
 dvm create credential github-token \
-  --source keychain --keychain-label "GitHub PAT" \
+  --source vault \
+  --vault-secret "github-pat" \
+  --vault-env production \
   --app my-api
 
 # Environment variable credential scoped to an ecosystem
 dvm create credential api-key \
-  --source env --env-var MY_API_KEY \
+  --source env \
+  --env-var MY_API_KEY \
   --ecosystem prod
 
-# Dual-field keychain credential scoped to a domain
+# Dual-field vault credential scoped to a domain
 dvm create credential docker-registry \
-  --source keychain --keychain-label "hub.docker.com" \
-  --keychain-type internet \
+  --source vault \
+  --vault-secret "hub.docker.com" \
   --username-var DOCKER_USERNAME \
   --password-var DOCKER_PASSWORD \
   --domain backend
 
-# Generic keychain entry (Keychain Access app) with description
-dvm create cred db-pass \
-  --source keychain --keychain-label "Postgres prod" \
-  --keychain-type generic \
-  --description "Postgres prod password" \
+# Vault fields credential — one secret, multiple env vars
+dvm create credential db-creds \
+  --source vault \
+  --vault-secret "database/prod" \
+  --vault-field DB_HOST=host \
+  --vault-field DB_PORT=port \
+  --vault-field DB_PASSWORD=password \
   --app my-api
+
+# Dual-field with a separate username secret
+dvm create credential github-creds \
+  --source vault \
+  --vault-secret "github-pat" \
+  --vault-username-secret "github-username" \
+  --username-var GITHUB_USERNAME \
+  --password-var GITHUB_PAT \
+  --ecosystem myorg
 ```
 
 ---
@@ -278,10 +363,30 @@ dvm get cred db-pass --domain backend
 ```
 Name:      github-token
 Scope:     app (ID: 3)
-Source:    keychain
-Label:     GitHub PAT
-Type:      internet
+Source:    vault
+Secret:    github-pat
+Vault Env: production
 Desc:      GitHub PAT for pulling private packages
+```
+
+Fields are only printed when set. A vault fields credential additionally prints a `Fields:` block:
+
+```
+Name:      db-creds
+Scope:     app (ID: 3)
+Source:    vault
+Secret:    database/prod
+Fields:
+  DB_HOST <- host
+  DB_PASSWORD <- password
+  DB_PORT <- port
+```
+
+When the env var name equals the field name (auto-map), only the name is printed:
+
+```
+Fields:
+  DB_PASSWORD
 ```
 
 ---
@@ -360,9 +465,9 @@ dvm apply -f credential.yaml
 
 ## Examples
 
-### Simple Keychain Credential
+### Simple Vault Credential
 
-A GitHub PAT stored in the macOS Keychain, available to a single app:
+A GitHub PAT stored in MaestroVault, available to a single app. The credential name (`github-token`) becomes the injected environment variable key.
 
 ```yaml
 apiVersion: devopsmaestro.io/v1
@@ -371,25 +476,28 @@ metadata:
   name: github-token
   app: api-service
 spec:
-  source: keychain
-  keychainLabel: "GitHub PAT"
-  keychainType: internet
+  source: vault
+  vaultSecret: "github-pat"
+  vaultEnvironment: production
   description: "GitHub PAT with read:packages scope"
 ```
 
 **Create equivalent:**
 ```bash
 dvm create credential github-token \
-  --source keychain --keychain-label "GitHub PAT" \
-  --keychain-type internet \
+  --source vault \
+  --vault-secret "github-pat" \
+  --vault-env production \
   --app api-service
 ```
 
+When resolved, the value of the `github-pat` secret is injected into the credentials map with the key `github-token` (the credential name).
+
 ---
 
-### Dual-Field Keychain Credential
+### Dual-Field Vault Credential
 
-A single Keychain entry split into username and password environment variables — useful for container registries:
+A single vault secret split into username and password environment variables — useful for container registries, npm, or Maven:
 
 ```yaml
 apiVersion: devopsmaestro.io/v1
@@ -398,15 +506,61 @@ metadata:
   name: docker-registry
   ecosystem: prod-platform
 spec:
-  source: keychain
-  keychainLabel: "hub.docker.com"
-  keychainType: internet
+  source: vault
+  vaultSecret: "hub.docker.com"
   description: "Docker Hub login"
   usernameVar: DOCKER_USERNAME
   passwordVar: DOCKER_PASSWORD
 ```
 
-When resolved, `DOCKER_USERNAME` receives the Keychain account field and `DOCKER_PASSWORD` receives the password field.
+**Create equivalent:**
+```bash
+dvm create credential docker-registry \
+  --source vault \
+  --vault-secret "hub.docker.com" \
+  --username-var DOCKER_USERNAME \
+  --password-var DOCKER_PASSWORD \
+  --ecosystem prod-platform
+```
+
+When resolved, `DOCKER_USERNAME` receives the vault username value and `DOCKER_PASSWORD` receives the vault password value.
+
+---
+
+### Vault Fields Credential
+
+One vault secret with multiple named fields, each mapped to a separate environment variable:
+
+```yaml
+apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  name: db-creds
+  app: api-service
+spec:
+  source: vault
+  vaultSecret: "database/prod"
+  description: "Database connection credentials"
+  vaultFields:
+    DB_HOST: host
+    DB_PORT: port
+    DB_USER: username
+    DB_PASSWORD: password
+```
+
+**Create equivalent:**
+```bash
+dvm create credential db-creds \
+  --source vault \
+  --vault-secret "database/prod" \
+  --vault-field DB_HOST=host \
+  --vault-field DB_PORT=port \
+  --vault-field DB_USER=username \
+  --vault-field DB_PASSWORD=password \
+  --app api-service
+```
+
+When resolved, this fans out to four environment variables: `DB_HOST`, `DB_PORT`, `DB_USER`, and `DB_PASSWORD`.
 
 ---
 
@@ -430,7 +584,7 @@ spec:
 
 ### Scoped Credentials at Different Levels
 
-Credentials can be defined at every level of the hierarchy. Narrower scopes override broader ones.
+Credentials can be defined at every level of the hierarchy. Narrower scopes override broader ones when both define the same credential name.
 
 ```yaml
 # Ecosystem-level: applies to all resources in this ecosystem
@@ -440,9 +594,9 @@ metadata:
   name: github-token
   ecosystem: prod-platform
 spec:
-  source: keychain
-  keychainLabel: "GitHub PAT (prod)"
-  keychainType: internet
+  source: vault
+  vaultSecret: "github-pat-shared"
+  vaultEnvironment: production
 ---
 # App-level: overrides the ecosystem credential for this specific app
 apiVersion: devopsmaestro.io/v1
@@ -451,9 +605,9 @@ metadata:
   name: github-token
   app: special-service
 spec:
-  source: keychain
-  keychainLabel: "GitHub PAT (special-service)"
-  keychainType: internet
+  source: vault
+  vaultSecret: "github-pat-special-service"
+  vaultEnvironment: production
   description: "Separate token for this app's private repos"
 ```
 
@@ -471,25 +625,30 @@ dvm apply -f all-credentials.yaml
 
 ## Validation Rules
 
+- `kind` must be `Credential`
 - `metadata.name` is required and must be non-empty
 - Exactly one scope field (`ecosystem`, `domain`, `app`, or `workspace`) must be set in `metadata`
-- `spec.source` is required and must be `keychain` or `env`
-- `spec.keychainLabel` is required when `spec.source` is `keychain`
-- `spec.keychainType` must be `generic` or `internet` when specified (default is `internet`)
+- `spec.source` is required and must be `vault` or `env`
+- `spec.vaultSecret` is required when `spec.source` is `vault`
 - `spec.envVar` is required when `spec.source` is `env`
-- `spec.usernameVar` and `spec.passwordVar` are only valid when `spec.source` is `keychain`
-- `spec.usernameVar` and `spec.passwordVar` must be valid environment variable names (e.g., `UPPER_SNAKE_CASE`)
-- `spec.service` is accepted but deprecated — use `spec.keychainLabel` instead
-- Plaintext values are not supported — `source` must be `keychain` or `env`
+- `spec.usernameVar` and `spec.passwordVar` are only valid when `spec.source` is `vault`
+- `spec.vaultUsernameSecret` requires `spec.usernameVar` to be set
+- `spec.vaultFields` is only valid when `spec.source` is `vault`
+- `spec.vaultFields` requires `spec.vaultSecret`
+- `spec.vaultFields` is mutually exclusive with `spec.usernameVar` and `spec.passwordVar`
+- `spec.vaultFields` maximum 50 entries
+- Vault field env var keys must be valid environment variable names (uppercase letters, digits, underscores; must not start with a digit)
+- Vault field names cannot be empty
 
 ## Notes
 
-- **Credentials never store secret values.** Only the source reference (Keychain label or env var name) is stored in the database.
-- **macOS Keychain only.** The `keychain` source uses the macOS Security framework. It is not available on Linux or Windows.
-- **Keychain types:** `internet` (default) looks up items in the Passwords app / iCloud Keychain / Safari autofill. `generic` looks up items in the Keychain Access app's login keychain.
-- **`--service` is deprecated.** Use `--keychain-label` for new credentials. The `--service` flag still works but emits a deprecation warning.
-- **Host env takes precedence.** If the same variable name already exists in the host environment, the host value is always used — Keychain and config values do not override it.
-- **Dual-field credentials** inject two separate environment variables from a single Keychain item, which is common for services requiring a username and password pair (container registries, npm, Maven).
+- **Credentials never store secret values.** Only the source reference (vault secret name or env var name) is stored in the database.
+- **MaestroVault is required for vault-sourced credentials.** The `vault` source requires MaestroVault to be installed and accessible at resolution time.
+- **Simple vault credentials** use the credential name as the environment variable key in the resolved credentials map.
+- **Dual-field credentials** inject two separate environment variables from a single vault secret, which is common for services requiring a username and password pair (container registries, npm, Maven).
+- **Vault fields credentials** fan out a single vault secret with N fields into N injected environment variables. They cannot be combined with `usernameVar` or `passwordVar`.
+- **`vaultUsernameSecret`** allows the username to come from a different vault secret than the password, for cases where the two values are stored separately.
+- **Host env takes precedence.** If the same variable name already exists in the host environment, the host value always wins — vault and config values do not override it.
 - **Scope resolution** is performed at `dvm` runtime, not at creation time. A credential scoped to an app is available to all workspaces of that app.
 
 ## Related Resources

@@ -448,9 +448,12 @@ dvm get workspace dev --include-config -o yaml
 ## Related Resources
 
 - [App](app.md) - Parent application
+- [Credential](credential.md) - Secrets scoped to this workspace
 - [NvimTheme](nvim-theme.md) - Theme definitions
 - [NvimPlugin](nvim-plugin.md) - Plugin configurations
 - [NvimPackage](nvim-package.md) - Plugin packages
+- [TerminalPrompt](terminal-prompt.md) - Shell prompt configurations
+- [TerminalPackage](terminal-package.md) - Terminal configuration bundles
 
 ## Validation Rules
 

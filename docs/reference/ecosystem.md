@@ -105,6 +105,7 @@ dvm get ecosystem my-platform --include-children -o yaml
 - [Domain](domain.md) - Bounded contexts within an ecosystem
 - [App](app.md) - Applications within domains
 - [Workspace](workspace.md) - Development environments
+- [Credential](credential.md) - Secrets scoped to this ecosystem
 - [NvimTheme](nvim-theme.md) - Theme definitions
 
 ## Validation Rules

@@ -338,6 +338,7 @@ dvm get app my-api --include-workspaces -o yaml
 
 - [Domain](domain.md) - Parent bounded context
 - [Workspace](workspace.md) - Development environments for this app
+- [Credential](credential.md) - Secrets scoped to this app
 - [NvimTheme](nvim-theme.md) - Theme definitions
 
 ## Validation Rules
