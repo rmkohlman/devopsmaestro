@@ -4,6 +4,18 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.43.1 (2026-03-16)
+
+**🐛 Fix Tree-Sitter Builder for Debian-Based Builds**
+
+The tree-sitter CLI builder stage was hardcoded to `alpine:3.20` regardless of workspace language. For Python/Node.js builds (Debian-based), Alpine's `apk` would fail on networks where the Alpine CDN is unreachable (e.g., corporate proxies intercepting SSL). The lazygit builder already had dual Alpine/Debian paths — the tree-sitter builder now matches this pattern.
+
+- **`generateTreeSitterBuilder()` accepts `isAlpine bool`** — matches `generateLazygitBuilder()` parameter pattern
+- **Python/Node.js (Debian) path** — `FROM debian:bookworm-slim`, `apt-get` with `ca-certificates`, `dpkg --print-architecture` for arch detection
+- **Go (Alpine) path** — unchanged; `FROM alpine:3.20`, `apk add --no-cache curl sed`
+- **`activeBuilderStages()`** updated to pass `isAlpine` to the tree-sitter builder (matching lazygit wiring)
+- 1 new test function (`TestDockerfileGenerator_TreeSitterBuilder_DebianPath`) with 2 subtests
+
 ### v0.43.0 (2026-03-16)
 
 **✨ Auto-Token Creation for MaestroVault**
@@ -803,6 +815,7 @@ See the [full migration guide](https://github.com/rmkohlman/devopsmaestro/blob/m
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **0.43.1** | 2026-03-16 | Fix tree-sitter builder for Debian — dual Alpine/Debian paths matching lazygit builder pattern; fixes corporate proxy SSL failures on Python/Node.js builds |
 | **0.43.0** | 2026-03-16 | Auto-token creation for MaestroVault — priority chain resolves token automatically; no manual `mav token create` required |
 | **0.42.1** | 2026-03-16 | Fix Python private repo credential injection — ARG moved after FROM; sed pipeline removed (pip handles `${VAR}` natively) |
 | **0.39.1** | 2026-03-12 | Default keychain type changed to "internet" — fixes Passwords app / Safari / iCloud Keychain silent failures; DB migration 012 |

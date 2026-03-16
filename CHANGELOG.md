@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.43.1] - 2026-03-16 — Fix Tree-Sitter Builder for Debian-Based Builds
+
+### 🐛 Bug Fixes
+
+#### Tree-Sitter Builder — `builders/dockerfile_generator.go`
+- **`generateTreeSitterBuilder()` was hardcoded to `alpine:3.20`** regardless of workspace language — on networks where the Alpine CDN is unreachable (e.g., corporate proxies intercepting SSL), Python/Node.js builds (Debian-based) would fail at the tree-sitter stage
+- **`generateTreeSitterBuilder()` now accepts `isAlpine bool`** — matching the existing `generateLazygitBuilder()` parameter pattern
+- **Python/Node.js (Debian) path** — `FROM debian:bookworm-slim`, `apt-get` with `ca-certificates`, `dpkg --print-architecture` for arch detection
+- **Go (Alpine) path** — unchanged; `FROM alpine:3.20`, `apk add --no-cache curl sed`
+- **`activeBuilderStages()`** updated to pass `isAlpine` to the tree-sitter builder, matching how it is wired for the lazygit builder
+
+### 🏗️ Technical
+
+| Metric | Value |
+|--------|-------|
+| Breaking changes | 0 |
+| Files changed | 2 (`builders/dockerfile_generator.go`, `builders/dockerfile_generator_test.go`) |
+| New test functions | 1 (`TestDockerfileGenerator_TreeSitterBuilder_DebianPath` with 2 subtests) |
+| All tests pass | ✅ (only pre-existing `TestVaultBackend_Health` fails) |
+| All 3 binaries build | ✅ |
+
+---
+
 ## [v0.43.0] - 2026-03-16 — Auto-Token Creation for MaestroVault
 
 ### ✨ Features

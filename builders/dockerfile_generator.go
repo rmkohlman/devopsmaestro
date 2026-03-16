@@ -359,8 +359,10 @@ func (g *DefaultDockerfileGenerator) activeBuilderStages() []builderStage {
 
 	// Tree-sitter CLI builder
 	stages = append(stages, builderStage{
-		name:     "treesitter-builder",
-		emitFunc: g.generateTreeSitterBuilder,
+		name: "treesitter-builder",
+		emitFunc: func(df *strings.Builder) {
+			g.generateTreeSitterBuilder(df, isAlpine)
+		},
 		copyLines: []string{
 			"COPY --from=treesitter-builder /usr/local/bin/tree-sitter /usr/local/bin/tree-sitter",
 		},
@@ -475,15 +477,26 @@ func (g *DefaultDockerfileGenerator) generateStarshipBuilder(dockerfile *strings
 }
 
 // generateTreeSitterBuilder creates a parallel stage to download tree-sitter CLI
-func (g *DefaultDockerfileGenerator) generateTreeSitterBuilder(dockerfile *strings.Builder) {
+func (g *DefaultDockerfileGenerator) generateTreeSitterBuilder(dockerfile *strings.Builder, isAlpine bool) {
 	dockerfile.WriteString("# --- Parallel builder: tree-sitter CLI ---\n")
-	dockerfile.WriteString("FROM alpine:3.20 AS treesitter-builder\n")
-	dockerfile.WriteString("RUN set -e && \\\n")
-	dockerfile.WriteString("    apk add --no-cache curl sed && \\\n")
-	dockerfile.WriteString("    ARCH=$(uname -m) && \\\n")
-	dockerfile.WriteString("    if [ \"$ARCH\" = \"aarch64\" ]; then TS_ARCH=\"arm64\"; \\\n")
-	dockerfile.WriteString("    elif [ \"$ARCH\" = \"x86_64\" ]; then TS_ARCH=\"x64\"; \\\n")
-	dockerfile.WriteString("    else echo \"ERROR: Unsupported architecture: $ARCH\"; exit 1; fi && \\\n")
+	if isAlpine {
+		dockerfile.WriteString("FROM alpine:3.20 AS treesitter-builder\n")
+		dockerfile.WriteString("RUN set -e && \\\n")
+		dockerfile.WriteString("    apk add --no-cache curl sed && \\\n")
+		dockerfile.WriteString("    ARCH=$(uname -m) && \\\n")
+		dockerfile.WriteString("    if [ \"$ARCH\" = \"aarch64\" ]; then TS_ARCH=\"arm64\"; \\\n")
+		dockerfile.WriteString("    elif [ \"$ARCH\" = \"x86_64\" ]; then TS_ARCH=\"x64\"; \\\n")
+		dockerfile.WriteString("    else echo \"ERROR: Unsupported architecture: $ARCH\"; exit 1; fi && \\\n")
+	} else {
+		dockerfile.WriteString("FROM debian:bookworm-slim AS treesitter-builder\n")
+		dockerfile.WriteString("RUN set -e && \\\n")
+		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends curl ca-certificates sed && \\\n")
+		dockerfile.WriteString("    ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m) && \\\n")
+		dockerfile.WriteString("    if [ \"$ARCH\" = \"arm64\" ] || [ \"$ARCH\" = \"aarch64\" ]; then TS_ARCH=\"arm64\"; \\\n")
+		dockerfile.WriteString("    elif [ \"$ARCH\" = \"amd64\" ] || [ \"$ARCH\" = \"x86_64\" ]; then TS_ARCH=\"x64\"; \\\n")
+		dockerfile.WriteString("    else echo \"ERROR: Unsupported architecture: $ARCH\"; exit 1; fi && \\\n")
+	}
+	// Shared download logic (identical for Alpine and Debian)
 	dockerfile.WriteString(fmt.Sprintf("    TREESITTER_VERSION=$(curl %s \"https://api.github.com/repos/tree-sitter/tree-sitter/releases/latest\" | sed -n 's/.*\"tag_name\": \"v\\([^\"]*\\)\".*/\\1/p') && \\\n", curlFlags))
 	dockerfile.WriteString("    [ -n \"$TREESITTER_VERSION\" ] || { echo \"ERROR: Failed to determine tree-sitter version\"; exit 1; } && \\\n")
 	dockerfile.WriteString(fmt.Sprintf("    curl %s \"https://github.com/tree-sitter/tree-sitter/releases/download/v${TREESITTER_VERSION}/tree-sitter-linux-${TS_ARCH}.gz\" -o /tmp/ts.gz && \\\n", curlFlags))

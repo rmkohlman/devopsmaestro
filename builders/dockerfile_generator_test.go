@@ -1442,6 +1442,85 @@ func TestDockerfileGenerator_TreeSitterBuilder_DynamicVersion(t *testing.T) {
 	}
 }
 
+// TestDockerfileGenerator_TreeSitterBuilder_DebianPath verifies that for Debian-based
+// builds (e.g., Python), the tree-sitter builder uses debian:bookworm-slim with apt-get
+// and ca-certificates, while Alpine-based builds (e.g., Go) use alpine:3.20 with apk.
+func TestDockerfileGenerator_TreeSitterBuilder_DebianPath(t *testing.T) {
+	tests := []struct {
+		name         string
+		language     string
+		version      string
+		wantImage    string
+		wantPkgMgr   string
+		notWantImage string
+	}{
+		{
+			name:         "python uses debian tree-sitter builder",
+			language:     "python",
+			version:      "3.11",
+			wantImage:    "FROM debian:bookworm-slim AS treesitter-builder",
+			wantPkgMgr:   "apt-get update && apt-get install -y --no-install-recommends curl ca-certificates sed",
+			notWantImage: "FROM alpine:3.20 AS treesitter-builder",
+		},
+		{
+			name:         "golang uses alpine tree-sitter builder",
+			language:     "golang",
+			version:      "1.22",
+			wantImage:    "FROM alpine:3.20 AS treesitter-builder",
+			wantPkgMgr:   "apk add --no-cache curl sed",
+			notWantImage: "FROM debian:bookworm-slim AS treesitter-builder",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws := &models.Workspace{
+				ID:        1,
+				Name:      "test-ws",
+				ImageName: "test:latest",
+			}
+			wsYAML := models.WorkspaceSpec{}
+
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: wsYAML,
+				Language:      tt.language,
+				Version:       tt.version,
+				AppPath:       "/tmp/test",
+				PathConfig:    paths.New(t.TempDir()),
+			})
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			// Extract tree-sitter section
+			tsStart := strings.Index(dockerfile, "# --- Parallel builder: tree-sitter CLI ---")
+			if tsStart < 0 {
+				t.Fatalf("Generate() missing tree-sitter builder stage")
+			}
+			devStart := strings.Index(dockerfile[tsStart+1:], "\n# ")
+			var tsSection string
+			if devStart > 0 {
+				tsSection = dockerfile[tsStart : tsStart+1+devStart]
+			} else {
+				tsSection = dockerfile[tsStart:]
+			}
+
+			if !strings.Contains(tsSection, tt.wantImage) {
+				t.Errorf("tree-sitter builder should use %q for %s builds.\nGot section:\n%s", tt.wantImage, tt.language, tsSection)
+			}
+			if strings.Contains(tsSection, tt.notWantImage) {
+				t.Errorf("tree-sitter builder should NOT use %q for %s builds.\nGot section:\n%s", tt.notWantImage, tt.language, tsSection)
+			}
+			if !strings.Contains(tsSection, tt.wantPkgMgr) {
+				t.Errorf("tree-sitter builder should use %q for %s builds.\nGot section:\n%s", tt.wantPkgMgr, tt.language, tsSection)
+			}
+		})
+	}
+}
+
 // TestDockerfileGenerator_Generate_NilWorkspace verifies that Generate() returns a
 // non-nil error when the workspace is nil, rather than panicking.
 //
