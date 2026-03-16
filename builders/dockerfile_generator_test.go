@@ -2266,19 +2266,20 @@ func TestDockerfileGenerator_PythonPrivateRepos(t *testing.T) {
 		wantNotContain      []string
 	}{
 		{
-			name: "HTTPS-only — sed substitution path",
+			name: "HTTPS-only — pip expands build args natively",
 			requirementsContent: "flask==2.3.0\n" +
 				"git+https://${GITHUB_USERNAME}:${GITHUB_PAT}@github.com/Org/repo.git@v1.0\n",
 			wantContain: []string{
-				"sed",
-				"GITHUB_USERNAME",
-				"GITHUB_PAT",
-				"requirements-template.txt",
+				"COPY requirements.txt /tmp/",
+				"pip install -r /tmp/requirements.txt",
 				"ARG GITHUB_USERNAME",
 				"ARG GITHUB_PAT",
+				"pip expands ${VAR} from build args",
 			},
 			wantNotContain: []string{
 				"--mount=type=ssh",
+				"requirements-template.txt",
+				"sed \"s/",
 			},
 		},
 		{
@@ -2291,23 +2292,27 @@ func TestDockerfileGenerator_PythonPrivateRepos(t *testing.T) {
 			},
 			wantNotContain: []string{
 				"requirements-template.txt",
+				"sed \"s/",
 			},
 		},
 		{
-			// KEY FAILING TEST: mixed case must produce BOTH sed substitution AND SSH mount.
-			// Current code (if NeedsSSH { ... } else if RequiredBuildArgs { ... }) takes only
-			// the SSH path, so "sed" and "requirements-template.txt" are absent — test fails RED.
-			name: "Mixed HTTPS+SSH — both sed substitution AND SSH mount",
+			// Mixed case: pip natively expands ${VAR} from build args (declared after FROM),
+			// and SSH mount provides key-based auth for git+ssh:// URLs.
+			name: "Mixed HTTPS+SSH — pip expands build args with SSH mount",
 			requirementsContent: "git+https://${GITHUB_USERNAME}:${GITHUB_PAT}@github.com/Org/private-lib.git@v1.0\n" +
 				"mylib @ git+ssh://git@github.com/Org/repo.git@v2.0\n",
 			wantContain: []string{
-				"sed",
 				"--mount=type=ssh",
 				"GITHUB_USERNAME",
 				"ssh-keyscan",
-				"requirements-template.txt",
+				"COPY requirements.txt /tmp/",
+				"pip install -r /tmp/requirements.txt",
+				"pip expands ${VAR} from build args",
 			},
-			wantNotContain: []string{},
+			wantNotContain: []string{
+				"requirements-template.txt",
+				"sed \"s/",
+			},
 		},
 		{
 			name:                "No private repos — plain pip install",

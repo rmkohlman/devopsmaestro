@@ -100,15 +100,6 @@ func (g *DefaultDockerfileGenerator) Generate() (string, error) {
 	// Detect private repository usage
 	privateRepoInfo := utils.DetectPrivateRepos(g.appPath, g.language)
 
-	// Add ARG declarations for build-time variables
-	if len(privateRepoInfo.RequiredBuildArgs) > 0 {
-		dockerfile.WriteString("# Build arguments for private repositories\n")
-		for _, arg := range privateRepoInfo.RequiredBuildArgs {
-			dockerfile.WriteString(fmt.Sprintf("ARG %s\n", arg))
-		}
-		dockerfile.WriteString("\n")
-	}
-
 	// For MVP: Always generate from scratch
 	// Future: Support extending existing production Dockerfiles
 	g.generateBaseStage(&dockerfile, privateRepoInfo)
@@ -171,6 +162,15 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 		g.isAlpine = false
 		dockerfile.WriteString(fmt.Sprintf("FROM python:%s-slim-bookworm AS base\n\n", version))
 
+		// Declare build args after FROM so they're available in RUN commands
+		if len(privateRepoInfo.RequiredBuildArgs) > 0 {
+			dockerfile.WriteString("# Build arguments for private repositories\n")
+			for _, arg := range privateRepoInfo.RequiredBuildArgs {
+				dockerfile.WriteString(fmt.Sprintf("ARG %s\n", arg))
+			}
+			dockerfile.WriteString("\n")
+		}
+
 		// Install git if needed for private repos
 		if privateRepoInfo.NeedsGit {
 			packages := []string{"git", "build-essential"}
@@ -209,22 +209,14 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 		}
 
 		// Dispatch on GitURLType for correct pip install strategy:
-		//   "https" → sed substitution for token variables, then pip install (no SSH mount)
-		//   "ssh"   → pip install with --mount=type=ssh (no sed substitution)
-		//   "mixed" → sed substitution for HTTPS token lines, then pip install with SSH mount
+		//   "https" → pip install with ARG-based env vars (pip expands ${VAR} natively)
+		//   "ssh"   → pip install with --mount=type=ssh
+		//   "mixed" → pip install with SSH mount + ARG-based env vars
 		//   default → plain pip install (no private repos)
 		switch privateRepoInfo.GitURLType {
 		case "https":
-			dockerfile.WriteString("# Copy and process requirements with build args\n")
-			dockerfile.WriteString("COPY requirements.txt /tmp/requirements-template.txt\n")
-
-			// Use shell to substitute variables
-			dockerfile.WriteString("RUN cat /tmp/requirements-template.txt | \\\n")
-			for _, arg := range privateRepoInfo.RequiredBuildArgs {
-				dockerfile.WriteString(fmt.Sprintf("    sed \"s/\\${%s}/$%s/g\" | \\\n", arg, arg))
-			}
-			dockerfile.WriteString("    tee /tmp/requirements.txt > /dev/null\n\n")
-
+			dockerfile.WriteString("# Install dependencies (pip expands ${VAR} from build args)\n")
+			dockerfile.WriteString("COPY requirements.txt /tmp/\n")
 			dockerfile.WriteString("RUN --mount=type=cache,target=/root/.cache/pip \\\n")
 			dockerfile.WriteString("    pip install -r /tmp/requirements.txt\n\n")
 
@@ -236,16 +228,8 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 			dockerfile.WriteString("    pip install -r /tmp/requirements.txt\n\n")
 
 		case "mixed":
-			// Both: sed substitution for HTTPS token lines, then pip install with SSH mount
-			dockerfile.WriteString("# Copy and process requirements with build args, then install with SSH mount\n")
-			dockerfile.WriteString("COPY requirements.txt /tmp/requirements-template.txt\n")
-
-			dockerfile.WriteString("RUN cat /tmp/requirements-template.txt | \\\n")
-			for _, arg := range privateRepoInfo.RequiredBuildArgs {
-				dockerfile.WriteString(fmt.Sprintf("    sed \"s/\\${%s}/$%s/g\" | \\\n", arg, arg))
-			}
-			dockerfile.WriteString("    tee /tmp/requirements.txt > /dev/null\n\n")
-
+			dockerfile.WriteString("# Install dependencies with SSH mount (pip expands ${VAR} from build args)\n")
+			dockerfile.WriteString("COPY requirements.txt /tmp/\n")
 			dockerfile.WriteString("RUN --mount=type=ssh \\\n")
 			dockerfile.WriteString("    --mount=type=cache,target=/root/.cache/pip \\\n")
 			dockerfile.WriteString("    pip install -r /tmp/requirements.txt\n\n")
