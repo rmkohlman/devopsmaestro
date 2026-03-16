@@ -166,40 +166,9 @@ func init() {
 	// Push flags
 	nvimPushCmd.Flags().BoolVar(&nvimRestart, "restart", false, "Restart Neovim in workspace after push")
 
-	// Register custom completions
-	registerNvimCompletions()
-}
-
-// registerNvimCompletions registers custom completion functions for nvim commands
-func registerNvimCompletions() {
-	// Complete template names for 'dvm nvim init'
-	nvimInitCmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		// Only complete the first argument (template name)
-		if len(args) >= 1 {
-			return nil, cobra.ShellCompDirectiveNoFileComp
-		}
-		templates := []string{
-			"kickstart\tMinimal, well-documented starter config",
-			"lazyvim\tFeature-rich, batteries-included config",
-			"astronvim\tAesthetically pleasing, fully featured config",
-			"minimal\tMinimal config created by DevOpsMaestro",
-			"custom\tClone from custom Git URL (requires --git-url)",
-		}
-		return templates, cobra.ShellCompDirectiveNoFileComp
-	}
-
-	// Complete workspace names for sync/push commands
-	workspaceCompletion := func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		if len(args) > 0 {
-			return nil, cobra.ShellCompDirectiveNoFileComp
-		}
-		// TODO: Query database for actual workspace names
-		// For now, return empty to show this feature exists
-		return []string{}, cobra.ShellCompDirectiveDefault
-	}
-
-	nvimSyncCmd.ValidArgsFunction = workspaceCompletion
-	nvimPushCmd.ValidArgsFunction = workspaceCompletion
+	// Note: nvim completion registrations (nvimInitCmd, nvimSyncCmd, nvimPushCmd)
+	// are handled centrally in completion.go via registerDynamicCompletions().
+	// Do NOT register them here — init() ordering would overwrite the real functions.
 }
 
 func runNvimInit(cmd *cobra.Command, args []string) {

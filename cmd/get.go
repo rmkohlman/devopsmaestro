@@ -200,6 +200,7 @@ func init() {
 	getCmd.AddCommand(getPlatformsCmd)
 	getCmd.AddCommand(getContextCmd)
 	getCmd.AddCommand(getDefaultsCmd)
+	getCmd.AddCommand(getAllCmd)
 
 	// Add top-level shortcuts for nvim resources
 	getCmd.AddCommand(getNvimPluginsShortCmd)

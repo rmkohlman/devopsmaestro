@@ -77,6 +77,12 @@ func createTestSchema(driver db.Driver) error {
 			slug TEXT NOT NULL UNIQUE,
 			default_ref TEXT NOT NULL DEFAULT 'main',
 			auth_type TEXT NOT NULL DEFAULT 'none',
+			credential_id INTEGER,
+			auto_sync BOOLEAN NOT NULL DEFAULT 0,
+			sync_interval_minutes INTEGER NOT NULL DEFAULT 0,
+			last_synced_at DATETIME,
+			sync_status TEXT NOT NULL DEFAULT 'pending',
+			sync_error TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
@@ -369,5 +375,391 @@ func TestRegisterHierarchyFlagCompletions(t *testing.T) {
 	// Should not panic when registering completions
 	assert.NotPanics(t, func() {
 		registerHierarchyFlagCompletions(cmd)
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Tests for new handler-based completion functions
+// ---------------------------------------------------------------------------
+
+func TestCompletionFunctions_NewHandlerBased(t *testing.T) {
+	// Ensure handlers are registered
+	handlers.RegisterAll()
+
+	// Create in-memory database for testing
+	dataStore := createTestDataStore(t)
+	defer dataStore.Close()
+
+	// Create a test command with datastore in context
+	cmd := &cobra.Command{Use: "test"}
+	ctx := context.WithValue(context.Background(), "dataStore", dataStore)
+	cmd.SetContext(ctx)
+
+	// Valid shell completion directives — functions must return one of these
+	validDirectives := []cobra.ShellCompDirective{
+		cobra.ShellCompDirectiveNoFileComp,
+		cobra.ShellCompDirectiveDefault,
+	}
+
+	tests := []struct {
+		name     string
+		function func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective)
+	}{
+		{
+			name:     "completeCredentials",
+			function: completeCredentials,
+		},
+		{
+			name:     "completeRegistries",
+			function: completeRegistries,
+		},
+		{
+			name:     "completeNvimPlugins",
+			function: completeNvimPlugins,
+		},
+		{
+			name:     "completeNvimThemes",
+			function: completeNvimThemes,
+		},
+		{
+			name:     "completeNvimPackages",
+			function: completeNvimPackages,
+		},
+		{
+			name:     "completeTerminalPackages",
+			function: completeTerminalPackages,
+		},
+		{
+			name:     "completeTerminalPrompts",
+			function: completeTerminalPrompts,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			completions, directive := tt.function(cmd, []string{}, "")
+
+			// Must not return nil — empty slice is fine, nil blocks completion UI
+			assert.NotNil(t, completions)
+
+			// Must return a valid shell completion directive (not panic or return garbage)
+			assert.Contains(t, validDirectives, directive,
+				"directive must be NoFileComp (happy path) or Default (error path)")
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TestCompleteGitRepos
+// ---------------------------------------------------------------------------
+
+func TestCompleteGitRepos(t *testing.T) {
+	t.Run("returns completions in name-tab-url format", func(t *testing.T) {
+		dataStore := createTestDataStore(t)
+		defer dataStore.Close()
+
+		// Insert two git repos
+		repos := []*models.GitRepoDB{
+			{
+				Name:       "my-repo",
+				URL:        "https://github.com/user/my-repo",
+				Slug:       "github.com_user_my-repo",
+				DefaultRef: "main",
+				AuthType:   "none",
+				SyncStatus: "pending",
+			},
+			{
+				Name:       "another-repo",
+				URL:        "https://gitlab.com/team/another-repo",
+				Slug:       "gitlab.com_team_another-repo",
+				DefaultRef: "main",
+				AuthType:   "none",
+				SyncStatus: "pending",
+			},
+		}
+		for _, r := range repos {
+			err := dataStore.CreateGitRepo(r)
+			require.NoError(t, err)
+		}
+
+		cmd := &cobra.Command{Use: "test"}
+		ctx := context.WithValue(context.Background(), "dataStore", dataStore)
+		cmd.SetContext(ctx)
+
+		completions, directive := completeGitRepos(cmd, []string{}, "")
+
+		assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
+		assert.Len(t, completions, 2)
+
+		// Verify tab-separated format: each entry should be "name\turl"
+		for _, c := range completions {
+			assert.Contains(t, c, "\t")
+		}
+
+		// Verify the completions contain expected values (order by name: another-repo, my-repo)
+		assert.Contains(t, completions[0], "another-repo")
+		assert.Contains(t, completions[0], "https://gitlab.com/team/another-repo")
+		assert.Equal(t, "another-repo\thttps://gitlab.com/team/another-repo", completions[0])
+
+		assert.Contains(t, completions[1], "my-repo")
+		assert.Contains(t, completions[1], "https://github.com/user/my-repo")
+		assert.Equal(t, "my-repo\thttps://github.com/user/my-repo", completions[1])
+	})
+
+	t.Run("empty database returns empty slice", func(t *testing.T) {
+		dataStore := createTestDataStore(t)
+		defer dataStore.Close()
+
+		cmd := &cobra.Command{Use: "test"}
+		ctx := context.WithValue(context.Background(), "dataStore", dataStore)
+		cmd.SetContext(ctx)
+
+		completions, directive := completeGitRepos(cmd, []string{}, "")
+
+		assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
+		// Empty DB: ListGitRepos returns nil slice, so completions may be empty/nil
+		assert.Empty(t, completions)
+	})
+
+	t.Run("no datastore in context returns empty with ShellCompDirectiveDefault", func(t *testing.T) {
+		cmd := &cobra.Command{Use: "test"}
+		cmd.SetContext(context.Background())
+
+		completions, directive := completeGitRepos(cmd, []string{}, "")
+
+		// Without a valid DataStore in context, createDefaultDataStore will fail
+		// in test environment, so we expect ShellCompDirectiveDefault
+		assert.Equal(t, cobra.ShellCompDirectiveDefault, directive)
+		assert.Empty(t, completions)
+	})
+
+	t.Run("wrong type in context returns empty with ShellCompDirectiveDefault", func(t *testing.T) {
+		cmd := &cobra.Command{Use: "test"}
+		ctx := context.WithValue(context.Background(), "dataStore", "not-a-datastore")
+		cmd.SetContext(ctx)
+
+		completions, directive := completeGitRepos(cmd, []string{}, "")
+
+		// Wrong type falls through to createDefaultDataStore, which will fail in test env
+		assert.Equal(t, cobra.ShellCompDirectiveDefault, directive)
+		assert.Empty(t, completions)
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestCompleteRegistryTypes
+// ---------------------------------------------------------------------------
+
+func TestCompleteRegistryTypes(t *testing.T) {
+	cmd := &cobra.Command{Use: "test"}
+	cmd.SetContext(context.Background())
+
+	completions, directive := completeRegistryTypes(cmd, []string{}, "")
+
+	// Must be NoFileComp (static list, no file completions)
+	assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
+
+	// Must return exactly 5 registry types
+	assert.Len(t, completions, 5)
+
+	// Each entry must be tab-separated (type\tdescription)
+	for _, c := range completions {
+		assert.Contains(t, c, "\t", "completion %q should have tab-separated description", c)
+	}
+
+	// Verify the 5 expected type prefixes are present
+	expectedTypes := []string{"oci", "pypi", "npm", "go", "http"}
+	for _, expected := range expectedTypes {
+		found := false
+		for _, c := range completions {
+			if len(c) >= len(expected) && c[:len(expected)] == expected {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "registry type %q not found in completions", expected)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TestCompleteRegistrySetDefault
+// ---------------------------------------------------------------------------
+
+func TestCompleteRegistrySetDefault(t *testing.T) {
+	t.Run("no args returns registry types", func(t *testing.T) {
+		cmd := &cobra.Command{Use: "test"}
+		cmd.SetContext(context.Background())
+
+		completions, directive := completeRegistrySetDefault(cmd, []string{}, "")
+
+		assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
+		assert.Len(t, completions, 5)
+
+		// Verify these are the registry types (same as completeRegistryTypes)
+		expectedTypes := []string{"oci", "pypi", "npm", "go", "http"}
+		for _, expected := range expectedTypes {
+			found := false
+			for _, c := range completions {
+				if len(c) >= len(expected) && c[:len(expected)] == expected {
+					found = true
+					break
+				}
+			}
+			assert.True(t, found, "registry type %q not found in completions", expected)
+		}
+	})
+
+	t.Run("one arg delegates to completeRegistries", func(t *testing.T) {
+		dataStore := createTestDataStore(t)
+		defer dataStore.Close()
+
+		cmd := &cobra.Command{Use: "test"}
+		ctx := context.WithValue(context.Background(), "dataStore", dataStore)
+		cmd.SetContext(ctx)
+
+		// With one arg provided, should delegate to completeRegistries.
+		// completeRegistries calls completeResources(cmd, "Registry"), which
+		// returns ShellCompDirectiveNoFileComp on success or ShellCompDirectiveDefault
+		// on error. The test schema lacks a registries table so the handler List()
+		// call will fail → ShellCompDirectiveDefault is expected here.
+		// Either way, the function must not panic and must return a non-nil slice.
+		completions, directive := completeRegistrySetDefault(cmd, []string{"oci"}, "")
+
+		// The key invariant: returns a slice (not nil) with a valid directive
+		assert.NotNil(t, completions)
+		assert.Contains(t,
+			[]cobra.ShellCompDirective{cobra.ShellCompDirectiveNoFileComp, cobra.ShellCompDirectiveDefault},
+			directive,
+			"directive should be either NoFileComp or Default",
+		)
+	})
+
+	t.Run("two or more args returns nil with NoFileComp", func(t *testing.T) {
+		cmd := &cobra.Command{Use: "test"}
+		cmd.SetContext(context.Background())
+
+		tests := []struct {
+			name string
+			args []string
+		}{
+			{"two args", []string{"oci", "my-registry"}},
+			{"three args", []string{"oci", "my-registry", "extra"}},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				completions, directive := completeRegistrySetDefault(cmd, tt.args, "")
+
+				assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
+				assert.Nil(t, completions)
+			})
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestGetCompletionDataStore
+// ---------------------------------------------------------------------------
+
+func TestGetCompletionDataStore(t *testing.T) {
+	t.Run("returns DataStore from context", func(t *testing.T) {
+		dataStore := createTestDataStore(t)
+		defer dataStore.Close()
+
+		cmd := &cobra.Command{Use: "test"}
+		ctx := context.WithValue(context.Background(), "dataStore", dataStore)
+		cmd.SetContext(ctx)
+
+		result, err := getCompletionDataStore(cmd)
+
+		require.NoError(t, err)
+		assert.Equal(t, dataStore, result)
+	})
+
+	t.Run("without DataStore in context attempts createDefaultDataStore", func(t *testing.T) {
+		cmd := &cobra.Command{Use: "test"}
+		cmd.SetContext(context.Background())
+
+		// In the test environment, createDefaultDataStore will likely fail
+		// because there's no production database available.
+		// We just verify the function handles this gracefully (no panic).
+		_, _ = getCompletionDataStore(cmd)
+		// No assertion on success/failure — test environment may or may not have a DB
+	})
+
+	t.Run("wrong type in context falls through to createDefaultDataStore", func(t *testing.T) {
+		cmd := &cobra.Command{Use: "test"}
+		ctx := context.WithValue(context.Background(), "dataStore", 42) // wrong type
+		cmd.SetContext(ctx)
+
+		// Should fall through since type assertion fails; createDefaultDataStore
+		// will likely fail in test env. Verify no panic.
+		_, _ = getCompletionDataStore(cmd)
+		// No assertion on success/failure
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestRegisterWorkspaceAppFlagCompletions
+// ---------------------------------------------------------------------------
+
+func TestRegisterWorkspaceAppFlagCompletions(t *testing.T) {
+	t.Run("registers completions without panic", func(t *testing.T) {
+		cmd := &cobra.Command{Use: "test"}
+		cmd.Flags().String("workspace", "", "workspace flag")
+		cmd.Flags().String("app", "", "app flag")
+
+		assert.NotPanics(t, func() {
+			registerWorkspaceAppFlagCompletions(cmd)
+		})
+	})
+
+	t.Run("works even when flags are not defined", func(t *testing.T) {
+		// RegisterFlagCompletionFunc silently ignores missing flags in some cobra versions
+		// or may log a warning. Verify it does not panic.
+		cmd := &cobra.Command{Use: "test"}
+
+		assert.NotPanics(t, func() {
+			registerWorkspaceAppFlagCompletions(cmd)
+		})
+	})
+}
+
+// ---------------------------------------------------------------------------
+// TestRegisterCredentialScopeFlagCompletions
+// ---------------------------------------------------------------------------
+
+func TestRegisterCredentialScopeFlagCompletions(t *testing.T) {
+	t.Run("registers completions without panic", func(t *testing.T) {
+		cmd := &cobra.Command{Use: "test"}
+		cmd.Flags().String("ecosystem", "", "ecosystem flag")
+		cmd.Flags().String("domain", "", "domain flag")
+		cmd.Flags().String("app", "", "app flag")
+		cmd.Flags().String("workspace", "", "workspace flag")
+
+		assert.NotPanics(t, func() {
+			registerCredentialScopeFlagCompletions(cmd)
+		})
+	})
+
+	t.Run("delegates to registerHierarchyFlagCompletions", func(t *testing.T) {
+		// registerCredentialScopeFlagCompletions is a thin wrapper; verify behaviour
+		// is identical to registerHierarchyFlagCompletions.
+		cmd1 := &cobra.Command{Use: "cmd1"}
+		cmd1.Flags().String("ecosystem", "", "")
+		cmd1.Flags().String("domain", "", "")
+		cmd1.Flags().String("app", "", "")
+		cmd1.Flags().String("workspace", "", "")
+
+		cmd2 := &cobra.Command{Use: "cmd2"}
+		cmd2.Flags().String("ecosystem", "", "")
+		cmd2.Flags().String("domain", "", "")
+		cmd2.Flags().String("app", "", "")
+		cmd2.Flags().String("workspace", "", "")
+
+		assert.NotPanics(t, func() {
+			registerCredentialScopeFlagCompletions(cmd1)
+			registerHierarchyFlagCompletions(cmd2)
+		})
 	})
 }

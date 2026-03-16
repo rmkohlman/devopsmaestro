@@ -4,6 +4,16 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.42.0 (2026-03-16)
+
+**✨ Dynamic Completions & Get All**
+
+- **~48 dynamic tab-completions wired** — all resource types (ecosystems, domains, apps, workspaces, credentials, registries, git repos, nvim plugins/themes, terminal packages/prompts) now have intelligent positional and flag completions
+- **Flag completions** added for `--ecosystem`, `--domain`, `--app`, `--workspace`, `--repo`, and `--credential` across all relevant commands
+- **Bug fixed** — removed stub registration in `cmd/nvim.go` that was overwriting central completions with empty stubs
+- **New `dvm get all` command** — kubectl-style overview showing all 9 resource types; supports `-o json` and `-o yaml`; empty sections show `(none)`
+- Shell completion docs updated with full dynamic completion reference
+
 ### v0.39.1 (2026-03-12)
 
 **🐛 Change Default Keychain Type to "internet"**

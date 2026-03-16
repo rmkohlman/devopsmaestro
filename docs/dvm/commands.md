@@ -274,6 +274,30 @@ dvm get workspaces --app my-platform/backend/my-api  # Full path format
 dvm get workspaces --app my-api -o yaml
 ```
 
+### `dvm get all`
+
+Show a kubectl-style overview of all resources.
+
+```bash
+dvm get all [flags]
+```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `-o, --output <format>` | Output format: `json`, `yaml` (default: human-readable table) |
+
+**Sections displayed:** Ecosystems, Domains, Apps, Workspaces, Credentials, Registries, Git Repos, Nvim Plugins, Nvim Themes. Empty sections show `(none)`.
+
+**Examples:**
+
+```bash
+dvm get all              # Human-readable summary of all resources
+dvm get all -o json      # JSON output
+dvm get all -o yaml      # YAML output
+```
+
 ---
 
 ## Context

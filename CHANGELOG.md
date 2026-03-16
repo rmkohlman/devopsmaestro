@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.42.0] - 2026-03-16 — Dynamic Completions & Get All
+
+### ✨ Features
+
+#### Feature A: Dynamic Shell Tab-Completion (Gap Fill) — `cmd/completions.go`
+- **~48 previously missing completions wired** — all resource types now have intelligent dynamic tab-completion
+- **Positional argument completions** added for: ecosystems (`get`, `use`, `delete`), domains (`get`, `use`, `delete`), apps (`get`, `use`, `delete`), workspaces (`get`, `use`, `delete`, `attach`, `build`, `detach`), credentials (`get`, `delete`), registries (`get`, `delete`, `start`, `stop`, `rollout`), git repos (`get`, `delete`, `sync`), nvim plugins (`get`, `set`, `edit`, `delete`), nvim themes (`get`, `edit`, `delete`), nvim packages (`get`, `use`), terminal packages (`get`, `set`, `use`), terminal prompts (`set`), set theme (theme name), registry `set-default` (type then name), registry `enable`/`disable` (static type list)
+- **Flag completions** added for: `--ecosystem` on domain/credential/attach/build/detach/set-theme commands; `--domain` on app commands; `--app` on workspace/nvim/terminal/branch commands; `--workspace` on nvim/terminal/branch/attach/build/detach commands; `--repo` on `create app`/`create workspace`; `--credential` on `create gitrepo`
+- **Bug fixed** — removed `registerNvimCompletions()` call in `cmd/nvim.go` that was overwriting central completions with empty stubs
+
+#### Feature B: `dvm get all` — kubectl-style Resource Overview — `cmd/get_all.go` (new)
+- **New `dvm get all` command** shows a summary of all resources across 9 sections: Ecosystems, Domains, Apps, Workspaces, Credentials, Registries, Git Repos, Nvim Plugins, Nvim Themes
+- **Output formats**: human-readable table (`dvm get all`), JSON (`dvm get all -o json`), YAML (`dvm get all -o yaml`)
+- **Empty sections** display `(none)` — no sections are hidden
+- **Graceful error handling** — list errors per section emit warnings and continue; output is never silently incomplete
+
+### 🏗️ Technical
+
+| Metric | Value |
+|--------|-------|
+| Breaking changes | 0 |
+| New production files | 1 (`cmd/get_all.go`) |
+| Modified production files | 2 (`cmd/completions.go`, `cmd/nvim.go`) |
+| Completions wired | ~48 commands |
+| Resource sections in `get all` | 9 |
+| All tests pass | ✅ |
+
+### 📚 Documentation
+
+- `docs/configuration/shell-completion.md` updated with comprehensive completion reference, interactive menu selection (zsh), and all new dynamic completions
+
+---
+
 ## [v0.41.0] - 2026-03-14 — MaestroVault Fields Integration
 
 ### ✨ Features
