@@ -104,10 +104,10 @@ func createTestSchema(driver Driver) error {
 			active_app_id INTEGER,
 			active_workspace_id INTEGER,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY (active_ecosystem_id) REFERENCES ecosystems(id),
-			FOREIGN KEY (active_domain_id) REFERENCES domains(id),
-			FOREIGN KEY (active_app_id) REFERENCES apps(id),
-			FOREIGN KEY (active_workspace_id) REFERENCES workspaces(id)
+			FOREIGN KEY (active_ecosystem_id) REFERENCES ecosystems(id) ON DELETE SET NULL,
+			FOREIGN KEY (active_domain_id) REFERENCES domains(id) ON DELETE SET NULL,
+			FOREIGN KEY (active_app_id) REFERENCES apps(id) ON DELETE SET NULL,
+			FOREIGN KEY (active_workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
 		)`,
 		`CREATE TABLE IF NOT EXISTS nvim_plugins (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,

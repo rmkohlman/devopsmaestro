@@ -107,7 +107,14 @@ func (ds *SQLDataStore) UpdateWorkspace(workspace *models.Workspace) error {
 }
 
 // DeleteWorkspace removes a workspace by ID.
+// Also cleans up orphaned credentials scoped to this workspace
+// (polymorphic scope_type/scope_id has no FK constraint).
 func (ds *SQLDataStore) DeleteWorkspace(id int) error {
+	// Clean up orphaned credentials (polymorphic scope_id has no FK constraint)
+	if _, err := ds.driver.Execute(`DELETE FROM credentials WHERE scope_type = 'workspace' AND scope_id = ?`, id); err != nil {
+		return fmt.Errorf("failed to delete workspace credentials: %w", err)
+	}
+
 	query := `DELETE FROM workspaces WHERE id = ?`
 	result, err := ds.driver.Execute(query, id)
 	if err != nil {

@@ -261,16 +261,22 @@ Examples:
 			}
 		}
 
+		// Check if this is the active workspace before deleting
+		// (ON DELETE SET NULL in the context table handles the FK, but we
+		// want to inform the user that the active context was cleared)
+		wasActive := false
+		activeApp, _ := getActiveAppFromContext(ds)
+		activeWorkspace, _ := getActiveWorkspaceFromContext(ds)
+		if activeApp == appName && activeWorkspace == workspaceName {
+			wasActive = true
+		}
+
 		// Delete the workspace
 		if err := ds.DeleteWorkspace(workspace.ID); err != nil {
 			return fmt.Errorf("failed to delete workspace: %v", err)
 		}
 
-		// Clear context if this was the active workspace in the active app
-		activeApp, _ := getActiveAppFromContext(ds)
-		activeWorkspace, _ := getActiveWorkspaceFromContext(ds)
-		if activeApp == appName && activeWorkspace == workspaceName {
-			ds.SetActiveWorkspace(nil)
+		if wasActive {
 			render.Info("Cleared active workspace context")
 		}
 

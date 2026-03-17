@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.50.1] - 2026-03-17 — Fix FOREIGN KEY Constraint Failed on Delete
+
+### 🐛 Bug Fixes
+
+#### FOREIGN KEY Constraint Blocked Deletes of Active Resources — `db/migrations/sqlite/016_fix_context_fk_cascade.up.sql`, `db/store_workspace.go`, `db/store_app.go`, `db/store_domain.go`, `db/store_ecosystem.go`
+- **Deleting a workspace, app, domain, or ecosystem that was set as the active context failed with `FOREIGN KEY constraint failed`** — the `context` table tracked the active resource IDs via foreign key columns (`active_ecosystem_id`, `active_domain_id`, `active_app_id`, `active_workspace_id`) that had no `ON DELETE SET NULL` clause; SQLite blocked the delete because the `context` row still referenced the resource being deleted
+- **New migration 016 rebuilds the `context` table with `ON DELETE SET NULL` on all 4 FK references** — SQLite auto-clears the active context column when the referenced resource is deleted; no application-level context clearing is needed for the FK path
+- **Credential orphan cleanup added to `DeleteWorkspace`, `DeleteApp`, `DeleteDomain`, `DeleteEcosystem`** — credentials use a polymorphic `scope_type`/`scope_id` pattern with no SQL FK constraint; they must be cleaned up application-side; each delete now removes credentials scoped to the resource being deleted and its children before removing the resource itself
+
+#### `cmd/delete.go` — Active Context Check Moved Before Delete
+- **The workspace delete command checked whether the workspace was active AFTER the delete** — when the delete succeeded (with the fix in place) the active context had already been cleared by `ON DELETE SET NULL`; the "Cleared active workspace context" UX message was never shown
+- **Active context check now runs BEFORE the delete** — the workspace's active status is captured before deletion and the UX message is displayed correctly
+
+### 🏗️ Technical
+
+| Metric | Value |
+|--------|-------|
+| Breaking changes | 0 |
+| New migration files | 2 (`016_fix_context_fk_cascade.up.sql`, `016_fix_context_fk_cascade.down.sql`) |
+| New test files | 1 (`db/store_delete_context_test.go`) |
+| Modified production files | 5 (`db/store_workspace.go`, `db/store_app.go`, `db/store_domain.go`, `db/store_ecosystem.go`, `cmd/delete.go`) |
+| Modified test files | 1 (`db/store_test.go` — test schema updated) |
+| New regression tests | 8 (delete-while-active for all 4 resource types + credential cleanup) |
+| All tests pass | ✅ (only pre-existing `TestVaultBackend_Health` fails) |
+
+---
+
 ## [v0.50.0] - 2026-03-17 — GitRepo Resource Handler + Shared Table Helpers
 
 ### 🏗️ Technical

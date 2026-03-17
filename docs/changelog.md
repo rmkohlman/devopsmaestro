@@ -2,6 +2,17 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.50.1 (2026-03-17)
+
+**🐛 Fix FOREIGN KEY Constraint Failed on Delete**
+
+Deleting a workspace, app, domain, or ecosystem that was set as the active context previously failed with `FOREIGN KEY constraint failed`. The `context` table tracked active resource IDs via FK columns with no `ON DELETE SET NULL`, so SQLite blocked any delete that the context row still referenced.
+
+- **Migration 016** — Rebuilt the `context` table with `ON DELETE SET NULL` on all 4 FK references (`active_ecosystem_id`, `active_domain_id`, `active_app_id`, `active_workspace_id`); SQLite now auto-clears the active context when the referenced resource is deleted
+- **Credential orphan cleanup** — `DeleteWorkspace`, `DeleteApp`, `DeleteDomain`, `DeleteEcosystem` now remove credentials scoped to the deleted resource (and its children) before deletion; credentials use a polymorphic `scope_type`/`scope_id` pattern with no SQL FK constraint and must be cleaned up application-side
+- **`cmd/delete.go` UX fix** — active context check moved to before the delete so the "Cleared active workspace context" message is displayed correctly
+- 8 new regression tests in `db/store_delete_context_test.go` covering delete-while-active for all 4 resource types plus credential cleanup; 0 breaking changes
+
 ## v0.50.0 (2026-03-17)
 
 **🏗️ GitRepo Resource Handler + Shared Table Helpers**

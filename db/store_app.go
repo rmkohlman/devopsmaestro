@@ -90,7 +90,18 @@ func (ds *SQLDataStore) UpdateApp(app *models.App) error {
 }
 
 // DeleteApp removes an app by ID.
+// Also cleans up orphaned credentials scoped to this app and its child workspaces
+// (polymorphic scope_type/scope_id has no FK constraint).
 func (ds *SQLDataStore) DeleteApp(id int) error {
+	// Clean up credentials scoped to workspaces under this app
+	if _, err := ds.driver.Execute(`DELETE FROM credentials WHERE scope_type = 'workspace' AND scope_id IN (SELECT id FROM workspaces WHERE app_id = ?)`, id); err != nil {
+		return fmt.Errorf("failed to delete workspace credentials for app: %w", err)
+	}
+	// Clean up credentials scoped to this app
+	if _, err := ds.driver.Execute(`DELETE FROM credentials WHERE scope_type = 'app' AND scope_id = ?`, id); err != nil {
+		return fmt.Errorf("failed to delete app credentials: %w", err)
+	}
+
 	query := `DELETE FROM apps WHERE id = ?`
 	result, err := ds.driver.Execute(query, id)
 	if err != nil {
