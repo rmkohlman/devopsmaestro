@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.50.0] - 2026-03-17 — GitRepo Resource Handler + Shared Table Helpers
+
+### 🏗️ Technical
+
+#### GitRepo Resource Handler — `models/git_repo.go`, `pkg/resource/handlers/gitrepo.go`, `pkg/resource/handlers/register.go`
+- **GitRepo was the only resource type that bypassed the `pkg/resource/` framework** — it had no `ToYAML()`, no `GitRepoYAML` type, and no registered handler; all other resource types had full framework support
+- **Added `GitRepoHandler` implementing the `resource.Handler` interface** — covers Apply, Get, List, Delete, and ToYAML; registered in `pkg/resource/handlers/register.go` alongside all other resource handlers
+- **Added `GitRepoYAML`, `GitRepoMetadata`, and `GitRepoSpec` model types** — with `ToYAML()` and `FromYAML()` methods matching the YAML schema used by all other resource types
+- **Added `GitRepoResource` wrapper** — integrates GitRepo into the resource framework's generic resource lifecycle
+- **Enables future `dvm apply -f gitrepo.yaml` and `dvm get all -o yaml` for GitRepo resources** — foundation work for the Get All Enhancement initiative
+
+#### Shared Table-Building Helpers — `cmd/table.go`
+- **Extracted the repeated table-building pattern from 12+ duplicate implementations across `cmd/*.go`** — the headers → iterate → rows → wide → render sequence was reimplemented independently in every list command; now lives in a single shared file
+- **`tableBuilder` interface (unexported, internal to cmd package)** — defines `Headers(wide bool) []string` and `Row(model any, wide bool) []string`; each resource type gets its own builder struct
+- **`BuildTable[T any]()` generic function** — eliminates `[]any` conversion boilerplate that appeared at every call site
+- **`renderTable()` helper** — eliminates 5 repeated lines of output format normalization per command
+- **Utility helpers: `truncateLeft()`, `truncateRight()`, `activeMarker()`, `activeMarkerByName()`, `splitStatusUptime()`** — shared formatting logic previously copy-pasted across command files
+- **9 builder structs** — `ecosystemTableBuilder`, `domainTableBuilder`, `appTableBuilder`, `workspaceTableBuilder`, `credentialTableBuilder`, `registryTableBuilder`, `gitRepoTableBuilder`, `nvimPluginTableBuilder`, `nvimThemeTableBuilder`
+- **Builders carry dependencies via struct fields** — DataStore, ActiveID, StatusMap injected at construction; follows the dependency injection pattern used throughout the codebase
+
+| Metric | Value |
+|--------|-------|
+| Breaking changes | 0 |
+| New production files | 2 (`pkg/resource/handlers/gitrepo.go`, `cmd/table.go`) |
+| New test files | 3 (`models/git_repo_test.go`, `pkg/resource/handlers/gitrepo_test.go`, `cmd/table_test.go`) |
+| Modified production files | 2 (`models/git_repo.go`, `pkg/resource/handlers/register.go`) |
+| New tests — GitRepo handler | 18 (5 model tests + 13 handler tests) |
+| New tests — table builders | 59 (covering all 9 builder structs) |
+| Total new tests | 77 |
+
+---
+
 ## [v0.49.0] - 2026-03-17 — Auto-Detect Git Default Branch
 
 ### ✨ Features

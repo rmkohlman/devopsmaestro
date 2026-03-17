@@ -2,6 +2,16 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.50.0 (2026-03-17)
+
+**🏗️ GitRepo Resource Handler + Shared Table Helpers**
+
+Foundation sprint for the Get All Enhancement initiative — no new CLI commands or flags; all changes are internal infrastructure.
+
+- **GitRepo resource handler** — GitRepo was the only resource type that bypassed the `pkg/resource/` framework; added `GitRepoHandler` implementing the full `resource.Handler` interface (Apply, Get, List, Delete, ToYAML), plus `GitRepoYAML` / `GitRepoMetadata` / `GitRepoSpec` model types and a `GitRepoResource` wrapper; enables future `dvm apply -f gitrepo.yaml` and `dvm get all -o yaml` support for GitRepo resources
+- **Shared table-building helpers** — extracted the repeated table-building pattern (headers → iterate → rows → wide → render) from 12+ duplicate implementations across `cmd/*.go` into a single `cmd/table.go`; introduced the unexported `tableBuilder` interface, generic `BuildTable[T any]()` function, `renderTable()` helper, and utility functions (`truncateLeft`, `truncateRight`, `activeMarker`, `splitStatusUptime`); 9 builder structs cover all resource types (ecosystem, domain, app, workspace, credential, registry, gitrepo, nvim-plugin, nvim-theme)
+- 77 new tests (18 GitRepo handler tests + 59 table builder tests); 2 new production files, 2 new test files, 2 modified production files; 0 breaking changes
+
 ## v0.49.0 (2026-03-17)
 
 **✨ Auto-Detect Git Default Branch**

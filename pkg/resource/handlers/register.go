@@ -51,6 +51,9 @@ func RegisterAll() {
 		// Credential resources
 		resource.Register(NewCredentialHandler())
 
+		// Git repository resources
+		resource.Register(NewGitRepoHandler())
+
 		// CRD resources (v0.29.0 Extensibility)
 		resource.Register(NewCRDHandler())
 	})
