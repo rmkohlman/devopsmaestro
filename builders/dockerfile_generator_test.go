@@ -2808,11 +2808,11 @@ func TestGetMasonToolsForLanguage_BaseToolsAlwaysPresent(t *testing.T) {
 
 			// MUST include base tools regardless of language
 			// WI-4: getBaseMasonTools() must be called by installMasonTools()
-			baseTools := []string{"lua_ls", "stylua"}
+			baseTools := []string{"lua-language-server", "stylua"}
 			for _, tool := range baseTools {
 				if !strings.Contains(masonLine, tool) {
 					t.Errorf("[%s] MasonInstall missing base tool %q.\n"+
-						"WI-4: Base tools (lua_ls, stylua) must always be included in MasonInstall.\n"+
+						"WI-4: Base tools (lua-language-server, stylua) must always be included in MasonInstall.\n"+
 						"MasonInstall line: %s",
 						tt.name, tool, masonLine)
 				}
@@ -2908,12 +2908,12 @@ func TestInstallMasonLSPs_IncludesBaseTools(t *testing.T) {
 		}
 	}
 
-	// MUST include base tools (lua_ls, stylua) alongside language-specific tools
-	baseTools := []string{"lua_ls", "stylua"}
+	// MUST include base tools (lua-language-server, stylua) alongside language-specific tools
+	baseTools := []string{"lua-language-server", "stylua"}
 	for _, tool := range baseTools {
 		if !strings.Contains(masonLine, tool) {
 			t.Errorf("MasonInstall command missing base tool %q.\n"+
-				"WI-4: Base tools (lua_ls, stylua) must always be included in MasonInstall.\n"+
+				"WI-4: Base tools (lua-language-server, stylua) must always be included in MasonInstall.\n"+
 				"MasonInstall line: %s", tool, masonLine)
 		}
 	}
@@ -3033,6 +3033,55 @@ func TestGenerateDevStage_DebianNodeSource_Fallback(t *testing.T) {
 			"Fix: Add a || fallback that installs Debian-packaged nodejs and npm.\n"+
 			"Expected Dockerfile to contain: %q\n"+
 			"Generated Dockerfile:\n%s", fallback, dockerfile)
+	}
+}
+
+// TestGetBaseMasonTools_UsesRegistryNames verifies that getBaseMasonTools() returns
+// Mason registry package names (hyphenated), not nvim-lspconfig names (underscored).
+//
+// Bug: getBaseMasonTools() returns "lua_ls" which is the nvim-lspconfig name.
+// Mason's registry uses "lua-language-server". The MasonInstall command fails with
+// '"lua_ls" is not a valid package' at build time.
+func TestGetBaseMasonTools_UsesRegistryNames(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "python",
+		Version:       "3.11",
+		AppPath:       "/tmp/test",
+		PathConfig:    paths.New(t.TempDir()),
+	})
+
+	impl := gen.(*DefaultDockerfileGenerator)
+	tools := impl.getBaseMasonTools()
+
+	for _, tool := range tools {
+		if strings.Contains(tool, "_") {
+			t.Errorf("getBaseMasonTools() returned %q which contains underscores.\n"+
+				"Mason registry uses hyphenated names (e.g., 'lua-language-server', not 'lua_ls').\n"+
+				"MasonInstall will fail with '\"<name>\" is not a valid package'.\n"+
+				"All tools: %v", tool, tools)
+		}
+	}
+
+	// Specifically verify lua-language-server is present (not lua_ls)
+	found := false
+	for _, tool := range tools {
+		if tool == "lua-language-server" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("getBaseMasonTools() should include 'lua-language-server' (Mason registry name).\n"+
+			"Got: %v", tools)
 	}
 }
 

@@ -4,6 +4,17 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.45.4 (2026-03-17)
+
+**🐛 Mason Package Name Fix**
+
+Fixed `MasonInstall` failure during container builds caused by a wrong package name in `builders/dockerfile_generator.go`.
+
+Root cause: `getBaseMasonTools()` returned `"lua_ls"`, which is the nvim-lspconfig identifier. Mason's registry uses the hyphenated name `"lua-language-server"`. The generated `MasonInstall lua_ls` command failed immediately with `"lua_ls" is not a valid package`.
+
+- **Fix** — changed `"lua_ls"` to `"lua-language-server"` in `getBaseMasonTools()`; the generated Dockerfile now emits `MasonInstall lua-language-server`, which resolves correctly against the Mason registry
+- 1 new test function (`TestGetBaseMasonTools_UsesRegistryNames`) validates that no Mason package names contain underscores and explicitly checks for `lua-language-server`; 2 existing test functions updated with corrected assertion values
+
 ### v0.45.3 (2026-03-17)
 
 **🐛 NodeSource Install Ordering and Fallback**

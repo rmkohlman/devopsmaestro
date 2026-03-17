@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.45.4] - 2026-03-17 — Mason Package Name Fix
+
+### 🐛 Bug Fixes
+
+#### Mason Install — `"lua_ls" is not a valid package` During Container Build — `builders/dockerfile_generator.go`
+- **`getBaseMasonTools()` returned `"lua_ls"`, which is the nvim-lspconfig identifier, not the Mason registry name** — the generated `MasonInstall lua_ls` command failed immediately with `"lua_ls" is not a valid package` because Mason's registry uses `"lua-language-server"` (hyphenated) as the canonical package name
+- **`"lua_ls"` changed to `"lua-language-server"` in `getBaseMasonTools()`** — the generated Dockerfile now emits `MasonInstall lua-language-server`, which resolves correctly against the Mason registry
+
+```go
+// Before (nvim-lspconfig name — not a valid Mason package):
+"lua_ls",
+
+// After (Mason registry name):
+"lua-language-server",
+```
+
+### 🏗️ Technical
+
+| Metric | Value |
+|--------|-------|
+| Breaking changes | 0 |
+| Root cause | `getBaseMasonTools()` used the nvim-lspconfig name `"lua_ls"` instead of the Mason registry name `"lua-language-server"` |
+| Production files changed | 1 (`builders/dockerfile_generator.go`) |
+| Test files changed | 1 (`builders/dockerfile_generator_test.go`) |
+| New test functions | 1 (`TestGetBaseMasonTools_UsesRegistryNames` — validates no underscores in Mason package names; explicitly checks for `lua-language-server`) |
+| Updated test functions | 2 (`TestGetMasonToolsForLanguage_BaseToolsAlwaysPresent`, `TestInstallMasonLSPs_IncludesBaseTools` — assertion values updated from `"lua_ls"` to `"lua-language-server"`) |
+| All tests pass | ✅ (only pre-existing `TestVaultBackend_Health` fails) |
+| All 3 binaries build | ✅ |
+
+---
+
 ## [v0.45.3] - 2026-03-17 — NodeSource Install Ordering and Fallback
 
 ### 🐛 Bug Fixes

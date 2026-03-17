@@ -907,7 +907,7 @@ func (g *DefaultDockerfileGenerator) getMasonToolsForLanguage() []string {
 // getBaseMasonTools returns Mason packages that should be installed in every workspace,
 // regardless of the detected language. These support nvim config editing and shell scripts.
 func (g *DefaultDockerfileGenerator) getBaseMasonTools() []string {
-	return []string{"lua_ls", "stylua"}
+	return []string{"lua-language-server", "stylua"}
 }
 
 // installMasonTools installs language servers, linters, and formatters via Mason at build time
