@@ -4,6 +4,16 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.45.3 (2026-03-17)
+
+**🐛 NodeSource Install Ordering and Fallback**
+
+Fixed two bugs in Debian Node.js workspace builds (`builders/dockerfile_generator.go`):
+
+- **Ordering bug** — The `RUN curl ... nodesource.com/setup_22.x | bash` step ran before the merged `apt-get install` that installs `curl`. On a fresh build without cache, `curl` was not yet available, producing `curl: not found` and aborting the build. Fixed by moving the NodeSource block to after the merged `apt-get install`.
+- **No network fallback** — If NodeSource (`deb.nodesource.com`) was unreachable (corporate firewalls, Colima DNS issues), the build failed hard. Added a `|| apt-get install -y --no-install-recommends nodejs npm` fallback so the image build can succeed with Debian's default Node 18 when NodeSource is unavailable. Mason works with either version.
+- 2 new test functions: `TestGenerateDevStage_DebianNodeSource_OrderAfterMergedInstall` and `TestGenerateDevStage_DebianNodeSource_Fallback`
+
 ### v0.45.2 (2026-03-17)
 
 **🐛 IsRunning Health Probe Fallback**
@@ -873,6 +883,7 @@ See the [full migration guide](https://github.com/rmkohlman/devopsmaestro/blob/m
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **0.45.3** | 2026-03-17 | NodeSource install ordering and fallback — `curl: not found` fix (NodeSource moved after merged apt-get install); `\|\|` fallback to Debian default nodejs when NodeSource unreachable |
 | **0.45.2** | 2026-03-17 | IsRunning health probe fallback — `dvm get registries` no longer shows "stopped" for adopted Athens/Zot/Devpi instances; `IsRunning()` probes health endpoint when PID file is absent |
 | **0.45.0** | 2026-03-16 | Registry startup resilience — port-in-use probe for Athens/Zot/Devpi, Zot checksum URL rewrite, Devpi pip fallback |
 | **0.44.0** | 2026-03-16 | Container Neovim environment fixes — Node 22 on Debian, Mason ensure_installed removed from plugin YAML, build-time tool authority centralized, pylint/shellcheck executable guards |

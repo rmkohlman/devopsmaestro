@@ -2919,6 +2919,123 @@ func TestInstallMasonLSPs_IncludesBaseTools(t *testing.T) {
 	}
 }
 
+// TestGenerateDevStage_DebianNodeSource_OrderAfterMergedInstall verifies that for a
+// Debian-based workspace with nvim enabled, the NodeSource curl command appears AFTER
+// the dev-stage merged apt-get install block (which installs curl).
+//
+// Bug: The NodeSource RUN block currently runs BEFORE the merged apt-get install that
+// provides curl, causing "curl: not found" failures at build time.
+// Fix: Move the NodeSource block to after the merged apt-get install.
+//
+// Note: The generated Dockerfile has TWO "apt-get install --fix-broken" occurrences:
+//  1. Base stage (early): installs build-essential only — curl is NOT here
+//  2. Dev stage (later): the merged install that includes curl, git, wget, etc.
+//
+// We must anchor on the dev-stage merged install specifically, identified by its
+// preceding comment "# Install all dev tools".
+func TestGenerateDevStage_DebianNodeSource_OrderAfterMergedInstall(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{
+		Nvim: models.NvimConfig{
+			Structure: "custom",
+		},
+	}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "python", // Debian-based
+		Version:       "3.11",
+		AppPath:       "/tmp/test",
+		PathConfig:    paths.New(t.TempDir()),
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// Locate the dev-stage merged install block by its unique preceding comment.
+	// This avoids false-matching the base stage's apt-get install line.
+	mergedInstallComment := "# Install all dev tools, nvim dependencies, and Mason toolchains (merged)"
+	mergedInstallIdx := strings.Index(dockerfile, mergedInstallComment)
+	if mergedInstallIdx < 0 {
+		t.Fatalf("Could not locate dev-stage merged install block comment %q in generated Dockerfile.\n"+
+			"Generated Dockerfile:\n%s", mergedInstallComment, dockerfile)
+	}
+
+	// Locate the NodeSource setup script invocation
+	nodeSourceIdx := strings.Index(dockerfile, "nodesource.com/setup_22.x")
+	if nodeSourceIdx < 0 {
+		t.Fatalf("Could not locate NodeSource setup_22.x in generated Dockerfile.\n"+
+			"Generated Dockerfile:\n%s", dockerfile)
+	}
+
+	// The NodeSource block MUST appear AFTER the dev-stage merged apt-get install block.
+	// If NodeSource comes before, curl is not yet installed and the build will fail
+	// with "curl: not found".
+	if nodeSourceIdx < mergedInstallIdx {
+		t.Errorf("NodeSource curl command appears BEFORE the dev-stage merged apt-get install block.\n"+
+			"Bug: curl is not installed until the merged apt-get install runs,\n"+
+			"so the NodeSource RUN block must be placed AFTER it.\n"+
+			"  mergedInstallIdx  = %d (comment: %q)\n"+
+			"  nodeSourceIdx     = %d (nodesource.com/setup_22.x)\n"+
+			"NodeSource must come AFTER merged install (nodeSourceIdx > mergedInstallIdx).\n"+
+			"Generated Dockerfile:\n%s", mergedInstallIdx, mergedInstallComment, nodeSourceIdx, dockerfile)
+	}
+}
+
+// TestGenerateDevStage_DebianNodeSource_Fallback verifies that the NodeSource install
+// block includes a fallback to the Debian-packaged nodejs and npm when NodeSource is
+// unreachable (corporate firewalls, Colima VM networking, etc.).
+//
+// Bug: The current NodeSource block has no fallback. If the NodeSource CDN is
+// unreachable inside the build container the entire build fails with no recovery path.
+// Fix: Use a shell || fallback so that if NodeSource fails, the Debian-packaged
+// nodejs/npm are installed instead.
+func TestGenerateDevStage_DebianNodeSource_Fallback(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{
+		Nvim: models.NvimConfig{
+			Structure: "custom",
+		},
+	}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "python", // Debian-based
+		Version:       "3.11",
+		AppPath:       "/tmp/test",
+		PathConfig:    paths.New(t.TempDir()),
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// The NodeSource block MUST include a fallback that installs the Debian-packaged
+	// nodejs and npm so that builds succeed even when NodeSource is unreachable.
+	fallback := "apt-get install -y --no-install-recommends nodejs npm"
+	if !strings.Contains(dockerfile, fallback) {
+		t.Errorf("NodeSource install block is missing a network fallback.\n"+
+			"Bug: If nodesource.com is unreachable (firewall, Colima networking),\n"+
+			"the build will fail with no recovery path.\n"+
+			"Fix: Add a || fallback that installs Debian-packaged nodejs and npm.\n"+
+			"Expected Dockerfile to contain: %q\n"+
+			"Generated Dockerfile:\n%s", fallback, dockerfile)
+	}
+}
+
 // min returns the smaller of two ints. Used for safe string slicing in error messages.
 func min(a, b int) int {
 	if a < b {

@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.45.3] - 2026-03-17 — NodeSource Install Ordering and Fallback
+
+### 🐛 Bug Fixes
+
+#### Debian Node.js — `curl: not found` During NodeSource Setup + No Network Fallback — `builders/dockerfile_generator.go`
+- **`RUN curl ... nodesource.com/setup_22.x | bash` executed before the merged `apt-get install` that installs `curl`** — on a fresh build without cache, `curl` was not yet on the image when the NodeSource step ran, producing `curl: not found` and aborting the build
+- **NodeSource block moved to after the merged `apt-get install`** — `curl` is guaranteed to be present before the NodeSource setup script is invoked; ordering now matches the dependency graph
+- **No network fallback existed** — if NodeSource (`deb.nodesource.com`) was unreachable from inside the Colima VM (corporate firewalls, DNS issues), the build failed hard with no alternative; there was no way for the image build to succeed without NodeSource access
+- **`|| apt-get install -y --no-install-recommends nodejs npm` fallback added** — the NodeSource block is now wrapped in a `|| fallback` pattern; if NodeSource succeeds, Node 22 is installed; if it fails, Debian's default `nodejs npm` packages (Node 18) are installed instead — Mason works with either version
+
+```dockerfile
+RUN (curl -fsSL ... https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs) \
+    || apt-get install -y --no-install-recommends nodejs npm
+```
+
+### 🏗️ Technical
+
+| Metric | Value |
+|--------|-------|
+| Breaking changes | 0 |
+| Root cause | NodeSource `curl` step ran before `curl` was installed; no fallback when NodeSource unreachable |
+| Production files changed | 1 (`builders/dockerfile_generator.go`) |
+| Test files changed | 1 (`builders/dockerfile_generator_test.go`) |
+| New test functions | 2 (`TestGenerateDevStage_DebianNodeSource_OrderAfterMergedInstall`, `TestGenerateDevStage_DebianNodeSource_Fallback`) |
+| All tests pass | ✅ (only pre-existing `TestVaultBackend_Health` fails) |
+| All 3 binaries build | ✅ |
+
+---
+
 ## [v0.45.2] - 2026-03-17 — IsRunning Health Probe Fallback
 
 ### 🐛 Bug Fixes
