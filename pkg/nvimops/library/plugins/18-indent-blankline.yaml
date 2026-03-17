@@ -8,6 +8,7 @@ metadata:
 spec:
   repo: lukas-reineke/indent-blankline.nvim
   event: ["BufReadPre", "BufNewFile"]
-  opts:
-    indent:
-      char: "┊"
+  config: |
+    require("ibl").setup({
+      indent = { char = "┊" },
+    })
