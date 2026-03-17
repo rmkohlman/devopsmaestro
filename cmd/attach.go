@@ -15,6 +15,7 @@ import (
 	"devopsmaestro/render"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -258,9 +259,18 @@ func runAttach(cmd *cobra.Command) error {
 		LoginShell:  true,
 	}
 
+	// Set terminal tab title via OSC 0 escape sequence (standard xterm protocol).
+	// Any terminal that supports OSC (WezTerm, iTerm2, Kitty, etc.) will update
+	// the tab/window title automatically — no terminal-specific configuration needed.
+	fmt.Fprintf(os.Stderr, "\x1b]0;[dvm] %s/%s\x07", appName, workspaceName)
+
 	if err := runtime.AttachToWorkspace(context.Background(), attachOpts); err != nil {
+		fmt.Fprintf(os.Stderr, "\x1b]0;\x07") // reset title on error
 		return fmt.Errorf("failed to attach: %w", err)
 	}
+
+	// Reset terminal tab title to default on detach
+	fmt.Fprintf(os.Stderr, "\x1b]0;\x07")
 
 	slog.Info("session ended", "container", containerName)
 	render.Info("Session ended.")

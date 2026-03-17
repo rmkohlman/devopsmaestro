@@ -4,6 +4,18 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.46.0 (2026-03-17)
+
+**✨ Terminal Tab Title on Attach**
+
+`dvm attach` now sets the terminal tab/window title via OSC 0 escape sequences when attaching to a workspace.
+
+- **Title set on attach** — writes `\x1b]0;[dvm] appName/workspaceName\x07` to stderr before the attach handoff; e.g., attaching to workspace `dev` in app `myapp` sets the title to `[dvm] myapp/dev`
+- **Title reset on detach and error** — writes `\x1b]0;\x07` to stderr when the session exits or if attach returns an error; the tab title is never left in a stale state
+- **Stderr convention** — terminal control sequences go to stderr to avoid interfering with piped stdout
+- **Universal OSC 0 support** — works with any terminal that supports the xterm OSC 0 standard: WezTerm, iTerm2, Kitty, Alacritty, macOS Terminal.app, GNOME Terminal, Windows Terminal, etc. No terminal-specific configuration needed. WezTerm users can optionally customize the display via the `format-tab-title` event in `wezterm.lua`.
+- 1 production file changed (`cmd/attach.go`); no new tests
+
 ### v0.45.6 (2026-03-17)
 
 **🐛 Auto-Session Restore Fix**

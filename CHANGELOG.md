@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.46.0] - 2026-03-17 — Terminal Tab Title on Attach
+
+### ✨ Features
+
+#### `dvm attach` Sets Terminal Tab Title via OSC 0 Escape Sequences — `cmd/attach.go`
+- **`dvm attach` now sets the terminal tab/window title when attaching to a workspace** — the title is set by writing `\x1b]0;[dvm] appName/workspaceName\x07` to stderr immediately before the attach handoff; e.g., attaching to workspace `dev` in app `myapp` sets the title to `[dvm] myapp/dev`
+- **Title is reset on detach and on error** — when the container session exits, dvm writes `\x1b]0;\x07` to stderr, resetting the title to the terminal's default; the same reset is applied before returning any attach error, so the tab title is never left in a stale state
+- **Stderr is the correct channel for terminal control sequences** — writing escape sequences to stderr avoids interference with piped stdout; this is the standard convention used by terminal multiplexers and shell prompts
+- **Works with any OSC-capable terminal emulator** — WezTerm, iTerm2, Kitty, Alacritty, macOS Terminal.app, GNOME Terminal, Windows Terminal, and any other terminal that supports the xterm OSC 0 standard; no terminal-specific configuration is needed; WezTerm users can optionally customize the display via the `format-tab-title` event in `wezterm.lua`
+
+### 🏗️ Technical
+
+| Metric | Value |
+|--------|-------|
+| Breaking changes | 0 |
+| Production files changed | 1 (`cmd/attach.go`) |
+| Test files changed | 0 |
+| New test functions | 0 |
+| All tests pass | ✅ (only pre-existing `TestVaultBackend_Health` fails) |
+| All 3 binaries build | ✅ |
+
+---
+
 ## [v0.45.6] - 2026-03-17 — Auto-Session Restore Fix
 
 ### 🐛 Bug Fixes
