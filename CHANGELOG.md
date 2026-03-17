@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.47.0] - 2026-03-17 — Improved Credential Output
+
+### 🏗️ Improvements
+
+#### Credential Output — `cmd/get_credential.go`, `cmd/get_credentials.go`, `cmd/get_all.go`
+- **`dvm get credentials` (list) now renders a 5-column table** — NAME, SCOPE, SOURCE, TARGET, DESCRIPTION — replacing the previous plain-text `name  (scope: x, source: y)` format; TARGET shows the env var(s) the credential injects at build/attach time; DESCRIPTION shows the credential description
+- **`dvm get credential <name>` resolves scope to a human-readable name** — e.g., `app: my-api` instead of the raw `app (ID: 5)` numeric ID
+- **`dvm get all` credentials table updated to 4 columns** — NAME, SCOPE, SOURCE, TARGET (up from 3 columns: NAME, SCOPE, SOURCE)
+
+---
+
 ## [v0.46.0] - 2026-03-17 — Terminal Tab Title on Attach
 
 ### ✨ Features

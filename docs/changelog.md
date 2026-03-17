@@ -2,6 +2,16 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.47.0 (2026-03-17)
+
+**🏗️ Improved Credential Output**
+
+`dvm get credentials`, `dvm get credential <name>`, and `dvm get all` now display richer, more readable credential information.
+
+- **`dvm get credentials` list** — now renders a 5-column table (NAME, SCOPE, SOURCE, TARGET, DESCRIPTION) instead of plain-text `name  (scope: x, source: y)`; TARGET shows the env var(s) injected at build/attach time; DESCRIPTION shows the credential description
+- **`dvm get credential <name>` scope display** — scope now resolves to a human-readable name (e.g., `app: my-api`) instead of a raw numeric ID (e.g., `app (ID: 5)`)
+- **`dvm get all` credentials table** — updated from 3 columns (NAME, SCOPE, SOURCE) to 4 columns (NAME, SCOPE, SOURCE, TARGET)
+
 ## Latest Releases
 
 ### v0.46.0 (2026-03-17)

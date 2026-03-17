@@ -320,10 +320,12 @@ func getAll(cmd *cobra.Command) error {
 	if len(credentials) > 0 {
 		rows := make([][]string, 0, len(credentials))
 		for _, c := range credentials {
-			rows = append(rows, []string{c.Name, string(c.ScopeType), c.Source})
+			scope := resolveScopeName(ds, c.ScopeType, c.ScopeID)
+			target := formatTargetVars(c)
+			rows = append(rows, []string{c.Name, scope, c.Source, target})
 		}
 		render.OutputWith(getOutputFormat, render.TableData{
-			Headers: []string{"NAME", "SCOPE", "SOURCE"},
+			Headers: []string{"NAME", "SCOPE", "SOURCE", "TARGET"},
 			Rows:    rows,
 		}, render.Options{Type: render.TypeTable})
 	} else {

@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/render"
 
@@ -48,14 +49,20 @@ Examples:
 				return nil
 			}
 
+			rows := make([][]string, 0, len(creds))
 			for _, c := range creds {
-				if c.HasVaultFields() || c.UsernameVar != nil || c.PasswordVar != nil {
-					vars := formatVarsList(c)
-					render.Plainf("  %s  (scope: %s, source: %s, vars: %s)", c.Name, c.ScopeType, c.Source, vars)
-				} else {
-					render.Plainf("  %s  (scope: %s, source: %s)", c.Name, c.ScopeType, c.Source)
+				scope := resolveScopeName(ds, c.ScopeType, c.ScopeID)
+				target := formatTargetVars(c)
+				desc := ""
+				if c.Description != nil {
+					desc = *c.Description
 				}
+				rows = append(rows, []string{c.Name, scope, c.Source, target, desc})
 			}
+			render.OutputWith(getOutputFormat, render.TableData{
+				Headers: []string{"NAME", "SCOPE", "SOURCE", "TARGET", "DESCRIPTION"},
+				Rows:    rows,
+			}, render.Options{Type: render.TypeTable})
 			return nil
 		}
 
@@ -75,14 +82,20 @@ Examples:
 			return nil
 		}
 
+		rows := make([][]string, 0, len(creds))
 		for _, c := range creds {
-			if c.HasVaultFields() || c.UsernameVar != nil || c.PasswordVar != nil {
-				vars := formatVarsList(c)
-				render.Plainf("  %s  (source: %s, vars: %s)", c.Name, c.Source, vars)
-			} else {
-				render.Plainf("  %s  (source: %s)", c.Name, c.Source)
+			scope := resolveScopeName(ds, c.ScopeType, c.ScopeID)
+			target := formatTargetVars(c)
+			desc := ""
+			if c.Description != nil {
+				desc = *c.Description
 			}
+			rows = append(rows, []string{c.Name, scope, c.Source, target, desc})
 		}
+		render.OutputWith(getOutputFormat, render.TableData{
+			Headers: []string{"NAME", "SCOPE", "SOURCE", "TARGET", "DESCRIPTION"},
+			Rows:    rows,
+		}, render.Options{Type: render.TypeTable})
 		return nil
 	},
 }
@@ -123,7 +136,7 @@ Examples:
 
 		// Display credential details
 		render.Plainf("Name:      %s", cred.Name)
-		render.Plainf("Scope:     %s (ID: %d)", cred.ScopeType, cred.ScopeID)
+		render.Plainf("Scope:     %s", resolveScopeName(ds, cred.ScopeType, cred.ScopeID))
 		render.Plainf("Source:    %s", cred.Source)
 		if cred.VaultSecret != nil {
 			render.Plainf("Secret:    %s", *cred.VaultSecret)
@@ -183,26 +196,61 @@ func init() {
 	addCredentialScopeFlags(getCredentialCmd)
 }
 
-// formatVarsList builds a comma-separated string of the env var names
-// for display in credential list output. Handles vault fields, dual-field,
-// and falls back to username/password vars.
-func formatVarsList(c *models.CredentialDB) string {
-	var parts []string
-	if c.HasVaultFields() {
-		fields, err := c.GetVaultFieldsMap()
-		if err == nil {
-			for envVar := range fields {
-				parts = append(parts, envVar)
-			}
-			sort.Strings(parts)
-			return strings.Join(parts, ", ")
+// resolveScopeName resolves a credential scope to a human-readable "type: name" string.
+func resolveScopeName(ds db.DataStore, scopeType models.CredentialScopeType, scopeID int64) string {
+	var name string
+	switch scopeType {
+	case models.CredentialScopeEcosystem:
+		if e, err := ds.GetEcosystemByID(int(scopeID)); err == nil {
+			name = e.Name
+		}
+	case models.CredentialScopeDomain:
+		if d, err := ds.GetDomainByID(int(scopeID)); err == nil {
+			name = d.Name
+		}
+	case models.CredentialScopeApp:
+		if a, err := ds.GetAppByID(int(scopeID)); err == nil {
+			name = a.Name
+		}
+	case models.CredentialScopeWorkspace:
+		if w, err := ds.GetWorkspaceByID(int(scopeID)); err == nil {
+			name = w.Name
 		}
 	}
+	if name != "" {
+		return fmt.Sprintf("%s: %s", scopeType, name)
+	}
+	return fmt.Sprintf("%s (ID: %d)", scopeType, scopeID)
+}
+
+// formatTargetVars returns a comma-separated string of the env var names
+// that this credential will inject at build/attach time.
+func formatTargetVars(c *models.CredentialDB) string {
+	// Priority: vault fields > dual-field > env var > credential name
+	if c.HasVaultFields() {
+		fields, err := c.GetVaultFieldsMap()
+		if err == nil && len(fields) > 0 {
+			keys := make([]string, 0, len(fields))
+			for envVar := range fields {
+				keys = append(keys, envVar)
+			}
+			sort.Strings(keys)
+			return strings.Join(keys, ", ")
+		}
+	}
+	var parts []string
 	if c.UsernameVar != nil {
 		parts = append(parts, *c.UsernameVar)
 	}
 	if c.PasswordVar != nil {
 		parts = append(parts, *c.PasswordVar)
 	}
-	return strings.Join(parts, ", ")
+	if len(parts) > 0 {
+		return strings.Join(parts, ", ")
+	}
+	if c.EnvVar != nil {
+		return *c.EnvVar
+	}
+	// Fallback: credential name is used as the env var name
+	return c.Name
 }
