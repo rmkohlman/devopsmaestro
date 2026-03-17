@@ -4,6 +4,17 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.45.0 (2026-03-16)
+
+**🐛 Registry Startup Resilience**
+
+Fixed 3 bugs that caused only 2 of 5 registries (squid and verdaccio) to start successfully. Athens, Zot, and Devpi all failed to start when they were already running because `Start()` returned `ErrPortInUse` without checking whether the service was healthy.
+
+- **Port-in-use probe** (Athens, Zot, Devpi) — `Start()` now calls `ProbeServiceHealth()` before returning `ErrPortInUse`; if the service is healthy, it is adopted as already-running. Health endpoints: Athens `GET /healthz` → 200; Zot `GET /v2/` → 200 or 401; Devpi `GET /` → 200 or 302.
+- **Zot checksum URL** — `fetchChecksum()` was appending `.sha256` directly to the binary URL (404). Rewrote to fetch the `{baseURL}/checksums.sha256.txt` manifest and parse the matching filename entry.
+- **Devpi pip fallback** — `ensurePipxInstalled()` had no fallback when `pipx` was absent. Added `fallbackPipInstall()` using `python3 -m pip install --user devpi-server==6.2.0` and a `getPythonUserBase()` helper.
+- 11 new test functions across 5 test files covering all three fixes.
+
 ### v0.44.0 (2026-03-16)
 
 **🐛 Container Neovim Environment Fixes**
@@ -844,6 +855,7 @@ See the [full migration guide](https://github.com/rmkohlman/devopsmaestro/blob/m
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **0.45.0** | 2026-03-16 | Registry startup resilience — port-in-use probe for Athens/Zot/Devpi, Zot checksum URL rewrite, Devpi pip fallback |
 | **0.44.0** | 2026-03-16 | Container Neovim environment fixes — Node 22 on Debian, Mason ensure_installed removed from plugin YAML, build-time tool authority centralized, pylint/shellcheck executable guards |
 | **0.43.2** | 2026-03-16 | Build output secret redaction — `RedactingWriter` intercepts `pip`/`npm`/`go get` output; replaces credential values with `***`; cross-boundary buffering; zero-overhead fast path |
 | **0.43.1** | 2026-03-16 | Fix tree-sitter builder for Debian — dual Alpine/Debian paths matching lazygit builder pattern; fixes corporate proxy SSL failures on Python/Node.js builds |

@@ -3,8 +3,13 @@ package registry
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -671,4 +676,122 @@ func TestGetVersion_ParsesVariousCommitFormats(t *testing.T) {
 			assert.Equal(t, tt.expected, ver)
 		})
 	}
+}
+
+// =============================================================================
+// Bug 2: Zot checksum URL pattern (TDD RED phase)
+//
+// Current behaviour (BUG): fetchChecksum() constructs the URL as
+//   binaryURL + ".sha256"
+// which returns 404 from GitHub releases (the file does not exist).
+//
+// Desired behaviour: Download the consolidated checksum manifest at
+//   {baseURL}/checksums.sha256.txt
+// then parse the multi-line file to locate the entry for the specific binary
+// filename (e.g. "zot-linux-amd64") and extract its digest.
+//
+// File format (one entry per line):
+//   <sha256hex>  <filename>
+// =============================================================================
+
+// TestFetchChecksum_ParsesConsolidatedFile verifies that fetchChecksum correctly
+// fetches and parses a multi-line checksums.sha256.txt manifest instead of
+// appending ".sha256" to the binary URL.
+//
+// This test FAILS today because the current implementation requests
+// binaryURL+".sha256" which would 404 against our test server (which only
+// serves checksums.sha256.txt at the base path).
+func TestFetchChecksum_ParsesConsolidatedFile(t *testing.T) {
+	const expectedDigest = "abc123def456abc123def456abc123def456abc123def456abc123def456abc12345"
+
+	// Determine the platform-specific binary filename (mirrors downloadBinary logic).
+	goos := runtime.GOOS
+	goarch := runtime.GOARCH
+	binaryFilename := fmt.Sprintf("zot-%s-%s", goos, goarch)
+
+	// Build a multi-line checksums manifest that includes our binary.
+	manifest := fmt.Sprintf(
+		"deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef  zot-other-arch\n"+
+			"%s  %s\n"+
+			"cafecafecafecafecafecafecafecafecafecafecafecafecafecafecafecafe  zot-another-arch\n",
+		expectedDigest, binaryFilename,
+	)
+
+	// Stand up a test HTTP server.
+	// The FIXED implementation should request GET /checksums.sha256.txt from
+	// the base URL of the release, NOT GET /zot-<os>-<arch>.sha256.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "checksums.sha256.txt") {
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprint(w, manifest)
+			return
+		}
+		// The current (buggy) path hits binaryURL+".sha256" — return 404 so
+		// the test server makes it obvious the wrong endpoint was called.
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	// Construct a binaryURL that mirrors the real GitHub releases format:
+	// https://github.com/.../releases/download/v{version}/zot-{os}-{arch}
+	binaryURL := fmt.Sprintf("%s/v2.1.1/%s", server.URL, binaryFilename)
+
+	bm := &DefaultBinaryManager{binDir: t.TempDir(), version: "2.1.1"}
+	ctx := context.Background()
+
+	digest, err := bm.fetchChecksum(ctx, binaryURL)
+
+	// BUG: currently this would either:
+	//  (a) fail with HTTP 404 (binaryURL+".sha256" is not served), or
+	//  (b) return a wrong digest if the server happened to serve something.
+	// FIXED: should parse checksums.sha256.txt and return the correct digest.
+	require.NoError(t, err, "fetchChecksum should successfully parse the consolidated manifest")
+	assert.Equal(t, expectedDigest, digest,
+		"fetchChecksum should extract the digest for the matching binary filename")
+}
+
+// TestFetchChecksum_MatchesBinaryFilename verifies that when multiple entries
+// exist in the manifest, fetchChecksum selects only the entry whose filename
+// matches the downloaded binary (not the first entry, not a partial match).
+//
+// This test FAILS today for the same reason as TestFetchChecksum_ParsesConsolidatedFile.
+func TestFetchChecksum_MatchesBinaryFilename(t *testing.T) {
+	const correctDigest = "1111111111111111111111111111111111111111111111111111111111111111"
+	const wrongDigest = "9999999999999999999999999999999999999999999999999999999999999999"
+
+	goos := runtime.GOOS
+	goarch := runtime.GOARCH
+	binaryFilename := fmt.Sprintf("zot-%s-%s", goos, goarch)
+
+	// The manifest lists multiple architectures; only one matches our binary.
+	manifest := fmt.Sprintf(
+		"%s  zot-linux-amd64\n"+
+			"%s  zot-linux-arm64\n"+
+			"%s  %s\n"+
+			"%s  zot-windows-amd64\n",
+		wrongDigest,
+		wrongDigest,
+		correctDigest, binaryFilename,
+		wrongDigest,
+	)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "checksums.sha256.txt") {
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprint(w, manifest)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	binaryURL := fmt.Sprintf("%s/v2.1.1/%s", server.URL, binaryFilename)
+
+	bm := &DefaultBinaryManager{binDir: t.TempDir(), version: "2.1.1"}
+	ctx := context.Background()
+
+	digest, err := bm.fetchChecksum(ctx, binaryURL)
+	require.NoError(t, err, "fetchChecksum should parse the manifest without error")
+	assert.Equal(t, correctDigest, digest,
+		"fetchChecksum must return the digest for the specific binary filename, not a wrong entry")
 }

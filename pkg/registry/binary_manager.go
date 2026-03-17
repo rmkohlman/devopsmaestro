@@ -277,9 +277,30 @@ func (b *DefaultBinaryManager) verifyChecksum(path string, expectedSum string) e
 	return nil
 }
 
-// fetchChecksum downloads the checksum file for the given binary URL and returns the expected SHA256 hex digest.
+// fetchChecksum downloads the consolidated checksum manifest for the given
+// binary URL and returns the expected SHA256 hex digest.
+//
+// The Zot project publishes a single "checksums.sha256.txt" file per release
+// containing all digests in the format:
+//
+//	<hex-digest>  <filename>
+//
+// This method extracts the base URL from the binary URL, fetches
+// {baseURL}/checksums.sha256.txt, and searches for the line matching the
+// specific binary filename.
 func (b *DefaultBinaryManager) fetchChecksum(ctx context.Context, binaryURL string) (string, error) {
-	checksumURL := binaryURL + ".sha256"
+	// Extract base URL and binary filename from the full binary URL.
+	// Example: "https://github.com/.../download/v2.1.1/zot-darwin-arm64"
+	//   baseURL  = "https://github.com/.../download/v2.1.1"
+	//   filename = "zot-darwin-arm64"
+	lastSlash := strings.LastIndex(binaryURL, "/")
+	if lastSlash < 0 {
+		return "", fmt.Errorf("invalid binary URL: no path separator")
+	}
+	baseURL := binaryURL[:lastSlash]
+	filename := binaryURL[lastSlash+1:]
+
+	checksumURL := baseURL + "/checksums.sha256.txt"
 	req, err := http.NewRequestWithContext(ctx, "GET", checksumURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create checksum request: %w", err)
@@ -292,15 +313,21 @@ func (b *DefaultBinaryManager) fetchChecksum(ctx context.Context, binaryURL stri
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("checksum download failed with status %d", resp.StatusCode)
 	}
-	// Read at most 256 bytes (SHA256 hex is 64 chars + optional filename)
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 256))
+
+	// Read the entire manifest (limit to 64KB to prevent abuse).
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
 	if err != nil {
-		return "", fmt.Errorf("failed to read checksum: %w", err)
+		return "", fmt.Errorf("failed to read checksum manifest: %w", err)
 	}
-	// Parse: could be just the hex digest, or "hexdigest  filename"
-	parts := strings.Fields(strings.TrimSpace(string(body)))
-	if len(parts) == 0 {
-		return "", fmt.Errorf("empty checksum file")
+
+	// Parse the manifest line by line: "<hex-digest>  <filename>"
+	lines := strings.Split(strings.TrimSpace(string(body)), "\n")
+	for _, line := range lines {
+		parts := strings.Fields(strings.TrimSpace(line))
+		if len(parts) >= 2 && parts[1] == filename {
+			return parts[0], nil
+		}
 	}
-	return parts[0], nil
+
+	return "", fmt.Errorf("checksum not found for binary %q in manifest", filename)
 }

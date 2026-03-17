@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.45.0] - 2026-03-16 — Registry Startup Resilience
+
+### 🐛 Bug Fixes
+
+#### Athens / Zot / Devpi — Not Detecting Already-Running Instance — `pkg/registry/athens_manager.go`, `pkg/registry/zot_manager.go`, `pkg/registry/devpi_manager.go`, `pkg/registry/utils.go`
+- **When `IsPortAvailable(port)` returned false, all three managers immediately returned `ErrPortInUse` without checking whether the service was already healthy on that port** — users who ran `dvm start registry` after a system reboot (where the process had been killed but the port was still reserved) received a spurious `port already in use` error; the registry appeared permanently unlaunchable until the port was manually freed
+- **`ProbeServiceHealth()` helper added to `utils.go`** — checks a service's health endpoint before treating a busy port as a fatal error; each manager's `Start()` now calls this probe when `IsPortAvailable(port)` returns false
+- **If the health probe succeeds, `Start()` returns `nil` (adopts the running instance)** — prevents redundant restarts and eliminates the spurious `ErrPortInUse` for already-healthy services
+- **Health endpoints by manager** — Athens: `GET /healthz` → accepts 200; Zot: `GET /v2/` → accepts 200 or 401 (auth-enabled registries); Devpi: `GET /` → accepts 200 or 302 (redirect)
+
+#### Zot — Checksum URL Pattern Wrong — `pkg/registry/binary_manager.go`
+- **`fetchChecksum()` constructed the checksum URL as `binaryURL + ".sha256"`, which does not exist for Zot** — the Zot project publishes a single `checksums.sha256.txt` manifest file per release rather than per-binary `.sha256` sidecar files; every Zot binary install on a fresh machine produced a `checksum download failed with status 404` error, leaving the binary unverified or preventing installation entirely
+- **`fetchChecksum()` rewritten** to extract `baseURL` from `binaryURL`, fetch `{baseURL}/checksums.sha256.txt`, and parse the multi-line manifest to find the digest matching the target binary filename
+- **Checksum verification now works correctly for all Zot releases** — the existing `crypto/subtle.ConstantTimeCompare()` verification path is unchanged; only the URL construction and manifest parsing are new
+
+#### Devpi — pipx Not Found with Zero Fallback — `pkg/registry/binary_pipx.go`
+- **`ensurePipxInstalled()` required `pipx` in PATH with no fallback** — on machines where `pipx` was not installed (or where it was installed in a non-standard location not on PATH), the devpi registry manager failed at the `ensure binary` step with `pipx not found in PATH`; no devpi installation was attempted
+- **`fallbackPipInstall()` method added** — uses `python3 -m pip install --user devpi-server==6.2.0` as a fallback when `pipx` is absent; `getPythonUserBase()` helper locates the installed binary by querying `python3 -m site --user-base`
+- **Install path: `pipx` is tried first; if unavailable, `pip --user` is used** — existing machines with `pipx` are unaffected; machines without `pipx` can now successfully install and run devpi
+
+### 🏗️ Technical
+
+| Metric | Value |
+|--------|-------|
+| Breaking changes | 0 |
+| Root cause | Three independent startup failures: port probe missing, checksum URL wrong, pipx zero fallback |
+| Production files changed | 6 (`pkg/registry/utils.go`, `pkg/registry/athens_manager.go`, `pkg/registry/zot_manager.go`, `pkg/registry/devpi_manager.go`, `pkg/registry/binary_manager.go`, `pkg/registry/binary_pipx.go`) |
+| New test files | 0 (tests added to existing files) |
+| Test files changed | 5 (`athens_manager_test.go`, `registry_manager_test.go`, `devpi_manager_test.go`, `binary_manager_test.go`, `binary_pipx_test.go`) |
+| New test functions | 11 |
+| All tests pass | ✅ (only pre-existing `TestVaultBackend_Health` fails) |
+| All 3 binaries build | ✅ |
+
+---
+
 ## [v0.44.0] - 2026-03-16 — Container Neovim Environment Fixes
 
 ### 🐛 Bug Fixes

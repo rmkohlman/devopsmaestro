@@ -2,6 +2,7 @@ package registry
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -345,4 +346,75 @@ func TestMockPipxBinaryManager_CustomBehavior(t *testing.T) {
 
 func TestPipxBinaryManager_ImplementsBinaryManager(t *testing.T) {
 	var _ BinaryManager = (*PipxBinaryManager)(nil)
+}
+
+// =============================================================================
+// Bug 3: Devpi pip fallback when pipx not found (TDD RED phase)
+//
+// Current behaviour: ensurePipxInstalled() requires pipx in PATH. If pipx is
+// not found, EnsureBinary() returns an error containing "pipx not found in PATH".
+// No fallback is attempted.
+//
+// Desired behaviour: When pipx is not found, fall back to:
+//   python3 -m pip install --user devpi-server==6.2.0
+// The error message should change: it should reflect that pip was attempted
+// (not that pipx was missing). If pip also fails, the error should mention "pip".
+//
+// Testing strategy: We cannot easily manipulate PATH in unit tests, so we
+// document the expected error-message CONTRACT change that the fix must satisfy.
+// The test uses a PipxBinaryManager with a custom EnsurePipxFunc (once the
+// refactored method exists) to simulate the "pipx not found" path.
+// =============================================================================
+
+// TestPipxBinaryManager_FallbackToPip_WhenPipxMissing documents the expected
+// error behaviour change when pipx is not found.
+//
+// CURRENT behaviour (BUG):
+//
+//	EnsureBinary returns an error whose message contains "pipx not found in PATH".
+//	The caller has no recourse except to install pipx manually.
+//
+// DESIRED behaviour (after fix):
+//
+//	When pipx is not found, EnsureBinary falls back to
+//	  python3 -m pip install --user devpi-server==<version>
+//	If that also fails, the returned error should mention "pip" (the fallback
+//	was attempted) and must NOT contain the string "pipx not found in PATH"
+//	(because the implementation moved past that error and tried pip).
+//
+// This test FAILS today because EnsureBinary() immediately returns an error
+// containing "pipx not found in PATH" with no pip fallback attempted.
+// After the fix, the error message contract will change as asserted below.
+//
+// Environment note: this test is meaningful in CI where pipx is not installed.
+// When pipx IS installed, EnsureBinary may succeed (installing devpi-server);
+// we guard for that case with a check for err == nil.
+func TestPipxBinaryManager_FallbackToPip_WhenPipxMissing(t *testing.T) {
+	mgr := NewPipxBinaryManager("devpi-server", "6.2.0")
+	ctx := context.Background()
+
+	_, err := mgr.EnsureBinary(ctx)
+
+	if err == nil {
+		// pipx (or pip fallback) is installed and succeeded — nothing to assert.
+		t.Log("EnsureBinary succeeded (pipx or pip available in this environment)")
+		return
+	}
+
+	// EnsureBinary failed. Assert the error message CONTRACT:
+	//
+	// BUG (current): error contains "pipx not found in PATH".
+	//   The test will FAIL here today because the error IS "pipx not found in PATH"
+	//   and we assert it must NOT be that.
+	//
+	// FIXED (after implementation): error mentions pip/python (fallback was tried).
+	assert.NotContains(t, err.Error(), "pipx not found in PATH",
+		"BUG DETECTED: EnsureBinary returned 'pipx not found in PATH' without "+
+			"attempting a pip fallback. After the fix, the error should describe "+
+			"the pip attempt instead.")
+
+	// After the fix: error should mention pip or python (the fallback was tried).
+	assert.True(t,
+		strings.Contains(err.Error(), "pip") || strings.Contains(err.Error(), "python"),
+		"After the fix, a failure after pip fallback should mention 'pip' or 'python': %v", err)
 }

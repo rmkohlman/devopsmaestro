@@ -46,6 +46,10 @@ func (z *ZotManager) Start(ctx context.Context) error {
 
 	// Check if port is available
 	if !IsPortAvailable(z.config.Port) {
+		// Port is taken — check if our service is already running on it
+		if ProbeServiceHealth(z.config.Port, "/v2/", []int{200, 401}) {
+			return nil // Adopt running instance (idempotent)
+		}
 		return fmt.Errorf("%w: port %d is already in use", ErrPortInUse, z.config.Port)
 	}
 

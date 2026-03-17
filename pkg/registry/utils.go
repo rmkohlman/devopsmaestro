@@ -17,6 +17,33 @@ import (
 // blocking service startup indefinitely.
 var healthCheckClient = &http.Client{Timeout: 2 * time.Second}
 
+// ProbeServiceHealth makes a single HTTP GET to http://localhost:{port}{path}
+// and returns true if the response status code matches one of acceptedStatuses.
+// It does NOT follow redirects — the raw status code is checked.
+// Returns false on any error (connection refused, timeout, etc.).
+func ProbeServiceHealth(port int, path string, acceptedStatuses []int) bool {
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+		Timeout: 2 * time.Second,
+	}
+
+	url := fmt.Sprintf("http://localhost:%d%s", port, path)
+	resp, err := client.Get(url)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	for _, accepted := range acceptedStatuses {
+		if resp.StatusCode == accepted {
+			return true
+		}
+	}
+	return false
+}
+
 // IsPortAvailable checks if a TCP port is available for binding.
 func IsPortAvailable(port int) bool {
 	// Validate port range - exclude privileged ports (< 1024)

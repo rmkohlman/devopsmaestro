@@ -48,9 +48,15 @@ func (m *PipxBinaryManager) EnsureBinary(ctx context.Context) (string, error) {
 		}
 	}
 
-	// Ensure pipx is installed
+	// Ensure pipx is installed; if not, try pip as fallback
 	if err := m.ensurePipxInstalled(ctx); err != nil {
-		return "", fmt.Errorf("pipx not available: %w", err)
+		// pipx not available — fall back to pip
+		binaryPath, pipErr := m.fallbackPipInstall(ctx)
+		if pipErr != nil {
+			return "", fmt.Errorf("failed to install %s: pipx unavailable and pip fallback failed: %w", m.packageName, pipErr)
+		}
+		m.binaryPath = binaryPath
+		return m.binaryPath, nil
 	}
 
 	// Check if package is already installed
@@ -238,4 +244,49 @@ func (m *PipxBinaryManager) installPackage(ctx context.Context) error {
 	m.cachedVersion = ""
 
 	return nil
+}
+
+// fallbackPipInstall attempts to install the package using pip when pipx is
+// not available. This uses "python3 -m pip install --user" which installs to
+// the user's local bin directory (~/.local/bin on Linux/macOS).
+func (m *PipxBinaryManager) fallbackPipInstall(ctx context.Context) (string, error) {
+	// Build the package spec
+	packageSpec := m.packageName
+	if m.version != "" {
+		packageSpec = fmt.Sprintf("%s==%s", m.packageName, m.version)
+	}
+
+	// Try python3 -m pip install --user
+	cmd := exec.CommandContext(ctx, "python3", "-m", "pip", "install", "--user", packageSpec)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("pip install failed: %w (output: %s)", err, string(output))
+	}
+
+	// Find the installed binary
+	// pip --user installs to ~/.local/bin on Linux/macOS
+	binaryPath := filepath.Join(m.binDir, m.packageName)
+	if _, err := os.Stat(binaryPath); err != nil {
+		// Also check if python3 knows the user bin path
+		userBase, err2 := m.getPythonUserBase(ctx)
+		if err2 == nil {
+			altPath := filepath.Join(userBase, "bin", m.packageName)
+			if _, err3 := os.Stat(altPath); err3 == nil {
+				return altPath, nil
+			}
+		}
+		return "", fmt.Errorf("binary not found after pip install: %w", err)
+	}
+
+	return binaryPath, nil
+}
+
+// getPythonUserBase returns the Python user base directory (site.USER_BASE).
+func (m *PipxBinaryManager) getPythonUserBase(ctx context.Context) (string, error) {
+	cmd := exec.CommandContext(ctx, "python3", "-m", "site", "--user-base")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(output)), nil
 }

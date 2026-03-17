@@ -2,6 +2,8 @@ package registry
 
 import (
 	"context"
+	"net"
+	"net/http"
 	"testing"
 	"time"
 
@@ -472,4 +474,107 @@ func TestAthensManager_GetGoEnv_NotRunning(t *testing.T) {
 
 func TestAthensManager_ImplementsGoModuleProxy(t *testing.T) {
 	var _ GoModuleProxy = (*AthensManager)(nil)
+}
+
+// =============================================================================
+// Bug 1: Health check probe when port is in use (TDD RED phase)
+//
+// Current behaviour: IsPortAvailable(port) == false → immediately return ErrPortInUse.
+//
+// Desired behaviour: Before returning ErrPortInUse, probe the service's health
+// endpoint (http://localhost:{port}/healthz → 200). If healthy, adopt the
+// running instance and return nil (idempotent). Only return ErrPortInUse when
+// the health probe fails (something else owns the port).
+// =============================================================================
+
+// bindAndServeAthens binds a TCP listener on 0.0.0.0:0 (so that
+// IsPortAvailable returns false for the chosen port) and begins serving HTTP
+// requests on it using the provided handler. The bound port is returned.
+// The server is shut down when the test ends via t.Cleanup.
+func bindAndServeAthens(t *testing.T, handler http.Handler) int {
+	t.Helper()
+	// Bind on 0.0.0.0 — this is the only address that makes IsPortAvailable
+	// (which tries net.Listen("tcp", ":<port>")) see the port as unavailable
+	// on macOS/Darwin.
+	ln, err := net.Listen("tcp", "0.0.0.0:0")
+	require.NoError(t, err, "bindAndServeAthens: net.Listen failed")
+	port := ln.Addr().(*net.TCPAddr).Port
+	srv := &http.Server{Handler: handler}
+	go srv.Serve(ln) //nolint:errcheck
+	t.Cleanup(func() { srv.Close() })
+	return port
+}
+
+// TestAthensManager_Start_AdoptsRunningInstance verifies that Start() returns
+// nil when the configured port is occupied by a healthy Athens instance (i.e.
+// /healthz returns 200). This is the "adopt already-running service" path.
+//
+// This test FAILS today because Start() returns ErrPortInUse without probing
+// the health endpoint first.
+func TestAthensManager_Start_AdoptsRunningInstance(t *testing.T) {
+	// Stand up a fake "Athens" that responds 200 on /healthz.
+	// We bind on 0.0.0.0 so that IsPortAvailable() sees the port as taken.
+	port := bindAndServeAthens(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/healthz" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+
+	// Build an AthensManager pointing at that port.
+	config := GoModuleConfig{
+		Enabled:   true,
+		Lifecycle: "manual",
+		Port:      port,
+		Storage:   t.TempDir(),
+	}
+	mockBinary := NewMockBinaryManager(config.Storage, "v0.13.0")
+	mockProcess := NewProcessManager(ProcessConfig{
+		PIDFile: config.Storage + "/athens.pid",
+		LogFile: config.Storage + "/athens.log",
+	})
+	mgr, err := NewAthensManager(config, mockBinary, mockProcess)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// BUG: currently returns ErrPortInUse.
+	// FIXED: should probe /healthz, see 200, and return nil.
+	startErr := mgr.Start(ctx)
+	assert.NoError(t, startErr,
+		"Start should return nil when the port is occupied by a healthy Athens instance "+
+			"(adopt-running-instance path)")
+}
+
+// TestAthensManager_Start_PortInUse_UnhealthyService verifies that Start()
+// still returns ErrPortInUse when the port is occupied by something that does
+// NOT respond with a healthy status on /healthz (e.g. returns 500).
+func TestAthensManager_Start_PortInUse_UnhealthyService(t *testing.T) {
+	// Stand up a fake service that returns 500 on all paths.
+	// We bind on 0.0.0.0 so that IsPortAvailable() sees the port as taken.
+	port := bindAndServeAthens(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+
+	config := GoModuleConfig{
+		Enabled:   true,
+		Lifecycle: "manual",
+		Port:      port,
+		Storage:   t.TempDir(),
+	}
+	mockBinary := NewMockBinaryManager(config.Storage, "v0.13.0")
+	mockProcess := NewProcessManager(ProcessConfig{
+		PIDFile: config.Storage + "/athens.pid",
+		LogFile: config.Storage + "/athens.log",
+	})
+	mgr, err := NewAthensManager(config, mockBinary, mockProcess)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	startErr := mgr.Start(ctx)
+	assert.Error(t, startErr, "Start should return an error when port is occupied by an unhealthy service")
+	assert.ErrorIs(t, startErr, ErrPortInUse,
+		"Start should return ErrPortInUse when health probe fails")
 }

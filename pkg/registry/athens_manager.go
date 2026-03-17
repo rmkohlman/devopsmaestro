@@ -79,6 +79,10 @@ func (m *AthensManager) Start(ctx context.Context) error {
 
 	// Check if port is available
 	if !IsPortAvailable(m.config.Port) {
+		// Port is taken — check if our service is already running on it
+		if ProbeServiceHealth(m.config.Port, "/healthz", []int{200}) {
+			return nil // Adopt running instance (idempotent)
+		}
 		return fmt.Errorf("%w: port %d is already in use", ErrPortInUse, m.config.Port)
 	}
 

@@ -3,6 +3,8 @@ package registry
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/http"
 	"testing"
 	"time"
 
@@ -590,4 +592,150 @@ func TestDevpiManager_IdleTimeout_ResetOnAccess(t *testing.T) {
 
 func TestDevpiManager_ImplementsPyPIProxy(t *testing.T) {
 	var _ PyPIProxy = (*DevpiManager)(nil)
+}
+
+// =============================================================================
+// Bug 1: Health check probe when port is in use (TDD RED phase)
+//
+// Current behaviour: IsPortAvailable(port) == false → immediately return ErrPortInUse.
+//
+// Desired behaviour: Before returning ErrPortInUse, probe the service's health
+// endpoint (http://localhost:{port}/ → 200 or 302). If healthy, adopt the
+// running instance and return nil (idempotent). Only return ErrPortInUse when
+// the health probe fails.
+// =============================================================================
+
+// TestDevpiManager_Start_AdoptsRunningInstance verifies that Start() returns
+// nil when the configured port is occupied by a healthy devpi instance (i.e.
+// / returns 200). This is the "adopt already-running service" path.
+//
+// This test FAILS today because Start() returns ErrPortInUse without probing
+// the health endpoint first.
+// bindAndServeDevpi binds a TCP listener on 0.0.0.0:0 (so that
+// IsPortAvailable returns false for the chosen port) and begins serving HTTP
+// requests using the provided handler. The bound port is returned.
+// The server is shut down when the test ends via t.Cleanup.
+func bindAndServeDevpi(t *testing.T, handler http.Handler) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "0.0.0.0:0")
+	require.NoError(t, err, "bindAndServeDevpi: net.Listen failed")
+	port := ln.Addr().(*net.TCPAddr).Port
+	srv := &http.Server{Handler: handler}
+	go srv.Serve(ln) //nolint:errcheck
+	t.Cleanup(func() { srv.Close() })
+	return port
+}
+
+// TestDevpiManager_Start_AdoptsRunningInstance verifies that Start() returns
+// nil when the configured port is occupied by a healthy devpi instance (i.e.
+// / returns 200). This is the "adopt already-running service" path.
+//
+// This test FAILS today because Start() returns ErrPortInUse without probing
+// the health endpoint first.
+func TestDevpiManager_Start_AdoptsRunningInstance(t *testing.T) {
+	// Stand up a fake "devpi" that responds 200 on /.
+	// We bind on 0.0.0.0 so that IsPortAvailable() sees the port as taken.
+	port := bindAndServeDevpi(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+
+	// Build a DevpiManager pointing at that port.
+	config := PyPIProxyConfig{
+		Enabled:   true,
+		Lifecycle: "manual",
+		Port:      port,
+		Storage:   t.TempDir(),
+	}
+	mockBinary := NewMockPipxBinaryManager(config.Storage, "6.2.0")
+	mockProcess := NewProcessManager(ProcessConfig{
+		PIDFile: config.Storage + "/devpi.pid",
+		LogFile: config.Storage + "/devpi.log",
+	})
+	mgr, err := NewDevpiManager(config, mockBinary, mockProcess)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// BUG: currently returns ErrPortInUse.
+	// FIXED: should probe /, see 200, and return nil.
+	startErr := mgr.Start(ctx)
+	assert.NoError(t, startErr,
+		"Start should return nil when the port is occupied by a healthy devpi instance "+
+			"(adopt-running-instance path)")
+}
+
+// TestDevpiManager_Start_AdoptsRunningInstance_Redirect verifies that Start()
+// also adopts a running instance when / returns 302 (devpi redirects to the
+// index on the root path).
+//
+// This test FAILS today because Start() returns ErrPortInUse without probing.
+func TestDevpiManager_Start_AdoptsRunningInstance_Redirect(t *testing.T) {
+	// Stand up a fake "devpi" that responds 302 on / (typical redirect).
+	// We bind on 0.0.0.0 so that IsPortAvailable() sees the port as taken.
+	port := bindAndServeDevpi(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			http.Redirect(w, r, "/root/pypi/", http.StatusFound)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+
+	config := PyPIProxyConfig{
+		Enabled:   true,
+		Lifecycle: "manual",
+		Port:      port,
+		Storage:   t.TempDir(),
+	}
+	mockBinary := NewMockPipxBinaryManager(config.Storage, "6.2.0")
+	mockProcess := NewProcessManager(ProcessConfig{
+		PIDFile: config.Storage + "/devpi.pid",
+		LogFile: config.Storage + "/devpi.log",
+	})
+	mgr, err := NewDevpiManager(config, mockBinary, mockProcess)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// BUG: currently returns ErrPortInUse.
+	// FIXED: 302 on / is a healthy devpi response — adopt it.
+	startErr := mgr.Start(ctx)
+	assert.NoError(t, startErr,
+		"Start should return nil when the port is occupied by a devpi instance "+
+			"that redirects on / (302)")
+}
+
+// TestDevpiManager_Start_PortInUse_UnhealthyService verifies that Start() still
+// returns ErrPortInUse when the port is occupied by something that does NOT
+// respond with a healthy status on /.
+func TestDevpiManager_Start_PortInUse_UnhealthyService(t *testing.T) {
+	// Stand up a fake service that returns 500 on all paths.
+	// We bind on 0.0.0.0 so that IsPortAvailable() sees the port as taken.
+	port := bindAndServeDevpi(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+
+	config := PyPIProxyConfig{
+		Enabled:   true,
+		Lifecycle: "manual",
+		Port:      port,
+		Storage:   t.TempDir(),
+	}
+	mockBinary := NewMockPipxBinaryManager(config.Storage, "6.2.0")
+	mockProcess := NewProcessManager(ProcessConfig{
+		PIDFile: config.Storage + "/devpi.pid",
+		LogFile: config.Storage + "/devpi.log",
+	})
+	mgr, err := NewDevpiManager(config, mockBinary, mockProcess)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	startErr := mgr.Start(ctx)
+	assert.Error(t, startErr, "Start should return an error when port is occupied by an unhealthy service")
+	assert.ErrorIs(t, startErr, ErrPortInUse,
+		"Start should return ErrPortInUse when health probe fails")
 }

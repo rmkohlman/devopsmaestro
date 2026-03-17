@@ -1,6 +1,6 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.44.0  
+> **Version**: v0.45.0  
 > **Last Updated**: March 16, 2026
 
 ---
@@ -34,6 +34,7 @@ source tests/manual/part2-post-attach.sh
 | 19 | Manual | Auto-Token Creation (v0.43.0) |
 | 20 | Manual | Build Output Secret Redaction (v0.43.2) |
 | 21 | Manual | Container Neovim Environment (v0.44.0) |
+| 22 | Manual | Registry Startup Resilience (v0.45.0) |
 
 ---
 
@@ -4077,6 +4078,112 @@ nvim .
 
 ---
 
+## Part 22: Registry Startup Resilience (v0.45.0)
+
+> **Prerequisite**: `dvm` binary built from v0.45.0+. At least one registry (Athens, Zot, or Devpi) already running at its configured port. `dvm admin init` completed.
+
+### Scenario 91: Athens Already Running — Adopted Without Error
+
+**Goal**: Verify that `dvm start registry` adopts a healthy, already-running Athens instance instead of returning a port-in-use error.
+
+**Prerequisites**: Athens registry already started (e.g., from a previous `dvm start registry` invocation that was not stopped).
+
+```bash
+# Confirm Athens is listening on its configured port
+curl -s http://localhost:3000/healthz
+# Expected: HTTP 200
+
+# Attempt to start the registry again
+dvm start registry --name athens-local
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `curl /healthz` returns 200 | Athens is healthy and already running | |
+| `dvm start registry` exits without error | No "port in use" error message | |
+| `dvm get registries` shows status Running | Athens registry listed as Running | |
+| No second Athens process spawned | `pgrep athens` returns one PID | |
+
+---
+
+### Scenario 92: Zot Checksum Download — Correct Manifest URL
+
+**Goal**: Verify that installing or upgrading Zot downloads the correct checksum by fetching the `checksums.sha256.txt` manifest rather than appending `.sha256` to the binary URL.
+
+**Prerequisites**: Zot binary not yet downloaded (or `--version` set to a version not yet cached). Internet access available.
+
+```bash
+# Remove any cached Zot binary to force a fresh download
+rm -f ~/.devopsmaestro/bin/zot*
+
+# Start a Zot registry (triggers download)
+dvm start registry --name zot-local
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Download completes without checksum 404 error | No "404 Not Found" in output | |
+| Zot binary passes checksum verification | No "checksum mismatch" error | |
+| `dvm get registries` shows Zot as Running | Zot registry listed as Running | |
+| `~/.devopsmaestro/bin/zot` binary is present | File exists and is executable | |
+
+---
+
+### Scenario 93: Devpi Pip Fallback — Installs via pip When pipx Absent
+
+**Goal**: Verify that Devpi installation succeeds on a system where `pipx` is not available, falling back to `python3 -m pip install --user`.
+
+**Prerequisites**: A test environment where `pipx` is absent from PATH but `python3` and `pip` are available.
+
+```bash
+# Simulate missing pipx (rename or unlink temporarily)
+which pipx && sudo mv $(which pipx) /tmp/pipx-backup || echo "pipx not found — good"
+
+# Attempt to start a Devpi registry (triggers installation)
+dvm start registry --name devpi-local
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| No "pipx not found" fatal error | Fallback pip install attempted | |
+| `devpi-server` installed in Python user base | `python3 -m devpi-server --version` returns a version | |
+| Devpi registry starts successfully | `dvm get registries` shows Devpi as Running | |
+| Restore pipx afterward | `sudo mv /tmp/pipx-backup $(dirname $(which python3))/pipx` | |
+
+---
+
+### Scenario 94: Full Registry Start Verification — All 5 Registries
+
+**Goal**: Verify that all 5 supported registry types (Squid, Verdaccio, Athens, Zot, Devpi) can be started cleanly from a stopped state and listed by `dvm get registries`.
+
+**Prerequisites**: All registries stopped. All required binaries available or downloadable.
+
+```bash
+# Stop any running registries
+dvm stop registry --all
+
+# Start each registry
+dvm start registry --name squid-local
+dvm start registry --name verdaccio-local
+dvm start registry --name athens-local
+dvm start registry --name zot-local
+dvm start registry --name devpi-local
+
+# List all registries
+dvm get registries
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `dvm start registry --name squid-local` exits 0 | Squid starts without error | |
+| `dvm start registry --name verdaccio-local` exits 0 | Verdaccio starts without error | |
+| `dvm start registry --name athens-local` exits 0 | Athens starts without error | |
+| `dvm start registry --name zot-local` exits 0 | Zot starts without error | |
+| `dvm start registry --name devpi-local` exits 0 | Devpi starts without error | |
+| `dvm get registries` shows all 5 as Running | All 5 registries listed as Running | |
+
+---
+
 ## Test Results Summary
 
 | Part | Tests | Pass | Fail |
@@ -4105,6 +4212,7 @@ nvim .
 | Part 19: Auto-Token Creation | 6 scenarios | | |
 | Part 20: Build Output Secret Redaction | 3 scenarios | | |
 | Part 21: Container Neovim Environment | 4 scenarios | | |
+| Part 22: Registry Startup Resilience | 4 scenarios | | |
 
 ---
 
@@ -4157,5 +4265,5 @@ colima nerdctl -- --namespace devopsmaestro images
 
 **Tested by:** ________________  
 **Date:** ________________  
-**Version**: v0.44.0  
+**Version**: v0.45.0  
 **Platform:** ________________
