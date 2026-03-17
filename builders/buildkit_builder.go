@@ -170,12 +170,17 @@ func (b *BuildKitBuilder) Build(ctx context.Context, opts BuildOptions) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		display, err := progressui.NewDisplay(os.Stdout, progressui.PlainMode)
+		progressWriter := NewRedactingWriter(os.Stdout, opts.BuildArgs)
+		display, err := progressui.NewDisplay(progressWriter, progressui.PlainMode)
 		if err != nil {
 			displayErr = err
 			return
 		}
 		_, displayErr = display.UpdateFrom(ctx, displayCh)
+		// Flush any buffered bytes after progress display completes
+		if rw, ok := progressWriter.(*RedactingWriter); ok {
+			rw.Flush()
+		}
 	}()
 
 	// Run build (Solve closes displayCh when complete)

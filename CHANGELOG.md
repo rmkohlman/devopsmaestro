@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.43.2] - 2026-03-16 — Build Output Secret Redaction
+
+### 🔒 Security
+
+#### `RedactingWriter` — `builders/redacting_writer.go` (new)
+- **Package manager output leaks credentials** — during Docker/BuildKit builds, `pip install`, `npm install`, and `go get` print URLs containing credentials supplied via `--build-arg` values; for example, `pip install` would print `Downloading https://ghp_WJ0M3T...@github.com/org/repo/archive/main.tar.gz`, leaking the GitHub PAT verbatim to the terminal
+- **`RedactingWriter` wraps any `io.Writer`** and intercepts all build output; before forwarding each chunk it replaces every qualifying secret value with `***`
+- **Cross-boundary buffering** — retains up to `maxSecretLen - 1` bytes between `Write()` calls so secrets split across chunk boundaries are still caught
+- **Longest-first secret matching** — secrets sorted by descending length at construction time; prevents partial-match artifacts when one secret value is a prefix of another
+- **Minimum secret length: 8 characters** — values shorter than 8 bytes are excluded from redaction to avoid false positives on version strings, flags, and common short tokens
+- **Zero-overhead fast path** — when no qualifying secrets exist, `NewRedactingWriter` returns the inner writer directly; no wrapping layer is added
+- **`Flush()` method** — drains the internal cross-boundary buffer; must be called after the last `Write()` to ensure any buffered tail is forwarded
+
+#### Build Pipeline Integration — `builders/docker_builder.go`, `builders/buildkit_builder.go`
+- **`docker_builder.go`** — `cmd.Stdout` and `cmd.Stderr` both wrapped with `NewRedactingWriter`; `defer Flush()` ensures buffer is drained even on error paths
+- **`buildkit_builder.go`** — the `progressui.NewDisplay` writer wrapped with `NewRedactingWriter`; `Flush()` called after progress completes
+
+### 🏗️ Technical
+
+| Metric | Value |
+|--------|-------|
+| Breaking changes | 0 |
+| New production files | 1 (`builders/redacting_writer.go`, 123 lines) |
+| New test files | 1 (`builders/redacting_writer_test.go`, 567 lines) |
+| Modified files | 2 (`builders/docker_builder.go`, `builders/buildkit_builder.go`) |
+| New test functions | 15 (basic redaction, multiple secrets, split-across-writes, min-length boundary, pip output simulation, and more) |
+| All tests pass | ✅ (only pre-existing `TestVaultBackend_Health` fails) |
+| All 3 binaries build | ✅ |
+
+---
+
 ## [v0.43.1] - 2026-03-16 — Fix Tree-Sitter Builder for Debian-Based Builds
 
 ### 🐛 Bug Fixes

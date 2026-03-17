@@ -128,8 +128,18 @@ func (b *DockerBuilder) Build(ctx context.Context, opts BuildOptions) error {
 	cmd := exec.Command("docker", args...)
 	cmd.Dir = b.appPath
 	cmd.Env = append(os.Environ(), "DOCKER_HOST=unix://"+b.platform.SocketPath)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	stdoutWriter := NewRedactingWriter(os.Stdout, opts.BuildArgs)
+	stderrWriter := NewRedactingWriter(os.Stderr, opts.BuildArgs)
+	cmd.Stdout = stdoutWriter
+	cmd.Stderr = stderrWriter
+
+	// Flush any buffered bytes when build completes
+	if rw, ok := stdoutWriter.(*RedactingWriter); ok {
+		defer rw.Flush()
+	}
+	if rw, ok := stderrWriter.(*RedactingWriter); ok {
+		defer rw.Flush()
+	}
 
 	// Use watchdog config (defaults if not set)
 	cfg := b.WatchdogConfig

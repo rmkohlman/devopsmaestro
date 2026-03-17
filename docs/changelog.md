@@ -4,6 +4,21 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.43.2 (2026-03-16)
+
+**🔒 Build Output Secret Redaction**
+
+Package managers (`pip install`, `npm install`, `go get`) print build URLs in plain text during Docker/BuildKit builds. When credentials are passed as `--build-arg` values, those values appeared verbatim in terminal output (e.g., `Downloading https://ghp_WJ0M3T...@github.com/org/repo/archive/main.tar.gz`). A new `RedactingWriter` intercepts all build output and replaces known credential values with `***` before they reach the terminal.
+
+- **`builders/redacting_writer.go`** (new) — `RedactingWriter` type wrapping any `io.Writer`; cross-boundary buffering catches secrets split across chunk boundaries; longest-first secret matching prevents partial-match artifacts
+- **Minimum secret length: 8 characters** — avoids false positives on version strings and short flags; values shorter than 8 bytes are not redacted
+- **Zero-overhead fast path** — when no qualifying secrets exist, `NewRedactingWriter` returns the inner writer directly; no wrapping overhead
+- **`docker_builder.go`** — `cmd.Stdout`/`cmd.Stderr` both wrapped with `NewRedactingWriter`; `defer Flush()` drains buffer on all exit paths
+- **`buildkit_builder.go`** — `progressui.NewDisplay` writer wrapped with `NewRedactingWriter`; `Flush()` called after progress completes
+- 15 new tests in `builders/redacting_writer_test.go` (basic redaction, multiple secrets, split-across-writes, min-length boundary, pip output simulation)
+
+Note: This is Layer 1 (immediate mitigation). Layer 2 (`--mount=type=secret` for BuildKit) is tracked for a future release.
+
 ### v0.43.1 (2026-03-16)
 
 **🐛 Fix Tree-Sitter Builder for Debian-Based Builds**
@@ -815,6 +830,7 @@ See the [full migration guide](https://github.com/rmkohlman/devopsmaestro/blob/m
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **0.43.2** | 2026-03-16 | Build output secret redaction — `RedactingWriter` intercepts `pip`/`npm`/`go get` output; replaces credential values with `***`; cross-boundary buffering; zero-overhead fast path |
 | **0.43.1** | 2026-03-16 | Fix tree-sitter builder for Debian — dual Alpine/Debian paths matching lazygit builder pattern; fixes corporate proxy SSL failures on Python/Node.js builds |
 | **0.43.0** | 2026-03-16 | Auto-token creation for MaestroVault — priority chain resolves token automatically; no manual `mav token create` required |
 | **0.42.1** | 2026-03-16 | Fix Python private repo credential injection — ARG moved after FROM; sed pipeline removed (pip handles `${VAR}` natively) |

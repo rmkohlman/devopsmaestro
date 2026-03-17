@@ -1,6 +1,6 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.43.0  
+> **Version**: v0.43.2  
 > **Last Updated**: March 16, 2026
 
 ---
@@ -32,6 +32,7 @@ source tests/manual/part2-post-attach.sh
 | - | Manual | Interactive container testing (below) |
 | 2 | Automated | `tests/manual/part2-post-attach.sh` |
 | 19 | Manual | Auto-Token Creation (v0.43.0) |
+| 20 | Manual | Build Output Secret Redaction (v0.43.2) |
 
 ---
 
@@ -3763,6 +3764,164 @@ go test ./config/ -run TestResolveVaultToken -v -count=1
 ```
 
 **Expected**: All 21 tests pass, 0 failures
+
+---
+
+## Part 20: Build Output Secret Redaction (v0.43.2)
+
+> **Prerequisite**: `dvm` binary built from v0.43.2+. A workspace with at least one vault or build-arg credential configured. For Scenarios 84 and 86, a private GitHub repository accessible via a PAT (`ghp_...`).
+
+### Scenario 84: Build with Private Repo Credentials — PAT Not Visible in Output
+
+**Goal**: Verify that a GitHub PAT passed as a `--build-arg` value is never printed in plain text during a Docker/BuildKit build, even when `pip install` or `go get` downloads from a private GitHub URL containing the token.
+
+**Prerequisites**: A Python workspace whose `requirements.txt` includes a private GitHub dependency using `${GITHUB_PAT}` token substitution.
+
+```bash
+# Create a credential with a known PAT value
+dvm create credential github-creds \
+  --source vault \
+  --vault-secret github-pat \
+  --vault-field GITHUB_PAT=pat \
+  --ecosystem <your-ecosystem>
+
+# Run the build and capture all output
+dvm build --workspace <your-workspace> 2>&1 | tee /tmp/build-output.txt
+```
+
+**Inspect the captured output:**
+
+```bash
+# The raw PAT value must NOT appear anywhere in the output
+grep "ghp_" /tmp/build-output.txt        # Expected: no matches
+
+# The redaction marker must appear instead of the PAT value
+grep '\*\*\*' /tmp/build-output.txt      # Expected: at least one match
+
+# The download URL structure should be visible but with credentials replaced
+grep "github.com" /tmp/build-output.txt  # Expected: URL present, but no token embedded
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Raw PAT not in build output | `grep "ghp_" /tmp/build-output.txt` returns 0 matches | |
+| Redaction marker present | `grep '\*\*\*' /tmp/build-output.txt` returns at least 1 match | |
+| Build succeeds | Exit code 0, image built successfully | |
+| No credential warnings | No `render.Warning()` output for resolved credentials | |
+
+**Cleanup:**
+```bash
+rm /tmp/build-output.txt
+dvm delete credential github-creds --ecosystem <your-ecosystem> --force
+```
+
+---
+
+### Scenario 85: Build Without Credentials — Output Unchanged (Zero Overhead)
+
+**Goal**: Verify that when a workspace has no credentials configured, the `RedactingWriter` fast path is taken — the inner writer is used directly with no redaction wrapping — and build output is identical to pre-v0.43.2 behavior.
+
+**Prerequisites**: A workspace with no credentials in its hierarchy (no ecosystem/domain/app/workspace-scoped credentials).
+
+```bash
+# Ensure no credentials exist in the workspace hierarchy
+dvm get credentials -A
+
+# Run a standard build and capture output
+dvm build --workspace <credential-free-workspace> 2>&1 | tee /tmp/build-no-creds.txt
+```
+
+**Verify build output:**
+
+```bash
+# No redaction markers should appear in a credential-free build
+grep -c '\*\*\*' /tmp/build-no-creds.txt   # Expected: 0
+
+# Standard Docker/BuildKit output should be complete and unmodified
+grep "DONE\|Step\|RUN\|FROM" /tmp/build-no-creds.txt
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Build succeeds | Exit code 0, image built | |
+| No redaction markers in output | `grep -c '\*\*\*'` returns `0` | |
+| Full build output present | Docker/BuildKit progress lines visible and complete | |
+| No truncation or missing lines | Output is not shorter or different from a known-good build | |
+
+**Cleanup:**
+```bash
+rm /tmp/build-no-creds.txt
+```
+
+---
+
+### Scenario 86: Build with Multiple Credentials — All Redacted
+
+**Goal**: Verify that when a workspace has multiple credentials in its hierarchy (e.g., `GITHUB_PAT`, `GITHUB_USERNAME`, and an `NPM_TOKEN`), all secret values are independently redacted from build output — including partial appearances and appearances split across log lines.
+
+**Prerequisites**: A workspace with at least three credentials configured, each with a distinct secret value of 8+ characters.
+
+```bash
+# Create multiple credentials
+dvm create credential github-username \
+  --source vault \
+  --vault-secret github-multi \
+  --vault-field GITHUB_USERNAME=username \
+  --ecosystem <your-ecosystem>
+
+dvm create credential github-pat \
+  --source vault \
+  --vault-secret github-multi \
+  --vault-field GITHUB_PAT=pat \
+  --ecosystem <your-ecosystem>
+
+dvm create credential npm-token \
+  --source vault \
+  --vault-secret npm-secret \
+  --vault-field NPM_TOKEN=token \
+  --ecosystem <your-ecosystem>
+
+# Run build and capture all output
+dvm build --workspace <your-workspace> 2>&1 | tee /tmp/build-multi-creds.txt
+```
+
+**Retrieve the actual secret values from vault (for verification):**
+
+```bash
+# Get the values so you can check they are absent from output
+GITHUB_PAT_VALUE=$(mav get github-multi default --field pat 2>/dev/null)
+GITHUB_USERNAME_VALUE=$(mav get github-multi default --field username 2>/dev/null)
+NPM_TOKEN_VALUE=$(mav get npm-secret default --field token 2>/dev/null)
+```
+
+**Verify each secret is absent from build output:**
+
+```bash
+# None of the raw secret values should appear in build output
+grep -F "$GITHUB_PAT_VALUE"      /tmp/build-multi-creds.txt   # Expected: no match
+grep -F "$GITHUB_USERNAME_VALUE" /tmp/build-multi-creds.txt   # Expected: no match
+grep -F "$NPM_TOKEN_VALUE"       /tmp/build-multi-creds.txt   # Expected: no match
+
+# The redaction marker should appear for each secret that appeared in output
+grep -c '\*\*\*' /tmp/build-multi-creds.txt   # Expected: at least 3 matches
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `GITHUB_PAT` value not in output | `grep -F "$GITHUB_PAT_VALUE"` returns 0 matches | |
+| `GITHUB_USERNAME` value not in output | `grep -F "$GITHUB_USERNAME_VALUE"` returns 0 matches | |
+| `NPM_TOKEN` value not in output | `grep -F "$NPM_TOKEN_VALUE"` returns 0 matches | |
+| Redaction marker present for each secret | `grep -c '\*\*\*'` returns 3 or more matches | |
+| Build succeeds | Exit code 0, image built successfully | |
+| All credentials resolve without warnings | No `render.Warning()` output for any credential | |
+
+**Cleanup:**
+```bash
+rm /tmp/build-multi-creds.txt
+dvm delete credential github-username --ecosystem <your-ecosystem> --force
+dvm delete credential github-pat      --ecosystem <your-ecosystem> --force
+dvm delete credential npm-token       --ecosystem <your-ecosystem> --force
+```
 
 ---
 
