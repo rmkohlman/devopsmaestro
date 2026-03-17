@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.45.6] - 2026-03-17 — Auto-Session Restore Fix
+
+### 🐛 Bug Fixes
+
+#### Auto-Session Never Restored on `VimEnter` — `pkg/nvimops/library/plugins/25-auto-session.yaml`
+- **`auto_restore_enabled` was set to `false`, so `rmagatti/auto-session` never auto-restored the previous session on `VimEnter`** — users had to manually press `<leader>wr` every time they entered the container to restore their session
+- **Changed to `auto_restore_enabled = true`** — Neovim now auto-restores the last session for the current working directory on startup
+
+#### Alpha Dashboard "Restore Session" Button Used Deprecated Command — `pkg/nvimops/library/plugins/15-alpha.yaml`
+- **The "Restore Session" dashboard button used `<cmd>SessionRestore<CR>`, which is the old/deprecated auto-session command** — the correct command is `<cmd>AutoSession restore<CR>` (already used correctly by the keymap in `25-auto-session.yaml`)
+- **Changed to `<cmd>AutoSession restore<CR>`** — the dashboard button and the `<leader>wr` keymap now use the same command consistently
+
+### 🏗️ Technical
+
+| Metric | Value |
+|--------|-------|
+| Breaking changes | 0 |
+| Root cause | `auto_restore_enabled = false` in `25-auto-session.yaml` disabled auto-restore entirely; `15-alpha.yaml` dashboard button used deprecated `SessionRestore` command instead of `AutoSession restore` |
+| Production files changed | 2 (`pkg/nvimops/library/plugins/25-auto-session.yaml`, `pkg/nvimops/library/plugins/15-alpha.yaml`) |
+| Test files changed | 0 |
+| New test functions | 0 (YAML plugin configs are not unit-tested; verified via manual testing in container) |
+| All tests pass | ✅ (only pre-existing `TestVaultBackend_Health` fails) |
+| All 3 binaries build | ✅ |
+
+---
+
 ## [v0.45.5] - 2026-03-17 — Pip Install Proxy Fallback
 
 ### 🐛 Bug Fixes

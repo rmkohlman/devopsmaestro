@@ -4,6 +4,16 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.45.6 (2026-03-17)
+
+**🐛 Auto-Session Restore Fix**
+
+Fixed two bugs in the Neovim plugin YAML configuration that prevented auto-session restore from working in containers.
+
+- **`auto_restore_enabled` was `false`** (`pkg/nvimops/library/plugins/25-auto-session.yaml`) — `rmagatti/auto-session` never auto-restored the previous session on `VimEnter`; users had to manually press `<leader>wr` every time they entered the container. Changed to `true` — Neovim now auto-restores the last session for the current working directory on startup.
+- **Alpha dashboard button used deprecated command** (`pkg/nvimops/library/plugins/15-alpha.yaml`) — the "Restore Session" button used `<cmd>SessionRestore<CR>` (old/deprecated) instead of `<cmd>AutoSession restore<CR>` (correct). Changed to match the keymap already in `25-auto-session.yaml`.
+- No unit tests (YAML plugin configs verified via manual testing in container)
+
 ### v0.45.5 (2026-03-17)
 
 **🐛 Pip Install Proxy Fallback**
@@ -905,6 +915,7 @@ See the [full migration guide](https://github.com/rmkohlman/devopsmaestro/blob/m
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **0.45.6** | 2026-03-17 | Auto-session restore fix — `auto_restore_enabled` set to `true`; Alpha dashboard "Restore Session" button updated from deprecated `SessionRestore` to `AutoSession restore` |
 | **0.45.5** | 2026-03-17 | Pip install proxy fallback — `ProxyError` / ~110 s hang fix when Squid proxy unreachable; all 5 pip install sites now retry with proxy env vars unset |
 | **0.45.3** | 2026-03-17 | NodeSource install ordering and fallback — `curl: not found` fix (NodeSource moved after merged apt-get install); `\|\|` fallback to Debian default nodejs when NodeSource unreachable |
 | **0.45.2** | 2026-03-17 | IsRunning health probe fallback — `dvm get registries` no longer shows "stopped" for adopted Athens/Zot/Devpi instances; `IsRunning()` probes health endpoint when PID file is absent |
