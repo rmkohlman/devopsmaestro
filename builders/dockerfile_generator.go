@@ -582,7 +582,7 @@ func (g *DefaultDockerfileGenerator) effectiveVersion() string {
 	case "golang":
 		return "1.22"
 	case "nodejs":
-		return "18"
+		return "20"
 	default:
 		return ""
 	}
@@ -618,9 +618,16 @@ func (g *DefaultDockerfileGenerator) generateDevStage(dockerfile *strings.Builde
 			allPackages = appendUnique(allPackages, "neovim", "neovim-doc")
 		} else {
 			allPackages = appendUnique(allPackages, "unzip", "build-essential", "ripgrep", "fd-find")
-			// Mason toolchains for Debian
-			allPackages = appendUnique(allPackages, "nodejs", "npm", "python3-pip", "cargo")
+			// Mason toolchains for Debian (Node.js installed separately via NodeSource)
+			allPackages = appendUnique(allPackages, "python3-pip", "cargo")
 		}
+	}
+
+	// Install Node.js 22 from NodeSource for Debian when nvim is enabled
+	if g.workspaceYAML.Nvim.Structure != "none" && !g.isAlpineImage() {
+		dockerfile.WriteString("# Install Node.js 22 from NodeSource (Mason toolchains require Node 22+)\n")
+		dockerfile.WriteString(fmt.Sprintf("RUN curl %s https://deb.nodesource.com/setup_22.x | bash - \\\n", curlFlags))
+		dockerfile.WriteString("    && apt-get install -y --no-install-recommends nodejs\n\n")
 	}
 
 	// Install all packages in one shot with cache mounts
@@ -862,20 +869,22 @@ func (g *DefaultDockerfileGenerator) generateNvimSection(dockerfile *strings.Bui
 	// Install Treesitter parsers at build time (reduces first-attach startup time)
 	g.installTreesitterParsers(dockerfile)
 
-	// Install Mason LSPs at build time (reduces first-attach startup time)
-	g.installMasonLSPs(dockerfile)
+	// Install Mason tools (LSPs, linters, formatters) at build time (reduces first-attach startup time)
+	g.installMasonTools(dockerfile)
 
 	dockerfile.WriteString("USER root\n\n")
 	return nil
 }
 
-// getMasonLSPsForLanguage returns the Mason LSP package names for the detected language
-func (g *DefaultDockerfileGenerator) getMasonLSPsForLanguage() []string {
+// getMasonToolsForLanguage returns Mason packages (LSPs, linters, formatters) for the detected language.
+// This is the SINGLE AUTHORITY for language-specific Mason tool installation.
+// The plugin YAML (06-mason.yaml) provides only framework setup, not tool lists.
+func (g *DefaultDockerfileGenerator) getMasonToolsForLanguage() []string {
 	switch g.language {
 	case "python":
-		return []string{"pyright", "ruff-lsp", "black", "isort"}
+		return []string{"pyright", "ruff-lsp", "black", "isort", "pylint"}
 	case "golang":
-		return []string{"gopls", "golangci-lint-langserver"}
+		return []string{"gopls", "golangci-lint-langserver", "goimports"}
 	case "nodejs":
 		return []string{"typescript-language-server", "eslint-lsp", "prettier"}
 	case "rust":
@@ -891,24 +900,30 @@ func (g *DefaultDockerfileGenerator) getMasonLSPsForLanguage() []string {
 	}
 }
 
-// installMasonLSPs installs language servers via Mason at build time
-func (g *DefaultDockerfileGenerator) installMasonLSPs(dockerfile *strings.Builder) {
+// getBaseMasonTools returns Mason packages that should be installed in every workspace,
+// regardless of the detected language. These support nvim config editing and shell scripts.
+func (g *DefaultDockerfileGenerator) getBaseMasonTools() []string {
+	return []string{"lua_ls", "stylua"}
+}
+
+// installMasonTools installs language servers, linters, and formatters via Mason at build time
+func (g *DefaultDockerfileGenerator) installMasonTools(dockerfile *strings.Builder) {
 	// Check if Mason is installed via manifest
 	if g.pluginManifest != nil && !g.pluginManifest.Features.HasMason {
 		dockerfile.WriteString("# Mason not installed - skipping LSP pre-install\n\n")
 		return
 	}
 
-	lsps := g.getMasonLSPsForLanguage()
-	if len(lsps) == 0 {
+	// Merge base tools (always installed) with language-specific tools
+	tools := g.getBaseMasonTools()
+	tools = append(tools, g.getMasonToolsForLanguage()...)
+	if len(tools) == 0 {
 		return
 	}
 
-	dockerfile.WriteString("# Install LSPs via Mason at build time\n")
-	// MasonInstall can accept multiple packages in a single command
-	// Batch all LSPs together to reduce build layers and time
-	lspList := strings.Join(lsps, " ")
-	dockerfile.WriteString(fmt.Sprintf("RUN nvim --headless -c \"MasonInstall %s\" -c \"sleep 60\" -c \"qa\" 2>&1\n\n", lspList))
+	dockerfile.WriteString("# Install LSPs, linters, and formatters via Mason at build time\n")
+	toolList := strings.Join(tools, " ")
+	dockerfile.WriteString(fmt.Sprintf("RUN nvim --headless -c \"MasonInstall %s\" -c \"sleep 60\" -c \"qa\" 2>&1\n\n", toolList))
 }
 
 // getTreesitterParsersForLanguage returns Treesitter parsers for the detected language

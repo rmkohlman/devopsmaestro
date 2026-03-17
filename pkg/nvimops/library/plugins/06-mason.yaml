@@ -25,40 +25,10 @@ spec:
     	},
     })
 
-    mason_lspconfig.setup({
-    	ensure_installed = {
-    		"gopls",
-    		"rust_analyzer",
-    		"pyright",
-    		"lua_ls",
-    		"bashls",
-    		"clangd",
-    		"html",
-    		"cssls",
-    		"tailwindcss",
-    		"svelte",
-    		"yamlls",
-    		"graphql",
-    		"emmet_ls",
-    		"prismals",
-    		"dockerls",
-    		"helm_ls",
-    		"jsonls",
-    		"lemminx",
-    		"sqlls",
-    	},
-    })
+    -- LSP servers are installed at build time via MasonInstall (language-aware)
+    -- Do NOT add ensure_installed here - it causes failures for missing toolchains
+    mason_lspconfig.setup({})
 
-    mason_tool_installer.setup({
-    	ensure_installed = {
-    		"prettier",
-    		"stylua",
-    		"isort",
-    		"black",
-    		"pylint",
-    		"eslint_d",
-    		"ocamlformat",
-    		"goimports",
-    		"shellcheck",
-    	},
-    })
+    -- Tools are installed at build time via MasonInstall (language-aware)
+    -- Do NOT add ensure_installed here - it causes failures for missing toolchains
+    mason_tool_installer.setup({})

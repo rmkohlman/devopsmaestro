@@ -1,6 +1,6 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.43.2  
+> **Version**: v0.44.0  
 > **Last Updated**: March 16, 2026
 
 ---
@@ -33,6 +33,7 @@ source tests/manual/part2-post-attach.sh
 | 2 | Automated | `tests/manual/part2-post-attach.sh` |
 | 19 | Manual | Auto-Token Creation (v0.43.0) |
 | 20 | Manual | Build Output Secret Redaction (v0.43.2) |
+| 21 | Manual | Container Neovim Environment (v0.44.0) |
 
 ---
 
@@ -3925,6 +3926,157 @@ dvm delete credential npm-token       --ecosystem <your-ecosystem> --force
 
 ---
 
+---
+
+## Part 21: Container Neovim Environment (v0.44.0)
+
+> **Prerequisite**: `dvm` binary built from v0.44.0+. A workspace configured with Neovim (nvim plugin set assigned). Docker or Colima containerd runtime available.
+
+### Scenario 87: Python Workspace — Node 22+ and Mason Installs Without Errors
+
+**Goal**: Verify that a Python workspace container has Node 22 or later available, and that Mason completes tool installation without errors during the first Neovim launch.
+
+**Prerequisites**: A Python workspace with a Neovim plugin set. `dvm build` must be run fresh (no cached image).
+
+```bash
+# Build the Python workspace image (no cache to force fresh install)
+dvm build --workspace <your-python-workspace> --no-cache
+
+# Attach to the container
+dvm attach --workspace <your-python-workspace>
+```
+
+Inside the container:
+
+```bash
+# Verify Node.js version is 22 or later
+node --version
+# Expected: v22.x.x or higher
+
+# Launch Neovim and observe Mason output
+nvim .
+# Wait 30–60 seconds for Mason to complete installation on first launch
+# Press :MasonLog to inspect the Mason log
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `node --version` is 22+ | Output is `v22.x.x` or higher | |
+| Mason opens without error popups | No red error notifications on first launch | |
+| `pylint` available in container | `which pylint` returns a path | |
+| `:MasonLog` shows no ENOENT errors | No "ENOENT" or "not found" lines in Mason log | |
+| Neovim exits cleanly | `:qa` exits with code 0 | |
+
+---
+
+### Scenario 88: Go Workspace — gopls and goimports Installed via Mason
+
+**Goal**: Verify that a Go workspace container has both `gopls` (LSP) and `goimports` (formatter) installed and available to Neovim via Mason.
+
+**Prerequisites**: A Go workspace with a Neovim plugin set. `dvm build` run fresh.
+
+```bash
+# Build the Go workspace image
+dvm build --workspace <your-go-workspace> --no-cache
+
+# Attach to the container
+dvm attach --workspace <your-go-workspace>
+```
+
+Inside the container:
+
+```bash
+# Verify gopls is available (Mason-installed)
+which gopls || mason-tool-show gopls
+# Expected: a path or Mason status showing "installed"
+
+# Verify goimports is available
+which goimports
+# Expected: a path inside the Mason bin directory
+
+# Open a .go file and confirm LSP attaches without error
+nvim main.go
+# Expected: no "LSP not found" or ENOENT errors; gopls attaches
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `which gopls` returns a path | Mason-installed `gopls` binary found | |
+| `which goimports` returns a path | Mason-installed `goimports` binary found | |
+| LSP attaches in Neovim for `.go` file | No "LSP not found" notification | |
+| No Mason ENOENT errors in `:MasonLog` | Mason log is clean | |
+
+---
+
+### Scenario 89: Missing Linter Binary — No ENOENT Crash on BufEnter
+
+**Goal**: Verify that when a linter binary (pylint or shellcheck) is absent from the container, opening a buffer in Neovim does not produce an ENOENT error or fill the message history with errors.
+
+**Prerequisites**: A workspace where the linter binary is intentionally absent (e.g., a Node.js workspace where pylint is not installed, or a custom image where shellcheck is removed after build).
+
+```bash
+dvm attach --workspace <your-workspace>
+```
+
+Inside the container:
+
+```bash
+# Confirm shellcheck is absent (use a workspace type where it is not installed)
+which shellcheck 2>/dev/null || echo "shellcheck not found"
+
+# Open a file and switch buffers repeatedly to trigger BufEnter
+nvim .
+# Inside Neovim: open several files with :e, :bn, :bp
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `which shellcheck` returns "not found" | shellcheck absent from PATH | |
+| No ENOENT error notification on buffer switch | Neovim message area stays clean | |
+| `:messages` shows no "ENOENT" lines | No executable-not-found errors logged | |
+| Neovim remains functional | Can open, edit, and close files normally | |
+
+---
+
+### Scenario 90: No Mason ensure_installed Errors on Neovim Launch
+
+**Goal**: Verify that Neovim launches inside a container without attempting to download any LSP servers or Mason tools at runtime — all tools should already be present from the build stage.
+
+**Prerequisites**: Any workspace with Neovim configured. The container must have been built with `dvm build` from v0.44.0+.
+
+```bash
+dvm build --workspace <your-workspace> --no-cache
+dvm attach --workspace <your-workspace>
+```
+
+Inside the container:
+
+```bash
+# Launch Neovim and capture startup messages
+nvim --headless -c "sleep 5" -c "qa" 2>&1 | tee /tmp/nvim-startup.txt
+
+# Inspect for Mason download or ensure_installed activity
+grep -i "installing\|downloading\|ensure_installed" /tmp/nvim-startup.txt || echo "No runtime installs detected"
+```
+
+Also verify interactively:
+
+```bash
+nvim .
+# Observe: no Mason "Installing..." progress bar on first launch
+# :checkhealth mason  — all tools should report "installed"
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| No "Installing..." progress bar on Neovim launch | Mason does not attempt runtime installs | |
+| `:checkhealth mason` shows all tools installed | No tools in "not installed" state | |
+| No "ensure_installed" references in startup output | `grep ensure_installed` returns 0 matches | |
+| Neovim startup completes in under 5 seconds | No network-wait delay on open | |
+| auto-session restores last session cleanly | Previous session files reopen without error | |
+
+---
+
 ## Test Results Summary
 
 | Part | Tests | Pass | Fail |
@@ -3951,6 +4103,8 @@ dvm delete credential npm-token       --ecosystem <your-ecosystem> --force
 | Part 17: MaestroVault Integration | 9 scenarios | | |
 | Part 18: MaestroVault Fields Integration | 8 scenarios | | |
 | Part 19: Auto-Token Creation | 6 scenarios | | |
+| Part 20: Build Output Secret Redaction | 3 scenarios | | |
+| Part 21: Container Neovim Environment | 4 scenarios | | |
 
 ---
 
@@ -4003,5 +4157,5 @@ colima nerdctl -- --namespace devopsmaestro images
 
 **Tested by:** ________________  
 **Date:** ________________  
-**Version**: v0.43.0  
+**Version**: v0.44.0  
 **Platform:** ________________

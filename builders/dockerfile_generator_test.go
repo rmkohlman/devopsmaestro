@@ -146,7 +146,7 @@ func TestDockerfileGenerator_GenerateBaseStage_NodeJS(t *testing.T) {
 			name:    "nodejs default version",
 			version: "",
 			wantContain: []string{
-				"FROM node:18-alpine AS base",
+				"FROM node:20-alpine AS base",
 			},
 		},
 		{
@@ -526,7 +526,7 @@ func TestDockerfileGenerator_LanguageVersionTable(t *testing.T) {
 		{"golang", "1.23", "golang:1.23-alpine"},
 
 		// Node.js versions
-		{"nodejs", "", "node:18-alpine"},
+		{"nodejs", "", "node:20-alpine"},
 		{"nodejs", "16", "node:16-alpine"},
 		{"nodejs", "18", "node:18-alpine"},
 		{"nodejs", "20", "node:20-alpine"},
@@ -2451,4 +2451,478 @@ func TestDockerfileGenerator_PythonPrivateRepos(t *testing.T) {
 			}
 		})
 	}
+}
+
+// =============================================================================
+// v0.44.0 RED-phase tests: Container Neovim Environment Fixes
+// Tests are written to FAIL against the current implementation.
+// These drive implementation of WI-1, WI-2, and WI-4.
+// =============================================================================
+
+// TestGenerateDevStage_DebianNodeSource verifies that for a Debian-based workspace
+// (e.g., Python) with nvim enabled, Node.js is installed via NodeSource setup_22.x
+// rather than being included in the merged apt-get install line.
+//
+// WI-1: Use NodeSource for Node.js on Debian (not the Debian packaged nodejs/npm).
+// MUST FAIL against current code (currently adds nodejs/npm to merged apt-get install).
+func TestGenerateDevStage_DebianNodeSource(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	// nvim enabled (not "none") triggers Mason toolchain installation
+	wsYAML := models.WorkspaceSpec{
+		Nvim: models.NvimConfig{
+			Structure: "custom",
+		},
+	}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "python", // Debian-based
+		Version:       "3.11",
+		AppPath:       "/tmp/test",
+		PathConfig:    paths.New(t.TempDir()),
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// MUST: Use NodeSource setup_22.x for modern Node.js
+	if !strings.Contains(dockerfile, "nodesource.com/setup_22.x") {
+		t.Errorf("Debian workspace should use NodeSource setup_22.x for Node.js install.\n"+
+			"WI-1: Replace 'apt-get install nodejs npm' with NodeSource.\n"+
+			"Expected to find: nodesource.com/setup_22.x\n"+
+			"Generated Dockerfile:\n%s", dockerfile)
+	}
+
+	// MUST: Install nodejs from the NodeSource repo in its own step
+	if !strings.Contains(dockerfile, "apt-get install -y --no-install-recommends nodejs") {
+		t.Errorf("Debian workspace should install nodejs (from NodeSource) via a dedicated apt-get step.\n"+
+			"WI-1: After running the NodeSource setup script, install nodejs via apt-get.\n"+
+			"Generated Dockerfile:\n%s", dockerfile)
+	}
+
+	// Extract the merged apt-get install block (the one that merges dev packages + nvim deps)
+	// This is the block that should NOT include nodejs or npm
+	mergedAptIdx := strings.Index(dockerfile, "apt-get install -y --no-install-recommends --fix-broken")
+	if mergedAptIdx < 0 {
+		t.Fatalf("Could not locate merged apt-get install block")
+	}
+	// Find the end of that specific apt-get block (newline after last package)
+	blockEnd := strings.Index(dockerfile[mergedAptIdx:], "\n\n")
+	var mergedAptBlock string
+	if blockEnd > 0 {
+		mergedAptBlock = dockerfile[mergedAptIdx : mergedAptIdx+blockEnd]
+	} else {
+		mergedAptBlock = dockerfile[mergedAptIdx:]
+	}
+
+	// MUST NOT: Include nodejs in the merged apt-get block (it comes from NodeSource separately)
+	if strings.Contains(mergedAptBlock, "\n    nodejs") || strings.HasPrefix(mergedAptBlock, "    nodejs") {
+		t.Errorf("Merged apt-get install block should NOT include 'nodejs'.\n"+
+			"WI-1: nodejs must be installed via NodeSource (separate step), not merged apt-get.\n"+
+			"Merged apt-get block:\n%s", mergedAptBlock)
+	}
+
+	// MUST NOT: Include npm in the merged apt-get block (NodeSource nodejs includes npm)
+	if strings.Contains(mergedAptBlock, "\n    npm") || strings.HasPrefix(mergedAptBlock, "    npm") {
+		t.Errorf("Merged apt-get install block should NOT include 'npm'.\n"+
+			"WI-1: npm comes bundled with NodeSource nodejs, not installed separately.\n"+
+			"Merged apt-get block:\n%s", mergedAptBlock)
+	}
+}
+
+// TestGenerateDevStage_AlpineNodeUnchanged verifies that for an Alpine-based workspace
+// (e.g., Golang), Node.js and npm are still installed via apk (unchanged behavior).
+// NodeSource is Linux-distro specific and should NOT be used for Alpine.
+//
+// WI-1: Alpine path unchanged — apk add nodejs npm still used, no NodeSource.
+// Should PASS against current code (Alpine behavior is not changing).
+func TestGenerateDevStage_AlpineNodeUnchanged(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	// nvim enabled triggers Mason toolchain install (nodejs/npm via apk)
+	wsYAML := models.WorkspaceSpec{
+		Nvim: models.NvimConfig{
+			Structure: "custom",
+		},
+	}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "golang", // Alpine-based
+		Version:       "1.22",
+		AppPath:       "/tmp/test",
+		PathConfig:    paths.New(t.TempDir()),
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// MUST: Alpine still installs nodejs and npm via apk in the merged install
+	if !strings.Contains(dockerfile, "nodejs") {
+		t.Errorf("Alpine workspace should include 'nodejs' in apk install.\n"+
+			"WI-1: Alpine path is unchanged — apk still installs nodejs.\n"+
+			"Generated Dockerfile:\n%s", dockerfile)
+	}
+	if !strings.Contains(dockerfile, "npm") {
+		t.Errorf("Alpine workspace should include 'npm' in apk install.\n"+
+			"WI-1: Alpine path is unchanged — apk still installs npm.\n"+
+			"Generated Dockerfile:\n%s", dockerfile)
+	}
+
+	// MUST NOT: Alpine does not use NodeSource (distro-specific to Debian/Ubuntu)
+	if strings.Contains(dockerfile, "nodesource") {
+		t.Errorf("Alpine workspace should NOT use nodesource.\n"+
+			"WI-1: NodeSource is for Debian only; Alpine uses apk for nodejs.\n"+
+			"Generated Dockerfile:\n%s", dockerfile)
+	}
+}
+
+// TestEffectiveVersion_NodejsDefault20 verifies that effectiveVersion() returns "20"
+// for the nodejs language when no version is explicitly specified.
+//
+// WI-2: Update nodejs default version from 18 → 20.
+// MUST FAIL against current code (currently returns "18" for nodejs).
+func TestEffectiveVersion_NodejsDefault20(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "nodejs",
+		Version:       "", // No explicit version — should default to "20"
+		AppPath:       "/tmp/test",
+		PathConfig:    paths.New(t.TempDir()),
+	})
+
+	impl := gen.(*DefaultDockerfileGenerator)
+
+	got := impl.effectiveVersion()
+	want := "20"
+	if got != want {
+		t.Errorf("effectiveVersion() for nodejs with no version set = %q, want %q.\n"+
+			"WI-2: Update nodejs default from '18' to '20' in effectiveVersion().",
+			got, want)
+	}
+
+	// Also verify the generated FROM line uses node:20-alpine
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	if !strings.Contains(dockerfile, "FROM node:20-alpine AS base") {
+		t.Errorf("nodejs workspace with no version should generate 'FROM node:20-alpine AS base'.\n"+
+			"WI-2: Default nodejs version must be 20.\n"+
+			"Generated Dockerfile (first 300 chars):\n%s", dockerfile[:min(300, len(dockerfile))])
+	}
+}
+
+// TestGetMasonToolsForLanguage_IncludesLinters verifies that getMasonToolsForLanguage()
+// returns expanded tool lists that include linters and formatters for each language.
+//
+// WI-4: Expand Mason tool lists to include linters/formatters.
+// MUST FAIL against current code (currently missing pylint, shellcheck, etc.).
+func TestGetMasonToolsForLanguage_IncludesLinters(t *testing.T) {
+	tests := []struct {
+		name         string
+		language     string
+		wantTools    []string // tools that MUST be present
+		notWantTools []string // tools that must NOT be present (sanity check)
+	}{
+		{
+			name:     "python includes pyright, ruff-lsp, black, isort, and pylint",
+			language: "python",
+			wantTools: []string{
+				"pyright",
+				"ruff-lsp",
+				"black",
+				"isort",
+				"pylint", // WI-4: new addition
+			},
+		},
+		{
+			name:     "golang includes gopls and golangci-lint-langserver",
+			language: "golang",
+			wantTools: []string{
+				"gopls",
+				"golangci-lint-langserver",
+			},
+		},
+		{
+			name:     "nodejs includes typescript-language-server, eslint-lsp, and prettier",
+			language: "nodejs",
+			wantTools: []string{
+				"typescript-language-server",
+				"eslint-lsp",
+				"prettier",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws := &models.Workspace{
+				ID:        1,
+				Name:      "test-ws",
+				ImageName: "test:latest",
+			}
+			wsYAML := models.WorkspaceSpec{}
+
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: wsYAML,
+				Language:      tt.language,
+				AppPath:       "/tmp/test",
+				PathConfig:    paths.New(t.TempDir()),
+			})
+
+			impl := gen.(*DefaultDockerfileGenerator)
+			tools := impl.getMasonToolsForLanguage()
+
+			toolSet := make(map[string]bool, len(tools))
+			for _, tool := range tools {
+				toolSet[tool] = true
+			}
+
+			for _, want := range tt.wantTools {
+				if !toolSet[want] {
+					t.Errorf("[%s] getMasonToolsForLanguage() missing %q.\n"+
+						"WI-4: Expand Mason tool lists to include linters/formatters.\n"+
+						"Got tools: %v",
+						tt.name, want, tools)
+				}
+			}
+
+			for _, notWant := range tt.notWantTools {
+				if toolSet[notWant] {
+					t.Errorf("[%s] getMasonToolsForLanguage() unexpectedly includes %q.\n"+
+						"Got tools: %v",
+						tt.name, notWant, tools)
+				}
+			}
+		})
+	}
+}
+
+// TestGetMasonToolsForLanguage_BaseToolsAlwaysPresent verifies that the MasonInstall
+// command in the generated Dockerfile always includes base Mason tools (lua_ls, stylua)
+// regardless of the workspace language. This tests the behavior of a future
+// getBaseMasonTools() method that installMasonTools() must call.
+//
+// WI-4: MasonInstall must include lua_ls and stylua for all languages.
+// MUST FAIL against current code (lua_ls/stylua not included in MasonInstall output yet).
+func TestGetMasonToolsForLanguage_BaseToolsAlwaysPresent(t *testing.T) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("failed to get home dir: %v", err)
+	}
+
+	tests := []struct {
+		name     string
+		language string
+	}{
+		{name: "python workspace", language: "python"},
+		{name: "golang workspace", language: "golang"},
+		{name: "nodejs workspace", language: "nodejs"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create staging dir with nvim config so MasonInstall is generated
+			repoName := "test-mason-base-" + tt.language
+			stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", repoName)
+			nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
+			if err := os.MkdirAll(nvimConfigPath, 0755); err != nil {
+				t.Fatalf("failed to create nvim config dir: %v", err)
+			}
+			defer os.RemoveAll(stagingDir)
+
+			initLuaPath := filepath.Join(nvimConfigPath, "init.lua")
+			if err := os.WriteFile(initLuaPath, []byte("-- test"), 0644); err != nil {
+				t.Fatalf("failed to create init.lua: %v", err)
+			}
+
+			ws := &models.Workspace{
+				ID:        1,
+				Name:      "test-ws",
+				ImageName: "test:latest",
+			}
+			wsYAML := models.WorkspaceSpec{
+				Nvim: models.NvimConfig{
+					Structure: "custom",
+				},
+			}
+
+			manifest := &plugin.PluginManifest{
+				Features: plugin.PluginFeatures{
+					HasMason:      true,
+					HasTreesitter: false,
+				},
+			}
+
+			sourcePath := filepath.Join("/tmp", "dvm-clone-xyz", repoName)
+
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: wsYAML,
+				Language:      tt.language,
+				AppPath:       sourcePath,
+				PathConfig:    paths.New(homeDir),
+			})
+			gen.SetPluginManifest(manifest)
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			// Locate MasonInstall line
+			masonIdx := strings.Index(dockerfile, "MasonInstall")
+			if masonIdx < 0 {
+				t.Fatalf("[%s] Generate() missing MasonInstall command", tt.name)
+			}
+			masonLineEnd := strings.Index(dockerfile[masonIdx:], "\n")
+			var masonLine string
+			if masonLineEnd > 0 {
+				masonLine = dockerfile[masonIdx : masonIdx+masonLineEnd]
+			} else {
+				masonLine = dockerfile[masonIdx:]
+			}
+
+			// MUST include base tools regardless of language
+			// WI-4: getBaseMasonTools() must be called by installMasonTools()
+			baseTools := []string{"lua_ls", "stylua"}
+			for _, tool := range baseTools {
+				if !strings.Contains(masonLine, tool) {
+					t.Errorf("[%s] MasonInstall missing base tool %q.\n"+
+						"WI-4: Base tools (lua_ls, stylua) must always be included in MasonInstall.\n"+
+						"MasonInstall line: %s",
+						tt.name, tool, masonLine)
+				}
+			}
+		})
+	}
+}
+
+// TestInstallMasonLSPs_IncludesBaseTools verifies that the installMasonTools() output
+// includes both language-specific LSPs AND base tools (lua_ls, stylua) in the
+// MasonInstall command for any language.
+//
+// WI-4: MasonInstall command must include base tools alongside language-specific tools.
+// MUST FAIL against current code (lua_ls/stylua not currently included in MasonInstall).
+func TestInstallMasonLSPs_IncludesBaseTools(t *testing.T) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("failed to get home dir: %v", err)
+	}
+
+	// Create a staging dir with nvim config so generateNvimSection() runs installMasonTools()
+	repoName := "test-mason-base-tools"
+	stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", repoName)
+	nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
+	if err := os.MkdirAll(nvimConfigPath, 0755); err != nil {
+		t.Fatalf("failed to create nvim config dir: %v", err)
+	}
+	defer os.RemoveAll(stagingDir)
+
+	initLuaPath := filepath.Join(nvimConfigPath, "init.lua")
+	if err := os.WriteFile(initLuaPath, []byte("-- test"), 0644); err != nil {
+		t.Fatalf("failed to create init.lua: %v", err)
+	}
+
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{
+		Nvim: models.NvimConfig{
+			Structure: "custom",
+		},
+	}
+
+	// Use a manifest with Mason enabled to trigger MasonInstall
+	manifest := &plugin.PluginManifest{
+		Features: plugin.PluginFeatures{
+			HasMason:      true,
+			HasTreesitter: false,
+		},
+	}
+
+	sourcePath := filepath.Join("/tmp", "dvm-clone-xyz", repoName)
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "python",
+		Version:       "3.11",
+		AppPath:       sourcePath,
+		PathConfig:    paths.New(homeDir),
+	})
+	gen.SetPluginManifest(manifest)
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// Locate the MasonInstall command
+	masonIdx := strings.Index(dockerfile, "MasonInstall")
+	if masonIdx < 0 {
+		t.Fatalf("Generate() missing MasonInstall command — nvim section must be generated")
+	}
+
+	// Extract just the MasonInstall line
+	masonLineEnd := strings.Index(dockerfile[masonIdx:], "\n")
+	var masonLine string
+	if masonLineEnd > 0 {
+		masonLine = dockerfile[masonIdx : masonIdx+masonLineEnd]
+	} else {
+		masonLine = dockerfile[masonIdx:]
+	}
+
+	// MUST include language-specific tools for Python
+	pythonTools := []string{"pyright", "ruff-lsp", "black", "isort"}
+	for _, tool := range pythonTools {
+		if !strings.Contains(masonLine, tool) {
+			t.Errorf("MasonInstall command missing Python tool %q.\n"+
+				"WI-4: Language tools must be included in MasonInstall.\n"+
+				"MasonInstall line: %s", tool, masonLine)
+		}
+	}
+
+	// MUST include base tools (lua_ls, stylua) alongside language-specific tools
+	baseTools := []string{"lua_ls", "stylua"}
+	for _, tool := range baseTools {
+		if !strings.Contains(masonLine, tool) {
+			t.Errorf("MasonInstall command missing base tool %q.\n"+
+				"WI-4: Base tools (lua_ls, stylua) must always be included in MasonInstall.\n"+
+				"MasonInstall line: %s", tool, masonLine)
+		}
+	}
+}
+
+// min returns the smaller of two ints. Used for safe string slicing in error messages.
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

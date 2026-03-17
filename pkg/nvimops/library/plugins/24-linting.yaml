@@ -11,12 +11,21 @@ spec:
   config: |
     local lint = require("lint")
 
-    lint.linters_by_ft = {
-    	sh = { "shellcheck" },
-    	bash = { "shellcheck" },
-    	zsh = { "shellcheck" },
-    	python = { "pylint" },
-    }
+    -- Only configure linters that are actually installed
+    -- This prevents ENOENT errors when a linter binary is missing
+    local linters = {}
+
+    if vim.fn.executable("shellcheck") == 1 then
+    	linters.sh = { "shellcheck" }
+    	linters.bash = { "shellcheck" }
+    	linters.zsh = { "shellcheck" }
+    end
+
+    if vim.fn.executable("pylint") == 1 then
+    	linters.python = { "pylint" }
+    end
+
+    lint.linters_by_ft = linters
 
     local lint_augroup = vim.api.nvim_create_augroup("lint", { clear = true })
 

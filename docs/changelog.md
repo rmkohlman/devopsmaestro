@@ -4,6 +4,20 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.44.0 (2026-03-16)
+
+**🐛 Container Neovim Environment Fixes**
+
+Fixed 6 cascading bugs that caused Neovim failures inside workspace containers. The root cause chain: Node.js 18 (too old) → Mason can't install some tools → pylint missing → BufEnter ENOENT error → auto-session restore fails.
+
+- **Node 22 on Debian** — Debian/Node.js builds now install Node 22 from NodeSource; Alpine builds are unchanged. `effectiveVersion()` default for `nodejs` updated from `"18"` to `"20"`.
+- **Mason LSP config `ensure_installed` removed** (`06-mason.yaml`) — the hardcoded list of 19 language servers is gone; Mason is now a framework only; server installation is driven by `getMasonToolsForLanguage()` at build time.
+- **Mason tool installer `ensure_installed` removed** (`06-mason.yaml` + `builders/dockerfile_generator.go`) — the hardcoded list of 9 tools is gone; `getMasonToolsForLanguage()` + `getBaseMasonTools()` + `installMasonTools()` are the single authority for build-time Mason tool installation.
+- **Python tools expanded** — `pylint` added to the Python Mason tool list; **Go tools expanded** — `goimports` added to the Go Mason tool list.
+- **Defensive linting guards** (`24-linting.yaml`) — `vim.fn.executable()` checks added for `shellcheck` and `pylint`; missing binaries produce no ENOENT error.
+- **auto-session restore** — resolved automatically once the cascade root cause (Node 18) was fixed.
+- Plugin YAML `06-mason.yaml` reduced from 64 to 34 lines. 6 new test functions (9 subtests); 2 pre-existing tests updated (node:18 → node:20).
+
 ### v0.43.2 (2026-03-16)
 
 **🔒 Build Output Secret Redaction**
@@ -830,6 +844,7 @@ See the [full migration guide](https://github.com/rmkohlman/devopsmaestro/blob/m
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **0.44.0** | 2026-03-16 | Container Neovim environment fixes — Node 22 on Debian, Mason ensure_installed removed from plugin YAML, build-time tool authority centralized, pylint/shellcheck executable guards |
 | **0.43.2** | 2026-03-16 | Build output secret redaction — `RedactingWriter` intercepts `pip`/`npm`/`go get` output; replaces credential values with `***`; cross-boundary buffering; zero-overhead fast path |
 | **0.43.1** | 2026-03-16 | Fix tree-sitter builder for Debian — dual Alpine/Debian paths matching lazygit builder pattern; fixes corporate proxy SSL failures on Python/Node.js builds |
 | **0.43.0** | 2026-03-16 | Auto-token creation for MaestroVault — priority chain resolves token automatically; no manual `mav token create` required |

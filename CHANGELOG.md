@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.44.0] - 2026-03-16 — Container Neovim Environment Fixes
+
+### 🐛 Bug Fixes
+
+#### Node.js Version Too Old for Mason Toolchains — `builders/dockerfile_generator.go`
+- **Node.js 18 (installed by the OS package manager on Debian-based builds) is too old for GitHub Copilot's language server and several Mason-managed tools that require Node 22+** — Mason would silently fail or produce cryptic ENOENT errors when attempting to install those tools
+- **Debian/Node.js builds now install Node 22 from the NodeSource repository** — a `curl -fsSL https://deb.nodesource.com/setup_22.x | bash -` step is injected into the base stage; Alpine builds are unchanged (Alpine's native package manager is used as before)
+- **`effectiveVersion()` default for `nodejs` changed from `"18"` to `"20"`** — aligns the fallback version with the NodeSource install path and prevents a mismatch where the base image version and the installed Node version diverged
+
+#### Mason LSP Config Hardcoded `ensure_installed` — `pkg/nvimops/library/plugins/06-mason.yaml`
+- **`mason_lspconfig.setup()` contained a hardcoded `ensure_installed` list of 19 language servers** — on first launch these servers were downloaded inside the container, causing long startup delays, network dependency at runtime, and failures when Mason could not satisfy a server's Node/Python version requirements
+- **`ensure_installed` removed from `mason_lspconfig.setup()`** — Mason is now configured as a framework only; language server installation is driven exclusively by `getMasonToolsForLanguage()` at image build time
+
+#### Mason Tool Installer Hardcoded `ensure_installed` — `builders/dockerfile_generator.go`, `pkg/nvimops/library/plugins/06-mason.yaml`
+- **`mason_tool_installer.setup()` contained a hardcoded `ensure_installed` list of 9 tools** — same runtime-install problem as the LSP config list above
+- **`ensure_installed` removed from `mason_tool_installer.setup()`** — the plugin YAML now only provides framework setup; tool installation authority is centralized in `getMasonToolsForLanguage()` + `getBaseMasonTools()` at build time
+- **`getMasonToolsForLanguage()` renamed and expanded** — now returns language-specific Mason tools; `getBaseMasonTools()` returns tools installed for every language (common formatters and linters); `installMasonTools()` orchestrates both lists into the generated Dockerfile `RUN` step
+- **Python tools expanded** — `pylint` added to the Python Mason tool list
+- **Go tools expanded** — `goimports` added to the Go Mason tool list
+
+#### pylint ENOENT Crash on `BufEnter` — `pkg/nvimops/library/plugins/24-linting.yaml`
+- **The linting plugin called `shellcheck` and `pylint` on every `BufEnter` event without first checking whether the binary existed** — when pylint was not installed (e.g., missing from Mason due to the Node 18 cascade failure), Neovim emitted an ENOENT error on every buffer switch, filling the message history and eventually causing `auto-session` restore to fail
+- **`vim.fn.executable()` guards added for both `shellcheck` and `pylint`** — each linter is only invoked when its binary is present; missing linters produce no error
+
+#### auto-session Restore Failure (Cascade) — resolved automatically
+- **`auto-session` restore failures were the final symptom of the root cause chain**: Node 18 → Mason install failures → pylint missing → ENOENT on BufEnter → auto-session abort
+- **Resolved automatically by the fixes above** (WI-1 through WI-5); no direct change to session restore logic was required
+
+### 🏗️ Improvements
+
+#### Build-Time Mason Authority — `builders/dockerfile_generator.go`
+- **Mason tool installation is now fully centralized at image build time** — `getMasonToolsForLanguage()` provides language-specific tools; `getBaseMasonTools()` provides a base set installed for every workspace; `installMasonTools()` combines both into a single generated Dockerfile `RUN` block
+- **Plugin YAML (`06-mason.yaml`) is reduced to framework setup only** — no `ensure_installed` lists remain in plugin YAML; the file shrank from 64 lines to 34 lines
+- **Eliminates runtime Mason downloads** — all Mason tools are present in the image before the container starts; Neovim opens instantly with all LSP servers and formatters ready
+
+### 🏗️ Technical
+
+| Metric | Value |
+|--------|-------|
+| Breaking changes | 0 |
+| Root cause chain resolved | Node 18 → Mason failures → pylint missing → BufEnter ENOENT → auto-session abort |
+| Files changed | 4 (`builders/dockerfile_generator.go`, `builders/dockerfile_generator_test.go`, `pkg/nvimops/library/plugins/06-mason.yaml`, `pkg/nvimops/library/plugins/24-linting.yaml`) |
+| New test functions | 6 (9 subtests) |
+| Updated pre-existing tests | 2 (node:18 → node:20 baseline) |
+| All tests pass | ✅ (only pre-existing `TestVaultBackend_Health` fails) |
+| All 3 binaries build | ✅ |
+
+---
+
 ## [v0.43.2] - 2026-03-16 — Build Output Secret Redaction
 
 ### 🔒 Security
