@@ -4,6 +4,12 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.45.1 (2026-03-16)
+
+**🐛 Zot Checksum Manifest Parsing Fix**
+
+The v0.45.0 manifest parser compared the raw entry against the plain filename, but `sha256sum` binary-mode prefixes filenames with `*` (e.g., `*zot-darwin-arm64`). Added `strings.TrimPrefix` to strip the `*` before comparison.
+
 ### v0.45.0 (2026-03-16)
 
 **🐛 Registry Startup Resilience**

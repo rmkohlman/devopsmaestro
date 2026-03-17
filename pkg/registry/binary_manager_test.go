@@ -710,10 +710,11 @@ func TestFetchChecksum_ParsesConsolidatedFile(t *testing.T) {
 	binaryFilename := fmt.Sprintf("zot-%s-%s", goos, goarch)
 
 	// Build a multi-line checksums manifest that includes our binary.
+	// Uses the real sha256sum binary-mode format with "*" prefix on filenames.
 	manifest := fmt.Sprintf(
-		"deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef  zot-other-arch\n"+
-			"%s  %s\n"+
-			"cafecafecafecafecafecafecafecafecafecafecafecafecafecafecafecafe  zot-another-arch\n",
+		"deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef *zot-other-arch\n"+
+			"%s *%s\n"+
+			"cafecafecafecafecafecafecafecafecafecafecafecafecafecafecafecafe *zot-another-arch\n",
 		expectedDigest, binaryFilename,
 	)
 
@@ -764,11 +765,12 @@ func TestFetchChecksum_MatchesBinaryFilename(t *testing.T) {
 	binaryFilename := fmt.Sprintf("zot-%s-%s", goos, goarch)
 
 	// The manifest lists multiple architectures; only one matches our binary.
+	// Uses the real sha256sum binary-mode format with "*" prefix on filenames.
 	manifest := fmt.Sprintf(
-		"%s  zot-linux-amd64\n"+
-			"%s  zot-linux-arm64\n"+
-			"%s  %s\n"+
-			"%s  zot-windows-amd64\n",
+		"%s *zot-linux-amd64\n"+
+			"%s *zot-linux-arm64\n"+
+			"%s *%s\n"+
+			"%s *zot-windows-amd64\n",
 		wrongDigest,
 		wrongDigest,
 		correctDigest, binaryFilename,

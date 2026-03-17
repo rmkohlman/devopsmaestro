@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.45.1] - 2026-03-16 — Zot Checksum Manifest Parsing Fix
+
+### 🐛 Bug Fixes
+
+#### Zot — Checksum Manifest Binary-Mode Prefix — `pkg/registry/binary_manager.go`
+- **`fetchChecksum()` failed to match the binary filename in the checksums manifest** — the `sha256sum` tool writes filenames with a leading `*` in binary mode (e.g., `*zot-darwin-arm64`); the v0.45.0 manifest parser compared the raw `*`-prefixed entry against the plain filename, so the lookup always failed with `checksum not found for binary "zot-darwin-arm64" in manifest`
+- **`strings.TrimPrefix(parts[1], "*")` added before filename comparison** — both binary-mode (`*filename`) and text-mode (`filename`) manifest entries are now matched correctly
+- **Tests updated to use real manifest format** — both `TestFetchChecksum_ParsesConsolidatedFile` and `TestFetchChecksum_MatchesBinaryFilename` now use the `*`-prefixed binary-mode format matching the actual Zot release artifacts
+
+### 🏗️ Technical
+
+| Metric | Value |
+|--------|-------|
+| Breaking changes | 0 |
+| Root cause | `sha256sum` binary-mode `*` prefix not stripped during manifest parsing |
+| Files changed | 2 (`pkg/registry/binary_manager.go`, `pkg/registry/binary_manager_test.go`) |
+| All tests pass | ✅ (only pre-existing `TestVaultBackend_Health` fails) |
+| All 3 binaries build | ✅ |
+
+---
+
 ## [v0.45.0] - 2026-03-16 — Registry Startup Resilience
 
 ### 🐛 Bug Fixes

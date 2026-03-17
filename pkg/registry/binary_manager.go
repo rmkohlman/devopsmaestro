@@ -320,12 +320,20 @@ func (b *DefaultBinaryManager) fetchChecksum(ctx context.Context, binaryURL stri
 		return "", fmt.Errorf("failed to read checksum manifest: %w", err)
 	}
 
-	// Parse the manifest line by line: "<hex-digest>  <filename>"
+	// Parse the manifest line by line.
+	// The sha256sum tool produces two formats:
+	//   text mode:   "<hex-digest>  <filename>"
+	//   binary mode:  "<hex-digest> *<filename>"
+	// The Zot project uses binary mode, so the filename field starts with "*".
+	// We strip the leading "*" before comparing.
 	lines := strings.Split(strings.TrimSpace(string(body)), "\n")
 	for _, line := range lines {
 		parts := strings.Fields(strings.TrimSpace(line))
-		if len(parts) >= 2 && parts[1] == filename {
-			return parts[0], nil
+		if len(parts) >= 2 {
+			entry := strings.TrimPrefix(parts[1], "*")
+			if entry == filename {
+				return parts[0], nil
+			}
 		}
 	}
 
