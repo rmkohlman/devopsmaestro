@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.45.5] - 2026-03-17 — Pip Install Proxy Fallback
+
+### 🐛 Bug Fixes
+
+#### Pip Install — `ProxyError: Cannot connect to proxy` Hangs and Fails During Docker Build — `builders/dockerfile_generator.go`
+- **When dvm's Squid HTTP proxy registry is enabled but unreachable from inside the Docker build context, pip install commands hung for ~110 seconds retrying the proxy connection, then failed hard with `ProxyError('Cannot connect to proxy.', TimeoutError('_ssl.c:999: The handshake operation timed out'))`** — this affected builds where `host.docker.internal:3128` did not resolve, a firewall blocked the proxy port, or Squid crashed mid-build; there was no fallback to direct PyPI access
+- **All 5 pip install sites in the generated Dockerfile now use a proxy fallback pattern** — if pip install fails (typically due to proxy timeout), it retries with proxy env vars unset, allowing direct PyPI access; the 5 affected sites are: `generateBaseStage()` default case (no private repos), `generateBaseStage()` "https" case (HTTPS private repos), `generateBaseStage()` "ssh" case (SSH private repos), `generateBaseStage()` "mixed" case (mixed HTTPS+SSH), and `installLanguageTools()` Python dev tools (ruff, mypy, etc.)
+- **Follows the same `|| fallback` pattern used for NodeSource in v0.45.3** — consistent resilience strategy across all network-dependent install steps
+
+```dockerfile
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r /tmp/requirements.txt \
+    || (unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy \
+    && pip install -r /tmp/requirements.txt)
+```
+
+### 🏗️ Technical
+
+| Metric | Value |
+|--------|-------|
+| Breaking changes | 0 |
+| Root cause | Squid proxy env vars set unconditionally in build context; pip has no built-in proxy fallback; builds hung ~110 s then failed with `ProxyError` when proxy was unreachable |
+| Production files changed | 1 (`builders/dockerfile_generator.go`) |
+| Test files changed | 1 (`builders/dockerfile_generator_test.go`) |
+| New test functions | 1 (`TestPipInstall_ProxyFallback` — 5 table-driven subtests covering all pip install sites) |
+| All tests pass | ✅ (only pre-existing `TestVaultBackend_Health` fails) |
+| All 3 binaries build | ✅ |
+
+---
+
 ## [v0.45.4] - 2026-03-17 — Mason Package Name Fix
 
 ### 🐛 Bug Fixes

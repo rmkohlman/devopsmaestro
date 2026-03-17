@@ -3085,6 +3085,130 @@ func TestGetBaseMasonTools_UsesRegistryNames(t *testing.T) {
 	}
 }
 
+// TestPipInstall_ProxyFallback verifies that ALL 5 pip install sites in the generated
+// Dockerfile include the proxy-aware fallback pattern:
+//
+//	pip install ... \
+//	  || (unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy \
+//	  && pip install ...)
+//
+// This is the RED-phase test for the proxy-fallback feature. It MUST FAIL until
+// the implementation is complete.
+//
+// The 5 pip install sites are:
+//  1. generateBaseStage() — default/no-private-repos case
+//  2. generateBaseStage() — HTTPS private repos case
+//  3. generateBaseStage() — SSH private repos case
+//  4. generateBaseStage() — mixed HTTPS+SSH private repos case
+//  5. installLanguageTools() — python dev tools (ruff, mypy, etc.)
+func TestPipInstall_ProxyFallback(t *testing.T) {
+	tests := []struct {
+		name                string
+		requirementsContent string
+		devTools            []string
+		wantContain         []string
+	}{
+		{
+			// Site 1: generateBaseStage() default case — plain requirements.txt, no private repos
+			name:                "site1: default plain pip install has proxy fallback",
+			requirementsContent: "flask==3.0.0\n",
+			wantContain: []string{
+				"pip install -r /tmp/requirements.txt",
+				"|| (unset",
+				"unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy",
+			},
+		},
+		{
+			// Site 2: generateBaseStage() HTTPS private repos case
+			name: "site2: HTTPS private repos pip install has proxy fallback",
+			requirementsContent: "flask==3.0.0\n" +
+				"git+https://${GITHUB_USERNAME}:${GITHUB_PAT}@github.com/Org/repo.git@v1.0\n",
+			wantContain: []string{
+				"pip install -r /tmp/requirements.txt",
+				"|| (unset",
+				"unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy",
+			},
+		},
+		{
+			// Site 3: generateBaseStage() SSH private repos case
+			name:                "site3: SSH private repos pip install has proxy fallback",
+			requirementsContent: "mylib @ git+ssh://git@github.com/Org/repo.git@v1.0\n",
+			wantContain: []string{
+				"--mount=type=ssh",
+				"pip install -r /tmp/requirements.txt",
+				"|| (unset",
+				"unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy",
+			},
+		},
+		{
+			// Site 4: generateBaseStage() mixed HTTPS+SSH private repos case
+			name: "site4: mixed HTTPS+SSH pip install has proxy fallback",
+			requirementsContent: "git+https://${GITHUB_USERNAME}:${GITHUB_PAT}@github.com/Org/private-lib.git@v1.0\n" +
+				"mylib @ git+ssh://git@github.com/Org/repo.git@v2.0\n",
+			wantContain: []string{
+				"--mount=type=ssh",
+				"pip install -r /tmp/requirements.txt",
+				"|| (unset",
+				"unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy",
+			},
+		},
+		{
+			// Site 5: installLanguageTools() — python dev tools installed in the dev stage
+			name:     "site5: installLanguageTools python dev tools has proxy fallback",
+			devTools: []string{"ruff", "mypy"},
+			wantContain: []string{
+				"pip install ruff mypy",
+				"|| (unset",
+				"unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			appPath := t.TempDir()
+
+			// Write requirements.txt when this variant needs one
+			if tt.requirementsContent != "" {
+				reqPath := filepath.Join(appPath, "requirements.txt")
+				if err := os.WriteFile(reqPath, []byte(tt.requirementsContent), 0644); err != nil {
+					t.Fatalf("failed to write requirements.txt: %v", err)
+				}
+			}
+
+			ws := &models.Workspace{
+				ID:        1,
+				Name:      "test-ws",
+				ImageName: "test:latest",
+			}
+			wsYAML := models.WorkspaceSpec{}
+			if len(tt.devTools) > 0 {
+				wsYAML.Build.DevStage.DevTools = tt.devTools
+			}
+
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: wsYAML,
+				Language:      "python",
+				Version:       "3.11",
+				AppPath:       appPath,
+				PathConfig:    paths.New(t.TempDir()),
+			})
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			for _, want := range tt.wantContain {
+				if !strings.Contains(dockerfile, want) {
+					t.Errorf("Generate() missing expected proxy-fallback content: %q\nDockerfile:\n%s", want, dockerfile)
+				}
+			}
+		})
+	}
+}
+
 // min returns the smaller of two ints. Used for safe string slicing in error messages.
 func min(a, b int) int {
 	if a < b {

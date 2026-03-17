@@ -4,6 +4,17 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.45.5 (2026-03-17)
+
+**🐛 Pip Install Proxy Fallback**
+
+Fixed pip install hanging and failing during Docker builds when dvm's Squid HTTP proxy registry is enabled but unreachable from inside the build context (`builders/dockerfile_generator.go`).
+
+Root cause: Squid proxy env vars are set unconditionally in the build context. When the proxy is unreachable (e.g., `host.docker.internal:3128` doesn't resolve, firewall blocks the proxy port, or Squid crashed mid-build), pip has no built-in fallback — it retries for ~110 seconds then fails hard with `ProxyError('Cannot connect to proxy.', TimeoutError('_ssl.c:999: The handshake operation timed out'))`.
+
+- **Fix** — all 5 pip install sites in the generated Dockerfile now use a `|| fallback` pattern: if pip install fails, it retries with proxy env vars unset (`unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy`), allowing direct PyPI access. Affected sites: `generateBaseStage()` default, "https", "ssh", and "mixed" cases, plus `installLanguageTools()` Python dev tools (ruff, mypy, etc.). Follows the same `|| fallback` strategy used for NodeSource in v0.45.3.
+- 1 new test function (`TestPipInstall_ProxyFallback`) with 5 table-driven subtests covering all pip install sites
+
 ### v0.45.4 (2026-03-17)
 
 **🐛 Mason Package Name Fix**
@@ -894,6 +905,7 @@ See the [full migration guide](https://github.com/rmkohlman/devopsmaestro/blob/m
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **0.45.5** | 2026-03-17 | Pip install proxy fallback — `ProxyError` / ~110 s hang fix when Squid proxy unreachable; all 5 pip install sites now retry with proxy env vars unset |
 | **0.45.3** | 2026-03-17 | NodeSource install ordering and fallback — `curl: not found` fix (NodeSource moved after merged apt-get install); `\|\|` fallback to Debian default nodejs when NodeSource unreachable |
 | **0.45.2** | 2026-03-17 | IsRunning health probe fallback — `dvm get registries` no longer shows "stopped" for adopted Athens/Zot/Devpi instances; `IsRunning()` probes health endpoint when PID file is absent |
 | **0.45.0** | 2026-03-16 | Registry startup resilience — port-in-use probe for Athens/Zot/Devpi, Zot checksum URL rewrite, Devpi pip fallback |
