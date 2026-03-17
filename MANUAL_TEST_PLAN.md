@@ -1,7 +1,7 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.45.0  
-> **Last Updated**: March 16, 2026
+> **Version**: v0.49.0  
+> **Last Updated**: March 17, 2026
 
 ---
 
@@ -35,6 +35,7 @@ source tests/manual/part2-post-attach.sh
 | 20 | Manual | Build Output Secret Redaction (v0.43.2) |
 | 21 | Manual | Container Neovim Environment (v0.44.0) |
 | 22 | Manual | Registry Startup Resilience (v0.45.0) |
+| 23 | Manual | Auto-Detect Git Default Branch (v0.49.0) |
 
 ---
 
@@ -4184,6 +4185,88 @@ dvm get registries
 
 ---
 
+## Part 23: Auto-Detect Git Default Branch (v0.49.0)
+
+> **Prerequisite**: `dvm` binary built from v0.49.0+. Internet access available (scenarios 95–97 query GitHub). `dvm admin init` completed.
+
+### Scenario 95: GitRepo auto-detects master branch
+
+```bash
+# Using a well-known repo that defaults to 'master'
+dvm create gitrepo test-master --url https://github.com/git/git.git --no-sync
+dvm get gitrepo test-master -o yaml
+# Expected: defaultRef should be "master" (detected, not hardcoded "main")
+dvm delete gitrepo test-master
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `dvm create gitrepo` exits 0 | GitRepo created without error | |
+| `dvm get gitrepo test-master -o yaml` shows `defaultRef: master` | Detection resolved `master`, not `main` | |
+| `dvm delete gitrepo test-master` exits 0 | GitRepo deleted cleanly | |
+
+---
+
+### Scenario 96: GitRepo auto-detects main branch
+
+```bash
+dvm create gitrepo test-main --url https://github.com/rmkohlman/devopsmaestro.git --no-sync
+dvm get gitrepo test-main -o yaml
+# Expected: defaultRef should be "main" (detected correctly)
+dvm delete gitrepo test-main
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `dvm create gitrepo` exits 0 | GitRepo created without error | |
+| `dvm get gitrepo test-main -o yaml` shows `defaultRef: main` | Detection resolved `main` correctly | |
+| `dvm delete gitrepo test-main` exits 0 | GitRepo deleted cleanly | |
+
+---
+
+### Scenario 97: GitRepo --default-ref flag overrides detection
+
+```bash
+dvm create gitrepo test-override --url https://github.com/rmkohlman/devopsmaestro.git --default-ref develop --no-sync
+dvm get gitrepo test-override -o yaml
+# Expected: defaultRef should be "develop" (flag override, not auto-detected "main")
+dvm delete gitrepo test-override
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `dvm create gitrepo` exits 0 | GitRepo created without error | |
+| `dvm get gitrepo test-override -o yaml` shows `defaultRef: develop` | Flag override respected over auto-detection | |
+| `dvm delete gitrepo test-override` exits 0 | GitRepo deleted cleanly | |
+
+---
+
+### Scenario 98: App with --repo auto-detects default branch
+
+```bash
+# Create app with --repo URL (auto-creates GitRepo)
+dvm create ecosystem test-eco
+dvm use ecosystem test-eco
+dvm create domain test-dom
+dvm use domain test-dom
+dvm create app test-app --repo https://github.com/git/git.git
+dvm get gitrepo git-git -o yaml
+# Expected: defaultRef should be "master" (auto-detected for auto-created GitRepo)
+# Cleanup
+dvm delete app test-app
+dvm delete gitrepo git-git
+dvm delete domain test-dom
+dvm delete ecosystem test-eco
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `dvm create app test-app --repo` exits 0 | App and GitRepo created without error | |
+| `dvm get gitrepo git-git -o yaml` shows `defaultRef: master` | Auto-created GitRepo detected `master`, not `main` | |
+| Cleanup commands all exit 0 | All resources deleted cleanly | |
+
+---
+
 ## Test Results Summary
 
 | Part | Tests | Pass | Fail |
@@ -4213,6 +4296,7 @@ dvm get registries
 | Part 20: Build Output Secret Redaction | 3 scenarios | | |
 | Part 21: Container Neovim Environment | 4 scenarios | | |
 | Part 22: Registry Startup Resilience | 4 scenarios | | |
+| Part 23: Auto-Detect Git Default Branch | 4 scenarios | | |
 
 ---
 
@@ -4265,5 +4349,5 @@ colima nerdctl -- --namespace devopsmaestro images
 
 **Tested by:** ________________  
 **Date:** ________________  
-**Version**: v0.45.0  
+**Version**: v0.49.0  
 **Platform:** ________________

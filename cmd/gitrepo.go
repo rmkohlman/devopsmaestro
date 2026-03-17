@@ -6,6 +6,7 @@ import (
 	"devopsmaestro/pkg/mirror"
 	"devopsmaestro/pkg/paths"
 	"devopsmaestro/render"
+	"devopsmaestro/utils"
 	"fmt"
 	"os"
 	"time"
@@ -178,6 +179,7 @@ func init() {
 	createGitRepoCmd.Flags().String("credential", "", "Credential name for authentication")
 	createGitRepoCmd.Flags().Bool("no-sync", false, "Skip initial sync")
 	createGitRepoCmd.MarkFlagRequired("url")
+	createGitRepoCmd.Flags().String("default-ref", "", "Default branch name (auto-detected if not specified)")
 
 	// Register get subcommands
 	getCmd.AddCommand(getGitReposCmd)
@@ -255,6 +257,14 @@ func runCreateGitRepo(cmd *cobra.Command, args []string) error {
 	credential, _ := cmd.Flags().GetString("credential")
 	noSync, _ := cmd.Flags().GetBool("no-sync")
 
+	// Determine default branch
+	defaultRef, _ := cmd.Flags().GetString("default-ref")
+	if defaultRef == "" {
+		render.Progress("Detecting default branch...")
+		defaultRef = utils.DetectDefaultBranch(url)
+		render.Info(fmt.Sprintf("Detected default branch: %s", defaultRef))
+	}
+
 	// Get dataStore from context
 	dataStore, err := getDataStore(cmd)
 	if err != nil {
@@ -272,7 +282,7 @@ func runCreateGitRepo(cmd *cobra.Command, args []string) error {
 		Name:                name,
 		URL:                 url,
 		Slug:                slug,
-		DefaultRef:          "main",
+		DefaultRef:          defaultRef,
 		AuthType:            authType,
 		AutoSync:            true,
 		SyncIntervalMinutes: 60,

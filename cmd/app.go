@@ -15,6 +15,7 @@ import (
 	"devopsmaestro/pkg/resource"
 	"devopsmaestro/pkg/resource/handlers"
 	"devopsmaestro/render"
+	"devopsmaestro/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -702,11 +703,14 @@ func resolveOrCreateGitRepo(ds db.DataStore, repo string) (*int, string, string,
 		// Create new GitRepo
 		render.Progress(fmt.Sprintf("Creating GitRepo '%s' from URL...", slug))
 
+		// Auto-detect default branch for the new GitRepo
+		detectedRef := utils.DetectDefaultBranch(repo)
+
 		gitRepo := &models.GitRepoDB{
 			Name:                slug,
 			URL:                 repo,
 			Slug:                slug,
-			DefaultRef:          "main",
+			DefaultRef:          detectedRef,
 			AuthType:            "none",
 			AutoSync:            true,
 			SyncIntervalMinutes: 60,

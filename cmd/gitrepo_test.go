@@ -30,6 +30,7 @@ func newTestCreateGitRepoCmd() *cobra.Command {
 	cmd.Flags().String("auth-type", "none", "Authentication type (none, ssh, token)")
 	cmd.Flags().String("credential", "", "Credential name for authentication")
 	cmd.Flags().Bool("no-sync", false, "Don't sync mirror after creation")
+	cmd.Flags().String("default-ref", "", "Override default branch (auto-detected if not set)")
 	return cmd
 }
 
@@ -886,4 +887,48 @@ func TestRunCreateGitRepo_InvalidCredential(t *testing.T) {
 	err := cmd.Execute()
 	assert.Error(t, err, "create gitrepo with nonexistent --credential should fail")
 	assert.Contains(t, err.Error(), "credential", "error should mention credential")
+}
+
+// =============================================================================
+// v0.49.0: Auto-Detect Git Default Branch Tests
+// RED: These tests FAIL until --default-ref flag is registered on createGitRepoCmd
+// and runCreateGitRepo wires the flag through to GitRepoDB.DefaultRef.
+// =============================================================================
+
+// TestCreateGitRepoCmd_HasDefaultRefFlag verifies the --default-ref flag is
+// registered on createGitRepoCmd with an empty string default.
+func TestCreateGitRepoCmd_HasDefaultRefFlag(t *testing.T) {
+	defaultRefFlag := createGitRepoCmd.Flags().Lookup("default-ref")
+	assert.NotNil(t, defaultRefFlag, "createGitRepoCmd should have 'default-ref' flag")
+
+	if defaultRefFlag != nil {
+		assert.Equal(t, "", defaultRefFlag.DefValue, "default-ref flag should default to empty string")
+		assert.Equal(t, "string", defaultRefFlag.Value.Type(), "default-ref flag should be string type")
+	}
+}
+
+// TestCreateGitRepoCmd_DefaultRefFlagOverridesDetection verifies that passing
+// --default-ref master causes the created GitRepo to store "master" as DefaultRef
+// rather than auto-detecting or hardcoding "main".
+func TestCreateGitRepoCmd_DefaultRefFlagOverridesDetection(t *testing.T) {
+	mockStore := db.NewMockDataStore()
+
+	cmd := newTestCreateGitRepoCmd()
+	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	cmd.SetContext(ctx)
+
+	cmd.SetArgs([]string{
+		"master-repo",
+		"--url", "https://github.com/org/legacy-repo.git",
+		"--default-ref", "master",
+		"--no-sync",
+	})
+
+	err := cmd.Execute()
+	require.NoError(t, err, "create gitrepo with --default-ref master should succeed")
+
+	repo, err := mockStore.GetGitRepoByName("master-repo")
+	require.NoError(t, err, "created repo should be retrievable by name")
+	assert.Equal(t, "master", repo.DefaultRef,
+		"GitRepoDB.DefaultRef should be 'master' when --default-ref master is passed")
 }

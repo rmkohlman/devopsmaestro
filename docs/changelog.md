@@ -2,6 +2,17 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.49.0 (2026-03-17)
+
+**✨ Auto-Detect Git Default Branch**
+
+`dvm create gitrepo` and `dvm create app --repo <url>` now auto-detect the remote repository's default branch instead of hardcoding `main` — repos using `master`, `develop`, `trunk`, or any custom default branch now work correctly on workspace creation.
+
+- **Auto-detected via `git ls-remote --symref`** — 10-second timeout; falls back to `main` if detection fails (missing git, network error, unresolvable URL)
+- **`--default-ref` flag** — explicit override on `dvm create gitrepo` when auto-detection is not desired; e.g., `--default-ref develop`
+- **`dvm create app --repo <url>` included** — the auto-create-GitRepo path now detects the default branch instead of hardcoding `main`
+- 10 new test cases (8 parser unit tests + 2 CLI flag tests); 1 new production file, 2 modified; 0 breaking changes
+
 ## v0.48.0 (2026-03-17)
 
 **✨ Python System Dependency Auto-Detection**

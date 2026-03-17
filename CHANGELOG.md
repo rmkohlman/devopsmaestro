@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.49.0] - 2026-03-17 — Auto-Detect Git Default Branch
+
+### ✨ Features
+
+#### Auto-Detect Git Default Branch — `utils/git_branch_detector.go`, `cmd/gitrepo.go`, `cmd/app.go`
+- **`dvm create gitrepo` and `dvm create app --repo <url>` now auto-detect the remote repository's default branch** — eliminates workspace creation failures for repos that use `master`, `develop`, `trunk`, or any non-`main` default branch
+- **Detection runs via `git ls-remote --symref <url> HEAD`** — parses the symref output to extract the branch name; has a 10-second timeout to prevent hangs on unreachable URLs
+- **Falls back to `"main"` if detection fails** — handles missing git binary, network errors, timeouts, and repos without a symref gracefully
+- **New `--default-ref` flag on `dvm create gitrepo`** — explicit override when auto-detection is not desired or returns the wrong branch; e.g., `dvm create gitrepo my-repo --url <url> --default-ref develop`
+- **`dvm create app --repo <url>` also auto-detects** — the `resolveOrCreateGitRepo` path that auto-creates a GitRepo from a URL now detects the default branch instead of hardcoding `"main"`
+
+### 🏗️ Technical
+
+- `ParseDefaultBranch(output string) (string, error)` — pure parser function, fully testable without network access; handles branches with slashes (e.g., `release/v1`)
+- `DetectDefaultBranch(repoURL string) string` — convenience wrapper that shells out to git with context timeout; never returns an error (always falls back to `"main"`)
+- 10 new tests — 8 table-driven parser tests, 2 CLI flag tests (flag existence + override behavior)
+
+---
+
 ## [v0.48.0] - 2026-03-17 — Python System Dependency Auto-Detection
 
 ### ✨ Features
