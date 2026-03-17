@@ -2,7 +2,23 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
-## v0.47.0 (2026-03-17)
+## v0.48.0 (2026-03-17)
+
+**✨ Python System Dependency Auto-Detection**
+
+`dvm build` now automatically scans `requirements.txt` for Python packages that require C extension headers and injects the corresponding system libraries into the Dockerfile `apt-get install` command — no manual configuration needed for common packages.
+
+- **Auto-detected at build time** — `detectPythonSystemDeps()` runs alongside the existing private-repo scan; no separate command required
+- **11 supported packages** — `psycopg2` → `libpq-dev`; `mysqlclient` → `default-libmysqlclient-dev`; `pillow` → `libjpeg-dev zlib1g-dev libfreetype6-dev`; `lxml` → `libxml2-dev libxslt1-dev`; `cryptography`/`cffi` → `libffi-dev libssl-dev`; `pyyaml` → `libyaml-dev`; `python-ldap` → `libldap2-dev libsasl2-dev`; `gevent` → `libev-dev libevent-dev`; `pycairo` → `libcairo2-dev pkg-config`; `h5py` → `libhdf5-dev`
+- **Binary wheels excluded** — `psycopg2-binary` and other pre-compiled variants are not matched; they ship without header requirements
+- **PEP 503 normalization** — package names are lowercased and `[-_.]` collapsed before lookup; handles `PyYAML`, `Pillow`, `python_ldap`, etc. correctly
+- **Dockerfile comment** — each auto-detected mapping is documented inline (e.g., `# Auto-detected: psycopg2 -> libpq-dev`); detected deps also logged via `render.Info()` during build
+- **`baseStage.packages` YAML field** — manual escape hatch for packages not in the auto-detect map; merged and deduplicated alongside auto-detected packages
+- 45 new test subtests across `utils/private_repo_detector_test.go` and `builders/dockerfile_generator_test.go`; 4 production files changed; 0 breaking changes
+
+## Latest Releases
+
+### v0.47.0 (2026-03-17)
 
 **🏗️ Improved Credential Output**
 
@@ -11,8 +27,6 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 - **`dvm get credentials` list** — now renders a 5-column table (NAME, SCOPE, SOURCE, TARGET, DESCRIPTION) instead of plain-text `name  (scope: x, source: y)`; TARGET shows the env var(s) injected at build/attach time; DESCRIPTION shows the credential description
 - **`dvm get credential <name>` scope display** — scope now resolves to a human-readable name (e.g., `app: my-api`) instead of a raw numeric ID (e.g., `app (ID: 5)`)
 - **`dvm get all` credentials table** — updated from 3 columns (NAME, SCOPE, SOURCE) to 4 columns (NAME, SCOPE, SOURCE, TARGET)
-
-## Latest Releases
 
 ### v0.46.0 (2026-03-17)
 

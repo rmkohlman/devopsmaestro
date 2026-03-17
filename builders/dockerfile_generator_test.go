@@ -3216,3 +3216,152 @@ func min(a, b int) int {
 	}
 	return b
 }
+
+// =============================================================================
+// Python system dependency auto-detection tests (RED phase)
+// These tests MUST FAIL until Phase 3 implementation is complete.
+// They drive the implementation of detectPythonSystemDeps integration into
+// the Dockerfile generator's base stage.
+// =============================================================================
+
+// TestDockerfileGenerator_SystemDeps verifies that Python packages requiring
+// system libraries cause those libraries to appear in the base stage apt-get
+// install command of the generated Dockerfile.
+//
+// RED phase: Tests FAIL because the generator does not yet call
+// detectPythonSystemDeps or emit the detected system packages.
+func TestDockerfileGenerator_SystemDeps(t *testing.T) {
+	tests := []struct {
+		name                string
+		requirementsContent string   // written to requirements.txt in appPath
+		baseStagePackages   []string // explicit packages via WorkspaceSpec.Build.BaseStage.Packages
+		wantContain         []string // must appear in generated Dockerfile
+		wantNotContain      []string // must NOT appear in generated Dockerfile
+	}{
+		{
+			name:                "psycopg2 causes libpq-dev in base stage",
+			requirementsContent: "psycopg2==2.9.9\nflask==2.3.0\n",
+			wantContain:         []string{"libpq-dev"},
+			wantNotContain:      nil,
+		},
+		{
+			name:                "Pillow causes libjpeg-dev zlib1g-dev libfreetype6-dev in base stage",
+			requirementsContent: "Pillow>=10.0\n",
+			wantContain:         []string{"libjpeg-dev", "zlib1g-dev", "libfreetype6-dev"},
+			wantNotContain:      nil,
+		},
+		{
+			name:                "cryptography and cffi deduplicated — libffi-dev appears once",
+			requirementsContent: "cryptography>=41.0\ncffi>=1.0\n",
+			wantContain:         []string{"libffi-dev", "libssl-dev"},
+			wantNotContain:      nil,
+		},
+		{
+			name:                "psycopg2-binary needs no system deps",
+			requirementsContent: "psycopg2-binary==2.9.9\n",
+			wantContain:         nil,
+			wantNotContain:      []string{"libpq-dev"},
+		},
+		{
+			name:                "no system dep packages — no extra apt installs",
+			requirementsContent: "flask==2.3.0\nrequests>=2.28\n",
+			wantContain:         nil,
+			wantNotContain:      []string{"libpq-dev", "libjpeg-dev", "libffi-dev"},
+		},
+		{
+			name:                "lxml causes libxml2-dev and libxslt1-dev",
+			requirementsContent: "lxml>=4.0\n",
+			wantContain:         []string{"libxml2-dev", "libxslt1-dev"},
+			wantNotContain:      nil,
+		},
+		{
+			name:                "PyYAML causes libyaml-dev",
+			requirementsContent: "PyYAML>=6.0\n",
+			wantContain:         []string{"libyaml-dev"},
+			wantNotContain:      nil,
+		},
+		{
+			name:                "h5py causes libhdf5-dev",
+			requirementsContent: "h5py>=3.0\n",
+			wantContain:         []string{"libhdf5-dev"},
+			wantNotContain:      nil,
+		},
+		{
+			name:                "gevent causes libev-dev and libevent-dev",
+			requirementsContent: "gevent>=23.0\n",
+			wantContain:         []string{"libev-dev", "libevent-dev"},
+			wantNotContain:      nil,
+		},
+		{
+			name:                "mixed known and unknown packages",
+			requirementsContent: "psycopg2==2.9.9\nflask==2.3.0\nlxml>=4.0\n",
+			wantContain:         []string{"libpq-dev", "libxml2-dev", "libxslt1-dev"},
+			wantNotContain:      nil,
+		},
+		{
+			name:                "base stage packages merged with auto-detected system deps",
+			requirementsContent: "psycopg2==2.9.9\n",
+			baseStagePackages:   []string{"curl", "jq"},
+			wantContain:         []string{"libpq-dev", "curl", "jq"},
+			wantNotContain:      nil,
+		},
+		{
+			name:                "no requirements.txt — no system dep packages added",
+			requirementsContent: "", // do not create requirements.txt
+			wantContain:         nil,
+			wantNotContain:      []string{"libpq-dev", "libjpeg-dev", "libffi-dev"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			appPath := t.TempDir()
+
+			if tt.requirementsContent != "" {
+				reqPath := filepath.Join(appPath, "requirements.txt")
+				if err := os.WriteFile(reqPath, []byte(tt.requirementsContent), 0644); err != nil {
+					t.Fatalf("failed to write requirements.txt: %v", err)
+				}
+			}
+
+			ws := &models.Workspace{
+				ID:        1,
+				Name:      "test-ws",
+				ImageName: "test:latest",
+			}
+			wsYAML := models.WorkspaceSpec{
+				Build: models.DevBuildConfig{
+					BaseStage: models.BaseStageConfig{
+						Packages: tt.baseStagePackages,
+					},
+				},
+			}
+
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: wsYAML,
+				Language:      "python",
+				Version:       "3.11",
+				AppPath:       appPath,
+				PathConfig:    paths.New(t.TempDir()),
+			})
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			for _, want := range tt.wantContain {
+				if !strings.Contains(dockerfile, want) {
+					t.Errorf("Generate() missing expected system dep %q\nDockerfile:\n%s", want, dockerfile)
+				}
+			}
+
+			for _, notWant := range tt.wantNotContain {
+				if strings.Contains(dockerfile, notWant) {
+					t.Errorf("Generate() contains unexpected system dep %q\nDockerfile:\n%s", notWant, dockerfile)
+				}
+			}
+		})
+	}
+}

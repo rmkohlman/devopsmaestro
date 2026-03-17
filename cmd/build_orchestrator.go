@@ -17,6 +17,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -245,14 +246,27 @@ func buildWorkspace(cmd *cobra.Command) error {
 	render.Blank()
 	render.Progress("Generating Dockerfile.dvm...")
 	slog.Debug("generating Dockerfile", "language", languageName, "version", version)
+
+	// Detect private repos and system dependencies
+	privateRepoInfo := utils.DetectPrivateRepos(sourcePath, languageName)
+
+	// Log auto-detected system dependencies for visibility
+	if len(privateRepoInfo.SystemDeps) > 0 {
+		render.Info(fmt.Sprintf("Auto-detected system dependencies: %s", strings.Join(privateRepoInfo.SystemDeps, ", ")))
+		slog.Debug("auto-detected system dependencies",
+			"deps", privateRepoInfo.SystemDeps,
+			"sources", privateRepoInfo.SystemDepSources)
+	}
+
 	generator := builders.NewDockerfileGenerator(builders.DockerfileGeneratorOptions{
-		Workspace:      workspace,
-		WorkspaceSpec:  workspaceYAML.Spec,
-		Language:       languageName,
-		Version:        version,
-		AppPath:        sourcePath, // Use sourcePath (not app.Path) so nvim config staging dir is found correctly (Issue #18)
-		BaseDockerfile: dockerfilePath,
-		PathConfig:     paths.New(homeDir),
+		Workspace:       workspace,
+		WorkspaceSpec:   workspaceYAML.Spec,
+		Language:        languageName,
+		Version:         version,
+		AppPath:         sourcePath, // Use sourcePath (not app.Path) so nvim config staging dir is found correctly (Issue #18)
+		BaseDockerfile:  dockerfilePath,
+		PathConfig:      paths.New(homeDir),
+		PrivateRepoInfo: privateRepoInfo,
 	})
 
 	// Set plugin manifest for conditional feature detection

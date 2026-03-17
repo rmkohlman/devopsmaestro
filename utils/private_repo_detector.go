@@ -14,7 +14,9 @@ type PrivateRepoInfo struct {
 	NeedsSSH          bool
 	RequiredBuildArgs []string
 	DetectedInFiles   []string
-	GitURLType        string // "https", "ssh", or "mixed"
+	GitURLType        string            // "https", "ssh", or "mixed"
+	SystemDeps        []string          // System packages needed by Python C extensions
+	SystemDepSources  map[string]string // Maps system dep to Python package that requires it (for comments)
 }
 
 // DetectPrivateRepos scans app files for private repository references
@@ -89,6 +91,9 @@ func detectPythonPrivateRepos(appPath string, info *PrivateRepoInfo) {
 			}
 		}
 	}
+
+	// Detect system dependencies needed by Python C extensions
+	detectPythonSystemDeps(appPath, info)
 }
 
 func detectGoPrivateRepos(appPath string, info *PrivateRepoInfo) {
@@ -240,6 +245,99 @@ func detectRustPrivateRepos(appPath string, info *PrivateRepoInfo) {
 			// For MVP, we'll use GITHUB_TOKEN
 			if !contains(info.RequiredBuildArgs, "GITHUB_TOKEN") {
 				info.RequiredBuildArgs = append(info.RequiredBuildArgs, "GITHUB_TOKEN")
+			}
+		}
+	}
+}
+
+// pepNormRe matches runs of [-_.] for PEP 503 package name normalization.
+var pepNormRe = regexp.MustCompile(`[-_.]+`)
+
+// normalizePythonPkgName normalizes a Python package name per PEP 503:
+// lowercase and replace all runs of [-_.] with a single dash.
+func normalizePythonPkgName(name string) string {
+	if name == "" {
+		return ""
+	}
+	lower := strings.ToLower(name)
+	return pepNormRe.ReplaceAllString(lower, "-")
+}
+
+// extractPkgName extracts the package name from a requirements.txt line,
+// stripping version specifiers, extras, and comments.
+func extractPkgName(line string) string {
+	line = strings.TrimSpace(line)
+	if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "-") {
+		return ""
+	}
+
+	// Handle @ syntax: "mylib @ git+https://..."
+	if atIdx := strings.Index(line, " @ "); atIdx != -1 {
+		return strings.TrimSpace(line[:atIdx])
+	}
+
+	// Strip version specifiers and extras
+	for i, ch := range line {
+		if ch == '[' || ch == '>' || ch == '<' || ch == '=' || ch == '!' || ch == '~' || ch == ';' {
+			return strings.TrimSpace(line[:i])
+		}
+	}
+
+	return strings.TrimSpace(line)
+}
+
+// pythonSystemDepsMap maps normalized Python package names to the system packages
+// (Debian/Ubuntu) they require for building C extensions.
+var pythonSystemDepsMap = map[string][]string{
+	"psycopg2":     {"libpq-dev"},
+	"mysqlclient":  {"default-libmysqlclient-dev"},
+	"pillow":       {"libjpeg-dev", "zlib1g-dev", "libfreetype6-dev"},
+	"lxml":         {"libxml2-dev", "libxslt1-dev"},
+	"cryptography": {"libffi-dev", "libssl-dev"},
+	"cffi":         {"libffi-dev", "libssl-dev"},
+	"pyyaml":       {"libyaml-dev"},
+	"python-ldap":  {"libldap2-dev", "libsasl2-dev"},
+	"gevent":       {"libev-dev", "libevent-dev"},
+	"pycairo":      {"libcairo2-dev", "pkg-config"},
+	"h5py":         {"libhdf5-dev"},
+}
+
+// detectPythonSystemDeps scans requirements.txt for Python packages that need
+// system library headers (e.g., psycopg2 -> libpq-dev) and populates
+// info.SystemDeps and info.SystemDepSources.
+func detectPythonSystemDeps(appPath string, info *PrivateRepoInfo) {
+	reqFile := filepath.Join(appPath, "requirements.txt")
+	content, err := os.ReadFile(reqFile)
+	if err != nil {
+		return
+	}
+
+	seen := make(map[string]bool)
+	lines := strings.Split(string(content), "\n")
+
+	for _, line := range lines {
+		pkgName := extractPkgName(line)
+		if pkgName == "" {
+			continue
+		}
+
+		normalized := normalizePythonPkgName(pkgName)
+		deps, ok := pythonSystemDepsMap[normalized]
+		if !ok {
+			continue
+		}
+
+		for _, dep := range deps {
+			if !seen[dep] {
+				seen[dep] = true
+				info.SystemDeps = append(info.SystemDeps, dep)
+				if info.SystemDepSources == nil {
+					info.SystemDepSources = make(map[string]string)
+				}
+				// First package that needs this dep wins the source attribution
+				if _, exists := info.SystemDepSources[dep]; !exists {
+					info.SystemDepSources[dep] = normalized
+				}
 			}
 		}
 	}

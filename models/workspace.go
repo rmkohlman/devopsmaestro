@@ -75,11 +75,19 @@ type ImageConfig struct {
 	BaseImage string `yaml:"baseImage,omitempty"`
 }
 
+// BaseStageConfig defines configuration for the base (app) build stage.
+// Packages listed here are installed via apt-get in the base stage,
+// alongside any auto-detected system dependencies.
+type BaseStageConfig struct {
+	Packages []string `yaml:"packages,omitempty"`
+}
+
 // DevBuildConfig defines the build configuration for the dev environment.
 // This focuses on developer tools added on top of the app's base image.
 type DevBuildConfig struct {
-	Args     map[string]string `yaml:"args,omitempty"`
-	DevStage DevStageConfig    `yaml:"devStage"`
+	Args      map[string]string `yaml:"args,omitempty"`
+	BaseStage BaseStageConfig   `yaml:"baseStage,omitempty"`
+	DevStage  DevStageConfig    `yaml:"devStage"`
 }
 
 // DevStageConfig defines what developer tools to add in the dev stage.

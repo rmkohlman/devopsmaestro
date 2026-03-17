@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"devopsmaestro/models"
@@ -40,39 +41,42 @@ var _ DockerfileGenerator = (*DefaultDockerfileGenerator)(nil)
 // DefaultDockerfileGenerator is the standard implementation of DockerfileGenerator
 // that generates Dockerfiles for dev containers.
 type DefaultDockerfileGenerator struct {
-	workspace      *models.Workspace
-	workspaceYAML  models.WorkspaceSpec
-	language       string
-	version        string
-	appPath        string
-	baseDockerfile string
-	pluginManifest *plugin.PluginManifest
-	pathConfig     *paths.PathConfig
-	isAlpine       bool // computed in generateBaseStage() based on the actual image chosen
+	workspace       *models.Workspace
+	workspaceYAML   models.WorkspaceSpec
+	language        string
+	version         string
+	appPath         string
+	baseDockerfile  string
+	pluginManifest  *plugin.PluginManifest
+	pathConfig      *paths.PathConfig
+	isAlpine        bool // computed in generateBaseStage() based on the actual image chosen
+	privateRepoInfo *utils.PrivateRepoInfo
 }
 
 // DockerfileGeneratorOptions contains all configuration for creating a DockerfileGenerator.
 type DockerfileGeneratorOptions struct {
-	Workspace      *models.Workspace
-	WorkspaceSpec  models.WorkspaceSpec
-	Language       string
-	Version        string
-	AppPath        string
-	BaseDockerfile string
-	PathConfig     *paths.PathConfig // Injected for filesystem operations (nil = fallback to os.UserHomeDir)
+	Workspace       *models.Workspace
+	WorkspaceSpec   models.WorkspaceSpec
+	Language        string
+	Version         string
+	AppPath         string
+	BaseDockerfile  string
+	PathConfig      *paths.PathConfig      // Injected for filesystem operations (nil = fallback to os.UserHomeDir)
+	PrivateRepoInfo *utils.PrivateRepoInfo // Injected for system dep detection (nil = auto-detect at build time)
 }
 
 // NewDockerfileGenerator creates a new Dockerfile generator.
 // Returns the DockerfileGenerator interface for loose coupling.
 func NewDockerfileGenerator(opts DockerfileGeneratorOptions) DockerfileGenerator {
 	return &DefaultDockerfileGenerator{
-		workspace:      opts.Workspace,
-		workspaceYAML:  opts.WorkspaceSpec,
-		language:       opts.Language,
-		version:        opts.Version,
-		appPath:        opts.AppPath,
-		baseDockerfile: opts.BaseDockerfile,
-		pathConfig:     opts.PathConfig,
+		workspace:       opts.Workspace,
+		workspaceYAML:   opts.WorkspaceSpec,
+		language:        opts.Language,
+		version:         opts.Version,
+		appPath:         opts.AppPath,
+		baseDockerfile:  opts.BaseDockerfile,
+		pathConfig:      opts.PathConfig,
+		privateRepoInfo: opts.PrivateRepoInfo,
 	}
 }
 
@@ -97,8 +101,11 @@ func (g *DefaultDockerfileGenerator) Generate() (string, error) {
 	dockerfile.WriteString("# Development container with tools for coding\n")
 	dockerfile.WriteString("# Optimized with BuildKit: parallel stages + cache mounts\n\n")
 
-	// Detect private repository usage
-	privateRepoInfo := utils.DetectPrivateRepos(g.appPath, g.language)
+	// Use injected private repo info if available, otherwise auto-detect
+	privateRepoInfo := g.privateRepoInfo
+	if privateRepoInfo == nil {
+		privateRepoInfo = utils.DetectPrivateRepos(g.appPath, g.language)
+	}
 
 	// For MVP: Always generate from scratch
 	// Future: Support extending existing production Dockerfiles
@@ -177,8 +184,17 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 			if privateRepoInfo.NeedsSSH {
 				packages = append(packages, "openssh-client")
 			}
+			// Merge auto-detected system deps (e.g., libpq-dev for psycopg2)
+			packages = appendUnique(packages, privateRepoInfo.SystemDeps...)
+			// Merge user-specified base stage packages
+			packages = appendUnique(packages, g.workspaceYAML.Build.BaseStage.Packages...)
 
-			dockerfile.WriteString("# Install git for private repositories\n")
+			if len(privateRepoInfo.SystemDeps) > 0 {
+				dockerfile.WriteString("# Install git for private repositories + auto-detected system dependencies\n")
+				dockerfile.WriteString(fmt.Sprintf("# Auto-detected: %s\n", formatSystemDepSources(privateRepoInfo)))
+			} else {
+				dockerfile.WriteString("# Install git for private repositories\n")
+			}
 			dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apt \\\n")
 			dockerfile.WriteString("    --mount=type=cache,target=/var/lib/apt/lists \\\n")
 			dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
@@ -200,12 +216,26 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 				dockerfile.WriteString("    ssh-keyscan gitlab.com >> /root/.ssh/known_hosts\n\n")
 			}
 		} else {
-			dockerfile.WriteString("# Install build dependencies\n")
+			packages := []string{"build-essential"}
+			// Merge auto-detected system deps (e.g., libpq-dev for psycopg2)
+			packages = appendUnique(packages, privateRepoInfo.SystemDeps...)
+			// Merge user-specified base stage packages
+			packages = appendUnique(packages, g.workspaceYAML.Build.BaseStage.Packages...)
+
+			// Add comment about auto-detected system deps
+			if len(privateRepoInfo.SystemDeps) > 0 {
+				dockerfile.WriteString("# Install build dependencies\n")
+				dockerfile.WriteString(fmt.Sprintf("# Auto-detected system dependencies: %s\n", formatSystemDepSources(privateRepoInfo)))
+			} else {
+				dockerfile.WriteString("# Install build dependencies\n")
+			}
 			dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apt \\\n")
 			dockerfile.WriteString("    --mount=type=cache,target=/var/lib/apt/lists \\\n")
-			dockerfile.WriteString("    apt-get update && \\\n")
-			dockerfile.WriteString("    apt-get install -y --no-install-recommends --fix-broken \\\n")
-			dockerfile.WriteString("    build-essential\n\n")
+			dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
+			for _, pkg := range packages {
+				dockerfile.WriteString(fmt.Sprintf("    %s \\\n", pkg))
+			}
+			dockerfile.WriteString("    && true\n\n")
 		}
 
 		// Dispatch on GitURLType for correct pip install strategy:
@@ -719,6 +749,35 @@ func appendUnique(slice []string, items ...string) []string {
 		}
 	}
 	return slice
+}
+
+// formatSystemDepSources creates a human-readable string of auto-detected system deps
+// for Dockerfile comments. Example: "psycopg2 -> libpq-dev, lxml -> libxml2-dev libxslt1-dev"
+func formatSystemDepSources(info *utils.PrivateRepoInfo) string {
+	if info == nil || len(info.SystemDepSources) == 0 {
+		return ""
+	}
+
+	// Group deps by their source Python package
+	sourceToDepsList := make(map[string][]string)
+	for dep, source := range info.SystemDepSources {
+		sourceToDepsList[source] = append(sourceToDepsList[source], dep)
+	}
+
+	// Sort deps within each source for deterministic output
+	for source := range sourceToDepsList {
+		sort.Strings(sourceToDepsList[source])
+	}
+
+	// Build formatted string
+	var parts []string
+	for source, deps := range sourceToDepsList {
+		parts = append(parts, fmt.Sprintf("%s -> %s", source, strings.Join(deps, " ")))
+	}
+
+	// Sort for deterministic output
+	sort.Strings(parts)
+	return strings.Join(parts, ", ")
 }
 
 func (g *DefaultDockerfileGenerator) generateDevUser(dockerfile *strings.Builder) {

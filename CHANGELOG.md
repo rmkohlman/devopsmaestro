@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.48.0] - 2026-03-17 — Python System Dependency Auto-Detection
+
+### ✨ Features
+
+#### Python System Dependency Auto-Detection — `utils/private_repo_detector.go`, `builders/dockerfile_generator.go`, `models/workspace.go`, `cmd/build_orchestrator.go`
+- **`dvm build` now automatically detects Python packages in `requirements.txt` that require system library headers and adds the corresponding `apt-get` packages to the Dockerfile base stage** — eliminates build failures caused by missing C extension headers (e.g., `psycopg2` failing with `Error: pg_config executable not found`)
+- **Detection runs at build time via `detectPythonSystemDeps()`** — called alongside the existing `DetectPrivateRepos()` scan; no separate command or configuration needed; text file parse + map lookup takes microseconds
+- **Detected system packages are merged into the existing `apt-get install` command** alongside `build-essential`; all sources (auto-detected + user-specified) are deduplicated via `appendUnique()`
+- **A Dockerfile comment documents each auto-detected mapping** — e.g., `# Auto-detected: psycopg2 -> libpq-dev`; build output also logs detected dependencies via `render.Info()`
+- **Binary wheels are NOT matched** — `psycopg2-binary`, `Pillow` (capitalized), and other wheel-only variants do not trigger system dep injection; they ship pre-compiled and have no build-time header requirements
+- **Package name matching uses PEP 503 normalization** — names are lowercased and `[-_.]` runs collapsed to a single dash before lookup; handles `PyYAML`, `Pillow`, `python_ldap`, etc. correctly
+
+**Supported auto-detected Python packages (11 entries):**
+
+| Python Package | System Dependencies Added |
+|----------------|--------------------------|
+| `psycopg2` | `libpq-dev` |
+| `mysqlclient` | `default-libmysqlclient-dev` |
+| `pillow` | `libjpeg-dev`, `zlib1g-dev`, `libfreetype6-dev` |
+| `lxml` | `libxml2-dev`, `libxslt1-dev` |
+| `cryptography` | `libffi-dev`, `libssl-dev` |
+| `cffi` | `libffi-dev`, `libssl-dev` |
+| `pyyaml` | `libyaml-dev` |
+| `python-ldap` | `libldap2-dev`, `libsasl2-dev` |
+| `gevent` | `libev-dev`, `libevent-dev` |
+| `pycairo` | `libcairo2-dev`, `pkg-config` |
+| `h5py` | `libhdf5-dev` |
+
+- **`baseStage.packages` YAML field added** — manual escape hatch for packages not in the auto-detect map; user-specified packages are merged and deduplicated alongside auto-detected ones
+
+```yaml
+build:
+  baseStage:
+    packages:
+      - libcurl4-openssl-dev  # Manual system deps
+  devStage:
+    packages:
+      - htop
+```
+
+### 🏗️ Technical
+
+| Metric | Value |
+|--------|-------|
+| Breaking changes | 0 |
+| Production files changed | 4 |
+| Test files changed | 2 |
+| New test subtests | 45 |
+| All tests pass | ✅ (only pre-existing `TestVaultBackend_Health` fails when daemon is running) |
+| Both binaries build | ✅ |
+
+---
+
 ## [v0.47.0] - 2026-03-17 — Improved Credential Output
 
 ### 🏗️ Improvements
