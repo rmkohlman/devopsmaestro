@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.45.2] - 2026-03-17 — IsRunning Health Probe Fallback
+
+### 🐛 Bug Fixes
+
+#### Athens / Zot / Devpi — `dvm get registries` Shows "stopped" for Adopted Registry Instances — `pkg/registry/athens_manager.go`, `pkg/registry/zot_manager.go`, `pkg/registry/devpi_manager.go`
+- **`dvm get registries` displayed "stopped" for all three managers even when the registry was healthy and running** — when `Start()` adopted a running instance (health probe succeeded on a busy port), it returned `nil` immediately without writing a PID file or updating in-memory state; later, `dvm get registries` created a fresh `RegistryManager` which called `IsRunning()` → read PID file → file not found → returned `false` → displayed "stopped"
+- **`IsRunning()` overridden on all three affected managers** — each manager's `IsRunning()` now adds a health probe fallback: if the PID file check returns `false`, the manager calls `ProbeServiceHealth()` on the same endpoint and with the same accepted status codes used by the adoption path in `Start()`; if the probe succeeds, `IsRunning()` returns `true`
+- **Reuses existing `ProbeServiceHealth()` from `utils.go`** — no new health-check infrastructure; the same helper already proven in the `Start()` adoption path is now reused in `IsRunning()`
+- **Health endpoints by manager** — Athens: `GET /healthz` → 200; Zot: `GET /v2/` → 200 or 401; Devpi: `GET /` → 200 or 302 — identical to the adoption endpoints in `Start()`
+
+### 🏗️ Technical
+
+| Metric | Value |
+|--------|-------|
+| Breaking changes | 0 |
+| Root cause | `Start()` adopted running instances without writing PID file; `IsRunning()` had no fallback when PID file was absent |
+| Production files changed | 3 (`pkg/registry/athens_manager.go`, `pkg/registry/zot_manager.go`, `pkg/registry/devpi_manager.go`) |
+| Test files changed | 3 (`pkg/registry/athens_manager_test.go`, `pkg/registry/registry_manager_test.go`, `pkg/registry/devpi_manager_test.go`) |
+| New test functions | 8 |
+| All tests pass | ✅ (only pre-existing `TestVaultBackend_Health` fails) |
+| All 3 binaries build | ✅ |
+
+---
+
 ## [v0.45.1] - 2026-03-16 — Zot Checksum Manifest Parsing Fix
 
 ### 🐛 Bug Fixes

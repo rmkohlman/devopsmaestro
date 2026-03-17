@@ -181,10 +181,14 @@ func (m *AthensManager) EnsureRunning(ctx context.Context) error {
 }
 
 // IsRunning checks if the Athens proxy is currently running.
+// Falls back to a health probe when no PID file exists (e.g. adopted instances).
 func (m *AthensManager) IsRunning(ctx context.Context) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.processManager.IsRunning()
+	if m.processManager.IsRunning() {
+		return true
+	}
+	return ProbeServiceHealth(m.config.Port, "/healthz", []int{200})
 }
 
 // GetEndpoint returns the Athens proxy endpoint.

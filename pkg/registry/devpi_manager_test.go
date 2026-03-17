@@ -739,3 +739,93 @@ func TestDevpiManager_Start_PortInUse_UnhealthyService(t *testing.T) {
 	assert.ErrorIs(t, startErr, ErrPortInUse,
 		"Start should return ErrPortInUse when health probe fails")
 }
+
+// TestDevpiManager_IsRunning_HealthProbeFallback verifies that IsRunning()
+// returns true when the PID file is missing but a healthy devpi instance is
+// responding on the configured port. This is the "adopted instance" scenario
+// where Start() returned nil without writing a PID file.
+func TestDevpiManager_IsRunning_HealthProbeFallback(t *testing.T) {
+	// Stand up a fake "devpi" that responds 200 on /.
+	port := bindAndServeDevpi(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+
+	config := PyPIProxyConfig{
+		Enabled:   true,
+		Lifecycle: "manual",
+		Port:      port,
+		Storage:   t.TempDir(), // Empty dir — no PID file
+	}
+	mockBinary := NewMockPipxBinaryManager(config.Storage, "6.2.0")
+	mockProcess := NewProcessManager(ProcessConfig{
+		PIDFile: config.Storage + "/devpi.pid",
+		LogFile: config.Storage + "/devpi.log",
+	})
+	mgr, err := NewDevpiManager(config, mockBinary, mockProcess)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	assert.True(t, mgr.IsRunning(ctx),
+		"IsRunning should return true when PID file is missing but health probe succeeds")
+}
+
+// TestDevpiManager_IsRunning_HealthProbeFallback_Redirect verifies that
+// IsRunning() returns true when devpi responds with 302 (redirect). A
+// redirect means the service is alive and healthy.
+func TestDevpiManager_IsRunning_HealthProbeFallback_Redirect(t *testing.T) {
+	port := bindAndServeDevpi(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			w.Header().Set("Location", "/+login")
+			w.WriteHeader(http.StatusFound)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+
+	config := PyPIProxyConfig{
+		Enabled:   true,
+		Lifecycle: "manual",
+		Port:      port,
+		Storage:   t.TempDir(),
+	}
+	mockBinary := NewMockPipxBinaryManager(config.Storage, "6.2.0")
+	mockProcess := NewProcessManager(ProcessConfig{
+		PIDFile: config.Storage + "/devpi.pid",
+		LogFile: config.Storage + "/devpi.log",
+	})
+	mgr, err := NewDevpiManager(config, mockBinary, mockProcess)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	assert.True(t, mgr.IsRunning(ctx),
+		"IsRunning should return true when devpi responds 302 (redirect)")
+}
+
+// TestDevpiManager_IsRunning_NoPIDNoHealth verifies that IsRunning() returns
+// false when both the PID file is missing AND the health probe fails.
+func TestDevpiManager_IsRunning_NoPIDNoHealth(t *testing.T) {
+	config := PyPIProxyConfig{
+		Enabled:   true,
+		Lifecycle: "manual",
+		Port:      19878, // Nothing listening here
+		Storage:   t.TempDir(),
+	}
+	mockBinary := NewMockPipxBinaryManager(config.Storage, "6.2.0")
+	mockProcess := NewProcessManager(ProcessConfig{
+		PIDFile: config.Storage + "/devpi.pid",
+		LogFile: config.Storage + "/devpi.log",
+	})
+	mgr, err := NewDevpiManager(config, mockBinary, mockProcess)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	assert.False(t, mgr.IsRunning(ctx),
+		"IsRunning should return false when both PID file and health probe fail")
+}

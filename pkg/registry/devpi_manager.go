@@ -191,10 +191,14 @@ func (m *DevpiManager) EnsureRunning(ctx context.Context) error {
 }
 
 // IsRunning checks if the devpi proxy is currently running.
+// Falls back to a health probe when no PID file exists (e.g. adopted instances).
 func (m *DevpiManager) IsRunning(ctx context.Context) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.processManager.IsRunning()
+	if m.processManager.IsRunning() {
+		return true
+	}
+	return ProbeServiceHealth(m.config.Port, "/", []int{200, 302})
 }
 
 // GetEndpoint returns the devpi proxy endpoint.

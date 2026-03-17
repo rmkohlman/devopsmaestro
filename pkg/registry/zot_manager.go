@@ -147,10 +147,14 @@ func (z *ZotManager) EnsureRunning(ctx context.Context) error {
 }
 
 // IsRunning checks if the registry is currently running.
+// Falls back to a health probe when no PID file exists (e.g. adopted instances).
 func (z *ZotManager) IsRunning(ctx context.Context) bool {
 	z.mu.RLock()
 	defer z.mu.RUnlock()
-	return z.processManager.IsRunning()
+	if z.processManager.IsRunning() {
+		return true
+	}
+	return ProbeServiceHealth(z.config.Port, "/v2/", []int{200, 401})
 }
 
 // GetEndpoint returns the registry endpoint.

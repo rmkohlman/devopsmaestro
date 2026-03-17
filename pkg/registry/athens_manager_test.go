@@ -578,3 +578,61 @@ func TestAthensManager_Start_PortInUse_UnhealthyService(t *testing.T) {
 	assert.ErrorIs(t, startErr, ErrPortInUse,
 		"Start should return ErrPortInUse when health probe fails")
 }
+
+// TestAthensManager_IsRunning_HealthProbeFallback verifies that IsRunning()
+// returns true when the PID file is missing but a healthy Athens instance is
+// responding on the configured port. This is the "adopted instance" scenario
+// where Start() returned nil without writing a PID file.
+func TestAthensManager_IsRunning_HealthProbeFallback(t *testing.T) {
+	// Stand up a fake "Athens" that responds 200 on /healthz.
+	port := bindAndServeAthens(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/healthz" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+
+	config := GoModuleConfig{
+		Enabled:   true,
+		Lifecycle: "manual",
+		Port:      port,
+		Storage:   t.TempDir(), // Empty dir — no PID file
+	}
+	mockBinary := NewMockBinaryManager(config.Storage, "v0.13.0")
+	mockProcess := NewProcessManager(ProcessConfig{
+		PIDFile: config.Storage + "/athens.pid",
+		LogFile: config.Storage + "/athens.log",
+	})
+	mgr, err := NewAthensManager(config, mockBinary, mockProcess)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	assert.True(t, mgr.IsRunning(ctx),
+		"IsRunning should return true when PID file is missing but health probe succeeds")
+}
+
+// TestAthensManager_IsRunning_NoPIDNoHealth verifies that IsRunning() returns
+// false when both the PID file is missing AND the health probe fails (no
+// service on the port).
+func TestAthensManager_IsRunning_NoPIDNoHealth(t *testing.T) {
+	config := GoModuleConfig{
+		Enabled:   true,
+		Lifecycle: "manual",
+		Port:      19876, // Nothing listening here
+		Storage:   t.TempDir(),
+	}
+	mockBinary := NewMockBinaryManager(config.Storage, "v0.13.0")
+	mockProcess := NewProcessManager(ProcessConfig{
+		PIDFile: config.Storage + "/athens.pid",
+		LogFile: config.Storage + "/athens.log",
+	})
+	mgr, err := NewAthensManager(config, mockBinary, mockProcess)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	assert.False(t, mgr.IsRunning(ctx),
+		"IsRunning should return false when both PID file and health probe fail")
+}

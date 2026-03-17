@@ -626,3 +626,89 @@ func TestZotManager_Start_PortInUse_UnhealthyService(t *testing.T) {
 	assert.ErrorIs(t, startErr, ErrPortInUse,
 		"Start should return ErrPortInUse when health probe fails")
 }
+
+// TestZotManager_IsRunning_HealthProbeFallback verifies that IsRunning()
+// returns true when the PID file is missing but a healthy Zot instance is
+// responding on the configured port. This is the "adopted instance" scenario
+// where Start() returned nil without writing a PID file.
+func TestZotManager_IsRunning_HealthProbeFallback(t *testing.T) {
+	// Stand up a fake "Zot" that responds 200 on /v2/.
+	port := bindAndServeZot(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v2/" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+
+	config := RegistryConfig{
+		Enabled:   true,
+		Lifecycle: "manual",
+		Port:      port,
+		Storage:   t.TempDir(), // Empty dir — no PID file
+	}
+	mockBinary := NewMockBinaryManager(config.Storage, "1.4.3")
+	mockProcess := NewProcessManager(ProcessConfig{
+		PIDFile: config.Storage + "/zot.pid",
+		LogFile: config.Storage + "/zot.log",
+	})
+	mgr := NewZotManagerWithDeps(config, mockBinary, mockProcess)
+
+	ctx := context.Background()
+
+	assert.True(t, mgr.IsRunning(ctx),
+		"IsRunning should return true when PID file is missing but health probe succeeds")
+}
+
+// TestZotManager_IsRunning_HealthProbeFallback_Unauthorized verifies that
+// IsRunning() returns true when the Zot instance responds with 401 (auth
+// enabled). A 401 means the service is alive and healthy.
+func TestZotManager_IsRunning_HealthProbeFallback_Unauthorized(t *testing.T) {
+	port := bindAndServeZot(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v2/" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+
+	config := RegistryConfig{
+		Enabled:   true,
+		Lifecycle: "manual",
+		Port:      port,
+		Storage:   t.TempDir(),
+	}
+	mockBinary := NewMockBinaryManager(config.Storage, "1.4.3")
+	mockProcess := NewProcessManager(ProcessConfig{
+		PIDFile: config.Storage + "/zot.pid",
+		LogFile: config.Storage + "/zot.log",
+	})
+	mgr := NewZotManagerWithDeps(config, mockBinary, mockProcess)
+
+	ctx := context.Background()
+
+	assert.True(t, mgr.IsRunning(ctx),
+		"IsRunning should return true when Zot responds 401 (auth enabled)")
+}
+
+// TestZotManager_IsRunning_NoPIDNoHealth verifies that IsRunning() returns
+// false when both the PID file is missing AND the health probe fails.
+func TestZotManager_IsRunning_NoPIDNoHealth(t *testing.T) {
+	config := RegistryConfig{
+		Enabled:   true,
+		Lifecycle: "manual",
+		Port:      19877, // Nothing listening here
+		Storage:   t.TempDir(),
+	}
+	mockBinary := NewMockBinaryManager(config.Storage, "1.4.3")
+	mockProcess := NewProcessManager(ProcessConfig{
+		PIDFile: config.Storage + "/zot.pid",
+		LogFile: config.Storage + "/zot.log",
+	})
+	mgr := NewZotManagerWithDeps(config, mockBinary, mockProcess)
+
+	ctx := context.Background()
+
+	assert.False(t, mgr.IsRunning(ctx),
+		"IsRunning should return false when both PID file and health probe fail")
+}

@@ -4,6 +4,18 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Latest Releases
 
+### v0.45.2 (2026-03-17)
+
+**🐛 IsRunning Health Probe Fallback**
+
+Fixed `dvm get registries` showing "stopped" for Athens, Zot, and Devpi registries that were adopted as already-running by `Start()`.
+
+Root cause: `Start()` adopted a running instance (health probe succeeded on a busy port) and returned `nil` without writing a PID file. A fresh `RegistryManager` (created on every `dvm get registries` call) then called `IsRunning()` → read PID file → not found → returned `false` → displayed "stopped".
+
+- **`IsRunning()` overridden on all 3 managers** — adds a health probe fallback when the PID file check returns false; reuses the existing `ProbeServiceHealth()` from `utils.go` with the same endpoints and accepted status codes as the adoption path in `Start()`
+- **Health endpoints** — Athens: `GET /healthz` → 200; Zot: `GET /v2/` → 200 or 401; Devpi: `GET /` → 200 or 302
+- 8 new test functions across 3 test files
+
 ### v0.45.1 (2026-03-16)
 
 **🐛 Zot Checksum Manifest Parsing Fix**
@@ -861,6 +873,7 @@ See the [full migration guide](https://github.com/rmkohlman/devopsmaestro/blob/m
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **0.45.2** | 2026-03-17 | IsRunning health probe fallback — `dvm get registries` no longer shows "stopped" for adopted Athens/Zot/Devpi instances; `IsRunning()` probes health endpoint when PID file is absent |
 | **0.45.0** | 2026-03-16 | Registry startup resilience — port-in-use probe for Athens/Zot/Devpi, Zot checksum URL rewrite, Devpi pip fallback |
 | **0.44.0** | 2026-03-16 | Container Neovim environment fixes — Node 22 on Debian, Mason ensure_installed removed from plugin YAML, build-time tool authority centralized, pylint/shellcheck executable guards |
 | **0.43.2** | 2026-03-16 | Build output secret redaction — `RedactingWriter` intercepts `pip`/`npm`/`go get` output; replaces credential values with `***`; cross-boundary buffering; zero-overhead fast path |
