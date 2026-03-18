@@ -2,6 +2,20 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.56.0 (2026-03-18)
+
+**Hierarchical CA Certificate Cascade**
+
+CA certificates now cascade down the full `global → ecosystem → domain → app → workspace` hierarchy, matching the build args cascade introduced in v0.55.0. The most specific level wins by cert name.
+
+- **`dvm set ca-cert NAME`** — set a CA cert at any level via `--global`, `--ecosystem`, `--domain`, `--app`, or `--workspace`; requires `--vault-secret <name>`; optional `--vault-env` and `--vault-field` flags; `--dry-run` previews without applying; names validated against `^[a-zA-Z0-9][a-zA-Z0-9_-]*$` with a 64-character limit
+- **`dvm get ca-certs`** — list CA certs at a specified level; `--effective` (requires `--workspace`) shows the fully merged cascade with a SOURCE provenance column indicating which level each cert originates from; cascade order: `global < ecosystem < domain < app < workspace`; `-o yaml`/`-o json` for scripting
+- **`dvm delete ca-cert NAME`** — delete a CA cert at any level using the same hierarchy flags; `-f/--force` skips confirmation; deleting a non-existent cert is a no-op
+- **Five-level cascade resolver** — `pkg/cacerts/resolver/` (`HierarchyCACertsResolver`, parallel to `pkg/buildargs/resolver/`); resolved certs fetched from MaestroVault at build time; missing or invalid certs are a fatal build error
+- **Strengthened PEM validation** — `crypto/x509` verifies `IsCA` flag; leaf certs, private keys, and non-certificate PEM blocks are rejected
+- **New YAML fields** — `spec.caCerts` added to Ecosystem and Domain; `spec.build.caCerts` added to App (Workspace already had this from v0.54.0)
+- 0 breaking changes; 1 new migration (`018_add_ca_certs`); 4 new production files; 4 modified production files; 36+ new test cases
+
 ## v0.55.0 (2026-03-18)
 
 **Hierarchical Build Args**

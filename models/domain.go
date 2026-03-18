@@ -17,6 +17,7 @@ type Domain struct {
 	Description sql.NullString `db:"description" json:"description,omitempty" yaml:"description,omitempty"`
 	Theme       sql.NullString `db:"theme" json:"theme,omitempty" yaml:"theme,omitempty"`
 	BuildArgs   sql.NullString `db:"build_args" json:"build_args,omitempty" yaml:"-"`
+	CACerts     sql.NullString `db:"ca_certs" json:"ca_certs,omitempty" yaml:"-"`
 	CreatedAt   time.Time      `db:"created_at" json:"created_at" yaml:"-"`
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at" yaml:"-"`
 }
@@ -39,9 +40,10 @@ type DomainMetadata struct {
 
 // DomainSpec contains domain specification
 type DomainSpec struct {
-	Theme string          `yaml:"theme,omitempty"`
-	Apps  []string        `yaml:"apps,omitempty"`
-	Build BuildArgsConfig `yaml:"build,omitempty"`
+	Theme   string          `yaml:"theme,omitempty"`
+	Apps    []string        `yaml:"apps,omitempty"`
+	Build   BuildArgsConfig `yaml:"build,omitempty"`
+	CACerts []CACertConfig  `yaml:"caCerts,omitempty"`
 }
 
 // ToYAML converts a Domain to YAML format.
@@ -71,6 +73,15 @@ func (d *Domain) ToYAML(ecosystemName string, appNames []string) DomainYAML {
 		}
 	}
 
+	// Restore CA certs from DB JSON blob if present
+	var caCerts []CACertConfig
+	if d.CACerts.Valid && d.CACerts.String != "" {
+		var certs []CACertConfig
+		if err := json.Unmarshal([]byte(d.CACerts.String), &certs); err == nil && len(certs) > 0 {
+			caCerts = certs
+		}
+	}
+
 	return DomainYAML{
 		APIVersion: "devopsmaestro.io/v1",
 		Kind:       "Domain",
@@ -81,9 +92,10 @@ func (d *Domain) ToYAML(ecosystemName string, appNames []string) DomainYAML {
 			Annotations: annotations,
 		},
 		Spec: DomainSpec{
-			Theme: theme,
-			Apps:  appNames,
-			Build: buildConfig,
+			Theme:   theme,
+			Apps:    appNames,
+			Build:   buildConfig,
+			CACerts: caCerts,
 		},
 	}
 }
@@ -104,6 +116,13 @@ func (d *Domain) FromYAML(yaml DomainYAML) {
 	if len(yaml.Spec.Build.Args) > 0 {
 		if b, err := json.Marshal(yaml.Spec.Build.Args); err == nil {
 			d.BuildArgs = sql.NullString{String: string(b), Valid: true}
+		}
+	}
+
+	// Persist CA certs as JSON (separate column)
+	if len(yaml.Spec.CACerts) > 0 {
+		if b, err := json.Marshal(yaml.Spec.CACerts); err == nil {
+			d.CACerts = sql.NullString{String: string(b), Valid: true}
 		}
 	}
 }

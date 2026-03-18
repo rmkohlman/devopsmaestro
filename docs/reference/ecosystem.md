@@ -24,6 +24,12 @@ spec:
   build:
     args:
       PIP_INDEX_URL: "https://pypi.corp.com/root/prod"
+    caCerts:
+      - name: corp-root-ca
+        vaultSecret: corp-root-ca-pem
+      - name: internal-ca
+        vaultSecret: internal-ca-pem
+        vaultField: certificate
   domains:
     - backend
     - frontend
@@ -44,6 +50,11 @@ spec:
 | `spec.theme` | string | ❌ | Default theme for all domains/apps/workspaces |
 | `spec.build` | object | ❌ | Build configuration inherited by all workspaces in this ecosystem |
 | `spec.build.args` | map[string]string | ❌ | Build arguments passed as Docker `--build-arg` to all workspace builds |
+| `spec.caCerts` | array | ❌ | CA certificates cascaded to all workspace builds in this ecosystem |
+| `spec.caCerts[].name` | string | ✅ | Certificate name (must match `^[a-zA-Z0-9][a-zA-Z0-9_-]*$`; max 64 chars) |
+| `spec.caCerts[].vaultSecret` | string | ✅ | MaestroVault secret name containing the PEM certificate |
+| `spec.caCerts[].vaultEnvironment` | string | ❌ | Vault environment override |
+| `spec.caCerts[].vaultField` | string | ❌ | Field within the secret (default: `cert`) |
 
 ## Field Details
 
@@ -103,6 +114,35 @@ Manage ecosystem-level build args with:
 dvm set build-arg PIP_INDEX_URL "https://pypi.corp.com/root/prod" --ecosystem my-platform
 dvm get build-args --ecosystem my-platform
 dvm delete build-arg PIP_INDEX_URL --ecosystem my-platform
+```
+
+### spec.caCerts (optional)
+
+CA certificates that cascade down to all domains, apps, and workspaces in this ecosystem. Each entry references a PEM certificate stored in MaestroVault. Certificates are fetched at build time and injected into the container image via `COPY certs/ /usr/local/share/ca-certificates/custom/` + `RUN update-ca-certificates`. Missing or invalid certificates are a fatal build error.
+
+```yaml
+spec:
+  caCerts:
+    - name: corp-root-ca
+      vaultSecret: corp-root-ca-pem
+    - name: internal-ca
+      vaultSecret: internal-ca-pem
+      vaultField: certificate
+```
+
+**Cascade order (most specific level wins by cert name):**
+```
+global < ecosystem < domain < app < workspace
+```
+
+A cert defined at the ecosystem level is inherited by all domains, apps, and workspaces in this ecosystem unless overridden at a more specific level. Use `dvm get ca-certs --effective --workspace <name>` to see the fully merged result with provenance for any workspace.
+
+Manage ecosystem-level CA certs with:
+
+```bash
+dvm set ca-cert corp-root-ca --vault-secret corp-root-ca-pem --ecosystem my-platform
+dvm get ca-certs --ecosystem my-platform
+dvm delete ca-cert corp-root-ca --ecosystem my-platform
 ```
 
 ## Usage Examples

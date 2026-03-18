@@ -1,6 +1,6 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.55.0  
+> **Version**: v0.56.0  
 > **Last Updated**: March 18, 2026
 
 ---
@@ -40,6 +40,7 @@ source tests/manual/part2-post-attach.sh
 | 25 | Manual | List Format Export (v0.53.0) |
 | 26 | Manual | Corporate Build Configuration (v0.54.0) |
 | 27 | Manual | Hierarchical Build Args (v0.55.0) |
+| 28 | Manual | Hierarchical CA Certificate Cascade (v0.56.0) |
 
 ---
 
@@ -4988,6 +4989,187 @@ dvm delete build-arg GITHUB_PAT --app my-api
 
 ---
 
+## Part 28: Hierarchical CA Certificate Cascade (v0.56.0)
+
+These scenarios verify the three new commands (`dvm set ca-cert`, `dvm get ca-certs`, `dvm delete ca-cert`) and the five-level cascade resolver introduced in v0.56.0.
+
+**Prerequisites:**
+- An existing ecosystem, domain, app, and workspace
+- MaestroVault running with at least one test PEM secret
+- `dvm` binary built from v0.56.0 source
+
+---
+
+### Scenario 129: Set CA Cert at Each Hierarchy Level
+
+Verify that `dvm set ca-cert` accepts each hierarchy flag and stores the reference.
+
+```bash
+dvm set ca-cert corp-root-ca --vault-secret corp-root-ca-pem --global
+dvm set ca-cert corp-root-ca --vault-secret corp-root-ca-pem --ecosystem my-platform
+dvm set ca-cert corp-root-ca --vault-secret corp-root-ca-pem --domain backend
+dvm set ca-cert corp-root-ca --vault-secret corp-root-ca-pem --app my-api
+dvm set ca-cert corp-root-ca --vault-secret corp-root-ca-pem --workspace dev
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Global set | No error; exit 0 | |
+| Ecosystem set | No error; exit 0 | |
+| Domain set | No error; exit 0 | |
+| App set | No error; exit 0 | |
+| Workspace set | No error; exit 0 | |
+
+---
+
+### Scenario 130: Get CA Certs — Flat View per Level
+
+Verify that `dvm get ca-certs` returns only the certs for the specified level (not the full cascade).
+
+```bash
+dvm get ca-certs --global
+dvm get ca-certs --ecosystem my-platform
+dvm get ca-certs --domain backend
+dvm get ca-certs --app my-api
+dvm get ca-certs --workspace dev
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Global shows only global cert | `corp-root-ca` present; exit 0 | |
+| App shows only app-level cert | `corp-root-ca` present at app level | |
+| Workspace shows only workspace-level cert | `corp-root-ca` present at workspace level | |
+
+---
+
+### Scenario 131: Get CA Certs — Effective Cascade with Provenance
+
+Verify that `--effective` merges all levels and shows the winning source with a SOURCE provenance column.
+
+```bash
+dvm get ca-certs --workspace dev --effective
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Output contains `corp-root-ca` | Cert name present | |
+| SOURCE column shows `workspace` | Workspace-level wins | |
+| Legend present | Output shows `global < ecosystem < domain < app < workspace` | |
+
+---
+
+### Scenario 132: Cascade Resolution Order (Workspace Wins)
+
+Verify that workspace-level certs override all other levels.
+
+```bash
+# Remove workspace override so app level wins
+dvm delete ca-cert corp-root-ca --workspace dev --force
+dvm get ca-certs --workspace dev --effective
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Workspace cert removed | Exit 0; no error | |
+| Effective now shows app-level source | SOURCE column shows `app` | |
+
+**Restore:**
+```bash
+dvm set ca-cert corp-root-ca --vault-secret corp-root-ca-pem --workspace dev
+```
+
+---
+
+### Scenario 133: Dry Run Preview
+
+Verify that `--dry-run` describes the operation without writing any data.
+
+```bash
+dvm set ca-cert test-ca --vault-secret test-ca-pem --global --dry-run
+dvm get ca-certs --global
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Dry run exits 0 | No error | |
+| Dry run shows preview output | Output describes what would be set | |
+| Cert not stored | `test-ca` does NOT appear in `dvm get ca-certs --global` | |
+
+---
+
+### Scenario 134: Name Validation Rejects Invalid Names
+
+Verify that invalid cert names are rejected.
+
+```bash
+dvm set ca-cert "invalid name" --vault-secret test-pem --global
+dvm set ca-cert "" --vault-secret test-pem --global
+dvm set ca-cert "$(python3 -c 'print("a" * 65)')" --vault-secret test-pem --global
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Name with space rejected | Non-zero exit; error mentions invalid name format | |
+| Empty name rejected | Non-zero exit | |
+| 65-character name rejected | Non-zero exit; error mentions 64-character limit | |
+
+---
+
+### Scenario 135: Delete CA Cert — No-Op for Missing Cert
+
+Verify that deleting a non-existent cert exits cleanly with no error.
+
+```bash
+dvm delete ca-cert nonexistent-cert --global --force
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Delete non-existent cert | Exit 0; no error | |
+
+---
+
+### Scenario 136: Build Uses Cascaded CA Certs
+
+Verify that the resolved CA certs cascade is fetched from Vault and injected into the build.
+
+```bash
+# Set a cert at app level
+dvm set ca-cert corp-root-ca --vault-secret corp-root-ca-pem --app my-api
+
+# Build and verify cert injection in Dockerfile
+dvm build -a my-api -w dev --no-cache 2>&1 | grep -i "ca-cert\|update-ca-certificates\|corp-root-ca"
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Build completes | No fatal errors | |
+| Dockerfile contains cert COPY | `COPY certs/ /usr/local/share/ca-certificates/custom/` present | |
+| `RUN update-ca-certificates` present | CA update command in Dockerfile | |
+| Missing Vault secret is fatal | Build fails with clear error if secret missing | |
+
+---
+
+### Scenario 137: Delete CA Cert Cleanup
+
+Verify that `dvm delete ca-cert` removes a cert reference at the specified level.
+
+```bash
+dvm delete ca-cert corp-root-ca --global --force
+dvm delete ca-cert corp-root-ca --ecosystem my-platform --force
+dvm delete ca-cert corp-root-ca --domain backend --force
+dvm delete ca-cert corp-root-ca --app my-api --force
+dvm delete ca-cert corp-root-ca --workspace dev --force
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| All deletes succeed | Exit 0 for each | |
+| `dvm get ca-certs --global` shows empty | No `corp-root-ca` entry | |
+| `dvm get ca-certs --workspace dev --effective` shows empty | No cascaded certs | |
+
+---
+
 ## Test Results Summary
 
 | Part | Tests | Pass | Fail |
@@ -5022,6 +5204,7 @@ dvm delete build-arg GITHUB_PAT --app my-api
 | Part 25: List Format Export | 7 scenarios | | |
 | Part 26: Corporate Build Configuration | 6 scenarios | | |
 | Part 27: Hierarchical Build Args | 8 scenarios | | |
+| Part 28: Hierarchical CA Certificate Cascade | 9 scenarios | | |
 
 ---
 
@@ -5074,5 +5257,5 @@ colima nerdctl -- --namespace devopsmaestro images
 
 **Tested by:** ________________  
 **Date:** ________________  
-**Version**: v0.55.0  
+**Version**: v0.56.0  
 **Platform:** ________________

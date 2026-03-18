@@ -6,6 +6,7 @@ import (
 	"devopsmaestro/config"
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/buildargs/resolver"
+	cacertsresolver "devopsmaestro/pkg/cacerts/resolver"
 	"devopsmaestro/pkg/envvalidation"
 	"devopsmaestro/pkg/nvimops/plugin"
 	"devopsmaestro/pkg/paths"
@@ -233,7 +234,28 @@ func buildWorkspace(cmd *cobra.Command) error {
 		return err
 	}
 
-	// Step 4.5: Prepare CA certificates if configured
+	// Step 4.5a: Resolve hierarchical CA certs (global < ecosystem < domain < app < workspace)
+	// This merges certs from all hierarchy levels before preparing them for the build.
+	caCertsResolver := cacertsresolver.NewHierarchyCACertsResolver(sqlDS)
+	caCertsResolution, caCertsErr := caCertsResolver.Resolve(context.Background(), workspace.ID)
+	if caCertsErr != nil {
+		slog.Warn("failed to resolve hierarchical CA certs, continuing with workspace-only certs", "error", caCertsErr)
+	} else if len(caCertsResolution.Certs) > 0 {
+		// Replace workspace-level certs with the fully merged cascade result
+		mergedCerts := make([]models.CACertConfig, 0, len(caCertsResolution.Certs))
+		for _, entry := range caCertsResolution.Certs {
+			mergedCerts = append(mergedCerts, models.CACertConfig{
+				Name:             entry.Name,
+				VaultSecret:      entry.VaultSecret,
+				VaultEnvironment: entry.VaultEnvironment,
+				VaultField:       entry.VaultField,
+			})
+			slog.Debug("using cascaded CA cert", "name", entry.Name, "source", entry.Source.String())
+		}
+		workspaceYAML.Spec.Build.CACerts = mergedCerts
+	}
+
+	// Step 4.5b: Prepare CA certificates if configured
 	if len(workspaceYAML.Spec.Build.CACerts) > 0 {
 		render.Progress("Resolving CA certificates from vault...")
 		if err := prepareCACerts(stagingDir, workspaceYAML.Spec.Build.CACerts); err != nil {

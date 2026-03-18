@@ -24,6 +24,9 @@ spec:
   build:
     args:
       NPM_REGISTRY: "https://npm.corp.com/registry"
+    caCerts:
+      - name: corp-root-ca
+        vaultSecret: corp-root-ca-pem
   apps:
     - api-service
     - user-service
@@ -44,6 +47,11 @@ spec:
 | `spec.theme` | string | ❌ | Default theme for apps/workspaces in this domain |
 | `spec.build` | object | ❌ | Build configuration inherited by all workspaces in this domain |
 | `spec.build.args` | map[string]string | ❌ | Build arguments passed as Docker `--build-arg` to all workspace builds |
+| `spec.caCerts` | array | ❌ | CA certificates cascaded to all workspace builds in this domain |
+| `spec.caCerts[].name` | string | ✅ | Certificate name (must match `^[a-zA-Z0-9][a-zA-Z0-9_-]*$`; max 64 chars) |
+| `spec.caCerts[].vaultSecret` | string | ✅ | MaestroVault secret name containing the PEM certificate |
+| `spec.caCerts[].vaultEnvironment` | string | ❌ | Vault environment override |
+| `spec.caCerts[].vaultField` | string | ❌ | Field within the secret (default: `cert`) |
 
 ## Field Details
 
@@ -111,6 +119,35 @@ Manage domain-level build args with:
 dvm set build-arg NPM_REGISTRY "https://npm.corp.com/registry" --domain backend
 dvm get build-args --domain backend
 dvm delete build-arg NPM_REGISTRY --domain backend
+```
+
+### spec.caCerts (optional)
+
+CA certificates that cascade down to all apps and workspaces in this domain. Each entry references a PEM certificate stored in MaestroVault. Certificates are fetched at build time and injected into the container image via `COPY certs/ /usr/local/share/ca-certificates/custom/` + `RUN update-ca-certificates`. Missing or invalid certificates are a fatal build error.
+
+```yaml
+spec:
+  caCerts:
+    - name: corp-root-ca
+      vaultSecret: corp-root-ca-pem
+    - name: internal-ca
+      vaultSecret: internal-ca-pem
+      vaultField: certificate
+```
+
+**Cascade order (most specific level wins by cert name):**
+```
+global < ecosystem < domain < app < workspace
+```
+
+A cert defined at the domain level overrides any matching cert from the ecosystem or global level, and is itself overridden by app- or workspace-level definitions. Use `dvm get ca-certs --effective --workspace <name>` to see the fully merged result with provenance for any workspace.
+
+Manage domain-level CA certs with:
+
+```bash
+dvm set ca-cert corp-root-ca --vault-secret corp-root-ca-pem --domain backend
+dvm get ca-certs --domain backend
+dvm delete ca-cert corp-root-ca --domain backend
 ```
 
 ## Usage Examples

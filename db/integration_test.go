@@ -504,6 +504,7 @@ func createIntegrationSchema(driver Driver) error {
 			description TEXT,
 			theme TEXT,
 			build_args TEXT,
+			ca_certs TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
@@ -514,6 +515,7 @@ func createIntegrationSchema(driver Driver) error {
 			description TEXT,
 			theme TEXT,
 			build_args TEXT,
+			ca_certs TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (ecosystem_id) REFERENCES ecosystems(id),

@@ -8,6 +8,7 @@ import (
 
 // BuildArgsConfig defines build arguments shared across hierarchy levels
 // (Ecosystem and Domain). This is the YAML representation.
+// CA certs are stored separately at the spec level, not inside BuildArgsConfig.
 type BuildArgsConfig struct {
 	Args map[string]string `yaml:"args,omitempty" json:"args,omitempty"`
 }
@@ -28,6 +29,7 @@ type Ecosystem struct {
 	Description sql.NullString `db:"description" json:"description,omitempty" yaml:"description,omitempty"`
 	Theme       sql.NullString `db:"theme" json:"theme,omitempty" yaml:"theme,omitempty"`
 	BuildArgs   sql.NullString `db:"build_args" json:"build_args,omitempty" yaml:"-"`
+	CACerts     sql.NullString `db:"ca_certs" json:"ca_certs,omitempty" yaml:"-"`
 	CreatedAt   time.Time      `db:"created_at" json:"created_at" yaml:"-"`
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at" yaml:"-"`
 }
@@ -53,6 +55,7 @@ type EcosystemSpec struct {
 	Theme       string          `yaml:"theme,omitempty" json:"theme,omitempty"`
 	Domains     []string        `yaml:"domains,omitempty" json:"domains,omitempty"`
 	Build       BuildArgsConfig `yaml:"build,omitempty" json:"build,omitempty"`
+	CACerts     []CACertConfig  `yaml:"caCerts,omitempty" json:"caCerts,omitempty"`
 }
 
 // ToYAML converts an Ecosystem to YAML format.
@@ -82,6 +85,15 @@ func (e *Ecosystem) ToYAML(domainNames []string) EcosystemYAML {
 		}
 	}
 
+	// Restore CA certs from DB JSON blob if present
+	var caCerts []CACertConfig
+	if e.CACerts.Valid && e.CACerts.String != "" {
+		var certs []CACertConfig
+		if err := json.Unmarshal([]byte(e.CACerts.String), &certs); err == nil && len(certs) > 0 {
+			caCerts = certs
+		}
+	}
+
 	return EcosystemYAML{
 		APIVersion: "devopsmaestro.io/v1",
 		Kind:       "Ecosystem",
@@ -95,6 +107,7 @@ func (e *Ecosystem) ToYAML(domainNames []string) EcosystemYAML {
 			Theme:       theme,
 			Domains:     domainNames,
 			Build:       buildConfig,
+			CACerts:     caCerts,
 		},
 	}
 }
@@ -118,6 +131,13 @@ func (e *Ecosystem) FromYAML(yaml EcosystemYAML) {
 	if len(yaml.Spec.Build.Args) > 0 {
 		if b, err := json.Marshal(yaml.Spec.Build.Args); err == nil {
 			e.BuildArgs = sql.NullString{String: string(b), Valid: true}
+		}
+	}
+
+	// Persist CA certs as JSON (separate column)
+	if len(yaml.Spec.CACerts) > 0 {
+		if b, err := json.Marshal(yaml.Spec.CACerts); err == nil {
+			e.CACerts = sql.NullString{String: string(b), Valid: true}
 		}
 	}
 }

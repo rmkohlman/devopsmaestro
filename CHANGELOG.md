@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.56.0] - 2026-03-18 — Hierarchical CA Certificate Cascade
+
+### ✨ Features
+
+#### `dvm set ca-cert` — `cmd/set_ca_cert.go`
+- **Set a CA cert at any hierarchy level** — `dvm set ca-cert NAME [flags]`; exactly one level flag required per invocation
+- **Vault source flags** — `--vault-secret <name>` (required); `--vault-env <name>` (optional vault environment override); `--vault-field <name>` (optional field within secret, defaults to `"cert"`)
+- **Hierarchy flags** — `--global` (top of cascade), `--ecosystem <name>`, `--domain <name>`, `--app <name>`, `--workspace <name>`
+- **`--dry-run` flag** — preview the operation without applying any changes
+- **Name validation** — names must match `^[a-zA-Z0-9][a-zA-Z0-9_-]*$`; maximum 64 characters; enforced at validation time
+
+#### `dvm get ca-certs` — `cmd/get_ca_certs.go`
+- **List CA certs at any hierarchy level** — `dvm get ca-certs [flags]`; exactly one level flag required (`--global`, `--ecosystem`, `--domain`, `--app`, or `--workspace`)
+- **`--effective` flag** — shows the fully merged cascade with a SOURCE provenance column indicating which level each cert originates from; requires `--workspace`; cascade order: `global < ecosystem < domain < app < workspace` (workspace wins)
+- **`-o, --output <format>`** — machine-readable output for scripting and CI pipelines
+
+#### `dvm delete ca-cert` — `cmd/delete_ca_cert.go`
+- **Delete a CA cert at a specific hierarchy level** — `dvm delete ca-cert NAME [flags]`; exactly one level flag required
+- **Same hierarchy flags as `set ca-cert`** — `--global`, `--ecosystem`, `--domain`, `--app`, `--workspace`
+- **`-f, --force` flag** — skip confirmation prompt; interactive confirmation shown by default
+- **No-op safety** — deleting a cert that does not exist at the specified level exits cleanly with no error
+
+#### Cascade Resolver — `pkg/cacerts/resolver/`
+- **Five-level cascade** — `global < ecosystem < domain < app < workspace`; the most specific level wins; certs defined at multiple levels show the winning source with provenance in `--effective` output
+- **`HierarchyCACertsResolver`** — new type (parallel to `pkg/buildargs/resolver/`); `Resolve(ctx, workspaceID)` returns `resolution.Certs` and `resolution.Sources` (a map of cert name → source level)
+- **Injected at build time** — resolved certs are fetched from MaestroVault and written to the `certs/` directory before each `docker build`; any missing or invalid cert is a fatal build error
+
+### 🔒 Security
+
+- **Strengthened PEM validation** — CA certs are now parsed and verified via `crypto/x509`; `IsCA` flag must be `true`; leaf certificates, private keys, and non-certificate PEM blocks are explicitly rejected
+- **Name limits enforced** — 64-character name limit prevents path component abuse; same pattern validation as existing cert names
+
+### 🏗️ Technical
+
+| Metric | Value |
+|--------|-------|
+| Breaking changes | 0 |
+| New types | 1 (`HierarchyCACertsResolver`) |
+| New fields | 3 (`spec.caCerts` on Ecosystem; `spec.caCerts` on Domain; `spec.build.caCerts` on App — Workspace already had this from v0.54.0) |
+| New migration | 1 (`db/migrations/sqlite/018_add_ca_certs`) |
+| New production files | 4 (`cmd/set_ca_cert.go`, `cmd/get_ca_certs.go`, `cmd/delete_ca_cert.go`, `pkg/cacerts/resolver/`) |
+| Modified production files | 4 (models for Ecosystem, Domain, App; build pipeline) |
+| New test cases | 36+ across 4 test files |
+| Files changed | 24 |
+
+---
+
 ## [v0.55.0] - 2026-03-18 — Hierarchical Build Args
 
 ### ✨ Features

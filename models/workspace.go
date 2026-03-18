@@ -1,8 +1,10 @@
 package models
 
 import (
+	"crypto/x509"
 	"database/sql"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"regexp"
 	"strings"
@@ -387,6 +389,9 @@ func (c CACertConfig) Validate() error {
 	if c.Name == "" {
 		return fmt.Errorf("caCert name is required")
 	}
+	if len(c.Name) > 64 {
+		return fmt.Errorf("caCert name %q exceeds maximum length of 64 characters", c.Name)
+	}
 	if !certNameRegex.MatchString(c.Name) {
 		return fmt.Errorf("caCert name %q is invalid: must match %s", c.Name, certNameRegex.String())
 	}
@@ -409,7 +414,12 @@ func ValidateCACerts(certs []CACertConfig) error {
 	return nil
 }
 
-// ValidatePEMContent validates that the content looks like a PEM certificate.
+// ValidatePEMContent validates that the content is a valid PEM-encoded CA certificate.
+// It performs deep validation using crypto/x509:
+//   - Decodes the PEM block (must be CERTIFICATE type)
+//   - Parses the X.509 certificate
+//   - Verifies BasicConstraints CA=true
+//   - Rejects content containing private key material
 func ValidatePEMContent(content string) error {
 	trimmed := strings.TrimSpace(content)
 	if !strings.HasPrefix(trimmed, "-----BEGIN CERTIFICATE-----") {
@@ -418,5 +428,31 @@ func ValidatePEMContent(content string) error {
 	if !strings.Contains(trimmed, "-----END CERTIFICATE-----") {
 		return fmt.Errorf("PEM content appears truncated: missing -----END CERTIFICATE----- marker")
 	}
+
+	// Reject private key material (defense in depth)
+	if strings.Contains(trimmed, "-----BEGIN") && strings.Contains(trimmed, "PRIVATE KEY-----") {
+		return fmt.Errorf("PEM content must not contain private key material")
+	}
+
+	// Decode and parse PEM block
+	block, _ := pem.Decode([]byte(trimmed))
+	if block == nil {
+		return fmt.Errorf("failed to decode PEM block")
+	}
+	if block.Type != "CERTIFICATE" {
+		return fmt.Errorf("PEM block type is %q, expected CERTIFICATE", block.Type)
+	}
+
+	// Parse X.509 certificate
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return fmt.Errorf("failed to parse X.509 certificate: %w", err)
+	}
+
+	// Verify CA flag
+	if !cert.IsCA {
+		return fmt.Errorf("certificate is not a CA certificate (BasicConstraints CA=false)")
+	}
+
 	return nil
 }

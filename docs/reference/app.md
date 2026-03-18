@@ -31,6 +31,12 @@ spec:
     context: .
     args:
       GITHUB_TOKEN: ${GITHUB_TOKEN}
+    caCerts:
+      - name: corp-root-ca
+        vaultSecret: corp-root-ca-pem
+      - name: internal-ca
+        vaultSecret: internal-ca-pem
+        vaultField: certificate
   dependencies:
     file: go.mod
     install: go mod download
@@ -76,6 +82,7 @@ spec:
 | `spec.path` | string | ✅ | Absolute path to source code |
 | `spec.language` | object | ❌ | Programming language configuration |
 | `spec.build` | object | ❌ | Build configuration |
+| `spec.build.caCerts` | array | ❌ | CA certificates cascaded from hierarchy levels; fetched from MaestroVault at build time |
 | `spec.dependencies` | object | ❌ | Dependency management |
 | `spec.services` | array | ❌ | External services (databases, etc.) |
 | `spec.ports` | array | ❌ | Ports the app exposes |
@@ -147,6 +154,46 @@ spec:
     args:                         # Build arguments
       GITHUB_TOKEN: ${GITHUB_TOKEN}
       BUILD_ENV: production
+    caCerts:                      # CA certificates from MaestroVault
+      - name: corp-root-ca
+        vaultSecret: corp-root-ca-pem
+```
+
+### spec.build.caCerts (optional)
+
+CA certificates for this app's workspace builds. Each entry references a PEM certificate stored in MaestroVault. Certificates are fetched at build time and injected into the container image via `COPY certs/ /usr/local/share/ca-certificates/custom/` + `RUN update-ca-certificates`. Missing or invalid certificates are a fatal build error.
+
+```yaml
+spec:
+  build:
+    caCerts:
+      - name: corp-root-ca
+        vaultSecret: corp-root-ca-pem
+      - name: internal-ca
+        vaultSecret: internal-ca-pem
+        vaultField: certificate
+```
+
+**Cascade order (most specific level wins by cert name):**
+```
+global < ecosystem < domain < app < workspace
+```
+
+An app-level cert overrides any matching cert from higher levels (domain, ecosystem, global). Individual workspaces can further override by defining a cert with the same name. Use `dvm get ca-certs --effective --workspace <name>` to see the fully merged result with provenance.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | ✅ | Certificate name; must match `^[a-zA-Z0-9][a-zA-Z0-9_-]*$`; max 64 chars |
+| `vaultSecret` | string | ✅ | MaestroVault secret name containing the PEM certificate |
+| `vaultEnvironment` | string | ❌ | Vault environment override |
+| `vaultField` | string | ❌ | Field within the secret (default: `cert`) |
+
+Manage app-level CA certs with:
+
+```bash
+dvm set ca-cert corp-root-ca --vault-secret corp-root-ca-pem --app my-api
+dvm get ca-certs --app my-api
+dvm delete ca-cert corp-root-ca --app my-api
 ```
 
 ### spec.dependencies (optional)

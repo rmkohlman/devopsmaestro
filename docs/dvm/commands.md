@@ -841,6 +841,144 @@ dvm delete build-arg NPM_TOKEN --workspace dev
 
 ---
 
+## CA Certs (NEW in v0.56.0)
+
+CA certificates cascade down the full `global → ecosystem → domain → app → workspace` hierarchy. The most specific level wins by cert name. Resolved certs are fetched from MaestroVault at build time and injected into the container image.
+
+### `dvm set ca-cert`
+
+Set a CA cert at any hierarchy level.
+
+```bash
+dvm set ca-cert <NAME> [flags]
+```
+
+**Vault source flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--vault-secret <name>` | **Required.** Name of the MaestroVault secret containing the certificate |
+| `--vault-env <name>` | Optional vault environment override |
+| `--vault-field <name>` | Field within the secret (default: `cert`) |
+
+**Hierarchy flags (exactly one required):**
+
+| Flag | Description |
+|------|-------------|
+| `--global` | Set at global level (lowest priority — inherited by everything) |
+| `--ecosystem <name>` | Set at ecosystem level |
+| `--domain <name>` | Set at domain level |
+| `--app <name>` | Set at app level |
+| `--workspace <name>` | Set at workspace level (highest priority) |
+
+**Additional flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--dry-run` | Preview the operation without applying any changes |
+
+**Name validation:** Names must match `^[a-zA-Z0-9][a-zA-Z0-9_-]*$`; maximum 64 characters.
+
+**Examples:**
+
+```bash
+# Set a global corporate CA cert
+dvm set ca-cert corp-root-ca --vault-secret corp-root-ca-pem --global
+
+# Override at ecosystem level with a different secret
+dvm set ca-cert corp-root-ca --vault-secret corp-root-ca-eu-pem --ecosystem my-platform
+
+# Set a cert only for a specific app
+dvm set ca-cert internal-ca --vault-secret internal-ca-pem --app my-api
+
+# Preview without applying
+dvm set ca-cert corp-root-ca --vault-secret corp-root-ca-pem --global --dry-run
+```
+
+---
+
+### `dvm get ca-certs`
+
+List CA certs at the active or specified hierarchy level.
+
+```bash
+dvm get ca-certs [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--global` | Show global-level CA certs |
+| `--ecosystem <name>` | Show CA certs for an ecosystem |
+| `--domain <name>` | Show CA certs for a domain |
+| `--app <name>` | Show CA certs for an app |
+| `--workspace <name>` | Show CA certs for a workspace |
+| `--effective` | Show the fully merged cascade with SOURCE provenance (requires `--workspace`) |
+| `-o, --output <format>` | Output format: `table`, `yaml`, `json` |
+
+**CA Certs Cascade:**
+Certs inherit down the hierarchy unless overridden by cert name:
+```
+global → ecosystem → domain → app → workspace
+```
+The most specific level (workspace) wins. Use `--effective` to see the merged result with a SOURCE column showing which level each cert comes from.
+
+**Examples:**
+
+```bash
+# List global CA certs
+dvm get ca-certs --global
+
+# Show the full effective cascade for a workspace (with provenance)
+dvm get ca-certs --workspace dev --effective
+
+# Machine-readable output
+dvm get ca-certs --app my-api -o yaml
+dvm get ca-certs --workspace dev --effective -o json
+```
+
+---
+
+### `dvm delete ca-cert`
+
+Delete a CA cert at a specific hierarchy level.
+
+```bash
+dvm delete ca-cert <NAME> [flags]
+```
+
+**Hierarchy flags (exactly one required):**
+
+| Flag | Description |
+|------|-------------|
+| `--global` | Delete from global level |
+| `--ecosystem <name>` | Delete from ecosystem level |
+| `--domain <name>` | Delete from domain level |
+| `--app <name>` | Delete from app level |
+| `--workspace <name>` | Delete from workspace level |
+
+**Additional flags:**
+
+| Flag | Description |
+|------|-------------|
+| `-f, --force` | Skip confirmation prompt |
+
+Deleting a cert that does not exist at the specified level is a no-op (exits cleanly with no error).
+
+**Examples:**
+
+```bash
+# Remove a global CA cert (with confirmation prompt)
+dvm delete ca-cert corp-root-ca --global
+
+# Remove an override set at the app level, skipping prompt
+dvm delete ca-cert internal-ca --app my-api --force
+
+# Remove a workspace-level override
+dvm delete ca-cert corp-root-ca --workspace dev
+```
+
+---
+
 ## Themes (NEW in v0.12.0)
 
 ### `dvm set theme`

@@ -63,11 +63,12 @@ type AppLanguageConfig struct {
 
 // AppBuildConfig defines how to build the app
 type AppBuildConfig struct {
-	Dockerfile string            `yaml:"dockerfile,omitempty"` // Path to Dockerfile (if exists)
-	Buildpack  string            `yaml:"buildpack,omitempty"`  // Auto-detect, go, python, etc.
-	Args       map[string]string `yaml:"args,omitempty"`       // Build arguments
-	Target     string            `yaml:"target,omitempty"`     // Build target stage
-	Context    string            `yaml:"context,omitempty"`    // Build context path
+	Dockerfile string            `yaml:"dockerfile,omitempty" json:"dockerfile,omitempty"` // Path to Dockerfile (if exists)
+	Buildpack  string            `yaml:"buildpack,omitempty" json:"buildpack,omitempty"`   // Auto-detect, go, python, etc.
+	Args       map[string]string `yaml:"args,omitempty" json:"args,omitempty"`             // Build arguments
+	CACerts    []CACertConfig    `yaml:"caCerts,omitempty" json:"caCerts,omitempty"`       // CA certificates to inject
+	Target     string            `yaml:"target,omitempty" json:"target,omitempty"`         // Build target stage
+	Context    string            `yaml:"context,omitempty" json:"context,omitempty"`       // Build context path
 }
 
 // IsEmpty returns true if all fields of AppBuildConfig are zero/empty.
@@ -75,6 +76,7 @@ func (c AppBuildConfig) IsEmpty() bool {
 	return c.Dockerfile == "" &&
 		c.Buildpack == "" &&
 		len(c.Args) == 0 &&
+		len(c.CACerts) == 0 &&
 		c.Target == "" &&
 		c.Context == ""
 }
