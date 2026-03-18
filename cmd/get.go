@@ -221,6 +221,12 @@ func init() {
 	// Add --all flag to get workspaces (with -A shorthand for consistency)
 	getWorkspacesCmd.Flags().BoolP("all", "A", false, "List all workspaces across all apps/domains/ecosystems")
 
+	// Add scoping flags to get all command
+	getAllCmd.Flags().StringP("ecosystem", "e", "", "Filter by ecosystem name")
+	getAllCmd.Flags().StringP("domain", "d", "", "Filter by domain name")
+	getAllCmd.Flags().StringP("app", "a", "", "Filter by app name")
+	getAllCmd.Flags().BoolP("all", "A", false, "Show all resources (ignore active context)")
+
 	// Add --show-theme flag to hierarchy commands
 	getWorkspacesCmd.Flags().BoolVar(&showTheme, "show-theme", false, "Show theme resolution information")
 	getWorkspaceCmd.Flags().BoolVar(&showTheme, "show-theme", false, "Show theme resolution information")

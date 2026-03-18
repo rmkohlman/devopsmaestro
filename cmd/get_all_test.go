@@ -907,3 +907,481 @@ func TestGetAll_RichColumns(t *testing.T) {
 	// The PATH column should show the app path
 	assert.Contains(t, output, "/src/rich", "app path should appear in app table's PATH column")
 }
+
+// ===========================================================================
+// Sprint 3 Tests: Scoped Hierarchical Views in `dvm get all`
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Category 1: Flag Wiring Tests
+//
+// These verify that getAllCmd has the new scoping flags registered.
+// They will FAIL until the flags are wired in init().
+// ---------------------------------------------------------------------------
+
+func TestGetAllCmd_HasEcosystemFlag(t *testing.T) {
+	f := getAllCmd.Flags().Lookup("ecosystem")
+	require.NotNil(t, f, "getAllCmd should have --ecosystem flag")
+	assert.Equal(t, "e", f.Shorthand, "--ecosystem flag should have -e shorthand")
+}
+
+func TestGetAllCmd_HasDomainFlag(t *testing.T) {
+	f := getAllCmd.Flags().Lookup("domain")
+	require.NotNil(t, f, "getAllCmd should have --domain flag")
+	assert.Equal(t, "d", f.Shorthand, "--domain flag should have -d shorthand")
+}
+
+func TestGetAllCmd_HasAppFlag(t *testing.T) {
+	f := getAllCmd.Flags().Lookup("app")
+	require.NotNil(t, f, "getAllCmd should have --app flag")
+	assert.Equal(t, "a", f.Shorthand, "--app flag should have -a shorthand")
+}
+
+func TestGetAllCmd_HasAllFlag(t *testing.T) {
+	f := getAllCmd.Flags().Lookup("all")
+	require.NotNil(t, f, "getAllCmd should have --all flag")
+	assert.Equal(t, "A", f.Shorthand, "--all flag should have -A shorthand")
+}
+
+// ---------------------------------------------------------------------------
+// Category 2: Scope Resolution Tests
+//
+// These call resolveGetAllScope() directly with a MockDataStore.
+// They will FAIL because the stub returns "not implemented".
+// ---------------------------------------------------------------------------
+
+func TestResolveGetAllScope_AllFlagReturnsShowAll(t *testing.T) {
+	mock := db.NewMockDataStore()
+	sc, err := resolveGetAllScope(mock, "", "", "", true)
+	require.NoError(t, err)
+	assert.True(t, sc.ShowAll, "ShowAll should be true when -A flag is set")
+	assert.Nil(t, sc.EcosystemID, "EcosystemID should be nil when ShowAll")
+	assert.Nil(t, sc.DomainID, "DomainID should be nil when ShowAll")
+	assert.Nil(t, sc.AppID, "AppID should be nil when ShowAll")
+}
+
+func TestResolveGetAllScope_AllFlagWithEcosystemReturnsError(t *testing.T) {
+	mock := db.NewMockDataStore()
+	_, err := resolveGetAllScope(mock, "eco1", "", "", true)
+	assert.Error(t, err, "should error when -A is combined with --ecosystem")
+}
+
+func TestResolveGetAllScope_AllFlagWithDomainReturnsError(t *testing.T) {
+	mock := db.NewMockDataStore()
+	_, err := resolveGetAllScope(mock, "", "dom1", "", true)
+	assert.Error(t, err, "should error when -A is combined with --domain")
+}
+
+func TestResolveGetAllScope_AllFlagWithAppReturnsError(t *testing.T) {
+	mock := db.NewMockDataStore()
+	_, err := resolveGetAllScope(mock, "", "", "app1", true)
+	assert.Error(t, err, "should error when -A is combined with --app")
+}
+
+func TestResolveGetAllScope_EcosystemFlagResolvesID(t *testing.T) {
+	mock := db.NewMockDataStore()
+	mock.Ecosystems["production"] = &models.Ecosystem{ID: 42, Name: "production"}
+
+	sc, err := resolveGetAllScope(mock, "production", "", "", false)
+	require.NoError(t, err)
+	require.NotNil(t, sc.EcosystemID, "EcosystemID should be set")
+	assert.Equal(t, 42, *sc.EcosystemID)
+	assert.Nil(t, sc.DomainID)
+	assert.Nil(t, sc.AppID)
+	assert.False(t, sc.ShowAll)
+}
+
+func TestResolveGetAllScope_EcosystemNotFoundReturnsError(t *testing.T) {
+	mock := db.NewMockDataStore()
+	// "bogus" doesn't exist in mock.Ecosystems
+	_, err := resolveGetAllScope(mock, "bogus", "", "", false)
+	assert.Error(t, err, "should error when ecosystem is not found")
+}
+
+func TestResolveGetAllScope_DomainFlagWithExplicitEcosystem(t *testing.T) {
+	mock := db.NewMockDataStore()
+	eco := &models.Ecosystem{ID: 1, Name: "eco1"}
+	mock.Ecosystems["eco1"] = eco
+	dom := &models.Domain{ID: 10, Name: "backend", EcosystemID: 1}
+	mock.Domains[10] = dom
+
+	sc, err := resolveGetAllScope(mock, "eco1", "backend", "", false)
+	require.NoError(t, err)
+	require.NotNil(t, sc.EcosystemID)
+	assert.Equal(t, 1, *sc.EcosystemID)
+	require.NotNil(t, sc.DomainID)
+	assert.Equal(t, 10, *sc.DomainID)
+	assert.Nil(t, sc.AppID)
+}
+
+func TestResolveGetAllScope_DomainFlagUsesActiveContext(t *testing.T) {
+	// When --domain is given without --ecosystem, resolveGetAllScope should
+	// look up the active ecosystem from context to qualify the domain.
+	mock := db.NewMockDataStore()
+	ecoID := 5
+	eco := &models.Ecosystem{ID: 5, Name: "ctx-eco"}
+	mock.Ecosystems["ctx-eco"] = eco
+	mock.Context = &models.Context{ID: 1, ActiveEcosystemID: &ecoID}
+
+	dom := &models.Domain{ID: 20, Name: "frontend", EcosystemID: 5}
+	mock.Domains[20] = dom
+
+	sc, err := resolveGetAllScope(mock, "", "frontend", "", false)
+	require.NoError(t, err)
+	require.NotNil(t, sc.EcosystemID)
+	assert.Equal(t, 5, *sc.EcosystemID)
+	require.NotNil(t, sc.DomainID)
+	assert.Equal(t, 20, *sc.DomainID)
+}
+
+func TestResolveGetAllScope_DomainFlagNoEcosystemReturnsError(t *testing.T) {
+	// When --domain is given but there's no --ecosystem and no active context,
+	// it should fail because the domain can't be resolved without an ecosystem.
+	mock := db.NewMockDataStore()
+	mock.Context = &models.Context{ID: 1} // no active ecosystem
+
+	_, err := resolveGetAllScope(mock, "", "orphan-dom", "", false)
+	assert.Error(t, err, "should error when domain flag is given without ecosystem context")
+}
+
+func TestResolveGetAllScope_AppFlagWithExplicitDomainAndEcosystem(t *testing.T) {
+	mock := db.NewMockDataStore()
+	eco := &models.Ecosystem{ID: 1, Name: "eco1"}
+	mock.Ecosystems["eco1"] = eco
+	dom := &models.Domain{ID: 10, Name: "backend", EcosystemID: 1}
+	mock.Domains[10] = dom
+	app := &models.App{ID: 100, Name: "api", DomainID: 10}
+	mock.Apps[100] = app
+
+	sc, err := resolveGetAllScope(mock, "eco1", "backend", "api", false)
+	require.NoError(t, err)
+	require.NotNil(t, sc.EcosystemID)
+	assert.Equal(t, 1, *sc.EcosystemID)
+	require.NotNil(t, sc.DomainID)
+	assert.Equal(t, 10, *sc.DomainID)
+	require.NotNil(t, sc.AppID)
+	assert.Equal(t, 100, *sc.AppID)
+}
+
+func TestResolveGetAllScope_AppFlagNoDomainReturnsError(t *testing.T) {
+	// When --app is given but there's no --domain and no active domain context,
+	// it should fail because the app can't be resolved without a domain.
+	mock := db.NewMockDataStore()
+	mock.Context = &models.Context{ID: 1} // no active domain
+
+	_, err := resolveGetAllScope(mock, "", "", "orphan-app", false)
+	assert.Error(t, err, "should error when app flag is given without domain context")
+}
+
+func TestResolveGetAllScope_NoFlagsUsesActiveContext(t *testing.T) {
+	// When no flags are given, resolveGetAllScope should use the active context
+	// to set scope. If there's an active ecosystem, scope to that.
+	mock := db.NewMockDataStore()
+	ecoID := 3
+	eco := &models.Ecosystem{ID: 3, Name: "active-eco"}
+	mock.Ecosystems["active-eco"] = eco
+	mock.Context = &models.Context{ID: 1, ActiveEcosystemID: &ecoID}
+
+	sc, err := resolveGetAllScope(mock, "", "", "", false)
+	require.NoError(t, err)
+	require.NotNil(t, sc.EcosystemID, "should scope to active ecosystem when no flags given")
+	assert.Equal(t, 3, *sc.EcosystemID)
+	assert.False(t, sc.ShowAll)
+}
+
+func TestResolveGetAllScope_NoFlagsNoContextReturnsShowAll(t *testing.T) {
+	// When no flags and no active context, should default to ShowAll
+	mock := db.NewMockDataStore()
+	mock.Context = &models.Context{ID: 1} // no active anything
+
+	sc, err := resolveGetAllScope(mock, "", "", "", false)
+	require.NoError(t, err)
+	assert.True(t, sc.ShowAll, "should default to ShowAll when no flags and no active context")
+}
+
+// ---------------------------------------------------------------------------
+// Category 3: Scoped Data Fetching Tests
+//
+// These verify that `getAll` correctly filters resources when scope flags
+// are provided. They use createFullTestDataStore (real SQLite) and need
+// the full command pipeline with flags wired.
+//
+// They will FAIL because:
+//   - getAllCmd doesn't have the scoping flags yet
+//   - getAll() doesn't call resolveGetAllScope() yet
+//   - No filtering logic exists yet
+// ---------------------------------------------------------------------------
+
+// newScopedGetAllCmd creates a test command that mimics getAllCmd with
+// proper flags and RunE. This is needed because newGetAllTestCmd creates
+// a bare command without flags.
+func newScopedGetAllCmd(t *testing.T, ds db.DataStore) *cobra.Command {
+	t.Helper()
+	cmd := &cobra.Command{
+		Use:  "all",
+		RunE: func(cmd *cobra.Command, args []string) error { return getAll(cmd) },
+	}
+	// Wire scoping flags matching what init() should add to getAllCmd
+	cmd.Flags().StringP("ecosystem", "e", "", "Filter by ecosystem")
+	cmd.Flags().StringP("domain", "d", "", "Filter by domain")
+	cmd.Flags().StringP("app", "a", "", "Filter by app")
+	cmd.Flags().BoolP("all", "A", false, "Show all resources (ignore active context)")
+	cmd.Flags().StringP("output", "o", "", "Output format")
+
+	ctx := context.WithValue(context.Background(), "dataStore", ds)
+	cmd.SetContext(ctx)
+	return cmd
+}
+
+func TestGetAll_ScopedByEcosystem(t *testing.T) {
+	dataStore := createFullTestDataStore(t)
+	defer dataStore.Close()
+
+	// Seed two ecosystems with domains under each
+	eco1 := &models.Ecosystem{Name: "eco-alpha"}
+	require.NoError(t, dataStore.CreateEcosystem(eco1))
+	eco2 := &models.Ecosystem{Name: "eco-beta"}
+	require.NoError(t, dataStore.CreateEcosystem(eco2))
+
+	dom1 := &models.Domain{Name: "dom-in-alpha", EcosystemID: eco1.ID}
+	require.NoError(t, dataStore.CreateDomain(dom1))
+	dom2 := &models.Domain{Name: "dom-in-beta", EcosystemID: eco2.ID}
+	require.NoError(t, dataStore.CreateDomain(dom2))
+
+	cmd := newScopedGetAllCmd(t, dataStore)
+
+	var buf bytes.Buffer
+	origWriter := render.GetWriter()
+	render.SetWriter(&buf)
+	defer render.SetWriter(origWriter)
+
+	origFormat := getOutputFormat
+	defer func() { getOutputFormat = origFormat }()
+	getOutputFormat = ""
+
+	// Scope to eco-alpha only
+	cmd.SetArgs([]string{"--ecosystem", "eco-alpha"})
+	err := cmd.Execute()
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "eco-alpha", "scoped ecosystem should appear")
+	assert.Contains(t, output, "dom-in-alpha", "domain in scoped ecosystem should appear")
+	assert.NotContains(t, output, "eco-beta", "out-of-scope ecosystem should NOT appear")
+	assert.NotContains(t, output, "dom-in-beta", "out-of-scope domain should NOT appear")
+}
+
+func TestGetAll_ScopedByDomain(t *testing.T) {
+	dataStore := createFullTestDataStore(t)
+	defer dataStore.Close()
+
+	eco := &models.Ecosystem{Name: "eco-scope-dom"}
+	require.NoError(t, dataStore.CreateEcosystem(eco))
+
+	dom1 := &models.Domain{Name: "dom-target", EcosystemID: eco.ID}
+	require.NoError(t, dataStore.CreateDomain(dom1))
+	dom2 := &models.Domain{Name: "dom-other", EcosystemID: eco.ID}
+	require.NoError(t, dataStore.CreateDomain(dom2))
+
+	app1 := &models.App{Name: "app-in-target", Path: "/t", DomainID: dom1.ID}
+	require.NoError(t, dataStore.CreateApp(app1))
+	app2 := &models.App{Name: "app-in-other", Path: "/o", DomainID: dom2.ID}
+	require.NoError(t, dataStore.CreateApp(app2))
+
+	cmd := newScopedGetAllCmd(t, dataStore)
+
+	var buf bytes.Buffer
+	origWriter := render.GetWriter()
+	render.SetWriter(&buf)
+	defer render.SetWriter(origWriter)
+
+	origFormat := getOutputFormat
+	defer func() { getOutputFormat = origFormat }()
+	getOutputFormat = ""
+
+	cmd.SetArgs([]string{"--ecosystem", "eco-scope-dom", "--domain", "dom-target"})
+	err := cmd.Execute()
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "dom-target", "scoped domain should appear")
+	assert.Contains(t, output, "app-in-target", "app in scoped domain should appear")
+	assert.NotContains(t, output, "app-in-other", "app in out-of-scope domain should NOT appear")
+}
+
+func TestGetAll_ScopedByApp(t *testing.T) {
+	dataStore := createFullTestDataStore(t)
+	defer dataStore.Close()
+
+	eco := &models.Ecosystem{Name: "eco-scope-app"}
+	require.NoError(t, dataStore.CreateEcosystem(eco))
+	dom := &models.Domain{Name: "dom-scope-app", EcosystemID: eco.ID}
+	require.NoError(t, dataStore.CreateDomain(dom))
+
+	app1 := &models.App{Name: "app-target", Path: "/t", DomainID: dom.ID}
+	require.NoError(t, dataStore.CreateApp(app1))
+	app2 := &models.App{Name: "app-other", Path: "/o", DomainID: dom.ID}
+	require.NoError(t, dataStore.CreateApp(app2))
+
+	ws1 := &models.Workspace{Name: "ws-in-target", Slug: "eco-scope-app/dom-scope-app/app-target/ws-in-target", AppID: app1.ID, ImageName: "img", Status: "stopped"}
+	require.NoError(t, dataStore.CreateWorkspace(ws1))
+	ws2 := &models.Workspace{Name: "ws-in-other", Slug: "eco-scope-app/dom-scope-app/app-other/ws-in-other", AppID: app2.ID, ImageName: "img", Status: "stopped"}
+	require.NoError(t, dataStore.CreateWorkspace(ws2))
+
+	cmd := newScopedGetAllCmd(t, dataStore)
+
+	var buf bytes.Buffer
+	origWriter := render.GetWriter()
+	render.SetWriter(&buf)
+	defer render.SetWriter(origWriter)
+
+	origFormat := getOutputFormat
+	defer func() { getOutputFormat = origFormat }()
+	getOutputFormat = ""
+
+	cmd.SetArgs([]string{"--ecosystem", "eco-scope-app", "--domain", "dom-scope-app", "--app", "app-target"})
+	err := cmd.Execute()
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "app-target", "scoped app should appear")
+	assert.Contains(t, output, "ws-in-target", "workspace in scoped app should appear")
+	assert.NotContains(t, output, "ws-in-other", "workspace in out-of-scope app should NOT appear")
+}
+
+func TestGetAll_AllFlagShowsEverything(t *testing.T) {
+	dataStore := createFullTestDataStore(t)
+	defer dataStore.Close()
+
+	// Seed two ecosystems; set one as active context
+	eco1 := &models.Ecosystem{Name: "eco-one"}
+	require.NoError(t, dataStore.CreateEcosystem(eco1))
+	eco2 := &models.Ecosystem{Name: "eco-two"}
+	require.NoError(t, dataStore.CreateEcosystem(eco2))
+
+	// Set active context to eco-one (without -A, scoping would filter to eco-one)
+	require.NoError(t, dataStore.SetActiveEcosystem(&eco1.ID))
+
+	cmd := newScopedGetAllCmd(t, dataStore)
+
+	var buf bytes.Buffer
+	origWriter := render.GetWriter()
+	render.SetWriter(&buf)
+	defer render.SetWriter(origWriter)
+
+	origFormat := getOutputFormat
+	defer func() { getOutputFormat = origFormat }()
+	getOutputFormat = ""
+
+	// -A should show everything regardless of active context
+	cmd.SetArgs([]string{"-A"})
+	err := cmd.Execute()
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "eco-one", "-A should show eco-one")
+	assert.Contains(t, output, "eco-two", "-A should show eco-two (even when eco-one is active)")
+}
+
+func TestGetAll_GlobalResourcesAlwaysShown(t *testing.T) {
+	// Global resources (registries, nvim plugins, nvim themes) should always
+	// appear regardless of ecosystem/domain/app scoping.
+	dataStore := createFullTestDataStore(t)
+	defer dataStore.Close()
+
+	eco := &models.Ecosystem{Name: "eco-global-test"}
+	require.NoError(t, dataStore.CreateEcosystem(eco))
+
+	// Create a registry (global resource)
+	reg := &models.Registry{
+		Name:    "test-reg",
+		Type:    "zot",
+		Port:    5100,
+		Storage: "/tmp/reg",
+		Version: "2.1.0",
+		Status:  "stopped",
+	}
+	require.NoError(t, dataStore.CreateRegistry(reg))
+
+	cmd := newScopedGetAllCmd(t, dataStore)
+
+	var buf bytes.Buffer
+	origWriter := render.GetWriter()
+	render.SetWriter(&buf)
+	defer render.SetWriter(origWriter)
+
+	origFormat := getOutputFormat
+	defer func() { getOutputFormat = origFormat }()
+	getOutputFormat = ""
+
+	// Scope to eco-global-test — registries should still show
+	cmd.SetArgs([]string{"--ecosystem", "eco-global-test"})
+	err := cmd.Execute()
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "test-reg", "global resource (registry) should appear even when scoped to ecosystem")
+}
+
+func TestGetAll_ScopedCredentialContainment(t *testing.T) {
+	// Credentials scoped to ecosystem 1 should NOT appear when viewing ecosystem 2
+	dataStore := createFullTestDataStore(t)
+	defer dataStore.Close()
+
+	eco1 := &models.Ecosystem{Name: "eco-cred-a"}
+	require.NoError(t, dataStore.CreateEcosystem(eco1))
+	eco2 := &models.Ecosystem{Name: "eco-cred-b"}
+	require.NoError(t, dataStore.CreateEcosystem(eco2))
+
+	// Create credentials scoped to each ecosystem
+	envVar1 := "CRED_A_TOKEN"
+	cred1 := &models.CredentialDB{
+		Name:      "cred-in-a",
+		ScopeType: models.CredentialScopeEcosystem,
+		ScopeID:   int64(eco1.ID),
+		Source:    "env",
+		EnvVar:    &envVar1,
+	}
+	require.NoError(t, dataStore.CreateCredential(cred1))
+
+	envVar2 := "CRED_B_TOKEN"
+	cred2 := &models.CredentialDB{
+		Name:      "cred-in-b",
+		ScopeType: models.CredentialScopeEcosystem,
+		ScopeID:   int64(eco2.ID),
+		Source:    "env",
+		EnvVar:    &envVar2,
+	}
+	require.NoError(t, dataStore.CreateCredential(cred2))
+
+	cmd := newScopedGetAllCmd(t, dataStore)
+
+	var buf bytes.Buffer
+	origWriter := render.GetWriter()
+	render.SetWriter(&buf)
+	defer render.SetWriter(origWriter)
+
+	origFormat := getOutputFormat
+	defer func() { getOutputFormat = origFormat }()
+	getOutputFormat = ""
+
+	// Scope to eco-cred-a
+	cmd.SetArgs([]string{"--ecosystem", "eco-cred-a"})
+	err := cmd.Execute()
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "cred-in-a", "credential scoped to viewed ecosystem should appear")
+	assert.NotContains(t, output, "cred-in-b", "credential scoped to OTHER ecosystem should NOT appear")
+}
+
+// ---------------------------------------------------------------------------
+// Category 5: Long Description Test
+//
+// Verifies getAllCmd.Long mentions scoping functionality.
+// ---------------------------------------------------------------------------
+
+func TestGetAllCmd_LongDescriptionMentionsScoping(t *testing.T) {
+	long := getAllCmd.Long
+	assert.Contains(t, long, "scope", "Long description should mention scoping (case-insensitive search)")
+}

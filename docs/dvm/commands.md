@@ -276,7 +276,7 @@ dvm get workspaces --app my-api -o yaml
 
 ### `dvm get all`
 
-Show a kubectl-style overview of all resources.
+Show a kubectl-style overview of all resources. By default, resources are scoped to the active context (ecosystem, domain, or app). Use `-A` to ignore context and show everything.
 
 ```bash
 dvm get all [flags]
@@ -286,16 +286,26 @@ dvm get all [flags]
 
 | Flag | Description |
 |------|-------------|
-| `-o, --output <format>` | Output format: `json`, `yaml` (default: human-readable table) |
+| `-e, --ecosystem <name>` | Filter to a specific ecosystem |
+| `-d, --domain <name>` | Filter to a specific domain (requires ecosystem context) |
+| `-a, --app <name>` | Filter to a specific app (requires domain context) |
+| `-A, --all` | Show all resources (ignore active context) |
+| `-o, --output <format>` | Output format: `json`, `yaml`, `wide`, `table` (default: human-readable table) |
 
 **Sections displayed:** Ecosystems, Domains, Apps, Workspaces, Credentials, Registries, Git Repos, Nvim Plugins, Nvim Themes. Empty sections show `(none)`.
+
+Global resources (Registries, Git Repos, Nvim Plugins, Nvim Themes) are always shown regardless of scope.
 
 **Examples:**
 
 ```bash
-dvm get all              # Human-readable summary of all resources
-dvm get all -o json      # JSON output
-dvm get all -o yaml      # YAML output
+dvm get all                         # Show resources in active scope
+dvm get all -A                      # Show all resources (ignore context)
+dvm get all -e prod                 # Show resources in 'prod' ecosystem
+dvm get all -e prod -d backend      # Show resources in 'backend' domain
+dvm get all -o wide                 # Show additional columns
+dvm get all -o json                 # Output as JSON
+dvm get all -o yaml                 # Output as YAML
 ```
 
 ---

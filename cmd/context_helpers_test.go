@@ -211,3 +211,113 @@ func TestGetActiveWorkspaceFromContext(t *testing.T) {
 		})
 	}
 }
+
+// ===========================================================================
+// Sprint 3 Tests: getActiveEcosystemFromContext / getActiveDomainFromContext
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// getActiveEcosystemFromContext
+// ---------------------------------------------------------------------------
+
+func TestGetActiveEcosystemFromContext_EnvVarOverride(t *testing.T) {
+	// DVM_ECOSYSTEM=foo should return "foo" regardless of DB context
+	t.Setenv("DVM_ECOSYSTEM", "foo")
+	mock := db.NewMockDataStore()
+	mock.Context = nil // DB should NOT be consulted when env var is set
+
+	name, err := getActiveEcosystemFromContext(mock)
+	require.NoError(t, err)
+	assert.Equal(t, "foo", name)
+}
+
+func TestGetActiveEcosystemFromContext_DBContext(t *testing.T) {
+	// No env var, DB has active ecosystem -> returns ecosystem name
+	mock := db.NewMockDataStore()
+	ecoID := 42
+	mock.Ecosystems["production"] = &models.Ecosystem{ID: 42, Name: "production"}
+	mock.Context = &models.Context{ID: 1, ActiveEcosystemID: &ecoID}
+
+	name, err := getActiveEcosystemFromContext(mock)
+	require.NoError(t, err)
+	assert.Equal(t, "production", name)
+}
+
+func TestGetActiveEcosystemFromContext_NoContextReturnsError(t *testing.T) {
+	// No env var, no DB context -> error with hint
+	mock := db.NewMockDataStore()
+	mock.Context = &models.Context{ID: 1} // No active ecosystem set
+
+	_, err := getActiveEcosystemFromContext(mock)
+	assert.Error(t, err)
+}
+
+func TestGetActiveEcosystemFromContext_NilContextReturnsError(t *testing.T) {
+	// No env var, nil context -> error with hint
+	mock := db.NewMockDataStore()
+	mock.Context = nil
+
+	_, err := getActiveEcosystemFromContext(mock)
+	assert.Error(t, err)
+}
+
+func TestGetActiveEcosystemFromContext_GetContextError(t *testing.T) {
+	mock := db.NewMockDataStore()
+	mock.GetContextErr = fmt.Errorf("db error")
+
+	_, err := getActiveEcosystemFromContext(mock)
+	assert.Error(t, err)
+}
+
+// ---------------------------------------------------------------------------
+// getActiveDomainFromContext
+// ---------------------------------------------------------------------------
+
+func TestGetActiveDomainFromContext_EnvVarOverride(t *testing.T) {
+	// DVM_DOMAIN=bar should return "bar" regardless of DB context
+	t.Setenv("DVM_DOMAIN", "bar")
+	mock := db.NewMockDataStore()
+	mock.Context = nil // DB should NOT be consulted when env var is set
+
+	name, err := getActiveDomainFromContext(mock)
+	require.NoError(t, err)
+	assert.Equal(t, "bar", name)
+}
+
+func TestGetActiveDomainFromContext_DBContext(t *testing.T) {
+	// No env var, DB has active domain -> returns domain name
+	mock := db.NewMockDataStore()
+	domID := 10
+	mock.Domains[10] = &models.Domain{ID: 10, Name: "backend", EcosystemID: 1}
+	mock.Context = &models.Context{ID: 1, ActiveDomainID: &domID}
+
+	name, err := getActiveDomainFromContext(mock)
+	require.NoError(t, err)
+	assert.Equal(t, "backend", name)
+}
+
+func TestGetActiveDomainFromContext_NoContextReturnsError(t *testing.T) {
+	// No env var, no DB context -> error with hint
+	mock := db.NewMockDataStore()
+	mock.Context = &models.Context{ID: 1} // No active domain set
+
+	_, err := getActiveDomainFromContext(mock)
+	assert.Error(t, err)
+}
+
+func TestGetActiveDomainFromContext_NilContextReturnsError(t *testing.T) {
+	// No env var, nil context -> error with hint
+	mock := db.NewMockDataStore()
+	mock.Context = nil
+
+	_, err := getActiveDomainFromContext(mock)
+	assert.Error(t, err)
+}
+
+func TestGetActiveDomainFromContext_GetContextError(t *testing.T) {
+	mock := db.NewMockDataStore()
+	mock.GetContextErr = fmt.Errorf("db error")
+
+	_, err := getActiveDomainFromContext(mock)
+	assert.Error(t, err)
+}

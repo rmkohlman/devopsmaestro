@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.52.0] - 2026-03-17 — Scoped Hierarchical Views for `dvm get all`
+
+### ✨ Features
+
+#### Scoped Hierarchical Views in `dvm get all` — `cmd/get_all.go`, `cmd/get.go`, `cmd/context_helpers.go`
+- **`dvm get all` now supports scoped hierarchical filtering via `-e/--ecosystem`, `-d/--domain`, `-a/--app`, and `-A/--all` flags** — by default, `dvm get all` scopes to the active context (active ecosystem, domain, or app); use `-A` to show everything regardless of context; use `-e`, `-d`, `-a` to filter to a specific scope; previously `dvm get all` always showed every resource
+- **Scope resolution follows kubectl conventions** — priority chain: `-A` flag > explicit flags (`-e/-d/-a`) > active context > show all (fallback); when no flags are set and no active context exists, all resources are shown (discovery mode)
+- **Hierarchical filtering cascades down the object tree** — filtering by ecosystem shows only that ecosystem's domains, apps, and workspaces; filtering by domain shows only that domain's apps and workspaces; filtering by app shows only that app's workspaces
+- **Credential containment filtering** — credentials are filtered by `scope_type`/`scope_id` containment; when scoped to an ecosystem, only credentials scoped to that ecosystem (and its children) are shown
+- **Global resources always shown** — registries, git repos, nvim plugins, and nvim themes are displayed regardless of scope, matching kubectl's behavior of showing cluster-scoped resources in namespaced views
+- **Context helper functions** — new `getActiveEcosystemFromContext()` and `getActiveDomainFromContext()` in `cmd/context_helpers.go` follow the existing pattern: env var override (`DVM_ECOSYSTEM`/`DVM_DOMAIN`) > DB active context > error with hint
+
+#### Scope Flag Validation
+- **`-A` combined with scope flags returns an error** — `"--all (-A) cannot be combined with scoping flags (-e, -d, -a)"`
+- **`-d` without an ecosystem returns an error** — `"--domain requires an ecosystem. Use -e <name> or 'dvm use ecosystem <name>'"`
+- **`-a` without a domain returns an error** — `"--app requires a domain. Use -d <name> or 'dvm use domain <name>'"`
+
+### 🏗️ Technical
+
+| Metric | Value |
+|--------|-------|
+| Breaking changes | 0 |
+| New production files | 0 |
+| Modified production files | 3 (`cmd/get_all.go`, `cmd/get.go`, `cmd/context_helpers.go`) |
+| New test files | 1 (`cmd/context_helpers_test.go`) |
+| Modified test files | 1 (`cmd/get_all_test.go`) |
+| New tests — scope resolution | 13 |
+| New tests — flag wiring | 4 |
+| New tests — scoped data fetching | 6 |
+| New tests — context helpers | ~23 (10 functions with subtests) |
+| New tests — long description | 1 |
+| Total new tests | 34 (+ ~23 context helper tests) |
+| Original tests still pass | 15/15 (no regressions) |
+
+---
+
 ## [v0.51.0] - 2026-03-17 — Rich Columns in `dvm get all`
 
 ### ✨ Features

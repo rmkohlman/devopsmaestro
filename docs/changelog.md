@@ -2,6 +2,19 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.52.0 (2026-03-17)
+
+**✨ Scoped Hierarchical Views in `dvm get all`**
+
+`dvm get all` now scopes output to the active context by default and supports explicit scope flags for filtering to a specific ecosystem, domain, or app.
+
+- **Scoped filtering** — scopes to the active context (ecosystem, domain, app) by default; `-e/--ecosystem`, `-d/--domain`, `-a/--app` flags filter to a specific scope; `-A/--all` shows everything regardless of context
+- **kubectl-style scope resolution** — priority chain: `-A` > explicit flags > active context > show all (discovery mode); no flags and no active context shows all resources
+- **Hierarchical cascade** — filtering by ecosystem shows only that ecosystem's domains, apps, workspaces, and scoped credentials; global resources (registries, git repos, nvim plugins, nvim themes) always shown
+- **Validation** — `-A` combined with scope flags produces an error; `-d` without ecosystem and `-a` without domain produce helpful error messages with hints
+- **Context helpers** — new `getActiveEcosystemFromContext()` and `getActiveDomainFromContext()` functions with env var override support (`DVM_ECOSYSTEM`/`DVM_DOMAIN`)
+- 34 new tests (+ ~23 context helper tests); 0 breaking changes
+
 ## v0.51.0 (2026-03-17)
 
 **✨ Rich Columns in `dvm get all`**

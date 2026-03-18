@@ -1,6 +1,6 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.49.0  
+> **Version**: v0.52.0  
 > **Last Updated**: March 17, 2026
 
 ---
@@ -36,6 +36,7 @@ source tests/manual/part2-post-attach.sh
 | 21 | Manual | Container Neovim Environment (v0.44.0) |
 | 22 | Manual | Registry Startup Resilience (v0.45.0) |
 | 23 | Manual | Auto-Detect Git Default Branch (v0.49.0) |
+| 24 | Manual | Scoped Hierarchical Views (v0.52.0) |
 
 ---
 
@@ -4267,6 +4268,153 @@ dvm delete ecosystem test-eco
 
 ---
 
+## Part 24: Scoped Hierarchical Views (v0.52.0)
+
+> **Prerequisite**: `dvm` binary built from v0.52.0+. At least one ecosystem, domain, app, and workspace configured. `dvm admin init` completed.
+
+New flags on `dvm get all`: `-e/--ecosystem`, `-d/--domain`, `-a/--app`, `-A/--all`
+
+---
+
+### Scenario 99: Default Scoping to Active Context
+
+```bash
+# Setup: ensure active context is set
+dvm use ecosystem <eco-name>
+dvm use domain <domain-name>
+dvm use app <app-name>
+
+# Get all — should only show resources in the active scope
+dvm get all
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Only active ecosystem shown | Ecosystems section shows only the active ecosystem | |
+| Domains filtered | Only domains in the active ecosystem shown | |
+| Apps filtered | Only apps in the active domain shown | |
+| Workspaces filtered | Only workspaces for the active app shown | |
+| Global resources shown | Registries, git repos, nvim plugins, nvim themes always shown | |
+
+---
+
+### Scenario 100: Explicit Ecosystem Flag
+
+```bash
+dvm get all -e <eco-name>
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Only specified ecosystem shown | Ecosystems section shows only <eco-name> | |
+| Domains filtered to ecosystem | Only domains belonging to <eco-name> | |
+| Apps filtered | Only apps in those domains | |
+
+---
+
+### Scenario 101: Explicit Ecosystem + Domain
+
+```bash
+dvm get all -e <eco-name> -d <domain-name>
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Only specified domain shown | Domains section shows only <domain-name> | |
+| Apps filtered to domain | Only apps in <domain-name> | |
+| Workspaces filtered | Only workspaces for apps in <domain-name> | |
+
+---
+
+### Scenario 102: Explicit Ecosystem + Domain + App
+
+```bash
+dvm get all -e <eco-name> -d <domain-name> -a <app-name>
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Only specified app shown | Apps section shows only <app-name> | |
+| Workspaces filtered to app | Only workspaces for <app-name> | |
+| Credentials filtered | Only credentials scoped to the app or its parents | |
+
+---
+
+### Scenario 103: Show All Flag (-A)
+
+```bash
+dvm get all -A
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| All ecosystems shown | Every ecosystem regardless of context | |
+| All domains shown | Every domain across all ecosystems | |
+| All resources shown | All apps, workspaces, credentials | |
+
+---
+
+### Scenario 104: -A Combined with Scope Flags (Error)
+
+```bash
+dvm get all -A -e <eco-name>
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Command fails | Error message shown | |
+| Error message | "--all (-A) cannot be combined with scoping flags (-e, -d, -a)" | |
+| No stack trace | Clean error output | |
+
+---
+
+### Scenario 105: Domain Without Ecosystem (Error)
+
+```bash
+# Clear context first
+dvm use --clear
+dvm get all -d <domain-name>
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Command fails | Error message shown | |
+| Error message | "--domain requires an ecosystem. Use -e <name> or 'dvm use ecosystem <name>'" | |
+| No stack trace | Clean error output | |
+
+---
+
+### Scenario 106: No Context, No Flags (Discovery Mode)
+
+```bash
+# Clear all context
+dvm use --clear
+dvm get all
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| All resources shown | Same as -A behavior | |
+| No error | Command succeeds | |
+
+---
+
+### Scenario 107: Scoped Output Formats
+
+```bash
+dvm get all -e <eco-name> -o json
+dvm get all -e <eco-name> -o yaml
+dvm get all -e <eco-name> -o wide
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| JSON output filtered | Only resources in scope in JSON output | |
+| YAML output filtered | Only resources in scope in YAML output | |
+| Wide output filtered | Only resources in scope with extra columns | |
+
+---
+
 ## Test Results Summary
 
 | Part | Tests | Pass | Fail |
@@ -4297,6 +4445,7 @@ dvm delete ecosystem test-eco
 | Part 21: Container Neovim Environment | 4 scenarios | | |
 | Part 22: Registry Startup Resilience | 4 scenarios | | |
 | Part 23: Auto-Detect Git Default Branch | 4 scenarios | | |
+| Part 24: Scoped Hierarchical Views | 9 scenarios | | |
 
 ---
 
@@ -4349,5 +4498,5 @@ colima nerdctl -- --namespace devopsmaestro images
 
 **Tested by:** ________________  
 **Date:** ________________  
-**Version**: v0.49.0  
+**Version**: v0.52.0  
 **Platform:** ________________
