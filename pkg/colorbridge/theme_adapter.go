@@ -3,9 +3,9 @@ package colorbridge
 import (
 	"fmt"
 
-	"devopsmaestro/pkg/nvimops/theme"
 	"github.com/rmkohlman/MaestroPalette"
 	"github.com/rmkohlman/MaestroSDK/colors"
+	theme "github.com/rmkohlman/MaestroTheme"
 )
 
 // ThemeStoreAdapter bridges theme.Store to colors.PaletteProvider interface.

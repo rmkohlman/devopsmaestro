@@ -9,10 +9,10 @@ import (
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/colors/resolver"
-	"devopsmaestro/pkg/nvimops/theme/library"
 	"devopsmaestro/pkg/resource/handlers"
 	"github.com/rmkohlman/MaestroSDK/render"
 	"github.com/rmkohlman/MaestroSDK/resource"
+	"github.com/rmkohlman/MaestroTheme/library"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"

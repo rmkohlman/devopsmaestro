@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"devopsmaestro/db"
-	"devopsmaestro/pkg/nvimops/theme"
-	"devopsmaestro/pkg/nvimops/theme/library"
+	theme "github.com/rmkohlman/MaestroTheme"
+	"github.com/rmkohlman/MaestroTheme/library"
 )
 
 // HierarchyThemeResolver implements ThemeResolver with database access

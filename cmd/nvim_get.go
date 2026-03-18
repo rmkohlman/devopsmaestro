@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	"devopsmaestro/models"
-	nvimpkg "devopsmaestro/pkg/nvimops/package"
-	"devopsmaestro/pkg/nvimops/plugin"
 	"devopsmaestro/pkg/resource/handlers"
+	nvimpkg "github.com/rmkohlman/MaestroNvim/nvimops/package"
+	"github.com/rmkohlman/MaestroNvim/nvimops/plugin"
 	"github.com/rmkohlman/MaestroSDK/render"
 	"github.com/rmkohlman/MaestroSDK/resource"
 

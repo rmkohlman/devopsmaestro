@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	themeresolver "devopsmaestro/pkg/colors/resolver"
-	"devopsmaestro/pkg/nvimops"
+	"devopsmaestro/pkg/nvimbridge"
 	"devopsmaestro/pkg/terminalops/shell"
 
 	"github.com/stretchr/testify/assert"
@@ -73,7 +73,7 @@ func TestGetDefaultsIntegration(t *testing.T) {
 	// Test nvim defaults
 	t.Run("nvim_defaults", func(t *testing.T) {
 		fmt.Println("Neovim Configuration:")
-		nvimDefaults := nvimops.GetDefaults()
+		nvimDefaults := nvimbridge.GetDefaults()
 
 		require.NotNil(t, nvimDefaults)
 		assert.Len(t, nvimDefaults, 4)
@@ -121,7 +121,7 @@ func TestGetDefaultsForCLI(t *testing.T) {
 	// Collect defaults from all packages
 	allDefaults["theme"] = themeresolver.GetDefaults()
 	allDefaults["shell"] = shell.GetDefaults()
-	allDefaults["nvim"] = nvimops.GetDefaults()
+	allDefaults["nvim"] = nvimbridge.GetDefaults()
 
 	// Verify the structure
 	require.NotNil(t, allDefaults)
@@ -145,7 +145,7 @@ func TestDefaultsUsagePatterns(t *testing.T) {
 		fmt.Println("=== Workspace Creation Scenario ===")
 
 		// Get default nvim config for a new workspace
-		nvimDefaults := nvimops.GetDefaults()
+		nvimDefaults := nvimbridge.GetDefaults()
 		structure := nvimDefaults["structure"].(string)
 		pluginPackage := nvimDefaults["pluginPackage"].(string)
 
@@ -200,7 +200,7 @@ func TestDefaultsUsagePatterns(t *testing.T) {
 		// Scenario: Validating user configuration against defaults
 		fmt.Println("\n=== Configuration Validation Scenario ===")
 
-		nvimDefaults := nvimops.GetDefaults()
+		nvimDefaults := nvimbridge.GetDefaults()
 		corePlugins := nvimDefaults["corePlugins"].([]string)
 
 		// Simulate user providing a custom plugin list

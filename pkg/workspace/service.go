@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"devopsmaestro/models"
-	"devopsmaestro/pkg/nvimops"
+	"devopsmaestro/pkg/nvimbridge"
 )
 
 // HierarchyReader provides read access to the entity hierarchy needed for
@@ -24,7 +24,7 @@ type HierarchyReader interface {
 func PrepareDefaults(workspace *models.Workspace, hierarchy HierarchyReader) error {
 	// Apply default nvim config if not specified
 	if !workspace.NvimStructure.Valid || workspace.NvimStructure.String == "" {
-		defaultConfig := nvimops.DefaultNvimConfig()
+		defaultConfig := nvimbridge.DefaultNvimConfig()
 		workspace.NvimStructure = sql.NullString{
 			String: defaultConfig.Structure,
 			Valid:  true,

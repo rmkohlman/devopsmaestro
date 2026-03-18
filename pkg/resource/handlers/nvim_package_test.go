@@ -6,7 +6,7 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
-	nvimpackage "devopsmaestro/pkg/nvimops/package"
+	nvimpackage "github.com/rmkohlman/MaestroNvim/nvimops/package"
 	"github.com/rmkohlman/MaestroSDK/resource"
 )
 

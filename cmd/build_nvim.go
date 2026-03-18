@@ -4,16 +4,15 @@ import (
 	"context"
 	"devopsmaestro/db"
 	"devopsmaestro/models"
-	"devopsmaestro/pkg/nvimops"
-	nvimconfig "devopsmaestro/pkg/nvimops/config"
-	"devopsmaestro/pkg/nvimops/library"
-	"devopsmaestro/pkg/nvimops/plugin"
-	"devopsmaestro/pkg/nvimops/store"
-	"devopsmaestro/pkg/nvimops/theme"
+	"devopsmaestro/pkg/nvimbridge"
 	"encoding/json"
 	"fmt"
+	nvimconfig "github.com/rmkohlman/MaestroNvim/nvimops/config"
+	"github.com/rmkohlman/MaestroNvim/nvimops/library"
+	"github.com/rmkohlman/MaestroNvim/nvimops/plugin"
 	"github.com/rmkohlman/MaestroSDK/paths"
 	"github.com/rmkohlman/MaestroSDK/render"
+	theme "github.com/rmkohlman/MaestroTheme"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -53,7 +52,7 @@ func generateNvimConfig(workspacePlugins []string, stagingDir, homeDir string, d
 	}
 
 	// Load plugins from database (source of truth)
-	dbAdapter := store.NewDBStoreAdapter(ds)
+	dbAdapter := nvimbridge.NewPluginDBStoreAdapter(ds)
 	allPlugins, err := dbAdapter.List()
 	if err != nil {
 		slog.Warn("failed to list plugins from database", "error", err)
@@ -135,7 +134,7 @@ func generateNvimConfig(workspacePlugins []string, stagingDir, homeDir string, d
 
 		// If no default package, try language-aware package selection
 		if len(enabledPlugins) == 0 && language != "" && language != "unknown" {
-			langPkg := nvimops.GetLanguagePackage(language)
+			langPkg := nvimbridge.GetLanguagePackage(language)
 			if langPkg != "" {
 				langPlugins, err := resolveDefaultPackagePlugins(langPkg, ds)
 				if err == nil {

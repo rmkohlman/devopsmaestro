@@ -3,7 +3,7 @@ package resolver
 
 import (
 	"devopsmaestro/db"
-	"devopsmaestro/pkg/nvimops/theme"
+	theme "github.com/rmkohlman/MaestroTheme"
 )
 
 // ResolverConfig contains configuration for theme resolvers

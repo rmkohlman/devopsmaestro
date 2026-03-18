@@ -8,7 +8,7 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
-	"devopsmaestro/pkg/nvimops/theme"
+	theme "github.com/rmkohlman/MaestroTheme"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

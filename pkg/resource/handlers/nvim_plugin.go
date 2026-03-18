@@ -5,8 +5,9 @@ package handlers
 import (
 	"fmt"
 
-	"devopsmaestro/pkg/nvimops/plugin"
-	"devopsmaestro/pkg/nvimops/store"
+	"devopsmaestro/pkg/nvimbridge"
+	"github.com/rmkohlman/MaestroNvim/nvimops/plugin"
+	"github.com/rmkohlman/MaestroNvim/nvimops/store"
 	"github.com/rmkohlman/MaestroSDK/resource"
 
 	"gopkg.in/yaml.v3"
@@ -116,11 +117,11 @@ func (h *NvimPluginHandler) getStore(ctx resource.Context) (store.PluginStore, e
 
 	// If DataStore is provided, use DBStoreAdapter
 	if ctx.DataStore != nil {
-		ds, err := resource.DataStoreAs[store.PluginDataStore](ctx)
+		ds, err := resource.DataStoreAs[nvimbridge.PluginDataStore](ctx)
 		if err != nil {
 			return nil, fmt.Errorf("DataStore does not implement PluginDataStore: %T", ctx.DataStore)
 		}
-		return store.NewDBStoreAdapter(ds), nil
+		return nvimbridge.NewPluginDBStoreAdapter(ds), nil
 	}
 
 	// If ConfigDir is provided, use FileStore

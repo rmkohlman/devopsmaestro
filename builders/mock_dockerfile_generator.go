@@ -3,7 +3,7 @@ package builders
 import (
 	"sync"
 
-	"devopsmaestro/pkg/nvimops/plugin"
+	"github.com/rmkohlman/MaestroNvim/nvimops/plugin"
 )
 
 // MockDockerfileGenerator implements DockerfileGenerator for testing.

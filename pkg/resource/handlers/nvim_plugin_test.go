@@ -3,8 +3,8 @@ package handlers
 import (
 	"testing"
 
-	"devopsmaestro/pkg/nvimops/plugin"
-	"devopsmaestro/pkg/nvimops/store"
+	"github.com/rmkohlman/MaestroNvim/nvimops/plugin"
+	"github.com/rmkohlman/MaestroNvim/nvimops/store"
 	"github.com/rmkohlman/MaestroSDK/resource"
 )
 

@@ -3,15 +3,16 @@ package cmd
 import (
 	"fmt"
 
-	"devopsmaestro/pkg/nvimops"
-	"devopsmaestro/pkg/nvimops/store"
-	"devopsmaestro/pkg/nvimops/theme"
+	"devopsmaestro/pkg/nvimbridge"
+	"devopsmaestro/pkg/themebridge"
+	"github.com/rmkohlman/MaestroNvim/nvimops"
+	theme "github.com/rmkohlman/MaestroTheme"
 
 	"github.com/spf13/cobra"
 )
 
 // getNvimManager creates a nvimops.Manager using the DataStore from the command context.
-// This uses the DBStoreAdapter to bridge between the PluginStore interface and the
+// This uses the PluginDBStoreAdapter to bridge between the PluginStore interface and the
 // DataStore interface, providing a unified storage location for both nvp and dvm.
 //
 // The returned manager should be closed when done:
@@ -27,9 +28,9 @@ func getNvimManager(cmd *cobra.Command) (nvimops.Manager, error) {
 		return nil, fmt.Errorf("failed to get datastore: %w", err)
 	}
 
-	// Create DBStoreAdapter that implements store.PluginStore using the DataStore
+	// Create PluginDBStoreAdapter that implements store.PluginStore using the DataStore
 	// Note: We don't own the connection (datastore lifecycle is managed by root.go)
-	adapter := store.NewDBStoreAdapter(datastore)
+	adapter := nvimbridge.NewPluginDBStoreAdapter(datastore)
 
 	// Create manager with the adapter
 	mgr, err := nvimops.NewWithOptions(nvimops.Options{
@@ -53,7 +54,7 @@ func getThemeStore(cmd *cobra.Command) (theme.Store, error) {
 
 	// Create DBStoreAdapter that implements theme.Store using the DataStore
 	// Note: We don't own the connection (datastore lifecycle is managed by root.go)
-	adapter := theme.NewDBStoreAdapter(datastore)
+	adapter := themebridge.NewDBStoreAdapter(datastore)
 
 	return adapter, nil
 }

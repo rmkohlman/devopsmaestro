@@ -8,8 +8,8 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
-	nvimpkg "devopsmaestro/pkg/nvimops/package"
-	"devopsmaestro/pkg/nvimops/package/library"
+	nvimpkg "github.com/rmkohlman/MaestroNvim/nvimops/package"
+	"github.com/rmkohlman/MaestroNvim/nvimops/package/library"
 	"github.com/rmkohlman/MaestroSDK/resource"
 
 	"gopkg.in/yaml.v3"

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	nvimpackage "devopsmaestro/pkg/nvimops/package"
-	"devopsmaestro/pkg/nvimops/sync"
+	nvimpackage "github.com/rmkohlman/MaestroNvim/nvimops/package"
+	"github.com/rmkohlman/MaestroNvim/nvimops/sync"
 	"github.com/rmkohlman/MaestroSDK/render"
 
 	"github.com/spf13/cobra"

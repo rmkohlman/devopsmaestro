@@ -7,7 +7,7 @@ import (
 	"devopsmaestro/builders"
 	"devopsmaestro/operators"
 	themeresolver "devopsmaestro/pkg/colors/resolver"
-	"devopsmaestro/pkg/nvimops"
+	"devopsmaestro/pkg/nvimbridge"
 	"devopsmaestro/pkg/terminalops/shell"
 	"github.com/rmkohlman/MaestroSDK/render"
 
@@ -222,7 +222,7 @@ func getDefaults(cmd *cobra.Command) error {
 	// Get defaults from all packages (hardcoded defaults)
 	themeDefaults := themeresolver.GetDefaults()
 	shellDefaults := shell.GetDefaults()
-	nvimDefaults := nvimops.GetDefaults()
+	nvimDefaults := nvimbridge.GetDefaults()
 	containerDefaults := builders.GetContainerDefaults()
 
 	// Override with user-set defaults from database

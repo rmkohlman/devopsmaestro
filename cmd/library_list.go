@@ -6,12 +6,12 @@ import (
 
 	"github.com/rmkohlman/MaestroSDK/render"
 
-	nvimpluginlib "devopsmaestro/pkg/nvimops/library"
-	nvimpkglib "devopsmaestro/pkg/nvimops/package/library"
-	nvimthemelib "devopsmaestro/pkg/nvimops/theme/library"
 	terminalpkglib "devopsmaestro/pkg/terminalops/package/library"
 	terminalpluginlib "devopsmaestro/pkg/terminalops/plugin/library"
 	terminalpromptlib "devopsmaestro/pkg/terminalops/prompt/library"
+	nvimpluginlib "github.com/rmkohlman/MaestroNvim/nvimops/library"
+	nvimpkglib "github.com/rmkohlman/MaestroNvim/nvimops/package/library"
+	nvimthemelib "github.com/rmkohlman/MaestroTheme/library"
 
 	"github.com/spf13/cobra"
 )

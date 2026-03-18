@@ -6,11 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"devopsmaestro/pkg/nvimops/theme/library"
 	"devopsmaestro/pkg/terminalops/wezterm"
 	weztermlib "devopsmaestro/pkg/terminalops/wezterm/library"
 	"github.com/rmkohlman/MaestroPalette"
 	"github.com/rmkohlman/MaestroSDK/render"
+	"github.com/rmkohlman/MaestroTheme/library"
 
 	"github.com/spf13/cobra"
 )

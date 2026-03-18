@@ -1,9 +1,9 @@
 package cmd
 
 import (
-	"devopsmaestro/nvim"
 	"devopsmaestro/ui"
 	"fmt"
+	"github.com/rmkohlman/MaestroNvim/nvim"
 	"os"
 
 	"github.com/spf13/cobra"

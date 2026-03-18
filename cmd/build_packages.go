@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"devopsmaestro/db"
-	nvimpackage "devopsmaestro/pkg/nvimops/package"
-	packagelibrary "devopsmaestro/pkg/nvimops/package/library"
 	"fmt"
+	nvimpackage "github.com/rmkohlman/MaestroNvim/nvimops/package"
+	packagelibrary "github.com/rmkohlman/MaestroNvim/nvimops/package/library"
 	"strings"
 )
 

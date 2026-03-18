@@ -3,9 +3,9 @@ package cmd
 import (
 	"devopsmaestro/db"
 	"devopsmaestro/operators"
-	"devopsmaestro/pkg/nvimops/package/library"
 	terminalpkglib "devopsmaestro/pkg/terminalops/package/library"
 	"fmt"
+	"github.com/rmkohlman/MaestroNvim/nvimops/package/library"
 	"github.com/rmkohlman/MaestroSDK/render"
 
 	"github.com/spf13/cobra"

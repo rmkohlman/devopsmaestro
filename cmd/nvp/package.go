@@ -10,9 +10,9 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
-	"devopsmaestro/pkg/nvimops/library"
-	nvimpackage "devopsmaestro/pkg/nvimops/package"
-	packagelibrary "devopsmaestro/pkg/nvimops/package/library"
+	"github.com/rmkohlman/MaestroNvim/nvimops/library"
+	nvimpackage "github.com/rmkohlman/MaestroNvim/nvimops/package"
+	packagelibrary "github.com/rmkohlman/MaestroNvim/nvimops/package/library"
 	"github.com/rmkohlman/MaestroSDK/render"
 
 	"github.com/spf13/cobra"

@@ -3,9 +3,10 @@ package handlers
 import (
 	"fmt"
 
-	"devopsmaestro/pkg/nvimops/theme"
-	"devopsmaestro/pkg/nvimops/theme/library"
+	"devopsmaestro/pkg/themebridge"
 	"github.com/rmkohlman/MaestroSDK/resource"
+	theme "github.com/rmkohlman/MaestroTheme"
+	"github.com/rmkohlman/MaestroTheme/library"
 )
 
 const KindNvimTheme = "NvimTheme"
@@ -153,11 +154,11 @@ func (h *NvimThemeHandler) getStore(ctx resource.Context) (theme.Store, error) {
 
 	// If DataStore is provided, use DBStoreAdapter
 	if ctx.DataStore != nil {
-		ds, err := resource.DataStoreAs[theme.ThemeDataStore](ctx)
+		ds, err := resource.DataStoreAs[themebridge.ThemeDataStore](ctx)
 		if err != nil {
 			return nil, fmt.Errorf("DataStore does not implement ThemeDataStore: %T", ctx.DataStore)
 		}
-		return theme.NewDBStoreAdapter(ds), nil
+		return themebridge.NewDBStoreAdapter(ds), nil
 	}
 
 	// If ConfigDir is provided, use FileStore

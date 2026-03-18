@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"devopsmaestro/pkg/colorbridge"
-	"devopsmaestro/pkg/nvimops/theme"
 	"github.com/rmkohlman/MaestroSDK/colors"
+	theme "github.com/rmkohlman/MaestroTheme"
 )
 
 // TestColorProviderIntegration demonstrates the complete workflow

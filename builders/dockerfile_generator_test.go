@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"devopsmaestro/models"
-	"devopsmaestro/pkg/nvimops/plugin"
 	"devopsmaestro/utils"
+	"github.com/rmkohlman/MaestroNvim/nvimops/plugin"
 	"github.com/rmkohlman/MaestroSDK/paths"
 )
 

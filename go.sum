@@ -247,10 +247,14 @@ github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec h1:W09IVJc94
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec/go.mod h1:qqbHyh8v60DhA7CoWK5oRCqLrMHRGoxYCSS9EjAz6Eo=
 github.com/rivo/uniseg v0.4.7 h1:WUdvkW8uEhrYfLC4ZzdpI2ztxP1I582+49Oc5Mq64VQ=
 github.com/rivo/uniseg v0.4.7/go.mod h1:FN3SvrM+Zdj16jyLfmOkMNblXMcoc8DfTHruCPUcx88=
+github.com/rmkohlman/MaestroNvim v0.2.0 h1:v9am6LTPlF0ZfeeUFBay5p35fTQbnrnJi6C4HWypJOg=
+github.com/rmkohlman/MaestroNvim v0.2.0/go.mod h1:iJrnxlvGHrJQX+vUVQsscaVXqDL2/YqEG4+7g0ABgVY=
 github.com/rmkohlman/MaestroPalette v0.1.0 h1:XxPR7fcPAvO1VpWTNB8Pc6qnLIRJMvlfpU5oK3CppW0=
 github.com/rmkohlman/MaestroPalette v0.1.0/go.mod h1:VB3Yn/RxVCkQBqQtACwRVYrAuitRiy9FsDNQpsfqinc=
 github.com/rmkohlman/MaestroSDK v0.1.0 h1:C6iMS2JopWe2+7FZBErEMVAkOovi/dfXIMZTZrhB/Yk=
 github.com/rmkohlman/MaestroSDK v0.1.0/go.mod h1:O5Eg+uGXaJcXZBrpX9CsS2qZXS4DcjMWhjxT4FZUnhI=
+github.com/rmkohlman/MaestroTheme v0.1.0 h1:unf5h0LWyNeLiro2GEdI97Xgn5YsPNtvFPjq9ET9Xy0=
+github.com/rmkohlman/MaestroTheme v0.1.0/go.mod h1:V2Jjj8vlcFdlxEmxktzyJnLEeixOUcqLP1Yd2IzDAGo=
 github.com/rmkohlman/MaestroVault v0.7.0 h1:gbFWqcPTzDamed7fVOzVodS4r4K/aB6sso7BzvPqUig=
 github.com/rmkohlman/MaestroVault v0.7.0/go.mod h1:IomLYHfAMB1ThW7GDK3eoT97D3txVZMOs7uuhHg7o4Y=
 github.com/rogpeppe/go-internal v1.14.1 h1:UQB4HGPB6osV0SQTLymcB4TgvyWu6ZyliaW0tI/otEQ=

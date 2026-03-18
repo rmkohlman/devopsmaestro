@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"devopsmaestro/pkg/nvimops"
-	"github.com/rmkohlman/MaestroSDK/resource"
 	"devopsmaestro/pkg/resource/handlers"
 	"devopsmaestro/pkg/source"
+	"github.com/rmkohlman/MaestroNvim/nvimops"
+	"github.com/rmkohlman/MaestroSDK/resource"
 
 	"github.com/spf13/cobra"
 )

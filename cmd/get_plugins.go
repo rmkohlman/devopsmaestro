@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 
-	"devopsmaestro/pkg/nvimops/plugin"
 	"devopsmaestro/pkg/resource/handlers"
+	"github.com/rmkohlman/MaestroNvim/nvimops/plugin"
 	"github.com/rmkohlman/MaestroSDK/render"
 	"github.com/rmkohlman/MaestroSDK/resource"
 

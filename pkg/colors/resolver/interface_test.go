@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"devopsmaestro/pkg/nvimops/theme"
+	theme "github.com/rmkohlman/MaestroTheme"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -5,10 +5,10 @@ import (
 
 	"devopsmaestro/db"
 	themeresolver "devopsmaestro/pkg/colors/resolver"
-	"devopsmaestro/pkg/nvimops/theme"
 	"devopsmaestro/pkg/resource/handlers"
 	"github.com/rmkohlman/MaestroSDK/render"
 	"github.com/rmkohlman/MaestroSDK/resource"
+	theme "github.com/rmkohlman/MaestroTheme"
 
 	"github.com/spf13/cobra"
 )

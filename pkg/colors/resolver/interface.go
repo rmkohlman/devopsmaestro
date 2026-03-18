@@ -7,7 +7,7 @@ import (
 	"context"
 	"time"
 
-	"devopsmaestro/pkg/nvimops/theme"
+	theme "github.com/rmkohlman/MaestroTheme"
 )
 
 // DefaultTheme is the global fallback theme

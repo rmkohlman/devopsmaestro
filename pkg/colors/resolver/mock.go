@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"devopsmaestro/pkg/nvimops/theme"
+	theme "github.com/rmkohlman/MaestroTheme"
 )
 
 // MockThemeResolver provides a mock implementation for testing

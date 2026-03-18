@@ -3,8 +3,8 @@ package handlers
 import (
 	"testing"
 
-	"devopsmaestro/pkg/nvimops/theme"
 	"github.com/rmkohlman/MaestroSDK/resource"
+	theme "github.com/rmkohlman/MaestroTheme"
 )
 
 func TestNvimThemeHandler_Kind(t *testing.T) {

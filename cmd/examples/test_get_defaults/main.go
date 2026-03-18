@@ -9,7 +9,7 @@ import (
 
 	"devopsmaestro/builders"
 	themeresolver "devopsmaestro/pkg/colors/resolver"
-	"devopsmaestro/pkg/nvimops"
+	"devopsmaestro/pkg/nvimbridge"
 	"devopsmaestro/pkg/terminalops/shell"
 )
 
@@ -32,7 +32,7 @@ func main() {
 
 	// Example 3: Get Neovim defaults
 	fmt.Println("3. Neovim Configuration Defaults:")
-	nvimDefaults := nvimops.GetDefaults()
+	nvimDefaults := nvimbridge.GetDefaults()
 	printMap(nvimDefaults, "  ")
 	fmt.Println()
 
