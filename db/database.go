@@ -1,8 +1,8 @@
 package db
 
 import (
-	"devopsmaestro/pkg/paths"
 	"fmt"
+	"github.com/rmkohlman/MaestroSDK/paths"
 	"io/fs"
 	"log/slog"
 	"os"

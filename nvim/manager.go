@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"devopsmaestro/pkg/paths"
+	"github.com/rmkohlman/MaestroSDK/paths"
 )
 
 // Manager handles Neovim configuration management operations

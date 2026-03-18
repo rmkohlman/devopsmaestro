@@ -8,8 +8,8 @@ import (
 
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/nvimops/plugin"
-	"devopsmaestro/pkg/paths"
 	"devopsmaestro/utils"
+	"github.com/rmkohlman/MaestroSDK/paths"
 )
 
 func TestDockerfileGenerator_GenerateBaseStage_Python(t *testing.T) {

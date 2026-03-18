@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"devopsmaestro/pkg/nvimops"
-	"devopsmaestro/pkg/resource"
+	"github.com/rmkohlman/MaestroSDK/resource"
 	"devopsmaestro/pkg/resource/handlers"
 	"devopsmaestro/pkg/source"
 

@@ -3,11 +3,12 @@ package cmd
 import (
 	"context"
 	"devopsmaestro/db"
-	"devopsmaestro/pkg/colors"
+	"devopsmaestro/pkg/colorbridge"
 	"devopsmaestro/pkg/crd"
 	"devopsmaestro/pkg/nvimops/theme"
-	"devopsmaestro/render"
 	"fmt"
+	"github.com/rmkohlman/MaestroSDK/colors"
+	"github.com/rmkohlman/MaestroSDK/render"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -46,7 +47,7 @@ func Execute(dataStore *db.DataStore, executor *Executor, migrationsFS fs.FS) {
 		var paletteProvider colors.PaletteProvider
 		if themePath != "" {
 			store := theme.NewFileStore(themePath)
-			paletteProvider = colors.NewThemeStoreAdapter(store)
+			paletteProvider = colorbridge.NewThemeStoreAdapter(store)
 		}
 		ctx, err := colors.InitColorProviderForCommand(
 			cmd.Context(),

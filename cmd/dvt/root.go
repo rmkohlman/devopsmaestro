@@ -14,7 +14,6 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"devopsmaestro/pkg/paths"
 	"devopsmaestro/pkg/terminalops/plugin"
 	pluginlibrary "devopsmaestro/pkg/terminalops/plugin/library"
 	"devopsmaestro/pkg/terminalops/profile"
@@ -22,7 +21,8 @@ import (
 	promptlibrary "devopsmaestro/pkg/terminalops/prompt/library"
 	"devopsmaestro/pkg/terminalops/shell"
 	"devopsmaestro/pkg/terminalops/store"
-	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroSDK/paths"
+	"github.com/rmkohlman/MaestroSDK/render"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/cobra"

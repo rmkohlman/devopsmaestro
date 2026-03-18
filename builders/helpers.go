@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroSDK/render"
 )
 
 // SaveDockerfile saves the generated Dockerfile content to disk.

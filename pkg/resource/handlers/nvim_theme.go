@@ -5,7 +5,7 @@ import (
 
 	"devopsmaestro/pkg/nvimops/theme"
 	"devopsmaestro/pkg/nvimops/theme/library"
-	"devopsmaestro/pkg/resource"
+	"github.com/rmkohlman/MaestroSDK/resource"
 )
 
 const KindNvimTheme = "NvimTheme"

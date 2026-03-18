@@ -1,21 +1,29 @@
-package colors
+package colorbridge
 
 import (
+	"fmt"
+
 	"devopsmaestro/pkg/nvimops/theme"
 	"github.com/rmkohlman/MaestroPalette"
+	"github.com/rmkohlman/MaestroSDK/colors"
 )
 
-// ThemeStoreAdapter bridges theme.Store to PaletteProvider interface.
+// ThemeStoreAdapter bridges theme.Store to colors.PaletteProvider interface.
 // This adapter allows the colors package to use theme functionality
 // without creating circular imports or tight coupling.
+//
+// This lives in a separate "colorbridge" package because it needs to import both
+// the SDK colors package (github.com/rmkohlman/MaestroSDK/colors) and the local
+// theme package (devopsmaestro/pkg/nvimops/theme). Having this in pkg/colors/
+// would create a package naming conflict with the SDK's colors package.
 type ThemeStoreAdapter struct {
 	store theme.Store
 }
 
 // NewThemeStoreAdapter creates a new adapter that wraps a theme store.
-// The adapter implements PaletteProvider to bridge the theme system
+// The adapter implements colors.PaletteProvider to bridge the theme system
 // with the ColorProvider factory.
-func NewThemeStoreAdapter(store theme.Store) PaletteProvider {
+func NewThemeStoreAdapter(store theme.Store) colors.PaletteProvider {
 	return &ThemeStoreAdapter{
 		store: store,
 	}
@@ -45,7 +53,8 @@ func (a *ThemeStoreAdapter) GetActivePalette() (*palette.Palette, error) {
 // Returns an error if the theme is not found.
 func (a *ThemeStoreAdapter) GetPalette(name string) (*palette.Palette, error) {
 	if a.store == nil {
-		return nil, &NoProviderError{message: "no theme store configured"}
+		// NoProviderError.message is unexported in the SDK, so we use fmt.Errorf
+		return nil, fmt.Errorf("no theme store configured")
 	}
 
 	themeData, err := a.store.Get(name)

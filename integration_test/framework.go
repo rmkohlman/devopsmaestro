@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"devopsmaestro/pkg/paths"
+	"github.com/rmkohlman/MaestroSDK/paths"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

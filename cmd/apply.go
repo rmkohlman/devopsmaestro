@@ -1,11 +1,11 @@
 package cmd
 
 import (
-	"devopsmaestro/pkg/resource"
 	"devopsmaestro/pkg/resource/handlers"
 	"devopsmaestro/pkg/source"
-	"devopsmaestro/render"
 	"fmt"
+	"github.com/rmkohlman/MaestroSDK/render"
+	"github.com/rmkohlman/MaestroSDK/resource"
 
 	"github.com/spf13/cobra"
 )

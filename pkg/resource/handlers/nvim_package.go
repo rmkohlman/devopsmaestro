@@ -10,7 +10,7 @@ import (
 	"devopsmaestro/models"
 	nvimpkg "devopsmaestro/pkg/nvimops/package"
 	"devopsmaestro/pkg/nvimops/package/library"
-	"devopsmaestro/pkg/resource"
+	"github.com/rmkohlman/MaestroSDK/resource"
 
 	"gopkg.in/yaml.v3"
 )

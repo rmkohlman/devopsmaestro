@@ -9,7 +9,7 @@ import (
 	themeresolver "devopsmaestro/pkg/colors/resolver"
 	"devopsmaestro/pkg/nvimops"
 	"devopsmaestro/pkg/terminalops/shell"
-	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroSDK/render"
 
 	"github.com/spf13/cobra"
 )

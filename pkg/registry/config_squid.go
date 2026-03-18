@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"devopsmaestro/pkg/paths"
+	"github.com/rmkohlman/MaestroSDK/paths"
 )
 
 // HttpProxyConfig represents squid HTTP proxy configuration.

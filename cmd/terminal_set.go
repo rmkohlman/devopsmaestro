@@ -12,7 +12,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroSDK/render"
 
 	"github.com/spf13/cobra"
 )

@@ -3,8 +3,8 @@ package cmd
 import (
 	"context"
 	"devopsmaestro/operators"
-	"devopsmaestro/render"
 	"fmt"
+	"github.com/rmkohlman/MaestroSDK/render"
 	"log/slog"
 
 	"github.com/spf13/cobra"

@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroSDK/render"
 )
 
 // Version information (set via ldflags during build)

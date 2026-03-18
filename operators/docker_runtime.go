@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroSDK/render"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"

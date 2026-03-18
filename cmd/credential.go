@@ -8,7 +8,7 @@ import (
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/envvalidation"
-	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroSDK/render"
 
 	"github.com/spf13/cobra"
 )

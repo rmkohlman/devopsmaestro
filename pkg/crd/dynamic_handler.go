@@ -3,7 +3,7 @@ package crd
 import (
 	"fmt"
 
-	"devopsmaestro/pkg/resource"
+	"github.com/rmkohlman/MaestroSDK/resource"
 
 	"gopkg.in/yaml.v3"
 )

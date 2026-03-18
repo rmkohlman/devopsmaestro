@@ -36,11 +36,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"devopsmaestro/pkg/paths"
 	"devopsmaestro/pkg/terminalops/plugin"
 	"devopsmaestro/pkg/terminalops/profile"
 	"devopsmaestro/pkg/terminalops/prompt"
 	"devopsmaestro/pkg/terminalops/shell"
+	"github.com/rmkohlman/MaestroSDK/paths"
 )
 
 // Manager provides high-level operations for terminal configuration management.

@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"devopsmaestro/db"
-	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroSDK/render"
 	"io/fs"
 	"os"
 

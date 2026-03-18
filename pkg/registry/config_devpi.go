@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"devopsmaestro/pkg/paths"
+	"github.com/rmkohlman/MaestroSDK/paths"
 )
 
 // PyPIProxyConfig holds configuration for the devpi PyPI proxy.

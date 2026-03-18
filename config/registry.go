@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"devopsmaestro/pkg/paths"
+	"github.com/rmkohlman/MaestroSDK/paths"
 
 	"github.com/spf13/viper"
 )

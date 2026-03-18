@@ -7,7 +7,7 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
-	"devopsmaestro/pkg/resource"
+	"github.com/rmkohlman/MaestroSDK/resource"
 	"devopsmaestro/pkg/resource/handlers"
 
 	"github.com/spf13/cobra"

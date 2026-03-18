@@ -12,7 +12,7 @@ import (
 	"devopsmaestro/pkg/terminalops/emulator"
 	"devopsmaestro/pkg/terminalops/emulator/library"
 	"devopsmaestro/pkg/terminalops/store"
-	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroSDK/render"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"

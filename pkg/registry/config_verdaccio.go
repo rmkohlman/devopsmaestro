@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"devopsmaestro/pkg/paths"
+	"github.com/rmkohlman/MaestroSDK/paths"
 
 	"gopkg.in/yaml.v3"
 )

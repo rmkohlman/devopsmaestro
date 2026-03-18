@@ -6,7 +6,7 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
-	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroSDK/render"
 )
 
 // tableBuilder is the interface every resource-specific table builder must satisfy.

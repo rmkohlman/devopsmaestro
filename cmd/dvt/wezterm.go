@@ -9,8 +9,8 @@ import (
 	"devopsmaestro/pkg/nvimops/theme/library"
 	"devopsmaestro/pkg/terminalops/wezterm"
 	weztermlib "devopsmaestro/pkg/terminalops/wezterm/library"
-	"devopsmaestro/render"
 	"github.com/rmkohlman/MaestroPalette"
+	"github.com/rmkohlman/MaestroSDK/render"
 
 	"github.com/spf13/cobra"
 )

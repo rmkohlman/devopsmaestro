@@ -8,9 +8,9 @@ import (
 	"devopsmaestro/models"
 	nvimpkg "devopsmaestro/pkg/nvimops/package"
 	"devopsmaestro/pkg/nvimops/plugin"
-	"devopsmaestro/pkg/resource"
 	"devopsmaestro/pkg/resource/handlers"
-	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroSDK/render"
+	"github.com/rmkohlman/MaestroSDK/resource"
 
 	"github.com/spf13/cobra"
 )

@@ -4,12 +4,12 @@ import (
 	"fmt"
 
 	"devopsmaestro/db"
-	"devopsmaestro/pkg/colors"
-	"devopsmaestro/pkg/resource"
 	"devopsmaestro/pkg/resource/handlers"
 	"devopsmaestro/pkg/source"
 	"devopsmaestro/pkg/terminalops/prompt"
-	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroSDK/colors"
+	"github.com/rmkohlman/MaestroSDK/render"
+	"github.com/rmkohlman/MaestroSDK/resource"
 
 	"github.com/spf13/cobra"
 )

@@ -2,7 +2,7 @@ package builders
 
 import (
 	"devopsmaestro/models"
-	"devopsmaestro/pkg/paths"
+	"github.com/rmkohlman/MaestroSDK/paths"
 	"strings"
 	"testing"
 )

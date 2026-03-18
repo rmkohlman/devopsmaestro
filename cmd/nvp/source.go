@@ -9,7 +9,7 @@ import (
 
 	nvimpackage "devopsmaestro/pkg/nvimops/package"
 	"devopsmaestro/pkg/nvimops/sync"
-	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroSDK/render"
 
 	"github.com/spf13/cobra"
 )

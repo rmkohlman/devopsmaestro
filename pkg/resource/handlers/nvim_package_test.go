@@ -7,7 +7,7 @@ import (
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	nvimpackage "devopsmaestro/pkg/nvimops/package"
-	"devopsmaestro/pkg/resource"
+	"github.com/rmkohlman/MaestroSDK/resource"
 )
 
 func TestNvimPackageHandler_Kind(t *testing.T) {

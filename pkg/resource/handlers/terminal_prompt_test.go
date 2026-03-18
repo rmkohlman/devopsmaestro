@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"devopsmaestro/models"
-	"devopsmaestro/pkg/resource"
+	"github.com/rmkohlman/MaestroSDK/resource"
 	"devopsmaestro/pkg/terminalops/prompt"
 )
 

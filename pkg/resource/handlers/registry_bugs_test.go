@@ -34,7 +34,7 @@ package handlers
 import (
 	"testing"
 
-	"devopsmaestro/pkg/resource"
+	"github.com/rmkohlman/MaestroSDK/resource"
 )
 
 // TestRegistryHandler_Apply_SetsDefaultVersionForZot verifies that

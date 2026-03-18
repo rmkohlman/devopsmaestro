@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"devopsmaestro/pkg/nvimops/plugin"
-	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroSDK/render"
 
 	"gopkg.in/yaml.v3"
 )

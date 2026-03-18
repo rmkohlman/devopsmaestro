@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroSDK/render"
 
 	nvimpluginlib "devopsmaestro/pkg/nvimops/library"
 	nvimpkglib "devopsmaestro/pkg/nvimops/package/library"

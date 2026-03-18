@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"devopsmaestro/pkg/paths"
+	"github.com/rmkohlman/MaestroSDK/paths"
 )
 
 // GenerateZotConfig generates a Zot registry configuration from a DVM config.

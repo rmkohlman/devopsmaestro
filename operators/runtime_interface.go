@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"devopsmaestro/pkg/paths"
+	"github.com/rmkohlman/MaestroSDK/paths"
 )
 
 // ContainerRuntime defines the interface for container runtime operations

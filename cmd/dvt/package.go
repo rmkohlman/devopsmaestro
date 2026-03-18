@@ -16,7 +16,7 @@ import (
 	pluginlibrary "devopsmaestro/pkg/terminalops/plugin/library"
 	promptlibrary "devopsmaestro/pkg/terminalops/prompt/library"
 	"devopsmaestro/pkg/terminalops/store"
-	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroSDK/render"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"

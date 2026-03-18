@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"devopsmaestro/pkg/nvimops/theme"
-	"devopsmaestro/pkg/resource"
+	"github.com/rmkohlman/MaestroSDK/resource"
 )
 
 func TestNvimThemeHandler_Kind(t *testing.T) {

@@ -10,7 +10,7 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
-	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroSDK/render"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"

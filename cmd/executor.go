@@ -3,8 +3,8 @@ package cmd
 import (
 	"context"
 	"devopsmaestro/db"
-	"devopsmaestro/render"
 	"fmt"
+	"github.com/rmkohlman/MaestroSDK/render"
 
 	"github.com/stretchr/testify/mock"
 )

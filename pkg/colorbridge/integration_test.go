@@ -1,12 +1,13 @@
-package colors_test
+package colorbridge_test
 
 import (
 	"context"
 	"os"
 	"testing"
 
-	"devopsmaestro/pkg/colors"
+	"devopsmaestro/pkg/colorbridge"
 	"devopsmaestro/pkg/nvimops/theme"
+	"github.com/rmkohlman/MaestroSDK/colors"
 )
 
 // TestColorProviderIntegration demonstrates the complete workflow
@@ -47,7 +48,7 @@ func TestColorProviderIntegration(t *testing.T) {
 	}
 
 	// Create PaletteProvider adapter for tests
-	adapter := colors.NewThemeStoreAdapter(store)
+	adapter := colorbridge.NewThemeStoreAdapter(store)
 
 	t.Run("InitColorProviderForCommand with active theme", func(t *testing.T) {
 		ctx := context.Background()

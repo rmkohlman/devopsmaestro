@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroSDK/render"
 )
 
 // initFromTemplate initializes config from a template

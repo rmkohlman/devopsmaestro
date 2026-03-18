@@ -3,9 +3,9 @@ package main
 import (
 	"devopsmaestro/cmd"
 	"devopsmaestro/db"
-	"devopsmaestro/pkg/paths"
-	"devopsmaestro/render"
 	"fmt"
+	"github.com/rmkohlman/MaestroSDK/paths"
+	"github.com/rmkohlman/MaestroSDK/render"
 	"io/fs"
 	"os"
 

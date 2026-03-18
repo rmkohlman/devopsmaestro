@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"devopsmaestro/operators"
-	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroSDK/render"
 )
 
 // WatchdogRunner is a function type for running commands with a watchdog.

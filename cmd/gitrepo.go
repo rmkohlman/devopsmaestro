@@ -4,10 +4,10 @@ import (
 	"database/sql"
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/mirror"
-	"devopsmaestro/pkg/paths"
-	"devopsmaestro/render"
 	"devopsmaestro/utils"
 	"fmt"
+	"github.com/rmkohlman/MaestroSDK/paths"
+	"github.com/rmkohlman/MaestroSDK/render"
 	"os"
 	"time"
 

@@ -9,8 +9,8 @@ import (
 
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/nvimops/plugin"
-	"devopsmaestro/pkg/paths"
 	"devopsmaestro/utils"
+	"github.com/rmkohlman/MaestroSDK/paths"
 )
 
 // curlFlags provides hardened curl flags for builder stage downloads.

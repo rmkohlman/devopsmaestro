@@ -12,10 +12,10 @@ import (
 	"devopsmaestro/models"
 	themeresolver "devopsmaestro/pkg/colors/resolver"
 	"devopsmaestro/pkg/mirror"
-	"devopsmaestro/pkg/resource"
 	"devopsmaestro/pkg/resource/handlers"
-	"devopsmaestro/render"
 	"devopsmaestro/utils"
+	"github.com/rmkohlman/MaestroSDK/render"
+	"github.com/rmkohlman/MaestroSDK/resource"
 
 	"github.com/spf13/cobra"
 )

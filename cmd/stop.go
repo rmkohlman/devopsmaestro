@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"devopsmaestro/pkg/registry"
-	"devopsmaestro/render"
 	"fmt"
+	"github.com/rmkohlman/MaestroSDK/render"
 
 	"github.com/spf13/cobra"
 )

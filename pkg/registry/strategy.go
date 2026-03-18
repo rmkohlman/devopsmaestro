@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"devopsmaestro/models"
-	"devopsmaestro/pkg/paths"
+	"github.com/rmkohlman/MaestroSDK/paths"
 )
 
 // validateStoragePath ensures the resolved path is within the DVM root directory (~/.devopsmaestro/).

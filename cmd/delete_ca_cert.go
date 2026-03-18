@@ -10,9 +10,9 @@ import (
 	"strings"
 
 	"devopsmaestro/db"
-	"devopsmaestro/pkg/resource"
 	"devopsmaestro/pkg/resource/handlers"
-	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroSDK/render"
+	"github.com/rmkohlman/MaestroSDK/resource"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"

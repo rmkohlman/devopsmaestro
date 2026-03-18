@@ -5,7 +5,7 @@ import (
 
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/registry"
-	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroSDK/render"
 
 	"github.com/spf13/cobra"
 )

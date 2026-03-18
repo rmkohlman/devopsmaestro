@@ -3,10 +3,10 @@ package cmd
 import (
 	"context"
 	"devopsmaestro/db"
-	"devopsmaestro/pkg/paths"
 	"devopsmaestro/pkg/registry"
-	"devopsmaestro/render"
 	"fmt"
+	"github.com/rmkohlman/MaestroSDK/paths"
+	"github.com/rmkohlman/MaestroSDK/render"
 	"io/fs"
 	"log/slog"
 	"os"

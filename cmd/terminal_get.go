@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"devopsmaestro/pkg/resource"
 	"devopsmaestro/pkg/resource/handlers"
 	terminalpkg "devopsmaestro/pkg/terminalops/package"
-	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroSDK/render"
+	"github.com/rmkohlman/MaestroSDK/resource"
 
 	"github.com/spf13/cobra"
 )

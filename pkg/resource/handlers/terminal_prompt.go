@@ -4,7 +4,7 @@ package handlers
 import (
 	"fmt"
 
-	"devopsmaestro/pkg/resource"
+	"github.com/rmkohlman/MaestroSDK/resource"
 	"devopsmaestro/pkg/terminalops/prompt"
 
 	"gopkg.in/yaml.v3"

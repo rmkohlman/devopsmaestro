@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/registry"
-	"devopsmaestro/render"
 	"encoding/json"
 	"fmt"
+	"github.com/rmkohlman/MaestroSDK/render"
 	"time"
 
 	"github.com/spf13/cobra"

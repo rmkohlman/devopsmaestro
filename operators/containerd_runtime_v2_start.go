@@ -8,7 +8,7 @@ import (
 	"strings"
 	"syscall"
 
-	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroSDK/render"
 
 	"github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/pkg/cio"

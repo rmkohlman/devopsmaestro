@@ -20,7 +20,7 @@ package handlers
 import (
 	"sync"
 
-	"devopsmaestro/pkg/resource"
+	"github.com/rmkohlman/MaestroSDK/resource"
 )
 
 var registerOnce sync.Once

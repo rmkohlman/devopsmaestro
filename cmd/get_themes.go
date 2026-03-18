@@ -6,9 +6,9 @@ import (
 	"devopsmaestro/db"
 	themeresolver "devopsmaestro/pkg/colors/resolver"
 	"devopsmaestro/pkg/nvimops/theme"
-	"devopsmaestro/pkg/resource"
 	"devopsmaestro/pkg/resource/handlers"
-	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroSDK/render"
+	"github.com/rmkohlman/MaestroSDK/resource"
 
 	"github.com/spf13/cobra"
 )

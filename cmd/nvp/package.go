@@ -13,7 +13,7 @@ import (
 	"devopsmaestro/pkg/nvimops/library"
 	nvimpackage "devopsmaestro/pkg/nvimops/package"
 	packagelibrary "devopsmaestro/pkg/nvimops/package/library"
-	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroSDK/render"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"

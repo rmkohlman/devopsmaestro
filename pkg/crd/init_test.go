@@ -3,7 +3,7 @@ package crd
 import (
 	"testing"
 
-	"devopsmaestro/pkg/resource"
+	"github.com/rmkohlman/MaestroSDK/resource"
 )
 
 // mockDataStore is a minimal mock for testing initialization

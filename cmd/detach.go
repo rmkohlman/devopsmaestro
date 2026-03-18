@@ -5,8 +5,8 @@ import (
 	"devopsmaestro/models"
 	"devopsmaestro/operators"
 	"devopsmaestro/pkg/resolver"
-	"devopsmaestro/render"
 	"fmt"
+	"github.com/rmkohlman/MaestroSDK/render"
 	"log/slog"
 
 	"github.com/spf13/cobra"

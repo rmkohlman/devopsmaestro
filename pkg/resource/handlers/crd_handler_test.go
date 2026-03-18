@@ -6,7 +6,7 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
-	"devopsmaestro/pkg/resource"
+	"github.com/rmkohlman/MaestroSDK/resource"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

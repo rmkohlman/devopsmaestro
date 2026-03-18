@@ -6,7 +6,7 @@ import (
 	"devopsmaestro/models"
 	themeresolver "devopsmaestro/pkg/colors/resolver"
 	"devopsmaestro/pkg/resolver"
-	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroSDK/render"
 
 	"github.com/spf13/cobra"
 )

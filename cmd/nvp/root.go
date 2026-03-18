@@ -15,7 +15,7 @@ import (
 	"text/tabwriter"
 
 	"devopsmaestro/db"
-	"devopsmaestro/pkg/colors"
+	"devopsmaestro/pkg/colorbridge"
 	"devopsmaestro/pkg/nvimops"
 	nvimconfig "devopsmaestro/pkg/nvimops/config"
 	"devopsmaestro/pkg/nvimops/library"
@@ -26,11 +26,12 @@ import (
 	"devopsmaestro/pkg/nvimops/theme"
 	themelibrary "devopsmaestro/pkg/nvimops/theme/library"
 	"devopsmaestro/pkg/nvimops/theme/parametric"
-	"devopsmaestro/pkg/paths"
-	"devopsmaestro/pkg/resource"
 	"devopsmaestro/pkg/resource/handlers"
 	"devopsmaestro/pkg/source"
-	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroSDK/colors"
+	"github.com/rmkohlman/MaestroSDK/paths"
+	"github.com/rmkohlman/MaestroSDK/render"
+	"github.com/rmkohlman/MaestroSDK/resource"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -186,7 +187,7 @@ func init() {
 		var paletteProvider colors.PaletteProvider
 		if nvpThemePath != "" {
 			store := theme.NewFileStore(nvpThemePath)
-			paletteProvider = colors.NewThemeStoreAdapter(store)
+			paletteProvider = colorbridge.NewThemeStoreAdapter(store)
 		}
 		ctx, err := colors.InitColorProviderForCommand(
 			cmd.Context(),

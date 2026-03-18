@@ -8,7 +8,7 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
-	"devopsmaestro/pkg/resource"
+	"github.com/rmkohlman/MaestroSDK/resource"
 	terminalpkg "devopsmaestro/pkg/terminalops/package"
 
 	"gopkg.in/yaml.v3"

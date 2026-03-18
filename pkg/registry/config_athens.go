@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"devopsmaestro/pkg/paths"
+	"github.com/rmkohlman/MaestroSDK/paths"
 )
 
 // GoModuleConfig holds configuration for the Athens Go module proxy.

@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"devopsmaestro/pkg/nvimops/plugin"
-	"devopsmaestro/render"
 	"fmt"
+	"github.com/rmkohlman/MaestroSDK/render"
 	"os"
 	"os/exec"
 

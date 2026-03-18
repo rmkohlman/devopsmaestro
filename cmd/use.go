@@ -5,8 +5,8 @@ import (
 	"devopsmaestro/operators"
 	"devopsmaestro/pkg/nvimops/package/library"
 	terminalpkglib "devopsmaestro/pkg/terminalops/package/library"
-	"devopsmaestro/render"
 	"fmt"
+	"github.com/rmkohlman/MaestroSDK/render"
 
 	"github.com/spf13/cobra"
 )

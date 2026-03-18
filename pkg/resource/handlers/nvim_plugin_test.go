@@ -5,7 +5,7 @@ import (
 
 	"devopsmaestro/pkg/nvimops/plugin"
 	"devopsmaestro/pkg/nvimops/store"
-	"devopsmaestro/pkg/resource"
+	"github.com/rmkohlman/MaestroSDK/resource"
 )
 
 func TestNvimPluginHandler_Kind(t *testing.T) {

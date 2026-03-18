@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"devopsmaestro/db"
-	"devopsmaestro/pkg/resource"
+	"github.com/rmkohlman/MaestroSDK/resource"
 )
 
 // =============================================================================

@@ -1,13 +1,14 @@
-package colors_test
+package colorbridge_test
 
 import (
 	"context"
 	"os"
 	"testing"
 
-	"devopsmaestro/pkg/colors"
+	"devopsmaestro/pkg/colorbridge"
 	"devopsmaestro/pkg/nvimops/theme"
 	"github.com/rmkohlman/MaestroPalette"
+	"github.com/rmkohlman/MaestroSDK/colors"
 )
 
 // =============================================================================
@@ -135,7 +136,7 @@ func TestThemeStoreAdapter_GetActivePalette(t *testing.T) {
 		activeTheme: activeTheme,
 		basePath:    "/test",
 	}
-	adapter := colors.NewThemeStoreAdapter(store)
+	adapter := colorbridge.NewThemeStoreAdapter(store)
 
 	result, err := adapter.GetActivePalette()
 	if err != nil {
@@ -155,7 +156,7 @@ func TestThemeStoreAdapter_GetActivePalette_NoActive(t *testing.T) {
 		activeTheme: nil, // No active theme
 		basePath:    "/test",
 	}
-	adapter := colors.NewThemeStoreAdapter(store)
+	adapter := colorbridge.NewThemeStoreAdapter(store)
 
 	result, err := adapter.GetActivePalette()
 	if err != nil {
@@ -167,7 +168,7 @@ func TestThemeStoreAdapter_GetActivePalette_NoActive(t *testing.T) {
 }
 
 func TestThemeStoreAdapter_GetActivePalette_NilStore(t *testing.T) {
-	adapter := colors.NewThemeStoreAdapter(nil)
+	adapter := colorbridge.NewThemeStoreAdapter(nil)
 
 	result, err := adapter.GetActivePalette()
 	if err != nil {
@@ -193,7 +194,7 @@ func TestThemeStoreAdapter_GetPalette(t *testing.T) {
 		},
 		basePath: "/test",
 	}
-	adapter := colors.NewThemeStoreAdapter(store)
+	adapter := colorbridge.NewThemeStoreAdapter(store)
 
 	result, err := adapter.GetPalette("gruvbox")
 	if err != nil {
@@ -213,7 +214,7 @@ func TestThemeStoreAdapter_GetPalette_NotFound(t *testing.T) {
 		themes:   map[string]*theme.Theme{},
 		basePath: "/test",
 	}
-	adapter := colors.NewThemeStoreAdapter(store)
+	adapter := colorbridge.NewThemeStoreAdapter(store)
 
 	_, err := adapter.GetPalette("nonexistent")
 	if err == nil {
@@ -222,7 +223,7 @@ func TestThemeStoreAdapter_GetPalette_NotFound(t *testing.T) {
 }
 
 func TestThemeStoreAdapter_GetPalette_NilStore(t *testing.T) {
-	adapter := colors.NewThemeStoreAdapter(nil)
+	adapter := colorbridge.NewThemeStoreAdapter(nil)
 
 	_, err := adapter.GetPalette("any")
 	if err == nil {
@@ -233,7 +234,7 @@ func TestThemeStoreAdapter_GetPalette_NilStore(t *testing.T) {
 func TestThemeStoreAdapter_ImplementsInterface(t *testing.T) {
 	// Ensure ThemeStoreAdapter satisfies the PaletteProvider interface
 	store := &mockThemeStore{basePath: "/test"}
-	var _ colors.PaletteProvider = colors.NewThemeStoreAdapter(store)
+	var _ colors.PaletteProvider = colorbridge.NewThemeStoreAdapter(store)
 }
 
 // =============================================================================
