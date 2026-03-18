@@ -4,11 +4,12 @@ import (
 	"testing"
 
 	"devopsmaestro/models"
+	"devopsmaestro/pkg/terminalbridge"
 	"github.com/rmkohlman/MaestroSDK/resource"
-	"devopsmaestro/pkg/terminalops/prompt"
+	"github.com/rmkohlman/MaestroTerminal/terminalops/prompt"
 )
 
-// MockTerminalPromptDataStore implements prompt.PromptDataStore for testing.
+// MockTerminalPromptDataStore implements terminalbridge.PromptDataStore for testing.
 type MockTerminalPromptDataStore struct {
 	prompts map[string]*models.TerminalPromptDB
 	nextID  int
@@ -84,8 +85,13 @@ func (m *MockTerminalPromptDataStore) Close() error {
 	return nil
 }
 
-// Verify MockTerminalPromptDataStore implements prompt.PromptDataStore
-var _ prompt.PromptDataStore = (*MockTerminalPromptDataStore)(nil)
+func (m *MockTerminalPromptDataStore) UpsertTerminalPrompt(p *models.TerminalPromptDB) error {
+	m.prompts[p.Name] = p
+	return nil
+}
+
+// Verify MockTerminalPromptDataStore implements terminalbridge.PromptDataStore
+var _ terminalbridge.PromptDataStore = (*MockTerminalPromptDataStore)(nil)
 
 func TestTerminalPromptHandler_Kind(t *testing.T) {
 	h := NewTerminalPromptHandler()

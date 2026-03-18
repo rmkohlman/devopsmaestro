@@ -9,9 +9,9 @@ import (
 	"text/tabwriter"
 
 	"devopsmaestro/db"
-	"devopsmaestro/pkg/terminalops/emulator"
-	"devopsmaestro/pkg/terminalops/emulator/library"
-	"devopsmaestro/pkg/terminalops/store"
+	"github.com/rmkohlman/MaestroTerminal/terminalops/emulator"
+	"github.com/rmkohlman/MaestroTerminal/terminalops/emulator/library"
+	"devopsmaestro/pkg/terminalbridge"
 	"github.com/rmkohlman/MaestroSDK/render"
 
 	"github.com/spf13/cobra"
@@ -398,7 +398,7 @@ func getEmulatorStore(cmd *cobra.Command) (emulator.EmulatorStore, error) {
 	dataStore := dataStoreInterface.(*db.DataStore)
 
 	// Return database-backed emulator store via factory
-	return store.NewDBEmulatorStore(*dataStore), nil
+	return terminalbridge.NewDBEmulatorStore(*dataStore), nil
 }
 
 // outputEmulators outputs emulators in the specified format

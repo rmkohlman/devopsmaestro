@@ -18,7 +18,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	terminalplugin "devopsmaestro/pkg/terminalops/plugin"
+	terminalplugin "github.com/rmkohlman/MaestroTerminal/terminalops/plugin"
 )
 
 // generateNvimConfig generates nvim configuration and copies to staging directory.

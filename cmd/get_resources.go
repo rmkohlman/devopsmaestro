@@ -8,7 +8,7 @@ import (
 	"devopsmaestro/operators"
 	themeresolver "devopsmaestro/pkg/colors/resolver"
 	"devopsmaestro/pkg/nvimbridge"
-	"devopsmaestro/pkg/terminalops/shell"
+	"github.com/rmkohlman/MaestroTerminal/terminalops/shell"
 	"github.com/rmkohlman/MaestroSDK/render"
 
 	"github.com/spf13/cobra"

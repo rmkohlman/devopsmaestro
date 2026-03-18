@@ -6,7 +6,7 @@ import (
 	"devopsmaestro/db"
 	"devopsmaestro/pkg/resource/handlers"
 	"devopsmaestro/pkg/source"
-	"devopsmaestro/pkg/terminalops/prompt"
+	"github.com/rmkohlman/MaestroTerminal/terminalops/prompt"
 	"github.com/rmkohlman/MaestroSDK/colors"
 	"github.com/rmkohlman/MaestroSDK/render"
 	"github.com/rmkohlman/MaestroSDK/resource"

@@ -6,9 +6,9 @@ import (
 
 	"github.com/rmkohlman/MaestroSDK/render"
 
-	terminalpkglib "devopsmaestro/pkg/terminalops/package/library"
-	terminalpluginlib "devopsmaestro/pkg/terminalops/plugin/library"
-	terminalpromptlib "devopsmaestro/pkg/terminalops/prompt/library"
+	terminalpkglib "github.com/rmkohlman/MaestroTerminal/terminalops/package/library"
+	terminalpluginlib "github.com/rmkohlman/MaestroTerminal/terminalops/plugin/library"
+	terminalpromptlib "github.com/rmkohlman/MaestroTerminal/terminalops/prompt/library"
 	nvimpluginlib "github.com/rmkohlman/MaestroNvim/nvimops/library"
 	nvimpkglib "github.com/rmkohlman/MaestroNvim/nvimops/package/library"
 	nvimthemelib "github.com/rmkohlman/MaestroTheme/library"

@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"devopsmaestro/db"
-	"devopsmaestro/pkg/terminalops/wezterm"
+	"github.com/rmkohlman/MaestroTerminal/terminalops/wezterm"
 	"fmt"
 	"log/slog"
 	"os"

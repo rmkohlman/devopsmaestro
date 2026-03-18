@@ -10,7 +10,7 @@ import (
 	"devopsmaestro/builders"
 	themeresolver "devopsmaestro/pkg/colors/resolver"
 	"devopsmaestro/pkg/nvimbridge"
-	"devopsmaestro/pkg/terminalops/shell"
+	"github.com/rmkohlman/MaestroTerminal/terminalops/shell"
 )
 
 func main() {

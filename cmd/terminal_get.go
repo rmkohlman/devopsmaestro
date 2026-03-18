@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"devopsmaestro/pkg/resource/handlers"
-	terminalpkg "devopsmaestro/pkg/terminalops/package"
+	terminalpkg "github.com/rmkohlman/MaestroTerminal/terminalops/package"
 	"github.com/rmkohlman/MaestroSDK/render"
 	"github.com/rmkohlman/MaestroSDK/resource"
 

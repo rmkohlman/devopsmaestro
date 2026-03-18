@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"devopsmaestro/pkg/terminalops/wezterm"
-	weztermlib "devopsmaestro/pkg/terminalops/wezterm/library"
+	"github.com/rmkohlman/MaestroTerminal/terminalops/wezterm"
+	weztermlib "github.com/rmkohlman/MaestroTerminal/terminalops/wezterm/library"
 	"github.com/rmkohlman/MaestroPalette"
 	"github.com/rmkohlman/MaestroSDK/render"
 	"github.com/rmkohlman/MaestroTheme/library"

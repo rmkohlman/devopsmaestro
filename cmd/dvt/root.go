@@ -14,13 +14,13 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"devopsmaestro/pkg/terminalops/plugin"
-	pluginlibrary "devopsmaestro/pkg/terminalops/plugin/library"
-	"devopsmaestro/pkg/terminalops/profile"
-	"devopsmaestro/pkg/terminalops/prompt"
-	promptlibrary "devopsmaestro/pkg/terminalops/prompt/library"
-	"devopsmaestro/pkg/terminalops/shell"
-	"devopsmaestro/pkg/terminalops/store"
+	"github.com/rmkohlman/MaestroTerminal/terminalops/plugin"
+	pluginlibrary "github.com/rmkohlman/MaestroTerminal/terminalops/plugin/library"
+	"github.com/rmkohlman/MaestroTerminal/terminalops/profile"
+	"github.com/rmkohlman/MaestroTerminal/terminalops/prompt"
+	promptlibrary "github.com/rmkohlman/MaestroTerminal/terminalops/prompt/library"
+	"github.com/rmkohlman/MaestroTerminal/terminalops/shell"
+	"devopsmaestro/pkg/terminalbridge"
 	"github.com/rmkohlman/MaestroSDK/paths"
 	"github.com/rmkohlman/MaestroSDK/render"
 
@@ -1407,7 +1407,7 @@ func getPluginStore(cmd *cobra.Command) (plugin.PluginStore, error) {
 	dataStore := dataStoreInterface.(*db.DataStore)
 
 	// Return database-backed plugin store via factory
-	return store.NewDBPluginStore(*dataStore), nil
+	return terminalbridge.NewDBPluginStore(*dataStore), nil
 }
 
 func (s *PluginFileStore) Save(p *plugin.Plugin) error {

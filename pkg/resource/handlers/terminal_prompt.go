@@ -4,8 +4,10 @@ package handlers
 import (
 	"fmt"
 
+	"devopsmaestro/pkg/terminalbridge"
+
 	"github.com/rmkohlman/MaestroSDK/resource"
-	"devopsmaestro/pkg/terminalops/prompt"
+	"github.com/rmkohlman/MaestroTerminal/terminalops/prompt"
 
 	"gopkg.in/yaml.v3"
 )
@@ -103,11 +105,11 @@ func (h *TerminalPromptHandler) ToYAML(res resource.Resource) ([]byte, error) {
 func (h *TerminalPromptHandler) getStore(ctx resource.Context) (prompt.PromptStore, error) {
 	// If DataStore is provided, use SQLitePromptStore adapter
 	if ctx.DataStore != nil {
-		ds, err := resource.DataStoreAs[prompt.PromptDataStore](ctx)
+		ds, err := resource.DataStoreAs[terminalbridge.PromptDataStore](ctx)
 		if err != nil {
 			return nil, fmt.Errorf("DataStore does not implement PromptDataStore: %T", ctx.DataStore)
 		}
-		return prompt.NewSQLitePromptStore(ds), nil
+		return terminalbridge.NewDBPromptStore(ds), nil
 	}
 
 	// No store configured

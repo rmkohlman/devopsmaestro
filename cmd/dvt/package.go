@@ -11,11 +11,11 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
-	terminalpackage "devopsmaestro/pkg/terminalops/package"
-	packagelibrary "devopsmaestro/pkg/terminalops/package/library"
-	pluginlibrary "devopsmaestro/pkg/terminalops/plugin/library"
-	promptlibrary "devopsmaestro/pkg/terminalops/prompt/library"
-	"devopsmaestro/pkg/terminalops/store"
+	terminalpackage "github.com/rmkohlman/MaestroTerminal/terminalops/package"
+	packagelibrary "github.com/rmkohlman/MaestroTerminal/terminalops/package/library"
+	pluginlibrary "github.com/rmkohlman/MaestroTerminal/terminalops/plugin/library"
+	promptlibrary "github.com/rmkohlman/MaestroTerminal/terminalops/prompt/library"
+	"devopsmaestro/pkg/terminalbridge"
 	"github.com/rmkohlman/MaestroSDK/render"
 
 	"github.com/spf13/cobra"
@@ -215,13 +215,13 @@ Examples:
 		dataStore := dataStoreInterface.(*db.DataStore)
 
 		// Create stores
-		pluginStore := store.NewDBPluginStore(*dataStore)
+		pluginStore := terminalbridge.NewDBPluginStore(*dataStore)
 		defer pluginStore.Close()
 
-		promptStore := store.NewDBPromptStore(*dataStore)
+		promptStore := terminalbridge.NewDBPromptStore(*dataStore)
 		defer promptStore.Close()
 
-		profileStore := store.NewDBProfileStore(*dataStore)
+		profileStore := terminalbridge.NewDBProfileStore(*dataStore)
 		defer profileStore.Close()
 
 		// Load libraries

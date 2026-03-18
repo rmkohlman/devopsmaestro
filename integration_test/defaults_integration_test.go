@@ -8,7 +8,7 @@ import (
 
 	themeresolver "devopsmaestro/pkg/colors/resolver"
 	"devopsmaestro/pkg/nvimbridge"
-	"devopsmaestro/pkg/terminalops/shell"
+	"github.com/rmkohlman/MaestroTerminal/terminalops/shell"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

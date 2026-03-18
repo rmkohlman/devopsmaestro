@@ -3,7 +3,7 @@ package cmd
 import (
 	"devopsmaestro/db"
 	"devopsmaestro/operators"
-	terminalpkglib "devopsmaestro/pkg/terminalops/package/library"
+	terminalpkglib "github.com/rmkohlman/MaestroTerminal/terminalops/package/library"
 	"fmt"
 	"github.com/rmkohlman/MaestroNvim/nvimops/package/library"
 	"github.com/rmkohlman/MaestroSDK/render"

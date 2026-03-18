@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"devopsmaestro/pkg/terminalops/wezterm"
+	"github.com/rmkohlman/MaestroTerminal/terminalops/wezterm"
 	"strings"
 	"testing"
 )

@@ -3,8 +3,8 @@ package main
 import (
 	"testing"
 
-	terminalpackage "devopsmaestro/pkg/terminalops/package"
-	packagelibrary "devopsmaestro/pkg/terminalops/package/library"
+	terminalpackage "github.com/rmkohlman/MaestroTerminal/terminalops/package"
+	packagelibrary "github.com/rmkohlman/MaestroTerminal/terminalops/package/library"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

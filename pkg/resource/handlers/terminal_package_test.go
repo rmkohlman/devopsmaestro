@@ -6,7 +6,7 @@ import (
 
 	"devopsmaestro/models"
 	"github.com/rmkohlman/MaestroSDK/resource"
-	terminalpkg "devopsmaestro/pkg/terminalops/package"
+	terminalpkg "github.com/rmkohlman/MaestroTerminal/terminalops/package"
 )
 
 // MockTerminalPackageDataStore implements the terminal package DataStore methods for testing.
