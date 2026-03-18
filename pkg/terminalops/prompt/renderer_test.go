@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"devopsmaestro/pkg/palette"
 	"github.com/pelletier/go-toml/v2"
+	"github.com/rmkohlman/MaestroPalette"
 )
 
 func TestStarshipRenderer_Render(t *testing.T) {

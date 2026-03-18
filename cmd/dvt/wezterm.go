@@ -7,10 +7,10 @@ import (
 	"strings"
 
 	"devopsmaestro/pkg/nvimops/theme/library"
-	"devopsmaestro/pkg/palette"
 	"devopsmaestro/pkg/terminalops/wezterm"
 	weztermlib "devopsmaestro/pkg/terminalops/wezterm/library"
 	"devopsmaestro/render"
+	"github.com/rmkohlman/MaestroPalette"
 
 	"github.com/spf13/cobra"
 )

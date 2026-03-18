@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"devopsmaestro/pkg/nvimops/theme"
-	"devopsmaestro/pkg/palette"
+	"github.com/rmkohlman/MaestroPalette"
 )
 
 // Generator creates themes using parametric generation from base colors.

@@ -3,7 +3,7 @@ package colors
 import (
 	"fmt"
 
-	"devopsmaestro/pkg/palette"
+	"github.com/rmkohlman/MaestroPalette"
 )
 
 // PaletteProvider is an interface for getting palettes.

@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"devopsmaestro/pkg/nvimops/theme"
-	"devopsmaestro/pkg/palette"
+	"github.com/rmkohlman/MaestroPalette"
 )
 
 // ThemePreset defines a parametric theme variant with its metadata.

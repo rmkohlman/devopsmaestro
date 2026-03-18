@@ -6,13 +6,13 @@ import (
 	"strings"
 	"testing"
 
-	"devopsmaestro/pkg/palette"
 	terminalpkg "devopsmaestro/pkg/terminalops/package"
 	"devopsmaestro/pkg/terminalops/prompt"
 	promptextension "devopsmaestro/pkg/terminalops/prompt/extension"
 	promptextensionlibrary "devopsmaestro/pkg/terminalops/prompt/extension/library"
 	promptstyle "devopsmaestro/pkg/terminalops/prompt/style"
 	promptstylelibrary "devopsmaestro/pkg/terminalops/prompt/style/library"
+	"github.com/rmkohlman/MaestroPalette"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -2,7 +2,7 @@ package colors
 
 import (
 	"devopsmaestro/pkg/nvimops/theme"
-	"devopsmaestro/pkg/palette"
+	"github.com/rmkohlman/MaestroPalette"
 )
 
 // ThemeStoreAdapter bridges theme.Store to PaletteProvider interface.

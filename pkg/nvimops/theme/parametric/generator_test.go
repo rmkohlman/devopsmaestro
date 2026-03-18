@@ -3,7 +3,7 @@ package parametric
 import (
 	"testing"
 
-	"devopsmaestro/pkg/palette"
+	"github.com/rmkohlman/MaestroPalette"
 )
 
 func TestHSLUtilities(t *testing.T) {

@@ -1,7 +1,7 @@
 package colors
 
 import (
-	"devopsmaestro/pkg/palette"
+	"github.com/rmkohlman/MaestroPalette"
 )
 
 // ThemeColorProvider implements ColorProvider using a palette.

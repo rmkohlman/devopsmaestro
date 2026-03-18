@@ -8,8 +8,8 @@ import (
 	"sort"
 	"strings"
 
-	"devopsmaestro/pkg/palette"
 	"devopsmaestro/pkg/terminalops/prompt/composer"
+	"github.com/rmkohlman/MaestroPalette"
 )
 
 // PromptRenderer converts TerminalPrompt definitions to config files.

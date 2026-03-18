@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"devopsmaestro/pkg/colors"
-	"devopsmaestro/pkg/palette"
+	"github.com/rmkohlman/MaestroPalette"
 )
 
 // =============================================================================

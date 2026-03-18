@@ -1,7 +1,7 @@
 package colors
 
 import (
-	"devopsmaestro/pkg/palette"
+	"github.com/rmkohlman/MaestroPalette"
 )
 
 // PaletteAdapter defines the interface for converting to a palette.Palette.

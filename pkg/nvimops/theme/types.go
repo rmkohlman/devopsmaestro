@@ -2,7 +2,7 @@
 package theme
 
 import (
-	"devopsmaestro/pkg/palette"
+	"github.com/rmkohlman/MaestroPalette"
 )
 
 // Theme represents a Neovim colorscheme configuration.

@@ -7,7 +7,7 @@ import (
 
 	"devopsmaestro/pkg/colors"
 	"devopsmaestro/pkg/nvimops/theme"
-	"devopsmaestro/pkg/palette"
+	"github.com/rmkohlman/MaestroPalette"
 )
 
 // =============================================================================

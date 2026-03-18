@@ -3,7 +3,7 @@ package colors
 import (
 	"testing"
 
-	"devopsmaestro/pkg/palette"
+	"github.com/rmkohlman/MaestroPalette"
 )
 
 func TestColorToPaletteAdapter(t *testing.T) {
