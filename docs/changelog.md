@@ -2,6 +2,19 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.55.0 (2026-03-18)
+
+**Hierarchical Build Args**
+
+Build args now cascade down the full `global → ecosystem → domain → app → workspace` hierarchy. The most specific level wins.
+
+- **`dvm set build-arg KEY VALUE`** — set a build arg at any level via `--global`, `--ecosystem`, `--domain`, `--app`, or `--workspace`; keys validated as legal env var names; `DVM_`-prefixed and dangerous system keys are rejected
+- **`dvm get build-args`** — list build args at a specified level using `--global`, `--ecosystem`, `--domain`, `--app`, or `--workspace`; `--effective` shows the fully merged cascade with a provenance column indicating which level each arg originates from; `--output yaml`/`--output json` for scripting
+- **`dvm delete build-arg KEY`** — delete a build arg at any level using the same hierarchy flags
+- **Five-level cascade resolver** — `global < ecosystem < domain < app < workspace`; resolved args are injected as `--build-arg KEY=VALUE` at build time; values are not persisted in image layers (complements `ARG` declarations from v0.54.0)
+- **New YAML fields** — `spec.build.args` added to Ecosystem and Domain resources (already existed on App and Workspace)
+- 0 breaking changes; 1 new migration (`017_add_build_args`); 4 new production files; 2 modified production files
+
 ## v0.54.0 (2026-03-17)
 
 **✨ Corporate Build Configuration**

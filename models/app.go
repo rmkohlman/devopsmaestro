@@ -70,6 +70,15 @@ type AppBuildConfig struct {
 	Context    string            `yaml:"context,omitempty"`    // Build context path
 }
 
+// IsEmpty returns true if all fields of AppBuildConfig are zero/empty.
+func (c AppBuildConfig) IsEmpty() bool {
+	return c.Dockerfile == "" &&
+		c.Buildpack == "" &&
+		len(c.Args) == 0 &&
+		c.Target == "" &&
+		c.Context == ""
+}
+
 // AppDependencies defines where the app's dependencies come from
 type AppDependencies struct {
 	File    string   `yaml:"file,omitempty"`    // go.mod, requirements.txt, package.json
@@ -156,7 +165,7 @@ func (a *App) FromYAML(yaml AppYAML) {
 	}
 
 	// Store build config as JSON
-	if yaml.Spec.Build.Dockerfile != "" || yaml.Spec.Build.Buildpack != "" {
+	if !yaml.Spec.Build.IsEmpty() {
 		if buildJSON, err := json.Marshal(yaml.Spec.Build); err == nil {
 			a.BuildConfig = sql.NullString{String: string(buildJSON), Valid: true}
 		}

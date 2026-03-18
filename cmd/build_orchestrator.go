@@ -5,12 +5,13 @@ import (
 	"devopsmaestro/builders"
 	"devopsmaestro/config"
 	"devopsmaestro/models"
+	"devopsmaestro/pkg/buildargs/resolver"
 	"devopsmaestro/pkg/envvalidation"
 	"devopsmaestro/pkg/nvimops/plugin"
 	"devopsmaestro/pkg/paths"
 	"devopsmaestro/pkg/registry"
 	"devopsmaestro/pkg/registry/envinjector"
-	"devopsmaestro/pkg/resolver"
+	wsresolver "devopsmaestro/pkg/resolver"
 	"devopsmaestro/render"
 	"devopsmaestro/utils"
 	"fmt"
@@ -42,16 +43,16 @@ func buildWorkspace(cmd *cobra.Command) error {
 		slog.Debug("using hierarchy flags", "ecosystem", buildFlags.Ecosystem,
 			"domain", buildFlags.Domain, "app", buildFlags.App, "workspace", buildFlags.Workspace)
 
-		wsResolver := resolver.NewWorkspaceResolver(sqlDS)
+		wsResolver := wsresolver.NewWorkspaceResolver(sqlDS)
 		result, err := wsResolver.Resolve(buildFlags.ToFilter())
 		if err != nil {
 			// Check if ambiguous and provide helpful output
-			if ambiguousErr, ok := resolver.IsAmbiguousError(err); ok {
+			if ambiguousErr, ok := wsresolver.IsAmbiguousError(err); ok {
 				render.Warning("Multiple workspaces match your criteria")
 				render.Plain(ambiguousErr.FormatDisambiguation())
 				return fmt.Errorf("ambiguous workspace selection")
 			}
-			if resolver.IsNoWorkspaceFoundError(err) {
+			if wsresolver.IsNoWorkspaceFoundError(err) {
 				render.Warning("No workspace found matching your criteria")
 				render.Info("Hint: Use 'dvm get workspaces' to see available workspaces")
 				return err
@@ -267,7 +268,7 @@ func buildWorkspace(cmd *cobra.Command) error {
 			"sources", privateRepoInfo.SystemDepSources)
 	}
 
-	// Pre-compute additional build arg names from registry env vars and workspace build args.
+	// Pre-compute additional build arg names from registry env vars and the cascade resolver.
 	// The Dockerfile generator needs these names (not values) to emit ARG declarations.
 	// Deduplication is handled by the generator's collectAdditionalBuildArgs().
 	var additionalBuildArgNames []string
@@ -276,8 +277,18 @@ func buildWorkspace(cmd *cobra.Command) error {
 			additionalBuildArgNames = append(additionalBuildArgNames, k)
 		}
 	}
-	for k := range workspaceYAML.Spec.Build.Args {
-		additionalBuildArgNames = append(additionalBuildArgNames, k)
+
+	// Resolve hierarchical build args (global < ecosystem < domain < app < workspace)
+	buildArgsResolver := resolver.NewHierarchyBuildArgsResolver(sqlDS)
+	cascadeResolution, cascadeErr := buildArgsResolver.Resolve(context.Background(), workspace.ID)
+	if cascadeErr != nil {
+		slog.Warn("failed to resolve hierarchical build args, continuing without them", "error", cascadeErr)
+		cascadeResolution = nil
+	}
+	if cascadeResolution != nil {
+		for k := range cascadeResolution.Args {
+			additionalBuildArgNames = append(additionalBuildArgNames, k)
+		}
 	}
 
 	generator := builders.NewDockerfileGenerator(builders.DockerfileGeneratorOptions{
@@ -355,10 +366,10 @@ func buildWorkspace(cmd *cobra.Command) error {
 	}
 
 	// Prepare build args (from environment and config)
-	// Priority (lowest to highest): registry env vars -> app config -> credentials
+	// Priority (lowest to highest): registry env vars -> cascade resolver (global < eco < domain < app < workspace) -> credentials
 	buildArgs := make(map[string]string)
 
-	// Layer 1: Registry env vars (lowest priority - can be overridden by app config)
+	// Layer 1: Registry env vars (lowest priority - can be overridden by cascade resolver)
 	if registryEnvVars != nil {
 		for k, v := range registryEnvVars {
 			buildArgs[k] = v
@@ -366,17 +377,12 @@ func buildWorkspace(cmd *cobra.Command) error {
 		}
 	}
 
-	// Layer 1.5: Workspace-level build args (from spec.build.args)
-	for k, v := range workspaceYAML.Spec.Build.Args {
-		buildArgs[k] = v
-		slog.Debug("using build arg from workspace config", "key", k)
-	}
-
-	// Layer 2: App's build args (can be overridden by credentials)
-	if buildConfig := app.GetBuildConfig(); buildConfig != nil {
-		for k, v := range buildConfig.Args {
+	// Layer 2: Hierarchical cascade build args (global < ecosystem < domain < app < workspace)
+	// cascadeResolution was already computed above for Dockerfile ARG generation.
+	if cascadeResolution != nil {
+		for k, v := range cascadeResolution.Args {
 			buildArgs[k] = v
-			slog.Debug("using build arg from app config", "key", k)
+			slog.Debug("using cascaded build arg", "key", k, "source", cascadeResolution.Sources[k].String())
 		}
 	}
 

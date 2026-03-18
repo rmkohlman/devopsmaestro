@@ -43,6 +43,7 @@ func createTestSchema(driver Driver) error {
 			name TEXT NOT NULL UNIQUE,
 			description TEXT,
 			theme TEXT,
+			build_args TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
@@ -52,6 +53,7 @@ func createTestSchema(driver Driver) error {
 			name TEXT NOT NULL,
 			description TEXT,
 			theme TEXT,
+			build_args TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (ecosystem_id) REFERENCES ecosystems(id) ON DELETE CASCADE,
@@ -91,6 +93,7 @@ func createTestSchema(driver Driver) error {
 			ssh_agent_forwarding INTEGER DEFAULT 0,
 			git_repo_id INTEGER,
 			env TEXT NOT NULL DEFAULT '{}',
+			build_config TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (app_id) REFERENCES apps(id),
@@ -2109,6 +2112,7 @@ func TestSQLDataStore_MigrationSchema_AppsTableHasLanguageAndBuildConfig(t *test
 			name TEXT NOT NULL UNIQUE,
 			description TEXT,
 			theme TEXT,
+			build_args TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);
@@ -2119,6 +2123,7 @@ func TestSQLDataStore_MigrationSchema_AppsTableHasLanguageAndBuildConfig(t *test
 			name TEXT NOT NULL,
 			description TEXT,
 			theme TEXT,
+			build_args TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (ecosystem_id) REFERENCES ecosystems(id),

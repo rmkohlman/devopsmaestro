@@ -725,6 +725,122 @@ dvm delete cred db-pass --domain backend -f
 
 ---
 
+## Build Args (NEW in v0.55.0)
+
+Build args cascade down the full `global → ecosystem → domain → app → workspace` hierarchy. The most specific level wins. Resolved args are injected as `--build-arg KEY=VALUE` at build time; values are not stored in image layers.
+
+### `dvm set build-arg`
+
+Set a build arg at any hierarchy level.
+
+```bash
+dvm set build-arg <KEY> <VALUE> [flags]
+```
+
+**Hierarchy flags (exactly one required):**
+
+| Flag | Description |
+|------|-------------|
+| `--global` | Set at global level (lowest priority — inherited by everything) |
+| `--ecosystem <name>` | Set at ecosystem level |
+| `--domain <name>` | Set at domain level |
+| `--app <name>` | Set at app level |
+| `--workspace <name>` | Set at workspace level (highest priority) |
+
+**Key validation:** Keys must be valid environment variable names. `DVM_`-prefixed keys and dangerous system variables (e.g., `PATH`, `HOME`) are rejected.
+
+**Examples:**
+
+```bash
+# Set a global PyPI mirror (lowest priority)
+dvm set build-arg PIP_INDEX_URL "https://pypi.corp.example/simple" --global
+
+# Override at ecosystem level
+dvm set build-arg PIP_INDEX_URL "https://pypi.eu.corp.example/simple" --ecosystem my-platform
+
+# Set a build token only for a specific app
+dvm set build-arg GITHUB_PAT "ghp_abc123" --app my-api
+
+# Set at workspace level (highest priority — overrides all others)
+dvm set build-arg NPM_TOKEN "npm_xyz789" --workspace dev
+```
+
+---
+
+### `dvm get build-args`
+
+List build args at the active or specified hierarchy level.
+
+```bash
+dvm get build-args [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--global` | Show global-level build args |
+| `--ecosystem <name>` | Show build args for an ecosystem |
+| `--domain <name>` | Show build args for a domain |
+| `--app <name>` | Show build args for an app |
+| `--workspace <name>` | Show build args for a workspace |
+| `--effective` | Show the fully merged cascade with provenance |
+| `--output <format>` | Output format: `table`, `yaml`, `json` |
+
+**Build Args Cascade:**
+Args inherit down the hierarchy unless overridden:
+```
+global → ecosystem → domain → app → workspace
+```
+The most specific level (workspace) wins. Use `--effective` to see the merged result with a provenance column showing which level each arg comes from.
+
+**Examples:**
+
+```bash
+# List global build args
+dvm get build-args --global
+
+# Show the full effective cascade for a workspace (with provenance)
+dvm get build-args --workspace dev --effective
+
+# Machine-readable output
+dvm get build-args --app my-api --output yaml
+dvm get build-args --workspace dev --effective --output json
+```
+
+---
+
+### `dvm delete build-arg`
+
+Delete a build arg at a specific hierarchy level.
+
+```bash
+dvm delete build-arg <KEY> [flags]
+```
+
+**Hierarchy flags (exactly one required):**
+
+| Flag | Description |
+|------|-------------|
+| `--global` | Delete from global level |
+| `--ecosystem <name>` | Delete from ecosystem level |
+| `--domain <name>` | Delete from domain level |
+| `--app <name>` | Delete from app level |
+| `--workspace <name>` | Delete from workspace level |
+
+**Examples:**
+
+```bash
+# Remove a global build arg
+dvm delete build-arg PIP_INDEX_URL --global
+
+# Remove an override set at the app level
+dvm delete build-arg GITHUB_PAT --app my-api
+
+# Remove a workspace-level override
+dvm delete build-arg NPM_TOKEN --workspace dev
+```
+
+---
+
 ## Themes (NEW in v0.12.0)
 
 ### `dvm set theme`

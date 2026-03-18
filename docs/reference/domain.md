@@ -20,11 +20,14 @@ metadata:
     description: "Backend services and APIs"
     slack-channel: "#backend-team"
 spec:
+  theme: gruvbox-dark
+  build:
+    args:
+      NPM_REGISTRY: "https://npm.corp.com/registry"
   apps:
     - api-service
     - user-service
     - auth-service
-  theme: gruvbox-dark
 ```
 
 ## Field Reference
@@ -39,6 +42,8 @@ spec:
 | `metadata.annotations` | object | ❌ | Key-value annotations for metadata |
 | `spec.apps` | array | ❌ | List of app names in this domain |
 | `spec.theme` | string | ❌ | Default theme for apps/workspaces in this domain |
+| `spec.build` | object | ❌ | Build configuration inherited by all workspaces in this domain |
+| `spec.build.args` | map[string]string | ❌ | Build arguments passed as Docker `--build-arg` to all workspace builds |
 
 ## Field Details
 
@@ -79,6 +84,33 @@ Theme hierarchy: `Workspace → App → Domain → Ecosystem → System Default`
 ```yaml
 spec:
   theme: gruvbox-dark  # Overrides ecosystem theme for this domain
+```
+
+### spec.build.args (optional)
+
+Build arguments that cascade down to all apps and workspaces in this domain. Each key-value pair is passed as `--build-arg KEY=VALUE` during `dvm build`. Values are not persisted in image layers (they map to `ARG` declarations in the generated Dockerfile, not `ENV`).
+
+```yaml
+spec:
+  build:
+    args:
+      NPM_REGISTRY: "https://npm.corp.com/registry"
+      GITHUB_PAT: "ghp_abc123"
+```
+
+**Cascade order (most specific level wins):**
+```
+global < ecosystem < domain < app < workspace
+```
+
+An arg defined at the domain level overrides any matching arg from the ecosystem or global level, and is itself overridden by app- or workspace-level definitions. Use `dvm get build-args --effective --workspace <name>` to see the fully merged result with provenance for any workspace.
+
+Manage domain-level build args with:
+
+```bash
+dvm set build-arg NPM_REGISTRY "https://npm.corp.com/registry" --domain backend
+dvm get build-args --domain backend
+dvm delete build-arg NPM_REGISTRY --domain backend
 ```
 
 ## Usage Examples

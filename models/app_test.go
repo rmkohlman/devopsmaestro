@@ -224,3 +224,215 @@ func TestAppRoundTrip_ToYAML_FromYAML(t *testing.T) {
 	assert.Equal(t, origBuild.Dockerfile, restoredBuild.Dockerfile)
 	assert.Equal(t, origBuild.Target, restoredBuild.Target)
 }
+
+// =============================================================================
+// v0.55.0 Phase 2 RED Tests: WI-2 — Fix App FromYAML Data Loss
+//
+// These tests expose the bug where App.FromYAML() silently drops build config
+// when neither Dockerfile nor Buildpack is set (args-only, target-only, etc.).
+//
+// Additionally, tests for AppBuildConfig.IsEmpty() helper (WI-2 design decision
+// 15) which replaces the growing condition list in FromYAML.
+//
+// RED status per test:
+//   - TestApp_FromYAML_ArgsOnly_Persisted  → FAILS AT RUNTIME (bug: condition
+//     only checks Dockerfile||Buildpack; args-only config is dropped).
+//   - TestApp_FromYAML_TargetOnly_Persisted → FAILS AT RUNTIME (same bug).
+//   - TestApp_BuildConfig_IsEmpty          → WILL NOT COMPILE (IsEmpty() method
+//     does not exist on AppBuildConfig yet — WI-2).
+//
+// =============================================================================
+
+// TestApp_FromYAML_ArgsOnly_Persisted verifies that when an AppYAML has only
+// spec.build.args (no dockerfile or buildpack), FromYAML still persists the
+// build config. This tests the WI-2 bug fix.
+//
+// RED: FAILS AT RUNTIME — current FromYAML condition:
+//
+//	if yaml.Spec.Build.Dockerfile != "" || yaml.Spec.Build.Buildpack != ""
+//
+// silently drops args-only build configs. Fix: expand condition or use IsEmpty().
+func TestApp_FromYAML_ArgsOnly_Persisted(t *testing.T) {
+	appYAML := AppYAML{
+		APIVersion: "devopsmaestro.io/v1",
+		Kind:       "App",
+		Metadata: AppMetadata{
+			Name:   "ml-api",
+			Domain: "data-science",
+		},
+		Spec: AppSpec{
+			Path: "/code/ml-api",
+			Build: AppBuildConfig{
+				// No Dockerfile, no Buildpack — args only
+				Args: map[string]string{
+					"CGO_ENABLED": "0",
+					"GOOS":        "linux",
+				},
+			},
+		},
+	}
+
+	app := &App{}
+	app.FromYAML(appYAML)
+
+	// FAILS TODAY: BuildConfig is nil because Dockerfile=="" && Buildpack==""
+	buildCfg := app.GetBuildConfig()
+	require.NotNil(t, buildCfg,
+		"RED: App.GetBuildConfig() should return non-nil after FromYAML with args-only build config — FAILS until WI-2 fixes the FromYAML condition")
+
+	assert.Equal(t, "0", buildCfg.Args["CGO_ENABLED"],
+		"CGO_ENABLED build arg should be persisted via FromYAML")
+	assert.Equal(t, "linux", buildCfg.Args["GOOS"],
+		"GOOS build arg should be persisted via FromYAML")
+}
+
+// TestApp_FromYAML_TargetOnly_Persisted verifies that when an AppYAML has only
+// spec.build.target (no dockerfile or buildpack), FromYAML still persists the
+// build config. This tests the WI-2 bug fix.
+//
+// RED: FAILS AT RUNTIME — same root cause as TestApp_FromYAML_ArgsOnly_Persisted.
+func TestApp_FromYAML_TargetOnly_Persisted(t *testing.T) {
+	appYAML := AppYAML{
+		APIVersion: "devopsmaestro.io/v1",
+		Kind:       "App",
+		Metadata: AppMetadata{
+			Name:   "go-service",
+			Domain: "backend",
+		},
+		Spec: AppSpec{
+			Path: "/code/go-service",
+			Build: AppBuildConfig{
+				// No Dockerfile, no Buildpack — target only
+				Target: "production",
+			},
+		},
+	}
+
+	app := &App{}
+	app.FromYAML(appYAML)
+
+	// FAILS TODAY: BuildConfig is nil because Dockerfile=="" && Buildpack==""
+	buildCfg := app.GetBuildConfig()
+	require.NotNil(t, buildCfg,
+		"RED: App.GetBuildConfig() should return non-nil after FromYAML with target-only build config — FAILS until WI-2 fixes the FromYAML condition")
+
+	assert.Equal(t, "production", buildCfg.Target,
+		"Target should be persisted via FromYAML when no Dockerfile/Buildpack is set")
+}
+
+// TestApp_FromYAML_ContextOnly_Persisted verifies that when an AppYAML has only
+// spec.build.context (no dockerfile, buildpack, args, or target), FromYAML
+// still persists the build config. This tests the WI-2 bug fix.
+//
+// RED: FAILS AT RUNTIME — same root cause as the above two tests.
+func TestApp_FromYAML_ContextOnly_Persisted(t *testing.T) {
+	appYAML := AppYAML{
+		APIVersion: "devopsmaestro.io/v1",
+		Kind:       "App",
+		Metadata: AppMetadata{
+			Name:   "mono-service",
+			Domain: "backend",
+		},
+		Spec: AppSpec{
+			Path: "/code/mono",
+			Build: AppBuildConfig{
+				// Non-standard build context path
+				Context: "./services/mono",
+			},
+		},
+	}
+
+	app := &App{}
+	app.FromYAML(appYAML)
+
+	// FAILS TODAY: BuildConfig is nil because Dockerfile=="" && Buildpack==""
+	buildCfg := app.GetBuildConfig()
+	require.NotNil(t, buildCfg,
+		"RED: App.GetBuildConfig() should return non-nil after FromYAML with context-only build config — FAILS until WI-2")
+
+	assert.Equal(t, "./services/mono", buildCfg.Context,
+		"Context should be persisted via FromYAML when no Dockerfile/Buildpack is set")
+}
+
+// TestApp_BuildConfig_IsEmpty verifies the new AppBuildConfig.IsEmpty() helper
+// method that returns true only when all fields are zero-valued/empty.
+// This method is used by the WI-2 fix to replace the multi-field OR condition.
+//
+// RED: WILL NOT COMPILE — AppBuildConfig.IsEmpty() method does not exist yet (WI-2).
+func TestApp_BuildConfig_IsEmpty(t *testing.T) {
+	tests := []struct {
+		name      string
+		cfg       AppBuildConfig
+		wantEmpty bool
+	}{
+		{
+			name:      "fully empty struct is empty",
+			cfg:       AppBuildConfig{},
+			wantEmpty: true,
+		},
+		{
+			name: "args only is not empty",
+			cfg: AppBuildConfig{
+				Args: map[string]string{"CGO_ENABLED": "0"},
+			},
+			wantEmpty: false,
+		},
+		{
+			name: "dockerfile only is not empty",
+			cfg: AppBuildConfig{
+				Dockerfile: "Dockerfile.dev",
+			},
+			wantEmpty: false,
+		},
+		{
+			name: "target only is not empty",
+			cfg: AppBuildConfig{
+				Target: "production",
+			},
+			wantEmpty: false,
+		},
+		{
+			name: "context only is not empty",
+			cfg: AppBuildConfig{
+				Context: "./services/api",
+			},
+			wantEmpty: false,
+		},
+		{
+			name: "buildpack only is not empty",
+			cfg: AppBuildConfig{
+				Buildpack: "go",
+			},
+			wantEmpty: false,
+		},
+		{
+			name: "all fields populated is not empty",
+			cfg: AppBuildConfig{
+				Dockerfile: "Dockerfile",
+				Buildpack:  "go",
+				Args:       map[string]string{"CGO_ENABLED": "0"},
+				Target:     "production",
+				Context:    "./",
+			},
+			wantEmpty: false,
+		},
+		{
+			name: "empty args map is empty",
+			cfg: AppBuildConfig{
+				Args: map[string]string{}, // empty map — all fields still zero
+			},
+			wantEmpty: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────
+			// AppBuildConfig.IsEmpty() does not exist until WI-2 is implemented.
+			got := tt.cfg.IsEmpty()
+			// ─────────────────────────────────────────────────────────────────
+			assert.Equal(t, tt.wantEmpty, got,
+				"AppBuildConfig.IsEmpty() mismatch for case %q", tt.name)
+		})
+	}
+}

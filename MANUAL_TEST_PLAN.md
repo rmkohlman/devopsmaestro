@@ -1,7 +1,7 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.54.0  
-> **Last Updated**: March 17, 2026
+> **Version**: v0.55.0  
+> **Last Updated**: March 18, 2026
 
 ---
 
@@ -39,6 +39,7 @@ source tests/manual/part2-post-attach.sh
 | 24 | Manual | Scoped Hierarchical Views (v0.52.0) |
 | 25 | Manual | List Format Export (v0.53.0) |
 | 26 | Manual | Corporate Build Configuration (v0.54.0) |
+| 27 | Manual | Hierarchical Build Args (v0.55.0) |
 
 ---
 
@@ -4821,6 +4822,172 @@ dvm delete workspace my-api/test-alpine-ca --force
 
 ---
 
+## Part 27: Hierarchical Build Args (v0.55.0)
+
+These scenarios verify the three new commands (`dvm set build-arg`, `dvm get build-args`, `dvm delete build-arg`) and the five-level cascade resolver introduced in v0.55.0.
+
+**Prerequisites:**
+- An existing ecosystem, domain, app, and workspace
+- `dvm` binary built from v0.55.0 source
+
+---
+
+### Scenario 121: Set Build Arg at Each Hierarchy Level
+
+Verify that `dvm set build-arg` accepts each hierarchy flag and stores the value.
+
+```bash
+dvm set build-arg PIP_INDEX_URL "https://pypi.global.example/simple" --global
+dvm set build-arg PIP_INDEX_URL "https://pypi.eco.example/simple" --ecosystem my-platform
+dvm set build-arg PIP_INDEX_URL "https://pypi.domain.example/simple" --domain backend
+dvm set build-arg PIP_INDEX_URL "https://pypi.app.example/simple" --app my-api
+dvm set build-arg PIP_INDEX_URL "https://pypi.ws.example/simple" --workspace dev
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Global set | No error; exit 0 | |
+| Ecosystem set | No error; exit 0 | |
+| Domain set | No error; exit 0 | |
+| App set | No error; exit 0 | |
+| Workspace set | No error; exit 0 | |
+
+---
+
+### Scenario 122: Get Build Args — Flat View per Level
+
+Verify that `dvm get build-args` returns only the args for the specified level (not the full cascade).
+
+```bash
+dvm get build-args --global
+dvm get build-args --ecosystem my-platform
+dvm get build-args --domain backend
+dvm get build-args --app my-api
+dvm get build-args --workspace dev
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Global shows only global key | `PIP_INDEX_URL = https://pypi.global.example/simple` | |
+| App shows only app-level key | `PIP_INDEX_URL = https://pypi.app.example/simple` | |
+| Workspace shows only workspace-level key | `PIP_INDEX_URL = https://pypi.ws.example/simple` | |
+
+---
+
+### Scenario 123: Get Build Args — Effective Cascade with Provenance
+
+Verify that `--effective` merges all levels and shows the winning value with a provenance column.
+
+```bash
+dvm get build-args --workspace dev --effective
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Output contains `PIP_INDEX_URL` | Key present | |
+| Value is workspace-level URL | `https://pypi.ws.example/simple` (workspace wins) | |
+| Provenance column shows `workspace` | `SOURCE` or `LEVEL` column shows `workspace` | |
+
+---
+
+### Scenario 124: Cascade Resolution Order (Workspace Wins)
+
+Verify that workspace-level args override all other levels.
+
+```bash
+# Remove workspace override so app level wins
+dvm delete build-arg PIP_INDEX_URL --workspace dev
+dvm get build-args --workspace dev --effective
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Workspace key removed | Exit 0 | |
+| Effective now shows app-level value | `https://pypi.app.example/simple`; provenance = `app` | |
+
+**Restore:**
+```bash
+dvm set build-arg PIP_INDEX_URL "https://pypi.ws.example/simple" --workspace dev
+```
+
+---
+
+### Scenario 125: Key Validation Rejects Invalid Keys
+
+Verify that invalid or reserved key names are rejected.
+
+```bash
+dvm set build-arg DVM_SECRET "value" --global
+dvm set build-arg "INVALID KEY" "value" --app my-api
+dvm set build-arg PATH "/usr/local/bin" --global
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| `DVM_` prefix rejected | Non-zero exit; error mentions `DVM_` prefix | |
+| Key with space rejected | Non-zero exit; error mentions invalid key format | |
+| Dangerous system var rejected | Non-zero exit; error mentions reserved key | |
+
+---
+
+### Scenario 126: Machine-Readable Output (-o yaml / -o json)
+
+Verify that `dvm get build-args` supports `-o yaml` and `-o json`.
+
+```bash
+dvm get build-args --app my-api -o yaml
+dvm get build-args --workspace dev --effective -o json
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| YAML output is valid YAML | Parseable; contains `PIP_INDEX_URL` | |
+| JSON output is valid JSON | Parseable; contains `PIP_INDEX_URL` | |
+| `--effective -o json` includes provenance | Each key entry has a `source` or `level` field | |
+
+---
+
+### Scenario 127: Build Uses Cascaded Args as --build-arg
+
+Verify that the resolved build args are injected into the Docker build as `--build-arg` flags (not `ENV`).
+
+```bash
+# Set a build arg at app level
+dvm set build-arg GITHUB_PAT "ghp_test_token" --app my-api
+
+# Build and observe output
+dvm build -a my-api -w dev --no-cache 2>&1 | grep -i "GITHUB_PAT"
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Build completes | No fatal errors | |
+| `GITHUB_PAT` passed as `--build-arg` | Build log or Dockerfile shows `ARG GITHUB_PAT` or `--build-arg GITHUB_PAT=...` | |
+| `ENV GITHUB_PAT` NOT present | `ENV GITHUB_PAT` does not appear in Dockerfile | |
+
+---
+
+### Scenario 128: Delete Build Arg Cleanup
+
+Verify that `dvm delete build-arg` removes an arg at the specified level.
+
+```bash
+dvm delete build-arg PIP_INDEX_URL --global
+dvm delete build-arg PIP_INDEX_URL --ecosystem my-platform
+dvm delete build-arg PIP_INDEX_URL --domain backend
+dvm delete build-arg PIP_INDEX_URL --app my-api
+dvm delete build-arg PIP_INDEX_URL --workspace dev
+dvm delete build-arg GITHUB_PAT --app my-api
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| All deletes succeed | Exit 0 for each | |
+| `dvm get build-args --global` shows empty | No `PIP_INDEX_URL` entry | |
+| `dvm get build-args --workspace dev --effective` shows empty | No cascaded args | |
+
+---
+
 ## Test Results Summary
 
 | Part | Tests | Pass | Fail |
@@ -4854,6 +5021,7 @@ dvm delete workspace my-api/test-alpine-ca --force
 | Part 24: Scoped Hierarchical Views | 9 scenarios | | |
 | Part 25: List Format Export | 7 scenarios | | |
 | Part 26: Corporate Build Configuration | 6 scenarios | | |
+| Part 27: Hierarchical Build Args | 8 scenarios | | |
 
 ---
 
@@ -4906,5 +5074,5 @@ colima nerdctl -- --namespace devopsmaestro images
 
 **Tested by:** ________________  
 **Date:** ________________  
-**Version**: v0.54.0  
+**Version**: v0.55.0  
 **Platform:** ________________

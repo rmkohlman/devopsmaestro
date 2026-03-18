@@ -19,11 +19,15 @@ metadata:
     description: "Production platform for Acme Corp"
     contact: "platform-team@acme.com"
 spec:
+  description: "Production platform for Acme Corp"
+  theme: coolnight-ocean
+  build:
+    args:
+      PIP_INDEX_URL: "https://pypi.corp.com/root/prod"
   domains:
     - backend
     - frontend
     - data
-  theme: coolnight-ocean
 ```
 
 ## Field Reference
@@ -35,8 +39,11 @@ spec:
 | `metadata.name` | string | ✅ | Unique name for the ecosystem |
 | `metadata.labels` | object | ❌ | Key-value labels for organization |
 | `metadata.annotations` | object | ❌ | Key-value annotations for metadata |
+| `spec.description` | string | ❌ | Human-readable description of the ecosystem |
 | `spec.domains` | array | ❌ | List of domain names in this ecosystem |
 | `spec.theme` | string | ❌ | Default theme for all domains/apps/workspaces |
+| `spec.build` | object | ❌ | Build configuration inherited by all workspaces in this ecosystem |
+| `spec.build.args` | map[string]string | ❌ | Build arguments passed as Docker `--build-arg` to all workspace builds |
 
 ## Field Details
 
@@ -70,6 +77,33 @@ Default theme name that cascades down to all domains, apps, and workspaces in th
 - `gruvbox-dark`
 
 See [Theme Hierarchy](../advanced/theme-hierarchy.md) for complete list.
+
+### spec.build.args (optional)
+
+Build arguments that cascade down to all domains, apps, and workspaces in this ecosystem. Each key-value pair is passed as `--build-arg KEY=VALUE` during `dvm build`. Values are not persisted in image layers (they map to `ARG` declarations in the generated Dockerfile, not `ENV`).
+
+```yaml
+spec:
+  build:
+    args:
+      PIP_INDEX_URL: "https://pypi.corp.com/root/prod"
+      NPM_REGISTRY: "https://npm.corp.com/registry"
+```
+
+**Cascade order (most specific level wins):**
+```
+global < ecosystem < domain < app < workspace
+```
+
+An arg defined at the ecosystem level is inherited by all domains, apps, and workspaces in this ecosystem unless overridden at a more specific level. Use `dvm get build-args --effective --workspace <name>` to see the fully merged result with provenance for any workspace.
+
+Manage ecosystem-level build args with:
+
+```bash
+dvm set build-arg PIP_INDEX_URL "https://pypi.corp.com/root/prod" --ecosystem my-platform
+dvm get build-args --ecosystem my-platform
+dvm delete build-arg PIP_INDEX_URL --ecosystem my-platform
+```
 
 ## Usage Examples
 

@@ -36,6 +36,9 @@ metadata:
     description: ""
 spec:
   theme: ""                       # Optional - Theme name applied to this ecosystem
+  build:                          # Optional - Build configuration
+    args:                         # Build arguments cascaded to all child resources
+      KEY: "value"
   domains:                        # Optional - List of child domain names
     - ""
 ```
@@ -46,6 +49,7 @@ spec:
 | `metadata.labels` | map[string]string | No | Key-value labels for filtering | [Ecosystem](ecosystem.md) |
 | `metadata.annotations` | map[string]string | No | Non-identifying metadata | [Ecosystem](ecosystem.md) |
 | `spec.theme` | string | No | Theme name applied to this ecosystem | [Ecosystem](ecosystem.md) |
+| `spec.build.args` | map[string]string | No | Build args cascaded down the hierarchy; overridden by Domain, App, or Workspace | [Ecosystem](ecosystem.md) |
 | `spec.domains` | []string | No | List of child domain names | [Ecosystem](ecosystem.md) |
 
 ---
@@ -66,6 +70,9 @@ metadata:
     description: ""
 spec:
   theme: ""                       # Optional - Theme name applied to this domain
+  build:                          # Optional - Build configuration
+    args:                         # Build arguments cascaded to all child resources
+      KEY: "value"
   apps:                           # Optional - List of child app names
     - ""
 ```
@@ -77,6 +84,7 @@ spec:
 | `metadata.labels` | map[string]string | No | Key-value labels for filtering | [Domain](domain.md) |
 | `metadata.annotations` | map[string]string | No | Non-identifying metadata | [Domain](domain.md) |
 | `spec.theme` | string | No | Theme name applied to this domain | [Domain](domain.md) |
+| `spec.build.args` | map[string]string | No | Build args cascaded down the hierarchy; overridden by App or Workspace | [Domain](domain.md) |
 | `spec.apps` | []string | No | List of child app names | [Domain](domain.md) |
 
 ---

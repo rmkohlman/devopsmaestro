@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.55.0] - 2026-03-18 — Hierarchical Build Args
+
+### ✨ Features
+
+#### `dvm set build-arg` — `cmd/set_build_arg.go`
+- **Set a build arg at any hierarchy level** — `dvm set build-arg KEY VALUE [flags]`; exactly one level flag required per invocation
+- **Hierarchy flags** — `--global` (top of cascade), `--ecosystem <name>`, `--domain <name>`, `--app <name>`, `--workspace <name>`
+- **Key validation** — keys must be valid environment variable names (`pkg/envvalidation.ValidateEnvKey()`); `DVM_`-prefixed keys and dangerous system variables are rejected with a clear error
+
+#### `dvm get build-args` — `cmd/get_build_args.go`
+- **List build args at any hierarchy level** — `dvm get build-args [flags]`; exactly one level flag required (`--global`, `--ecosystem`, `--domain`, `--app`, or `--workspace`)
+- **`--effective` flag** — shows the fully merged cascade with provenance column indicating which level each arg originates from; cascade order: `global < ecosystem < domain < app < workspace` (workspace wins)
+- **`--output yaml` / `--output json`** — machine-readable output for scripting and CI pipelines
+
+#### `dvm delete build-arg` — `cmd/delete_build_arg.go`
+- **Delete a build arg at a specific hierarchy level** — `dvm delete build-arg KEY [flags]`; exactly one level flag required
+- **Same hierarchy flags as `set build-arg`** — `--global`, `--ecosystem`, `--domain`, `--app`, `--workspace`
+
+#### Cascade Resolver — `pkg/buildargs/resolver.go`
+- **Five-level cascade** — `global < ecosystem < domain < app < workspace`; the most specific level wins; keys defined at multiple levels show the winning value with provenance in `--effective` output
+- **Injected at build time** — resolved args are passed as `--build-arg KEY=VALUE` to the build pipeline; no values stored in image layers (complements the `ARG` declarations added in v0.54.0)
+
+### 🏗️ Technical
+
+| Metric | Value |
+|--------|-------|
+| Breaking changes | 0 |
+| New types | 0 |
+| New fields | 2 (`spec.build.args` on Ecosystem; `spec.build.args` on Domain) |
+| New migration | 1 (`db/migrations/sqlite/017_add_build_args.up.sql`) |
+| New production files | 3 (`cmd/set_build_arg.go`, `cmd/get_build_args.go`, `cmd/delete_build_arg.go`) + `pkg/buildargs/resolver.go` |
+| Modified production files | 2 (models for Ecosystem and Domain; build pipeline) |
+
+---
+
 ## [v0.54.0] - 2026-03-17 — Corporate Build Configuration
 
 ### ✨ Features

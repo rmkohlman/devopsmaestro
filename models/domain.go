@@ -2,6 +2,7 @@ package models
 
 import (
 	"database/sql"
+	"encoding/json"
 	"time"
 )
 
@@ -15,6 +16,7 @@ type Domain struct {
 	Name        string         `db:"name" json:"name" yaml:"name"`
 	Description sql.NullString `db:"description" json:"description,omitempty" yaml:"description,omitempty"`
 	Theme       sql.NullString `db:"theme" json:"theme,omitempty" yaml:"theme,omitempty"`
+	BuildArgs   sql.NullString `db:"build_args" json:"build_args,omitempty" yaml:"-"`
 	CreatedAt   time.Time      `db:"created_at" json:"created_at" yaml:"-"`
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at" yaml:"-"`
 }
@@ -37,8 +39,9 @@ type DomainMetadata struct {
 
 // DomainSpec contains domain specification
 type DomainSpec struct {
-	Theme string   `yaml:"theme,omitempty"`
-	Apps  []string `yaml:"apps,omitempty"`
+	Theme string          `yaml:"theme,omitempty"`
+	Apps  []string        `yaml:"apps,omitempty"`
+	Build BuildArgsConfig `yaml:"build,omitempty"`
 }
 
 // ToYAML converts a Domain to YAML format.
@@ -59,6 +62,15 @@ func (d *Domain) ToYAML(ecosystemName string, appNames []string) DomainYAML {
 		theme = d.Theme.String
 	}
 
+	// Restore build args from DB JSON blob if present
+	var buildConfig BuildArgsConfig
+	if d.BuildArgs.Valid && d.BuildArgs.String != "" {
+		var args map[string]string
+		if err := json.Unmarshal([]byte(d.BuildArgs.String), &args); err == nil && len(args) > 0 {
+			buildConfig.Args = args
+		}
+	}
+
 	return DomainYAML{
 		APIVersion: "devopsmaestro.io/v1",
 		Kind:       "Domain",
@@ -71,6 +83,7 @@ func (d *Domain) ToYAML(ecosystemName string, appNames []string) DomainYAML {
 		Spec: DomainSpec{
 			Theme: theme,
 			Apps:  appNames,
+			Build: buildConfig,
 		},
 	}
 }
@@ -85,5 +98,12 @@ func (d *Domain) FromYAML(yaml DomainYAML) {
 
 	if yaml.Spec.Theme != "" {
 		d.Theme = sql.NullString{String: yaml.Spec.Theme, Valid: true}
+	}
+
+	// Persist build args as JSON
+	if len(yaml.Spec.Build.Args) > 0 {
+		if b, err := json.Marshal(yaml.Spec.Build.Args); err == nil {
+			d.BuildArgs = sql.NullString{String: string(b), Valid: true}
+		}
 	}
 }

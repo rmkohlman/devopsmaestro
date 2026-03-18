@@ -541,3 +541,149 @@ func TestCACertConfig_YAMLRoundTrip_Empty(t *testing.T) {
 	// CACerts should be nil or empty
 	assert.Empty(t, decoded.Spec.Build.CACerts, "CACerts should be nil or empty when not specified")
 }
+
+// =============================================================================
+// v0.55.0 Phase 2 RED Tests: WI-1 — Workspace BuildConfig Persistence
+//
+// These tests verify that spec.build (args, caCerts) is persisted to the
+// database and round-trips correctly through FromYAML → DB → ToYAML.
+//
+// RED: All three tests WILL NOT COMPILE until WI-1 is implemented:
+//
+//	Workspace.BuildConfig sql.NullString field does not exist yet.
+//	FromYAML() does not persist spec.build to BuildConfig.
+//	ToYAML() does not read BuildConfig to populate Spec.Build.
+//
+// =============================================================================
+
+// TestWorkspace_BuildConfig_RoundTrip_Args verifies that spec.build.args set in
+// YAML is persisted to Workspace.BuildConfig via FromYAML and then restored by
+// ToYAML, so build args survive a full model round-trip.
+//
+// RED: WILL NOT COMPILE — Workspace.BuildConfig field does not exist yet (WI-1).
+func TestWorkspace_BuildConfig_RoundTrip_Args(t *testing.T) {
+	wsYAML := WorkspaceYAML{
+		APIVersion: "devopsmaestro.io/v1",
+		Kind:       "Workspace",
+		Metadata: WorkspaceMetadata{
+			Name: "build-args-ws",
+			App:  "ml-api",
+		},
+		Spec: WorkspaceSpec{
+			Image: ImageConfig{Name: "python:3.11"},
+			Build: DevBuildConfig{
+				Args: map[string]string{
+					"PIP_INDEX_URL": "https://pypi.example.com",
+					"DEBUG_BUILD":   "true",
+				},
+			},
+		},
+	}
+
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	// Workspace.BuildConfig does not exist until WI-1 is implemented.
+	ws := &Workspace{AppID: 1}
+	ws.FromYAML(wsYAML)
+
+	// Verify that FromYAML persisted the build config into the BuildConfig column.
+	require.True(t, ws.BuildConfig.Valid,
+		"RED: Workspace.BuildConfig.Valid should be true after FromYAML with spec.build.args — FAILS until WI-1 (Workspace.BuildConfig field) is added")
+
+	// Verify round-trip: ToYAML should restore the args from BuildConfig.
+	result := ws.ToYAML("ml-api", "")
+	require.NotNil(t, result.Spec.Build.Args,
+		"RED: ToYAML should populate Spec.Build.Args from BuildConfig — FAILS until WI-1")
+	assert.Equal(t, "https://pypi.example.com", result.Spec.Build.Args["PIP_INDEX_URL"],
+		"PIP_INDEX_URL should survive FromYAML → ToYAML round-trip")
+	assert.Equal(t, "true", result.Spec.Build.Args["DEBUG_BUILD"],
+		"DEBUG_BUILD should survive FromYAML → ToYAML round-trip")
+	// ─────────────────────────────────────────────────────────────────────────
+}
+
+// TestWorkspace_BuildConfig_RoundTrip_CACerts verifies that spec.build.caCerts
+// set in YAML is persisted to Workspace.BuildConfig via FromYAML and then
+// restored by ToYAML.
+//
+// RED: WILL NOT COMPILE — Workspace.BuildConfig field does not exist yet (WI-1).
+func TestWorkspace_BuildConfig_RoundTrip_CACerts(t *testing.T) {
+	wsYAML := WorkspaceYAML{
+		APIVersion: "devopsmaestro.io/v1",
+		Kind:       "Workspace",
+		Metadata: WorkspaceMetadata{
+			Name: "cacerts-persist-ws",
+			App:  "ml-api",
+		},
+		Spec: WorkspaceSpec{
+			Image: ImageConfig{Name: "ubuntu:22.04"},
+			Build: DevBuildConfig{
+				CACerts: []CACertConfig{
+					{
+						Name:             "corporate-ca",
+						VaultSecret:      "corp-cert",
+						VaultEnvironment: "prod",
+					},
+				},
+			},
+		},
+	}
+
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	// Workspace.BuildConfig does not exist until WI-1 is implemented.
+	ws := &Workspace{AppID: 1}
+	ws.FromYAML(wsYAML)
+
+	// Verify the build config was persisted with a valid JSON blob.
+	require.True(t, ws.BuildConfig.Valid,
+		"RED: Workspace.BuildConfig.Valid should be true after FromYAML with spec.build.caCerts — FAILS until WI-1")
+
+	// Verify round-trip: ToYAML should restore the CA certs from BuildConfig.
+	result := ws.ToYAML("ml-api", "")
+	require.Len(t, result.Spec.Build.CACerts, 1,
+		"RED: ToYAML should restore 1 CA cert from BuildConfig — FAILS until WI-1")
+	assert.Equal(t, "corporate-ca", result.Spec.Build.CACerts[0].Name,
+		"CA cert name should survive FromYAML → ToYAML round-trip")
+	assert.Equal(t, "corp-cert", result.Spec.Build.CACerts[0].VaultSecret,
+		"CA cert vaultSecret should survive FromYAML → ToYAML round-trip")
+	assert.Equal(t, "prod", result.Spec.Build.CACerts[0].VaultEnvironment,
+		"CA cert vaultEnvironment should survive FromYAML → ToYAML round-trip")
+	// ─────────────────────────────────────────────────────────────────────────
+}
+
+// TestWorkspace_BuildConfig_Empty_OmittedFromYAML verifies that when no
+// spec.build is set in YAML, Workspace.BuildConfig is not valid (zero-value)
+// and ToYAML does not emit a "build:" section.
+//
+// RED: WILL NOT COMPILE — Workspace.BuildConfig field does not exist yet (WI-1).
+func TestWorkspace_BuildConfig_Empty_OmittedFromYAML(t *testing.T) {
+	wsYAML := WorkspaceYAML{
+		APIVersion: "devopsmaestro.io/v1",
+		Kind:       "Workspace",
+		Metadata: WorkspaceMetadata{
+			Name: "no-build-config-ws",
+			App:  "simple-app",
+		},
+		Spec: WorkspaceSpec{
+			Image: ImageConfig{Name: "alpine:latest"},
+			// No Build config
+		},
+	}
+
+	// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────────────
+	// Workspace.BuildConfig does not exist until WI-1 is implemented.
+	ws := &Workspace{AppID: 1}
+	ws.FromYAML(wsYAML)
+
+	// When no build config is present, BuildConfig should remain invalid (NULL in DB).
+	assert.False(t, ws.BuildConfig.Valid,
+		"RED: Workspace.BuildConfig.Valid should be false when no spec.build is present — FAILS until WI-1")
+
+	// ToYAML should omit the build section entirely (omitempty).
+	result := ws.ToYAML("simple-app", "")
+	data, err := yaml.Marshal(result)
+	require.NoError(t, err, "should marshal workspace YAML without error")
+
+	yamlStr := string(data)
+	assert.NotContains(t, yamlStr, "build:",
+		"RED: 'build:' should NOT appear in YAML when BuildConfig is empty — FAILS until WI-1 (ToYAML must read BuildConfig and DevBuildConfig needs omitempty)")
+	// ─────────────────────────────────────────────────────────────────────────
+}

@@ -26,6 +26,7 @@ type Workspace struct {
 	TerminalPrompt     sql.NullString `db:"terminal_prompt" json:"terminal_prompt,omitempty" yaml:"-"`
 	TerminalPlugins    sql.NullString `db:"terminal_plugins" json:"terminal_plugins,omitempty" yaml:"-"` // JSON array
 	TerminalPackage    sql.NullString `db:"terminal_package" json:"terminal_package,omitempty" yaml:"-"`
+	BuildConfig        sql.NullString `db:"build_config" json:"build_config,omitempty" yaml:"-"` // JSON: DevBuildConfig
 	GitRepoID          sql.NullInt64  `db:"git_repo_id" json:"git_repo_id,omitempty" yaml:"-"`
 	Env                sql.NullString `db:"env" json:"env,omitempty" yaml:"-"`
 	CreatedAt          time.Time      `db:"created_at" json:"created_at" yaml:"-"`
@@ -60,7 +61,7 @@ type WorkspaceMetadata struct {
 // App-level concerns (language, build, services, ports) belong in AppSpec.
 type WorkspaceSpec struct {
 	Image     ImageConfig       `yaml:"image"`
-	Build     DevBuildConfig    `yaml:"build"`
+	Build     DevBuildConfig    `yaml:"build,omitempty"`
 	Shell     ShellConfig       `yaml:"shell"`
 	Terminal  TerminalConfig    `yaml:"terminal,omitempty"`
 	Nvim      NvimConfig        `yaml:"nvim"`
@@ -99,7 +100,18 @@ type DevBuildConfig struct {
 	Args      map[string]string `yaml:"args,omitempty"`
 	CACerts   []CACertConfig    `yaml:"caCerts,omitempty"`
 	BaseStage BaseStageConfig   `yaml:"baseStage,omitempty"`
-	DevStage  DevStageConfig    `yaml:"devStage"`
+	DevStage  DevStageConfig    `yaml:"devStage,omitempty"`
+}
+
+// IsZero implements the yaml.v3 IsZero interface for omitempty support.
+// Returns true when all build config fields are empty/zero.
+func (d DevBuildConfig) IsZero() bool {
+	return len(d.Args) == 0 &&
+		len(d.CACerts) == 0 &&
+		len(d.BaseStage.Packages) == 0 &&
+		len(d.DevStage.Packages) == 0 &&
+		len(d.DevStage.DevTools) == 0 &&
+		len(d.DevStage.CustomCommands) == 0
 }
 
 // DevStageConfig defines what developer tools to add in the dev stage.
@@ -216,12 +228,19 @@ func (w *Workspace) ToYAML(appName string, gitRepoName string) WorkspaceYAML {
 		envMap = nil // Ensure omitempty works for YAML serialization
 	}
 
+	// Restore build config from DB JSON blob if present
+	var buildConfig DevBuildConfig
+	if w.BuildConfig.Valid && w.BuildConfig.String != "" {
+		_ = json.Unmarshal([]byte(w.BuildConfig.String), &buildConfig)
+	}
+
 	// Create default spec with minimal configuration
 	// This will be enhanced when we implement config storage in DB
 	spec := WorkspaceSpec{
 		Image: ImageConfig{
 			Name: w.ImageName,
 		},
+		Build:    buildConfig,
 		Nvim:     nvimConfig,
 		Terminal: terminalConfig,
 		Env:      envMap,
@@ -288,6 +307,16 @@ func (w *Workspace) FromYAML(yaml WorkspaceYAML) {
 	// Environment variables
 	if len(yaml.Spec.Env) > 0 {
 		w.SetEnv(yaml.Spec.Env)
+	}
+
+	// Persist build config (args, caCerts, baseStage, devStage) as JSON
+	build := yaml.Spec.Build
+	if len(build.Args) > 0 || len(build.CACerts) > 0 ||
+		len(build.BaseStage.Packages) > 0 ||
+		len(build.DevStage.Packages) > 0 || len(build.DevStage.DevTools) > 0 || len(build.DevStage.CustomCommands) > 0 {
+		if b, err := json.Marshal(build); err == nil {
+			w.BuildConfig = sql.NullString{String: string(b), Valid: true}
+		}
 	}
 	// Note: GitRepo resolution (name→ID) happens in the handler, not here
 }

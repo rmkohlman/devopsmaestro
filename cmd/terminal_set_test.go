@@ -685,6 +685,7 @@ func createMinimalTestSchema(driver db.Driver) error {
 			name TEXT NOT NULL UNIQUE,
 			description TEXT,
 			theme TEXT,
+			build_args TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
@@ -694,6 +695,7 @@ func createMinimalTestSchema(driver db.Driver) error {
 			name TEXT NOT NULL,
 			description TEXT,
 			theme TEXT,
+			build_args TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (ecosystem_id) REFERENCES ecosystems(id) ON DELETE CASCADE,
@@ -728,6 +730,7 @@ func createMinimalTestSchema(driver db.Driver) error {
 			terminal_plugins TEXT,
 			terminal_package TEXT,
 			env TEXT NOT NULL DEFAULT '{}',
+			build_config TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(app_id, name)

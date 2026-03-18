@@ -45,6 +45,7 @@ func createTestCredentialStore(t *testing.T) *SQLDataStore {
 			name        TEXT NOT NULL UNIQUE,
 			description TEXT,
 			theme       TEXT,
+			build_args  TEXT,
 			created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
@@ -340,6 +341,7 @@ func createTestVaultCredentialStore(t *testing.T) *SQLDataStore {
 			name        TEXT NOT NULL UNIQUE,
 			description TEXT,
 			theme       TEXT,
+			build_args  TEXT,
 			created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,

@@ -902,6 +902,7 @@ func createCredentialTestSchema(driver db.Driver) error {
 			name        TEXT    NOT NULL UNIQUE,
 			description TEXT,
 			theme       TEXT,
+			build_args  TEXT,
 			created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
@@ -912,6 +913,7 @@ func createCredentialTestSchema(driver db.Driver) error {
 			name         TEXT    NOT NULL,
 			description  TEXT,
 			theme        TEXT,
+			build_args   TEXT,
 			created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(ecosystem_id, name)
@@ -950,6 +952,7 @@ func createCredentialTestSchema(driver db.Driver) error {
 			terminal_package      TEXT,
 			git_repo_id           INTEGER,
 			env                   TEXT    NOT NULL DEFAULT '{}',
+			build_config          TEXT,
 			created_at            DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at            DATETIME DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(app_id, name)
