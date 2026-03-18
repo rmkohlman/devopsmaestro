@@ -273,6 +273,11 @@ spec:
     args:
       GITHUB_USERNAME: ${GITHUB_USERNAME}
       GITHUB_PAT: ${GITHUB_PAT}
+    caCerts:
+      - name: corporate-ca          # REQUIRED — ^[a-zA-Z0-9][a-zA-Z0-9_-]*$; max 10
+        vaultSecret: corp-ca-cert   # REQUIRED — MaestroVault secret name
+        vaultEnvironment: prod      # Optional — vault environment override
+        vaultField: cert            # Optional — field within secret (default: "cert")
     devStage:
       packages:                   # System packages for dev
         - git
@@ -363,6 +368,47 @@ spec:
       cpus: "2.0"
       memory: "2G"
 ```
+
+---
+
+## Type Definitions
+
+### CACertConfig
+
+Used in `spec.build.caCerts` on a Workspace. Describes a CA certificate to fetch from MaestroVault and inject into the container image at build time.
+
+```go
+type CACertConfig struct {
+    Name             string `yaml:"name"`
+    VaultSecret      string `yaml:"vaultSecret"`
+    VaultEnvironment string `yaml:"vaultEnvironment,omitempty"`
+    VaultField       string `yaml:"vaultField,omitempty"`
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Certificate identifier. Must match `^[a-zA-Z0-9][a-zA-Z0-9_-]*$`. Used as the certificate filename. |
+| `vaultSecret` | string | Yes | MaestroVault secret name containing the PEM certificate. |
+| `vaultEnvironment` | string | No | Vault environment override. If omitted, the default vault environment is used. |
+| `vaultField` | string | No | Field within the vault secret to read. Defaults to `"cert"`. |
+
+**Validation:**
+- `name` must match `^[a-zA-Z0-9][a-zA-Z0-9_-]*$`
+- Maximum 10 certificates per workspace
+- PEM content must contain both `BEGIN CERTIFICATE` and `END CERTIFICATE` markers
+- A missing or invalid certificate causes a **fatal build error**
+
+**Dockerfile effect:**
+```dockerfile
+COPY certs/ /usr/local/share/ca-certificates/custom/
+RUN update-ca-certificates
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
+```
+
+On Alpine-based images, `ca-certificates` is automatically added to the `apk add` package list when `caCerts` is configured.
 
 ---
 

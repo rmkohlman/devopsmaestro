@@ -9,6 +9,7 @@ import (
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/nvimops/plugin"
 	"devopsmaestro/pkg/paths"
+	"devopsmaestro/utils"
 )
 
 func TestDockerfileGenerator_GenerateBaseStage_Python(t *testing.T) {
@@ -3363,5 +3364,519 @@ func TestDockerfileGenerator_SystemDeps(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// ── WI-1: USER directive tests ───────────────────────────────────────────────
+
+// TestGenerate_CustomUser_USERDirectiveMatchesConfig verifies that when Container.User
+// is configured, the final USER directive in the Dockerfile uses that value, not "dev".
+func TestGenerate_CustomUser_USERDirectiveMatchesConfig(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{
+		Container: models.ContainerConfig{
+			User: "ray",
+			UID:  2021,
+			GID:  2021,
+		},
+	}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:       ws,
+		WorkspaceSpec:   wsYAML,
+		Language:        "python",
+		AppPath:         "/tmp/test",
+		PathConfig:      paths.New(t.TempDir()),
+		PrivateRepoInfo: &utils.PrivateRepoInfo{},
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// The last USER directive should be "USER ray", not "USER dev"
+	lastUserIdx := strings.LastIndex(dockerfile, "USER ")
+	if lastUserIdx == -1 {
+		t.Fatalf("Generate() output contains no USER directive\nDockerfile:\n%s", dockerfile)
+	}
+	lastUserLine := dockerfile[lastUserIdx:]
+	// Extract the line
+	if newline := strings.Index(lastUserLine, "\n"); newline != -1 {
+		lastUserLine = lastUserLine[:newline]
+	}
+	if lastUserLine != "USER ray" {
+		t.Errorf("Generate() last USER directive = %q, want %q\nDockerfile:\n%s", lastUserLine, "USER ray", dockerfile)
+	}
+}
+
+// TestGenerate_DefaultUser_USERDirectiveIsDev is a regression guard: the default
+// USER directive (no custom user configured) must remain "USER dev".
+func TestGenerate_DefaultUser_USERDirectiveIsDev(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:       ws,
+		WorkspaceSpec:   wsYAML,
+		Language:        "python",
+		AppPath:         "/tmp/test",
+		PathConfig:      paths.New(t.TempDir()),
+		PrivateRepoInfo: &utils.PrivateRepoInfo{},
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	if !strings.Contains(dockerfile, "USER dev") {
+		t.Errorf("Generate() missing 'USER dev' in default config\nDockerfile:\n%s", dockerfile)
+	}
+}
+
+// ── WI-2: Additional build args tests ────────────────────────────────────────
+
+// TestGenerate_AdditionalBuildArgs_EmitsARGDeclarations verifies that ARG directives
+// are emitted for each name in AdditionalBuildArgs.
+func TestGenerate_AdditionalBuildArgs_EmitsARGDeclarations(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:           ws,
+		WorkspaceSpec:       wsYAML,
+		Language:            "python",
+		AppPath:             "/tmp/test",
+		PathConfig:          paths.New(t.TempDir()),
+		PrivateRepoInfo:     &utils.PrivateRepoInfo{},
+		AdditionalBuildArgs: []string{"PIP_INDEX_URL", "GOPROXY"},
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	for _, want := range []string{"ARG PIP_INDEX_URL", "ARG GOPROXY"} {
+		if !strings.Contains(dockerfile, want) {
+			t.Errorf("Generate() missing expected ARG directive %q\nDockerfile:\n%s", want, dockerfile)
+		}
+	}
+}
+
+// TestGenerate_WorkspaceBuildArgs_EmitsARGDeclarations verifies that ARG directives
+// are emitted for keys in WorkspaceSpec.Build.Args.
+func TestGenerate_WorkspaceBuildArgs_EmitsARGDeclarations(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{
+		Build: models.DevBuildConfig{
+			Args: map[string]string{
+				"CUSTOM_VAR": "value",
+			},
+		},
+	}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:       ws,
+		WorkspaceSpec:   wsYAML,
+		Language:        "python",
+		AppPath:         "/tmp/test",
+		PathConfig:      paths.New(t.TempDir()),
+		PrivateRepoInfo: &utils.PrivateRepoInfo{},
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	if !strings.Contains(dockerfile, "ARG CUSTOM_VAR") {
+		t.Errorf("Generate() missing 'ARG CUSTOM_VAR' from WorkspaceSpec.Build.Args\nDockerfile:\n%s", dockerfile)
+	}
+}
+
+// TestGenerate_AdditionalBuildArgs_DeduplicatesWithRequiredBuildArgs verifies that when
+// the same ARG name appears in both PrivateRepoInfo.RequiredBuildArgs and
+// AdditionalBuildArgs, it is emitted exactly once.
+func TestGenerate_AdditionalBuildArgs_DeduplicatesWithRequiredBuildArgs(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "python",
+		AppPath:       "/tmp/test",
+		PathConfig:    paths.New(t.TempDir()),
+		PrivateRepoInfo: &utils.PrivateRepoInfo{
+			RequiredBuildArgs: []string{"GITHUB_TOKEN"},
+			NeedsGit:          true,
+		},
+		AdditionalBuildArgs: []string{"GITHUB_TOKEN", "PIP_INDEX_URL"},
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	count := strings.Count(dockerfile, "ARG GITHUB_TOKEN")
+	if count != 1 {
+		t.Errorf("Generate() contains %d occurrences of 'ARG GITHUB_TOKEN', want exactly 1\nDockerfile:\n%s", count, dockerfile)
+	}
+
+	if !strings.Contains(dockerfile, "ARG PIP_INDEX_URL") {
+		t.Errorf("Generate() missing 'ARG PIP_INDEX_URL'\nDockerfile:\n%s", dockerfile)
+	}
+}
+
+// TestGenerate_AdditionalBuildArgs_NoENVEmitted verifies that additional build args
+// are declared as ARG only — NOT persisted as ENV (security: secrets must not leak).
+func TestGenerate_AdditionalBuildArgs_NoENVEmitted(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:           ws,
+		WorkspaceSpec:       wsYAML,
+		Language:            "python",
+		AppPath:             "/tmp/test",
+		PathConfig:          paths.New(t.TempDir()),
+		PrivateRepoInfo:     &utils.PrivateRepoInfo{},
+		AdditionalBuildArgs: []string{"PIP_INDEX_URL"},
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	if strings.Contains(dockerfile, "ENV PIP_INDEX_URL") {
+		t.Errorf("Generate() must NOT emit 'ENV PIP_INDEX_URL' — ARG only, no ENV persistence\nDockerfile:\n%s", dockerfile)
+	}
+}
+
+// TestGenerate_NoAdditionalBuildArgs_NoExtraARGs is a regression guard verifying that
+// unknown ARG names do not appear when no additional build args are configured.
+func TestGenerate_NoAdditionalBuildArgs_NoExtraARGs(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:       ws,
+		WorkspaceSpec:   wsYAML,
+		Language:        "python",
+		AppPath:         "/tmp/test",
+		PathConfig:      paths.New(t.TempDir()),
+		PrivateRepoInfo: &utils.PrivateRepoInfo{},
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	for _, notWant := range []string{"ARG PIP_INDEX_URL", "ARG GOPROXY"} {
+		if strings.Contains(dockerfile, notWant) {
+			t.Errorf("Generate() unexpectedly contains %q with no additional build args configured\nDockerfile:\n%s", notWant, dockerfile)
+		}
+	}
+}
+
+// TestGenerate_AdditionalBuildArgs_Python_BeforePipInstall verifies that ARG declarations
+// for additional build args appear before the pip install command so they are available
+// when pip runs (e.g., PIP_INDEX_URL controlling the package index).
+func TestGenerate_AdditionalBuildArgs_Python_BeforePipInstall(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:           ws,
+		WorkspaceSpec:       wsYAML,
+		Language:            "python",
+		AppPath:             "/tmp/test",
+		PathConfig:          paths.New(t.TempDir()),
+		PrivateRepoInfo:     &utils.PrivateRepoInfo{},
+		AdditionalBuildArgs: []string{"PIP_INDEX_URL"},
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	argIdx := strings.Index(dockerfile, "ARG PIP_INDEX_URL")
+	pipIdx := strings.Index(dockerfile, "pip install")
+
+	if argIdx == -1 {
+		t.Fatalf("Generate() missing 'ARG PIP_INDEX_URL'\nDockerfile:\n%s", dockerfile)
+	}
+	if pipIdx == -1 {
+		t.Fatalf("Generate() missing 'pip install'\nDockerfile:\n%s", dockerfile)
+	}
+	if argIdx >= pipIdx {
+		t.Errorf("Generate() 'ARG PIP_INDEX_URL' (idx %d) must appear before 'pip install' (idx %d)\nDockerfile:\n%s", argIdx, pipIdx, dockerfile)
+	}
+}
+
+// TestGenerate_AdditionalBuildArgs_Golang_EmitsARG verifies that additional build args
+// are emitted for Golang language workspaces (GOPROXY controls the module proxy).
+func TestGenerate_AdditionalBuildArgs_Golang_EmitsARG(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:           ws,
+		WorkspaceSpec:       wsYAML,
+		Language:            "golang",
+		AppPath:             "/tmp/test",
+		PathConfig:          paths.New(t.TempDir()),
+		PrivateRepoInfo:     &utils.PrivateRepoInfo{},
+		AdditionalBuildArgs: []string{"GOPROXY"},
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	if !strings.Contains(dockerfile, "ARG GOPROXY") {
+		t.Errorf("Generate() missing 'ARG GOPROXY' for Golang workspace\nDockerfile:\n%s", dockerfile)
+	}
+}
+
+// TestGenerate_AdditionalBuildArgs_Nodejs_EmitsARG verifies that additional build args
+// are emitted for NodeJS language workspaces (NPM_CONFIG_REGISTRY controls the npm registry).
+func TestGenerate_AdditionalBuildArgs_Nodejs_EmitsARG(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:           ws,
+		WorkspaceSpec:       wsYAML,
+		Language:            "nodejs",
+		AppPath:             "/tmp/test",
+		PathConfig:          paths.New(t.TempDir()),
+		PrivateRepoInfo:     &utils.PrivateRepoInfo{},
+		AdditionalBuildArgs: []string{"NPM_CONFIG_REGISTRY"},
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	if !strings.Contains(dockerfile, "ARG NPM_CONFIG_REGISTRY") {
+		t.Errorf("Generate() missing 'ARG NPM_CONFIG_REGISTRY' for NodeJS workspace\nDockerfile:\n%s", dockerfile)
+	}
+}
+
+// ── WI-3: CA certificate injection tests ─────────────────────────────────────
+
+// TestGenerate_CACerts_EmitsCOPYAndUpdateCACertificates verifies the complete CA cert
+// injection block: COPY into ca-certificates dir, update-ca-certificates, and all
+// required ENV vars so Python/Node/curl all trust the corporate CA.
+func TestGenerate_CACerts_EmitsCOPYAndUpdateCACertificates(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{
+		Build: models.DevBuildConfig{
+			CACerts: []models.CACertConfig{
+				{
+					Name:        "corporate-ca",
+					VaultSecret: "cert",
+				},
+			},
+		},
+	}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:       ws,
+		WorkspaceSpec:   wsYAML,
+		Language:        "python",
+		AppPath:         "/tmp/test",
+		PathConfig:      paths.New(t.TempDir()),
+		PrivateRepoInfo: &utils.PrivateRepoInfo{},
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	wantContain := []string{
+		"COPY certs/ /usr/local/share/ca-certificates/custom/",
+		"RUN update-ca-certificates",
+		"ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt",
+		"ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt",
+		"ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt",
+	}
+
+	for _, want := range wantContain {
+		if !strings.Contains(dockerfile, want) {
+			t.Errorf("Generate() missing CA cert directive %q\nDockerfile:\n%s", want, dockerfile)
+		}
+	}
+}
+
+// TestGenerate_CACerts_BeforePipInstall verifies that the CA cert installation block
+// appears before any pip install command so Python's pip trusts the CA during installs.
+func TestGenerate_CACerts_BeforePipInstall(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{
+		Build: models.DevBuildConfig{
+			CACerts: []models.CACertConfig{
+				{Name: "corporate-ca", VaultSecret: "cert"},
+			},
+		},
+	}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:       ws,
+		WorkspaceSpec:   wsYAML,
+		Language:        "python",
+		AppPath:         "/tmp/test",
+		PathConfig:      paths.New(t.TempDir()),
+		PrivateRepoInfo: &utils.PrivateRepoInfo{},
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	certIdx := strings.Index(dockerfile, "COPY certs/")
+	pipIdx := strings.Index(dockerfile, "pip install")
+
+	if certIdx == -1 {
+		t.Fatalf("Generate() missing 'COPY certs/' for CA cert injection\nDockerfile:\n%s", dockerfile)
+	}
+	if pipIdx == -1 {
+		t.Fatalf("Generate() missing 'pip install'\nDockerfile:\n%s", dockerfile)
+	}
+	if certIdx >= pipIdx {
+		t.Errorf("Generate() CA cert COPY (idx %d) must appear before pip install (idx %d)\nDockerfile:\n%s", certIdx, pipIdx, dockerfile)
+	}
+}
+
+// TestGenerate_CACerts_Alpine_SamePathsAndCommands verifies that Golang (Alpine-based)
+// workspaces use the same CA cert COPY destination and update-ca-certificates command
+// as Debian-based workspaces (both distros support the same paths when ca-certificates is installed).
+func TestGenerate_CACerts_Alpine_SamePathsAndCommands(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{
+		Build: models.DevBuildConfig{
+			CACerts: []models.CACertConfig{
+				{Name: "corporate-ca", VaultSecret: "cert"},
+			},
+		},
+	}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:       ws,
+		WorkspaceSpec:   wsYAML,
+		Language:        "golang",
+		AppPath:         "/tmp/test",
+		PathConfig:      paths.New(t.TempDir()),
+		PrivateRepoInfo: &utils.PrivateRepoInfo{},
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	wantContain := []string{
+		"COPY certs/ /usr/local/share/ca-certificates/custom/",
+		"RUN update-ca-certificates",
+	}
+
+	for _, want := range wantContain {
+		if !strings.Contains(dockerfile, want) {
+			t.Errorf("Generate() (golang/alpine) missing CA cert directive %q\nDockerfile:\n%s", want, dockerfile)
+		}
+	}
+}
+
+// TestGenerate_CACerts_NoCerts_NoSection is a regression guard: when no caCerts are
+// configured the Dockerfile must not contain any CA cert injection commands.
+func TestGenerate_CACerts_NoCerts_NoSection(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:       ws,
+		WorkspaceSpec:   wsYAML,
+		Language:        "python",
+		AppPath:         "/tmp/test",
+		PathConfig:      paths.New(t.TempDir()),
+		PrivateRepoInfo: &utils.PrivateRepoInfo{},
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	for _, notWant := range []string{"update-ca-certificates", "COPY certs/"} {
+		if strings.Contains(dockerfile, notWant) {
+			t.Errorf("Generate() unexpectedly contains %q when no caCerts are configured\nDockerfile:\n%s", notWant, dockerfile)
+		}
 	}
 }

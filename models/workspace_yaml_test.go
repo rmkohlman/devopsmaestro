@@ -453,3 +453,91 @@ spec:
 	assert.False(t, hasDomain,
 		"serialized YAML should NOT include 'domain' key when Domain is empty")
 }
+
+// =============================================================================
+// v0.54.0: CACertConfig YAML Round-Trip Tests  [RED Phase]
+// =============================================================================
+
+// TestCACertConfig_YAMLRoundTrip verifies that CACertConfig entries in
+// spec.build.caCerts survive a YAML marshal/unmarshal round-trip with all
+// fields preserved.
+func TestCACertConfig_YAMLRoundTrip(t *testing.T) {
+	original := WorkspaceYAML{
+		APIVersion: "devopsmaestro.io/v1",
+		Kind:       "Workspace",
+		Metadata: WorkspaceMetadata{
+			Name: "cacert-roundtrip",
+			App:  "testapp",
+		},
+		Spec: WorkspaceSpec{
+			Image: ImageConfig{Name: "ubuntu:22.04"},
+			Build: DevBuildConfig{
+				CACerts: []CACertConfig{
+					{
+						Name:             "corporate-ca",
+						VaultSecret:      "corp-cert",
+						VaultEnvironment: "prod",
+					},
+					{
+						Name:             "intermediate-ca",
+						VaultSecret:      "inter-cert",
+						VaultEnvironment: "prod",
+						VaultField:       "pem",
+					},
+				},
+			},
+		},
+	}
+
+	// Marshal to YAML
+	data, err := yaml.Marshal(original)
+	require.NoError(t, err, "should marshal WorkspaceYAML with caCerts")
+
+	// Unmarshal back
+	var decoded WorkspaceYAML
+	err = yaml.Unmarshal(data, &decoded)
+	require.NoError(t, err, "should unmarshal WorkspaceYAML with caCerts")
+
+	// Assert both certs survived
+	require.Len(t, decoded.Spec.Build.CACerts, 2, "should have 2 CA certs after round-trip")
+
+	// First cert
+	assert.Equal(t, "corporate-ca", decoded.Spec.Build.CACerts[0].Name)
+	assert.Equal(t, "corp-cert", decoded.Spec.Build.CACerts[0].VaultSecret)
+	assert.Equal(t, "prod", decoded.Spec.Build.CACerts[0].VaultEnvironment)
+	assert.Empty(t, decoded.Spec.Build.CACerts[0].VaultField, "VaultField should be empty for first cert")
+
+	// Second cert
+	assert.Equal(t, "intermediate-ca", decoded.Spec.Build.CACerts[1].Name)
+	assert.Equal(t, "inter-cert", decoded.Spec.Build.CACerts[1].VaultSecret)
+	assert.Equal(t, "prod", decoded.Spec.Build.CACerts[1].VaultEnvironment)
+	assert.Equal(t, "pem", decoded.Spec.Build.CACerts[1].VaultField)
+}
+
+// TestCACertConfig_YAMLRoundTrip_Empty verifies that a WorkspaceYAML with no
+// caCerts produces nil or empty slice after round-trip (omitempty behavior).
+func TestCACertConfig_YAMLRoundTrip_Empty(t *testing.T) {
+	original := WorkspaceYAML{
+		APIVersion: "devopsmaestro.io/v1",
+		Kind:       "Workspace",
+		Metadata: WorkspaceMetadata{
+			Name: "no-cacerts",
+			App:  "testapp",
+		},
+		Spec: WorkspaceSpec{
+			Image: ImageConfig{Name: "alpine:latest"},
+		},
+	}
+
+	// Marshal to YAML
+	data, err := yaml.Marshal(original)
+	require.NoError(t, err, "should marshal WorkspaceYAML without caCerts")
+
+	// Unmarshal back
+	var decoded WorkspaceYAML
+	err = yaml.Unmarshal(data, &decoded)
+	require.NoError(t, err, "should unmarshal WorkspaceYAML without caCerts")
+
+	// CACerts should be nil or empty
+	assert.Empty(t, decoded.Spec.Build.CACerts, "CACerts should be nil or empty when not specified")
+}

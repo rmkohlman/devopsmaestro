@@ -164,8 +164,13 @@ spec:
     buildFrom: ""                 # Build from source reference
     baseImage: ""                 # Base Docker image to use
   build:                          # Optional - Build-time configuration
-    args:                         # Build arguments
+    args:                         # Build arguments (emitted as ARG declarations — not ENV)
       KEY: "value"
+    caCerts:                      # CA certificates to inject from MaestroVault
+      - name: ""                  # REQUIRED - Certificate identifier (alphanumeric, _ -)
+        vaultSecret: ""           # REQUIRED - MaestroVault secret name
+        vaultEnvironment: ""      # Optional - Vault environment override
+        vaultField: ""            # Optional - Field within vault secret (default: "cert")
     devStage:                     # Development stage customizations
       packages:                   # System packages to install (apt-get)
         - ""
@@ -227,6 +232,12 @@ spec:
 | `metadata.app` | string | Yes | Parent app name | [Workspace](workspace.md) |
 | `spec.image` | object | No | Container image: name, buildFrom, baseImage | [Workspace](workspace.md) |
 | `spec.build` | object | No | Build args and dev stage customizations | [Workspace](workspace.md) |
+| `spec.build.args` | map[string]string | No | Build arguments; emitted as `ARG` declarations (not `ENV`) — values with credentials are not persisted in the image | [Workspace](workspace.md) |
+| `spec.build.caCerts` | []object | No | CA certificates to inject from MaestroVault | [Workspace](workspace.md) |
+| `spec.build.caCerts[].name` | string | Yes | Certificate identifier; must match `^[a-zA-Z0-9][a-zA-Z0-9_-]*$`; max 10 certs | [Workspace](workspace.md) |
+| `spec.build.caCerts[].vaultSecret` | string | Yes | MaestroVault secret name containing the PEM certificate | [Workspace](workspace.md) |
+| `spec.build.caCerts[].vaultEnvironment` | string | No | Vault environment override (optional) | [Workspace](workspace.md) |
+| `spec.build.caCerts[].vaultField` | string | No | Field within the vault secret (default: `"cert"`) | [Workspace](workspace.md) |
 | `spec.shell` | object | No | Shell type, framework, theme, plugins, customRc | [Workspace](workspace.md) |
 | `spec.terminal` | object | No | Terminal type, prompt, plugins, package | [Workspace](workspace.md) |
 | `spec.nvim` | object | No | Neovim structure, theme, plugins, package | [Workspace](workspace.md) |

@@ -1,6 +1,6 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.53.0  
+> **Version**: v0.54.0  
 > **Last Updated**: March 17, 2026
 
 ---
@@ -38,6 +38,7 @@ source tests/manual/part2-post-attach.sh
 | 23 | Manual | Auto-Detect Git Default Branch (v0.49.0) |
 | 24 | Manual | Scoped Hierarchical Views (v0.52.0) |
 | 25 | Manual | List Format Export (v0.53.0) |
+| 26 | Manual | Corporate Build Configuration (v0.54.0) |
 
 ---
 
@@ -4595,6 +4596,231 @@ dvm get all -A -o yaml | grep '^  - kind:' | head -20
 
 ---
 
+## Part 26: Corporate Build Configuration (v0.54.0)
+
+These scenarios verify the three changes shipped in v0.54.0: CA certificate injection, build args as `ARG` declarations, and the `USER` directive fix.
+
+**Prerequisites:**
+- MaestroVault configured with at least one test secret containing a PEM certificate
+- An existing app and workspace
+- `dvm` binary built from v0.54.0 source
+
+---
+
+### Scenario 115: Build Args Emitted as ARG (Not ENV)
+
+Verify that `spec.build.args` keys appear as `ARG` declarations in the generated Dockerfile and are not persisted as `ENV` in the image.
+
+```bash
+# Configure a workspace with build args
+dvm apply -f - <<EOF
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: test-build-args
+  app: my-api
+spec:
+  build:
+    args:
+      GITHUB_PAT: test-token-value
+      PIP_INDEX_URL: https://user:pass@pypi.corp.example/simple
+EOF
+
+# Build and capture the generated Dockerfile (use --no-cache to see fresh output)
+dvm build -a my-api -w test-build-args --no-cache 2>&1 | head -80
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Build completes | No fatal errors | |
+| `ARG GITHUB_PAT` present | `ARG GITHUB_PAT` line in generated Dockerfile | |
+| `ARG PIP_INDEX_URL` present | `ARG PIP_INDEX_URL` line in generated Dockerfile | |
+| No `ENV GITHUB_PAT` | `ENV GITHUB_PAT` does NOT appear in generated Dockerfile | |
+| No `ENV PIP_INDEX_URL` | `ENV PIP_INDEX_URL` does NOT appear in generated Dockerfile | |
+
+**Cleanup:**
+```bash
+dvm delete workspace my-api/test-build-args --force
+```
+
+---
+
+### Scenario 116: USER Directive Follows container.user
+
+Verify that the generated Dockerfile's `USER` directive reflects `container.user` when set.
+
+```bash
+# Configure a workspace with a custom user
+dvm apply -f - <<EOF
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: test-custom-user
+  app: my-api
+spec:
+  container:
+    user: ray
+    uid: 1001
+    gid: 1001
+EOF
+
+dvm build -a my-api -w test-custom-user --no-cache 2>&1 | grep -i "USER"
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Build completes | No fatal errors | |
+| `USER ray` in Dockerfile | `USER ray` directive present (not `USER dev`) | |
+
+**Cleanup:**
+```bash
+dvm delete workspace my-api/test-custom-user --force
+```
+
+---
+
+### Scenario 117: USER Directive Defaults to "dev" When container.user Unset
+
+Verify that the `USER` directive defaults to `dev` when `container.user` is not configured.
+
+```bash
+# Configure a workspace with no container.user
+dvm apply -f - <<EOF
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: test-default-user
+  app: my-api
+spec:
+  build:
+    devStage:
+      packages:
+        - curl
+EOF
+
+dvm build -a my-api -w test-default-user --no-cache 2>&1 | grep -i "USER"
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Build completes | No fatal errors | |
+| `USER dev` in Dockerfile | `USER dev` directive present (default) | |
+
+**Cleanup:**
+```bash
+dvm delete workspace my-api/test-default-user --force
+```
+
+---
+
+### Scenario 118: CA Certificate Injected from MaestroVault
+
+Verify that a valid CA certificate is fetched from MaestroVault, written to the build context, and the Dockerfile contains the correct injection statements.
+
+```bash
+# Assumes MaestroVault has a secret named "test-ca-cert" with a "cert" field
+dvm apply -f - <<EOF
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: test-ca-inject
+  app: my-api
+spec:
+  build:
+    caCerts:
+      - name: test-corp-ca
+        vaultSecret: test-ca-cert
+EOF
+
+dvm build -a my-api -w test-ca-inject --no-cache 2>&1
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Build completes | No fatal errors | |
+| `COPY certs/` line present | `COPY certs/ /usr/local/share/ca-certificates/custom/` in Dockerfile | |
+| `RUN update-ca-certificates` present | Line present in Dockerfile | |
+| `SSL_CERT_FILE` set | `ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt` in Dockerfile | |
+| `REQUESTS_CA_BUNDLE` set | `ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt` in Dockerfile | |
+| `NODE_EXTRA_CA_CERTS` set | `ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt` in Dockerfile | |
+
+**Cleanup:**
+```bash
+dvm delete workspace my-api/test-ca-inject --force
+```
+
+---
+
+### Scenario 119: Missing CA Certificate Causes Fatal Build Error
+
+Verify that a `caCerts` entry referencing a non-existent MaestroVault secret causes an immediate fatal error rather than a silent degradation.
+
+```bash
+dvm apply -f - <<EOF
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: test-ca-missing
+  app: my-api
+spec:
+  build:
+    caCerts:
+      - name: missing-ca
+        vaultSecret: this-secret-does-not-exist
+EOF
+
+dvm build -a my-api -w test-ca-missing 2>&1
+echo "Exit code: $?"
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Build fails | Non-zero exit code | |
+| Error message references vault secret | Error output mentions `this-secret-does-not-exist` or the certificate name | |
+| No partial image built | No `dvm-test-ca-missing-my-api` image in `docker images` | |
+
+**Cleanup:**
+```bash
+dvm delete workspace my-api/test-ca-missing --force
+```
+
+---
+
+### Scenario 120: Alpine Image Receives ca-certificates Package Automatically
+
+Verify that when `caCerts` is configured and the base image is Alpine-based, `ca-certificates` is automatically included in the `apk add` package list.
+
+```bash
+dvm apply -f - <<EOF
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: test-alpine-ca
+  app: my-api
+spec:
+  image:
+    baseImage: python:3.12-alpine
+  build:
+    caCerts:
+      - name: test-corp-ca
+        vaultSecret: test-ca-cert
+EOF
+
+dvm build -a my-api -w test-alpine-ca --no-cache 2>&1 | grep -i "ca-certificates"
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Build completes | No fatal errors | |
+| `ca-certificates` in `apk add` | Line contains `apk add ... ca-certificates ...` | |
+
+**Cleanup:**
+```bash
+dvm delete workspace my-api/test-alpine-ca --force
+```
+
+---
+
 ## Test Results Summary
 
 | Part | Tests | Pass | Fail |
@@ -4627,6 +4853,7 @@ dvm get all -A -o yaml | grep '^  - kind:' | head -20
 | Part 23: Auto-Detect Git Default Branch | 4 scenarios | | |
 | Part 24: Scoped Hierarchical Views | 9 scenarios | | |
 | Part 25: List Format Export | 7 scenarios | | |
+| Part 26: Corporate Build Configuration | 6 scenarios | | |
 
 ---
 
@@ -4679,5 +4906,5 @@ colima nerdctl -- --namespace devopsmaestro images
 
 **Tested by:** ________________  
 **Date:** ________________  
-**Version**: v0.52.0  
+**Version**: v0.54.0  
 **Platform:** ________________

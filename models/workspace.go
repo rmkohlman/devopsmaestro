@@ -3,6 +3,8 @@ package models
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -83,10 +85,19 @@ type BaseStageConfig struct {
 	Packages []string `yaml:"packages,omitempty"`
 }
 
+// CACertConfig defines a CA certificate to inject from MaestroVault.
+type CACertConfig struct {
+	Name             string `yaml:"name"`                       // Friendly name, used for .crt filename
+	VaultSecret      string `yaml:"vaultSecret"`                // MaestroVault secret name
+	VaultEnvironment string `yaml:"vaultEnvironment,omitempty"` // Optional vault environment
+	VaultField       string `yaml:"vaultField,omitempty"`       // Optional field within the secret
+}
+
 // DevBuildConfig defines the build configuration for the dev environment.
 // This focuses on developer tools added on top of the app's base image.
 type DevBuildConfig struct {
 	Args      map[string]string `yaml:"args,omitempty"`
+	CACerts   []CACertConfig    `yaml:"caCerts,omitempty"`
 	BaseStage BaseStageConfig   `yaml:"baseStage,omitempty"`
 	DevStage  DevStageConfig    `yaml:"devStage"`
 }
@@ -336,4 +347,47 @@ func (w *Workspace) SetEnv(env map[string]string) {
 		return
 	}
 	w.Env = sql.NullString{String: string(data), Valid: true}
+}
+
+// certNameRegex validates that a cert name is filename-safe.
+// Allows alphanumeric, hyphens, and underscores. Must start with alphanumeric.
+var certNameRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)
+
+// Validate checks that a CACertConfig has required fields and a safe name.
+func (c CACertConfig) Validate() error {
+	if c.Name == "" {
+		return fmt.Errorf("caCert name is required")
+	}
+	if !certNameRegex.MatchString(c.Name) {
+		return fmt.Errorf("caCert name %q is invalid: must match %s", c.Name, certNameRegex.String())
+	}
+	if c.VaultSecret == "" {
+		return fmt.Errorf("caCert vaultSecret is required for cert %q", c.Name)
+	}
+	return nil
+}
+
+// ValidateCACerts validates a slice of CACertConfig entries.
+func ValidateCACerts(certs []CACertConfig) error {
+	if len(certs) > 10 {
+		return fmt.Errorf("maximum 10 CA certificates allowed, got %d", len(certs))
+	}
+	for _, cert := range certs {
+		if err := cert.Validate(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ValidatePEMContent validates that the content looks like a PEM certificate.
+func ValidatePEMContent(content string) error {
+	trimmed := strings.TrimSpace(content)
+	if !strings.HasPrefix(trimmed, "-----BEGIN CERTIFICATE-----") {
+		return fmt.Errorf("invalid PEM content: must start with -----BEGIN CERTIFICATE-----")
+	}
+	if !strings.Contains(trimmed, "-----END CERTIFICATE-----") {
+		return fmt.Errorf("PEM content appears truncated: missing -----END CERTIFICATE----- marker")
+	}
+	return nil
 }

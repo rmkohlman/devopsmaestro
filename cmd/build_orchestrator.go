@@ -232,6 +232,15 @@ func buildWorkspace(cmd *cobra.Command) error {
 		return err
 	}
 
+	// Step 4.5: Prepare CA certificates if configured
+	if len(workspaceYAML.Spec.Build.CACerts) > 0 {
+		render.Progress("Resolving CA certificates from vault...")
+		if err := prepareCACerts(stagingDir, workspaceYAML.Spec.Build.CACerts); err != nil {
+			return err
+		}
+		render.Info(fmt.Sprintf("Injecting %d CA certificate(s) into build context", len(workspaceYAML.Spec.Build.CACerts)))
+	}
+
 	// Step 5b: Generate nvim config BEFORE Dockerfile (so Dockerfile generator can see .config/nvim/)
 	var pluginManifest *plugin.PluginManifest
 	if workspaceYAML.Spec.Nvim.Structure != "" && workspaceYAML.Spec.Nvim.Structure != "none" {
@@ -258,15 +267,29 @@ func buildWorkspace(cmd *cobra.Command) error {
 			"sources", privateRepoInfo.SystemDepSources)
 	}
 
+	// Pre-compute additional build arg names from registry env vars and workspace build args.
+	// The Dockerfile generator needs these names (not values) to emit ARG declarations.
+	// Deduplication is handled by the generator's collectAdditionalBuildArgs().
+	var additionalBuildArgNames []string
+	if registryEnvVars != nil {
+		for k := range registryEnvVars {
+			additionalBuildArgNames = append(additionalBuildArgNames, k)
+		}
+	}
+	for k := range workspaceYAML.Spec.Build.Args {
+		additionalBuildArgNames = append(additionalBuildArgNames, k)
+	}
+
 	generator := builders.NewDockerfileGenerator(builders.DockerfileGeneratorOptions{
-		Workspace:       workspace,
-		WorkspaceSpec:   workspaceYAML.Spec,
-		Language:        languageName,
-		Version:         version,
-		AppPath:         sourcePath, // Use sourcePath (not app.Path) so nvim config staging dir is found correctly (Issue #18)
-		BaseDockerfile:  dockerfilePath,
-		PathConfig:      paths.New(homeDir),
-		PrivateRepoInfo: privateRepoInfo,
+		Workspace:           workspace,
+		WorkspaceSpec:       workspaceYAML.Spec,
+		Language:            languageName,
+		Version:             version,
+		AppPath:             sourcePath, // Use sourcePath (not app.Path) so nvim config staging dir is found correctly (Issue #18)
+		BaseDockerfile:      dockerfilePath,
+		PathConfig:          paths.New(homeDir),
+		PrivateRepoInfo:     privateRepoInfo,
+		AdditionalBuildArgs: additionalBuildArgNames,
 	})
 
 	// Set plugin manifest for conditional feature detection
@@ -341,6 +364,12 @@ func buildWorkspace(cmd *cobra.Command) error {
 			buildArgs[k] = v
 			slog.Debug("using registry env var", "key", k)
 		}
+	}
+
+	// Layer 1.5: Workspace-level build args (from spec.build.args)
+	for k, v := range workspaceYAML.Spec.Build.Args {
+		buildArgs[k] = v
+		slog.Debug("using build arg from workspace config", "key", k)
 	}
 
 	// Layer 2: App's build args (can be overridden by credentials)
@@ -429,6 +458,87 @@ func buildWorkspace(cmd *cobra.Command) error {
 	}
 	render.Blank()
 	render.Info("Next: Attach to your workspace with: dvm attach")
+
+	return nil
+}
+
+// prepareCACerts resolves CA certificates from MaestroVault and writes them
+// to the staging directory's certs/ subdirectory. The Dockerfile generator
+// will COPY these into the image and update the system trust store.
+// All errors are fatal — a missing or invalid cert should fail the build.
+func prepareCACerts(stagingDir string, caCerts []models.CACertConfig) error {
+	// Validate cert configs
+	if err := models.ValidateCACerts(caCerts); err != nil {
+		return fmt.Errorf("invalid CA certificate configuration: %w", err)
+	}
+
+	// Resolve vault token (fatal if missing — certs require vault)
+	token, tokenErr := config.ResolveVaultToken()
+	if tokenErr != nil || token == "" {
+		return fmt.Errorf("CA certificates require MaestroVault but no vault token is configured. Hint: Configure vault with: dvm admin vault configure")
+	}
+	if err := config.EnsureVaultDaemon(); err != nil {
+		return fmt.Errorf("failed to start vault daemon for CA cert resolution: %w", err)
+	}
+	vb, err := config.NewVaultBackend(token)
+	if err != nil {
+		return fmt.Errorf("failed to create vault backend for CA cert resolution: %w", err)
+	}
+
+	// Store as interface so type assertions work for FieldCapableBackend
+	var backend config.SecretBackend = vb
+
+	// Create certs directory in staging
+	certsDir := filepath.Join(stagingDir, "certs")
+	if err := os.MkdirAll(certsDir, 0755); err != nil {
+		return fmt.Errorf("failed to create certs directory: %w", err)
+	}
+
+	// Resolve each cert from vault and write to staging
+	for _, cert := range caCerts {
+		var pemContent string
+		var err error
+
+		// Check if this is a field-level request
+		if cert.VaultField != "" {
+			// Use GetField for field-level access
+			if fb, ok := backend.(config.FieldCapableBackend); ok {
+				pemContent, err = fb.GetField(cert.VaultSecret, cert.VaultEnvironment, cert.VaultField)
+			} else {
+				return fmt.Errorf("vault backend does not support field-level access for cert %q", cert.Name)
+			}
+		} else {
+			pemContent, err = backend.Get(cert.VaultSecret, cert.VaultEnvironment)
+		}
+		if err != nil {
+			return fmt.Errorf("failed to resolve CA certificate %q from vault: %w", cert.Name, err)
+		}
+
+		// Validate PEM content
+		if err := models.ValidatePEMContent(pemContent); err != nil {
+			return fmt.Errorf("CA certificate %q has invalid content: %w", cert.Name, err)
+		}
+
+		// Path traversal defense: ensure name is just a filename
+		safeName := filepath.Base(cert.Name)
+		if safeName != cert.Name {
+			return fmt.Errorf("CA certificate name %q contains path separators", cert.Name)
+		}
+
+		certPath := filepath.Join(certsDir, safeName+".crt")
+
+		// Verify the resolved path is within certsDir (defense in depth)
+		cleanPath := filepath.Clean(certPath)
+		if !strings.HasPrefix(cleanPath, filepath.Clean(certsDir)) {
+			return fmt.Errorf("CA certificate path %q escapes certs directory", cert.Name)
+		}
+
+		if err := os.WriteFile(certPath, []byte(pemContent), 0644); err != nil {
+			return fmt.Errorf("failed to write CA certificate %q: %w", cert.Name, err)
+		}
+
+		slog.Debug("wrote CA certificate", "name", cert.Name, "path", certPath)
+	}
 
 	return nil
 }

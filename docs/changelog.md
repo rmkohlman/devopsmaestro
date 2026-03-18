@@ -2,6 +2,17 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.54.0 (2026-03-17)
+
+**✨ Corporate Build Configuration**
+
+Three improvements for building container images in corporate network environments.
+
+- **CA certificate injection** — `spec.build.caCerts` accepts a list of `CACertConfig` objects; certificates are fetched from MaestroVault at build time and injected via `COPY certs/ /usr/local/share/ca-certificates/custom/` + `RUN update-ca-certificates`; `SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE`, and `NODE_EXTRA_CA_CERTS` are set automatically; Alpine images auto-receive the `ca-certificates` package; missing or invalid certs are a fatal build error
+- **Build args as `ARG` declarations** — `spec.build.args` keys are emitted as `ARG` declarations (not `ENV`) in both stages of the generated Dockerfile; credentials such as `PIP_INDEX_URL` are available during the build but not persisted in image layers
+- **USER directive follows `container.user`** — the `USER` directive in generated Dockerfiles now reads `container.user` instead of being hardcoded to `"dev"`; defaults to `"dev"` when unset
+- 0 breaking changes; 1 new type (`CACertConfig`); 2 modified production files
+
 ## v0.53.0 (2026-03-17)
 
 **✨ List Format YAML/JSON Export for `dvm get all`**

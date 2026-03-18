@@ -187,9 +187,14 @@ Build configuration for adding development tools to the base image.
 ```yaml
 spec:
   build:
-    args:                           # Build arguments
+    args:                           # Build arguments (emitted as ARG — not ENV)
       GITHUB_USERNAME: ${GITHUB_USERNAME}
       GITHUB_PAT: ${GITHUB_PAT}
+    caCerts:                        # CA certificates injected from MaestroVault
+      - name: corporate-ca          # REQUIRED — must match ^[a-zA-Z0-9][a-zA-Z0-9_-]*$
+        vaultSecret: corp-ca-cert   # REQUIRED — MaestroVault secret name
+        vaultEnvironment: prod      # Optional — vault environment override
+        vaultField: cert            # Optional — field within secret (default: "cert")
     devStage:
       packages:                     # System packages for development
         - git
@@ -204,6 +209,16 @@ spec:
       customCommands:               # Custom setup commands
         - curl -fsSL https://starship.rs/install.sh | sh -s -- -y
 ```
+
+**`spec.build.args`** — Build arguments are emitted as `ARG` declarations in the Dockerfile (not `ENV`). Values are available during the build but are not persisted in the final image. This is intentional: credentials such as `PIP_INDEX_URL` may contain tokens that must not be stored in image layers.
+
+**`spec.build.caCerts`** — CA certificates are fetched from MaestroVault at build time and injected into `/usr/local/share/ca-certificates/custom/`. The generator runs `update-ca-certificates` and sets `SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE`, and `NODE_EXTRA_CA_CERTS` environment variables so Python, Node.js, and curl pick up the certificates automatically. On Alpine-based images, `ca-certificates` is automatically added to the `apk add` package list.
+
+Validation rules for `caCerts`:
+- `name` must match `^[a-zA-Z0-9][a-zA-Z0-9_-]*$`
+- Maximum 10 certificates per workspace
+- PEM content must contain both `BEGIN CERTIFICATE` and `END CERTIFICATE` markers
+- A missing or invalid certificate causes a **fatal build error** (not a warning)
 
 ### spec.shell (optional)
 Shell configuration for the development environment.
@@ -325,6 +340,8 @@ spec:
       cpus: "2.0"                  # CPU allocation
       memory: "4G"                 # Memory allocation
 ```
+
+**`container.user`** — Sets the `USER` directive in the generated Dockerfile. If unset, the default user `dev` is used.
 
 ## Language-Specific Examples
 

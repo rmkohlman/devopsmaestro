@@ -382,6 +382,13 @@ Build workspace container image.
 dvm build [flags]
 ```
 
+The build command:
+- Detects the app language and generates a Dockerfile with dev tools
+- Emits `ARG` declarations for all `spec.build.args` keys (not `ENV` — credentials are not persisted in image layers)
+- Injects CA certificates from MaestroVault when `spec.build.caCerts` is configured — certificates are written to `/usr/local/share/ca-certificates/custom/`, `update-ca-certificates` is run, and `SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE`, and `NODE_EXTRA_CA_CERTS` are set
+- Sets the `USER` directive to the value of `container.user` (defaults to `dev` if unset)
+- Builds the image using the detected container platform and tags it as `dvm-<workspace>-<app>:latest`
+
 **Flags:**
 
 | Flag | Description |

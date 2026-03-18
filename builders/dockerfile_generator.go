@@ -41,42 +41,45 @@ var _ DockerfileGenerator = (*DefaultDockerfileGenerator)(nil)
 // DefaultDockerfileGenerator is the standard implementation of DockerfileGenerator
 // that generates Dockerfiles for dev containers.
 type DefaultDockerfileGenerator struct {
-	workspace       *models.Workspace
-	workspaceYAML   models.WorkspaceSpec
-	language        string
-	version         string
-	appPath         string
-	baseDockerfile  string
-	pluginManifest  *plugin.PluginManifest
-	pathConfig      *paths.PathConfig
-	isAlpine        bool // computed in generateBaseStage() based on the actual image chosen
-	privateRepoInfo *utils.PrivateRepoInfo
+	workspace           *models.Workspace
+	workspaceYAML       models.WorkspaceSpec
+	language            string
+	version             string
+	appPath             string
+	baseDockerfile      string
+	pluginManifest      *plugin.PluginManifest
+	pathConfig          *paths.PathConfig
+	isAlpine            bool // computed in generateBaseStage() based on the actual image chosen
+	privateRepoInfo     *utils.PrivateRepoInfo
+	additionalBuildArgs []string // Extra ARG names to declare in the Dockerfile (names only, not values)
 }
 
 // DockerfileGeneratorOptions contains all configuration for creating a DockerfileGenerator.
 type DockerfileGeneratorOptions struct {
-	Workspace       *models.Workspace
-	WorkspaceSpec   models.WorkspaceSpec
-	Language        string
-	Version         string
-	AppPath         string
-	BaseDockerfile  string
-	PathConfig      *paths.PathConfig      // Injected for filesystem operations (nil = fallback to os.UserHomeDir)
-	PrivateRepoInfo *utils.PrivateRepoInfo // Injected for system dep detection (nil = auto-detect at build time)
+	Workspace           *models.Workspace
+	WorkspaceSpec       models.WorkspaceSpec
+	Language            string
+	Version             string
+	AppPath             string
+	BaseDockerfile      string
+	PathConfig          *paths.PathConfig      // Injected for filesystem operations (nil = fallback to os.UserHomeDir)
+	PrivateRepoInfo     *utils.PrivateRepoInfo // Injected for system dep detection (nil = auto-detect at build time)
+	AdditionalBuildArgs []string               // Extra ARG names to declare in the Dockerfile (names only, not values)
 }
 
 // NewDockerfileGenerator creates a new Dockerfile generator.
 // Returns the DockerfileGenerator interface for loose coupling.
 func NewDockerfileGenerator(opts DockerfileGeneratorOptions) DockerfileGenerator {
 	return &DefaultDockerfileGenerator{
-		workspace:       opts.Workspace,
-		workspaceYAML:   opts.WorkspaceSpec,
-		language:        opts.Language,
-		version:         opts.Version,
-		appPath:         opts.AppPath,
-		baseDockerfile:  opts.BaseDockerfile,
-		pathConfig:      opts.PathConfig,
-		privateRepoInfo: opts.PrivateRepoInfo,
+		workspace:           opts.Workspace,
+		workspaceYAML:       opts.WorkspaceSpec,
+		language:            opts.Language,
+		version:             opts.Version,
+		appPath:             opts.AppPath,
+		baseDockerfile:      opts.BaseDockerfile,
+		pathConfig:          opts.PathConfig,
+		privateRepoInfo:     opts.PrivateRepoInfo,
+		additionalBuildArgs: opts.AdditionalBuildArgs,
 	}
 }
 
@@ -139,7 +142,7 @@ func (g *DefaultDockerfileGenerator) Generate() (string, error) {
 	}
 
 	// Switch to dev user
-	dockerfile.WriteString("USER dev\n\n")
+	dockerfile.WriteString(fmt.Sprintf("USER %s\n\n", g.effectiveUser()))
 
 	// Set working directory
 	workdir := g.workspaceYAML.Container.WorkingDir
@@ -177,6 +180,9 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 			}
 			dockerfile.WriteString("\n")
 		}
+
+		// Emit additional build args (de-duplicated with RequiredBuildArgs)
+		g.emitAdditionalBuildArgs(dockerfile, privateRepoInfo.RequiredBuildArgs)
 
 		// Install git if needed for private repos
 		if privateRepoInfo.NeedsGit {
@@ -238,6 +244,9 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 			dockerfile.WriteString("    && true\n\n")
 		}
 
+		// CA certificate injection (before pip install so pip trusts corporate CAs)
+		g.emitCACertSection(dockerfile)
+
 		// Dispatch on GitURLType for correct pip install strategy:
 		//   "https" → pip install with ARG-based env vars (pip expands ${VAR} natively)
 		//   "ssh"   → pip install with --mount=type=ssh
@@ -288,9 +297,19 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 		g.isAlpine = true
 		dockerfile.WriteString(fmt.Sprintf("FROM golang:%s-alpine AS base\n\n", version))
 
+		// Emit additional build args (de-duplicated with RequiredBuildArgs)
+		g.emitAdditionalBuildArgs(dockerfile, privateRepoInfo.RequiredBuildArgs)
+
 		dockerfile.WriteString("# Install basic dependencies\n")
 		dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apk \\\n")
-		dockerfile.WriteString("    apk add git\n\n")
+		if len(g.workspaceYAML.Build.CACerts) > 0 {
+			dockerfile.WriteString("    apk add git ca-certificates\n\n")
+		} else {
+			dockerfile.WriteString("    apk add git\n\n")
+		}
+
+		// CA certificate injection
+		g.emitCACertSection(dockerfile)
 
 		// Configure git for private repos with token
 		if privateRepoInfo.NeedsGitConfig {
@@ -308,11 +327,25 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 		g.isAlpine = true
 		dockerfile.WriteString(fmt.Sprintf("FROM node:%s-alpine AS base\n\n", version))
 
+		// Emit additional build args (de-duplicated with RequiredBuildArgs)
+		g.emitAdditionalBuildArgs(dockerfile, privateRepoInfo.RequiredBuildArgs)
+
 		if privateRepoInfo.NeedsGit {
 			dockerfile.WriteString("# Install git for private repositories\n")
 			dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apk \\\n")
-			dockerfile.WriteString("    apk add git\n\n")
+			if len(g.workspaceYAML.Build.CACerts) > 0 {
+				dockerfile.WriteString("    apk add git ca-certificates\n\n")
+			} else {
+				dockerfile.WriteString("    apk add git\n\n")
+			}
+		} else if len(g.workspaceYAML.Build.CACerts) > 0 {
+			dockerfile.WriteString("# Install ca-certificates for custom CA support\n")
+			dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apk \\\n")
+			dockerfile.WriteString("    apk add ca-certificates\n\n")
 		}
+
+		// CA certificate injection
+		g.emitCACertSection(dockerfile)
 
 		// Setup .npmrc for private packages
 		if len(privateRepoInfo.RequiredBuildArgs) > 0 {
@@ -329,6 +362,9 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 		// Generic Ubuntu base
 		g.isAlpine = false
 		dockerfile.WriteString("FROM ubuntu:22.04 AS base\n\n")
+
+		// Emit additional build args (de-duplicated with RequiredBuildArgs)
+		g.emitAdditionalBuildArgs(dockerfile, privateRepoInfo.RequiredBuildArgs)
 
 		packages := []string{"ca-certificates"}
 		if privateRepoInfo.NeedsGit {
@@ -891,6 +927,67 @@ func (g *DefaultDockerfileGenerator) effectiveUser() string {
 		return g.workspaceYAML.Container.User
 	}
 	return "dev"
+}
+
+// collectAdditionalBuildArgs returns a de-duplicated, sorted list of additional ARG names
+// from both AdditionalBuildArgs and WorkspaceSpec.Build.Args, excluding any already in requiredBuildArgs.
+func (g *DefaultDockerfileGenerator) collectAdditionalBuildArgs(requiredBuildArgs []string) []string {
+	skip := make(map[string]bool, len(requiredBuildArgs))
+	for _, arg := range requiredBuildArgs {
+		skip[arg] = true
+	}
+
+	seen := make(map[string]bool)
+	var result []string
+
+	// Collect from AdditionalBuildArgs
+	for _, arg := range g.additionalBuildArgs {
+		if !skip[arg] && !seen[arg] {
+			seen[arg] = true
+			result = append(result, arg)
+		}
+	}
+
+	// Collect from WorkspaceSpec.Build.Args keys
+	for key := range g.workspaceYAML.Build.Args {
+		if !skip[key] && !seen[key] {
+			seen[key] = true
+			result = append(result, key)
+		}
+	}
+
+	sort.Strings(result)
+	return result
+}
+
+// emitAdditionalBuildArgs writes ARG declarations for additional build args to the Dockerfile.
+// These are ARG-only (no ENV) to avoid leaking secrets into the final image.
+func (g *DefaultDockerfileGenerator) emitAdditionalBuildArgs(dockerfile *strings.Builder, requiredBuildArgs []string) {
+	args := g.collectAdditionalBuildArgs(requiredBuildArgs)
+	if len(args) == 0 {
+		return
+	}
+
+	dockerfile.WriteString("# Additional build arguments\n")
+	for _, arg := range args {
+		dockerfile.WriteString(fmt.Sprintf("ARG %s\n", arg))
+	}
+	dockerfile.WriteString("\n")
+}
+
+// emitCACertSection writes the CA certificate injection block to the Dockerfile.
+// This installs corporate/custom CA certificates so tools (pip, curl, node) trust them.
+func (g *DefaultDockerfileGenerator) emitCACertSection(dockerfile *strings.Builder) {
+	if len(g.workspaceYAML.Build.CACerts) == 0 {
+		return
+	}
+
+	dockerfile.WriteString("# Corporate CA certificates\n")
+	dockerfile.WriteString("COPY certs/ /usr/local/share/ca-certificates/custom/\n")
+	dockerfile.WriteString("RUN update-ca-certificates\n")
+	dockerfile.WriteString("ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt\n")
+	dockerfile.WriteString("ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt\n")
+	dockerfile.WriteString("ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt\n\n")
 }
 
 // generateNvimSection copies nvim config and installs plugins (called after user creation).

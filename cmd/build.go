@@ -22,6 +22,9 @@ var buildCmd = &cobra.Command{
 This command:
 - Detects the app language
 - Generates or extends Dockerfile with dev tools
+- Emits ARG declarations for all spec.build.args keys (not ENV — credentials are not persisted in image layers)
+- Injects CA certificates from MaestroVault when spec.build.caCerts is configured (fatal error if cert is missing or invalid)
+- Sets the USER directive from container.user (defaults to "dev" if unset)
 - Builds the image using the detected container platform
 - Tags as dvm-<workspace>-<app>:latest
 - Optionally pushes to local registry cache

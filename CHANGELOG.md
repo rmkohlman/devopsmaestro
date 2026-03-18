@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.54.0] - 2026-03-17 — Corporate Build Configuration
+
+### ✨ Features
+
+#### CA Certificate Injection from MaestroVault — `builders/dockerfile_generator.go`, `pkg/workspace/workspace.go`
+- **`spec.build.caCerts` field on Workspace** — list of `CACertConfig` objects; each entry specifies a `name`, `vaultSecret`, and optional `vaultEnvironment` and `vaultField` (default: `"cert"`)
+- **Certificates fetched from MaestroVault at build time** — PEM content written to `certs/` directory before `docker build`; path traversal is blocked at validation and write time
+- **Dockerfile injection** — generator emits `COPY certs/ /usr/local/share/ca-certificates/custom/`, `RUN update-ca-certificates`, and sets `SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE`, and `NODE_EXTRA_CA_CERTS` in both base and dev stages
+- **Alpine auto-dependency** — `ca-certificates` package is automatically added to `apk add` when `caCerts` is configured
+- **Validation** — `name` must match `^[a-zA-Z0-9][a-zA-Z0-9_-]*$`; maximum 10 certificates per workspace; PEM must contain `BEGIN CERTIFICATE` and `END CERTIFICATE` markers
+- **FATAL error policy** — missing or invalid certificates fail the build immediately; no silent degradation
+
+#### Build Args Pipeline — `builders/dockerfile_generator.go`
+- **`spec.build.args` keys emitted as `ARG` declarations** — generator emits `ARG <name>` in both base and dev stages for all 4 language branches (Go, Python, Node.js, default); values are available during the build but are not persisted as `ENV` in the image
+- **Security design** — `PIP_INDEX_URL` and similar credentials must not be stored in image layers; `ARG` is used exclusively instead of `ENV` for build-time secrets
+
+### 🐛 Bug Fixes
+
+#### USER Directive Now Follows `container.user` — `builders/dockerfile_generator.go`
+- **`USER` directive in generated Dockerfiles now uses `container.user`** — previously hardcoded to `"dev"`; if `container.user` is set (e.g., `"ray"`), the `USER` directive now correctly reflects it; defaults to `"dev"` when unset
+
+### 🏗️ Technical
+
+| Metric | Value |
+|--------|-------|
+| Breaking changes | 0 |
+| New types | 1 (`CACertConfig`) |
+| New fields | 1 (`spec.build.caCerts` on Workspace) |
+| Modified production files | 2 (`builders/dockerfile_generator.go`, `pkg/workspace/workspace.go`) |
+
+---
+
 ## [v0.53.0] - 2026-03-17 — List Format YAML/JSON Export for `dvm get all`
 
 ### ✨ Features
