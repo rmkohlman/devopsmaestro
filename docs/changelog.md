@@ -2,6 +2,19 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.51.0 (2026-03-17)
+
+**✨ Rich Columns in `dvm get all`**
+
+`dvm get all` now displays the same rich column structure as individual `dvm get <resource>` commands — active markers, section counts, resource-specific columns, and `-o wide` support.
+
+- **Rich columns** — each section now shows the same headers as the dedicated list command: ECOSYSTEM under domains, DOMAIN under apps, APP under workspaces, PATH for apps, CREATED timestamps, and all other resource-specific columns; previously `dvm get all` used a reduced column set
+- **Section counts** — section headers now include the resource count (e.g., `=== Ecosystems (3) ===`)
+- **Active markers (`●`)** — active ecosystem, domain, app, and workspace rows are marked with `●` in the NAME column, matching individual `dvm get` output
+- **`-o wide` support** — adds ID, GITREPO, CONTAINER-ID, SLUG, REF, AUTO_SYNC, CREATED columns across all sections
+- **Registries full column set** — NAME, TYPE, VERSION, PORT, LIFECYCLE, STATE, UPTIME
+- **Refactoring** — 9 inline table-building sections in `get_all.go` replaced with the shared `tableBuilder` implementations from `cmd/table.go`; `dvm get all` and individual `dvm get <resource>` commands now use identical table builders; 0 breaking changes
+
 ## v0.50.1 (2026-03-17)
 
 **🐛 Fix FOREIGN KEY Constraint Failed on Delete**

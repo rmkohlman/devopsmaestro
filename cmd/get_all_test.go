@@ -163,17 +163,17 @@ func TestGetAll_EmptyDatabase(t *testing.T) {
 
 	output := buf.String()
 
-	// All 9 section headers must appear
+	// All 9 section headers must appear — counts are always (0) for an empty DB
 	sections := []string{
-		"=== Ecosystems ===",
-		"=== Domains ===",
-		"=== Apps ===",
-		"=== Workspaces ===",
-		"=== Credentials ===",
-		"=== Registries ===",
-		"=== Git Repos ===",
-		"=== Nvim Plugins ===",
-		"=== Nvim Themes ===",
+		"=== Ecosystems (0) ===",
+		"=== Domains (0) ===",
+		"=== Apps (0) ===",
+		"=== Workspaces (0) ===",
+		"=== Credentials (0) ===",
+		"=== Registries (0) ===",
+		"=== Git Repos (0) ===",
+		"=== Nvim Plugins (0) ===",
+		"=== Nvim Themes (0) ===",
 	}
 	for _, section := range sections {
 		assert.Contains(t, output, section, "expected section header %q in output", section)
@@ -251,6 +251,14 @@ func TestGetAll_WithData(t *testing.T) {
 	assert.Contains(t, output, "api", "app name should appear in output")
 	assert.Contains(t, output, "dev", "workspace name should appear in output")
 	assert.Contains(t, output, "api-repo", "git repo name should appear in output")
+
+	// Rich column headers should appear in each section's table
+	assert.Contains(t, output, "DESCRIPTION", "ecosystem table should have DESCRIPTION column")
+	assert.Contains(t, output, "CREATED", "tables should have CREATED column")
+	assert.Contains(t, output, "ECOSYSTEM", "domain table should have ECOSYSTEM column")
+	assert.Contains(t, output, "DOMAIN", "app table should have DOMAIN column")
+	assert.Contains(t, output, "PATH", "app table should have PATH column")
+	assert.Contains(t, output, "APP", "workspace table should have APP column")
 }
 
 // ---------------------------------------------------------------------------
@@ -535,6 +543,19 @@ func TestGetAll_TableOutput(t *testing.T) {
 	assert.Contains(t, output, "dom-table")
 	assert.Contains(t, output, "app-table")
 	assert.Contains(t, output, "ws-table")
+
+	// Rich column headers verify shared builders are wired in
+	assert.Contains(t, output, "ECOSYSTEM", "domain table should include ECOSYSTEM column")
+	assert.Contains(t, output, "DOMAIN", "app table should include DOMAIN column")
+	assert.Contains(t, output, "APP", "workspace table should include APP column")
+
+	// Parent names should appear in child rows
+	// domain row should include the ecosystem name
+	assert.Contains(t, output, "eco-table", "ecosystem name should appear in domain row")
+	// app row should include the domain name
+	assert.Contains(t, output, "dom-table", "domain name should appear in app row")
+	// workspace row should include the app name
+	assert.Contains(t, output, "app-table", "app name should appear in workspace row")
 }
 
 // ---------------------------------------------------------------------------
@@ -690,4 +711,199 @@ func TestGetAll_SectionHeaders_PlainOutput(t *testing.T) {
 
 	// With an empty DB every section shows "(none)"
 	assert.Contains(t, output, "(none)", "empty sections should show '(none)'")
+
+	// Section headers include (0) counts even for an empty DB
+	assert.Contains(t, output, "=== Ecosystems (0) ===", "empty ecosystem section header should include count")
+	assert.Contains(t, output, "=== Domains (0) ===", "empty domain section header should include count")
+}
+
+// ---------------------------------------------------------------------------
+// TestGetAll_ActiveMarkers
+// ---------------------------------------------------------------------------
+
+// TestGetAll_ActiveMarkers verifies that active resources are prefixed with "●"
+// when an active context is set in the DataStore.
+func TestGetAll_ActiveMarkers(t *testing.T) {
+	dataStore := createFullTestDataStore(t)
+	defer dataStore.Close()
+
+	// Seed resources
+	eco := &models.Ecosystem{Name: "active-eco"}
+	require.NoError(t, dataStore.CreateEcosystem(eco))
+
+	dom := &models.Domain{Name: "active-dom", EcosystemID: eco.ID}
+	require.NoError(t, dataStore.CreateDomain(dom))
+
+	app := &models.App{Name: "active-app", Path: "/app", DomainID: dom.ID}
+	require.NoError(t, dataStore.CreateApp(app))
+
+	ws := &models.Workspace{
+		Name:      "active-ws",
+		AppID:     app.ID,
+		ImageName: "ubuntu:22.04",
+		Status:    "stopped",
+	}
+	require.NoError(t, dataStore.CreateWorkspace(ws))
+
+	// Set active context for all resources
+	require.NoError(t, dataStore.SetActiveEcosystem(&eco.ID))
+	require.NoError(t, dataStore.SetActiveDomain(&dom.ID))
+	require.NoError(t, dataStore.SetActiveApp(&app.ID))
+	require.NoError(t, dataStore.SetActiveWorkspace(&ws.ID))
+
+	cmd := newGetAllTestCmd(t, dataStore)
+
+	var buf bytes.Buffer
+	origWriter := render.GetWriter()
+	render.SetWriter(&buf)
+	defer render.SetWriter(origWriter)
+
+	origFormat := getOutputFormat
+	defer func() { getOutputFormat = origFormat }()
+	getOutputFormat = ""
+
+	err := getAll(cmd)
+	require.NoError(t, err, "getAll should succeed with active context set")
+
+	output := buf.String()
+
+	// Active marker "●" should appear in the output for each active resource
+	assert.Contains(t, output, "●", "active marker ● should appear in output")
+	assert.Contains(t, output, "● active-eco", "active ecosystem should be prefixed with ●")
+	assert.Contains(t, output, "● active-dom", "active domain should be prefixed with ●")
+	assert.Contains(t, output, "● active-app", "active app should be prefixed with ●")
+	assert.Contains(t, output, "● active-ws", "active workspace should be prefixed with ●")
+}
+
+// ---------------------------------------------------------------------------
+// TestGetAll_WideOutput
+// ---------------------------------------------------------------------------
+
+// TestGetAll_WideOutput verifies that -o wide adds extra columns to the tables.
+func TestGetAll_WideOutput(t *testing.T) {
+	dataStore := createFullTestDataStore(t)
+	defer dataStore.Close()
+
+	// Seed resources
+	eco := &models.Ecosystem{Name: "wide-eco"}
+	require.NoError(t, dataStore.CreateEcosystem(eco))
+
+	dom := &models.Domain{Name: "wide-dom", EcosystemID: eco.ID}
+	require.NoError(t, dataStore.CreateDomain(dom))
+
+	app := &models.App{Name: "wide-app", Path: "/app", DomainID: dom.ID}
+	require.NoError(t, dataStore.CreateApp(app))
+
+	ws := &models.Workspace{
+		Name:      "wide-ws",
+		AppID:     app.ID,
+		ImageName: "ubuntu:22.04",
+		Status:    "stopped",
+	}
+	require.NoError(t, dataStore.CreateWorkspace(ws))
+
+	gitRepo := &models.GitRepoDB{
+		Name:       "wide-repo",
+		URL:        "https://github.com/org/wide.git",
+		Slug:       "github.com_org_wide",
+		DefaultRef: "main",
+		AuthType:   "none",
+		SyncStatus: "pending",
+	}
+	require.NoError(t, dataStore.CreateGitRepo(gitRepo))
+
+	cmd := newGetAllTestCmd(t, dataStore)
+
+	var buf bytes.Buffer
+	origWriter := render.GetWriter()
+	render.SetWriter(&buf)
+	defer render.SetWriter(origWriter)
+
+	origFormat := getOutputFormat
+	defer func() { getOutputFormat = origFormat }()
+	getOutputFormat = "wide"
+
+	err := getAll(cmd)
+	require.NoError(t, err, "getAll with -o wide should succeed")
+
+	output := buf.String()
+
+	// Verify resource names still appear
+	assert.Contains(t, output, "wide-eco")
+	assert.Contains(t, output, "wide-dom")
+	assert.Contains(t, output, "wide-app")
+	assert.Contains(t, output, "wide-ws")
+	assert.Contains(t, output, "wide-repo")
+
+	// Wide-only columns should appear
+	assert.Contains(t, output, "ID", "wide mode should add ID column to ecosystems")
+	assert.Contains(t, output, "CONTAINER-ID", "wide mode should add CONTAINER-ID column to workspaces")
+	assert.Contains(t, output, "GITREPO", "wide mode should add GITREPO column to apps")
+	assert.Contains(t, output, "SLUG", "wide mode should add SLUG column to git repos")
+}
+
+// ---------------------------------------------------------------------------
+// TestGetAll_RichColumns
+// ---------------------------------------------------------------------------
+
+// TestGetAll_RichColumns verifies that parent resource names appear in child
+// resource rows (e.g., ecosystem name in domain row, domain name in app row).
+func TestGetAll_RichColumns(t *testing.T) {
+	dataStore := createFullTestDataStore(t)
+	defer dataStore.Close()
+
+	// Seed a hierarchy: ecosystem -> domain -> app -> workspace
+	eco := &models.Ecosystem{
+		Name: "rich-eco",
+	}
+	require.NoError(t, dataStore.CreateEcosystem(eco))
+
+	dom := &models.Domain{
+		Name:        "rich-dom",
+		EcosystemID: eco.ID,
+	}
+	require.NoError(t, dataStore.CreateDomain(dom))
+
+	app := &models.App{
+		Name:     "rich-app",
+		Path:     "/src/rich",
+		DomainID: dom.ID,
+	}
+	require.NoError(t, dataStore.CreateApp(app))
+
+	ws := &models.Workspace{
+		Name:      "rich-ws",
+		AppID:     app.ID,
+		ImageName: "golang:1.22",
+		Status:    "stopped",
+	}
+	require.NoError(t, dataStore.CreateWorkspace(ws))
+
+	cmd := newGetAllTestCmd(t, dataStore)
+
+	var buf bytes.Buffer
+	origWriter := render.GetWriter()
+	render.SetWriter(&buf)
+	defer render.SetWriter(origWriter)
+
+	origFormat := getOutputFormat
+	defer func() { getOutputFormat = origFormat }()
+	getOutputFormat = ""
+
+	err := getAll(cmd)
+	require.NoError(t, err, "getAll should succeed with hierarchical data")
+
+	output := buf.String()
+
+	// The ECOSYSTEM column in the domains table should show the ecosystem name
+	assert.Contains(t, output, "rich-eco", "ecosystem name should appear in domain table's ECOSYSTEM column")
+
+	// The DOMAIN column in the apps table should show the domain name
+	assert.Contains(t, output, "rich-dom", "domain name should appear in app table's DOMAIN column")
+
+	// The APP column in the workspaces table should show the app name
+	assert.Contains(t, output, "rich-app", "app name should appear in workspace table's APP column")
+
+	// The PATH column should show the app path
+	assert.Contains(t, output, "/src/rich", "app path should appear in app table's PATH column")
 }

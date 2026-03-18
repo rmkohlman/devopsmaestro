@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"strconv"
 
+	"devopsmaestro/models"
 	"devopsmaestro/render"
 
 	"github.com/spf13/cobra"
@@ -44,6 +44,7 @@ registries, git repos, nvim plugins, and nvim themes.
 
 Examples:
   dvm get all              # Show all resources (human-readable)
+  dvm get all -o wide      # Show additional columns
   dvm get all -o json      # Output as JSON
   dvm get all -o yaml      # Output as YAML
   dvm get all -o table     # Output as plain table`,
@@ -233,173 +234,124 @@ func getAll(cmd *cobra.Command) error {
 		return render.OutputWith(getOutputFormat, all, render.Options{Type: render.TypeAuto})
 	}
 
-	// Human-readable output: render each section separately
+	// Human-readable output: render each section using shared table builders
+
+	// Fetch active context for markers (ignore errors - no active context is fine)
+	var activeEcoID, activeDomID, activeAppID *int
+	var activeWorkspaceName string
+	if dbCtx, ctxErr := ds.GetContext(); ctxErr == nil && dbCtx != nil {
+		activeEcoID = dbCtx.ActiveEcosystemID
+		activeDomID = dbCtx.ActiveDomainID
+		activeAppID = dbCtx.ActiveAppID
+		if dbCtx.ActiveWorkspaceID != nil {
+			if ws, wsErr := ds.GetWorkspaceByID(*dbCtx.ActiveWorkspaceID); wsErr == nil {
+				activeWorkspaceName = ws.Name
+			}
+		}
+	}
+
+	wide := getOutputFormat == "wide"
 
 	// === Ecosystems ===
-	render.Info("=== Ecosystems ===")
+	render.Info(fmt.Sprintf("=== Ecosystems (%d) ===", len(ecosystems)))
 	if len(ecosystems) > 0 {
-		rows := make([][]string, 0, len(ecosystems))
-		for _, e := range ecosystems {
-			desc := ""
-			if e.Description.Valid {
-				desc = e.Description.String
-			}
-			rows = append(rows, []string{e.Name, desc})
-		}
-		render.OutputWith(getOutputFormat, render.TableData{
-			Headers: []string{"NAME", "DESCRIPTION"},
-			Rows:    rows,
-		}, render.Options{Type: render.TypeTable})
+		b := &ecosystemTableBuilder{ActiveID: activeEcoID}
+		td := BuildTable(b, ecosystems, wide)
+		renderTable(td)
 	} else {
 		render.Plainf("  (none)")
 	}
 	render.Blank()
 
 	// === Domains ===
-	render.Info("=== Domains ===")
+	render.Info(fmt.Sprintf("=== Domains (%d) ===", len(domains)))
 	if len(domains) > 0 {
-		rows := make([][]string, 0, len(domains))
-		for _, d := range domains {
-			desc := ""
-			if d.Description.Valid {
-				desc = d.Description.String
-			}
-			rows = append(rows, []string{d.Name, desc})
-		}
-		render.OutputWith(getOutputFormat, render.TableData{
-			Headers: []string{"NAME", "DESCRIPTION"},
-			Rows:    rows,
-		}, render.Options{Type: render.TypeTable})
+		b := &domainTableBuilder{DataStore: ds, ActiveID: activeDomID}
+		td := BuildTable(b, domains, wide)
+		renderTable(td)
 	} else {
 		render.Plainf("  (none)")
 	}
 	render.Blank()
 
 	// === Apps ===
-	render.Info("=== Apps ===")
+	render.Info(fmt.Sprintf("=== Apps (%d) ===", len(apps)))
 	if len(apps) > 0 {
-		rows := make([][]string, 0, len(apps))
-		for _, a := range apps {
-			lang := ""
-			if a.Language.Valid {
-				lang = a.Language.String
-			}
-			desc := ""
-			if a.Description.Valid {
-				desc = a.Description.String
-			}
-			rows = append(rows, []string{a.Name, lang, desc})
-		}
-		render.OutputWith(getOutputFormat, render.TableData{
-			Headers: []string{"NAME", "LANGUAGE", "DESCRIPTION"},
-			Rows:    rows,
-		}, render.Options{Type: render.TypeTable})
+		b := &appTableBuilder{DataStore: ds, ActiveID: activeAppID}
+		td := BuildTable(b, apps, wide)
+		renderTable(td)
 	} else {
 		render.Plainf("  (none)")
 	}
 	render.Blank()
 
 	// === Workspaces ===
-	render.Info("=== Workspaces ===")
+	render.Info(fmt.Sprintf("=== Workspaces (%d) ===", len(workspaces)))
 	if len(workspaces) > 0 {
-		rows := make([][]string, 0, len(workspaces))
-		for _, w := range workspaces {
-			rows = append(rows, []string{w.Name, w.ImageName, w.Status})
-		}
-		render.OutputWith(getOutputFormat, render.TableData{
-			Headers: []string{"NAME", "IMAGE", "STATUS"},
-			Rows:    rows,
-		}, render.Options{Type: render.TypeTable})
+		b := &workspaceTableBuilder{DataStore: ds, ActiveWorkspaceName: activeWorkspaceName}
+		td := BuildTable(b, workspaces, wide)
+		renderTable(td)
 	} else {
 		render.Plainf("  (none)")
 	}
 	render.Blank()
 
 	// === Credentials ===
-	render.Info("=== Credentials ===")
+	render.Info(fmt.Sprintf("=== Credentials (%d) ===", len(credentials)))
 	if len(credentials) > 0 {
-		rows := make([][]string, 0, len(credentials))
-		for _, c := range credentials {
-			scope := resolveScopeName(ds, c.ScopeType, c.ScopeID)
-			target := formatTargetVars(c)
-			rows = append(rows, []string{c.Name, scope, c.Source, target})
-		}
-		render.OutputWith(getOutputFormat, render.TableData{
-			Headers: []string{"NAME", "SCOPE", "SOURCE", "TARGET"},
-			Rows:    rows,
-		}, render.Options{Type: render.TypeTable})
+		b := &credentialTableBuilder{DataStore: ds}
+		td := BuildTable(b, credentials, wide)
+		renderTable(td)
 	} else {
 		render.Plainf("  (none)")
 	}
 	render.Blank()
 
 	// === Registries ===
-	render.Info("=== Registries ===")
+	render.Info(fmt.Sprintf("=== Registries (%d) ===", len(registries)))
 	if len(registries) > 0 {
-		rows := make([][]string, 0, len(registries))
-		for _, r := range registries {
-			rows = append(rows, []string{r.Name, r.Type, r.Status, strconv.Itoa(r.Port)})
-		}
-		render.OutputWith(getOutputFormat, render.TableData{
-			Headers: []string{"NAME", "TYPE", "STATUS", "PORT"},
-			Rows:    rows,
-		}, render.Options{Type: render.TypeTable})
+		b := &registryTableBuilder{StatusMap: nil}
+		td := BuildTable(b, registries, wide)
+		renderTable(td)
 	} else {
 		render.Plainf("  (none)")
 	}
 	render.Blank()
 
 	// === Git Repos ===
-	render.Info("=== Git Repos ===")
+	render.Info(fmt.Sprintf("=== Git Repos (%d) ===", len(gitRepos)))
 	if len(gitRepos) > 0 {
-		rows := make([][]string, 0, len(gitRepos))
-		for _, g := range gitRepos {
-			rows = append(rows, []string{g.Name, g.URL, g.AuthType})
+		// ListGitRepos returns []models.GitRepoDB (value type), but
+		// gitRepoTableBuilder.Row expects *models.GitRepoDB, so convert.
+		gitRepoPtrs := make([]*models.GitRepoDB, len(gitRepos))
+		for i := range gitRepos {
+			gitRepoPtrs[i] = &gitRepos[i]
 		}
-		render.OutputWith(getOutputFormat, render.TableData{
-			Headers: []string{"NAME", "URL", "AUTH"},
-			Rows:    rows,
-		}, render.Options{Type: render.TypeTable})
+		b := &gitRepoTableBuilder{}
+		td := BuildTable(b, gitRepoPtrs, wide)
+		renderTable(td)
 	} else {
 		render.Plainf("  (none)")
 	}
 	render.Blank()
 
 	// === Nvim Plugins ===
-	render.Info("=== Nvim Plugins ===")
+	render.Info(fmt.Sprintf("=== Nvim Plugins (%d) ===", len(plugins)))
 	if len(plugins) > 0 {
-		rows := make([][]string, 0, len(plugins))
-		for _, p := range plugins {
-			cat := ""
-			if p.Category.Valid {
-				cat = p.Category.String
-			}
-			rows = append(rows, []string{p.Name, p.Repo, cat})
-		}
-		render.OutputWith(getOutputFormat, render.TableData{
-			Headers: []string{"NAME", "REPO", "CATEGORY"},
-			Rows:    rows,
-		}, render.Options{Type: render.TypeTable})
+		b := &nvimPluginTableBuilder{}
+		td := BuildTable(b, plugins, wide)
+		renderTable(td)
 	} else {
 		render.Plainf("  (none)")
 	}
 	render.Blank()
 
 	// === Nvim Themes ===
-	render.Info("=== Nvim Themes ===")
+	render.Info(fmt.Sprintf("=== Nvim Themes (%d) ===", len(themes)))
 	if len(themes) > 0 {
-		rows := make([][]string, 0, len(themes))
-		for _, t := range themes {
-			active := "no"
-			if t.IsActive {
-				active = "yes"
-			}
-			rows = append(rows, []string{t.Name, t.PluginRepo, active})
-		}
-		render.OutputWith(getOutputFormat, render.TableData{
-			Headers: []string{"NAME", "PLUGIN REPO", "ACTIVE"},
-			Rows:    rows,
-		}, render.Options{Type: render.TypeTable})
+		b := &nvimThemeTableBuilder{}
+		td := BuildTable(b, themes, wide)
+		renderTable(td)
 	} else {
 		render.Plainf("  (none)")
 	}

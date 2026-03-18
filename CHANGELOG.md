@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.51.0] - 2026-03-17 — Rich Columns in `dvm get all`
+
+### ✨ Features
+
+#### Rich Column Structure in `dvm get all` — `cmd/get_all.go`
+- **`dvm get all` now displays the same rich columns as individual `dvm get <resource>` commands** — each section shows the same headers that the dedicated list command produces: ECOSYSTEM under domains, DOMAIN under apps, APP under workspaces, PATH for apps, CREATED timestamps, and all other resource-specific columns
+- **Section headers include resource counts** — e.g., `=== Ecosystems (3) ===`; previously headers had no counts
+- **Active resource markers (`●`) in `dvm get all`** — active ecosystem, domain, app, and workspace rows are now marked with `●` in the NAME column, matching the output of individual `dvm get` commands
+- **`-o wide` support in `dvm get all`** — passing `-o wide` now adds additional columns across all sections: ID, GITREPO, CONTAINER-ID, SLUG, REF, AUTO_SYNC, CREATED
+- **Registries section shows full column set** — NAME, TYPE, VERSION, PORT, LIFECYCLE, STATE, UPTIME; previously displayed a reduced subset
+
+### 🏗️ Refactoring
+
+#### `get_all.go` — Shared Table Builders
+- **Replaced 9 inline table-building sections in `get_all.go` with the shared `tableBuilder` implementations from `cmd/table.go`** — each section previously constructed headers, rows, and wide columns independently; all 9 now delegate to the same builder structs used by the individual list commands
+- **Removed duplicated column logic** — `dvm get all` and individual `dvm get <resource>` commands now use identical table builders; a column change in one automatically applies to the other
+
+---
+
 ## [v0.50.1] - 2026-03-17 — Fix FOREIGN KEY Constraint Failed on Delete
 
 ### 🐛 Bug Fixes
