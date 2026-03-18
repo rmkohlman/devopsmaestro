@@ -1,6 +1,6 @@
 # DevOpsMaestro Manual Test Plan
 
-> **Version**: v0.52.0  
+> **Version**: v0.53.0  
 > **Last Updated**: March 17, 2026
 
 ---
@@ -37,6 +37,7 @@ source tests/manual/part2-post-attach.sh
 | 22 | Manual | Registry Startup Resilience (v0.45.0) |
 | 23 | Manual | Auto-Detect Git Default Branch (v0.49.0) |
 | 24 | Manual | Scoped Hierarchical Views (v0.52.0) |
+| 25 | Manual | List Format Export (v0.53.0) |
 
 ---
 
@@ -4415,6 +4416,185 @@ dvm get all -e <eco-name> -o wide
 
 ---
 
+---
+
+## Part 25: List Format Export (v0.53.0)
+
+> **Prerequisite**: `dvm` binary built from v0.53.0+. At least one ecosystem, domain, app, and workspace configured with data. `dvm admin init` completed.
+
+`dvm get all -o yaml` and `-o json` now produce a `kind: List` document. `dvm apply -f` now accepts `kind: List` documents.
+
+---
+
+### Scenario 108: Export All Resources as YAML List
+
+Verify that `dvm get all -A -o yaml` produces a valid `kind: List` document.
+
+```bash
+dvm get all -A -o yaml
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Output starts with `kind: List` | First non-empty line is `kind: List` | |
+| `apiVersion` present | `apiVersion: devopsmaestro.io/v1` in output | |
+| `items:` section present | `items:` key present in YAML | |
+| Each item has `kind:` field | Individual `kind: Ecosystem`, `kind: Workspace`, etc. entries under items | |
+| Each item has `metadata:` and `spec:` | Full resource YAML per item, not a summary | |
+| No `AllResources` flat struct | No top-level `ecosystems:`, `domains:`, `apps:` keys | |
+
+---
+
+### Scenario 109: Export All Resources as JSON List
+
+Verify that `dvm get all -A -o json` produces a valid `kind: List` JSON document.
+
+```bash
+dvm get all -A -o json
+dvm get all -A -o json | python3 -m json.tool
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Output parses as valid JSON | `python3 -m json.tool` succeeds with no errors | |
+| Top-level `kind` is `"List"` | `{"kind": "List", ...}` at the root | |
+| `items` is an array | `"items": [...]` present | |
+| Each item has full resource fields | `kind`, `apiVersion`, `metadata`, `spec` present on each item | |
+
+---
+
+### Scenario 110: Scoped Export Excludes Global Resources
+
+Verify that scoped YAML/JSON export omits global resources (registries, git repos, nvim resources, terminal resources).
+
+```bash
+# Export scoped to a specific ecosystem
+dvm get all -e <eco-name> -o yaml
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Only hierarchical resources in output | Ecosystems, Domains, Apps, Workspaces, Credentials matching scope | |
+| No `kind: Registry` items | Registry items absent from scoped YAML | |
+| No `kind: GitRepo` items | GitRepo items absent from scoped YAML | |
+| No `kind: NvimPlugin` or `kind: NvimTheme` | Nvim resources absent from scoped YAML | |
+| No `kind: TerminalPrompt` or `kind: TerminalPackage` | Terminal resources absent from scoped YAML | |
+| Table output unaffected | `dvm get all -e <eco-name>` (no `-o`) still shows global resources in table | |
+
+---
+
+### Scenario 111: Round-Trip — Export Then Re-Import
+
+Verify that output from `dvm get all -A -o yaml` can be fed back to `dvm apply -f -` without errors.
+
+```bash
+# Export all resources
+dvm get all -A -o yaml > /tmp/dvm-backup.yaml
+
+# Inspect the file
+head -20 /tmp/dvm-backup.yaml
+
+# Apply back (re-apply should be idempotent — update or no-op for existing resources)
+dvm apply -f /tmp/dvm-backup.yaml
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Export succeeds | `/tmp/dvm-backup.yaml` created, non-empty | |
+| File starts with `kind: List` | First line of file is `kind: List` | |
+| Apply succeeds | `dvm apply` completes without fatal errors | |
+| Items applied in order | No dependency errors (e.g., Workspace applied before Ecosystem) | |
+| Existing resources updated or skipped | No "not found" or "already exists" hard errors | |
+
+**Cleanup:**
+```bash
+rm /tmp/dvm-backup.yaml
+```
+
+---
+
+### Scenario 112: Apply a `kind: List` File
+
+Verify that `dvm apply -f <list-file>` processes all items in a List document individually, with continue-on-error behavior.
+
+```bash
+# Create a List YAML with two valid items and one invalid item
+cat <<EOF > /tmp/test-list.yaml
+kind: List
+apiVersion: devopsmaestro.io/v1
+items:
+  - kind: Ecosystem
+    apiVersion: devopsmaestro.io/v1
+    metadata:
+      name: list-test-eco
+    spec: {}
+  - kind: InvalidKind
+    apiVersion: devopsmaestro.io/v1
+    metadata:
+      name: bad-item
+    spec: {}
+  - kind: Domain
+    apiVersion: devopsmaestro.io/v1
+    metadata:
+      name: list-test-domain
+      ecosystem: list-test-eco
+    spec: {}
+EOF
+
+dvm apply -f /tmp/test-list.yaml
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| First item (Ecosystem) applied | `list-test-eco` created or updated | |
+| Invalid item reports an error | Error message for `InvalidKind` shown | |
+| Third item (Domain) still applied | `list-test-domain` created despite previous error | |
+| Command exits with non-zero code | At least one item failed, so exit code != 0 | |
+| No panic | Clean error output, no stack trace | |
+
+**Cleanup:**
+```bash
+rm /tmp/test-list.yaml
+dvm delete domain list-test-eco/list-test-domain --force
+dvm delete ecosystem list-test-eco --force
+```
+
+---
+
+### Scenario 113: Pipe Export Directly to Apply
+
+Verify the canonical round-trip pipeline works end-to-end.
+
+```bash
+# Pipe export directly to apply
+dvm get all -A -o yaml | dvm apply -f -
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Pipeline completes without error | No fatal errors | |
+| stdin input accepted by apply | `-f -` reads from stdin correctly | |
+| Resources unchanged (idempotent) | Re-applying existing resources does not corrupt state | |
+
+---
+
+### Scenario 114: Dependency Order in List Output
+
+Verify that items in the exported List appear in apply-safe dependency order.
+
+```bash
+dvm get all -A -o yaml | grep '^  - kind:' | head -20
+```
+
+| Test | Expected | Result |
+|------|----------|--------|
+| Ecosystems appear before Domains | `kind: Ecosystem` entries precede `kind: Domain` entries | |
+| Domains appear before Apps | `kind: Domain` entries precede `kind: App` entries | |
+| Apps appear before Workspaces | `kind: App` entries precede `kind: Workspace` entries | |
+| GitRepos appear before Credentials and Workspaces | `kind: GitRepo` entries before `kind: Credential` and `kind: Workspace` | |
+
+---
+
 ## Test Results Summary
 
 | Part | Tests | Pass | Fail |
@@ -4446,6 +4626,7 @@ dvm get all -e <eco-name> -o wide
 | Part 22: Registry Startup Resilience | 4 scenarios | | |
 | Part 23: Auto-Detect Git Default Branch | 4 scenarios | | |
 | Part 24: Scoped Hierarchical Views | 9 scenarios | | |
+| Part 25: List Format Export | 7 scenarios | | |
 
 ---
 

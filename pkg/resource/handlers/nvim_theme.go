@@ -194,3 +194,8 @@ func (r *NvimThemeResource) Validate() error {
 func (r *NvimThemeResource) Theme() *theme.Theme {
 	return r.theme
 }
+
+// NewNvimThemeResource creates a new NvimThemeResource from a theme model.
+func NewNvimThemeResource(t *theme.Theme) *NvimThemeResource {
+	return &NvimThemeResource{theme: t}
+}

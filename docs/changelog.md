@@ -2,6 +2,23 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.53.0 (2026-03-17)
+
+**✨ List Format YAML/JSON Export for `dvm get all`**
+
+`dvm get all -o yaml` and `-o json` now produce a kubectl-style `kind: List` document with full resource YAML per item, replacing the previous lossy `AllResources` summary struct. Output can be piped directly to `dvm apply -f -` for backup and restore.
+
+**⚠️ Breaking change:** The JSON/YAML output structure for `dvm get all` has changed. Scripts parsing the old `AllResources` format (with top-level `ecosystems`, `domains`, `apps`, etc. arrays) will break. The new output is a `kind: List` document where each item is the full resource YAML.
+
+- **`kind: List` output** — full resource YAML per item (not lossy summaries); identical to `dvm get <resource> <name> -o yaml` output; all 13 resource types included (was 9)
+- **Round-trip fidelity** — `dvm get all -A -o yaml | dvm apply -f -` exports and restores all resources; enables infrastructure-as-code backup/restore workflows
+- **`dvm apply -f` supports `kind: List`** — apply pipeline detects List documents and applies each item individually with continue-on-error; enables `dvm apply -f backup.yaml`
+- **Dependency-ordered output** — items in the List follow apply-safe dependency order: Ecosystems → Domains → Apps → GitRepos → Registries → Credentials → Workspaces → NvimPlugins → NvimThemes → NvimPackages → TerminalPrompts → TerminalPackages
+- **Scoped export excludes globals** — when using `-e`/`-d`/`-a` flags with `-o yaml/json`, global resources (registries, git repos, nvim plugins/themes/packages, terminal prompts/packages) are excluded; only hierarchical resources matching the scope are exported; table output is unaffected
+- **`metadata.domain` on Workspace YAML** — Workspace YAML now includes `metadata.domain` for context-free apply; handler resolves domain from this field first, falling back to active context
+- **`ResourceList` type** — new `pkg/resource/list.go` with `BuildList()` and `ApplyList()` functions
+- 1 new production file (`pkg/resource/list.go`); 2 modified production files (`cmd/get_all.go`, `cmd/apply.go`)
+
 ## v0.52.0 (2026-03-17)
 
 **✨ Scoped Hierarchical Views in `dvm get all`**

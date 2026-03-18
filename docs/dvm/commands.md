@@ -292,9 +292,28 @@ dvm get all [flags]
 | `-A, --all` | Show all resources (ignore active context) |
 | `-o, --output <format>` | Output format: `json`, `yaml`, `wide`, `table` (default: human-readable table) |
 
-**Sections displayed:** Ecosystems, Domains, Apps, Workspaces, Credentials, Registries, Git Repos, Nvim Plugins, Nvim Themes. Empty sections show `(none)`.
+**Sections displayed:** Ecosystems, Domains, Apps, Workspaces, Credentials, Registries, Git Repos, Nvim Plugins, Nvim Themes, Nvim Packages, Terminal Prompts, Terminal Packages. Empty sections show `(none)`.
 
-Global resources (Registries, Git Repos, Nvim Plugins, Nvim Themes) are always shown regardless of scope.
+Global resources (Registries, Git Repos, Nvim Plugins, Nvim Themes, Nvim Packages, Terminal Prompts, Terminal Packages) are always shown in table output regardless of scope.
+
+**YAML/JSON output (`-o yaml` / `-o json`):**
+
+`-o yaml` and `-o json` produce a `kind: List` document — a kubectl-style List wrapper where each item is the full resource YAML (identical to `dvm get <resource> <name> -o yaml`). Items are ordered for apply-safe dependency: Ecosystems → Domains → Apps → GitRepos → Registries → Credentials → Workspaces → NvimPlugins → NvimThemes → NvimPackages → TerminalPrompts → TerminalPackages.
+
+When scope flags (`-e`/`-d`/`-a`) are used with `-o yaml/json`, global resources are excluded from the List output — only hierarchical resources (ecosystems, domains, apps, workspaces, credentials) matching the scope are exported. Table output (`-o wide` or no `-o`) always shows global resources.
+
+The output is designed for round-trip use with `dvm apply -f`:
+
+```bash
+# Export all resources to a backup file
+dvm get all -A -o yaml > backup.yaml
+
+# Restore from backup
+dvm apply -f backup.yaml
+
+# Or pipe directly
+dvm get all -A -o yaml | dvm apply -f -
+```
 
 **Examples:**
 
@@ -304,8 +323,9 @@ dvm get all -A                      # Show all resources (ignore context)
 dvm get all -e prod                 # Show resources in 'prod' ecosystem
 dvm get all -e prod -d backend      # Show resources in 'backend' domain
 dvm get all -o wide                 # Show additional columns
-dvm get all -o json                 # Output as JSON
-dvm get all -o yaml                 # Output as YAML
+dvm get all -o json                 # Output as JSON (kind: List format)
+dvm get all -o yaml                 # Output as YAML (kind: List format)
+dvm get all -A -o yaml > backup.yaml  # Export all resources for backup
 ```
 
 ---
@@ -505,6 +525,20 @@ dvm apply -f <file> [flags]
 | GitHub | `-f github:user/repo/path.yaml` | GitHub repository |
 | Stdin | `-f -` | Standard input |
 
+**`kind: List` support:**
+
+`dvm apply -f` accepts `kind: List` documents produced by `dvm get all -o yaml`. Each item in the list is applied individually in document order. If an item fails, the error is reported and processing continues with the next item (continue-on-error). The command exits with a non-zero code if any item failed.
+
+This enables infrastructure-as-code backup and restore:
+
+```bash
+# Backup
+dvm get all -A -o yaml > backup.yaml
+
+# Restore
+dvm apply -f backup.yaml
+```
+
 **Examples:**
 
 ```bash
@@ -521,6 +555,10 @@ dvm apply -f github:rmkohlman/configs/workspace.yaml
 # Apply from stdin
 cat workspace.yaml | dvm apply -f -
 
+# Apply a List document (e.g., from dvm get all -o yaml)
+dvm apply -f backup.yaml
+dvm get all -A -o yaml | dvm apply -f -
+
 # Apply theme IaC
 dvm apply -f https://themes.devopsmaestro.io/coolnight-synthwave.yaml
 dvm apply -f github:user/themes/my-custom-theme.yaml
@@ -533,11 +571,13 @@ dvm apply -f github:user/themes/my-custom-theme.yaml
 - `Workspace` - Workspace configurations
 - `Credential` - Credential references
 - `Registry` - Container registry configurations
+- `GitRepo` - Git repository definitions
 - `NvimTheme` - Custom theme definitions
 - `NvimPlugin` - Plugin configurations
 - `NvimPackage` - Neovim package definitions
 - `TerminalPrompt` - Terminal prompt configurations
 - `TerminalPackage` - Terminal package definitions
+- `List` - Multi-resource list document (applies each item individually)
 - `CustomResourceDefinition` - Custom resource type definitions
 
 ---

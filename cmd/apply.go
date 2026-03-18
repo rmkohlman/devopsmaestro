@@ -158,13 +158,26 @@ func applySourceFile(ctx resource.Context, src source.Source, sourceName string)
 		return fmt.Errorf("failed to detect resource kind from %s: %w", displayName, err)
 	}
 
-	// 3. Get handler for this kind
+	// 3. Handle List kind — delegate to ApplyList for multi-resource documents
+	if kind == "List" {
+		applied, err := resource.ApplyList(ctx, data)
+		if err != nil {
+			if len(applied) > 0 {
+				render.Info(fmt.Sprintf("Applied %d resources from List before error", len(applied)))
+			}
+			return fmt.Errorf("failed to apply List from %s: %w", displayName, err)
+		}
+		render.Success(fmt.Sprintf("  Applied %d resources from List", len(applied)))
+		return nil
+	}
+
+	// 4. Get handler for this kind
 	handler, err := resource.MustGetHandler(kind)
 	if err != nil {
 		return fmt.Errorf("unsupported resource kind '%s' in %s", kind, displayName)
 	}
 
-	// 4. Apply the resource
+	// 5. Apply the resource
 	res, err := handler.Apply(ctx, data)
 	if err != nil {
 		return fmt.Errorf("failed to apply %s from %s: %w", kind, displayName, err)
@@ -189,14 +202,26 @@ func applyResource(ctx resource.Context, src string) error {
 		return fmt.Errorf("failed to detect resource kind from %s: %w", displayName, err)
 	}
 
-	// 3. Get handler for this kind
+	// 3. Handle List kind — delegate to ApplyList for multi-resource documents
+	if kind == "List" {
+		applied, err := resource.ApplyList(ctx, data)
+		if err != nil {
+			if len(applied) > 0 {
+				render.Info(fmt.Sprintf("Applied %d resources from List before error", len(applied)))
+			}
+			return fmt.Errorf("failed to apply List from %s: %w", displayName, err)
+		}
+		render.Success(fmt.Sprintf("Applied %d resources from List (from %s)", len(applied), displayName))
+		return nil
+	}
+
+	// 4. Get handler for this kind
 	handler, err := resource.MustGetHandler(kind)
 	if err != nil {
 		return fmt.Errorf("unsupported resource kind '%s' in %s", kind, displayName)
 	}
 
-	// 4. Check if resource exists (for messaging)
-	// We need to parse first to get the name
+	// 5. Apply the resource
 	res, err := handler.Apply(ctx, data)
 	if err != nil {
 		return fmt.Errorf("failed to apply %s from %s: %w", kind, displayName, err)

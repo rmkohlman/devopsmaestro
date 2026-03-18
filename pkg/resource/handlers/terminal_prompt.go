@@ -141,3 +141,8 @@ func (r *TerminalPromptResource) Validate() error {
 func (r *TerminalPromptResource) Prompt() *prompt.Prompt {
 	return r.prompt
 }
+
+// NewTerminalPromptResource creates a new TerminalPromptResource from a prompt model.
+func NewTerminalPromptResource(p *prompt.Prompt) *TerminalPromptResource {
+	return &TerminalPromptResource{prompt: p}
+}

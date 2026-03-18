@@ -318,3 +318,8 @@ func (r *CredentialResource) Credential() *models.CredentialDB {
 func (r *CredentialResource) ScopeName() string {
 	return r.scopeName
 }
+
+// NewCredentialResource creates a new CredentialResource from a model.
+func NewCredentialResource(cred *models.CredentialDB, scopeName string) *CredentialResource {
+	return &CredentialResource{credential: cred, scopeName: scopeName}
+}

@@ -156,3 +156,8 @@ func (r *RegistryResource) Validate() error {
 func (r *RegistryResource) Registry() *models.Registry {
 	return r.registry
 }
+
+// NewRegistryResource creates a new RegistryResource from a model.
+func NewRegistryResource(reg *models.Registry) *RegistryResource {
+	return &RegistryResource{registry: reg}
+}

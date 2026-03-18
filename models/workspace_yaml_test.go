@@ -355,3 +355,101 @@ spec:
 	assert.Equal(t, "my-secret", gotEnv["SECRET_KEY"], "env SECRET_KEY mismatch")
 	assert.Equal(t, "https://api.example.com", gotEnv["API_URL"], "env API_URL mismatch")
 }
+
+// =============================================================================
+// Sprint 4 Tests: WorkspaceMetadata.Domain field  [RED Phase]
+// =============================================================================
+
+// TestWorkspaceYAML_MetadataDomain_RoundTrip verifies that the WorkspaceMetadata
+// struct has a Domain field that serializes to YAML as "domain:" and deserializes
+// back correctly. This is needed for round-trip fidelity in "get all -o yaml".
+//
+// [RED: Will fail until WorkspaceMetadata.Domain field is added to the struct.]
+func TestWorkspaceYAML_MetadataDomain_RoundTrip(t *testing.T) {
+	// This YAML has the domain field in metadata — represents the exported format
+	yamlWithDomain := `
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: my-workspace
+  app: my-app
+  domain: my-domain
+spec:
+  image:
+    name: ubuntu:22.04
+`
+
+	var wsYAML WorkspaceYAML
+	err := yaml.Unmarshal([]byte(yamlWithDomain), &wsYAML)
+	require.NoError(t, err, "should parse YAML with metadata.domain field")
+
+	// Verify known fields parsed correctly regardless of Domain support
+	assert.Equal(t, "my-workspace", wsYAML.Metadata.Name,
+		"Name should still be populated correctly")
+	assert.Equal(t, "my-app", wsYAML.Metadata.App,
+		"App should still be populated correctly")
+
+	// Re-serialize to YAML — domain field should round-trip through the raw bytes
+	data, err := yaml.Marshal(wsYAML)
+	require.NoError(t, err, "should serialize WorkspaceYAML with Domain to YAML")
+
+	yamlStr := string(data)
+	// [RED] WorkspaceMetadata.Domain field does not exist yet, so "domain: my-domain"
+	// will NOT appear in serialized output until the field is added to the struct.
+	assert.Contains(t, yamlStr, "domain: my-domain",
+		"serialized YAML should include 'domain: my-domain' — FAILS until WorkspaceMetadata.Domain field is added")
+
+	// Verify round-trip: parse raw map and check domain key is preserved
+	var rawDecoded map[string]interface{}
+	err = yaml.Unmarshal(data, &rawDecoded)
+	require.NoError(t, err, "round-trip: should parse serialized YAML without error")
+
+	metadata, ok := rawDecoded["metadata"].(map[string]interface{})
+	require.True(t, ok, "round-trip: metadata should be a map")
+
+	domainVal, hasDomain := metadata["domain"]
+	assert.True(t, hasDomain, "round-trip: metadata.domain key should be present — FAILS until WorkspaceMetadata.Domain field is added")
+	assert.Equal(t, "my-domain", domainVal,
+		"round-trip: domain value should be 'my-domain'")
+}
+
+// TestWorkspaceYAML_MetadataDomain_Optional verifies that the Domain field is
+// optional — existing YAML without metadata.domain should still parse correctly
+// without a domain key in the output.
+func TestWorkspaceYAML_MetadataDomain_Optional(t *testing.T) {
+	yamlWithoutDomain := `
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: legacy-workspace
+  app: my-app
+spec:
+  image:
+    name: ubuntu:22.04
+`
+
+	var wsYAML WorkspaceYAML
+	err := yaml.Unmarshal([]byte(yamlWithoutDomain), &wsYAML)
+	require.NoError(t, err, "should parse YAML without metadata.domain field")
+
+	assert.Equal(t, "legacy-workspace", wsYAML.Metadata.Name,
+		"Name should still parse correctly when domain is absent")
+	assert.Equal(t, "my-app", wsYAML.Metadata.App,
+		"App should still parse correctly when domain is absent")
+
+	// Re-serialize and verify domain key is absent (correct default behavior)
+	data, err := yaml.Marshal(wsYAML)
+	require.NoError(t, err, "should serialize WorkspaceYAML without Domain")
+
+	// Parse raw to check metadata keys
+	var raw map[string]interface{}
+	err = yaml.Unmarshal(data, &raw)
+	require.NoError(t, err)
+
+	metadata, ok := raw["metadata"].(map[string]interface{})
+	require.True(t, ok, "metadata should be a map")
+
+	_, hasDomain := metadata["domain"]
+	assert.False(t, hasDomain,
+		"serialized YAML should NOT include 'domain' key when Domain is empty")
+}

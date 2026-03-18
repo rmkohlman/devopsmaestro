@@ -46,17 +46,38 @@ func (h *WorkspaceHandler) Apply(ctx resource.Context, data []byte) (resource.Re
 		return nil, fmt.Errorf("workspace YAML must specify metadata.app")
 	}
 
-	// Get active domain from context to resolve app
-	dbCtx, err := ds.GetContext()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get context: %w", err)
+	// Resolve domain: try metadata.domain first, then fall back to active context
+	var domainID int
+	if wsYAML.Metadata.Domain != "" {
+		// Resolve domain by name across all ecosystems
+		allDomains, err := ds.ListAllDomains()
+		if err != nil {
+			return nil, fmt.Errorf("failed to list domains: %w", err)
+		}
+		var found *models.Domain
+		for _, d := range allDomains {
+			if d.Name == wsYAML.Metadata.Domain {
+				found = d
+				break
+			}
+		}
+		if found == nil {
+			return nil, fmt.Errorf("domain '%s' not found", wsYAML.Metadata.Domain)
+		}
+		domainID = found.ID
+	} else {
+		// Fall back to active context (existing behavior)
+		dbCtx, err := ds.GetContext()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get context: %w", err)
+		}
+		if dbCtx.ActiveDomainID == nil {
+			return nil, fmt.Errorf("no active domain set and no metadata.domain specified; use 'dvm use domain <name>' or add metadata.domain to YAML")
+		}
+		domainID = *dbCtx.ActiveDomainID
 	}
 
-	if dbCtx.ActiveDomainID == nil {
-		return nil, fmt.Errorf("no active domain set; use 'dvm use domain <name>' first")
-	}
-
-	app, err := ds.GetAppByName(*dbCtx.ActiveDomainID, appName)
+	app, err := ds.GetAppByName(domainID, appName)
 	if err != nil {
 		return nil, fmt.Errorf("app '%s' not found: %w", appName, err)
 	}
@@ -120,9 +141,20 @@ func (h *WorkspaceHandler) Apply(ctx resource.Context, data []byte) (resource.Re
 		}
 	}
 
+	// Resolve domain name for the resource output
+	domainName := wsYAML.Metadata.Domain
+	if domainName == "" {
+		// Look up domain name from ID for round-trip fidelity
+		domain, domErr := ds.GetDomainByID(domainID)
+		if domErr == nil {
+			domainName = domain.Name
+		}
+	}
+
 	return &WorkspaceResource{
 		workspace:   workspace,
 		appName:     appName,
+		domainName:  domainName,
 		gitRepoName: wsYAML.Spec.GitRepo, // Store gitrepo name from YAML
 	}, nil
 }
@@ -152,8 +184,14 @@ func (h *WorkspaceHandler) Get(ctx resource.Context, name string) (resource.Reso
 
 	app, _ := ds.GetAppByID(workspace.AppID)
 	appName := ""
+	domainName := ""
 	if app != nil {
 		appName = app.Name
+		// Resolve domain name for round-trip fidelity
+		domain, domErr := ds.GetDomainByID(app.DomainID)
+		if domErr == nil {
+			domainName = domain.Name
+		}
 	}
 
 	// Resolve GitRepo name if GitRepoID is set
@@ -168,6 +206,7 @@ func (h *WorkspaceHandler) Get(ctx resource.Context, name string) (resource.Reso
 	return &WorkspaceResource{
 		workspace:   workspace,
 		appName:     appName,
+		domainName:  domainName,
 		gitRepoName: gitRepoName,
 	}, nil
 }
@@ -200,8 +239,14 @@ func (h *WorkspaceHandler) List(ctx resource.Context) ([]resource.Resource, erro
 	for i, ws := range workspaces {
 		app, _ := ds.GetAppByID(ws.AppID)
 		appName := ""
+		domainName := ""
 		if app != nil {
 			appName = app.Name
+			// Resolve domain name for round-trip fidelity
+			domain, domErr := ds.GetDomainByID(app.DomainID)
+			if domErr == nil {
+				domainName = domain.Name
+			}
 		}
 
 		// Resolve GitRepo name if GitRepoID is set
@@ -216,6 +261,7 @@ func (h *WorkspaceHandler) List(ctx resource.Context) ([]resource.Resource, erro
 		result[i] = &WorkspaceResource{
 			workspace:   ws,
 			appName:     appName,
+			domainName:  domainName,
 			gitRepoName: gitRepoName,
 		}
 	}
@@ -255,6 +301,10 @@ func (h *WorkspaceHandler) ToYAML(res resource.Resource) ([]byte, error) {
 	}
 
 	yamlDoc := wr.workspace.ToYAML(wr.appName, wr.gitRepoName)
+	// Include domain name in metadata for context-free round-trip
+	if wr.domainName != "" {
+		yamlDoc.Metadata.Domain = wr.domainName
+	}
 	return yaml.Marshal(yamlDoc)
 }
 
@@ -262,6 +312,7 @@ func (h *WorkspaceHandler) ToYAML(res resource.Resource) ([]byte, error) {
 type WorkspaceResource struct {
 	workspace   *models.Workspace
 	appName     string
+	domainName  string // Domain name for YAML output (context-free apply)
 	gitRepoName string // Name of the GitRepo, if any
 }
 

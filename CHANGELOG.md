@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.53.0] - 2026-03-17 — List Format YAML/JSON Export for `dvm get all`
+
+### ✨ Features
+
+#### `kind: List` YAML/JSON Export — `cmd/get_all.go`, `pkg/resource/list.go`
+- **`dvm get all -o yaml` and `-o json` now produce a kubectl-style `kind: List` document** — each item is the full resource YAML (identical to `dvm get <resource> <name> -o yaml`); replaces the previous lossy `AllResources` struct with categorized summary arrays
+- **Round-trip fidelity** — output from `dvm get all -o yaml` can be piped directly to `dvm apply -f -` for backup and restore workflows; e.g., `dvm get all -A -o yaml | dvm apply -f -`
+- **All 13 resource types included** — List output covers Ecosystems, Domains, Apps, Workspaces, Credentials, GitRepos, Registries, NvimPlugins, NvimThemes, NvimPackages, TerminalPrompts, TerminalPackages; CRDs are intentionally excluded
+- **Dependency-ordered output** — items follow apply-safe dependency order: Ecosystems → Domains → Apps → GitRepos → Registries → Credentials → Workspaces → NvimPlugins → NvimThemes → NvimPackages → TerminalPrompts → TerminalPackages
+- **`metadata.domain` on Workspace YAML** — Workspace YAML now includes `metadata.domain` for context-free apply; on apply, the handler resolves the domain from this field first, falling back to active context
+- **`ResourceList` type** — new `pkg/resource/list.go` with `BuildList()` and `ApplyList()` functions
+
+#### `dvm apply -f` supports `kind: List` — `cmd/apply.go`
+- **Apply pipeline detects `kind: List` documents and processes each item individually** — items are applied in the order they appear in the document; errors on individual items are reported but do not abort the remaining items (continue-on-error)
+- **Enables infrastructure-as-code backup/restore** — export all resources with `dvm get all -A -o yaml > backup.yaml`, restore with `dvm apply -f backup.yaml`
+
+#### Scoped Export Excludes Global Resources — `cmd/get_all.go`
+- **When using `-e`/`-d`/`-a` scope flags with `-o yaml/json`, global resources are excluded from the List output** — global resources (registries, nvim plugins/themes/packages, terminal prompts/packages, git repos) are not scoped to a hierarchy level and are omitted from scoped exports; only hierarchical resources (ecosystems, domains, apps, workspaces, credentials) matching the scope are exported
+- **Table output (`-o` not specified) is unaffected** — global resources still appear in all table views regardless of scope, matching previous behavior
+
+### 🏗️ Breaking Changes
+
+- **`dvm get all -o json/yaml` output structure changed** — output is now a `kind: List` document instead of the flat `AllResources` struct with categorized arrays (`ecosystems`, `domains`, `apps`, `workspaces`, etc.); scripts or tools that parse the old JSON/YAML format will break
+- **`AllResources` and `AllResourceSummary` types removed** — these internal types were used exclusively for the old JSON/YAML output; no external API change beyond the output format
+
+### 🏗️ Technical
+
+| Metric | Value |
+|--------|-------|
+| Breaking changes | 1 (JSON/YAML output format for `dvm get all`) |
+| New production files | 1 (`pkg/resource/list.go`) |
+| Modified production files | 2 (`cmd/get_all.go`, `cmd/apply.go`) |
+
+---
+
 ## [v0.52.0] - 2026-03-17 — Scoped Hierarchical Views for `dvm get all`
 
 ### ✨ Features

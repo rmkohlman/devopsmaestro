@@ -5,34 +5,12 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
+	"devopsmaestro/pkg/resource"
+	"devopsmaestro/pkg/resource/handlers"
 	"devopsmaestro/render"
 
 	"github.com/spf13/cobra"
 )
-
-// AllResources represents all resources for JSON/YAML output.
-type AllResources struct {
-	Ecosystems  []AllResourceSummary `json:"ecosystems" yaml:"ecosystems"`
-	Domains     []AllResourceSummary `json:"domains" yaml:"domains"`
-	Apps        []AllResourceSummary `json:"apps" yaml:"apps"`
-	Workspaces  []AllResourceSummary `json:"workspaces" yaml:"workspaces"`
-	Credentials []AllResourceSummary `json:"credentials" yaml:"credentials"`
-	Registries  []AllResourceSummary `json:"registries" yaml:"registries"`
-	GitRepos    []AllResourceSummary `json:"gitRepos" yaml:"gitRepos"`
-	NvimPlugins []AllResourceSummary `json:"nvimPlugins" yaml:"nvimPlugins"`
-	NvimThemes  []AllResourceSummary `json:"nvimThemes" yaml:"nvimThemes"`
-}
-
-// AllResourceSummary represents a single resource in the "get all" output.
-type AllResourceSummary struct {
-	Name        string `json:"name" yaml:"name"`
-	Description string `json:"description,omitempty" yaml:"description,omitempty"`
-	Status      string `json:"status,omitempty" yaml:"status,omitempty"`
-	Type        string `json:"type,omitempty" yaml:"type,omitempty"`
-	URL         string `json:"url,omitempty" yaml:"url,omitempty"`
-	Repo        string `json:"repo,omitempty" yaml:"repo,omitempty"`
-	Category    string `json:"category,omitempty" yaml:"category,omitempty"`
-}
 
 // getAllCmd shows all resources across the system.
 var getAllCmd = &cobra.Command{
@@ -152,124 +130,108 @@ func getAll(cmd *cobra.Command) error {
 		gitRepos = filterGitRepos(gitRepos, scope, apps)
 	}
 
-	// JSON/YAML: build a single composite struct and render once
+	// JSON/YAML: build a kubectl-style kind: List document via resource.BuildList
 	if getOutputFormat == "json" || getOutputFormat == "yaml" {
-		all := AllResources{
-			Ecosystems:  make([]AllResourceSummary, 0, len(ecosystems)),
-			Domains:     make([]AllResourceSummary, 0, len(domains)),
-			Apps:        make([]AllResourceSummary, 0, len(apps)),
-			Workspaces:  make([]AllResourceSummary, 0, len(workspaces)),
-			Credentials: make([]AllResourceSummary, 0, len(credentials)),
-			Registries:  make([]AllResourceSummary, 0, len(registries)),
-			GitRepos:    make([]AllResourceSummary, 0, len(gitRepos)),
-			NvimPlugins: make([]AllResourceSummary, 0, len(plugins)),
-			NvimThemes:  make([]AllResourceSummary, 0, len(themes)),
-		}
+		// Ensure all resource handlers are registered
+		handlers.RegisterAll()
 
+		// Build parent name lookup maps for hierarchical resources
+		ecoNames := make(map[int]string)
 		for _, e := range ecosystems {
-			desc := ""
-			if e.Description.Valid {
-				desc = e.Description.String
-			}
-			all.Ecosystems = append(all.Ecosystems, AllResourceSummary{
-				Name:        e.Name,
-				Description: desc,
-			})
+			ecoNames[e.ID] = e.Name
 		}
-
+		domNames := make(map[int]string)
+		domEcoIDs := make(map[int]int)
 		for _, d := range domains {
-			desc := ""
-			if d.Description.Valid {
-				desc = d.Description.String
-			}
-			all.Domains = append(all.Domains, AllResourceSummary{
-				Name:        d.Name,
-				Description: desc,
-			})
+			domNames[d.ID] = d.Name
+			domEcoIDs[d.ID] = d.EcosystemID
 		}
-
+		appNames := make(map[int]string)
+		appDomIDs := make(map[int]int)
 		for _, a := range apps {
-			desc := ""
-			if a.Description.Valid {
-				desc = a.Description.String
-			}
-			lang := ""
-			if a.Language.Valid {
-				lang = a.Language.String
-			}
-			all.Apps = append(all.Apps, AllResourceSummary{
-				Name:        a.Name,
-				Description: desc,
-				Type:        lang,
-			})
+			appNames[a.ID] = a.Name
+			appDomIDs[a.ID] = a.DomainID
 		}
 
-		for _, w := range workspaces {
-			all.Workspaces = append(all.Workspaces, AllResourceSummary{
-				Name:   w.Name,
-				Status: w.Status,
-				Type:   w.ImageName,
-			})
+		// Collect resources in dependency order (DependencyOrder from resource package)
+		var allResources []resource.Resource
+
+		// Ecosystems
+		for _, e := range ecosystems {
+			allResources = append(allResources, handlers.NewEcosystemResource(e))
 		}
 
+		// Domains (need parent ecosystem name)
+		for _, d := range domains {
+			allResources = append(allResources, handlers.NewDomainResource(d, ecoNames[d.EcosystemID]))
+		}
+
+		// Apps (need parent domain name)
+		for _, a := range apps {
+			allResources = append(allResources, handlers.NewAppResource(a, domNames[a.DomainID]))
+		}
+
+		// GitRepos — global but filtered; include only when unscoped
+		if scope.ShowAll {
+			for i := range gitRepos {
+				allResources = append(allResources, handlers.NewGitRepoResource(&gitRepos[i]))
+			}
+		}
+
+		// Registries — global; include only when unscoped
+		if scope.ShowAll {
+			for _, r := range registries {
+				allResources = append(allResources, handlers.NewRegistryResource(r))
+			}
+		}
+
+		// Credentials
 		for _, c := range credentials {
-			desc := ""
-			if c.Description != nil {
-				desc = *c.Description
+			allResources = append(allResources, handlers.NewCredentialResource(c, ""))
+		}
+
+		// Workspaces (need parent app name + resolve domain/gitrepo names)
+		for _, w := range workspaces {
+			allResources = append(allResources, handlers.NewWorkspaceResource(w, appNames[w.AppID]))
+		}
+
+		// Global resources using handler List() — only when unscoped (WI-4)
+		if scope.ShowAll {
+			resCtx := resource.Context{DataStore: ds}
+
+			// NvimPlugins
+			if pluginRes, err := resource.List(resCtx, handlers.KindNvimPlugin); err == nil {
+				allResources = append(allResources, pluginRes...)
 			}
-			all.Credentials = append(all.Credentials, AllResourceSummary{
-				Name:        c.Name,
-				Description: desc,
-				Type:        string(c.ScopeType),
-			})
-		}
 
-		for _, r := range registries {
-			desc := ""
-			if r.Description.Valid {
-				desc = r.Description.String
+			// NvimThemes
+			if themeRes, err := resource.List(resCtx, handlers.KindNvimTheme); err == nil {
+				allResources = append(allResources, themeRes...)
 			}
-			all.Registries = append(all.Registries, AllResourceSummary{
-				Name:        r.Name,
-				Description: desc,
-				Type:        r.Type,
-				Status:      r.Status,
-			})
-		}
 
-		for _, g := range gitRepos {
-			all.GitRepos = append(all.GitRepos, AllResourceSummary{
-				Name: g.Name,
-				URL:  g.URL,
-				Type: g.AuthType,
-			})
-		}
-
-		for _, p := range plugins {
-			cat := ""
-			if p.Category.Valid {
-				cat = p.Category.String
+			// NvimPackages (WI-5)
+			if pkgRes, err := resource.List(resCtx, handlers.KindNvimPackage); err == nil {
+				allResources = append(allResources, pkgRes...)
 			}
-			all.NvimPlugins = append(all.NvimPlugins, AllResourceSummary{
-				Name:     p.Name,
-				Repo:     p.Repo,
-				Category: cat,
-			})
-		}
 
-		for _, t := range themes {
-			active := ""
-			if t.IsActive {
-				active = "yes"
+			// TerminalPrompts (WI-5)
+			if promptRes, err := resource.List(resCtx, "TerminalPrompt"); err == nil {
+				allResources = append(allResources, promptRes...)
 			}
-			all.NvimThemes = append(all.NvimThemes, AllResourceSummary{
-				Name:   t.Name,
-				Repo:   t.PluginRepo,
-				Status: active,
-			})
+
+			// TerminalPackages (WI-5)
+			if termPkgRes, err := resource.List(resCtx, handlers.KindTerminalPackage); err == nil {
+				allResources = append(allResources, termPkgRes...)
+			}
 		}
 
-		return render.OutputWith(getOutputFormat, all, render.Options{Type: render.TypeAuto})
+		resCtx := resource.Context{DataStore: ds}
+		list, err := resource.BuildList(resCtx, allResources)
+		if err != nil {
+			return fmt.Errorf("failed to build resource list: %w", err)
+		}
+
+		return render.OutputWith(getOutputFormat, list, render.Options{Type: render.TypeAuto})
 	}
 
 	// Human-readable output: render each section using shared table builders

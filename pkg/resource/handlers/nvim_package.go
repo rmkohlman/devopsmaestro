@@ -323,3 +323,8 @@ func (r *NvimPackageResource) Validate() error {
 func (r *NvimPackageResource) Package() *nvimpkg.Package {
 	return r.pkg
 }
+
+// NewNvimPackageResource creates a new NvimPackageResource from a package model.
+func NewNvimPackageResource(pkg *nvimpkg.Package) *NvimPackageResource {
+	return &NvimPackageResource{pkg: pkg}
+}

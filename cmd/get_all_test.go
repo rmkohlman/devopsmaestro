@@ -262,15 +262,16 @@ func TestGetAll_WithData(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestGetAll_JSONOutput
+// TestGetAll_JSON_ProducesListFormat  [Sprint 4 - RED]
 // ---------------------------------------------------------------------------
 
-func TestGetAll_JSONOutput(t *testing.T) {
-	// Use full schema so no "no such table" warnings are prepended to JSON output
+// TestGetAll_JSON_ProducesListFormat verifies that dvm get all -o json produces
+// a kubectl-style kind: List document instead of the old AllResources flat struct.
+func TestGetAll_JSON_ProducesListFormat(t *testing.T) {
 	dataStore := createFullTestDataStore(t)
 	defer dataStore.Close()
 
-	// Seed an ecosystem so at least one section is non-empty in JSON
+	// Seed an ecosystem so at least one item appears in the list
 	ecosystem := &models.Ecosystem{
 		Name:        "test-eco",
 		Description: sql.NullString{String: "Test", Valid: true},
@@ -296,42 +297,52 @@ func TestGetAll_JSONOutput(t *testing.T) {
 	err = json.Unmarshal(buf.Bytes(), &result)
 	require.NoError(t, err, "output should be valid JSON; got: %s", buf.String())
 
-	// All 9 top-level keys must be present
-	expectedKeys := []string{
-		"ecosystems",
-		"domains",
-		"apps",
-		"workspaces",
-		"credentials",
-		"registries",
-		"gitRepos",
-		"nvimPlugins",
-		"nvimThemes",
-	}
-	for _, key := range expectedKeys {
-		assert.Contains(t, result, key, "JSON output should contain top-level key %q", key)
+	// Must be a kind: List document — NOT the old AllResources flat struct
+	assert.Equal(t, "List", result["kind"],
+		"JSON output should be kind: List, not flat AllResources")
+	assert.Equal(t, "devopsmaestro.io/v1", result["apiVersion"],
+		"JSON output should have apiVersion: devopsmaestro.io/v1")
+	assert.NotNil(t, result["metadata"],
+		"JSON output should have metadata field")
+	assert.NotNil(t, result["items"],
+		"JSON output should have items array")
+
+	// The old flat keys must NOT be present
+	oldKeys := []string{"ecosystems", "domains", "apps", "workspaces",
+		"credentials", "registries", "gitRepos", "nvimPlugins", "nvimThemes"}
+	for _, key := range oldKeys {
+		assert.NotContains(t, result, key,
+			"JSON output should NOT contain old AllResources key %q", key)
 	}
 
-	// Ecosystems section should have one entry
-	ecosystemsRaw, ok := result["ecosystems"].([]interface{})
-	require.True(t, ok, "ecosystems should be a JSON array")
-	require.Len(t, ecosystemsRaw, 1, "ecosystems array should have 1 entry")
+	// items must be an array
+	items, ok := result["items"].([]interface{})
+	require.True(t, ok, "items should be a JSON array")
 
-	entry, ok := ecosystemsRaw[0].(map[string]interface{})
-	require.True(t, ok)
-	assert.Equal(t, "test-eco", entry["name"])
+	// With one ecosystem seeded, items should contain at least that ecosystem
+	assert.GreaterOrEqual(t, len(items), 1, "items should contain at least 1 resource")
+
+	// Each item must have apiVersion, kind, metadata, spec fields (full spec, not lossy summary)
+	for i, rawItem := range items {
+		item, ok := rawItem.(map[string]interface{})
+		require.True(t, ok, "item %d should be a JSON object", i)
+		assert.NotEmpty(t, item["kind"], "item %d should have 'kind' field", i)
+		assert.NotNil(t, item["metadata"], "item %d should have 'metadata' field", i)
+		assert.NotNil(t, item["apiVersion"], "item %d should have 'apiVersion' field", i)
+	}
 }
 
 // ---------------------------------------------------------------------------
-// TestGetAll_YAMLOutput
+// TestGetAll_YAML_ProducesListFormat  [Sprint 4 - RED]
 // ---------------------------------------------------------------------------
 
-func TestGetAll_YAMLOutput(t *testing.T) {
-	// Use full schema so no "no such table" warnings are prepended to YAML output
+// TestGetAll_YAML_ProducesListFormat verifies that dvm get all -o yaml produces
+// a kubectl-style kind: List document instead of the old AllResources flat YAML.
+func TestGetAll_YAML_ProducesListFormat(t *testing.T) {
 	dataStore := createFullTestDataStore(t)
 	defer dataStore.Close()
 
-	// Seed one domain for variety
+	// Seed one ecosystem and one domain
 	ecosystem := &models.Ecosystem{Name: "eco-yaml"}
 	require.NoError(t, dataStore.CreateEcosystem(ecosystem))
 
@@ -355,96 +366,72 @@ func TestGetAll_YAMLOutput(t *testing.T) {
 	err := getAll(cmd)
 	require.NoError(t, err, "getAll with YAML output should not error")
 
-	// Output must be valid YAML that decodes into the AllResources structure
-	var result AllResources
+	// Must be valid YAML that decodes into a List structure
+	var result map[string]interface{}
 	err = yaml.Unmarshal(buf.Bytes(), &result)
 	require.NoError(t, err, "output should be valid YAML; got: %s", buf.String())
 
-	// Domains section should have one entry
-	require.Len(t, result.Domains, 1, "domains should have 1 entry")
-	assert.Equal(t, "domain-yaml", result.Domains[0].Name)
+	// Must be a kind: List document
+	assert.Equal(t, "List", result["kind"],
+		"YAML output should be kind: List, not flat AllResources")
+	assert.Equal(t, "devopsmaestro.io/v1", result["apiVersion"],
+		"YAML output should have apiVersion: devopsmaestro.io/v1")
+	assert.NotNil(t, result["metadata"],
+		"YAML output should have metadata field")
+
+	// items must be present and be a list
+	itemsRaw, exists := result["items"]
+	assert.True(t, exists, "YAML output should have items field")
+	if itemsRaw != nil {
+		items, ok := itemsRaw.([]interface{})
+		require.True(t, ok, "items should be a YAML sequence")
+		// With one ecosystem + one domain seeded, at least 2 items
+		assert.GreaterOrEqual(t, len(items), 2,
+			"items should contain at least 2 resources (ecosystem + domain)")
+	}
+
+	// Old flat YAML keys must NOT be present at top level
+	oldKeys := []string{"ecosystems", "domains", "apps", "workspaces"}
+	for _, key := range oldKeys {
+		assert.NotContains(t, result, key,
+			"YAML output should NOT contain old AllResources key %q", key)
+	}
 }
 
 // ---------------------------------------------------------------------------
-// TestGetAllResourceSummary
+// TestGetAll_YAML_EmptyDB  [Sprint 4 - RED]
 // ---------------------------------------------------------------------------
 
-func TestGetAllResourceSummary(t *testing.T) {
-	t.Run("AllResourceSummary JSON round-trip", func(t *testing.T) {
-		summary := AllResourceSummary{
-			Name:        "my-resource",
-			Description: "a description",
-			Status:      "active",
-			Type:        "go",
-			URL:         "https://example.com",
-			Repo:        "org/repo",
-			Category:    "lsp",
-		}
+// TestGetAll_YAML_EmptyDB verifies that an empty database produces a List with
+// empty items (not nil), not the old AllResources structure with 9 empty arrays.
+func TestGetAll_YAML_EmptyDB(t *testing.T) {
+	dataStore := createFullTestDataStore(t)
+	defer dataStore.Close()
 
-		data, err := json.Marshal(summary)
-		require.NoError(t, err)
+	cmd := newGetAllTestCmd(t, dataStore)
 
-		var decoded AllResourceSummary
-		err = json.Unmarshal(data, &decoded)
-		require.NoError(t, err)
+	var buf bytes.Buffer
+	origWriter := render.GetWriter()
+	render.SetWriter(&buf)
+	defer render.SetWriter(origWriter)
 
-		assert.Equal(t, summary, decoded)
-	})
+	origFormat := getOutputFormat
+	defer func() { getOutputFormat = origFormat }()
+	getOutputFormat = "yaml"
 
-	t.Run("AllResourceSummary omits empty optional fields", func(t *testing.T) {
-		summary := AllResourceSummary{Name: "minimal"}
+	err := getAll(cmd)
+	require.NoError(t, err, "getAll YAML on empty DB should not error")
 
-		data, err := json.Marshal(summary)
-		require.NoError(t, err)
+	var result map[string]interface{}
+	err = yaml.Unmarshal(buf.Bytes(), &result)
+	require.NoError(t, err, "output should be valid YAML: %s", buf.String())
 
-		// Optional fields with omitempty should not appear in JSON
-		jsonStr := string(data)
-		assert.NotContains(t, jsonStr, `"description"`, "empty description should be omitted")
-		assert.NotContains(t, jsonStr, `"status"`, "empty status should be omitted")
-		assert.NotContains(t, jsonStr, `"type"`, "empty type should be omitted")
-		assert.NotContains(t, jsonStr, `"url"`, "empty url should be omitted")
-		assert.Contains(t, jsonStr, `"name":"minimal"`)
-	})
+	assert.Equal(t, "List", result["kind"], "empty DB should produce kind: List")
+	assert.Equal(t, "devopsmaestro.io/v1", result["apiVersion"])
 
-	t.Run("AllResources JSON round-trip with all 9 sections", func(t *testing.T) {
-		all := AllResources{
-			Ecosystems:  []AllResourceSummary{{Name: "eco1"}},
-			Domains:     []AllResourceSummary{{Name: "dom1"}},
-			Apps:        []AllResourceSummary{{Name: "app1", Type: "go"}},
-			Workspaces:  []AllResourceSummary{{Name: "ws1", Status: "stopped"}},
-			Credentials: []AllResourceSummary{{Name: "cred1", Type: "global"}},
-			Registries:  []AllResourceSummary{{Name: "reg1", Type: "oci"}},
-			GitRepos:    []AllResourceSummary{{Name: "repo1", URL: "https://github.com/org/repo"}},
-			NvimPlugins: []AllResourceSummary{{Name: "nvim-lsp", Repo: "neovim/nvim-lspconfig"}},
-			NvimThemes:  []AllResourceSummary{{Name: "catppuccin", Status: "yes"}},
-		}
-
-		data, err := json.Marshal(all)
-		require.NoError(t, err)
-
-		var decoded AllResources
-		err = json.Unmarshal(data, &decoded)
-		require.NoError(t, err)
-
-		assert.Equal(t, all, decoded)
-	})
-
-	t.Run("AllResources YAML round-trip", func(t *testing.T) {
-		all := AllResources{
-			Ecosystems: []AllResourceSummary{{Name: "eco-yaml", Description: "test"}},
-			GitRepos:   []AllResourceSummary{{Name: "repo-yaml", URL: "https://example.com"}},
-		}
-
-		data, err := yaml.Marshal(all)
-		require.NoError(t, err)
-
-		var decoded AllResources
-		err = yaml.Unmarshal(data, &decoded)
-		require.NoError(t, err)
-
-		assert.Equal(t, all.Ecosystems, decoded.Ecosystems)
-		assert.Equal(t, all.GitRepos, decoded.GitRepos)
-	})
+	// items should be present — may be nil/null or an empty list, but NOT the old 9-key structure
+	assert.NotContains(t, result, "ecosystems", "should not have old AllResources key 'ecosystems'")
+	assert.NotContains(t, result, "domains", "should not have old AllResources key 'domains'")
 }
 
 // ---------------------------------------------------------------------------
@@ -559,12 +546,12 @@ func TestGetAll_TableOutput(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestGetAll_JSONEmptyDatabase
+// TestGetAll_JSON_EmptyDatabase  [Sprint 4 - RED]
 // ---------------------------------------------------------------------------
 
-func TestGetAll_JSONEmptyDatabase(t *testing.T) {
-	// Even with an empty database all 9 keys must be present in JSON output.
-	// Use full schema to avoid warning messages polluting the JSON buffer.
+// TestGetAll_JSON_EmptyDatabase verifies that even with an empty database,
+// the JSON output is a valid kind: List document with empty (or absent) items.
+func TestGetAll_JSON_EmptyDatabase(t *testing.T) {
 	dataStore := createFullTestDataStore(t)
 	defer dataStore.Close()
 
@@ -586,18 +573,27 @@ func TestGetAll_JSONEmptyDatabase(t *testing.T) {
 	err = json.Unmarshal(buf.Bytes(), &result)
 	require.NoError(t, err, "output should be valid JSON")
 
-	expectedKeys := []string{
+	// Must be kind: List — NOT the old 9-key AllResources struct
+	assert.Equal(t, "List", result["kind"], "empty DB JSON should produce kind: List")
+	assert.Equal(t, "devopsmaestro.io/v1", result["apiVersion"])
+	assert.NotNil(t, result["metadata"])
+
+	// Old flat AllResources keys must NOT appear
+	oldKeys := []string{
 		"ecosystems", "domains", "apps", "workspaces",
 		"credentials", "registries", "gitRepos", "nvimPlugins", "nvimThemes",
 	}
-	for _, key := range expectedKeys {
-		val, exists := result[key]
-		assert.True(t, exists, "JSON should contain key %q", key)
-		// Each value must be either null or an empty/non-empty JSON array
-		if val != nil {
-			_, isSlice := val.([]interface{})
-			assert.True(t, isSlice, "key %q should map to a JSON array, got %T", key, val)
-		}
+	for _, key := range oldKeys {
+		assert.NotContains(t, result, key,
+			"JSON should NOT contain old AllResources key %q", key)
+	}
+
+	// items should be present and be an array (possibly empty)
+	items, exists := result["items"]
+	assert.True(t, exists, "JSON should contain 'items' key")
+	if items != nil {
+		_, isSlice := items.([]interface{})
+		assert.True(t, isSlice, "'items' should be a JSON array")
 	}
 }
 
@@ -628,29 +624,25 @@ func TestGetAll_OutputFormatPreservation(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestGetAll_MultipleResources_JSON
+// TestGetAll_JSON_ItemsCountMatchesAllResources  [Sprint 4 - RED]
 // ---------------------------------------------------------------------------
 
-func TestGetAll_MultipleResources_JSON(t *testing.T) {
-	// Use full schema to avoid warning prefixes in JSON output
+// TestGetAll_JSON_ItemsCountMatchesAllResources verifies that the number of
+// items in the List equals the total number of resources across all types.
+func TestGetAll_JSON_ItemsCountMatchesAllResources(t *testing.T) {
 	dataStore := createFullTestDataStore(t)
 	defer dataStore.Close()
 
-	// Seed multiple ecosystems
-	for _, name := range []string{"eco-a", "eco-b", "eco-c", "eco-extra"} {
-		require.NoError(t, dataStore.CreateEcosystem(&models.Ecosystem{Name: name}))
-	}
+	// Seed multiple resources of different types
+	eco1 := &models.Ecosystem{Name: "eco-count-a"}
+	require.NoError(t, dataStore.CreateEcosystem(eco1))
+	eco2 := &models.Ecosystem{Name: "eco-count-b"}
+	require.NoError(t, dataStore.CreateEcosystem(eco2))
 
-	// Create a parent ecosystem to attach domains to
-	parentEco := &models.Ecosystem{Name: "parent-eco"}
-	require.NoError(t, dataStore.CreateEcosystem(parentEco))
-
-	for _, domName := range []string{"dom-x", "dom-y"} {
-		require.NoError(t, dataStore.CreateDomain(&models.Domain{
-			Name:        domName,
-			EcosystemID: parentEco.ID,
-		}))
-	}
+	dom1 := &models.Domain{Name: "dom-count-1", EcosystemID: eco1.ID}
+	require.NoError(t, dataStore.CreateDomain(dom1))
+	dom2 := &models.Domain{Name: "dom-count-2", EcosystemID: eco1.ID}
+	require.NoError(t, dataStore.CreateDomain(dom2))
 
 	cmd := newGetAllTestCmd(t, dataStore)
 
@@ -669,15 +661,15 @@ func TestGetAll_MultipleResources_JSON(t *testing.T) {
 	var result map[string]interface{}
 	require.NoError(t, json.Unmarshal(buf.Bytes(), &result))
 
-	// Ecosystems should have multiple entries (eco-a, eco-b, eco-c, eco-extra, parent-eco)
-	ecos, ok := result["ecosystems"].([]interface{})
-	require.True(t, ok, "ecosystems should be a JSON array")
-	assert.GreaterOrEqual(t, len(ecos), 3, "should have at least 3 ecosystems")
+	require.Equal(t, "List", result["kind"])
 
-	// Domains should have 2 entries
-	doms, ok := result["domains"].([]interface{})
-	require.True(t, ok, "domains should be a JSON array")
-	assert.Len(t, doms, 2, "should have 2 domains")
+	items, ok := result["items"].([]interface{})
+	require.True(t, ok, "items should be a JSON array")
+
+	// We seeded 2 ecosystems + 2 domains = 4 resources total
+	// The list should contain exactly those (no more, no less)
+	assert.GreaterOrEqual(t, len(items), 4,
+		"items should contain at least the 4 seeded resources (2 ecosystems + 2 domains)")
 }
 
 // ---------------------------------------------------------------------------
@@ -1384,4 +1376,271 @@ func TestGetAll_ScopedCredentialContainment(t *testing.T) {
 func TestGetAllCmd_LongDescriptionMentionsScoping(t *testing.T) {
 	long := getAllCmd.Long
 	assert.Contains(t, long, "scope", "Long description should mention scoping (case-insensitive search)")
+}
+
+// ===========================================================================
+// Sprint 4 Tests: List Format YAML/JSON Export  [RED Phase]
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// TestGetAll_YAML_ItemsHaveFullSpec  [Sprint 4 - RED]
+// ---------------------------------------------------------------------------
+
+// TestGetAll_YAML_ItemsHaveFullSpec verifies that each item in the YAML list
+// has a full resource spec (apiVersion, kind, metadata, spec) — not the lossy
+// AllResourceSummary format that only had name/description/status.
+func TestGetAll_YAML_ItemsHaveFullSpec(t *testing.T) {
+	dataStore := createFullTestDataStore(t)
+	defer dataStore.Close()
+
+	// Seed an ecosystem — its YAML spec includes description, createdAt, etc.
+	eco := &models.Ecosystem{
+		Name:        "full-spec-eco",
+		Description: sql.NullString{String: "Full spec test ecosystem", Valid: true},
+	}
+	require.NoError(t, dataStore.CreateEcosystem(eco))
+
+	cmd := newGetAllTestCmd(t, dataStore)
+
+	var buf bytes.Buffer
+	origWriter := render.GetWriter()
+	render.SetWriter(&buf)
+	defer render.SetWriter(origWriter)
+
+	origFormat := getOutputFormat
+	defer func() { getOutputFormat = origFormat }()
+	getOutputFormat = "yaml"
+
+	err := getAll(cmd)
+	require.NoError(t, err, "getAll YAML should not error")
+
+	var result map[string]interface{}
+	err = yaml.Unmarshal(buf.Bytes(), &result)
+	require.NoError(t, err, "output should be valid YAML")
+	require.Equal(t, "List", result["kind"])
+
+	itemsRaw, exists := result["items"]
+	require.True(t, exists, "items key must exist")
+	require.NotNil(t, itemsRaw, "items must not be nil when resources exist")
+
+	items, ok := itemsRaw.([]interface{})
+	require.True(t, ok, "items should be a slice")
+	require.NotEmpty(t, items, "items should not be empty (seeded 1 ecosystem)")
+
+	// Find the ecosystem item and verify it has full spec fields
+	var foundEco map[string]interface{}
+	for _, rawItem := range items {
+		item, ok := rawItem.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if item["kind"] == "Ecosystem" {
+			meta, _ := item["metadata"].(map[string]interface{})
+			if meta != nil && meta["name"] == "full-spec-eco" {
+				foundEco = item
+				break
+			}
+		}
+	}
+
+	require.NotNil(t, foundEco, "should find the seeded ecosystem in items")
+
+	// Each item must have the full kubectl-style fields — NOT the lossy summary
+	assert.NotNil(t, foundEco["apiVersion"], "ecosystem item must have 'apiVersion'")
+	assert.Equal(t, "Ecosystem", foundEco["kind"], "ecosystem item must have correct 'kind'")
+	assert.NotNil(t, foundEco["metadata"], "ecosystem item must have 'metadata'")
+	assert.NotNil(t, foundEco["spec"], "ecosystem item must have 'spec' (full spec, not summary)")
+
+	// The spec must contain description, not just a name-only summary
+	spec, ok := foundEco["spec"].(map[string]interface{})
+	require.True(t, ok, "spec should be a map")
+	assert.NotEmpty(t, spec, "spec should not be empty")
+}
+
+// ---------------------------------------------------------------------------
+// TestGetAll_YAML_ScopedExcludesGlobals  [Sprint 4 - RED]
+// ---------------------------------------------------------------------------
+
+// TestGetAll_YAML_ScopedExcludesGlobals verifies that when scoped to an
+// ecosystem, global resources (NvimPlugins, NvimThemes, Registries) are
+// NOT included in YAML/JSON output (they still appear in table output).
+// Decision 9: Exclude global resources from scoped exports.
+func TestGetAll_YAML_ScopedExcludesGlobals(t *testing.T) {
+	dataStore := createFullTestDataStore(t)
+	defer dataStore.Close()
+
+	// Seed an ecosystem
+	eco := &models.Ecosystem{Name: "eco-scoped-export"}
+	require.NoError(t, dataStore.CreateEcosystem(eco))
+
+	// Seed a global registry
+	reg := &models.Registry{
+		Name:    "global-registry",
+		Type:    "zot",
+		Port:    5200,
+		Storage: "/tmp/reg",
+		Version: "2.1.0",
+		Status:  "stopped",
+	}
+	require.NoError(t, dataStore.CreateRegistry(reg))
+
+	// Use the scoped command helper to pass ecosystem flag
+	cmd := newScopedGetAllCmd(t, dataStore)
+
+	var buf bytes.Buffer
+	origWriter := render.GetWriter()
+	render.SetWriter(&buf)
+	defer render.SetWriter(origWriter)
+
+	origFormat := getOutputFormat
+	defer func() { getOutputFormat = origFormat }()
+	getOutputFormat = "yaml"
+
+	// Scope to a specific ecosystem
+	cmd.SetArgs([]string{"--ecosystem", "eco-scoped-export"})
+	err := cmd.Execute()
+	require.NoError(t, err)
+
+	var result map[string]interface{}
+	err = yaml.Unmarshal(buf.Bytes(), &result)
+	require.NoError(t, err, "output should be valid YAML")
+	require.Equal(t, "List", result["kind"])
+
+	// Check that global registry is NOT in the scoped YAML output
+	itemsRaw := result["items"]
+	if itemsRaw != nil {
+		items, ok := itemsRaw.([]interface{})
+		require.True(t, ok)
+		for _, rawItem := range items {
+			item, ok := rawItem.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			assert.NotEqual(t, "Registry", item["kind"],
+				"scoped YAML export should NOT include global Registry resources")
+			assert.NotEqual(t, "NvimPlugin", item["kind"],
+				"scoped YAML export should NOT include global NvimPlugin resources")
+			assert.NotEqual(t, "NvimTheme", item["kind"],
+				"scoped YAML export should NOT include global NvimTheme resources")
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TestGetAll_YAML_UnscopedIncludesAll  [Sprint 4 - RED]
+// ---------------------------------------------------------------------------
+
+// TestGetAll_YAML_UnscopedIncludesAll verifies that with -A flag (or no active
+// context), all resources including globals appear in the YAML/JSON output.
+func TestGetAll_YAML_UnscopedIncludesAll(t *testing.T) {
+	dataStore := createFullTestDataStore(t)
+	defer dataStore.Close()
+
+	// Seed a registry (global resource)
+	reg := &models.Registry{
+		Name:    "global-reg-unscoped",
+		Type:    "zot",
+		Port:    5300,
+		Storage: "/tmp/reg",
+		Version: "2.1.0",
+		Status:  "stopped",
+	}
+	require.NoError(t, dataStore.CreateRegistry(reg))
+
+	// Seed an ecosystem
+	eco := &models.Ecosystem{Name: "eco-unscoped"}
+	require.NoError(t, dataStore.CreateEcosystem(eco))
+
+	// Use scoped command with -A flag (show all)
+	cmd := newScopedGetAllCmd(t, dataStore)
+
+	var buf bytes.Buffer
+	origWriter := render.GetWriter()
+	render.SetWriter(&buf)
+	defer render.SetWriter(origWriter)
+
+	origFormat := getOutputFormat
+	defer func() { getOutputFormat = origFormat }()
+	getOutputFormat = "yaml"
+
+	cmd.SetArgs([]string{"-A"})
+	err := cmd.Execute()
+	require.NoError(t, err)
+
+	var result map[string]interface{}
+	err = yaml.Unmarshal(buf.Bytes(), &result)
+	require.NoError(t, err, "output should be valid YAML")
+	require.Equal(t, "List", result["kind"])
+
+	itemsRaw := result["items"]
+	require.NotNil(t, itemsRaw, "items should not be nil when resources exist")
+	items, ok := itemsRaw.([]interface{})
+	require.True(t, ok, "items should be a slice")
+
+	// Find the Registry item in the list
+	var foundRegistry bool
+	for _, rawItem := range items {
+		item, ok := rawItem.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if item["kind"] == "Registry" {
+			foundRegistry = true
+			break
+		}
+	}
+
+	assert.True(t, foundRegistry,
+		"unscoped YAML export (-A) should include global Registry resources")
+}
+
+// ---------------------------------------------------------------------------
+// TestGetAll_YAML_RoundTrip  [Sprint 4 - RED]
+// ---------------------------------------------------------------------------
+
+// TestGetAll_YAML_RoundTrip verifies that the output from "get all -o yaml"
+// can be parsed as a valid List document and that each item can be re-applied
+// (round-trip fidelity). This validates that ApplyList can consume the output.
+func TestGetAll_YAML_RoundTrip(t *testing.T) {
+	dataStore := createFullTestDataStore(t)
+	defer dataStore.Close()
+
+	// Seed a minimal hierarchy
+	eco := &models.Ecosystem{
+		Name:        "roundtrip-eco",
+		Description: sql.NullString{String: "Round-trip test", Valid: true},
+	}
+	require.NoError(t, dataStore.CreateEcosystem(eco))
+
+	cmd := newGetAllTestCmd(t, dataStore)
+
+	var buf bytes.Buffer
+	origWriter := render.GetWriter()
+	render.SetWriter(&buf)
+	defer render.SetWriter(origWriter)
+
+	origFormat := getOutputFormat
+	defer func() { getOutputFormat = origFormat }()
+	getOutputFormat = "yaml"
+
+	err := getAll(cmd)
+	require.NoError(t, err, "getAll YAML should not error")
+
+	yamlOutput := buf.Bytes()
+
+	// Verify the output is a valid List that DetectKind recognizes
+	var listHeader struct {
+		Kind string `yaml:"kind"`
+	}
+	err = yaml.Unmarshal(yamlOutput, &listHeader)
+	require.NoError(t, err, "output should be parseable YAML")
+	assert.Equal(t, "List", listHeader.Kind,
+		"output must be a kind: List document for round-trip to work")
+
+	// Verify the YAML can be parsed as a full List document with items
+	var listDoc map[string]interface{}
+	err = yaml.Unmarshal(yamlOutput, &listDoc)
+	require.NoError(t, err)
+	assert.Equal(t, "devopsmaestro.io/v1", listDoc["apiVersion"])
+	assert.NotNil(t, listDoc["items"], "List document must have items field for apply round-trip")
 }

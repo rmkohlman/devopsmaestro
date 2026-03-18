@@ -35,8 +35,9 @@ type EcosystemMetadata struct {
 
 // EcosystemSpec contains ecosystem specification
 type EcosystemSpec struct {
-	Theme   string   `yaml:"theme,omitempty"`
-	Domains []string `yaml:"domains,omitempty"`
+	Description string   `yaml:"description,omitempty" json:"description,omitempty"`
+	Theme       string   `yaml:"theme,omitempty" json:"theme,omitempty"`
+	Domains     []string `yaml:"domains,omitempty" json:"domains,omitempty"`
 }
 
 // ToYAML converts an Ecosystem to YAML format.
@@ -66,8 +67,9 @@ func (e *Ecosystem) ToYAML(domainNames []string) EcosystemYAML {
 			Annotations: annotations,
 		},
 		Spec: EcosystemSpec{
-			Theme:   theme,
-			Domains: domainNames,
+			Description: description,
+			Theme:       theme,
+			Domains:     domainNames,
 		},
 	}
 }
@@ -76,7 +78,10 @@ func (e *Ecosystem) ToYAML(domainNames []string) EcosystemYAML {
 func (e *Ecosystem) FromYAML(yaml EcosystemYAML) {
 	e.Name = yaml.Metadata.Name
 
-	if desc, ok := yaml.Metadata.Annotations["description"]; ok {
+	// Prefer spec.description, fall back to annotations for backward compat
+	if yaml.Spec.Description != "" {
+		e.Description = sql.NullString{String: yaml.Spec.Description, Valid: true}
+	} else if desc, ok := yaml.Metadata.Annotations["description"]; ok {
 		e.Description = sql.NullString{String: desc, Valid: true}
 	}
 

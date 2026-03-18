@@ -560,3 +560,122 @@ func TestWorkspaceResource_Validate(t *testing.T) {
 		})
 	}
 }
+
+// =============================================================================
+// WorkspaceHandler Tests - WI-0: metadata.domain field  [Sprint 4 - RED]
+//
+// These tests verify that the workspace handler can resolve the app via a
+// domain name specified in metadata.domain, rather than requiring an active
+// context domain. This enables full round-trip fidelity: a workspace exported
+// with "get all -o yaml" includes its domain in metadata, so "apply -f -" can
+// re-apply without requiring an active context.
+// =============================================================================
+
+// TestWorkspaceHandler_Apply_WithMetadataDomain verifies that when
+// metadata.domain is specified in the YAML, the handler resolves the app via
+// the named domain rather than requiring an active domain context.
+// [RED: Will fail until WorkspaceMetadata.Domain field is added and handler
+//
+//	is updated to use it.]
+func TestWorkspaceHandler_Apply_WithMetadataDomain(t *testing.T) {
+	h := NewWorkspaceHandler()
+	store := db.NewMockDataStore()
+
+	// Create hierarchy but do NOT set active domain context
+	eco := &models.Ecosystem{Name: "domain-eco"}
+	if err := store.CreateEcosystem(eco); err != nil {
+		t.Fatalf("failed to create ecosystem: %v", err)
+	}
+
+	domain := &models.Domain{Name: "my-domain", EcosystemID: eco.ID}
+	if err := store.CreateDomain(domain); err != nil {
+		t.Fatalf("failed to create domain: %v", err)
+	}
+
+	app := &models.App{Name: "domain-app", DomainID: domain.ID, Path: "/app"}
+	if err := store.CreateApp(app); err != nil {
+		t.Fatalf("failed to create app: %v", err)
+	}
+
+	// NO active domain set on context — handler must use metadata.domain
+	ctx := resource.Context{DataStore: store}
+
+	yamlData := []byte(`
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: domain-ws
+  app: domain-app
+  domain: my-domain
+spec:
+  image:
+    name: ubuntu:22.04
+`)
+
+	res, err := h.Apply(ctx, yamlData)
+	if err != nil {
+		t.Fatalf("Apply() with metadata.domain should succeed without active context, got error: %v", err)
+	}
+	if res.GetName() != "domain-ws" {
+		t.Errorf("Apply() Name = %q, want %q", res.GetName(), "domain-ws")
+	}
+}
+
+// TestWorkspaceHandler_Apply_FallbackToActiveContext verifies that when
+// metadata.domain is NOT specified, the handler falls back to the active
+// domain context (existing behavior preserved).
+func TestWorkspaceHandler_Apply_FallbackToActiveContext(t *testing.T) {
+	h := NewWorkspaceHandler()
+	store, _, _, _ := setupWorkspaceTest(t)
+	ctx := resource.Context{DataStore: store}
+
+	// No metadata.domain — should use active domain from context (set by setupWorkspaceTest)
+	yamlData := []byte(`
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: fallback-ws
+  app: ws-app
+spec:
+  image:
+    name: ubuntu:22.04
+`)
+
+	res, err := h.Apply(ctx, yamlData)
+	if err != nil {
+		t.Fatalf("Apply() fallback to active context should succeed, got error: %v", err)
+	}
+	if res.GetName() != "fallback-ws" {
+		t.Errorf("Apply() Name = %q, want %q", res.GetName(), "fallback-ws")
+	}
+}
+
+// TestWorkspaceHandler_Apply_NoContextNoDomain verifies that when neither
+// metadata.domain nor an active context domain is provided, the handler
+// returns a clear error message.
+func TestWorkspaceHandler_Apply_NoContextNoDomain(t *testing.T) {
+	h := NewWorkspaceHandler()
+	// Empty store with no active domain and no metadata.domain in YAML
+	store := db.NewMockDataStore()
+	ctx := resource.Context{DataStore: store}
+
+	yamlData := []byte(`
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: no-context-ws
+  app: some-app
+spec:
+  image:
+    name: ubuntu:22.04
+`)
+
+	_, err := h.Apply(ctx, yamlData)
+	if err == nil {
+		t.Error("Apply() expected error when neither active domain nor metadata.domain is provided, got nil")
+	}
+	// Error should mention domain (either "active domain" or "metadata.domain")
+	if !strings.Contains(err.Error(), "domain") {
+		t.Errorf("Apply() error = %q, want it to mention 'domain'", err.Error())
+	}
+}

@@ -42,6 +42,7 @@ type WorkspaceYAML struct {
 type WorkspaceMetadata struct {
 	Name        string            `yaml:"name"`
 	App         string            `yaml:"app"`
+	Domain      string            `yaml:"domain,omitempty"`
 	Labels      map[string]string `yaml:"labels,omitempty"`
 	Annotations map[string]string `yaml:"annotations,omitempty"`
 }

@@ -159,3 +159,8 @@ func (r *NvimPluginResource) Validate() error {
 func (r *NvimPluginResource) Plugin() *plugin.Plugin {
 	return r.plugin
 }
+
+// NewNvimPluginResource creates a new NvimPluginResource from a plugin model.
+func NewNvimPluginResource(p *plugin.Plugin) *NvimPluginResource {
+	return &NvimPluginResource{plugin: p}
+}

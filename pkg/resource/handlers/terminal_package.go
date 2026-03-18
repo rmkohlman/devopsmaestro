@@ -351,3 +351,8 @@ func (r *TerminalPackageResource) Validate() error {
 func (r *TerminalPackageResource) Package() *terminalpkg.Package {
 	return r.pkg
 }
+
+// NewTerminalPackageResource creates a new TerminalPackageResource from a package model.
+func NewTerminalPackageResource(pkg *terminalpkg.Package) *TerminalPackageResource {
+	return &TerminalPackageResource{pkg: pkg}
+}
