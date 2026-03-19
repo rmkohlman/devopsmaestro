@@ -12,8 +12,8 @@ on:
 
 # ---------------------------------------------------------------------------
 # Permissions
-# NOTE: PROJECT_TOKEN (PAT) is used instead of GITHUB_TOKEN because
-#       the default token cannot read GitHub Projects V2 data.
+# NOTE: HOMEBREW_TAP_GITHUB_TOKEN (PAT) is used here and reused from the release workflow
+#       instead of GITHUB_TOKEN because the default token cannot read GitHub Projects V2 data.
 #       Required PAT scopes: read:project, repo
 # ---------------------------------------------------------------------------
 permissions:
@@ -44,7 +44,7 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Generate dashboard markdown
         env:
-          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
         run: |
           gh project item-list 1 \
             --owner rmkohlman \
@@ -62,7 +62,7 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Update dashboard issue #118
         env:
-          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
         run: |
           gh issue edit 118 \
             --repo rmkohlman/devopsmaestro \
