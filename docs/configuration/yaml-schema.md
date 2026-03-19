@@ -330,6 +330,10 @@ spec:
       vim.opt.expandtab = true
       vim.opt.shiftwidth = 2
   
+  # Optional workspace-level tools installed into the container image
+  tools:
+    opencode: true                # Install opencode TUI binary (default: false)
+  
   # Container mounts (dev-specific)
   mounts:
     - type: bind
@@ -424,6 +428,7 @@ On Alpine-based images, `ca-certificates` is automatically added to the `apk add
 | App env vars | `spec.env` | - |
 | Dev tools (LSP, debugger) | - | `spec.build.devStage.devTools` |
 | System packages | - | `spec.build.devStage.packages` |
+| Workspace tools (opencode, etc.) | - | `spec.tools` |
 | Shell config | - | `spec.shell` |
 | Terminal/tmux | - | `spec.terminal` |
 | Neovim config | - | `spec.nvim` |

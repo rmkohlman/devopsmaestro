@@ -86,6 +86,8 @@ The nvp library provides pre-configured plugin definitions with:
 | `toggleterm` | Terminal management |
 | `copilot` | GitHub Copilot |
 | `copilot-cmp` | Copilot completion source |
+| `snacks` | QoL utility library (input, picker, opencode integration) |
+| `opencode` | opencode AI assistant integration |
 
 ### Language-Specific
 

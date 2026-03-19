@@ -2,6 +2,18 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## Unreleased
+
+**opencode Integration (CLI Tool + nvim Plugin)**
+
+Two independent tracks for using the opencode AI coding assistant in DevOpsMaestro workspaces.
+
+- **`tools.opencode: true`** — New opt-in workspace field that installs the opencode TUI binary in the container image at build time. API keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, etc.) are injected at runtime via `dvm create credential` — never baked into the image.
+- **opencode.nvim plugin** — `nickjvandyke/opencode.nvim` (v0.5.2) added to the nvp plugin library with default keybindings: `<C-a>` ask, `<C-x>` select action, `<C-.>` toggle, `go`/`goo` operator. Communicates with opencode over HTTP on port 4096.
+- **snacks.nvim plugin** — `folke/snacks.nvim` (v2.30.0) added as the recommended companion for picker integration (`<A-a>` sends picker results to opencode).
+- **rmkohlman package** updated to include both `snacks` and `opencode`.
+- Either track works standalone — the plugin does not require the CLI binary, and the CLI binary does not require the plugin.
+
 ## v0.57.1 (2026-03-18)
 
 **Bug Fixes from Local Testing**

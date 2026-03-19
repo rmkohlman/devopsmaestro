@@ -92,6 +92,8 @@ spec:
           vim.opt_local.tabstop = 4
         end,
       })
+  tools:
+    opencode: true
   mounts:
     - type: bind
       source: ${APP_PATH}
@@ -145,6 +147,7 @@ spec:
 | `spec.shell` | object | ❌ | Shell configuration |
 | `spec.terminal` | object | ❌ | Terminal multiplexer configuration |
 | `spec.nvim` | object | ❌ | Neovim configuration |
+| `spec.tools` | object | ❌ | Optional workspace-level tool binaries |
 | `spec.mounts` | array | ❌ | Container mount points |
 | `spec.sshKey` | object | ❌ | SSH key configuration |
 | `spec.env` | object | ❌ | Workspace environment variables |
@@ -279,6 +282,22 @@ spec:
 **Merge modes:**
 - `append` - Add plugins to the package list (default)
 - `replace` - Replace all package plugins with the workspace's plugin list
+
+### spec.tools (optional)
+
+Optional workspace-level tool binaries installed into the container image at build time. Each tool is opt-in (default `false`) so images that do not need them stay lean.
+
+```yaml
+spec:
+  tools:
+    opencode: true    # Install opencode TUI binary (linux/amd64, linux/arm64)
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `tools.opencode` | bool | `false` | Install [opencode](https://github.com/sst/opencode) AI assistant CLI |
+
+When `tools.opencode` is `false` (or the `tools:` key is absent entirely), the section is omitted from YAML export. See [opencode CLI Tool](../dvm/opencode.md) for setup details.
 
 ### spec.mounts (optional)
 Container mount points for accessing host filesystem.

@@ -76,6 +76,7 @@ nav:
     - Apps: dvm/apps.md
     - Workspaces: dvm/workspaces.md
     - Building & Attaching: dvm/build-attach.md
+    - opencode CLI Tool: dvm/opencode.md
     - Commands Reference: dvm/commands.md
   - nvp (NvimOps):
     - Overview: nvp/overview.md
@@ -83,6 +84,7 @@ nav:
     - Plugin Packages: nvp/packages.md
     - Themes: nvp/themes.md
     - CoolNight Collection: nvp/coolnight.md
+    - opencode.nvim Plugin: nvp/opencode.md
     - Commands Reference: nvp/commands.md
   - Configuration:
     - YAML Schema: configuration/yaml-schema.md

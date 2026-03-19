@@ -225,6 +225,8 @@ Choose from 38+ curated plugins:
 |--------|-------------|
 | `copilot` | GitHub Copilot |
 | `copilot-cmp` | Copilot completion source |
+| `snacks` | QoL utility library (input, picker, opencode integration) |
+| `opencode` | opencode AI assistant integration |
 
 #### Language-Specific
 
