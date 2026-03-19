@@ -1,0 +1,83 @@
+name: Update Project Dashboard
+
+# ---------------------------------------------------------------------------
+# Triggers
+# ---------------------------------------------------------------------------
+on:
+  schedule:
+    # Every Monday at 06:00 UTC
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+    # Allow manual runs from the Actions tab — no extra inputs required
+
+# ---------------------------------------------------------------------------
+# Permissions
+# NOTE: PROJECT_TOKEN (PAT) is used instead of GITHUB_TOKEN because
+#       the default token cannot read GitHub Projects V2 data.
+#       Required PAT scopes: read:project, repo
+# ---------------------------------------------------------------------------
+permissions:
+  issues: write   # needed to update issue #118 body
+
+jobs:
+  update-dashboard:
+    name: Regenerate Mermaid dashboard
+    runs-on: ubuntu-latest
+
+    steps:
+      # -----------------------------------------------------------------------
+      # 1. Check out the repo so we can access the Python script
+      # -----------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # 2. Set up Python (stdlib only — no pip install needed)
+      # -----------------------------------------------------------------------
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # -----------------------------------------------------------------------
+      # 3. Query GitHub Projects V2 and generate dashboard markdown
+      # -----------------------------------------------------------------------
+      - name: Generate dashboard markdown
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+        run: |
+          gh project item-list 1 \
+            --owner rmkohlman \
+            --format json \
+            --limit 200 \
+          | python3 .github/scripts/generate-dashboard.py \
+          > /tmp/dashboard.md
+
+          echo "=== Dashboard preview (first 40 lines) ==="
+          head -40 /tmp/dashboard.md
+          echo "=== Total lines: $(wc -l < /tmp/dashboard.md) ==="
+
+      # -----------------------------------------------------------------------
+      # 4. Update issue #118 with the generated dashboard
+      # -----------------------------------------------------------------------
+      - name: Update dashboard issue #118
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+        run: |
+          gh issue edit 118 \
+            --repo rmkohlman/devopsmaestro \
+            --body-file /tmp/dashboard.md
+
+          echo "Dashboard issue #118 updated successfully."
+
+      # -----------------------------------------------------------------------
+      # 5. Print a summary for the Actions run log
+      # -----------------------------------------------------------------------
+      - name: Print run summary
+        run: |
+          echo "## Dashboard updated ✅" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Issue [#118](https://github.com/rmkohlman/devopsmaestro/issues/118) refreshed with live project data." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Run triggered by: \`${{ github.event_name }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Run at: $(date -u '+%Y-%m-%d %H:%M UTC')" >> "$GITHUB_STEP_SUMMARY"
