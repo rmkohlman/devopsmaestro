@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
 """
-generate-dashboard.py — Generate Mermaid dashboard markdown from GitHub Project JSON.
+generate-dashboard.py — Generate dashboard markdown from GitHub Project JSON.
 
-Usage:
+Usage (Mermaid issue dashboard — default):
     gh project item-list 1 --owner rmkohlman --format json --limit 200 \
         | python3 .github/scripts/generate-dashboard.py > dashboard.md
 
-The script reads project JSON from stdin and writes full Mermaid dashboard
-markdown to stdout. The workflow then pipes that output to `gh issue edit`.
+Usage (Project README — no Mermaid):
+    gh project item-list 1 --owner rmkohlman --format json --limit 200 \
+        | python3 .github/scripts/generate-dashboard.py --readme > readme.md
+
+The script reads project JSON from stdin and writes markdown to stdout.
+Default mode: Mermaid charts for issue #118.
+--readme mode:  Plain markdown tables/text for the GitHub Project README tab.
 """
 
+import argparse
 import json
 import sys
 from collections import Counter, defaultdict
-from datetime import date, timedelta
+from datetime import date, timedelta, timezone
 
 
 # ---------------------------------------------------------------------------
@@ -518,12 +524,344 @@ def generate_dashboard(items: list[dict]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# README mode — plain markdown, NO Mermaid
+# ---------------------------------------------------------------------------
+
+def readme_health_table(items: list[dict]) -> str:
+    """Health stats summary table."""
+    total = len(items)
+    done = sum(1 for i in items if _status(i) == "Done")
+    in_progress = sum(1 for i in items if _status(i) == "In Progress")
+    todo = sum(1 for i in items if _status(i) == "Todo")
+    pct = int(done / total * 100) if total else 0
+
+    lines = [
+        "| Metric | Value |",
+        "|--------|-------|",
+        f"| Total items | {total} |",
+        f"| ✅ Done | {done} |",
+        f"| 🔄 In Progress | {in_progress} |",
+        f"| 🔲 Todo | {todo} |",
+        f"| Completion | {pct}% |",
+    ]
+    return "\n".join(lines)
+
+
+def readme_active_epics(items: list[dict]) -> str:
+    """
+    Find items whose title contains 'epic' (case-insensitive) that are In Progress,
+    and list them with a child-count summary using the same heuristic as the Mermaid chart.
+    """
+    active_epics = [
+        i for i in items
+        if "epic" in i.get("title", "").lower() and _status(i) == "In Progress"
+    ]
+
+    if not active_epics:
+        return "_No active epics._"
+
+    rows = ["| Epic | Sprint | Done | Todo | In Progress |",
+            "|------|--------|------|------|-------------|"]
+
+    for epic in active_epics:
+        epic_num = _issue_number(epic)
+        epic_title = epic.get("title", f"Epic #{epic_num}")
+        epic_sprint = _sprint(epic)
+
+        if epic_sprint:
+            children = [
+                i for i in items
+                if _sprint(i) == epic_sprint
+                and "epic" not in i.get("title", "").lower()
+                and _issue_number(i) != epic_num
+            ]
+        else:
+            children = []
+
+        done_c = sum(1 for c in children if _status(c) == "Done")
+        ip_c = sum(1 for c in children if _status(c) == "In Progress")
+        todo_c = sum(1 for c in children if _status(c) == "Todo")
+        sprint_str = epic_sprint or "—"
+        rows.append(f"| {epic_title} | {sprint_str} | {done_c} | {todo_c} | {ip_c} |")
+
+    return "\n".join(rows)
+
+
+def readme_current_sprint(items: list[dict]) -> str:
+    """
+    Find the sprint with the most non-Done items and list them with their status.
+    """
+    # Count non-done items per sprint
+    active_by_sprint: dict[str, int] = defaultdict(int)
+    for item in items:
+        s = _sprint(item)
+        if s and _status(item) != "Done":
+            active_by_sprint[s] += 1
+
+    if not active_by_sprint:
+        return "_No active sprint items._"
+
+    current_sprint = max(active_by_sprint, key=lambda s: active_by_sprint[s])
+    sprint_items = [i for i in items if _sprint(i) == current_sprint]
+
+    # Sort: In Progress first, then Todo, then Done
+    order = {"In Progress": 0, "Todo": 1, "Done": 2}
+    sprint_items.sort(key=lambda i: (order.get(_status(i), 9), _issue_number(i) or 0))
+
+    status_emoji = {"In Progress": "🔄", "Todo": "🔲", "Done": "✅"}
+
+    lines = [f"**Sprint: {current_sprint}** ({active_by_sprint[current_sprint]} open items)\n"]
+    lines.append("| # | Title | Status | Agent |")
+    lines.append("|---|-------|--------|-------|")
+    for item in sprint_items:
+        num = _issue_number(item) or "—"
+        title = item.get("title", "")[:60]
+        st = _status(item)
+        emoji = status_emoji.get(st, "")
+        agent = _agent(item)
+        lines.append(f"| {num} | {title} | {emoji} {st} | {agent} |")
+
+    return "\n".join(lines)
+
+
+def readme_agent_workload(items: list[dict]) -> str:
+    """Agent workload table: done / in-progress / todo / total."""
+    stats: dict[str, dict[str, int]] = defaultdict(lambda: {"Done": 0, "In Progress": 0, "Todo": 0})
+    for item in items:
+        a = _agent(item)
+        s = _status(item)
+        if s in stats[a]:
+            stats[a][s] += 1
+        else:
+            stats[a]["Todo"] += 0  # ensure key exists
+
+    # Sort by total descending
+    sorted_agents = sorted(stats.items(), key=lambda kv: sum(kv[1].values()), reverse=True)
+
+    lines = [
+        "| Agent | ✅ Done | 🔄 In Progress | 🔲 Todo | Total |",
+        "|-------|--------|----------------|--------|-------|",
+    ]
+    for agent, counts in sorted_agents:
+        d = counts.get("Done", 0)
+        ip = counts.get("In Progress", 0)
+        td = counts.get("Todo", 0)
+        total = d + ip + td
+        lines.append(f"| {agent} | {d} | {ip} | {td} | {total} |")
+
+    return "\n".join(lines)
+
+
+def readme_sprint_velocity(items: list[dict]) -> str:
+    """Sprint velocity table: completed items per sprint."""
+    done_by_sprint: dict[str, int] = defaultdict(int)
+    hotfixes = 0
+
+    for item in items:
+        if _status(item) != "Done":
+            continue
+        s = _sprint(item)
+        if s:
+            done_by_sprint[s] += 1
+        else:
+            hotfixes += 1
+
+    if not done_by_sprint and not hotfixes:
+        return "_No completed sprint data._"
+
+    sprint_names = sorted(done_by_sprint.keys())
+    lines = [
+        "| Sprint | Items Completed |",
+        "|--------|----------------|",
+    ]
+    for s in sprint_names:
+        lines.append(f"| {s} | {done_by_sprint[s]} |")
+    if hotfixes:
+        lines.append(f"| _(no sprint / hotfixes)_ | {hotfixes} |")
+
+    return "\n".join(lines)
+
+
+def readme_effort_distribution(items: list[dict]) -> str:
+    """Effort distribution table."""
+    counts = Counter(_effort(i) for i in items)
+    total = len(items)
+
+    effort_map = [
+        ("S", "Small (hours)"),
+        ("M", "Medium (1-2 days)"),
+        ("L", "Large (3+ days)"),
+        ("None", "Unestimated"),
+    ]
+
+    lines = [
+        "| Effort | Label | Count | % |",
+        "|--------|-------|-------|---|",
+    ]
+    for key, label in effort_map:
+        cnt = counts.get(key, 0)
+        if cnt == 0:
+            continue
+        pct = int(cnt / total * 100) if total else 0
+        lines.append(f"| {key} | {label} | {cnt} | {pct}% |")
+
+    return "\n".join(lines)
+
+
+def readme_backlog_summary(items: list[dict]) -> str:
+    """
+    Count of Todo items NOT in any sprint, grouped by agent.
+    """
+    backlog = [i for i in items if _status(i) == "Todo" and _sprint(i) is None]
+
+    if not backlog:
+        return "_Backlog is empty — all Todo items are assigned to a sprint._"
+
+    by_agent: dict[str, int] = defaultdict(int)
+    for item in backlog:
+        by_agent[_agent(item)] += 1
+
+    lines = [
+        f"**{len(backlog)} unscheduled Todo items** (not in any sprint)\n",
+        "| Agent | Unscheduled Items |",
+        "|-------|------------------|",
+    ]
+    for agent, cnt in sorted(by_agent.items(), key=lambda kv: -kv[1]):
+        lines.append(f"| {agent} | {cnt} |")
+
+    return "\n".join(lines)
+
+
+def generate_readme(items: list[dict]) -> str:
+    """
+    Generate a Project README version of the dashboard.
+    No Mermaid — tables, bold, links, and emoji only.
+    """
+    now_utc = date.today().strftime("%Y-%m-%d")
+
+    sections = [
+        "# DevOpsMaestro Toolkit — Project Dashboard",
+        "",
+        "> Auto-generated from live GitHub Project data. **Do not edit manually.**",
+        "",
+        "---",
+        "",
+        "## Project Health",
+        "",
+        readme_health_table(items),
+        "",
+        "---",
+        "",
+        "## Active Epics",
+        "",
+        readme_active_epics(items),
+        "",
+        "---",
+        "",
+        "## Current Sprint",
+        "",
+        readme_current_sprint(items),
+        "",
+        "---",
+        "",
+        "## Agent Workload",
+        "",
+        readme_agent_workload(items),
+        "",
+        "---",
+        "",
+        "## Sprint Velocity",
+        "",
+        readme_sprint_velocity(items),
+        "",
+        "---",
+        "",
+        "## Effort Distribution",
+        "",
+        readme_effort_distribution(items),
+        "",
+        "---",
+        "",
+        "## Backlog Summary",
+        "",
+        readme_backlog_summary(items),
+        "",
+        "---",
+        "",
+        "## Quick Links",
+        "",
+        "| Resource | Link |",
+        "|----------|------|",
+        "| Main repo | [rmkohlman/devopsmaestro](https://github.com/rmkohlman/devopsmaestro) |",
+        "| Homebrew tap | [rmkohlman/homebrew-tap](https://github.com/rmkohlman/homebrew-tap) |",
+        "| Docs | [devopsmaestro.dev](https://devopsmaestro.dev) |",
+        "| Dashboard issue | [#118](https://github.com/rmkohlman/devopsmaestro/issues/118) |",
+        "| Releases | [Releases](https://github.com/rmkohlman/devopsmaestro/releases) |",
+        "",
+        "---",
+        "",
+        "## Field Guide",
+        "",
+        "| Field | Values |",
+        "|-------|--------|",
+        "| **Status** | Todo · In Progress · Done |",
+        "| **Agent** | release · dvm-core · test · document · nvim · theme · terminal · sdk · database · architecture · cli-architect · security |",
+        "| **Sprint** | Sprint N (sequential) |",
+        "| **Effort** | S (hours) · M (1-2 days) · L (3+ days) |",
+        "| **Priority** | high · medium · low |",
+        "",
+        "---",
+        "",
+        "## Recommended Views",
+        "",
+        "| View | Filter |",
+        "|------|--------|",
+        "| Current sprint | `sprint:\"Sprint N\" status:Todo,\"In Progress\"` |",
+        "| My work | `agent:release status:\"In Progress\"` |",
+        "| Open bugs | `label:\"type: bug\" status:Todo,\"In Progress\"` |",
+        "| Unscheduled backlog | `no:sprint status:Todo` |",
+        "| High priority | `label:\"priority: high\" status:Todo,\"In Progress\"` |",
+        "",
+        "---",
+        "",
+        "## How to Refresh",
+        "",
+        "This README is auto-generated by the `update-dashboard` GitHub Actions workflow.",
+        "To trigger a manual refresh:",
+        "",
+        "```",
+        "gh workflow run update-dashboard.yml --repo rmkohlman/devopsmaestro",
+        "```",
+        "",
+        "---",
+        "",
+        f"_Last updated: {now_utc} UTC_",
+    ]
+
+    return "\n".join(sections)
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Generate dashboard markdown from GitHub Project JSON."
+    )
+    parser.add_argument(
+        "--readme",
+        action="store_true",
+        help="Output Project README format (no Mermaid) instead of issue dashboard.",
+    )
+    args = parser.parse_args()
+
     items = load_items()
     if not items:
         print("ERROR: No items found in project JSON", file=sys.stderr)
         sys.exit(1)
-    print(generate_dashboard(items))
+
+    if args.readme:
+        print(generate_readme(items))
+    else:
+        print(generate_dashboard(items))

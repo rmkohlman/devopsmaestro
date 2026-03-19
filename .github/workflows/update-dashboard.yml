@@ -14,7 +14,7 @@ on:
 # Permissions
 # NOTE: HOMEBREW_TAP_GITHUB_TOKEN (PAT) is used here and reused from the release workflow
 #       instead of GITHUB_TOKEN because the default token cannot read GitHub Projects V2 data.
-#       Required PAT scopes: read:project, repo
+#       Required PAT scopes: read:project, write:project, repo
 # ---------------------------------------------------------------------------
 permissions:
   issues: write   # needed to update issue #118 body
@@ -71,13 +71,45 @@ jobs:
           echo "Dashboard issue #118 updated successfully."
 
       # -----------------------------------------------------------------------
-      # 5. Print a summary for the Actions run log
+      # 5. Generate Project README (plain markdown, no Mermaid)
+      # -----------------------------------------------------------------------
+      - name: Generate Project README markdown
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+        run: |
+          gh project item-list 1 \
+            --owner rmkohlman \
+            --format json \
+            --limit 200 \
+          | python3 .github/scripts/generate-dashboard.py --readme \
+          > /tmp/readme.md
+
+          echo "=== README preview (first 40 lines) ==="
+          head -40 /tmp/readme.md
+          echo "=== Total lines: $(wc -l < /tmp/readme.md) ==="
+
+      # -----------------------------------------------------------------------
+      # 6. Update the GitHub Project README tab
+      # -----------------------------------------------------------------------
+      - name: Update Project README
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+        run: |
+          gh project edit 1 \
+            --owner rmkohlman \
+            --readme "$(cat /tmp/readme.md)"
+
+          echo "Project README updated successfully."
+
+      # -----------------------------------------------------------------------
+      # 7. Print a summary for the Actions run log
       # -----------------------------------------------------------------------
       - name: Print run summary
         run: |
           echo "## Dashboard updated ✅" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Issue [#118](https://github.com/rmkohlman/devopsmaestro/issues/118) refreshed with live project data." >> "$GITHUB_STEP_SUMMARY"
+          echo "Project README tab updated with plain-markdown dashboard." >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Run triggered by: \`${{ github.event_name }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "Run at: $(date -u '+%Y-%m-%d %H:%M UTC')" >> "$GITHUB_STEP_SUMMARY"
