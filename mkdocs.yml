@@ -73,7 +73,7 @@ nav:
     - New Projects: getting-started/new-projects.md
   - dvm (DevOpsMaestro):
     - Overview: dvm/overview.md
-    - Projects: dvm/projects.md
+    - Apps: dvm/apps.md
     - Workspaces: dvm/workspaces.md
     - Building & Attaching: dvm/build-attach.md
     - Commands Reference: dvm/commands.md
@@ -89,6 +89,7 @@ nav:
     - Plugin System: configuration/plugin-system.md
     - Shell Completion: configuration/shell-completion.md
     - WezTerm Integration: configuration/wezterm.md
+    - Terminal Prompt: configuration/terminal-prompt.md
   - Reference:
     - YAML Templates: reference/yaml-templates.md
     - Overview: reference/index.md
@@ -112,7 +113,10 @@ nav:
     - Theme Infrastructure as Code: advanced/theme-iac.md
     - Source Types: advanced/source-types.md
     - Private Repos: advanced/private-repos.md
+    - Build Architecture: build-architecture.md
+    - ColorProvider Integration: colorprovider-integration.md
   - Development:
     - Contributing: development/contributing.md
     - Release Process: development/release-process.md
+    - Architecture Decisions: development/decisions.md
   - Changelog: changelog.md

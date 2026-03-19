@@ -29,8 +29,8 @@ brew install devopsmaestro
 brew install nvimops
 
 # Verify installation
-dvm version  # Should show v0.39.1+
-nvp version  # Should show v0.39.1+
+dvm version
+nvp version
 ```
 
 ---
@@ -65,8 +65,9 @@ Download pre-built binaries from the [Releases page](https://github.com/rmkohlma
 ### macOS/Linux (Quick Install)
 
 ```bash
-# Download latest release (replace with actual version)
-curl -LO https://github.com/rmkohlman/devopsmaestro/releases/latest/download/devopsmaestro_0.39.1_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/').tar.gz
+# Download latest release
+VERSION=$(curl -s https://api.github.com/repos/rmkohlman/devopsmaestro/releases/latest | grep '"tag_name"' | sed 's/.*"v\(.*\)".*/\1/')
+curl -LO "https://github.com/rmkohlman/devopsmaestro/releases/download/v${VERSION}/devopsmaestro_${VERSION}_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/').tar.gz"
 
 # Extract and install
 tar xzf devopsmaestro_*.tar.gz
@@ -84,15 +85,15 @@ nvp version
 
 1. Go to [Releases page](https://github.com/rmkohlman/devopsmaestro/releases/latest)
 2. Download the archive for your platform:
-   - `devopsmaestro_0.39.1_darwin_amd64.tar.gz` (macOS Intel)
-   - `devopsmaestro_0.39.1_darwin_arm64.tar.gz` (macOS Apple Silicon)
-   - `devopsmaestro_0.39.1_linux_amd64.tar.gz` (Linux x64)
-   - `devopsmaestro_0.39.1_linux_arm64.tar.gz` (Linux ARM64)
+   - `devopsmaestro_VERSION_darwin_amd64.tar.gz` (macOS Intel)
+   - `devopsmaestro_VERSION_darwin_arm64.tar.gz` (macOS Apple Silicon)
+   - `devopsmaestro_VERSION_linux_amd64.tar.gz` (Linux x64)
+   - `devopsmaestro_VERSION_linux_arm64.tar.gz` (Linux ARM64)
 3. Extract and move binaries to your PATH
 
 ```bash
-# Example for macOS Apple Silicon
-tar xzf devopsmaestro_0.39.1_darwin_arm64.tar.gz
+# Example for macOS Apple Silicon (replace VERSION with actual version)
+tar xzf devopsmaestro_VERSION_darwin_arm64.tar.gz
 sudo mv dvm nvp /usr/local/bin/
 ```
 
@@ -136,8 +137,8 @@ After installation, verify everything is working:
 
 ```bash
 # Check versions
-dvm version  # Should show v0.39.1+
-nvp version  # Should show v0.39.1+
+dvm version
+nvp version
 
 # Check detected container platforms
 dvm get platforms
