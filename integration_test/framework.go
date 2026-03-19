@@ -123,7 +123,7 @@ func (f *TestFramework) RunDVM(args ...string) (stdout, stderr string, err error
 	if len(args) >= 2 && args[0] == "delete" && args[1] == "workspace" {
 		hasForce := false
 		for _, arg := range args {
-			if arg == "--force" || arg == "-f" {
+			if arg == "--force" {
 				hasForce = true
 				break
 			}
@@ -392,7 +392,7 @@ func (f *TestFramework) RunDVMWithExitCode(args ...string) (exitCode int, stdout
 	if len(args) >= 2 && args[0] == "delete" && args[1] == "workspace" {
 		hasForce := false
 		for _, arg := range args {
-			if arg == "--force" || arg == "-f" {
+			if arg == "--force" {
 				hasForce = true
 				break
 			}

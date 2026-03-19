@@ -15,7 +15,10 @@ var (
 
 func main() {
 	if err := Execute(); err != nil {
-		render.ErrorToStderr(err.Error())
+		// errSilent means the command already displayed the error via render
+		if err.Error() != "" {
+			render.ErrorToStderr(err.Error())
+		}
 		os.Exit(1)
 	}
 }

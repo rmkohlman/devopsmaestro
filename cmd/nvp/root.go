@@ -104,21 +104,17 @@ func commandRequiresDatabase(cmd *cobra.Command) bool {
 	case commandName == "get" && cmd.Parent() != nil && cmd.Parent().Name() == "nvp":
 		// "nvp get" reads from DB if available, but can fall back to file store
 		return false
-	case commandName == "list" && cmd.Parent() != nil && cmd.Parent().Name() == "nvp":
-		// "nvp list" reads from DB if available, but can fall back to file store
-		return false
 	default:
 		return false
 	}
 }
 
 // setupDatabaseConfig configures database settings for nvp
-func setupDatabaseConfig() {
+func setupDatabaseConfig() error {
 	// Get home directory
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		slog.Error("Failed to get home directory", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to get home directory: %w", err)
 	}
 
 	// Set config path to ~/.devopsmaestro (same as dvm for shared database)
@@ -131,8 +127,7 @@ func setupDatabaseConfig() {
 	// Try to read config, but don't fail if it doesn't exist
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			slog.Error("Failed to read config", "error", err)
-			os.Exit(1)
+			return fmt.Errorf("failed to read config: %w", err)
 		}
 		// Config not found is OK - use defaults
 	}
@@ -143,7 +138,12 @@ func setupDatabaseConfig() {
 		viper.Set("database.path", "~/"+paths.DVMDirName+"/"+paths.DatabaseFile)
 		viper.Set("store", "sql")
 	}
+	return nil
 }
+
+// errSilent is returned by commands that have already displayed their error
+// via render.Error(). It causes Cobra to set exit code 1 without double-printing.
+var errSilent = fmt.Errorf("")
 
 // rootCmd is the base command
 var rootCmd = &cobra.Command{
@@ -158,11 +158,13 @@ YAML configuration approach. It provides:
   - File-based storage (no database required)
 
 Quick Start:
-  nvp library list              # See available plugins
-  nvp library install telescope # Install from library  
+  nvp library get                 # See available plugins
+  nvp library import telescope    # Import from library  
   nvp generate                  # Generate Lua files
 
 Configuration is stored in ~/.nvp/ by default.`,
+	SilenceErrors: true,
+	SilenceUsage:  true,
 }
 
 // Execute runs the root command
@@ -178,7 +180,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "Disable colored output")
 
 	// Initialize logging and ColorProvider before any command runs
-	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
 		initLogging()
 
 		// Initialize ColorProvider for nvp
@@ -211,7 +213,9 @@ func init() {
 		// (nvp uses file-based storage by default, but some features like packages use the database)
 		if !skipDB {
 			// Setup database configuration
-			setupDatabaseConfig()
+			if err := setupDatabaseConfig(); err != nil {
+				return fmt.Errorf("database config: %w", err)
+			}
 
 			// Create DataStore instance
 			dataStore, err := db.CreateDataStore()
@@ -223,11 +227,11 @@ func init() {
 					render.ErrorToStderr("Database required but unavailable")
 					render.InfoToStderr("Run 'dvm admin init' to initialize the database, or check ~/.devopsmaestro/devopsmaestro.db exists")
 					render.ErrorfToStderr("Details: %v", err)
-					os.Exit(1)
+					return errSilent
 				}
 				// For optional DB commands, just warn and continue
 				slog.Warn("Failed to initialize database (using file-based storage)", "error", err)
-				return // Continue without database - nvp can work with file-based storage
+				return nil // Continue without database - nvp can work with file-based storage
 			}
 
 			// Set the dataStore in context for resource operations
@@ -236,7 +240,7 @@ func init() {
 
 			// Auto-migrate database if needed (skip for commands that don't need DB)
 			if shouldSkipAutoMigration(cmd) {
-				return
+				return nil
 			}
 
 			// Auto-migrate database if needed
@@ -251,7 +255,7 @@ func init() {
 						slog.Warn("migrations not available for auto-migration in nvp")
 						render.Warning("Migrations not found, skipping auto-migration")
 					}
-					return
+					return nil
 				}
 
 				// Use version-based auto-migration
@@ -260,13 +264,14 @@ func init() {
 					slog.Error("auto-migration failed", "error", err)
 					render.Errorf("Failed to apply database migrations: %v", err)
 					render.Info("Please run 'dvm admin migrate' to fix migration issues.")
-					os.Exit(1)
+					return errSilent
 				}
 				if migrationsApplied && verbose {
 					slog.Info("database migrations applied successfully")
 				}
 			}
 		}
+		return nil
 	}
 
 	// Register resource handlers for unified pipeline
@@ -290,7 +295,6 @@ func init() {
 	rootCmd.AddCommand(libraryCmd)
 	rootCmd.AddCommand(packageCmd)
 	rootCmd.AddCommand(applyCmd)
-	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(getCmd)
 	rootCmd.AddCommand(deleteCmd)
 	rootCmd.AddCommand(enableCmd)
@@ -396,14 +400,15 @@ You can specify a custom directory with --config or NVP_CONFIG_DIR.`,
 
 var libraryCmd = &cobra.Command{
 	Use:   "library",
-	Short: "Browse and install from the plugin library",
+	Short: "Browse and import from the plugin library",
 	Long: `The plugin library contains curated, pre-configured plugin definitions
 that work well together. Use these commands to explore and install plugins.`,
 }
 
 var libraryListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List all plugins in the library",
+	Use:     "get",
+	Aliases: []string{"list"},
+	Short:   "List all plugins in the library",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		lib, err := library.NewLibrary()
 		if err != nil {
@@ -435,9 +440,10 @@ var libraryListCmd = &cobra.Command{
 }
 
 var libraryShowCmd = &cobra.Command{
-	Use:   "show <name>",
-	Short: "Show details of a library plugin",
-	Args:  cobra.ExactArgs(1),
+	Use:     "describe <name>",
+	Aliases: []string{"show"},
+	Short:   "Show details of a library plugin",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
 
@@ -457,15 +463,16 @@ var libraryShowCmd = &cobra.Command{
 }
 
 var libraryInstallCmd = &cobra.Command{
-	Use:   "install <name>...",
-	Short: "Install plugins from library to local store",
+	Use:     "import <name>...",
+	Aliases: []string{"install"},
+	Short:   "Import plugins from library to local store",
 	Long: `Copy plugin definitions from the built-in library to your local store.
 You can then customize them with 'nvp get' and 'nvp apply'.
 
 Examples:
-  nvp library install telescope
-  nvp library install telescope treesitter lspconfig
-  nvp library install --all`,
+  nvp library import telescope
+  nvp library import telescope treesitter lspconfig
+  nvp library import --all`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		all, _ := cmd.Flags().GetBool("all")
 
@@ -566,7 +573,7 @@ func init() {
 	libraryListCmd.Flags().StringP("category", "c", "", "Filter by category")
 	libraryListCmd.Flags().StringP("tag", "t", "", "Filter by tag")
 	libraryShowCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json")
-	libraryInstallCmd.Flags().Bool("all", false, "Install all plugins from library")
+	libraryInstallCmd.Flags().Bool("all", false, "Import all plugins from library")
 }
 
 // =============================================================================
@@ -634,72 +641,69 @@ func init() {
 // LIST COMMAND
 // =============================================================================
 
-var listCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List plugins in the local store",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		mgr, err := getManager()
-		if err != nil {
-			return err
-		}
-		defer mgr.Close()
-
-		plugins, err := mgr.List()
-		if err != nil {
-			return fmt.Errorf("failed to list plugins: %w", err)
-		}
-
-		// Filter by category
-		category, _ := cmd.Flags().GetString("category")
-		if category != "" {
-			var filtered []*plugin.Plugin
-			for _, p := range plugins {
-				if p.Category == category {
-					filtered = append(filtered, p)
-				}
-			}
-			plugins = filtered
-		}
-
-		// Filter by enabled/disabled
-		enabled, _ := cmd.Flags().GetBool("enabled")
-		disabled, _ := cmd.Flags().GetBool("disabled")
-		if enabled || disabled {
-			var filtered []*plugin.Plugin
-			for _, p := range plugins {
-				if (enabled && p.Enabled) || (disabled && !p.Enabled) {
-					filtered = append(filtered, p)
-				}
-			}
-			plugins = filtered
-		}
-
-		if len(plugins) == 0 {
-			render.Info("No plugins found")
-			return nil
-		}
-
-		format, _ := cmd.Flags().GetString("output")
-		return outputPlugins(plugins, format)
-	},
-}
-
-func init() {
-	listCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")
-	listCmd.Flags().StringP("category", "c", "", "Filter by category")
-	listCmd.Flags().Bool("enabled", false, "Show only enabled plugins")
-	listCmd.Flags().Bool("disabled", false, "Show only disabled plugins")
-}
-
-// =============================================================================
-// GET COMMAND
-// =============================================================================
-
 var getCmd = &cobra.Command{
-	Use:   "get <name>",
-	Short: "Get a plugin definition",
-	Args:  cobra.ExactArgs(1),
+	Use:     "get [name]",
+	Aliases: []string{"list"},
+	Short:   "Get plugin definition(s) from local store",
+	Long: `Get plugins from the local store.
+
+With no arguments, lists all plugins in the local store.
+With a name argument, gets a specific plugin definition.
+
+Examples:
+  nvp get                    # List all plugins
+  nvp get -c lsp             # List plugins filtered by category
+  nvp get telescope          # Get specific plugin as YAML
+  nvp get telescope -o json  # Get specific plugin as JSON`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			// List mode
+			mgr, err := getManager()
+			if err != nil {
+				return err
+			}
+			defer mgr.Close()
+
+			plugins, err := mgr.List()
+			if err != nil {
+				return fmt.Errorf("failed to list plugins: %w", err)
+			}
+
+			// Filter by category
+			category, _ := cmd.Flags().GetString("category")
+			if category != "" {
+				var filtered []*plugin.Plugin
+				for _, p := range plugins {
+					if p.Category == category {
+						filtered = append(filtered, p)
+					}
+				}
+				plugins = filtered
+			}
+
+			// Filter by enabled/disabled
+			enabled, _ := cmd.Flags().GetBool("enabled")
+			disabled, _ := cmd.Flags().GetBool("disabled")
+			if enabled || disabled {
+				var filtered []*plugin.Plugin
+				for _, p := range plugins {
+					if (enabled && p.Enabled) || (disabled && !p.Enabled) {
+						filtered = append(filtered, p)
+					}
+				}
+				plugins = filtered
+			}
+
+			if len(plugins) == 0 {
+				render.Info("No plugins found")
+				return nil
+			}
+
+			format, _ := cmd.Flags().GetString("output")
+			return outputPlugins(plugins, format)
+		}
+		// Single get mode
 		name := args[0]
 
 		mgr, err := getManager()
@@ -719,7 +723,10 @@ var getCmd = &cobra.Command{
 }
 
 func init() {
-	getCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json")
+	getCmd.Flags().StringP("output", "o", "yaml", "Output format: table, yaml, json")
+	getCmd.Flags().StringP("category", "c", "", "Filter by category")
+	getCmd.Flags().Bool("enabled", false, "Show only enabled plugins")
+	getCmd.Flags().Bool("disabled", false, "Show only disabled plugins")
 }
 
 // =============================================================================
@@ -766,7 +773,7 @@ var deleteCmd = &cobra.Command{
 }
 
 func init() {
-	deleteCmd.Flags().BoolP("force", "f", false, "Skip confirmation")
+	deleteCmd.Flags().Bool("force", false, "Skip confirmation")
 }
 
 // =============================================================================
@@ -832,11 +839,11 @@ var generateCmd = &cobra.Command{
 	Long: `Generate lazy.nvim compatible Lua files for all enabled plugins.
 
 By default, files are written to ~/.config/nvim/lua/plugins/nvp/
-Use --output to specify a different directory.
+Use --output-dir to specify a different directory.
 
 Examples:
   nvp generate
-  nvp generate --output ~/.config/nvim/lua/plugins/managed
+  nvp generate --output-dir ~/.config/nvim/lua/plugins/managed
   nvp generate --dry-run`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		mgr, err := getManager()
@@ -845,7 +852,7 @@ Examples:
 		}
 		defer mgr.Close()
 
-		outputDir, _ := cmd.Flags().GetString("output")
+		outputDir, _ := cmd.Flags().GetString("output-dir")
 		if outputDir == "" {
 			home, _ := os.UserHomeDir()
 			outputDir = filepath.Join(home, ".config", "nvim", "lua", "plugins", "nvp")
@@ -957,7 +964,7 @@ var generateLuaCmd = &cobra.Command{
 }
 
 func init() {
-	generateCmd.Flags().StringP("output", "o", "", "Output directory")
+	generateCmd.Flags().String("output-dir", "", "Output directory")
 	generateCmd.Flags().Bool("dry-run", false, "Show what would be generated")
 }
 
@@ -979,59 +986,57 @@ The active theme's palette is exported as a Lua module that other plugins
 (lualine, bufferline, telescope, etc.) can use for consistent styling.
 
 Examples:
-  nvp theme library list              # See available themes
-  nvp theme library install catppuccin-mocha
+  nvp theme library get               # See available themes
+  nvp theme library import catppuccin-mocha
   nvp theme use catppuccin-mocha      # Set as active theme
   nvp theme get                       # Show active theme`,
 }
 
-var themeListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List installed themes",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		themeStore := getThemeStore()
-
-		themes, err := themeStore.List()
-		if err != nil {
-			return fmt.Errorf("failed to list themes: %w", err)
-		}
-
-		if len(themes) == 0 {
-			render.Info("No themes installed")
-			render.Info("Use 'nvp theme library list' to see available themes")
-			return nil
-		}
-
-		// Get active theme
-		active, _ := themeStore.GetActive()
-		activeName := ""
-		if active != nil {
-			activeName = active.Name
-		}
-
-		format, _ := cmd.Flags().GetString("output")
-		return outputThemes(themes, format, activeName)
-	},
-}
-
 var themeGetCmd = &cobra.Command{
-	Use:   "get [name]",
-	Short: "Get theme details (defaults to active theme)",
+	Use:     "get [name]",
+	Aliases: []string{"list"},
+	Short:   "Get theme(s)",
+	Long: `Get Neovim themes.
+
+With no arguments, lists all installed themes (active theme marked with *).
+With a name argument, gets a specific theme definition.
+
+Examples:
+  nvp theme get                       # List all installed themes
+  nvp theme get catppuccin-mocha      # Get specific theme
+  nvp theme get catppuccin-mocha -o json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		themeStore := getThemeStore()
 
+		if len(args) == 0 {
+			// List mode
+			themes, err := themeStore.List()
+			if err != nil {
+				return fmt.Errorf("failed to list themes: %w", err)
+			}
+
+			if len(themes) == 0 {
+				render.Info("No themes installed")
+				render.Info("Use 'nvp theme library get' to see available themes")
+				return nil
+			}
+
+			// Get active theme
+			active, _ := themeStore.GetActive()
+			activeName := ""
+			if active != nil {
+				activeName = active.Name
+			}
+
+			format, _ := cmd.Flags().GetString("output")
+			return outputThemes(themes, format, activeName)
+		}
+
+		// Single get mode
 		var t *theme.Theme
 		var err error
 
-		if len(args) > 0 {
-			t, err = themeStore.Get(args[0])
-		} else {
-			t, err = themeStore.GetActive()
-			if t == nil && err == nil {
-				return fmt.Errorf("no active theme set. Use 'nvp theme use <name>' to set one")
-			}
-		}
-
+		t, err = themeStore.Get(args[0])
 		if err != nil {
 			return err
 		}
@@ -1143,12 +1148,13 @@ var themeUseCmd = &cobra.Command{
 // Theme library commands
 var themeLibraryCmd = &cobra.Command{
 	Use:   "library",
-	Short: "Browse and install themes from the library",
+	Short: "Browse and import themes from the library",
 }
 
 var themeLibraryListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List available themes in the library",
+	Use:     "get",
+	Aliases: []string{"list"},
+	Short:   "List available themes in the library",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		themes, err := themelibrary.List()
 		if err != nil {
@@ -1175,9 +1181,10 @@ var themeLibraryListCmd = &cobra.Command{
 }
 
 var themeLibraryShowCmd = &cobra.Command{
-	Use:   "show <name>",
-	Short: "Show details of a library theme",
-	Args:  cobra.ExactArgs(1),
+	Use:     "describe <name>",
+	Aliases: []string{"show"},
+	Short:   "Show details of a library theme",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
 
@@ -1192,9 +1199,10 @@ var themeLibraryShowCmd = &cobra.Command{
 }
 
 var themeLibraryInstallCmd = &cobra.Command{
-	Use:   "install <name>...",
-	Short: "Install themes from library",
-	Args:  cobra.MinimumNArgs(1),
+	Use:     "import <name>...",
+	Aliases: []string{"install"},
+	Short:   "Import themes from library",
+	Args:    cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		themeStore := getThemeStore()
 		if err := themeStore.Init(); err != nil {
@@ -1568,7 +1576,7 @@ Other plugins can use the palette:
 			return fmt.Errorf("no active theme set. Use 'nvp theme use <name>' first")
 		}
 
-		outputDir, _ := cmd.Flags().GetString("output")
+		outputDir, _ := cmd.Flags().GetString("output-dir")
 		if outputDir == "" {
 			home, _ := os.UserHomeDir()
 			outputDir = filepath.Join(home, ".config", "nvim", "lua")
@@ -1628,7 +1636,6 @@ Other plugins can use the palette:
 
 func init() {
 	// Theme subcommands
-	themeCmd.AddCommand(themeListCmd)
 	themeCmd.AddCommand(themeGetCmd)
 	themeCmd.AddCommand(themeApplyCmd)
 	themeCmd.AddCommand(themeCreateCmd)
@@ -1645,21 +1652,20 @@ func init() {
 	themeLibraryCmd.AddCommand(themeLibraryCategoriesCmd)
 
 	// Flags
-	themeListCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")
-	themeGetCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json")
+	themeGetCmd.Flags().StringP("output", "o", "yaml", "Output format: table, yaml, json")
 	themeApplyCmd.Flags().StringSliceP("filename", "f", nil, "Theme YAML file(s) or URL(s) to apply")
 	themeCreateCmd.Flags().String("from", "", "Base color (hex #rrggbb, hue 0-360, or preset name)")
 	themeCreateCmd.Flags().String("name", "", "Theme name (required unless --dry-run)")
 	themeCreateCmd.Flags().Bool("dry-run", false, "Preview without saving")
 	themeCreateCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json, table")
 	themeCreateCmd.Flags().Bool("use", false, "Set as active theme after creation")
-	themeDeleteCmd.Flags().BoolP("force", "f", false, "Skip confirmation")
+	themeDeleteCmd.Flags().Bool("force", false, "Skip confirmation")
 	themePreviewCmd.Flags().Bool("all", false, "Preview all library themes")
 	themeLibraryListCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")
 	themeLibraryListCmd.Flags().StringP("category", "c", "", "Filter by category (dark, light)")
 	themeLibraryShowCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json")
 	themeLibraryInstallCmd.Flags().Bool("use", false, "Set as active theme after install")
-	themeGenerateCmd.Flags().StringP("output", "o", "", "Output directory (default: ~/.config/nvim/lua)")
+	themeGenerateCmd.Flags().String("output-dir", "", "Output directory (default: ~/.config/nvim/lua)")
 	themeGenerateCmd.Flags().Bool("dry-run", false, "Show what would be generated")
 }
 
@@ -1822,7 +1828,7 @@ Generated structure:
 
 Quick Start:
   nvp config init                 # Create default core.yaml
-  nvp config show                 # View current config
+  nvp config describe             # View current config
   nvp config generate             # Generate full nvim structure`,
 }
 
@@ -1867,8 +1873,9 @@ The file is created at ~/.nvp/core.yaml by default.`,
 }
 
 var configShowCmd = &cobra.Command{
-	Use:   "show",
-	Short: "Show current core configuration",
+	Use:     "describe",
+	Aliases: []string{"show"},
+	Short:   "Show current core configuration",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := loadCoreConfig()
 		if err != nil {
@@ -1908,11 +1915,11 @@ This creates the full lua/workspace/ directory structure:
   - lua/workspace/plugins/*.lua (plugin configurations)
 
 By default, files are written to ~/.config/nvim/
-Use --output to specify a different directory.
+Use --output-dir to specify a different directory.
 
 Examples:
   nvp config generate
-  nvp config generate --output /path/to/nvim/config
+  nvp config generate --output-dir /path/to/nvim/config
   nvp config generate --dry-run`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Load core config
@@ -1948,7 +1955,7 @@ Examples:
 		}
 
 		// Output directory
-		outputDir, _ := cmd.Flags().GetString("output")
+		outputDir, _ := cmd.Flags().GetString("output-dir")
 		if outputDir == "" {
 			home, _ := os.UserHomeDir()
 			outputDir = filepath.Join(home, ".config", "nvim")
@@ -2076,7 +2083,7 @@ func init() {
 
 	configInitCmd.Flags().Bool("force", false, "Overwrite existing core.yaml")
 	configShowCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json")
-	configGenerateCmd.Flags().StringP("output", "o", "", "Output directory (default: ~/.config/nvim)")
+	configGenerateCmd.Flags().String("output-dir", "", "Output directory (default: ~/.config/nvim)")
 	configGenerateCmd.Flags().Bool("dry-run", false, "Show what would be generated")
 }
 

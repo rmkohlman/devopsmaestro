@@ -56,7 +56,7 @@ func init() {
 	deleteCACertCmd.Flags().StringVar(&deleteCACertApp, "app", "", "Delete at app level")
 	deleteCACertCmd.Flags().StringVar(&deleteCACertWorkspace, "workspace", "", "Delete at workspace level")
 	deleteCACertCmd.Flags().BoolVar(&deleteCACertGlobal, "global", false, "Delete from DVM-wide defaults")
-	deleteCACertCmd.Flags().BoolVarP(&deleteCACertForce, "force", "f", false, "Skip confirmation prompt")
+	deleteCACertCmd.Flags().BoolVar(&deleteCACertForce, "force", false, "Skip confirmation prompt")
 }
 
 func runDeleteCACert(cmd *cobra.Command, args []string) error {

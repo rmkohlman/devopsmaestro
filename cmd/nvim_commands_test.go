@@ -164,7 +164,7 @@ func TestEditNvimPluginRequiresName(t *testing.T) {
 func TestDeleteNvimPluginHasForceFlag(t *testing.T) {
 	forceFlag := deleteNvimPluginCmd.Flags().Lookup("force")
 	assert.NotNil(t, forceFlag, "should have 'force' flag")
-	assert.Equal(t, "f", forceFlag.Shorthand, "force flag should have 'f' shorthand")
+	assert.Equal(t, "", forceFlag.Shorthand, "force flag should have no shorthand (-f is reserved for --filename)")
 }
 
 // TestNoDeprecatedPluginCommandsInGet verifies deprecated commands were removed

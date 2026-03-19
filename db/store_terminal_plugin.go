@@ -101,18 +101,43 @@ func (ds *SQLDataStore) UpdateTerminalPlugin(plugin *models.TerminalPluginDB) er
 	return nil
 }
 
-// UpsertTerminalPlugin creates or updates a terminal plugin (by name).
+// UpsertTerminalPlugin creates or updates a terminal plugin (by name) atomically using ON CONFLICT.
 func (ds *SQLDataStore) UpsertTerminalPlugin(plugin *models.TerminalPluginDB) error {
-	// First try to get the existing plugin
-	existing, err := ds.GetTerminalPlugin(plugin.Name)
-	if err == nil {
-		// Plugin exists, update it
-		plugin.ID = existing.ID
-		return ds.UpdateTerminalPlugin(plugin)
+	// Ensure required JSON fields have proper defaults
+	if plugin.Dependencies == "" {
+		plugin.Dependencies = "[]"
+	}
+	if plugin.EnvVars == "" {
+		plugin.EnvVars = "{}"
+	}
+	if plugin.Labels == "" {
+		plugin.Labels = "{}"
 	}
 
-	// Plugin doesn't exist, create it
-	return ds.CreateTerminalPlugin(plugin)
+	query := fmt.Sprintf(`INSERT INTO terminal_plugins (name, description, repo, category, shell, manager, 
+		load_command, source_file, dependencies, env_vars, labels, enabled, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, %s, %s)
+		%s, updated_at = %s`,
+		ds.queryBuilder.Now(), ds.queryBuilder.Now(),
+		ds.queryBuilder.UpsertSuffix([]string{"name"}, []string{
+			"description", "repo", "category", "shell", "manager", "load_command",
+			"source_file", "dependencies", "env_vars", "labels", "enabled",
+		}),
+		ds.queryBuilder.Now())
+
+	result, err := ds.driver.Execute(query,
+		plugin.Name, plugin.Description, plugin.Repo, plugin.Category, plugin.Shell, plugin.Manager,
+		plugin.LoadCommand, plugin.SourceFile, plugin.Dependencies, plugin.EnvVars, plugin.Labels, plugin.Enabled)
+	if err != nil {
+		return fmt.Errorf("failed to upsert terminal plugin: %w", err)
+	}
+
+	id, err := result.LastInsertId()
+	if err == nil {
+		plugin.ID = int(id)
+	}
+
+	return nil
 }
 
 // DeleteTerminalPlugin removes a terminal plugin by name.

@@ -15,23 +15,23 @@ func TestResourceAliases(t *testing.T) {
 		expected []string
 	}{
 		// Get command aliases (Apps replaced Projects)
-		{"get apps", getAppsCmd, []string{"application", "applications"}},
-		{"get app", getAppCmd, []string{"application"}},
+		{"get apps", getAppsCmd, []string{"application", "applications", "a"}},
+		{"get app", getAppCmd, []string{"application", "a"}},
 		{"get workspaces", getWorkspacesCmd, []string{"ws"}},
 		{"get workspace", getWorkspaceCmd, []string{"ws"}},
 		{"get context", getContextCmd, []string{"ctx"}},
 		{"get platforms", getPlatformsCmd, []string{"plat"}},
 
 		// Create command aliases (Apps replaced Projects)
-		{"create app", createAppCmd, []string{"application"}},
+		{"create app", createAppCmd, []string{"application", "a"}},
 		{"create workspace", createWorkspaceCmd, []string{"ws"}},
 
 		// Delete command aliases (Apps replaced Projects)
-		{"delete app", deleteAppCmd, []string{"application"}},
+		{"delete app", deleteAppCmd, []string{"application", "a"}},
 		{"delete workspace", deleteWorkspaceCmd, []string{"ws"}},
 
 		// Use command aliases
-		{"use app", useAppCmd, []string{"a"}},
+		{"use app", useAppCmd, []string{"a", "application"}},
 		{"use workspace", useWorkspaceCmd, []string{"ws"}},
 	}
 
@@ -85,8 +85,8 @@ func TestAliasReference(t *testing.T) {
 	// Format: full name → alias
 	// NOTE: Apps replaced Projects in the migration
 	aliases := map[string]string{
-		"apps":       "application, applications",
-		"app":        "application",
+		"apps":       "application, applications, a",
+		"app":        "application, a",
 		"workspaces": "ws",
 		"workspace":  "ws",
 		"context":    "ctx",
@@ -114,14 +114,18 @@ func TestAliasCommandExecution(t *testing.T) {
 		alias  string
 	}{
 		{getCmd, "application"}, // Changed from "app" - "app" is now only for getAppCmd (singular)
+		{getCmd, "a"},           // Short alias for app commands
 		{getCmd, "ws"},
 		{getCmd, "ctx"},
 		{getCmd, "plat"},
 		{createCmd, "application"},
+		{createCmd, "a"},
 		{createCmd, "ws"},
 		{deleteCmd, "application"},
+		{deleteCmd, "a"},
 		{deleteCmd, "ws"},
 		{useCmd, "a"},
+		{useCmd, "application"},
 		{useCmd, "ws"},
 	}
 

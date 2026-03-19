@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/rmkohlman/MaestroTerminal/terminalops/wezterm"
-	weztermlib "github.com/rmkohlman/MaestroTerminal/terminalops/wezterm/library"
 	"github.com/rmkohlman/MaestroPalette"
 	"github.com/rmkohlman/MaestroSDK/render"
+	"github.com/rmkohlman/MaestroTerminal/terminalops/wezterm"
+	weztermlib "github.com/rmkohlman/MaestroTerminal/terminalops/wezterm/library"
 	"github.com/rmkohlman/MaestroTheme/library"
 
 	"github.com/spf13/cobra"
@@ -26,8 +26,9 @@ var weztermCmd = &cobra.Command{
 }
 
 var weztermListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List available WezTerm presets",
+	Use:     "get",
+	Aliases: []string{"list"},
+	Short:   "List available WezTerm presets",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		lib, err := weztermlib.NewWeztermLibrary()
 		if err != nil {
@@ -45,9 +46,10 @@ var weztermListCmd = &cobra.Command{
 }
 
 var weztermShowCmd = &cobra.Command{
-	Use:   "show <name>",
-	Short: "Show details of a WezTerm preset",
-	Args:  cobra.ExactArgs(1),
+	Use:     "describe <name>",
+	Aliases: []string{"show"},
+	Short:   "Show details of a WezTerm preset",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
 
@@ -118,18 +120,21 @@ Examples:
 	},
 }
 
-var weztermApplyCmd = &cobra.Command{
-	Use:   "apply <name>",
-	Short: "Apply WezTerm configuration",
-	Long: `Applies WezTerm configuration by writing to ~/.wezterm.lua.
+var weztermUseCmd = &cobra.Command{
+	Use:     "use <name>",
+	Aliases: []string{"apply"},
+	Short:   "Use a WezTerm configuration preset",
+	Long: `Use a WezTerm configuration preset by writing to ~/.wezterm.lua.
+
+Sets the active WezTerm configuration from a named preset.
 
 Examples:
-  dvt wezterm apply default
-  dvt wezterm apply default --output ~/custom.wezterm.lua`,
+  dvt wezterm use default
+  dvt wezterm use default --output-file ~/custom.wezterm.lua`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
-		output, _ := cmd.Flags().GetString("output")
+		output, _ := cmd.Flags().GetString("output-file")
 
 		lib, err := weztermlib.NewWeztermLibrary()
 		if err != nil {
@@ -174,7 +179,7 @@ Examples:
 			return fmt.Errorf("failed to write config: %w", err)
 		}
 
-		render.Successf("WezTerm configuration applied to %s", outputPath)
+		render.Successf("WezTerm configuration written to %s", outputPath)
 		return nil
 	},
 }
@@ -247,8 +252,8 @@ func init() {
 	weztermCmd.AddCommand(weztermListCmd)
 	weztermCmd.AddCommand(weztermShowCmd)
 	weztermCmd.AddCommand(weztermGenerateCmd)
-	weztermCmd.AddCommand(weztermApplyCmd)
+	weztermCmd.AddCommand(weztermUseCmd)
 
 	// Flags
-	weztermApplyCmd.Flags().StringP("output", "o", "", "Output file (default: ~/.wezterm.lua)")
+	weztermUseCmd.Flags().String("output-file", "", "Output file (default: ~/.wezterm.lua)")
 }

@@ -113,8 +113,16 @@ func prepareStagingDirectory(stagingDir, appPath, appName, workspaceName string,
 	return nil
 }
 
-// copyAppSource copies application source code to staging directory, excluding generated files
+// copyAppSource copies application source code to staging directory, excluding generated files.
+// Symlinks are resolved and validated to ensure they don't escape the source directory tree,
+// preventing symlink attacks where a link could point to sensitive files (e.g., /etc/passwd, ~/.ssh/).
 func copyAppSource(srcDir, dstDir string) error {
+	// Resolve the source directory to an absolute, symlink-free path for reliable comparisons
+	absSrcDir, err := filepath.EvalSymlinks(srcDir)
+	if err != nil {
+		return fmt.Errorf("failed to resolve source directory: %w", err)
+	}
+
 	return filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -136,12 +144,57 @@ func copyAppSource(srcDir, dstDir string) error {
 
 		dstPath := filepath.Join(dstDir, relPath)
 
+		// Check for symlinks using the info from Walk (which uses Lstat, not Stat)
+		if info.Mode()&os.ModeSymlink != 0 {
+			// Resolve the symlink target and verify it stays within the source tree
+			resolved, err := filepath.EvalSymlinks(path)
+			if err != nil {
+				slog.Warn("skipping symlink: failed to resolve target", "path", relPath, "error", err)
+				return nil
+			}
+
+			if !isPathWithinDir(resolved, absSrcDir) {
+				slog.Warn("skipping symlink: target escapes source directory", "path", relPath, "target", resolved)
+				return nil
+			}
+
+			// Symlink target is within source tree — stat the resolved target to copy it
+			resolvedInfo, err := os.Stat(resolved)
+			if err != nil {
+				slog.Warn("skipping symlink: cannot stat resolved target", "path", relPath, "target", resolved, "error", err)
+				return nil
+			}
+
+			if resolvedInfo.IsDir() {
+				// For directory symlinks within the source tree, create the directory
+				return os.MkdirAll(dstPath, resolvedInfo.Mode())
+			}
+
+			// Copy the resolved file content
+			return copyFile(resolved, dstPath, resolvedInfo.Mode())
+		}
+
 		if info.IsDir() {
 			return os.MkdirAll(dstPath, info.Mode())
 		}
 
 		return copyFile(path, dstPath, info.Mode())
 	})
+}
+
+// isPathWithinDir checks whether the given path is within (or equal to) the directory dir.
+// Both paths should be absolute and cleaned. This is used to prevent symlink escape attacks.
+func isPathWithinDir(path, dir string) bool {
+	// Clean both paths for consistent comparison
+	path = filepath.Clean(path)
+	dir = filepath.Clean(dir)
+
+	// The path must start with the directory prefix followed by a separator,
+	// or be exactly the directory itself
+	if path == dir {
+		return true
+	}
+	return strings.HasPrefix(path, dir+string(filepath.Separator))
 }
 
 // shouldSkipPath determines if a path should be skipped during app source copy

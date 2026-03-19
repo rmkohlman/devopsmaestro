@@ -31,7 +31,7 @@ func (r *ContainerdRuntimeV2) getStatusViaColima(ctx context.Context, containerI
 
 	// Check if container exists and get its status via nerdctl
 	statusCmd := fmt.Sprintf("sudo nerdctl --namespace %s inspect -f '{{.State.Status}}' %s 2>/dev/null || echo not_found",
-		r.namespace, containerID)
+		shellEscape(r.namespace), shellEscape(containerID))
 	statusExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", statusCmd)
 	statusOutput, err := statusExec.Output()
 	if err != nil {

@@ -15,6 +15,7 @@ import (
 	"text/tabwriter"
 
 	"devopsmaestro/pkg/terminalbridge"
+	"github.com/rmkohlman/MaestroSDK/colors"
 	"github.com/rmkohlman/MaestroSDK/paths"
 	"github.com/rmkohlman/MaestroSDK/render"
 	"github.com/rmkohlman/MaestroTerminal/terminalops/plugin"
@@ -36,6 +37,7 @@ var (
 	outputFmt string
 	verbose   bool
 	logFile   string
+	noColor   bool
 )
 
 // getMigrationsFS creates a filesystem for migrations.
@@ -53,6 +55,10 @@ func shouldSkipAutoMigration(cmd *cobra.Command) bool {
 	}
 	return false
 }
+
+// errSilent is returned by commands that have already displayed their error
+// via render.Error(). It causes Cobra to set exit code 1 without double-printing.
+var errSilent = fmt.Errorf("")
 
 // rootCmd is the base command
 var rootCmd = &cobra.Command{
@@ -73,15 +79,18 @@ Quick Start:
   dvt profile generate              # Generate config files
 
 Configuration is stored in ~/.dvt/ by default.`,
+	SilenceErrors: true,
+	SilenceUsage:  true,
 }
 
 // setupDatabaseConfig configures database settings for dvt
-func setupDatabaseConfig() {
+func setupDatabaseConfig() error {
 	// Get home directory
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		slog.Error("Failed to get home directory", "error", err)
-		os.Exit(1)
+		render.ErrorfToStderr("Failed to get home directory: %v", err)
+		return errSilent
 	}
 
 	// Set config path to ~/.devopsmaestro (same as dvm for shared database)
@@ -95,7 +104,8 @@ func setupDatabaseConfig() {
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			slog.Error("Failed to read config", "error", err)
-			os.Exit(1)
+			render.ErrorfToStderr("Failed to read config: %v", err)
+			return errSilent
 		}
 		// Config not found is OK - use defaults
 	}
@@ -106,6 +116,7 @@ func setupDatabaseConfig() {
 		viper.Set("database.path", "~/"+paths.DVMDirName+"/"+paths.DatabaseFile)
 		viper.Set("store", "sql")
 	}
+	return nil
 }
 
 // Execute runs the root command
@@ -118,10 +129,22 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&configDir, "config", "", "Config directory (default: ~/.dvt)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable debug logging")
 	rootCmd.PersistentFlags().StringVar(&logFile, "log-file", "", "Write logs to file (JSON format)")
+	rootCmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "Disable colored output")
 
-	// Initialize logging and database before any command runs
-	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+	// Initialize logging, color provider, and database before any command runs
+	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
 		initLogging()
+
+		// Initialize ColorProvider - respect --no-color flag and NO_COLOR env var
+		ctx, err := colors.InitColorProviderForCommand(
+			cmd.Context(),
+			nil, // dvt does not have its own theme store
+			noColor,
+		)
+		if err != nil {
+			slog.Warn("using default colors", "error", err)
+		}
+		cmd.SetContext(ctx)
 
 		// Check if this is a command that doesn't need database
 		skipDB := false
@@ -133,13 +156,16 @@ func init() {
 
 		if !skipDB {
 			// Setup database configuration
-			setupDatabaseConfig()
+			if err := setupDatabaseConfig(); err != nil {
+				return err
+			}
 
 			// Create DataStore instance
 			dataStore, err := db.CreateDataStore()
 			if err != nil {
 				slog.Error("Failed to initialize database", "error", err)
-				os.Exit(1)
+				render.ErrorfToStderr("Failed to initialize database: %v", err)
+				return errSilent
 			}
 
 			// Set the dataStore in context for resource operations
@@ -148,7 +174,7 @@ func init() {
 
 			// Auto-migrate database if needed (skip for commands that don't need DB)
 			if shouldSkipAutoMigration(cmd) {
-				return
+				return nil
 			}
 
 			// Auto-migrate database if needed
@@ -163,7 +189,7 @@ func init() {
 						slog.Warn("migrations not available for auto-migration in dvt", "error", err)
 						render.WarningfToStderr("Migrations not found, skipping auto-migration: %v", err)
 					}
-					return
+					return nil
 				}
 
 				// Use version-based auto-migration
@@ -172,13 +198,14 @@ func init() {
 					slog.Error("auto-migration failed", "error", err)
 					render.ErrorfToStderr("Failed to apply database migrations: %v", err)
 					render.InfoToStderr("Please run 'dvm admin migrate' to fix migration issues.")
-					os.Exit(1)
+					return errSilent
 				}
 				if migrationsApplied && verbose {
 					slog.Info("database migrations applied successfully")
 				}
 			}
 		}
+		return nil
 	}
 
 	// Add all commands
@@ -302,12 +329,13 @@ Use the library to get started with pre-configured prompts, then customize as ne
 
 var promptLibraryCmd = &cobra.Command{
 	Use:   "library",
-	Short: "Browse and install prompts from the library",
+	Short: "Browse and import prompts from the library",
 }
 
 var promptLibraryListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List available prompts in the library",
+	Use:     "get",
+	Aliases: []string{"list"},
+	Short:   "List available prompts in the library",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		lib, err := promptlibrary.NewPromptLibrary()
 		if err != nil {
@@ -333,9 +361,10 @@ var promptLibraryListCmd = &cobra.Command{
 }
 
 var promptLibraryShowCmd = &cobra.Command{
-	Use:   "show <name>",
-	Short: "Show details of a library prompt",
-	Args:  cobra.ExactArgs(1),
+	Use:     "describe <name>",
+	Aliases: []string{"show"},
+	Short:   "Show details of a library prompt",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
 
@@ -355,15 +384,16 @@ var promptLibraryShowCmd = &cobra.Command{
 }
 
 var promptLibraryInstallCmd = &cobra.Command{
-	Use:   "install <name>...",
-	Short: "Install prompts from library to local store",
+	Use:     "import <name>...",
+	Aliases: []string{"install"},
+	Short:   "Import prompts from library to local store",
 	Long: `Copy prompt definitions from the built-in library to your local store.
 You can then customize them or use them directly.
 
 Examples:
-  dvt prompt library install starship-default
-  dvt prompt library install starship-minimal starship-powerline
-  dvt prompt library install --all`,
+  dvt prompt library import starship-default
+  dvt prompt library import starship-minimal starship-powerline
+  dvt prompt library import --all`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		all, _ := cmd.Flags().GetBool("all")
 
@@ -437,40 +467,44 @@ var promptLibraryCategoriesCmd = &cobra.Command{
 	},
 }
 
-var promptListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List installed prompts",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		store := getPromptStore()
-		prompts, err := store.List()
-		if err != nil {
-			return fmt.Errorf("failed to list prompts: %w", err)
-		}
-
-		if len(prompts) == 0 {
-			render.Info("No prompts installed")
-			render.Info("Use 'dvt prompt library list' to see available prompts")
-			return nil
-		}
-
-		format, _ := cmd.Flags().GetString("output")
-		return outputPrompts(prompts, format)
-	},
-}
-
 var promptGetCmd = &cobra.Command{
-	Use:   "get <name>",
-	Short: "Get a prompt definition (kubectl-style)",
-	Long: `Get a terminal prompt stored in the database.
+	Use:     "get [name]",
+	Aliases: []string{"list"},
+	Short:   "Get prompt definition(s)",
+	Long: `Get terminal prompts stored in the database.
+
+With no arguments, lists all installed prompts.
+With a name argument, gets a specific prompt definition.
 
 Uses Resource/Handler pattern with database storage.
 
 Examples:
+  dvt prompt get                     # List all installed prompts
   dvt prompt get coolnight           # Get prompt as YAML
   dvt prompt get coolnight -o json   # Get prompt as JSON
   dvt prompt get coolnight -o table  # Get prompt as table`,
-	Args: cobra.ExactArgs(1),
-	RunE: promptResourceGet,
+	Args: cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			// List mode
+			store := getPromptStore()
+			prompts, err := store.List()
+			if err != nil {
+				return fmt.Errorf("failed to list prompts: %w", err)
+			}
+
+			if len(prompts) == 0 {
+				render.Info("No prompts installed")
+				render.Info("Use 'dvt prompt library get' to see available prompts")
+				return nil
+			}
+
+			format, _ := cmd.Flags().GetString("output")
+			return outputPrompts(prompts, format)
+		}
+		// Single get mode - delegate to resource handler
+		return promptResourceGet(cmd, args)
+	},
 }
 
 var promptApplyCmd = &cobra.Command{
@@ -519,7 +553,6 @@ Examples:
 func init() {
 	// Prompt subcommands
 	promptCmd.AddCommand(promptLibraryCmd)
-	promptCmd.AddCommand(promptListCmd)
 	promptCmd.AddCommand(promptGetCmd)
 	promptCmd.AddCommand(promptApplyCmd)
 	promptCmd.AddCommand(promptDeleteCmd)
@@ -536,11 +569,10 @@ func init() {
 	promptLibraryListCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")
 	promptLibraryListCmd.Flags().StringP("category", "c", "", "Filter by category")
 	promptLibraryShowCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json")
-	promptLibraryInstallCmd.Flags().Bool("all", false, "Install all prompts from library")
-	promptListCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")
-	promptGetCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json")
+	promptLibraryInstallCmd.Flags().Bool("all", false, "Import all prompts from library")
+	promptGetCmd.Flags().StringP("output", "o", "yaml", "Output format: table, yaml, json")
 	promptApplyCmd.Flags().StringSliceP("filename", "f", nil, "Prompt YAML file(s)")
-	promptDeleteCmd.Flags().BoolP("force", "f", false, "Skip confirmation")
+	promptDeleteCmd.Flags().Bool("force", false, "Skip confirmation")
 }
 
 // =============================================================================
@@ -558,12 +590,13 @@ and fuzzy finding. The library provides pre-configured plugins that work well to
 
 var pluginLibraryCmd = &cobra.Command{
 	Use:   "library",
-	Short: "Browse and install plugins from the library",
+	Short: "Browse and import plugins from the library",
 }
 
 var pluginLibraryListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List available plugins in the library",
+	Use:     "get",
+	Aliases: []string{"list"},
+	Short:   "List available plugins in the library",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		lib, err := pluginlibrary.NewPluginLibrary()
 		if err != nil {
@@ -589,9 +622,10 @@ var pluginLibraryListCmd = &cobra.Command{
 }
 
 var pluginLibraryShowCmd = &cobra.Command{
-	Use:   "show <name>",
-	Short: "Show details of a library plugin",
-	Args:  cobra.ExactArgs(1),
+	Use:     "describe <name>",
+	Aliases: []string{"show"},
+	Short:   "Show details of a library plugin",
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
 
@@ -611,14 +645,15 @@ var pluginLibraryShowCmd = &cobra.Command{
 }
 
 var pluginLibraryInstallCmd = &cobra.Command{
-	Use:   "install <name>...",
-	Short: "Install plugins from library to local store",
+	Use:     "import <name>...",
+	Aliases: []string{"install"},
+	Short:   "Import plugins from library to local store",
 	Long: `Copy plugin definitions from the built-in library to your local store.
 
 Examples:
-  dvt plugin library install zsh-autosuggestions
-  dvt plugin library install zsh-autosuggestions zsh-syntax-highlighting
-  dvt plugin library install --all`,
+  dvt plugin library import zsh-autosuggestions
+  dvt plugin library import zsh-autosuggestions zsh-syntax-highlighting
+  dvt plugin library import --all`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		all, _ := cmd.Flags().GetBool("all")
 
@@ -681,35 +716,41 @@ var pluginLibraryCategoriesCmd = &cobra.Command{
 	},
 }
 
-var pluginListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List installed plugins",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		store, err := getPluginStore(cmd)
-		if err != nil {
-			return err
-		}
-		plugins, err := store.List()
-		if err != nil {
-			return fmt.Errorf("failed to list plugins: %w", err)
-		}
-
-		if len(plugins) == 0 {
-			render.Info("No plugins installed")
-			render.Info("Use 'dvt plugin library list' to see available plugins")
-			return nil
-		}
-
-		format, _ := cmd.Flags().GetString("output")
-		return outputPlugins(plugins, format)
-	},
-}
-
 var pluginGetCmd = &cobra.Command{
-	Use:   "get <name>",
-	Short: "Get a plugin definition",
-	Args:  cobra.ExactArgs(1),
+	Use:     "get [name]",
+	Aliases: []string{"list"},
+	Short:   "Get plugin definition(s)",
+	Long: `Get shell plugin definitions.
+
+With no arguments, lists all installed plugins.
+With a name argument, gets a specific plugin definition.
+
+Examples:
+  dvt plugin get                        # List installed plugins
+  dvt plugin get zsh-autosuggestions    # Get specific plugin`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			// List mode
+			store, err := getPluginStore(cmd)
+			if err != nil {
+				return err
+			}
+			plugins, err := store.List()
+			if err != nil {
+				return fmt.Errorf("failed to list plugins: %w", err)
+			}
+
+			if len(plugins) == 0 {
+				render.Info("No plugins installed")
+				render.Info("Use 'dvt plugin library get' to see available plugins")
+				return nil
+			}
+
+			format, _ := cmd.Flags().GetString("output")
+			return outputPlugins(plugins, format)
+		}
+		// Single get mode
 		name := args[0]
 		store, err := getPluginStore(cmd)
 		if err != nil {
@@ -790,7 +831,6 @@ Examples:
 func init() {
 	// Plugin subcommands
 	pluginCmd.AddCommand(pluginLibraryCmd)
-	pluginCmd.AddCommand(pluginListCmd)
 	pluginCmd.AddCommand(pluginGetCmd)
 	pluginCmd.AddCommand(pluginGenerateCmd)
 
@@ -804,9 +844,8 @@ func init() {
 	pluginLibraryListCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")
 	pluginLibraryListCmd.Flags().StringP("category", "c", "", "Filter by category")
 	pluginLibraryShowCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json")
-	pluginLibraryInstallCmd.Flags().Bool("all", false, "Install all plugins from library")
-	pluginListCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")
-	pluginGetCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json")
+	pluginLibraryInstallCmd.Flags().Bool("all", false, "Import all plugins from library")
+	pluginGetCmd.Flags().StringP("output", "o", "yaml", "Output format: table, yaml, json")
 	pluginGenerateCmd.Flags().StringP("manager", "m", "manual", "Plugin manager: zinit, oh-my-zsh, antigen, sheldon, manual")
 }
 
@@ -877,31 +916,37 @@ Examples:
 	},
 }
 
-var shellListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List installed shell configurations",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		store := getShellStore()
-		shells, err := store.List()
-		if err != nil {
-			return fmt.Errorf("failed to list shell configs: %w", err)
-		}
-
-		if len(shells) == 0 {
-			render.Info("No shell configs installed")
-			return nil
-		}
-
-		format, _ := cmd.Flags().GetString("output")
-		return outputShells(shells, format)
-	},
-}
-
 var shellGetCmd = &cobra.Command{
-	Use:   "get <name>",
-	Short: "Get a shell configuration",
-	Args:  cobra.ExactArgs(1),
+	Use:     "get [name]",
+	Aliases: []string{"list"},
+	Short:   "Get shell configuration(s)",
+	Long: `Get shell configurations.
+
+With no arguments, lists all installed shell configurations.
+With a name argument, gets a specific shell configuration.
+
+Examples:
+  dvt shell get              # List installed shell configs
+  dvt shell get my-shell     # Get specific shell config`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			// List mode
+			store := getShellStore()
+			shells, err := store.List()
+			if err != nil {
+				return fmt.Errorf("failed to list shell configs: %w", err)
+			}
+
+			if len(shells) == 0 {
+				render.Info("No shell configs installed")
+				return nil
+			}
+
+			format, _ := cmd.Flags().GetString("output")
+			return outputShells(shells, format)
+		}
+		// Single get mode
 		name := args[0]
 		store := getShellStore()
 
@@ -949,14 +994,12 @@ Examples:
 func init() {
 	// Shell subcommands
 	shellCmd.AddCommand(shellApplyCmd)
-	shellCmd.AddCommand(shellListCmd)
 	shellCmd.AddCommand(shellGetCmd)
 	shellCmd.AddCommand(shellGenerateCmd)
 
 	// Flags
 	shellApplyCmd.Flags().StringSliceP("filename", "f", nil, "Shell YAML file(s)")
-	shellListCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")
-	shellGetCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json")
+	shellGetCmd.Flags().StringP("output", "o", "yaml", "Output format: table, yaml, json")
 }
 
 // =============================================================================
@@ -974,8 +1017,8 @@ Profiles are the recommended way to manage your terminal configuration. They:
   - Include shell settings (aliases, env vars, functions)
 
 Quick start with presets:
-  dvt profile preset list       # See available presets
-  dvt profile preset install default
+  dvt profile preset get        # See available presets
+  dvt profile preset import default
   dvt profile generate          # Generate all config files`,
 }
 
@@ -985,8 +1028,9 @@ var profilePresetCmd = &cobra.Command{
 }
 
 var profilePresetListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List available profile presets",
+	Use:     "get",
+	Aliases: []string{"list"},
+	Short:   "List available profile presets",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		presets := []struct {
 			name        string
@@ -1008,9 +1052,10 @@ var profilePresetListCmd = &cobra.Command{
 }
 
 var profilePresetInstallCmd = &cobra.Command{
-	Use:   "install <name>",
-	Short: "Install a profile preset",
-	Long: `Install a profile preset and all its dependencies.
+	Use:     "import <name>",
+	Aliases: []string{"install"},
+	Short:   "Import a profile preset",
+	Long: `Import a profile preset and all its dependencies.
 
 Available presets:
   default     - Balanced setup with Starship, autosuggestions, syntax-highlighting
@@ -1018,7 +1063,7 @@ Available presets:
   power-user  - Full-featured setup with all plugins
 
 Examples:
-  dvt profile preset install default`,
+  dvt profile preset import default`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
@@ -1100,32 +1145,38 @@ Examples:
 	},
 }
 
-var profileListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List installed profiles",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		store := getProfileStore()
-		profiles, err := store.List()
-		if err != nil {
-			return fmt.Errorf("failed to list profiles: %w", err)
-		}
-
-		if len(profiles) == 0 {
-			render.Info("No profiles installed")
-			render.Info("Use 'dvt profile preset list' to see available presets")
-			return nil
-		}
-
-		format, _ := cmd.Flags().GetString("output")
-		return outputProfiles(profiles, format)
-	},
-}
-
 var profileGetCmd = &cobra.Command{
-	Use:   "get <name>",
-	Short: "Get a profile definition",
-	Args:  cobra.ExactArgs(1),
+	Use:     "get [name]",
+	Aliases: []string{"list"},
+	Short:   "Get profile definition(s)",
+	Long: `Get terminal profile definitions.
+
+With no arguments, lists all installed profiles.
+With a name argument, gets a specific profile definition.
+
+Examples:
+  dvt profile get              # List installed profiles
+  dvt profile get default      # Get specific profile`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			// List mode
+			store := getProfileStore()
+			profiles, err := store.List()
+			if err != nil {
+				return fmt.Errorf("failed to list profiles: %w", err)
+			}
+
+			if len(profiles) == 0 {
+				render.Info("No profiles installed")
+				render.Info("Use 'dvt profile preset get' to see available presets")
+				return nil
+			}
+
+			format, _ := cmd.Flags().GetString("output")
+			return outputProfiles(profiles, format)
+		}
+		// Single get mode
 		name := args[0]
 		store := getProfileStore()
 
@@ -1149,11 +1200,11 @@ This creates:
   - Plugin installation/loading code
   - Shell aliases, env vars, functions
 
-By default outputs to stdout. Use --output to write to files.
+By default outputs to stdout. Use --output-dir to write to files.
 
 Examples:
   dvt profile generate default
-  dvt profile generate default --output ~/.config/`,
+  dvt profile generate default --output-dir ~/.config/`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
@@ -1164,7 +1215,7 @@ Examples:
 			return fmt.Errorf("profile not found: %s", name)
 		}
 
-		outputDir, _ := cmd.Flags().GetString("output")
+		outputDir, _ := cmd.Flags().GetString("output-dir")
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
 
 		gen := profile.NewGenerator("")
@@ -1272,7 +1323,6 @@ func init() {
 	// Profile subcommands
 	profileCmd.AddCommand(profilePresetCmd)
 	profileCmd.AddCommand(profileApplyCmd)
-	profileCmd.AddCommand(profileListCmd)
 	profileCmd.AddCommand(profileGetCmd)
 	profileCmd.AddCommand(profileGenerateCmd)
 	profileCmd.AddCommand(profileUseCmd)
@@ -1283,9 +1333,8 @@ func init() {
 
 	// Flags
 	profileApplyCmd.Flags().StringSliceP("filename", "f", nil, "Profile YAML file(s)")
-	profileListCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")
-	profileGetCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json")
-	profileGenerateCmd.Flags().StringP("output", "o", "", "Output directory (default: stdout)")
+	profileGetCmd.Flags().StringP("output", "o", "yaml", "Output format: table, yaml, json")
+	profileGenerateCmd.Flags().String("output-dir", "", "Output directory (default: stdout)")
 	profileGenerateCmd.Flags().Bool("dry-run", false, "Show what would be generated")
 }
 

@@ -93,18 +93,39 @@ func (ds *SQLDataStore) UpdateTerminalEmulator(emulator *models.TerminalEmulator
 	return nil
 }
 
-// UpsertTerminalEmulator creates or updates a terminal emulator (by name).
+// UpsertTerminalEmulator creates or updates a terminal emulator (by name) atomically using ON CONFLICT.
 func (ds *SQLDataStore) UpsertTerminalEmulator(emulator *models.TerminalEmulatorDB) error {
-	// First try to get the existing emulator
-	existing, err := ds.GetTerminalEmulator(emulator.Name)
-	if err == nil {
-		// Emulator exists, update it
-		emulator.ID = existing.ID
-		return ds.UpdateTerminalEmulator(emulator)
+	// Ensure required JSON fields have proper defaults
+	if emulator.Config == "" {
+		emulator.Config = "{}"
+	}
+	if emulator.Labels == "" {
+		emulator.Labels = "{}"
 	}
 
-	// Emulator doesn't exist, create it
-	return ds.CreateTerminalEmulator(emulator)
+	query := fmt.Sprintf(`INSERT INTO terminal_emulators (name, description, type, config, theme_ref, category, 
+		labels, workspace, enabled, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, %s, %s)
+		%s, updated_at = %s`,
+		ds.queryBuilder.Now(), ds.queryBuilder.Now(),
+		ds.queryBuilder.UpsertSuffix([]string{"name"}, []string{
+			"description", "type", "config", "theme_ref", "category", "labels", "workspace", "enabled",
+		}),
+		ds.queryBuilder.Now())
+
+	result, err := ds.driver.Execute(query,
+		emulator.Name, emulator.Description, emulator.Type, emulator.Config, emulator.ThemeRef,
+		emulator.Category, emulator.Labels, emulator.Workspace, emulator.Enabled)
+	if err != nil {
+		return fmt.Errorf("failed to upsert terminal emulator: %w", err)
+	}
+
+	id, err := result.LastInsertId()
+	if err == nil {
+		emulator.ID = int(id)
+	}
+
+	return nil
 }
 
 // DeleteTerminalEmulator removes a terminal emulator by name.

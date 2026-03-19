@@ -4,7 +4,6 @@ import (
 	"devopsmaestro/ui"
 	"fmt"
 	"github.com/rmkohlman/MaestroNvim/nvim"
-	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -75,7 +74,7 @@ Examples:
   # Overwrite existing config
   dvm nvim init kickstart --git-clone --overwrite`,
 	Args: cobra.ExactArgs(1),
-	Run:  runNvimInit,
+	RunE: runNvimInit,
 }
 
 var nvimStatusCmd = &cobra.Command{
@@ -93,7 +92,7 @@ Shows:
 
 Example:
   dvm nvim status`,
-	Run: runNvimStatus,
+	RunE: runNvimStatus,
 }
 
 var nvimSyncCmd = &cobra.Command{
@@ -111,7 +110,7 @@ Examples:
   # Pull with automatic conflict resolution (remote wins)
   dvm nvim sync my-workspace --remote-wins`,
 	Args: cobra.ExactArgs(1),
-	Run:  runNvimSync,
+	RunE: runNvimSync,
 }
 
 var nvimPushCmd = &cobra.Command{
@@ -129,7 +128,7 @@ Examples:
   # Push and restart Neovim in workspace
   dvm nvim push my-workspace --restart`,
 	Args: cobra.ExactArgs(1),
-	Run:  runNvimPush,
+	RunE: runNvimPush,
 }
 
 // Flags
@@ -171,7 +170,7 @@ func init() {
 	// Do NOT register them here — init() ordering would overwrite the real functions.
 }
 
-func runNvimInit(cmd *cobra.Command, args []string) {
+func runNvimInit(cmd *cobra.Command, args []string) error {
 	template := args[0]
 
 	fmt.Println()
@@ -217,7 +216,7 @@ func runNvimInit(cmd *cobra.Command, args []string) {
 
 	if err := mgr.Init(opts); err != nil {
 		fmt.Println(ui.ErrorBox(fmt.Sprintf("Failed to initialize: %v", err)))
-		os.Exit(1)
+		return errSilent
 	}
 
 	status, _ := mgr.Status()
@@ -238,14 +237,15 @@ func runNvimInit(cmd *cobra.Command, args []string) {
 		fmt.Println(ui.MutedStyle.Render("    3. Restart Neovim"))
 	}
 	fmt.Println()
+	return nil
 }
 
-func runNvimStatus(cmd *cobra.Command, args []string) {
+func runNvimStatus(cmd *cobra.Command, args []string) error {
 	mgr := nvim.NewManager()
 	status, err := mgr.Status()
 	if err != nil {
 		fmt.Println(ui.ErrorBox(fmt.Sprintf("Failed to get status: %v", err)))
-		os.Exit(1)
+		return errSilent
 	}
 
 	fmt.Println()
@@ -261,7 +261,7 @@ func runNvimStatus(cmd *cobra.Command, args []string) {
 		fmt.Println()
 		fmt.Println(ui.InfoBox("No Neovim config found. Run 'dvm nvim init <template>' to create one."))
 		fmt.Println()
-		return
+		return nil
 	}
 
 	if status.Template != "" {
@@ -283,9 +283,10 @@ func runNvimStatus(cmd *cobra.Command, args []string) {
 	}
 
 	fmt.Println()
+	return nil
 }
 
-func runNvimSync(cmd *cobra.Command, args []string) {
+func runNvimSync(cmd *cobra.Command, args []string) error {
 	workspace := args[0]
 
 	fmt.Println()
@@ -298,14 +299,15 @@ func runNvimSync(cmd *cobra.Command, args []string) {
 	mgr := nvim.NewManager()
 	if err := mgr.Sync(workspace, nvim.SyncPull); err != nil {
 		fmt.Println(ui.ErrorBox(fmt.Sprintf("Failed to sync: %v", err)))
-		os.Exit(1)
+		return errSilent
 	}
 
 	fmt.Println(ui.SuccessBox("Configuration synced successfully!"))
 	fmt.Println()
+	return nil
 }
 
-func runNvimPush(cmd *cobra.Command, args []string) {
+func runNvimPush(cmd *cobra.Command, args []string) error {
 	workspace := args[0]
 
 	fmt.Println()
@@ -318,9 +320,10 @@ func runNvimPush(cmd *cobra.Command, args []string) {
 	mgr := nvim.NewManager()
 	if err := mgr.Push(workspace); err != nil {
 		fmt.Println(ui.ErrorBox(fmt.Sprintf("Failed to push: %v", err)))
-		os.Exit(1)
+		return errSilent
 	}
 
 	fmt.Println(ui.SuccessBox("Configuration pushed successfully!"))
 	fmt.Println()
+	return nil
 }

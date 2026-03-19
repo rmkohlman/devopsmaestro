@@ -109,14 +109,21 @@ func (ds *SQLDataStore) UpdateWorkspace(workspace *models.Workspace) error {
 // DeleteWorkspace removes a workspace by ID.
 // Also cleans up orphaned credentials scoped to this workspace
 // (polymorphic scope_type/scope_id has no FK constraint).
+// The entire operation runs in a transaction to ensure data integrity.
 func (ds *SQLDataStore) DeleteWorkspace(id int) error {
+	tx, err := ds.driver.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // rollback after commit is a no-op
+
 	// Clean up orphaned credentials (polymorphic scope_id has no FK constraint)
-	if _, err := ds.driver.Execute(`DELETE FROM credentials WHERE scope_type = 'workspace' AND scope_id = ?`, id); err != nil {
+	if _, err := tx.Execute(`DELETE FROM credentials WHERE scope_type = 'workspace' AND scope_id = ?`, id); err != nil {
 		return fmt.Errorf("failed to delete workspace credentials: %w", err)
 	}
 
 	query := `DELETE FROM workspaces WHERE id = ?`
-	result, err := ds.driver.Execute(query, id)
+	result, err := tx.Execute(query, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete workspace: %w", err)
 	}
@@ -127,7 +134,8 @@ func (ds *SQLDataStore) DeleteWorkspace(id int) error {
 	if rowsAffected == 0 {
 		return NewErrNotFound("workspace", id)
 	}
-	return nil
+
+	return tx.Commit()
 }
 
 // ListWorkspacesByApp retrieves all workspaces for an app.

@@ -28,15 +28,15 @@ Neovim distributions and configurations. This provides a starting point
 for your own customizations while following proven patterns.
 
 Available Commands:
-  list      List available sources with descriptions  
-  show      Show detailed information about a source
+  get       List available sources with descriptions  
+  describe  Show detailed information about a source
   sync      Sync plugins from an external source
 
 Examples:
-  nvp source list                    # List all available sources
-  nvp source show lazyvim           # Show LazyVim source details
-  nvp source sync lazyvim           # Sync all LazyVim plugins
-  nvp source sync lazyvim --dry-run # Preview what would be synced`,
+  nvp source get                     # List all available sources
+  nvp source describe lazyvim        # Show LazyVim source details
+  nvp source sync lazyvim            # Sync all LazyVim plugins
+  nvp source sync lazyvim --dry-run  # Preview what would be synced`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Default behavior is to list sources
 		return sourceListCmd.RunE(cmd, args)
@@ -44,8 +44,9 @@ Examples:
 }
 
 var sourceListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List available sources",
+	Use:     "get",
+	Aliases: []string{"list"},
+	Short:   "List available sources",
 	Long: `List all available external plugin sources.
 	
 Sources are external Neovim configurations that can be used to import
@@ -53,9 +54,9 @@ plugin definitions. Each source may have different plugin collections,
 configurations, and approaches.
 
 Examples:
-  nvp source list                    # List with table format
-  nvp source list -o yaml           # YAML format
-  nvp source list -o json           # JSON format`,
+  nvp source get                     # List with table format
+  nvp source get -o yaml            # YAML format
+  nvp source get -o json            # JSON format`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		factory := sync.NewSourceHandlerFactory()
 		sources := factory.ListSources()
@@ -83,16 +84,17 @@ Examples:
 }
 
 var sourceShowCmd = &cobra.Command{
-	Use:   "show <name>",
-	Short: "Show details of a source",
+	Use:     "describe <name>",
+	Aliases: []string{"show"},
+	Short:   "Show details of a source",
 	Long: `Show detailed information about an external plugin source.
 	
 This displays metadata about the source including description, URL,
 type, authentication requirements, and available configuration options.
 
 Examples:
-  nvp source show lazyvim           # Show LazyVim source details
-  nvp source show astronvim -o json # JSON format`,
+  nvp source describe lazyvim           # Show LazyVim source details
+  nvp source describe astronvim -o json # JSON format`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		sourceName := args[0]
@@ -101,7 +103,7 @@ Examples:
 
 		// Check if source exists
 		if !factory.IsSupported(sourceName) {
-			return fmt.Errorf("source not found: %s\n\nUse 'nvp source list' to see available sources", sourceName)
+			return fmt.Errorf("source not found: %s\n\nUse 'nvp source get' to see available sources", sourceName)
 		}
 
 		info, err := factory.GetHandlerInfo(sourceName)
@@ -167,7 +169,7 @@ Examples:
 		factory := sync.NewSourceHandlerFactory()
 
 		if !factory.IsSupported(sourceName) {
-			return fmt.Errorf("source not found: %s\n\nUse 'nvp source list' to see available sources", sourceName)
+			return fmt.Errorf("source not found: %s\n\nUse 'nvp source get' to see available sources", sourceName)
 		}
 
 		handler, err := factory.CreateHandler(sourceName)
@@ -261,7 +263,7 @@ func init() {
 	sourceSyncCmd.Flags().Bool("dry-run", false, "Preview changes without applying")
 	sourceSyncCmd.Flags().StringSliceP("selector", "l", nil, "Label selector to filter plugins (key=value)")
 	sourceSyncCmd.Flags().String("tag", "", "Specific version/tag to sync from")
-	sourceSyncCmd.Flags().BoolP("force", "f", false, "Overwrite existing plugins")
+	sourceSyncCmd.Flags().Bool("force", false, "Overwrite existing plugins")
 	sourceSyncCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")
 }
 
@@ -384,7 +386,7 @@ func outputSyncResult(result *sync.SyncResult, format string, dryRun bool) error
 		if !dryRun && result.TotalSynced > 0 {
 			render.Blank()
 			render.Info("Next steps:")
-			render.Plain("  nvp list                    # View synced plugins")
+			render.Plain("  nvp get                     # View synced plugins")
 			render.Plain("  nvp generate                # Generate Lua files")
 			render.Plain("  nvp get <plugin-name>       # Customize specific plugins")
 		}

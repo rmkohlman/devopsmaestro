@@ -25,7 +25,7 @@ var createCmd = &cobra.Command{
 	Long: `Create various resources like apps, workspaces, dependencies, etc.
 
 Resource aliases (kubectl-style):
-  app       → a
+  app       → a, application
   workspace → ws
 
 Examples:

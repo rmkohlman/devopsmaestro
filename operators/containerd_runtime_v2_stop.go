@@ -28,7 +28,7 @@ func (r *ContainerdRuntimeV2) stopViaColima(ctx context.Context, containerID str
 	}
 
 	// Stop the container using nerdctl
-	stopCmd := fmt.Sprintf("sudo nerdctl --namespace %s stop %s 2>/dev/null || true", r.namespace, containerID)
+	stopCmd := fmt.Sprintf("sudo nerdctl --namespace %s stop %s 2>/dev/null || true", shellEscape(r.namespace), shellEscape(containerID))
 	stopExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", stopCmd)
 	if err := stopExec.Run(); err != nil {
 		return fmt.Errorf("failed to stop container: %w", err)

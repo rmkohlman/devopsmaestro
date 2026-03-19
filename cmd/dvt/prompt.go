@@ -463,7 +463,7 @@ func init() {
 	getPromptsCmd.Flags().StringP("type", "", "", "Filter by prompt type (starship, powerlevel10k)")
 
 	// Flags for prompt set command
-	promptSetCmd.Flags().BoolP("force", "f", false, "Skip confirmation")
+	promptSetCmd.Flags().Bool("force", false, "Skip confirmation")
 
 	// Register handlers to ensure TerminalPrompt is available
 	handlers.RegisterAll()

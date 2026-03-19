@@ -3,10 +3,10 @@ package cmd
 import (
 	"devopsmaestro/db"
 	"devopsmaestro/operators"
-	terminalpkglib "github.com/rmkohlman/MaestroTerminal/terminalops/package/library"
 	"fmt"
 	"github.com/rmkohlman/MaestroNvim/nvimops/package/library"
 	"github.com/rmkohlman/MaestroSDK/render"
+	terminalpkglib "github.com/rmkohlman/MaestroTerminal/terminalops/package/library"
 
 	"github.com/spf13/cobra"
 )
@@ -20,7 +20,7 @@ var useCmd = &cobra.Command{
 Use 'none' as the name to clear the context, or use --clear to clear all context.
 
 Resource aliases (kubectl-style):
-  app       → a
+  app       → a, application
   workspace → ws
 
 Examples:
@@ -56,7 +56,7 @@ Examples:
 // useAppCmd switches the active app
 var useAppCmd = &cobra.Command{
 	Use:     "app <name>",
-	Aliases: []string{"a"},
+	Aliases: []string{"a", "application"},
 	Short:   "Switch to an app",
 	Long: `Set the specified app as the active context.
 

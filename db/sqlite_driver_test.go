@@ -743,6 +743,86 @@ func TestSQLiteDriver_ForeignKeysEnabled_File(t *testing.T) {
 }
 
 // =============================================================================
+// WAL Mode Tests
+// =============================================================================
+
+// TestSQLiteDriver_WALMode_File verifies that PRAGMA journal_mode=WAL is applied
+// after connecting to a file-based SQLite database.
+func TestSQLiteDriver_WALMode_File(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "wal_test.db")
+
+	cfg := DriverConfig{
+		Type: DriverSQLite,
+		Path: dbPath,
+	}
+	driver, err := NewSQLiteDriver(cfg)
+	if err != nil {
+		t.Fatalf("NewSQLiteDriver() error = %v", err)
+	}
+	defer driver.Close()
+
+	if err := driver.Connect(); err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+
+	// Verify WAL mode is enabled
+	var journalMode string
+	row := driver.QueryRow("PRAGMA journal_mode")
+	if err := row.Scan(&journalMode); err != nil {
+		t.Fatalf("failed to scan PRAGMA journal_mode: %v", err)
+	}
+	if journalMode != "wal" {
+		t.Errorf("PRAGMA journal_mode = %q, want %q", journalMode, "wal")
+	}
+}
+
+// TestSQLiteDriver_BusyTimeout verifies that busy_timeout is set after Connect.
+func TestSQLiteDriver_BusyTimeout(t *testing.T) {
+	driver := createTestDriver(t)
+	defer driver.Close()
+
+	var timeout int
+	row := driver.QueryRow("PRAGMA busy_timeout")
+	if err := row.Scan(&timeout); err != nil {
+		t.Fatalf("failed to scan PRAGMA busy_timeout: %v", err)
+	}
+	if timeout != 5000 {
+		t.Errorf("PRAGMA busy_timeout = %d, want 5000", timeout)
+	}
+}
+
+// TestSQLiteDriver_SynchronousNormal verifies that synchronous=NORMAL is set after Connect.
+func TestSQLiteDriver_SynchronousNormal(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "sync_test.db")
+
+	cfg := DriverConfig{
+		Type: DriverSQLite,
+		Path: dbPath,
+	}
+	driver, err := NewSQLiteDriver(cfg)
+	if err != nil {
+		t.Fatalf("NewSQLiteDriver() error = %v", err)
+	}
+	defer driver.Close()
+
+	if err := driver.Connect(); err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+
+	var syncMode int
+	row := driver.QueryRow("PRAGMA synchronous")
+	if err := row.Scan(&syncMode); err != nil {
+		t.Fatalf("failed to scan PRAGMA synchronous: %v", err)
+	}
+	// synchronous=NORMAL is value 1
+	if syncMode != 1 {
+		t.Errorf("PRAGMA synchronous = %d, want 1 (NORMAL)", syncMode)
+	}
+}
+
+// =============================================================================
 // Helper Functions
 // =============================================================================
 

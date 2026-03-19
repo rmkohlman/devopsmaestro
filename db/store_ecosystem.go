@@ -75,34 +75,41 @@ func (ds *SQLDataStore) UpdateEcosystem(ecosystem *models.Ecosystem) error {
 // DeleteEcosystem removes an ecosystem by name.
 // Also cleans up orphaned credentials scoped to this ecosystem and all its
 // child domains/apps/workspaces (polymorphic scope_type/scope_id has no FK constraint).
+// The entire operation runs in a transaction to ensure data integrity.
 func (ds *SQLDataStore) DeleteEcosystem(name string) error {
+	tx, err := ds.driver.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // rollback after commit is a no-op
+
 	// Look up ecosystem ID for credential cleanup
 	var ecoID int
-	row := ds.driver.QueryRow(`SELECT id FROM ecosystems WHERE name = ?`, name)
+	row := tx.QueryRow(`SELECT id FROM ecosystems WHERE name = ?`, name)
 	if err := row.Scan(&ecoID); err != nil {
 		return NewErrNotFound("ecosystem", name)
 	}
 
 	// Clean up credentials scoped to workspaces under apps in domains in this ecosystem
-	if _, err := ds.driver.Execute(`DELETE FROM credentials WHERE scope_type = 'workspace' AND scope_id IN (SELECT w.id FROM workspaces w JOIN apps a ON w.app_id = a.id JOIN domains d ON a.domain_id = d.id WHERE d.ecosystem_id = ?)`, ecoID); err != nil {
+	if _, err := tx.Execute(`DELETE FROM credentials WHERE scope_type = 'workspace' AND scope_id IN (SELECT w.id FROM workspaces w JOIN apps a ON w.app_id = a.id JOIN domains d ON a.domain_id = d.id WHERE d.ecosystem_id = ?)`, ecoID); err != nil {
 		return fmt.Errorf("failed to delete workspace credentials for ecosystem: %w", err)
 	}
 	// Clean up credentials scoped to apps in domains in this ecosystem
-	if _, err := ds.driver.Execute(`DELETE FROM credentials WHERE scope_type = 'app' AND scope_id IN (SELECT a.id FROM apps a JOIN domains d ON a.domain_id = d.id WHERE d.ecosystem_id = ?)`, ecoID); err != nil {
+	if _, err := tx.Execute(`DELETE FROM credentials WHERE scope_type = 'app' AND scope_id IN (SELECT a.id FROM apps a JOIN domains d ON a.domain_id = d.id WHERE d.ecosystem_id = ?)`, ecoID); err != nil {
 		return fmt.Errorf("failed to delete app credentials for ecosystem: %w", err)
 	}
 	// Clean up credentials scoped to domains in this ecosystem
-	if _, err := ds.driver.Execute(`DELETE FROM credentials WHERE scope_type = 'domain' AND scope_id IN (SELECT id FROM domains WHERE ecosystem_id = ?)`, ecoID); err != nil {
+	if _, err := tx.Execute(`DELETE FROM credentials WHERE scope_type = 'domain' AND scope_id IN (SELECT id FROM domains WHERE ecosystem_id = ?)`, ecoID); err != nil {
 		return fmt.Errorf("failed to delete domain credentials for ecosystem: %w", err)
 	}
 	// Clean up credentials scoped to this ecosystem
-	if _, err := ds.driver.Execute(`DELETE FROM credentials WHERE scope_type = 'ecosystem' AND scope_id = ?`, ecoID); err != nil {
+	if _, err := tx.Execute(`DELETE FROM credentials WHERE scope_type = 'ecosystem' AND scope_id = ?`, ecoID); err != nil {
 		return fmt.Errorf("failed to delete ecosystem credentials: %w", err)
 	}
 
 	// Delete the ecosystem (cascades to domains -> apps -> workspaces via FK ON DELETE CASCADE)
 	query := `DELETE FROM ecosystems WHERE name = ?`
-	result, err := ds.driver.Execute(query, name)
+	result, err := tx.Execute(query, name)
 	if err != nil {
 		return fmt.Errorf("failed to delete ecosystem: %w", err)
 	}
@@ -113,7 +120,8 @@ func (ds *SQLDataStore) DeleteEcosystem(name string) error {
 	if rowsAffected == 0 {
 		return NewErrNotFound("ecosystem", name)
 	}
-	return nil
+
+	return tx.Commit()
 }
 
 // ListEcosystems retrieves all ecosystems.

@@ -112,21 +112,19 @@ From the project board:
 
 ### Delegating an Issue to an Agent
 
-1. **Read the issue**: `gh issue view #<number> --repo rmkohlman/devopsmaestro`
-2. **Update project fields** before starting work:
-   - Status → "In Progress"
-   - Agent → the domain agent doing the work
-   - Sprint → current sprint identifier
-3. **Create a Task** for the domain agent including:
-   - Issue number and title
-   - Full issue body (the task spec)
-   - Any advisory agent feedback (architecture/security review)
-4. **When agent returns results**, comment on the issue:
+> **CARDINAL RULE: Every agent delegation MUST have a GitHub Issue ticket. The ticket IS the work order.**
+> **No ticket = no delegation. No exceptions. The ticket must be assigned to the target agent.**
+
+1. **Ensure a ticket exists** — find an existing issue or create one:
    ```bash
-   gh issue comment <number> --repo rmkohlman/devopsmaestro --body "## Progress\n<agent summary>\n\n**Agent**: @<agent-name>\n**Status**: <complete|partial>\n**Files changed**: <list>"
+   gh issue create --repo rmkohlman/devopsmaestro \
+     --title "<clear task title>" \
+     --label "<type>" --label "<module>" --label "<priority>" \
+     --body "<task spec with acceptance criteria>"
    ```
-5. **If complete**: Status → "Done", close the issue
-6. **If partial**: leave "In Progress", comment documents what's done and what remains
+2. **Add to project** (if not already): `gh project item-add 1 --owner rmkohlman --url <issue-url>`
+3. **Set project fields** — Agent (assigned to the target agent), Status ("In Progress"), Sprint
+4. **Delegate via Task tool** — pass the issue number so the agent reads its work from the ticket
 
 ### Resuming Interrupted Work
 
@@ -211,11 +209,13 @@ PHASE 5: SHIP
 
 ## What You Do NOT Do
 
-1. **Write code** — delegate to domain agents
-2. **Read large code files** — delegate exploration to agents
-3. **Run git commands** — delegate to `@release`
-4. **Skip advisory gates** — `@architecture` before implementation, `@security` for risky changes
-5. **Track work in markdown** — use GitHub Issues and Project
+1. **Delegate without a ticket** — every Task delegation MUST pass a GitHub Issue number assigned to the target agent
+2. **Write code** — delegate to domain agents
+3. **Read code or docs directly** — delegate exploration to agents (read/glob/grep tools are disabled)
+4. **Run git commands** — delegate to `@release`
+5. **Skip advisory gates** — `@architecture` before implementation, `@security` for risky changes
+6. **Track work in markdown** — use GitHub Issues and Project
+7. **Do ad-hoc work** — if the user asks for something, create a ticket first, then work through the ticket
 
 ---
 

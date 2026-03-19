@@ -9,10 +9,10 @@ import (
 	"text/tabwriter"
 
 	"devopsmaestro/db"
-	"github.com/rmkohlman/MaestroTerminal/terminalops/emulator"
-	"github.com/rmkohlman/MaestroTerminal/terminalops/emulator/library"
 	"devopsmaestro/pkg/terminalbridge"
 	"github.com/rmkohlman/MaestroSDK/render"
+	"github.com/rmkohlman/MaestroTerminal/terminalops/emulator"
+	"github.com/rmkohlman/MaestroTerminal/terminalops/emulator/library"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -29,23 +29,27 @@ Manage configurations for terminal emulators like WezTerm, Alacritty, Kitty, and
 Emulator configurations can be associated with workspaces and themes.
 
 Examples:
-  dvt emulator list                    # List all emulators
+  dvt emulator get                     # List all emulators
   dvt emulator get wezterm-default     # Show emulator details
   dvt emulator enable wezterm-default  # Enable emulator
   dvt emulator disable old-config     # Disable emulator`,
 }
 
-// emulatorListCmd lists all emulators
-var emulatorListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List terminal emulators",
-	Long: `List terminal emulator configurations from the database.
+// emulatorGetCmd shows emulator details, or lists all emulators when no name is given
+var emulatorGetCmd = &cobra.Command{
+	Use:     "get [name]",
+	Aliases: []string{"list"},
+	Short:   "Get emulator configuration details (or list all)",
+	Long: `Show details of a specific terminal emulator configuration, or list all emulators.
 
 Examples:
-  dvt emulator list                     # List all emulators
-  dvt emulator list --type wezterm      # Filter by emulator type
-  dvt emulator list --category dev      # Filter by category
-  dvt emulator list -o yaml             # YAML output`,
+  dvt emulator get                       # List all emulators
+  dvt emulator get --type wezterm        # Filter by emulator type
+  dvt emulator get --category dev        # Filter by category
+  dvt emulator get -o yaml               # YAML output
+  dvt emulator get wezterm-default       # Show specific emulator
+  dvt emulator get my-config -o yaml`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		store, err := getEmulatorStore(cmd)
 		if err != nil {
@@ -53,63 +57,47 @@ Examples:
 		}
 		defer store.Close()
 
-		var emulators []*emulator.Emulator
+		if len(args) == 0 {
+			// List mode
+			var emulators []*emulator.Emulator
 
-		// Filter by type if specified
-		emulatorType, _ := cmd.Flags().GetString("type")
-		if emulatorType != "" {
-			emulators, err = store.ListByType(emulatorType)
-			if err != nil {
-				return fmt.Errorf("failed to list emulators by type: %w", err)
-			}
-		} else {
-			emulators, err = store.List()
-			if err != nil {
-				return fmt.Errorf("failed to list emulators: %w", err)
-			}
-		}
-
-		// Filter by category if specified
-		category, _ := cmd.Flags().GetString("category")
-		if category != "" {
-			var filtered []*emulator.Emulator
-			for _, emu := range emulators {
-				if emu.Category == category {
-					filtered = append(filtered, emu)
+			// Filter by type if specified
+			emulatorType, _ := cmd.Flags().GetString("type")
+			if emulatorType != "" {
+				emulators, err = store.ListByType(emulatorType)
+				if err != nil {
+					return fmt.Errorf("failed to list emulators by type: %w", err)
+				}
+			} else {
+				emulators, err = store.List()
+				if err != nil {
+					return fmt.Errorf("failed to list emulators: %w", err)
 				}
 			}
-			emulators = filtered
+
+			// Filter by category if specified
+			category, _ := cmd.Flags().GetString("category")
+			if category != "" {
+				var filtered []*emulator.Emulator
+				for _, emu := range emulators {
+					if emu.Category == category {
+						filtered = append(filtered, emu)
+					}
+				}
+				emulators = filtered
+			}
+
+			if len(emulators) == 0 {
+				render.Info("No emulators found")
+				return nil
+			}
+
+			format, _ := cmd.Flags().GetString("output")
+			return outputEmulators(emulators, format)
 		}
 
-		if len(emulators) == 0 {
-			render.Info("No emulators found")
-			return nil
-		}
-
-		format, _ := cmd.Flags().GetString("output")
-		return outputEmulators(emulators, format)
-	},
-}
-
-// emulatorGetCmd shows emulator details
-var emulatorGetCmd = &cobra.Command{
-	Use:   "get <name>",
-	Short: "Get emulator configuration details",
-	Long: `Show details of a specific terminal emulator configuration.
-
-Examples:
-  dvt emulator get wezterm-default
-  dvt emulator get my-config -o yaml`,
-	Args: cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
+		// Single get mode
 		name := args[0]
-
-		store, err := getEmulatorStore(cmd)
-		if err != nil {
-			return err
-		}
-		defer store.Close()
-
 		emu, err := store.Get(name)
 		if err != nil {
 			return fmt.Errorf("emulator not found: %s", name)
@@ -325,21 +313,22 @@ var emulatorLibraryCmd = &cobra.Command{
 	Long: `Access the built-in library of curated terminal emulator configurations.
 
 Examples:
-  dvt emulator library list                  # List all library emulators
-  dvt emulator library list --type wezterm   # Filter by emulator type
-  dvt emulator library show maestro        # Show library emulator details`,
+  dvt emulator library get                   # List all library emulators
+  dvt emulator library get --type wezterm    # Filter by emulator type
+  dvt emulator library describe maestro      # Show library emulator details`,
 }
 
 // emulatorLibraryListCmd lists library emulators
 var emulatorLibraryListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List available library emulators",
+	Use:     "get",
+	Aliases: []string{"list"},
+	Short:   "List available library emulators",
 	Long: `List terminal emulator configurations from the built-in library.
 
 Examples:
-  dvt emulator library list                  # List all library emulators
-  dvt emulator library list --type wezterm   # Filter by emulator type
-  dvt emulator library list -o yaml          # YAML output`,
+  dvt emulator library get                   # List all library emulators
+  dvt emulator library get --type wezterm    # Filter by emulator type
+  dvt emulator library get -o yaml           # YAML output`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		lib := library.Default()
 
@@ -365,13 +354,14 @@ Examples:
 
 // emulatorLibraryShowCmd shows library emulator details
 var emulatorLibraryShowCmd = &cobra.Command{
-	Use:   "show <name>",
-	Short: "Show library emulator details",
+	Use:     "describe <name>",
+	Aliases: []string{"show"},
+	Short:   "Show library emulator details",
 	Long: `Show details of a specific emulator from the built-in library.
 
 Examples:
-  dvt emulator library show maestro
-  dvt emulator library show minimal -o yaml`,
+  dvt emulator library describe maestro
+  dvt emulator library describe minimal -o yaml`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
@@ -479,7 +469,6 @@ func outputEmulator(emu *emulator.Emulator, format string) error {
 
 func init() {
 	// Add subcommands
-	emulatorCmd.AddCommand(emulatorListCmd)
 	emulatorCmd.AddCommand(emulatorGetCmd)
 	emulatorCmd.AddCommand(emulatorEnableCmd)
 	emulatorCmd.AddCommand(emulatorDisableCmd)
@@ -491,13 +480,10 @@ func init() {
 	emulatorLibraryCmd.AddCommand(emulatorLibraryListCmd)
 	emulatorLibraryCmd.AddCommand(emulatorLibraryShowCmd)
 
-	// Emulator list flags
-	emulatorListCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")
-	emulatorListCmd.Flags().String("type", "", "Filter by emulator type (wezterm, alacritty, kitty, iterm2)")
-	emulatorListCmd.Flags().String("category", "", "Filter by category")
-
-	// Emulator get flags
-	emulatorGetCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json")
+	// Emulator get flags (merged from list + get)
+	emulatorGetCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")
+	emulatorGetCmd.Flags().String("type", "", "Filter by emulator type (wezterm, alacritty, kitty, iterm2)")
+	emulatorGetCmd.Flags().String("category", "", "Filter by category")
 
 	// Emulator install flags
 	emulatorInstallCmd.Flags().Bool("force", false, "Overwrite if emulator already exists")

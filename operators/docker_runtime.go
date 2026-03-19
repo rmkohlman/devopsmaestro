@@ -112,6 +112,11 @@ func (d *DockerRuntime) BuildImage(ctx context.Context, opts BuildOptions) error
 // 3. Container exists but uses a different image -> remove it and create new one
 // 4. Container doesn't exist -> create and start it
 func (d *DockerRuntime) StartWorkspace(ctx context.Context, opts StartOptions) (string, error) {
+	// SECURITY: Validate all mount source paths before passing to container runtime
+	if err := validateStartOptionsMounts(opts); err != nil {
+		return "", fmt.Errorf("invalid mount configuration: %w", err)
+	}
+
 	// Determine container name using helper
 	containerName := opts.ComputeContainerName()
 
@@ -188,6 +193,7 @@ func (d *DockerRuntime) StartWorkspace(ctx context.Context, opts StartOptions) (
 		Image:      opts.ImageName,
 		Cmd:        command,
 		WorkingDir: workingDir,
+		User:       "1000:1000", // Run as non-root dev user (security: least privilege)
 		Tty:        true,
 		OpenStdin:  true,
 		Env:        env,

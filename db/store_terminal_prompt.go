@@ -84,18 +84,33 @@ func (ds *SQLDataStore) UpdateTerminalPrompt(prompt *models.TerminalPromptDB) er
 	return nil
 }
 
-// UpsertTerminalPrompt creates or updates a terminal prompt.
+// UpsertTerminalPrompt creates or updates a terminal prompt atomically using ON CONFLICT.
 func (ds *SQLDataStore) UpsertTerminalPrompt(prompt *models.TerminalPromptDB) error {
-	// Check if the prompt exists
-	existing, err := ds.GetTerminalPromptByName(prompt.Name)
+	query := fmt.Sprintf(`INSERT INTO terminal_prompts (name, description, type, add_newline, palette, format,
+		modules, character, palette_ref, colors, raw_config, category, tags, enabled, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, %s, %s)
+		%s, updated_at = %s`,
+		ds.queryBuilder.Now(), ds.queryBuilder.Now(),
+		ds.queryBuilder.UpsertSuffix([]string{"name"}, []string{
+			"description", "type", "add_newline", "palette", "format", "modules",
+			"character", "palette_ref", "colors", "raw_config", "category", "tags", "enabled",
+		}),
+		ds.queryBuilder.Now())
+
+	result, err := ds.driver.Execute(query,
+		prompt.Name, prompt.Description, prompt.Type, prompt.AddNewline, prompt.Palette, prompt.Format,
+		prompt.Modules, prompt.Character, prompt.PaletteRef, prompt.Colors, prompt.RawConfig,
+		prompt.Category, prompt.Tags, prompt.Enabled)
 	if err != nil {
-		// Prompt doesn't exist, create it
-		return ds.CreateTerminalPrompt(prompt)
+		return fmt.Errorf("failed to upsert terminal prompt: %w", err)
 	}
 
-	// Prompt exists, update it with the existing ID
-	prompt.ID = existing.ID
-	return ds.UpdateTerminalPrompt(prompt)
+	id, err := result.LastInsertId()
+	if err == nil {
+		prompt.ID = int(id)
+	}
+
+	return nil
 }
 
 // DeleteTerminalPrompt removes a terminal prompt by name.

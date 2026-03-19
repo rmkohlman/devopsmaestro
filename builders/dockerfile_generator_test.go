@@ -22,7 +22,8 @@ func TestDockerfileGenerator_GenerateBaseStage_Python(t *testing.T) {
 			name:    "python default version",
 			version: "",
 			wantContain: []string{
-				"FROM python:3.11-slim-bookworm AS base",
+				"FROM python:3.11-slim-bookworm@sha256:",
+				"AS base",
 				"apt-get update",
 				"build-essential",
 			},
@@ -31,14 +32,14 @@ func TestDockerfileGenerator_GenerateBaseStage_Python(t *testing.T) {
 			name:    "python specific version",
 			version: "3.10",
 			wantContain: []string{
-				"FROM python:3.10-slim-bookworm AS base",
+				"FROM python:3.10-slim-bookworm",
 			},
 		},
 		{
 			name:    "python 3.12",
 			version: "3.12",
 			wantContain: []string{
-				"FROM python:3.12-slim-bookworm AS base",
+				"FROM python:3.12-slim-bookworm@sha256:",
 			},
 		},
 	}
@@ -85,7 +86,8 @@ func TestDockerfileGenerator_GenerateBaseStage_Golang(t *testing.T) {
 			name:    "golang default version",
 			version: "",
 			wantContain: []string{
-				"FROM golang:1.22-alpine AS base",
+				"FROM golang:1.22-alpine@sha256:",
+				"AS base",
 				"apk add git",
 			},
 		},
@@ -93,14 +95,14 @@ func TestDockerfileGenerator_GenerateBaseStage_Golang(t *testing.T) {
 			name:    "golang specific version",
 			version: "1.21",
 			wantContain: []string{
-				"FROM golang:1.21-alpine AS base",
+				"FROM golang:1.21-alpine",
 			},
 		},
 		{
 			name:    "golang 1.23",
 			version: "1.23",
 			wantContain: []string{
-				"FROM golang:1.23-alpine AS base",
+				"FROM golang:1.23-alpine@sha256:",
 			},
 		},
 	}
@@ -147,21 +149,21 @@ func TestDockerfileGenerator_GenerateBaseStage_NodeJS(t *testing.T) {
 			name:    "nodejs default version",
 			version: "",
 			wantContain: []string{
-				"FROM node:20-alpine AS base",
+				"FROM node:20-alpine@sha256:",
 			},
 		},
 		{
 			name:    "nodejs specific version",
 			version: "20",
 			wantContain: []string{
-				"FROM node:20-alpine AS base",
+				"FROM node:20-alpine@sha256:",
 			},
 		},
 		{
 			name:    "nodejs 16",
 			version: "16",
 			wantContain: []string{
-				"FROM node:16-alpine AS base",
+				"FROM node:16-alpine",
 			},
 		},
 	}
@@ -220,7 +222,7 @@ func TestDockerfileGenerator_GenerateBaseStage_Unknown(t *testing.T) {
 	}
 
 	// Should use generic Ubuntu base
-	if !strings.Contains(dockerfile, "FROM ubuntu:22.04 AS base") {
+	if !strings.Contains(dockerfile, "FROM ubuntu:22.04@sha256:") {
 		t.Errorf("Generate() missing Ubuntu base for unknown language")
 	}
 }
@@ -939,14 +941,18 @@ func TestDockerfileGenerator_StarshipBuilder_NoShellPipe(t *testing.T) {
 	}
 	starshipSection := dockerfile[starshipStart:treesitterStart]
 
-	// MUST have: download to file (not pipe)
+	// MUST have: direct binary download with checksum verification (not install script)
 	wantPatterns := []string{
-		// Download script to a temp file
-		"-o /tmp/install-starship.sh",
-		// Execute from file
-		"sh /tmp/install-starship.sh --yes",
+		// Download binary tarball directly
+		"-o /tmp/starship.tar.gz",
+		// SHA256 checksum verification
+		"sha256sum -c -",
+		// Binary extraction
+		"tar -C /usr/local/bin -xzf /tmp/starship.tar.gz starship",
 		// Binary verification
 		"test -x /usr/local/bin/starship",
+		// Pinned version (not install script)
+		"starship/releases/download/v",
 	}
 	for _, want := range wantPatterns {
 		if !strings.Contains(starshipSection, want) {
@@ -955,18 +961,23 @@ func TestDockerfileGenerator_StarshipBuilder_NoShellPipe(t *testing.T) {
 		}
 	}
 
-	// MUST NOT have: pipe-to-shell pattern (security risk)
-	if strings.Contains(starshipSection, "| sh") {
-		t.Errorf("Starship builder uses pipe-to-shell pattern (| sh) — this is insecure.\n"+
-			"Must download to file first, then execute.\n"+
-			"Starship section:\n%s", starshipSection)
+	// MUST NOT have: install script pattern (security risk - downloads and executes remote script)
+	badPatterns := []string{
+		"install-starship.sh",
+		"starship.rs/install.sh",
+	}
+	for _, bad := range badPatterns {
+		if strings.Contains(starshipSection, bad) {
+			t.Errorf("Starship builder uses install script pattern: %q — this is insecure.\n"+
+				"Must download pre-built binary directly with checksum verification.\n"+
+				"Starship section:\n%s", bad, starshipSection)
+		}
 	}
 }
 
 // TestDockerfileGenerator_LazygitBuilder_VersionValidation verifies that the lazygit builder
-// validates that $LAZYGIT_VERSION is non-empty before attempting to download the binary.
+// uses pinned versions with SHA256 checksum verification instead of dynamic version fetching.
 // Tests BOTH Alpine and Debian paths.
-// This is a Phase 2 failing test — the hardening is NOT yet implemented.
 func TestDockerfileGenerator_LazygitBuilder_VersionValidation(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -1017,18 +1028,29 @@ func TestDockerfileGenerator_LazygitBuilder_VersionValidation(t *testing.T) {
 			}
 			lazygitSection := dockerfile[lazygitStart:starshipStart]
 
-			// MUST validate that LAZYGIT_VERSION is non-empty
-			// Pattern: [ -n "$LAZYGIT_VERSION" ] ensures we don't try to download ""
-			if !strings.Contains(lazygitSection, `[ -n "$LAZYGIT_VERSION" ]`) {
-				t.Errorf("Lazygit builder (%s path) missing version validation: %q\n"+
-					"Without this check, a failed API call produces a broken download URL.\n"+
+			// MUST have pinned version in download URL (not dynamic from GitHub API)
+			if !strings.Contains(lazygitSection, "lazygit/releases/download/v"+lazygitVersion) {
+				t.Errorf("Lazygit builder (%s path) missing pinned version %q in download URL.\n"+
 					"Lazygit section:\n%s",
-					tt.path, `[ -n "$LAZYGIT_VERSION" ]`, lazygitSection)
+					tt.path, lazygitVersion, lazygitSection)
 			}
 
-			// MUST use hardened curl for the GitHub API call
+			// MUST have SHA256 checksum verification
+			if !strings.Contains(lazygitSection, "sha256sum -c -") {
+				t.Errorf("Lazygit builder (%s path) missing SHA256 checksum verification.\n"+
+					"Lazygit section:\n%s", tt.path, lazygitSection)
+			}
+
+			// MUST use hardened curl flags
 			if !strings.Contains(lazygitSection, "curl -fsSL --retry 3 --connect-timeout 30") {
-				t.Errorf("Lazygit builder (%s path) API call missing hardened curl flags.\n"+
+				t.Errorf("Lazygit builder (%s path) missing hardened curl flags.\n"+
+					"Lazygit section:\n%s", tt.path, lazygitSection)
+			}
+
+			// MUST NOT use dynamic version from GitHub API (pinned versions are more secure)
+			if strings.Contains(lazygitSection, "api.github.com") {
+				t.Errorf("Lazygit builder (%s path) uses dynamic version from GitHub API.\n"+
+					"Should use pinned version with checksum verification instead.\n"+
 					"Lazygit section:\n%s", tt.path, lazygitSection)
 			}
 
@@ -1190,31 +1212,36 @@ func TestDockerfileGenerator_GolangciLint_NoShellPipe(t *testing.T) {
 		t.Fatalf("Generate() missing golangci-lint install — golang workspaces must include it")
 	}
 
-	// MUST have: download to file pattern
+	// MUST have: direct binary download with checksum verification pattern
 	wantPatterns := []string{
-		// Download install script to temp file
-		"-o /tmp/install-golangci.sh",
-		// Execute from file
-		"sh /tmp/install-golangci.sh",
+		// Direct binary download from GitHub releases
+		"golangci/golangci-lint/releases/download/v",
+		// SHA256 checksum verification
+		"sha256sum -c -",
+		// Hardened curl flags
+		"curl -fsSL --retry 3 --connect-timeout 30",
+		// Install to GOPATH
+		"$(go env GOPATH)/bin/",
 	}
 	for _, want := range wantPatterns {
 		if !strings.Contains(dockerfile, want) {
 			t.Errorf("golangci-lint install missing pattern: %q\n"+
-				"Must download install script to file before executing (not pipe-to-shell)", want)
+				"Must download binary directly with checksum verification (not pipe-to-shell)", want)
 		}
 	}
 
 	// MUST NOT have: old pipe-to-shell pattern
-	// The old pattern was: curl -sSfL ... | sh -s -- -b $(go env GOPATH)/bin
 	badPatterns := []string{
 		"| sh -s --",
-		// Also check for the raw pipe pattern with the golangci script URL
-		"golangci/golangci-lint/master/install.sh | sh",
+		// Also check for the raw pipe pattern with the golangci install script
+		"golangci/golangci-lint/master/install.sh",
+		// Must not download an install script at all
+		"install-golangci.sh",
 	}
 	for _, bad := range badPatterns {
 		if strings.Contains(dockerfile, bad) {
-			t.Errorf("golangci-lint install uses pipe-to-shell pattern: %q\n"+
-				"This is a security risk — must download to file first, then execute.", bad)
+			t.Errorf("golangci-lint install uses pipe-to-shell or install-script pattern: %q\n"+
+				"This is a security risk — must download binary directly with checksum verification.", bad)
 		}
 	}
 }
@@ -1374,11 +1401,10 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 // =============================================================================
 
 // TestDockerfileGenerator_TreeSitterBuilder_DynamicVersion verifies that the tree-sitter
-// builder stage queries the GitHub Releases API for the latest version instead of
-// hardcoding a specific version (e.g., v0.24.6).
+// builder stage uses a pinned version with SHA256 checksum verification instead of
+// querying the GitHub Releases API at build time.
 //
-// Phase 2 failing test for H3: tree-sitter dynamic versioning.
-// MUST FAIL against current code (hardcodes v0.24.6).
+// Updated for Phase 3: pinned versions with checksum verification.
 func TestDockerfileGenerator_TreeSitterBuilder_DynamicVersion(t *testing.T) {
 	ws := &models.Workspace{
 		ID:        1,
@@ -1414,31 +1440,35 @@ func TestDockerfileGenerator_TreeSitterBuilder_DynamicVersion(t *testing.T) {
 		tsSection = dockerfile[tsStart:]
 	}
 
-	// MUST NOT contain hardcoded version
+	// MUST NOT contain the OLD hardcoded version
 	if strings.Contains(tsSection, "v0.24.6") {
-		t.Errorf("tree-sitter builder hardcodes version 'v0.24.6'.\n"+
-			"Must use dynamic version from GitHub API instead.\n"+
+		t.Errorf("tree-sitter builder hardcodes old version 'v0.24.6'.\n"+
+			"Must use pinned version from checksums.go.\n"+
 			"tree-sitter section:\n%s", tsSection)
 	}
 
-	// MUST query GitHub API for latest version
-	if !strings.Contains(tsSection, "api.github.com/repos/tree-sitter/tree-sitter/releases/latest") {
-		t.Errorf("tree-sitter builder does not query GitHub API for latest version.\n"+
-			"Expected: api.github.com/repos/tree-sitter/tree-sitter/releases/latest\n"+
+	// MUST have pinned version in download URL
+	if !strings.Contains(tsSection, "tree-sitter/releases/download/v"+treeSitterVersion) {
+		t.Errorf("tree-sitter builder missing pinned version %q in download URL.\n"+
+			"tree-sitter section:\n%s", treeSitterVersion, tsSection)
+	}
+
+	// MUST have SHA256 checksum verification
+	if !strings.Contains(tsSection, "sha256sum -c -") {
+		t.Errorf("tree-sitter builder missing SHA256 checksum verification.\n"+
 			"tree-sitter section:\n%s", tsSection)
 	}
 
-	// MUST validate version is non-empty before using it
-	if !strings.Contains(tsSection, `[ -n "$TREESITTER_VERSION" ]`) {
-		t.Errorf("tree-sitter builder missing version validation: %q\n"+
-			"Without this check, a failed API call produces a broken download URL.\n"+
-			"tree-sitter section:\n%s",
-			`[ -n "$TREESITTER_VERSION" ]`, tsSection)
+	// MUST NOT query GitHub API dynamically (pinned versions are more secure and reproducible)
+	if strings.Contains(tsSection, "api.github.com") {
+		t.Errorf("tree-sitter builder queries GitHub API for version at build time.\n"+
+			"Should use pinned version with checksum verification instead.\n"+
+			"tree-sitter section:\n%s", tsSection)
 	}
 
-	// MUST use the variable ${TREESITTER_VERSION} in the download URL
-	if !strings.Contains(tsSection, "${TREESITTER_VERSION}") {
-		t.Errorf("tree-sitter builder download URL must use ${TREESITTER_VERSION} variable.\n"+
+	// MUST use hardened curl flags
+	if !strings.Contains(tsSection, "curl -fsSL --retry 3 --connect-timeout 30") {
+		t.Errorf("tree-sitter builder missing hardened curl flags.\n"+
 			"tree-sitter section:\n%s", tsSection)
 	}
 }
@@ -1459,17 +1489,17 @@ func TestDockerfileGenerator_TreeSitterBuilder_DebianPath(t *testing.T) {
 			name:         "python uses debian tree-sitter builder",
 			language:     "python",
 			version:      "3.11",
-			wantImage:    "FROM debian:bookworm-slim AS treesitter-builder",
-			wantPkgMgr:   "apt-get update && apt-get install -y --no-install-recommends curl ca-certificates sed",
-			notWantImage: "FROM alpine:3.20 AS treesitter-builder",
+			wantImage:    "FROM debian:bookworm-slim@sha256:",
+			wantPkgMgr:   "apt-get update && apt-get install -y --no-install-recommends curl ca-certificates",
+			notWantImage: "FROM alpine:3.20",
 		},
 		{
 			name:         "golang uses alpine tree-sitter builder",
 			language:     "golang",
 			version:      "1.22",
-			wantImage:    "FROM alpine:3.20 AS treesitter-builder",
-			wantPkgMgr:   "apk add --no-cache curl sed",
-			notWantImage: "FROM debian:bookworm-slim AS treesitter-builder",
+			wantImage:    "FROM alpine:3.20@sha256:",
+			wantPkgMgr:   "apk add --no-cache curl",
+			notWantImage: "FROM debian:bookworm-slim",
 		},
 	}
 
@@ -1782,21 +1812,22 @@ func TestDockerfileGenerator_LazygitBuilder_UnifiedDownload(t *testing.T) {
 			}
 			lazygitSection := dockerfile[lazygitStart:starshipStart]
 
-			// Both paths MUST query the GitHub Releases API for version
-			if !strings.Contains(lazygitSection, "api.github.com/repos/jesseduffield/lazygit/releases/latest") {
-				t.Errorf("[%s] lazygit builder missing GitHub API query for version.\n"+
+			// Both paths MUST use pinned version in download URL (not dynamic from GitHub API)
+			if !strings.Contains(lazygitSection, "lazygit/releases/download/v"+lazygitVersion) {
+				t.Errorf("[%s] lazygit builder missing pinned version %q in download URL.\n"+
+					"Section:\n%s", tt.name, lazygitVersion, lazygitSection)
+			}
+
+			// Both paths MUST have SHA256 checksum verification
+			if !strings.Contains(lazygitSection, "sha256sum -c -") {
+				t.Errorf("[%s] lazygit builder missing SHA256 checksum verification.\n"+
 					"Section:\n%s", tt.name, lazygitSection)
 			}
 
-			// Both paths MUST validate the version is non-empty
-			if !strings.Contains(lazygitSection, `[ -n "$LAZYGIT_VERSION" ]`) {
-				t.Errorf("[%s] lazygit builder missing version validation: %q\n"+
-					"Section:\n%s", tt.name, `[ -n "$LAZYGIT_VERSION" ]`, lazygitSection)
-			}
-
-			// Both paths MUST use the standard lazygit download URL pattern
-			if !strings.Contains(lazygitSection, "jesseduffield/lazygit/releases/latest/download/lazygit_") {
-				t.Errorf("[%s] lazygit builder missing standard download URL.\n"+
+			// Both paths MUST NOT query GitHub API dynamically (pinned versions are more secure)
+			if strings.Contains(lazygitSection, "api.github.com") {
+				t.Errorf("[%s] lazygit builder queries GitHub API for version at build time.\n"+
+					"Should use pinned version with checksum verification instead.\n"+
 					"Section:\n%s", tt.name, lazygitSection)
 			}
 
@@ -2105,7 +2136,9 @@ func TestIsAlpine_FieldMatchesGeneratedImage(t *testing.T) {
 			}
 
 			// Determine if the FROM line is Alpine-based
-			hasAlpineBase := strings.Contains(dockerfile, "-alpine AS base")
+			// After digest pinning, the format is: FROM image:tag-alpine@sha256:... AS base
+			hasAlpineBase := strings.Contains(dockerfile, "-alpine AS base") ||
+				strings.Contains(dockerfile, "-alpine@sha256:")
 
 			// Extract dev stage
 			devStageIdx := strings.Index(dockerfile, "FROM base AS dev")
@@ -2623,13 +2656,13 @@ func TestEffectiveVersion_NodejsDefault20(t *testing.T) {
 			got, want)
 	}
 
-	// Also verify the generated FROM line uses node:20-alpine
+	// Also verify the generated FROM line uses node:20-alpine (with optional digest pin)
 	dockerfile, err := gen.Generate()
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
-	if !strings.Contains(dockerfile, "FROM node:20-alpine AS base") {
-		t.Errorf("nodejs workspace with no version should generate 'FROM node:20-alpine AS base'.\n"+
+	if !strings.Contains(dockerfile, "FROM node:20-alpine") {
+		t.Errorf("nodejs workspace with no version should generate 'FROM node:20-alpine... AS base'.\n"+
 			"WI-2: Default nodejs version must be 20.\n"+
 			"Generated Dockerfile (first 300 chars):\n%s", dockerfile[:min(300, len(dockerfile))])
 	}

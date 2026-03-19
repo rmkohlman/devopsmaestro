@@ -31,7 +31,7 @@ var (
 // createAppCmd creates a new app
 var createAppCmd = &cobra.Command{
 	Use:     "app <name>",
-	Aliases: []string{"application"},
+	Aliases: []string{"application", "a"},
 	Short:   "Create a new app",
 	Long: `Create a new app within a domain.
 
@@ -221,7 +221,7 @@ Next Steps:
 // getAppsCmd lists all apps
 var getAppsCmd = &cobra.Command{
 	Use:     "apps",
-	Aliases: []string{"application", "applications"},
+	Aliases: []string{"application", "applications", "a"},
 	Short:   "List all apps",
 	Long: `List all apps, optionally filtered by domain.
 
@@ -239,7 +239,7 @@ Examples:
 // getAppCmd gets a specific app
 var getAppCmd = &cobra.Command{
 	Use:     "app <name>",
-	Aliases: []string{"application"},
+	Aliases: []string{"application", "a"},
 	Short:   "Get a specific app",
 	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -535,22 +535,20 @@ func getApp(cmd *cobra.Command, name string) error {
 // deleteAppCmd deletes an app
 var deleteAppCmd = &cobra.Command{
 	Use:     "app <name>",
-	Aliases: []string{"application"},
+	Aliases: []string{"application", "a"},
 	Short:   "Delete an app",
 	Long: `Delete an app by name.
 
+WARNING: This will cascade-delete all workspaces within the app.
+By default, you will be prompted for confirmation. Use --force to skip.
+
 Examples:
   dvm delete app my-api
-  dvm delete app my-api --domain backend`,
+  dvm delete app my-api --domain backend
+  dvm delete app my-api --force              # Skip confirmation`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		appName := args[0]
-
-		// Build resource context and use unified handler
-		ctx, err := buildResourceContext(cmd)
-		if err != nil {
-			return err
-		}
 
 		ds, err := getDataStore(cmd)
 		if err != nil {
@@ -582,6 +580,38 @@ Examples:
 				render.Info("Hint: Use --domain <name> or 'dvm use domain <name>' first")
 				return errSilent
 			}
+		}
+
+		// Look up app to show cascade info
+		app, err := ds.GetAppByName(domain.ID, appName)
+		if err != nil {
+			return fmt.Errorf("app '%s' not found in domain '%s'", appName, domain.Name)
+		}
+
+		// Count cascade children for the confirmation message
+		workspaces, _ := ds.ListWorkspacesByApp(app.ID)
+
+		// Build confirmation message showing cascade scope
+		msg := fmt.Sprintf("Delete app '%s' from domain '%s'", appName, domain.Name)
+		if len(workspaces) > 0 {
+			msg += fmt.Sprintf(" and all its workspaces (%d workspace(s))?", len(workspaces))
+		} else {
+			msg += "?"
+		}
+
+		force, _ := cmd.Flags().GetBool("force")
+		confirmed, err := confirmDelete(msg, force)
+		if err != nil {
+			return err
+		}
+		if !confirmed {
+			return nil
+		}
+
+		// Build resource context and use unified handler
+		ctx, err := buildResourceContext(cmd)
+		if err != nil {
+			return err
 		}
 
 		render.Progress(fmt.Sprintf("Deleting app '%s' from domain '%s'...", appName, domain.Name))
@@ -621,6 +651,7 @@ func init() {
 	getAppCmd.Flags().StringP("domain", "d", "", "Domain name (defaults to active domain)")
 	getAppCmd.Flags().BoolVar(&showTheme, "show-theme", false, "Show theme resolution information")
 	deleteAppCmd.Flags().StringP("domain", "d", "", "Domain name (defaults to active domain)")
+	deleteAppCmd.Flags().Bool("force", false, "Skip confirmation prompt")
 }
 
 // getActiveApp returns the active app from the context

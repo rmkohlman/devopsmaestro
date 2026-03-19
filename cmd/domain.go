@@ -470,21 +470,17 @@ var deleteDomainCmd = &cobra.Command{
 	Short:   "Delete a domain",
 	Long: `Delete a domain by name.
 
-WARNING: This will also delete all apps within the domain.
+WARNING: This will cascade-delete all apps and workspaces within the domain.
+By default, you will be prompted for confirmation. Use --force to skip.
 
 Examples:
   dvm delete domain backend
-  dvm delete dom backend         # Short form
-  dvm delete domain backend --ecosystem my-platform`,
+  dvm delete dom backend                     # Short form
+  dvm delete domain backend --ecosystem my-platform
+  dvm delete domain backend --force          # Skip confirmation`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		domainName := args[0]
-
-		// Build resource context and use unified handler
-		ctx, err := buildResourceContext(cmd)
-		if err != nil {
-			return err
-		}
 
 		ds, err := getDataStore(cmd)
 		if err != nil {
@@ -509,6 +505,44 @@ Examples:
 				render.Info("Hint: Use --ecosystem <name> or 'dvm use ecosystem <name>' first")
 				return errSilent
 			}
+		}
+
+		// Look up domain to show cascade info
+		domain, err := ds.GetDomainByName(ecosystem.ID, domainName)
+		if err != nil {
+			return fmt.Errorf("domain '%s' not found in ecosystem '%s'", domainName, ecosystem.Name)
+		}
+
+		// Count cascade children for the confirmation message
+		apps, _ := ds.ListAppsByDomain(domain.ID)
+		var wsCount int
+		for _, a := range apps {
+			workspaces, _ := ds.ListWorkspacesByApp(a.ID)
+			wsCount += len(workspaces)
+		}
+
+		// Build confirmation message showing cascade scope
+		msg := fmt.Sprintf("Delete domain '%s' from ecosystem '%s'", domainName, ecosystem.Name)
+		if len(apps) > 0 || wsCount > 0 {
+			msg += fmt.Sprintf(" and all its children (%d app(s), %d workspace(s))?",
+				len(apps), wsCount)
+		} else {
+			msg += "?"
+		}
+
+		force, _ := cmd.Flags().GetBool("force")
+		confirmed, err := confirmDelete(msg, force)
+		if err != nil {
+			return err
+		}
+		if !confirmed {
+			return nil
+		}
+
+		// Build resource context and use unified handler
+		ctx, err := buildResourceContext(cmd)
+		if err != nil {
+			return err
 		}
 
 		render.Progress(fmt.Sprintf("Deleting domain '%s' from ecosystem '%s'...", domainName, ecosystem.Name))
@@ -545,6 +579,7 @@ func init() {
 	getDomainCmd.Flags().StringP("ecosystem", "e", "", "Ecosystem name (defaults to active ecosystem)")
 	getDomainCmd.Flags().BoolVar(&showTheme, "show-theme", false, "Show theme resolution information")
 	deleteDomainCmd.Flags().StringP("ecosystem", "e", "", "Ecosystem name (defaults to active ecosystem)")
+	deleteDomainCmd.Flags().Bool("force", false, "Skip confirmation prompt")
 }
 
 // getActiveDomain returns the active domain from the context

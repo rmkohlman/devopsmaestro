@@ -75,22 +75,29 @@ func (ds *SQLDataStore) UpdateDomain(domain *models.Domain) error {
 // DeleteDomain removes a domain by ID.
 // Also cleans up orphaned credentials scoped to this domain and its child apps/workspaces
 // (polymorphic scope_type/scope_id has no FK constraint).
+// The entire operation runs in a transaction to ensure data integrity.
 func (ds *SQLDataStore) DeleteDomain(id int) error {
+	tx, err := ds.driver.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // rollback after commit is a no-op
+
 	// Clean up credentials scoped to workspaces under apps in this domain
-	if _, err := ds.driver.Execute(`DELETE FROM credentials WHERE scope_type = 'workspace' AND scope_id IN (SELECT w.id FROM workspaces w JOIN apps a ON w.app_id = a.id WHERE a.domain_id = ?)`, id); err != nil {
+	if _, err := tx.Execute(`DELETE FROM credentials WHERE scope_type = 'workspace' AND scope_id IN (SELECT w.id FROM workspaces w JOIN apps a ON w.app_id = a.id WHERE a.domain_id = ?)`, id); err != nil {
 		return fmt.Errorf("failed to delete workspace credentials for domain: %w", err)
 	}
 	// Clean up credentials scoped to apps in this domain
-	if _, err := ds.driver.Execute(`DELETE FROM credentials WHERE scope_type = 'app' AND scope_id IN (SELECT id FROM apps WHERE domain_id = ?)`, id); err != nil {
+	if _, err := tx.Execute(`DELETE FROM credentials WHERE scope_type = 'app' AND scope_id IN (SELECT id FROM apps WHERE domain_id = ?)`, id); err != nil {
 		return fmt.Errorf("failed to delete app credentials for domain: %w", err)
 	}
 	// Clean up credentials scoped to this domain
-	if _, err := ds.driver.Execute(`DELETE FROM credentials WHERE scope_type = 'domain' AND scope_id = ?`, id); err != nil {
+	if _, err := tx.Execute(`DELETE FROM credentials WHERE scope_type = 'domain' AND scope_id = ?`, id); err != nil {
 		return fmt.Errorf("failed to delete domain credentials: %w", err)
 	}
 
 	query := `DELETE FROM domains WHERE id = ?`
-	result, err := ds.driver.Execute(query, id)
+	result, err := tx.Execute(query, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete domain: %w", err)
 	}
@@ -101,7 +108,8 @@ func (ds *SQLDataStore) DeleteDomain(id int) error {
 	if rowsAffected == 0 {
 		return NewErrNotFound("domain", id)
 	}
-	return nil
+
+	return tx.Commit()
 }
 
 // ListDomainsByEcosystem retrieves all domains for an ecosystem.

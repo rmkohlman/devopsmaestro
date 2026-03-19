@@ -106,18 +106,35 @@ func (ds *SQLDataStore) DeletePlugin(name string) error {
 	return ds.deleteByName("nvim_plugins", "plugin", name)
 }
 
-// UpsertPlugin creates or updates a plugin (by name).
+// UpsertPlugin creates or updates a plugin (by name) atomically using ON CONFLICT.
 func (ds *SQLDataStore) UpsertPlugin(plugin *models.NvimPluginDB) error {
-	// First try to get the existing plugin
-	existing, err := ds.GetPluginByName(plugin.Name)
-	if err == nil {
-		// Plugin exists, update it
-		plugin.ID = existing.ID
-		return ds.UpdatePlugin(plugin)
+	query := fmt.Sprintf(`INSERT INTO nvim_plugins (name, description, repo, branch, version, priority, lazy, 
+		event, ft, keys, cmd, dependencies, build, config, init, opts, keymaps, category, tags, enabled, 
+		created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, %s, %s)
+		%s, updated_at = %s`,
+		ds.queryBuilder.Now(), ds.queryBuilder.Now(),
+		ds.queryBuilder.UpsertSuffix([]string{"name"}, []string{
+			"description", "repo", "branch", "version", "priority", "lazy",
+			"event", "ft", "keys", "cmd", "dependencies", "build", "config", "init",
+			"opts", "keymaps", "category", "tags", "enabled",
+		}),
+		ds.queryBuilder.Now())
+
+	result, err := ds.driver.Execute(query,
+		plugin.Name, plugin.Description, plugin.Repo, plugin.Branch, plugin.Version, plugin.Priority,
+		plugin.Lazy, plugin.Event, plugin.Ft, plugin.Keys, plugin.Cmd, plugin.Dependencies, plugin.Build,
+		plugin.Config, plugin.Init, plugin.Opts, plugin.Keymaps, plugin.Category, plugin.Tags, plugin.Enabled)
+	if err != nil {
+		return fmt.Errorf("failed to upsert plugin: %w", err)
 	}
 
-	// Plugin doesn't exist, create it
-	return ds.CreatePlugin(plugin)
+	id, err := result.LastInsertId()
+	if err == nil {
+		plugin.ID = int(id)
+	}
+
+	return nil
 }
 
 // ListPlugins retrieves all plugins.

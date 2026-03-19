@@ -58,7 +58,7 @@ func init() {
 	deleteBuildArgCmd.Flags().StringVar(&deleteBuildArgApp, "app", "", "Delete at app level")
 	deleteBuildArgCmd.Flags().StringVar(&deleteBuildArgWorkspace, "workspace", "", "Delete at workspace level")
 	deleteBuildArgCmd.Flags().BoolVar(&deleteBuildArgGlobal, "global", false, "Delete from DVM-wide defaults")
-	deleteBuildArgCmd.Flags().BoolVarP(&deleteBuildArgForce, "force", "f", false, "Skip confirmation prompt")
+	deleteBuildArgCmd.Flags().BoolVar(&deleteBuildArgForce, "force", false, "Skip confirmation prompt")
 }
 
 func runDeleteBuildArg(cmd *cobra.Command, args []string) error {

@@ -171,6 +171,26 @@ func (d *SQLiteDriver) Connect() error {
 		return fmt.Errorf("foreign_keys pragma is not enabled (got %d, want 1)", fkEnabled)
 	}
 
+	// Enable WAL mode for better concurrent read/write access.
+	// WAL mode is only meaningful for file-based databases; in-memory databases
+	// always report "memory" and cannot use WAL, so we skip it for them.
+	if d.cfg.Type != DriverMemory {
+		if _, err := d.conn.Exec("PRAGMA journal_mode=WAL"); err != nil {
+			return fmt.Errorf("failed to enable WAL mode: %w", err)
+		}
+	}
+
+	// Set busy timeout so concurrent writers wait instead of returning SQLITE_BUSY immediately.
+	if _, err := d.conn.Exec("PRAGMA busy_timeout=5000"); err != nil {
+		return fmt.Errorf("failed to set busy_timeout: %w", err)
+	}
+
+	// With WAL mode, synchronous=NORMAL is safe and provides better performance
+	// than the default FULL. For in-memory databases this is a no-op but harmless.
+	if _, err := d.conn.Exec("PRAGMA synchronous=NORMAL"); err != nil {
+		return fmt.Errorf("failed to set synchronous mode: %w", err)
+	}
+
 	return nil
 }
 

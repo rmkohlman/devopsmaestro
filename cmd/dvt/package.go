@@ -11,12 +11,12 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
+	"devopsmaestro/pkg/terminalbridge"
+	"github.com/rmkohlman/MaestroSDK/render"
 	terminalpackage "github.com/rmkohlman/MaestroTerminal/terminalops/package"
 	packagelibrary "github.com/rmkohlman/MaestroTerminal/terminalops/package/library"
 	pluginlibrary "github.com/rmkohlman/MaestroTerminal/terminalops/plugin/library"
 	promptlibrary "github.com/rmkohlman/MaestroTerminal/terminalops/prompt/library"
-	"devopsmaestro/pkg/terminalbridge"
-	"github.com/rmkohlman/MaestroSDK/render"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -39,76 +39,65 @@ Packages can contain:
 Use these commands to explore and install packages from the library.
 
 Examples:
-  dvt package list                    # List all packages
+  dvt package get                     # List all packages
   dvt package get developer           # Show package details
   dvt package install developer       # Install package components`,
 }
 
-// packageListCmd lists all packages
-var packageListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List available packages",
-	Long: `List packages from the library.
-
-Examples:
-  dvt package list                     # List all packages
-  dvt package list --category development # Filter by category  
-  dvt package list -o yaml             # YAML output
-  dvt package list -w                  # Wide format with more details`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		lib, err := packagelibrary.NewLibrary()
-		if err != nil {
-			return fmt.Errorf("failed to load package library: %w", err)
-		}
-
-		packages := lib.List()
-
-		// Filter by library flag (for now, all packages are library packages)
-		libraryOnly, _ := cmd.Flags().GetBool("library")
-		userOnly, _ := cmd.Flags().GetBool("user")
-
-		if userOnly {
-			// For now, no user packages - return empty
-			packages = []*terminalpackage.Package{}
-		} else if !libraryOnly {
-			// Default: show all (which are all library packages for now)
-		}
-
-		// Filter by category if specified
-		category, _ := cmd.Flags().GetString("category")
-		if category != "" {
-			packages = lib.ListByCategory(category)
-		}
-
-		if len(packages) == 0 {
-			render.Info("No packages found")
-			return nil
-		}
-
-		format, _ := cmd.Flags().GetString("output")
-		wide, _ := cmd.Flags().GetBool("wide")
-		return outputPackages(packages, format, wide, lib)
-	},
-}
-
-// packageGetCmd shows package details
+// packageGetCmd shows package details, or lists all packages when no name is given
 var packageGetCmd = &cobra.Command{
-	Use:   "get <name>",
-	Short: "Show package details",
-	Long: `Show details of a specific package, including all components from inheritance.
+	Use:     "get [name]",
+	Aliases: []string{"list"},
+	Short:   "Show package details (or list all packages)",
+	Long: `Show details of a specific package, or list all packages when no name is given.
 
 Examples:
-  dvt package get core
+  dvt package get                         # List all packages
+  dvt package get --category development  # Filter by category
+  dvt package get -o yaml                 # YAML output
+  dvt package get -w                      # Wide format with more details
+  dvt package get core                    # Show specific package
   dvt package get developer -o yaml`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		name := args[0]
-
 		lib, err := packagelibrary.NewLibrary()
 		if err != nil {
 			return fmt.Errorf("failed to load package library: %w", err)
 		}
 
+		if len(args) == 0 {
+			// List mode
+			packages := lib.List()
+
+			// Filter by library flag (for now, all packages are library packages)
+			libraryOnly, _ := cmd.Flags().GetBool("library")
+			userOnly, _ := cmd.Flags().GetBool("user")
+
+			if userOnly {
+				// For now, no user packages - return empty
+				packages = []*terminalpackage.Package{}
+			} else if !libraryOnly {
+				// Default: show all (which are all library packages for now)
+			}
+
+			// Filter by category if specified
+			category, _ := cmd.Flags().GetString("category")
+			if category != "" {
+				packages = lib.ListByCategory(category)
+			}
+
+			if len(packages) == 0 {
+				render.Info("No packages found")
+				return nil
+			}
+
+			format, _ := cmd.Flags().GetString("output")
+			wide, _ := cmd.Flags().GetBool("wide")
+			return outputPackages(packages, format, wide, lib)
+		}
+
+		// Single get mode
+		name := args[0]
 		pkg, ok := lib.Get(name)
 		if !ok {
 			return fmt.Errorf("package not found: %s", name)
@@ -368,7 +357,7 @@ Examples:
 		}
 
 		render.Blank()
-		render.Info("Use 'dvt plugin list' and 'dvt get prompts' to see installed components")
+		render.Info("Use 'dvt plugin get' and 'dvt prompt get' to see installed components")
 
 		return nil
 	},
@@ -620,19 +609,15 @@ func createResolvedPackageYAML(pkg *terminalpackage.Package, lib *packagelibrary
 
 func init() {
 	// Add subcommands
-	packageCmd.AddCommand(packageListCmd)
 	packageCmd.AddCommand(packageGetCmd)
 	packageCmd.AddCommand(packageInstallCmd)
 
-	// Package list flags
-	packageListCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")
-	packageListCmd.Flags().Bool("library", false, "Show only library packages")
-	packageListCmd.Flags().Bool("user", false, "Show only user packages")
-	packageListCmd.Flags().StringP("category", "c", "", "Filter by category")
-	packageListCmd.Flags().BoolP("wide", "w", false, "Show extended output")
-
-	// Package get flags
-	packageGetCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json")
+	// Package get flags (merged from list + get)
+	packageGetCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")
+	packageGetCmd.Flags().Bool("library", false, "Show only library packages")
+	packageGetCmd.Flags().Bool("user", false, "Show only user packages")
+	packageGetCmd.Flags().StringP("category", "c", "", "Filter by category")
+	packageGetCmd.Flags().BoolP("wide", "w", false, "Show extended output")
 
 	// Package install flags
 	packageInstallCmd.Flags().Bool("dry-run", false, "Show what would be installed without installing")

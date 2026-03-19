@@ -14,21 +14,21 @@ var libraryCmd = &cobra.Command{
 View available plugins, themes, prompts, and packages from the embedded libraries.
 
 Examples:
-  dvm library list plugins               # List nvim plugins
-  dvm library list themes                # List nvim themes
-  dvm library list terminal prompts      # List terminal prompts
+  dvm library get plugins                # List nvim plugins
+  dvm library get themes                 # List nvim themes
+  dvm library get terminal prompts       # List terminal prompts
   dvm lib ls np                          # Short form: nvim plugins
-  dvm library show plugin telescope      # Show plugin details
-  dvm library show theme coolnight-ocean # Show theme details`,
+  dvm library describe plugin telescope      # Show plugin details
+  dvm library describe theme coolnight-ocean # Show theme details`,
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
 	},
 }
 
-// libraryListCmd is the 'list' subcommand
+// libraryListCmd is the 'get' subcommand (formerly 'list')
 var libraryListCmd = &cobra.Command{
-	Use:     "list [resource-type]",
-	Aliases: []string{"ls"},
+	Use:     "get [resource-type]",
+	Aliases: []string{"list", "ls"},
 	Short:   "List library resources",
 	Long: `List library resources (plugins, themes, prompts, packages).
 
@@ -41,19 +41,20 @@ Resource types:
   terminal packages     - List terminal bundles
 
 Examples:
-  dvm library list plugins
-  dvm library list themes
-  dvm library list terminal prompts
+  dvm library get plugins
+  dvm library get themes
+  dvm library get terminal prompts
   dvm lib ls np                    # Short form
-  dvm library list plugins -o yaml`,
+  dvm library get plugins -o yaml`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: runLibraryList,
 }
 
-// libraryShowCmd is the 'show' subcommand
+// libraryShowCmd is the 'describe' subcommand (formerly 'show')
 var libraryShowCmd = &cobra.Command{
-	Use:   "show [resource-type] [name]",
-	Short: "Show library resource details",
+	Use:     "describe [resource-type] [name]",
+	Aliases: []string{"show"},
+	Short:   "Show library resource details",
 	Long: `Show details of a specific library resource.
 
 Resource types:
@@ -65,12 +66,12 @@ Resource types:
   terminal-package [name]     - Show terminal package details
 
 Examples:
-  dvm library show plugin telescope
-  dvm library show theme coolnight-ocean
-  dvm library show nvim-package core
-  dvm library show terminal prompt starship-default
-  dvm library show terminal plugin zsh-autosuggestions
-  dvm library show terminal-package core`,
+  dvm library describe plugin telescope
+  dvm library describe theme coolnight-ocean
+  dvm library describe nvim-package core
+  dvm library describe terminal prompt starship-default
+  dvm library describe terminal plugin zsh-autosuggestions
+  dvm library describe terminal-package core`,
 	Args: cobra.MinimumNArgs(2),
 	RunE: runLibraryShow,
 }

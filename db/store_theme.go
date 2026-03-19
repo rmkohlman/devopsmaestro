@@ -187,26 +187,32 @@ func (ds *SQLDataStore) GetActiveTheme() (*models.NvimThemeDB, error) {
 }
 
 // SetActiveTheme sets the active theme by name (deactivates others).
+// The deactivate-all + activate-one runs in a transaction to ensure atomicity.
 func (ds *SQLDataStore) SetActiveTheme(name string) error {
-	// First, verify the theme exists
+	// First, verify the theme exists (outside transaction — read-only check)
 	if _, err := ds.GetThemeByName(name); err != nil {
 		return err
 	}
 
+	tx, err := ds.driver.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // rollback after commit is a no-op
+
 	// Deactivate all themes
-	if err := ds.ClearActiveTheme(); err != nil {
-		return err
+	if _, err := tx.Execute(`UPDATE nvim_themes SET is_active = 0`); err != nil {
+		return fmt.Errorf("failed to clear active theme: %w", err)
 	}
 
 	// Activate the specified theme
 	query := fmt.Sprintf(`UPDATE nvim_themes SET is_active = 1, updated_at = %s WHERE name = ?`,
 		ds.queryBuilder.Now())
-	_, err := ds.driver.Execute(query, name)
-	if err != nil {
+	if _, err := tx.Execute(query, name); err != nil {
 		return fmt.Errorf("failed to set active theme: %w", err)
 	}
 
-	return nil
+	return tx.Commit()
 }
 
 // ClearActiveTheme deactivates all themes.

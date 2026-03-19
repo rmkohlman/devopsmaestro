@@ -114,6 +114,7 @@ var deleteGitRepoCmd = &cobra.Command{
 
 By default, this removes both the database record and the mirror directory.
 Use --keep-mirror to only remove the database record.
+By default, you will be prompted for confirmation. Use --force to skip.
 
 Examples:
   # Delete repository and mirror
@@ -121,6 +122,9 @@ Examples:
   
   # Delete database record but keep mirror directory
   dvm delete gitrepo my-repo --keep-mirror
+  
+  # Skip confirmation
+  dvm delete gitrepo my-repo --force
   
   # Short aliases
   dvm delete repo my-repo
@@ -188,6 +192,7 @@ func init() {
 	// Register delete subcommand
 	deleteCmd.AddCommand(deleteGitRepoCmd)
 	deleteGitRepoCmd.Flags().Bool("keep-mirror", false, "Keep mirror directory on disk")
+	deleteGitRepoCmd.Flags().Bool("force", false, "Skip confirmation prompt")
 
 	// Create or get sync command
 	idx := findCommandIndex(rootCmd, "sync")
@@ -456,13 +461,30 @@ func runDeleteGitRepo(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Get keep-mirror flag
+	// Get flags
 	keepMirror, _ := cmd.Flags().GetBool("keep-mirror")
+	force, _ := cmd.Flags().GetBool("force")
 
-	// Get the repo first to get slug for mirror deletion
+	// Get the repo first to get slug for mirror deletion and confirmation info
 	repo, err := dataStore.GetGitRepoByName(name)
 	if err != nil {
 		return fmt.Errorf("gitrepo '%s' not found", name)
+	}
+
+	// Build confirmation message
+	msg := fmt.Sprintf("Delete gitrepo '%s' (URL: %s)", name, repo.URL)
+	if !keepMirror {
+		msg += " and its mirror directory?"
+	} else {
+		msg += " (keeping mirror directory)?"
+	}
+
+	confirmed, err := confirmDelete(msg, force)
+	if err != nil {
+		return err
+	}
+	if !confirmed {
+		return nil
 	}
 
 	// Delete from database

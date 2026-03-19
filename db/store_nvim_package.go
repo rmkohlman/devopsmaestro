@@ -47,18 +47,28 @@ func (ds *SQLDataStore) UpdatePackage(pkg *models.NvimPackageDB) error {
 	return nil
 }
 
-// UpsertPackage creates or updates an nvim package (by name).
+// UpsertPackage creates or updates an nvim package (by name) atomically using ON CONFLICT.
 func (ds *SQLDataStore) UpsertPackage(pkg *models.NvimPackageDB) error {
-	// Try to get existing package first
-	existing, err := ds.GetPackage(pkg.Name)
+	query := fmt.Sprintf(`INSERT INTO nvim_packages (name, description, category, labels, plugins, extends, created_at, updated_at) 
+		VALUES (?, ?, ?, ?, ?, ?, %s, %s)
+		%s, updated_at = %s`,
+		ds.queryBuilder.Now(), ds.queryBuilder.Now(),
+		ds.queryBuilder.UpsertSuffix([]string{"name"}, []string{
+			"description", "category", "labels", "plugins", "extends",
+		}),
+		ds.queryBuilder.Now())
+
+	result, err := ds.driver.Execute(query, pkg.Name, pkg.Description, pkg.Category, pkg.Labels, pkg.Plugins, pkg.Extends)
 	if err != nil {
-		// Package doesn't exist, create it
-		return ds.CreatePackage(pkg)
+		return fmt.Errorf("failed to upsert package: %w", err)
 	}
 
-	// Package exists, update it (preserve the ID)
-	pkg.ID = existing.ID
-	return ds.UpdatePackage(pkg)
+	id, err := result.LastInsertId()
+	if err == nil {
+		pkg.ID = int(id)
+	}
+
+	return nil
 }
 
 // DeletePackage removes a package by name.
@@ -110,14 +120,20 @@ func (ds *SQLDataStore) ListPackages() ([]*models.NvimPackageDB, error) {
 
 // ListPackagesByLabel retrieves packages that have a specific label key-value pair.
 func (ds *SQLDataStore) ListPackagesByLabel(key, value string) ([]*models.NvimPackageDB, error) {
+	// Validate key to prevent SQL injection via json_extract path
+	if err := validateLabelKey(key); err != nil {
+		return nil, fmt.Errorf("invalid label key: %w", err)
+	}
+
 	// Use JSON_EXTRACT if available (SQLite 3.45+) or simple string matching as fallback
+	// key is validated above to contain only safe characters (alphanumeric, hyphens, underscores, dots)
 	query := `SELECT id, name, description, category, labels, plugins, extends, created_at, updated_at 
 		FROM nvim_packages 
 		WHERE labels IS NOT NULL 
-		AND (json_extract(labels, '$.` + key + `') = ? OR labels LIKE '%"' || ? || '":"' || ? || '"%')
+		AND (json_extract(labels, '$.' || ?) = ? OR labels LIKE '%"' || ? || '":"' || ? || '"%')
 		ORDER BY name`
 
-	rows, err := ds.driver.Query(query, value, key, value)
+	rows, err := ds.driver.Query(query, key, value, key, value)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list packages by label: %w", err)
 	}

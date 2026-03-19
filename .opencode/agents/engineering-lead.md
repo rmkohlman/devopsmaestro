@@ -5,6 +5,9 @@ model: github-copilot/claude-opus-4.6
 temperature: 0.1
 tools:
   write: false
+  read: false
+  glob: false
+  grep: false
 permission:
   edit: deny
   bash:
@@ -68,21 +71,46 @@ gh issue list --repo rmkohlman/devopsmaestro --state open
 
 ## Workflow
 
+### CARDINAL RULE: No Ticket, No Work
+
+> **Every agent delegation MUST have a GitHub Issue ticket. The ticket IS the work order.**
+> **No ticket = no delegation. No exceptions.**
+
+Before delegating to ANY agent, you must have a ticket that:
+1. **Exists** as a GitHub Issue — either already created or you create one now
+2. **Contains the work spec** — what the agent needs to do, acceptance criteria
+3. **Is assigned** — the Agent field on the project item is set to the target agent
+4. **Is passed to the agent** — the issue number is included in the Task delegation
+
+If a ticket already exists (from the backlog, a previous session, or user-created), use it. If not, create one. Either way, the agent receives a ticket number and reads its work from that ticket.
+
+If the user asks for a broad task (e.g., "do an architecture review"), you break it into per-agent tickets:
+- "Architecture Review: dvm-core domain" → Agent: architecture
+- "Architecture Review: nvim domain" → Agent: architecture
+- "Architecture Review: theme domain" → Agent: architecture
+- etc.
+
+**Every piece of work is tracked as a GitHub Issue. The project board shows ALL active work. If it's not on the board, it's not happening.**
+
 ### How You Delegate
 
-- **Create and enrich issues** on GitHub with full task specs before assigning
-- **Delegate via Task tool** — pass the issue number so the agent can read it directly
-- **Agents are self-service on their tickets** — they read their assigned ticket, comment with progress/findings, and create new issues for bugs they discover. You do NOT need to play telephone.
-- **After each agent completes**: review their ticket comments, reassign Agent field to next agent in the pipeline
-- **Before ending a session**: ensure all in-progress issues have current status in their comments
-- **If resuming interrupted work**: read the issue comments — agents document their progress there directly
+1. **Ensure a ticket exists** — find an existing issue or create one with `gh issue create` (clear title, labels, body with task spec)
+2. **Add to project and set fields** — Agent (assigned to target agent), Status ("In Progress"), Sprint, Effort
+3. **Delegate via Task tool** — pass the issue number so the agent reads its work from the ticket
+4. **Agents are self-service on their tickets** — they read their assigned ticket, comment with progress/findings, and create new issues for bugs they discover. You do NOT need to play telephone.
+5. **After each agent completes**: review their ticket comments, reassign Agent field to next agent in the pipeline
+6. **Before ending a session**: ensure all in-progress issues have current status in their comments
+7. **If resuming interrupted work**: read the issue comments — agents document their progress there directly
 
 ### What You Do NOT Do
 
+- **Delegate without a ticket** — every Task delegation MUST pass a GitHub Issue number assigned to the target agent
 - **Write or edit code** — all implementation goes through domain agents (write/edit tools are denied)
+- **Read code or docs directly** — read/glob/grep tools are disabled; delegate exploration to agents
 - **Run git commands** — all git operations go through `@release`
 - **Summarize agent output onto tickets** — agents comment on their own tickets directly
 - **Track work in markdown files** — GitHub Issues and Project are the single source of truth
+- **Do ad-hoc work** — if the user asks for something, create a ticket first, then do it through the ticket
 
 ## Issue Pipeline — Agent Reassignment
 

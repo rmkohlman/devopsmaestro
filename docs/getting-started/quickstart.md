@@ -59,10 +59,10 @@ nvp theme generate
 
 ```bash
 # Generate WezTerm config with matching theme colors
-dvt wezterm apply default   # Creates ~/.wezterm.lua
+dvt wezterm use default   # Creates ~/.wezterm.lua
 
 # Available presets: default, minimal, tmux-style
-dvt wezterm apply minimal   # For distraction-free terminal
+dvt wezterm use minimal   # For distraction-free terminal
 ```
 
 **Key Benefits:**
@@ -102,7 +102,7 @@ dvm create workspace main
 # 5. Generate all configurations
 nvp config generate          # Neovim config
 nvp theme generate           # Theme files  
-dvt wezterm apply minimal    # Terminal config
+dvt wezterm use minimal    # Terminal config
 dvt profile generate myprofile --output ~/.config
 
 # 6. Configure shell

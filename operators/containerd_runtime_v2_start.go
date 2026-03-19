@@ -19,6 +19,11 @@ import (
 
 // StartWorkspace creates and starts a workspace container
 func (r *ContainerdRuntimeV2) StartWorkspace(ctx context.Context, opts StartOptions) (string, error) {
+	// SECURITY: Validate all mount source paths before passing to container runtime
+	if err := validateStartOptionsMounts(opts); err != nil {
+		return "", fmt.Errorf("invalid mount configuration: %w", err)
+	}
+
 	// For Colima, use nerdctl via SSH to handle host path mounting correctly
 	// The containerd API cannot handle macOS host paths directly since containerd
 	// runs inside the Colima VM
@@ -45,7 +50,7 @@ func (r *ContainerdRuntimeV2) startWorkspaceViaColima(ctx context.Context, opts 
 	// We check for existence separately from the image label because
 	// containers created before v0.18.18 don't have the image label
 	existsCmd := fmt.Sprintf("sudo nerdctl --namespace %s inspect %s >/dev/null 2>&1 && echo EXISTS || echo NOTFOUND",
-		r.namespace, containerName)
+		shellEscape(r.namespace), shellEscape(containerName))
 	existsExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", existsCmd)
 	existsOutput, _ := existsExec.Output()
 	containerExists := strings.TrimSpace(string(existsOutput)) == "EXISTS"
@@ -54,7 +59,7 @@ func (r *ContainerdRuntimeV2) startWorkspaceViaColima(ctx context.Context, opts 
 		// Get the image the existing container was created with from our label
 		// Containers created before v0.18.18 won't have this label
 		imageCmd := fmt.Sprintf("sudo nerdctl --namespace %s inspect -f '{{index .Config.Labels \"io.devopsmaestro.image\"}}' %s 2>/dev/null || echo ''",
-			r.namespace, containerName)
+			shellEscape(r.namespace), shellEscape(containerName))
 		imageExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", imageCmd)
 		imageOutput, _ := imageExec.Output()
 		existingImage := strings.TrimSpace(string(imageOutput))
@@ -67,7 +72,7 @@ func (r *ContainerdRuntimeV2) startWorkspaceViaColima(ctx context.Context, opts 
 			render.Infof("Container exists without image label (pre-v0.18.18), recreating...")
 			// Remove old container to recreate with proper labels
 			rmCmd := fmt.Sprintf("sudo nerdctl --namespace %s rm -f %s 2>/dev/null || true",
-				r.namespace, containerName)
+				shellEscape(r.namespace), shellEscape(containerName))
 			rmExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", rmCmd)
 			rmExec.Run()
 			// Fall through to create new container
@@ -77,7 +82,7 @@ func (r *ContainerdRuntimeV2) startWorkspaceViaColima(ctx context.Context, opts 
 
 			// Stop and remove the old container regardless of state
 			rmCmd := fmt.Sprintf("sudo nerdctl --namespace %s rm -f %s 2>/dev/null || true",
-				r.namespace, containerName)
+				shellEscape(r.namespace), shellEscape(containerName))
 			rmExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", rmCmd)
 			rmExec.Run()
 
@@ -85,7 +90,7 @@ func (r *ContainerdRuntimeV2) startWorkspaceViaColima(ctx context.Context, opts 
 		} else {
 			// Same image - check if it's running
 			statusCmd := fmt.Sprintf("sudo nerdctl --namespace %s inspect -f '{{.State.Status}}' %s 2>/dev/null || echo stopped",
-				r.namespace, containerName)
+				shellEscape(r.namespace), shellEscape(containerName))
 			statusExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", statusCmd)
 			statusOutput, _ := statusExec.Output()
 			status := strings.TrimSpace(string(statusOutput))
@@ -97,7 +102,7 @@ func (r *ContainerdRuntimeV2) startWorkspaceViaColima(ctx context.Context, opts 
 
 			// Container exists but not running, try to start it
 			startCmd := fmt.Sprintf("sudo nerdctl --namespace %s start %s 2>/dev/null",
-				r.namespace, containerName)
+				shellEscape(r.namespace), shellEscape(containerName))
 			startExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", startCmd)
 			if err := startExec.Run(); err == nil {
 				return containerName, nil
@@ -105,7 +110,7 @@ func (r *ContainerdRuntimeV2) startWorkspaceViaColima(ctx context.Context, opts 
 
 			// Start failed, remove and recreate
 			rmCmd := fmt.Sprintf("sudo nerdctl --namespace %s rm -f %s 2>/dev/null || true",
-				r.namespace, containerName)
+				shellEscape(r.namespace), shellEscape(containerName))
 			rmExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", rmCmd)
 			rmExec.Run()
 		}
@@ -127,6 +132,7 @@ func (r *ContainerdRuntimeV2) startWorkspaceViaColima(ctx context.Context, opts 
 		"--namespace", r.namespace,
 		"run", "-d",
 		"--name", containerName,
+		"--user", "1000:1000", // Run as non-root dev user (security: least privilege)
 		"-w", workingDir,
 	}
 
@@ -193,12 +199,8 @@ func (r *ContainerdRuntimeV2) startWorkspaceViaColima(ctx context.Context, opts 
 		if i > 0 {
 			cmdStr += " "
 		}
-		// Quote arguments that contain spaces or special characters
-		if needsQuoting(arg) {
-			cmdStr += fmt.Sprintf("'%s'", arg)
-		} else {
-			cmdStr += arg
-		}
+		// Shell-escape all arguments to prevent shell metacharacter injection
+		cmdStr += shellEscape(arg)
 	}
 
 	// Execute via colima ssh
@@ -220,14 +222,12 @@ func (r *ContainerdRuntimeV2) startWorkspaceViaColima(ctx context.Context, opts 
 	return containerName, nil
 }
 
-// needsQuoting returns true if a string needs shell quoting
-func needsQuoting(s string) bool {
-	for _, c := range s {
-		if c == ' ' || c == '\'' || c == '"' || c == '=' || c == '$' || c == '\\' || c == '!' || c == '*' {
-			return true
-		}
-	}
-	return false
+// shellEscape escapes a string for safe use inside single-quoted shell arguments.
+// It replaces each single quote with the sequence '\” which ends the current
+// single-quoted string, adds an escaped single quote, and starts a new single-quoted string.
+// The result is always wrapped in single quotes.
+func shellEscape(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
 }
 
 // startWorkspaceDirectAPI starts a workspace using the containerd API directly
@@ -345,8 +345,8 @@ func (r *ContainerdRuntimeV2) startWorkspaceDirectAPI(ctx context.Context, opts 
 				oci.WithProcessCwd(workingDir),
 				oci.WithEnv(envSlice),
 				oci.WithMounts(mounts),
-				oci.WithUserID(0), // Run as root
-				oci.WithUsername("root"),
+				oci.WithUserID(1000), // Run as non-root dev user (security: least privilege)
+				oci.WithUsername("dev"),
 				// Don't set TTY here - nerdctl exec will handle TTY allocation
 			),
 		),

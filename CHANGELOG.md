@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.58.0] - 2026-03-19 — Security Hardening, Data Integrity, and CLI Normalization
+
+> **Breaking changes:** CLI verb renames (`list→get`, `show→describe`, `install→import`) and flag changes affect scripted workflows. See Tier 4 below.
+
+### 🔒 Tier 1 — Security Vulnerability Fixes (#51, #52)
+
+- **Command injection prevention (`shellEscape`)** — all user-supplied values passed to shell commands are now escaped via `shellEscape()`; previously, a workspace name or tag containing shell metacharacters could inject arbitrary commands at container build/start time (`builders/dockerfile_generator.go`, `operators/`) (#51)
+- **SQL injection prevention (`validateLabelKey`, parameterized queries)** — label key inputs are validated against an allowlist before use in dynamic SQL; all remaining raw string concatenation in store queries replaced with parameterized `?` placeholders (`db/store_*.go`) (#52)
+
+### 🗄️ Tier 2 — Data Integrity (#53, #54, #55)
+
+- **WAL mode for SQLite** — database opened with `_journal_mode=WAL` and `_synchronous=NORMAL`; improves concurrent read performance and prevents database corruption on unclean shutdown (`db/sqlite_driver.go`) (#53)
+- **Transaction wrapping for multi-step operations** — all multi-table write sequences (create workspace, delete ecosystem, apply resource list, etc.) are now wrapped in explicit `BEGIN`/`COMMIT` transactions; partial writes that previously left the database in an inconsistent state on error are now fully rolled back (`db/store_*.go`) (#54)
+- **Delete confirmation prompts** — destructive `dvm delete` commands now require interactive confirmation (`y/N`) before proceeding; `--force` / `-f` flag skips confirmation for scripted use (`cmd/delete.go`, `cmd/confirm.go`) (#55)
+
+### 🛡️ Tier 3 — Security Hardening (#56, #57, #58, #59, #60)
+
+- **Non-root containers** — generated Dockerfiles now create a `dev` user and group at build time and switch to that user via `USER dev` in the final stage; previously all container processes ran as root (`builders/dockerfile_generator.go`) (#56)
+- **Mount path validation** — all mount source paths supplied to container start/attach operations are validated against an allowlist of permitted base directories; paths containing `..`, symlinks, or outside the allowed tree are rejected before the mount is passed to the container runtime (`operators/mount_validation.go`) (#57)
+- **Symlink prevention in `copyAppSource`** — the source copy step that stages application code into the build context now checks each path component for symlinks; symlinks that escape the source root are rejected with a hard error, preventing path-traversal during `docker build` (`operators/docker_runtime.go`) (#58)
+- **Base image pinning to SHA256 digests** — `FROM` lines in generated Dockerfiles now use `image@sha256:<digest>` instead of mutable tags; the pinned digest map covers all supported base images (Alpine, Debian/Bookworm, Ubuntu); a warning is emitted when an unknown base image is used (`builders/dockerfile_generator.go`) (#59)
+- **Checksum verification for tool downloads** — the binary download helpers for managed tools (Athens, Zot, Devpi) now compute SHA256 of the downloaded artifact and compare against the published checksum manifest before installation; download artifacts that fail verification are deleted and the install aborts (`builders/checksums.go`) (#60)
+
+### 🖥️ Tier 4 — CLI Normalization (#61–#67)
+
+- **Verb normalization** — `list` → `get`, `show` → `describe`, `install` → `import` across `dvm`, `nvp`, and `dvt`; old verbs retained as hidden aliases for backward compatibility during transition (`cmd/`, `cmd/nvp/`, `cmd/dvt/`) (#61)
+- **`-f` flag collision resolution** — `-f` was overloaded as both `--force` and `--file` in several commands; resolved by reserving `-f` for `--force` (destructive confirmations) and using `--file` (long form only) for file input paths (`cmd/`) (#62)
+- **`dvt apply → dvt use` rename** — `dvt apply <name>` renamed to `dvt use <name>` for consistency with `dvm use`; `dvt apply` retained as a hidden alias (`cmd/dvt/root.go`) (#63)
+- **`--no-color` flag for `dvt`** — `dvt` now honors `--no-color` and `NO_COLOR` env var (matching `dvm` and `nvp` behavior); terminal output is rendered in plain text when color is disabled (`cmd/dvt/root.go`) (#64)
+- **`errSilent` pattern across all CLIs** — commands that previously printed usage on all errors now distinguish between usage errors (print help) and runtime errors (print error only, no usage); implemented via `cobra.SilenceUsage` + `errSilent` sentinel across `dvm`, `nvp`, `dvt` (`cmd/root.go`, `cmd/nvp/root.go`, `cmd/dvt/root.go`) (#65)
+- **`-o` flag overload resolution** — `-o` was used for both `--output` (format) and `--org` (organization) in different subcommands of the same binary; resolved by reserving `-o` for `--output` and using `--org` (long form) for organization flags (`cmd/nvp/`, `cmd/dvt/`) (#66)
+- **Resource short aliases** — common resource names now have short aliases registered on `dvm get` / `dvm delete` / `dvm describe`: `ws` → `workspace`, `eco` → `ecosystem`, `dom` → `domain`, `cred` → `credential` (`cmd/aliases_test.go`) (#67)
+
+### 🏗️ Technical
+
+| Metric | Value |
+|--------|-------|
+| Breaking changes | CLI verb renames, flag changes (Tier 4) |
+| Files changed | 60 |
+| Insertions | 1,624 |
+| Deletions | 970 |
+| New files | `builders/checksums.go`, `cmd/confirm.go`, `operators/mount_validation.go` |
+| Issues closed | #51–#67 |
+
+---
+
 ## [v0.57.1] - 2026-03-18 — Bug Fixes from Local Testing
 
 ### 🐛 Bug Fixes
@@ -5013,7 +5059,7 @@ spec:
 - **`dvt wezterm list`** - List available WezTerm presets
 - **`dvt wezterm show <name>`** - Show preset details  
 - **`dvt wezterm generate <name>`** - Generate wezterm.lua with theme colors
-- **`dvt wezterm apply <name>`** - Apply configuration to ~/.wezterm.lua
+- **`dvt wezterm use <name>`** - Set active WezTerm configuration (~/.wezterm.lua)
 - **Automatic theme color resolution** - Theme colors from library embedded into generated configurations
 
 ### 📖 Documentation

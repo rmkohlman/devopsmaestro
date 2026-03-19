@@ -561,7 +561,7 @@ dvt prompt delete <name>      # Delete a prompt
 dvt wezterm list              # List available WezTerm presets
 dvt wezterm show <name>       # Show preset details
 dvt wezterm generate <name>   # Generate wezterm.lua with theme colors
-dvt wezterm apply <name>      # Apply configuration to ~/.wezterm.lua
+dvt wezterm use <name>        # Set active WezTerm configuration
 ```
 
 ---

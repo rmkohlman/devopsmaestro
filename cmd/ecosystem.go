@@ -95,7 +95,7 @@ Examples:
 // getEcosystemsCmd lists all ecosystems
 var getEcosystemsCmd = &cobra.Command{
 	Use:     "ecosystems",
-	Aliases: []string{"eco"},
+	Aliases: []string{"eco", "ecosystem"},
 	Short:   "List all ecosystems",
 	Long: `List all ecosystems.
 
@@ -391,14 +391,57 @@ var deleteEcosystemCmd = &cobra.Command{
 	Short:   "Delete an ecosystem",
 	Long: `Delete an ecosystem by name.
 
-WARNING: This will also delete all domains and apps within the ecosystem.
+WARNING: This will cascade-delete all domains, apps, and workspaces within the ecosystem.
+By default, you will be prompted for confirmation. Use --force to skip.
 
 Examples:
   dvm delete ecosystem my-platform
-  dvm delete eco my-platform       # Short form`,
+  dvm delete eco my-platform             # Short form
+  dvm delete ecosystem my-platform --force   # Skip confirmation`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ecosystemName := args[0]
+
+		ds, err := getDataStore(cmd)
+		if err != nil {
+			return err
+		}
+
+		// Look up ecosystem to show cascade info
+		ecosystem, err := ds.GetEcosystemByName(ecosystemName)
+		if err != nil {
+			return fmt.Errorf("ecosystem '%s' not found", ecosystemName)
+		}
+
+		// Count cascade children for the confirmation message
+		domains, _ := ds.ListDomainsByEcosystem(ecosystem.ID)
+		var appCount, wsCount int
+		for _, d := range domains {
+			apps, _ := ds.ListAppsByDomain(d.ID)
+			appCount += len(apps)
+			for _, a := range apps {
+				workspaces, _ := ds.ListWorkspacesByApp(a.ID)
+				wsCount += len(workspaces)
+			}
+		}
+
+		// Build confirmation message showing cascade scope
+		msg := fmt.Sprintf("Delete ecosystem '%s'", ecosystemName)
+		if len(domains) > 0 || appCount > 0 || wsCount > 0 {
+			msg += fmt.Sprintf(" and all its children (%d domain(s), %d app(s), %d workspace(s))?",
+				len(domains), appCount, wsCount)
+		} else {
+			msg += "?"
+		}
+
+		force, _ := cmd.Flags().GetBool("force")
+		confirmed, err := confirmDelete(msg, force)
+		if err != nil {
+			return err
+		}
+		if !confirmed {
+			return nil
+		}
 
 		// Build resource context and use unified handler
 		ctx, err := buildResourceContext(cmd)
@@ -428,6 +471,9 @@ func init() {
 	if deleteCmd != nil {
 		deleteCmd.AddCommand(deleteEcosystemCmd)
 	}
+
+	// Ecosystem deletion flags
+	deleteEcosystemCmd.Flags().Bool("force", false, "Skip confirmation prompt")
 
 	// Ecosystem creation flags
 	createEcosystemCmd.Flags().StringVar(&ecosystemDescription, "description", "", "Ecosystem description")

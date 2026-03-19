@@ -339,9 +339,9 @@ func TestPackageCommands_ErrorCases(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name:        "package get without argument",
+			name:        "package get without argument lists packages",
 			args:        []string{"package", "get"},
-			expectError: true,
+			expectError: false,
 		},
 		{
 			name:        "package install without argument",

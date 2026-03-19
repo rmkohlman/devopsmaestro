@@ -31,7 +31,7 @@ func (r *ContainerdRuntimeV2) attachViaColima(ctx context.Context, opts AttachOp
 
 	// Check if container exists and is running via nerdctl
 	statusCmd := fmt.Sprintf("sudo nerdctl --namespace %s inspect -f '{{.State.Status}}' %s 2>/dev/null || echo not_found",
-		r.namespace, opts.WorkspaceID)
+		shellEscape(r.namespace), shellEscape(opts.WorkspaceID))
 	statusExec := exec.CommandContext(ctx, "colima", "--profile", profile, "ssh", "--", "sh", "-c", statusCmd)
 	statusOutput, err := statusExec.Output()
 	if err != nil {
@@ -55,20 +55,19 @@ func (r *ContainerdRuntimeV2) attachViaColima(ctx context.Context, opts AttachOp
 
 	// Start building the nerdctl exec command
 	var cmdParts []string
-	cmdParts = append(cmdParts, "sudo", "nerdctl", "--namespace", r.namespace, "exec", "-it")
+	cmdParts = append(cmdParts, "sudo", "nerdctl", "--namespace", shellEscape(r.namespace), "exec", "-it")
 
 	// Add environment variables
 	for key, value := range opts.Env {
 		// Shell-escape the value to prevent shell metacharacter interpretation
-		escaped := strings.ReplaceAll(value, "'", "'\\''")
-		cmdParts = append(cmdParts, "-e", fmt.Sprintf("%s='%s'", key, escaped))
+		cmdParts = append(cmdParts, "-e", fmt.Sprintf("%s=%s", key, shellEscape(value)))
 	}
 
 	// Add container name
-	cmdParts = append(cmdParts, opts.WorkspaceID)
+	cmdParts = append(cmdParts, shellEscape(opts.WorkspaceID))
 
 	// Add shell and login flag
-	cmdParts = append(cmdParts, shell)
+	cmdParts = append(cmdParts, shellEscape(shell))
 	if opts.LoginShell {
 		cmdParts = append(cmdParts, "-l")
 	}

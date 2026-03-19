@@ -25,7 +25,7 @@ WezTerm integration allows you to:
 | `dvt wezterm list` | List all available presets |
 | `dvt wezterm show <preset>` | Display preset configuration details |
 | `dvt wezterm generate <preset>` | Generate config file (preview mode) |
-| `dvt wezterm apply <preset>` | Generate and save to `~/.wezterm.lua` |
+| `dvt wezterm use <preset>` | Set active WezTerm configuration (`~/.wezterm.lua`) |
 
 ### Basic Usage
 
@@ -37,14 +37,14 @@ dvt wezterm list
 dvt wezterm show minimal
 dvt wezterm show tmux-style
 
-# Apply configuration directly
-dvt wezterm apply default    # Creates ~/.wezterm.lua
-dvt wezterm apply minimal    # Overwrites with minimal preset
+# Use configuration directly
+dvt wezterm use default    # Creates ~/.wezterm.lua
+dvt wezterm use minimal    # Overwrites with minimal preset
 
 # Generate to custom location
 dvt wezterm generate minimal --output ~/.config/wezterm/wezterm.lua
 
-# Preview configuration before applying
+# Preview configuration before using
 dvt wezterm generate default  # Shows config without saving
 ```
 
@@ -56,8 +56,8 @@ dvt wezterm generate default  # Shows config without saving
 # Set workspace theme
 dvm set theme coolnight-synthwave --workspace main
 
-# Apply WezTerm config - automatically uses coolnight-synthwave colors
-dvt wezterm apply minimal
+# Use WezTerm config - automatically uses coolnight-synthwave colors
+dvt wezterm use minimal
 
 # Terminal now matches your Neovim theme perfectly!
 ```
@@ -124,7 +124,7 @@ dvm set theme coolnight-synthwave --app my-project
 
 # Generate WezTerm config using the hierarchical theme
 cd ~/projects/my-project/workspace
-dvt wezterm apply minimal
+dvt wezterm use minimal
 
 # The generated config automatically uses coolnight-synthwave colors
 ```
@@ -133,11 +133,11 @@ dvt wezterm apply minimal
 
 ```bash
 # Save to custom location
-dvt wezterm apply default --output ~/.config/wezterm/wezterm.lua
+dvt wezterm use default --output ~/.config/wezterm/wezterm.lua
 
 # Preview before saving
 dvt wezterm generate minimal  # Shows config without saving
-dvt wezterm apply minimal     # Saves to ~/.wezterm.lua
+dvt wezterm use minimal       # Saves to ~/.wezterm.lua
 ```
 
 ---
@@ -291,7 +291,7 @@ WezTerm configuration automatically updates when you change themes:
 dvm set theme coolnight-matrix --app
 
 # Regenerate WezTerm config with new theme
-dvt wezterm apply minimal
+dvt wezterm use minimal
 
 # WezTerm will automatically reload the configuration
 ```
@@ -302,7 +302,7 @@ dvt wezterm apply minimal
 # Update all configurations at once after theme change
 nvp config generate       # Update Neovim
 nvp theme generate        # Update theme files
-dvt wezterm apply minimal # Update terminal
+dvt wezterm use minimal # Update terminal
 
 # Everything stays in sync automatically
 ```
@@ -316,7 +316,7 @@ dvt wezterm apply minimal # Update terminal
 You can extend the generated configuration:
 
 ```lua
--- ~/.wezterm.lua (generated with dvt wezterm apply)
+-- ~/.wezterm.lua (generated with dvt wezterm use)
 local wezterm = require 'wezterm'
 local config = {}
 
@@ -343,7 +343,7 @@ Override specific theme colors:
 
 ```bash
 # Generate base config
-dvt wezterm apply minimal
+dvt wezterm use minimal
 
 # Then manually edit ~/.wezterm.lua to override colors
 ```
@@ -377,7 +377,7 @@ dvm set theme coolnight-ocean --app user-service
 # 3. Generate all configurations with consistent theme
 nvp config generate      # Neovim config
 nvp theme generate       # Theme files
-dvt wezterm apply minimal # Terminal config
+dvt wezterm use minimal # Terminal config
 
 # 4. Generate shell profile
 dvt profile generate myprofile --output ~/.config
@@ -412,7 +412,7 @@ dvm set theme coolnight-matrix --app
 
 # Update all configurations
 nvp theme generate              # Update Neovim theme
-dvt wezterm apply minimal       # Update terminal theme
+dvt wezterm use minimal       # Update terminal theme
 
 # Everything now uses the new theme consistently
 ```
@@ -448,7 +448,7 @@ dvt wezterm apply minimal       # Update terminal theme
 
 2. **Regenerate with current theme:**
    ```bash
-   dvt wezterm apply minimal
+dvt wezterm use minimal
    ```
 
 3. **Check available presets:**

@@ -33,6 +33,8 @@ var rootCmd = &cobra.Command{
 	Long: `DevOpsMaestro (dvm) is a CLI tool designed to manage development environments,
 testing, deployments, and maintenance of code and software. It allows you to
 create, manage, and deploy workspaces, apps, dependencies, and more.`,
+	SilenceErrors: true,
+	SilenceUsage:  true,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

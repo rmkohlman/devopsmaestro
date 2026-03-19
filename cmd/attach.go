@@ -55,10 +55,12 @@ Examples:
   dvm attach -a portal                 # Attach to workspace in 'portal' app
   dvm attach -e healthcare -a portal   # Specify ecosystem and app
   dvm attach -a portal -w staging      # Specify app and workspace name`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := runAttach(cmd); err != nil {
 			render.Error(err.Error())
+			return errSilent
 		}
+		return nil
 	},
 }
 

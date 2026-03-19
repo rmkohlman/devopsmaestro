@@ -238,7 +238,7 @@ func TestDeleteCredentialCmd_HasForceFlag(t *testing.T) {
 	assert.NotNil(t, flag, "delete credential should have --force flag")
 	if flag != nil {
 		assert.Equal(t, "bool", flag.Value.Type(), "--force should be a bool flag")
-		assert.Equal(t, "f", flag.Shorthand, "--force should have -f shorthand")
+		assert.Equal(t, "", flag.Shorthand, "--force should have no shorthand (-f is reserved for --filename)")
 		assert.Equal(t, "false", flag.DefValue, "--force should default to false")
 	}
 }

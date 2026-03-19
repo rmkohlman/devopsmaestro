@@ -24,7 +24,7 @@ var deleteCmd = &cobra.Command{
 	Long: `Delete resources by name.
 
 Resource aliases (kubectl-style):
-  app       → a
+  app       → a, application
   workspace → ws
 
 Examples:
@@ -455,24 +455,24 @@ func init() {
 	deleteCmd.AddCommand(deleteWorkspaceCmd)
 
 	// Add flags for nvim plugin
-	deleteNvimPluginCmd.Flags().BoolP("force", "f", false, "Skip confirmation prompt")
+	deleteNvimPluginCmd.Flags().Bool("force", false, "Skip confirmation prompt")
 	deleteNvimPluginCmd.Flags().StringVarP(&deleteNvimWorkspaceFlag, "workspace", "w", "", "Remove from workspace (instead of global library)")
 	deleteNvimPluginCmd.Flags().StringVarP(&deleteNvimAppFlag, "app", "a", "", "App for workspace (defaults to active)")
 
 	// Add flags for workspace
-	deleteWorkspaceCmd.Flags().BoolP("force", "f", false, "Skip confirmation prompt")
+	deleteWorkspaceCmd.Flags().Bool("force", false, "Skip confirmation prompt")
 	deleteWorkspaceCmd.Flags().StringP("app", "a", "", "App name (defaults to active app)")
 
 	// Registry command
 	deleteCmd.AddCommand(deleteRegistryCmd)
 
 	// Registry deletion flags
-	deleteRegistryCmd.Flags().BoolP("force", "f", false, "Skip confirmation prompt")
+	deleteRegistryCmd.Flags().Bool("force", false, "Skip confirmation prompt")
 
 	// Credential command
 	deleteCmd.AddCommand(deleteCredentialCmd)
 
 	// Credential deletion flags
-	deleteCredentialCmd.Flags().BoolP("force", "f", false, "Skip confirmation prompt")
+	deleteCredentialCmd.Flags().Bool("force", false, "Skip confirmation prompt")
 	addCredentialScopeFlags(deleteCredentialCmd)
 }

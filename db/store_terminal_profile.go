@@ -72,18 +72,33 @@ func (ds *SQLDataStore) UpdateTerminalProfile(profile *models.TerminalProfileDB)
 	return nil
 }
 
-// UpsertTerminalProfile creates or updates a terminal profile.
+// UpsertTerminalProfile creates or updates a terminal profile atomically using ON CONFLICT.
 func (ds *SQLDataStore) UpsertTerminalProfile(profile *models.TerminalProfileDB) error {
-	// Check if the profile exists
-	existing, err := ds.GetTerminalProfileByName(profile.Name)
+	query := fmt.Sprintf(`INSERT INTO terminal_profiles (name, description, category, prompt_ref, 
+		plugin_refs, shell_ref, theme_ref, tags, labels, enabled, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, %s, %s)
+		%s, updated_at = %s`,
+		ds.queryBuilder.Now(), ds.queryBuilder.Now(),
+		ds.queryBuilder.UpsertSuffix([]string{"name"}, []string{
+			"description", "category", "prompt_ref", "plugin_refs", "shell_ref",
+			"theme_ref", "tags", "labels", "enabled",
+		}),
+		ds.queryBuilder.Now())
+
+	result, err := ds.driver.Execute(query,
+		profile.Name, profile.Description, profile.Category, profile.PromptRef,
+		profile.PluginRefs, profile.ShellRef, profile.ThemeRef, profile.Tags,
+		profile.Labels, profile.Enabled)
 	if err != nil {
-		// Profile doesn't exist, create it
-		return ds.CreateTerminalProfile(profile)
+		return fmt.Errorf("failed to upsert terminal profile: %w", err)
 	}
 
-	// Profile exists, update it with the existing ID
-	profile.ID = existing.ID
-	return ds.UpdateTerminalProfile(profile)
+	id, err := result.LastInsertId()
+	if err == nil {
+		profile.ID = int(id)
+	}
+
+	return nil
 }
 
 // DeleteTerminalProfile removes a terminal profile by name.

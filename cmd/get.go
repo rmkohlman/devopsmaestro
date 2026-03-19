@@ -18,9 +18,10 @@ var getCmd = &cobra.Command{
 	Long: `Get resources in various formats (colored, yaml, json, plain).
 
 Resource aliases (kubectl-style):
-  apps       → a, app
+  apps       → a, application, applications
   workspaces → ws
   workspace  → ws
+  ecosystems → eco, ecosystem
   context    → ctx
   platforms  → plat
   nvim plugins → np
