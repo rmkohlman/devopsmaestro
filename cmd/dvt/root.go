@@ -14,15 +14,15 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"devopsmaestro/pkg/terminalbridge"
+	"github.com/rmkohlman/MaestroSDK/paths"
+	"github.com/rmkohlman/MaestroSDK/render"
 	"github.com/rmkohlman/MaestroTerminal/terminalops/plugin"
 	pluginlibrary "github.com/rmkohlman/MaestroTerminal/terminalops/plugin/library"
 	"github.com/rmkohlman/MaestroTerminal/terminalops/profile"
 	"github.com/rmkohlman/MaestroTerminal/terminalops/prompt"
 	promptlibrary "github.com/rmkohlman/MaestroTerminal/terminalops/prompt/library"
 	"github.com/rmkohlman/MaestroTerminal/terminalops/shell"
-	"devopsmaestro/pkg/terminalbridge"
-	"github.com/rmkohlman/MaestroSDK/paths"
-	"github.com/rmkohlman/MaestroSDK/render"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/cobra"
@@ -376,7 +376,15 @@ Examples:
 			return fmt.Errorf("failed to load library: %w", err)
 		}
 
-		store := getPromptStore()
+		fileStore := getPromptStore()
+
+		// Also write to database so dvt prompt get/generate/set/delete work
+		var dbStore *terminalbridge.DBPromptStore
+		if ds := cmd.Context().Value("dataStore"); ds != nil {
+			if dataStore, ok := ds.(*db.DataStore); ok {
+				dbStore = terminalbridge.NewDBPromptStore(*dataStore)
+			}
+		}
 
 		var prompts []*prompt.Prompt
 		if all {
@@ -393,9 +401,15 @@ Examples:
 		}
 
 		for _, p := range prompts {
-			if err := store.Save(p); err != nil {
+			if err := fileStore.Save(p); err != nil {
 				render.WarningfToStderr("failed to install %s: %v", p.Name, err)
 				continue
+			}
+			// Sync to database
+			if dbStore != nil {
+				if err := dbStore.Upsert(p); err != nil {
+					render.WarningfToStderr("installed %s to file store but failed to sync to database: %v", p.Name, err)
+				}
 			}
 			render.Successf("Installed %s", p.Name)
 		}

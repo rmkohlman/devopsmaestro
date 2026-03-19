@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.57.1] - 2026-03-18 — Bug Fixes from Local Testing
+
+### 🐛 Bug Fixes
+
+- **`nvp theme create` preset name examples** — help text listed `synthwave, matrix, arctic` as example preset names; corrected to `coolnight-synthwave, coolnight-matrix, coolnight-arctic` to match the actual preset keys in the MaestroTheme parametric engine (`cmd/nvp/root.go`)
+- **`dvt prompt library install` now syncs to database** — previously only wrote to `~/.dvt/prompts/*.yaml` (file store); commands that read from the database (`dvt prompt get`, `dvt prompt generate`, `dvt prompt set`) returned "not found" for library-installed prompts; install now writes to both stores, so `dvt get prompts` correctly shows library-installed prompts (`cmd/dvt/root.go`)
+- **`dvt prompt delete` now removes from file store** — previously only deleted from the database; `dvt prompt list` (which reads from file store) continued to show deleted prompts; delete now removes from both stores (`cmd/dvt/prompt.go`)
+
+### ✨ Enhancements
+
+- **`dvm version --short` flag** — added `--short` flag to `dvm version` for consistency with `nvp version --short` and `dvt version --short`; outputs just the version string (e.g., `v0.57.1`) (`cmd/version.go`)
+
+---
+
 ## [v0.57.0] - 2026-03-18 — Package Extraction & Docs Cleanup
 
 ### 🏗️ Technical

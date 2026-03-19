@@ -20,13 +20,21 @@ var versionCmd = &cobra.Command{
 	Short: "Print version information",
 	Long:  `Print the version, build time, and commit hash of dvm.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// Beautiful version output using UI styles
-		fmt.Println()
+		short, _ := cmd.Flags().GetBool("short")
+
 		// Add 'v' prefix only if not already present
 		versionDisplay := Version
 		if len(versionDisplay) > 0 && versionDisplay[0] != 'v' {
 			versionDisplay = "v" + versionDisplay
 		}
+
+		if short {
+			fmt.Println(versionDisplay)
+			return
+		}
+
+		// Beautiful version output using UI styles
+		fmt.Println()
 		fmt.Printf("%s %s\n",
 			ui.HeaderStyle.Render("🚀 DevOpsMaestro (dvm)"),
 			ui.VersionStyle.Render(versionDisplay))
@@ -48,5 +56,6 @@ var versionCmd = &cobra.Command{
 }
 
 func init() {
+	versionCmd.Flags().Bool("short", false, "Print only version number")
 	rootCmd.AddCommand(versionCmd)
 }

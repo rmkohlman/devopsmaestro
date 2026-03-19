@@ -2,6 +2,12 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.57.1 (2026-03-18)
+
+**Bug Fixes from Local Testing**
+
+Three bug fixes and one enhancement surfaced during local testing. `nvp theme create` help text listed incorrect preset name examples (`synthwave, matrix, arctic`) — corrected to `coolnight-synthwave, coolnight-matrix, coolnight-arctic` to match the actual MaestroTheme parametric engine keys. `dvt prompt library install` now syncs to the database in addition to the file store, fixing "not found" errors from `dvt prompt get/generate/set` (which read from the database) for library-installed prompts. `dvt prompt delete` now removes from the file store in addition to the database, fixing stale entries in `dvt prompt list`. Added `--short` flag to `dvm version` for consistency with `nvp version --short` and `dvt version --short` — outputs just the version string (e.g., `v0.57.1`).
+
 ## v0.57.0 (2026-03-18)
 
 **Package Extraction & Docs Cleanup**

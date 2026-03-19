@@ -6,10 +6,10 @@ import (
 	"devopsmaestro/db"
 	"devopsmaestro/pkg/resource/handlers"
 	"devopsmaestro/pkg/source"
-	"github.com/rmkohlman/MaestroTerminal/terminalops/prompt"
 	"github.com/rmkohlman/MaestroSDK/colors"
 	"github.com/rmkohlman/MaestroSDK/render"
 	"github.com/rmkohlman/MaestroSDK/resource"
+	"github.com/rmkohlman/MaestroTerminal/terminalops/prompt"
 
 	"github.com/spf13/cobra"
 )
@@ -230,6 +230,14 @@ func promptResourceDelete(cmd *cobra.Command, args []string) error {
 
 	if err := handler.Delete(ctx, name); err != nil {
 		return fmt.Errorf("failed to delete prompt: %w", err)
+	}
+
+	// Also delete from file store so dvt prompt list stays in sync
+	fileStore := getPromptStore()
+	if fileStore.Exists(name) {
+		if err := fileStore.Delete(name); err != nil {
+			render.WarningfToStderr("deleted from database but failed to remove file: %v", err)
+		}
 	}
 
 	render.Success(fmt.Sprintf("TerminalPrompt '%s' deleted", name))

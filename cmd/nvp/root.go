@@ -1442,12 +1442,12 @@ fixed for consistency.
 The --from flag accepts:
   - Hex colors: #FF5733, #3498db
   - Hue values: 270 (degrees 0-360)
-  - Preset names: synthwave, matrix, arctic
+  - Preset names: coolnight-synthwave, coolnight-matrix, coolnight-arctic
 
 Examples:
   nvp theme create --from "#8B00FF" --name my-purple-theme
   nvp theme create --from "150" --name my-green-theme
-  nvp theme create --from "synthwave" --dry-run
+  nvp theme create --from "coolnight-synthwave" --dry-run
   nvp theme create --from "#FF6B35" --name sunset-coding -o json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fromValue, _ := cmd.Flags().GetString("from")
