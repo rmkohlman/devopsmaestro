@@ -69,6 +69,7 @@ func newTestDeleteGitRepoCmd() *cobra.Command {
 		RunE:    runDeleteGitRepo,
 	}
 	cmd.Flags().Bool("keep-mirror", false, "Keep the mirror directory")
+	cmd.Flags().BoolP("force", "f", false, "Skip confirmation prompt")
 	return cmd
 }
 
@@ -670,7 +671,7 @@ func TestDeleteGitRepoCmd_Success(t *testing.T) {
 	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
 	cmd.SetContext(ctx)
 
-	cmd.SetArgs([]string{"delete-me"})
+	cmd.SetArgs([]string{"delete-me", "--force"})
 
 	err := cmd.Execute()
 	assert.NoError(t, err)
@@ -706,8 +707,7 @@ func TestDeleteGitRepoCmd_KeepMirror(t *testing.T) {
 	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
 	cmd.SetContext(ctx)
 
-	cmd.SetArgs([]string{"keep-mirror"})
-	cmd.Flags().Set("keep-mirror", "true")
+	cmd.SetArgs([]string{"keep-mirror", "--keep-mirror", "--force"})
 
 	err := cmd.Execute()
 	assert.NoError(t, err)
