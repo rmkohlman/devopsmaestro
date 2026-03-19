@@ -3,10 +3,12 @@ description: Engineering Lead orchestrator — plans, delegates, and coordinates
 mode: primary
 model: github-copilot/claude-opus-4.6
 temperature: 0.1
+tools:
+  write: false
 permission:
+  edit: deny
   bash:
     "*": allow
-  edit: ask
   task:
     "*": allow
 ---
