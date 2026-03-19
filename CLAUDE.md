@@ -91,6 +91,64 @@ gh issue list --repo rmkohlman/devopsmaestro --label "backlog"
 
 ---
 
+## Session Protocol
+
+### Starting a Fresh Session
+
+Every new session begins by checking the GitHub Project to understand current state:
+
+```bash
+# 1. Get all project items with their status and agent assignments
+gh project item-list 1 --owner rmkohlman --format json
+
+# 2. Check for in-progress work (interrupted from previous session)
+gh issue list --repo rmkohlman/devopsmaestro --state open --assignee @me
+```
+
+From the project board:
+1. Items with **Status = "In Progress"** were interrupted — resume these first
+2. The **Agent** field shows which domain agent was working on it
+3. Read issue **comments** for progress notes from previous sessions
+
+### Delegating an Issue to an Agent
+
+1. **Read the issue**: `gh issue view #<number> --repo rmkohlman/devopsmaestro`
+2. **Update project fields** before starting work:
+   - Status → "In Progress"
+   - Agent → the domain agent doing the work
+   - Sprint → current sprint identifier
+3. **Create a Task** for the domain agent including:
+   - Issue number and title
+   - Full issue body (the task spec)
+   - Any advisory agent feedback (architecture/security review)
+4. **When agent returns results**, comment on the issue:
+   ```bash
+   gh issue comment <number> --repo rmkohlman/devopsmaestro --body "## Progress\n<agent summary>\n\n**Agent**: @<agent-name>\n**Status**: <complete|partial>\n**Files changed**: <list>"
+   ```
+5. **If complete**: Status → "Done", close the issue
+6. **If partial**: leave "In Progress", comment documents what's done and what remains
+
+### Resuming Interrupted Work
+
+When starting a session and finding in-progress items:
+
+1. Query project for "In Progress" items
+2. Read the issue body (task spec) + comments (progress from previous sessions)
+3. Check the **Agent** field to know which agent was working on it
+4. Re-delegate to the **same agent** with:
+   - Issue content (the original spec)
+   - Previous progress (from issue comments)
+   - Remaining work (what still needs to be done)
+
+### Before Ending a Session
+
+1. **Comment on every in-progress issue** with current status and remaining work
+2. Ensure **Agent field** is set on all active issues in the project
+3. **Commit all code changes** via `@release`
+4. The GitHub Project IS the state — no local files need updating
+
+---
+
 ## TDD Workflow
 
 ```
