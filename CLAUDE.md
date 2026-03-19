@@ -149,21 +149,46 @@ When starting a session and finding in-progress items:
 
 ---
 
-## TDD Workflow
+## Issue Pipeline — Agent Reassignment
+
+An issue flows through agents as a **pipeline**. The Engineering Lead reassigns the Agent field at each step. Each agent reads all previous comments before starting — the knowledge accumulates.
+
+### Full Pipeline (for non-trivial features)
 
 ```
-PHASE 1: DESIGN        → @architecture, @cli-architect, @security (as needed)
-PHASE 2: FAILING TESTS → @test writes tests that fail
-PHASE 3: IMPLEMENT     → Domain agent(s) make tests pass
-PHASE 4: VERIFY & DOCS → @test confirms, @document updates docs
+PHASE 1: DESIGN REVIEW
+  Agent = architecture  → comments: patterns, interfaces, decoupling guidance
+  Agent = cli-architect → comments: kubectl verbs, flags, output format
+  Agent = security      → comments: threat model, credential handling (if applicable)
+  Agent = database      → comments: schema needs, migration plan (if applicable)
+
+PHASE 2: FAILING TESTS
+  Agent = test          → writes tests that fail, comments: test file paths, coverage plan
+
+PHASE 3: IMPLEMENT
+  Agent = <domain>      → implements (reads ALL prior comments as guidance)
+                           comments: files changed, decisions made
+
+PHASE 4: VERIFY & DOCUMENT
+  Agent = test          → runs tests, comments: pass/fail, coverage
+                           if bugs found → creates NEW bug issue(s)
+  Agent = document      → updates CHANGELOG, README, command reference
+
+PHASE 5: SHIP
+  Agent = release       → commits, pushes, tags if releasing
+                           comments: commit hash, CI status
 ```
 
-### Phase Rules
+### Pipeline Rules
 
-- **Never skip Phase 1** for non-trivial changes
-- **Phase 2 before Phase 3** — tests exist before implementation
+- **Not every issue needs every agent** — a simple bug fix might be: `@dvm-core` → `@test` → `@release`
+- **The Engineering Lead decides which agents touch each issue** based on scope and risk
+- **Agent field = who owns it RIGHT NOW** (single-select, one owner at a time)
+- **Comments = the knowledge chain** (each agent's output persists for the next)
+- **Never skip Phase 2** for non-trivial changes — tests before implementation
 - **Phase 4 is mandatory** — documentation must be updated
 - **@release is the ONLY agent that runs git commands**
+- **@test creating bug issues** feeds new work back into the system via the standard Bug → Issue → Sprint flow
 
 ---
 
