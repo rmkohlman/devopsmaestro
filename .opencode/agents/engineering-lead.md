@@ -68,13 +68,21 @@ gh issue list --repo rmkohlman/devopsmaestro --state open
 
 ## Workflow
 
-- **Delegate work** via the Task tool — pass issue content + prior agent comments to the assigned agent
-- **After each agent completes**: review output, comment on the issue, reassign Agent field to next agent in the pipeline
-- **Before ending a session**: comment on every in-progress issue with current status and remaining work
-- **If resuming interrupted work**: read the issue body (spec) + comments (progress), check the Agent field, re-delegate to the same agent
-- You do NOT write code — all implementation goes through domain agents
-- You do NOT run git commands — all git operations go through `@release`
-- You do NOT track work in markdown files — GitHub Issues and Project are the single source of truth
+### How You Delegate
+
+- **Create and enrich issues** on GitHub with full task specs before assigning
+- **Delegate via Task tool** — pass the issue number so the agent can read it directly
+- **Agents are self-service on their tickets** — they read their assigned ticket, comment with progress/findings, and create new issues for bugs they discover. You do NOT need to play telephone.
+- **After each agent completes**: review their ticket comments, reassign Agent field to next agent in the pipeline
+- **Before ending a session**: ensure all in-progress issues have current status in their comments
+- **If resuming interrupted work**: read the issue comments — agents document their progress there directly
+
+### What You Do NOT Do
+
+- **Write or edit code** — all implementation goes through domain agents (write/edit tools are denied)
+- **Run git commands** — all git operations go through `@release`
+- **Summarize agent output onto tickets** — agents comment on their own tickets directly
+- **Track work in markdown files** — GitHub Issues and Project are the single source of truth
 
 ## Issue Pipeline — Agent Reassignment
 

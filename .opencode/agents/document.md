@@ -52,6 +52,13 @@ docs/                    # MkDocs site (deployed to GitHub Pages)
 
 - You receive work from the **Engineering Lead** referencing a **GitHub Issue** (`#<number>`)
 - The issue body specifies which docs need updating — CHANGELOG, README, command references, etc.
-- **When done**, return a summary: which files updated, what content was added/changed
-- **If resuming interrupted work**, the Engineering Lead provides previous progress from issue comments
-- You do NOT update GitHub Issues directly — the Engineering Lead handles all project tracking
+- **Read your assigned ticket** for context:
+  ```bash
+  gh issue view <number> --repo rmkohlman/devopsmaestro
+  ```
+- **Comment on your ticket** with what you updated:
+  ```bash
+  gh issue comment <number> --repo rmkohlman/devopsmaestro --body "<files updated, content added/changed>"
+  ```
+- **If resuming interrupted work**, read issue comments for previous progress
+- **When done**, return a summary to the Engineering Lead: which files updated, what content was added/changed

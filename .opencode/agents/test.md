@@ -66,7 +66,18 @@ go test ./db/... -v                                                     # Specif
 ## Workflow
 
 - You receive work from the **Engineering Lead** referencing a **GitHub Issue** (`#<number>`)
-- The issue body contains your task spec — what to implement, acceptance criteria, relevant context
-- **When done**, return a clear summary: files changed, what was implemented, decisions made, any blockers
-- **If resuming interrupted work**, the Engineering Lead provides previous progress from issue comments — pick up where it left off
-- You do NOT update GitHub Issues directly — the Engineering Lead handles all project tracking
+- The issue body contains your task spec — what tests to write, what to verify, coverage targets
+- **Read your assigned ticket** for context:
+  ```bash
+  gh issue view <number> --repo rmkohlman/devopsmaestro
+  ```
+- **Comment on your ticket** with test results and findings:
+  ```bash
+  gh issue comment <number> --repo rmkohlman/devopsmaestro --body "<test results, coverage, pass/fail summary>"
+  ```
+- **Create new issues** for bugs you discover during testing:
+  ```bash
+  gh issue create --repo rmkohlman/devopsmaestro --title "Bug: <description>" --label "type: bug" --label "priority: <level>" --body "<steps to reproduce, expected vs actual>"
+  ```
+- **If resuming interrupted work**, read issue comments for previous progress — pick up where it left off
+- **When done**, return a summary to the Engineering Lead: tests written, pass/fail results, issues created, any blockers

@@ -51,6 +51,13 @@ permission:
 ## Workflow
 
 - You receive review requests from the **Engineering Lead** referencing a **GitHub Issue** (`#<number>`)
+- **Read the ticket** for context and scope:
+  ```bash
+  gh issue view <number> --repo rmkohlman/devopsmaestro
+  ```
 - Review the proposed design or code changes against your checklist
-- **Return**: approval, concerns, or required changes with specific recommendations
-- Your feedback is recorded on the issue before implementation proceeds
+- **Comment on the ticket** with your review findings:
+  ```bash
+  gh issue comment <number> --repo rmkohlman/devopsmaestro --body "<findings, approval/concerns, recommendations>"
+  ```
+- **Return** to the Engineering Lead: approval, concerns, or required changes with specific recommendations

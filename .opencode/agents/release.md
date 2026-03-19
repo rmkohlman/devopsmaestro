@@ -64,5 +64,8 @@ go build -o dvt ./cmd/dvt/
 - You receive work from the **Engineering Lead** — typically "commit these changes" or "do a release"
 - For commits: the Engineering Lead tells you what to stage and the commit message to use
 - For releases: follow the Pre-Release Checklist, then tag + push + verify CI
-- **When done**, return: commit hash, push confirmation, CI status
-- You do NOT update GitHub Issues directly — the Engineering Lead handles all project tracking
+- **Comment on the ticket** with results when given a ticket number:
+  ```bash
+  gh issue comment <number> --repo rmkohlman/devopsmaestro --body "<commit hash, push status, CI status>"
+  ```
+- **When done**, return to the Engineering Lead: commit hash, push confirmation, CI status
