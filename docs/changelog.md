@@ -2,6 +2,12 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.57.0 (2026-03-18)
+
+**Package Extraction & Docs Cleanup**
+
+Five packages extracted from dvm into standalone versioned Go modules (`MaestroPalette`, `MaestroSDK`, `MaestroNvim`, `MaestroTheme`, `MaestroTerminal`). Four thin bridge packages (`colorbridge`, `nvimbridge`, `themebridge`, `terminalbridge`) wire the external modules back to dvm's DataStore. 486 files changed, ~46,000 lines removed from the dvm repository. 0 breaking changes — all CLI commands, YAML schemas, and database schemas are identical to v0.56.0. Documentation cleanup: MkDocs nav fix (`projects.md → apps.md`), removed hardcoded version pin from install docs, deleted 4 duplicate root-level doc files, rewrote `architecture.md` to reflect the post-extraction module boundaries.
+
 ## v0.56.0 (2026-03-18)
 
 **Hierarchical CA Certificate Cascade**

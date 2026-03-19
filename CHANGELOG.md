@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.57.0] - 2026-03-18 — Package Extraction & Docs Cleanup
+
+### 🏗️ Technical
+
+Five packages extracted from dvm into standalone, versioned Go modules. The dvm binary is unchanged from a user perspective — all CLI commands, YAML schemas, and database schemas are identical. dvm now depends on these modules via thin bridge packages.
+
+#### Extracted Modules
+
+| Module | Version | Extracted From |
+|--------|---------|----------------|
+| `github.com/rmkohlman/MaestroPalette` | v0.1.0 | `pkg/palette/` |
+| `github.com/rmkohlman/MaestroSDK` | v0.1.0 | `pkg/paths/`, `pkg/resource/`, `pkg/colors/`, `render/` |
+| `github.com/rmkohlman/MaestroNvim` | v0.2.0 | `pkg/nvimops/` |
+| `github.com/rmkohlman/MaestroTheme` | v0.1.0 | `nvim/` |
+| `github.com/rmkohlman/MaestroTerminal` | v0.1.0 | `pkg/terminalops/` |
+
+#### Bridge Packages (new in dvm)
+
+These thin adapters wire each external module back to dvm's `DataStore` and internal types:
+
+- **`pkg/colorbridge/`** — adapts MaestroTheme color system to dvm
+- **`pkg/nvimbridge/`** — adapts MaestroNvim to dvm DataStore (5 files)
+- **`pkg/themebridge/`** — adapts MaestroTheme to dvm DataStore (2 files)
+- **`pkg/terminalbridge/`** — adapts MaestroTerminal to dvm DataStore (8 files)
+
+#### Stats
+
+| Metric | Value |
+|--------|-------|
+| Breaking changes | 0 |
+| Files changed | 486 |
+| Lines removed from dvm | ~46,000 |
+| New external Go module dependencies | 5 |
+| New bridge packages in dvm | 4 |
+
+### 📚 Documentation
+
+- **MkDocs nav fix** — corrected `projects.md → apps.md` reference in docs nav
+- **Install docs** — removed hardcoded `v0.39.1` version pin from installation instructions
+- **Removed duplicate files** — deleted 4 stale root-level doc files that duplicated content already in `docs/`
+- **`architecture.md` rewrite** — updated to reflect the post-extraction module boundaries and bridge package pattern
+
+---
+
 ## [v0.56.0] - 2026-03-18 — Hierarchical CA Certificate Cascade
 
 ### ✨ Features
