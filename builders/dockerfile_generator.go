@@ -520,6 +520,19 @@ func (g *DefaultDockerfileGenerator) activeBuilderStages() []builderStage {
 		})
 	}
 
+	// Opencode builder (opt-in via workspace tools config)
+	if g.workspaceYAML.Tools.Opencode {
+		stages = append(stages, builderStage{
+			name: "opencode-builder",
+			emitFunc: func(df *strings.Builder) {
+				g.generateOpencodeBuilder(df, isAlpine)
+			},
+			copyLines: []string{
+				"COPY --from=opencode-builder /usr/local/bin/opencode /usr/local/bin/opencode",
+			},
+		})
+	}
+
 	return stages
 }
 
@@ -660,6 +673,49 @@ func (g *DefaultDockerfileGenerator) generateTreeSitterBuilder(dockerfile *strin
 	dockerfile.WriteString("    echo \"${TS_SHA256}  /tmp/ts.gz\" | sha256sum -c - && \\\n")
 	dockerfile.WriteString("    gunzip /tmp/ts.gz && chmod +x /tmp/ts && mv /tmp/ts /usr/local/bin/tree-sitter && \\\n")
 	dockerfile.WriteString("    test -x /usr/local/bin/tree-sitter\n\n")
+}
+
+// generateOpencodeBuilder creates a parallel stage to download the opencode CLI.
+// Uses musl-linked static binaries (works on both Alpine and Debian).
+// Pinned to a specific version with SHA256 checksum verification (see checksums.go).
+//
+// Note: opencode releases use "x64" for amd64 and "arm64" for arm64 in their
+// download URLs (e.g., opencode-linux-x64-musl.tar.gz).
+func (g *DefaultDockerfileGenerator) generateOpencodeBuilder(dockerfile *strings.Builder, isAlpine bool) {
+	dockerfile.WriteString("# --- Parallel builder: opencode ---\n")
+	if isAlpine {
+		dockerfile.WriteString(fmt.Sprintf("FROM %s AS opencode-builder\n", pinnedImage("alpine:3.20")))
+		dockerfile.WriteString("RUN set -e && \\\n")
+		dockerfile.WriteString("    apk add --no-cache curl && \\\n")
+		dockerfile.WriteString("    ARCH=$(uname -m) && \\\n")
+		dockerfile.WriteString("    if [ \"$ARCH\" = \"aarch64\" ]; then \\\n")
+		dockerfile.WriteString(fmt.Sprintf("        OC_ARCH=\"arm64\"; OC_SHA256=\"%s\"; \\\n", opencodeChecksumArm64))
+		dockerfile.WriteString("    elif [ \"$ARCH\" = \"x86_64\" ]; then \\\n")
+		dockerfile.WriteString(fmt.Sprintf("        OC_ARCH=\"x64\"; OC_SHA256=\"%s\"; \\\n", opencodeChecksumAmd64))
+		dockerfile.WriteString("    else \\\n")
+		dockerfile.WriteString("        echo \"ERROR: Unsupported architecture: $ARCH\"; exit 1; \\\n")
+		dockerfile.WriteString("    fi && \\\n")
+	} else {
+		dockerfile.WriteString(fmt.Sprintf("FROM %s AS opencode-builder\n", pinnedImage("debian:bookworm-slim")))
+		dockerfile.WriteString("RUN set -e && \\\n")
+		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
+		dockerfile.WriteString("    ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m) && \\\n")
+		dockerfile.WriteString("    if [ \"$ARCH\" = \"arm64\" ] || [ \"$ARCH\" = \"aarch64\" ]; then \\\n")
+		dockerfile.WriteString(fmt.Sprintf("        OC_ARCH=\"arm64\"; OC_SHA256=\"%s\"; \\\n", opencodeChecksumArm64))
+		dockerfile.WriteString("    elif [ \"$ARCH\" = \"amd64\" ] || [ \"$ARCH\" = \"x86_64\" ]; then \\\n")
+		dockerfile.WriteString(fmt.Sprintf("        OC_ARCH=\"x64\"; OC_SHA256=\"%s\"; \\\n", opencodeChecksumAmd64))
+		dockerfile.WriteString("    else \\\n")
+		dockerfile.WriteString("        echo \"ERROR: Unsupported architecture: $ARCH\"; exit 1; \\\n")
+		dockerfile.WriteString("    fi && \\\n")
+	}
+	// Shared download + verify logic (identical for Alpine and Debian)
+	dockerfile.WriteString(fmt.Sprintf("    curl %s -o /tmp/opencode.tar.gz \"https://github.com/anomalyco/opencode/releases/download/v%s/opencode-linux-${OC_ARCH}-musl.tar.gz\" && \\\n", curlFlags, opencodeVersion))
+	dockerfile.WriteString("    printf '%s  /tmp/opencode.tar.gz\\n' \"${OC_SHA256}\" > /tmp/opencode.sha256 && \\\n")
+	dockerfile.WriteString("    sha256sum -c - < /tmp/opencode.sha256 && \\\n")
+	dockerfile.WriteString("    tar -C /tmp -xzf /tmp/opencode.tar.gz opencode && \\\n")
+	dockerfile.WriteString("    install /tmp/opencode /usr/local/bin/opencode && \\\n")
+	dockerfile.WriteString("    rm /tmp/opencode.tar.gz /tmp/opencode /tmp/opencode.sha256 && \\\n")
+	dockerfile.WriteString("    test -x /usr/local/bin/opencode\n\n")
 }
 
 // getGoToolsList returns the resolved Go tools list (config or defaults)

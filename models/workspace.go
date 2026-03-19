@@ -67,11 +67,29 @@ type WorkspaceSpec struct {
 	Shell     ShellConfig       `yaml:"shell"`
 	Terminal  TerminalConfig    `yaml:"terminal,omitempty"`
 	Nvim      NvimConfig        `yaml:"nvim"`
+	Tools     ToolsConfig       `yaml:"tools,omitempty"`
 	Mounts    []MountConfig     `yaml:"mounts,omitempty"`
 	SSHKey    SSHKeyConfig      `yaml:"sshKey,omitempty"`
 	Env       map[string]string `yaml:"env,omitempty"`
 	Container ContainerConfig   `yaml:"container"`
 	GitRepo   string            `yaml:"gitrepo,omitempty"` // Name of GitRepo resource to clone
+}
+
+// ToolsConfig defines optional workspace-level tools that are installed
+// into the dev container image. Each tool is opt-in (default false)
+// to avoid unnecessary image bloat.
+//
+// These are standalone binary tools, NOT language dev tools (which live
+// in DevStageConfig.DevTools) and NOT nvim plugins (which live in NvimConfig).
+type ToolsConfig struct {
+	Opencode bool `yaml:"opencode,omitempty" json:"opencode,omitempty"`
+	// Future: Lazydocker, K9s, etc. will be added as fields here
+}
+
+// IsZero implements yaml.v3 IsZero for omitempty support.
+// Returns true when no tools are enabled.
+func (t ToolsConfig) IsZero() bool {
+	return !t.Opencode
 }
 
 // ImageConfig defines the container image configuration

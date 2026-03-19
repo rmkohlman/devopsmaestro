@@ -39,3 +39,10 @@ const treeSitterChecksumX64 = "4367a46bc8abbb8328d6efbeb26e86807af0a3a7e462548a3
 const golangciLintVersion = "2.11.3"
 const golangciLintChecksumAmd64 = "87bb8cddbcc825d5778b64e8a91b46c0526b247f4e2f2904dea74ec7450475d1"
 const golangciLintChecksumArm64 = "ee3d95f301359e7d578e6d99c8ad5aeadbabc5a13009a30b2b0df11c8058afe9"
+
+// --- opencode ---
+// https://github.com/anomalyco/opencode/releases
+// Uses musl-linked static binaries (works on both Alpine and Debian)
+const opencodeVersion = "1.2.27"
+const opencodeChecksumArm64 = "7da2618b210f9e29b746e6b863716d9d77d3484a343846b16828686babdf1dd1"
+const opencodeChecksumAmd64 = "660f7319f748a66bda1748c1e7ae74dade1ba3837e6c181263506d88e7b5a4b6"
