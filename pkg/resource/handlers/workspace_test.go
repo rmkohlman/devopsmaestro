@@ -471,7 +471,7 @@ func TestWorkspaceHandler_ToYAML(t *testing.T) {
 		ImageName: "ubuntu:22.04",
 		Status:    "stopped",
 	}
-	res := NewWorkspaceResource(ws, "yaml-app")
+	res := NewWorkspaceResource(ws, "yaml-app", "", "")
 
 	yamlBytes, err := h.ToYAML(res)
 	if err != nil {
@@ -552,7 +552,7 @@ func TestWorkspaceResource_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			res := NewWorkspaceResource(tt.workspace, "")
+			res := NewWorkspaceResource(tt.workspace, "", "", "")
 			err := res.Validate()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)

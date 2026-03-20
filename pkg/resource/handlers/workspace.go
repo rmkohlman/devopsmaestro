@@ -6,8 +6,8 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
-	"github.com/rmkohlman/MaestroSDK/resource"
 	ws "devopsmaestro/pkg/workspace"
+	"github.com/rmkohlman/MaestroSDK/resource"
 
 	"gopkg.in/yaml.v3"
 )
@@ -348,11 +348,14 @@ func (r *WorkspaceResource) AppName() string {
 }
 
 // NewWorkspaceResource creates a new WorkspaceResource from a model.
-func NewWorkspaceResource(workspace *models.Workspace, appName string) *WorkspaceResource {
+// domainName and gitRepoName should be precomputed by the caller (e.g. get_all.go)
+// for context-free YAML serialization. Pass "" if unknown.
+func NewWorkspaceResource(workspace *models.Workspace, appName, domainName, gitRepoName string) *WorkspaceResource {
 	return &WorkspaceResource{
 		workspace:   workspace,
 		appName:     appName,
-		gitRepoName: "", // GitRepo name will be resolved when needed
+		domainName:  domainName,
+		gitRepoName: gitRepoName,
 	}
 }
 

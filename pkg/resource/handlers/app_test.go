@@ -326,7 +326,7 @@ func TestAppHandler_ToYAML(t *testing.T) {
 		Name:     "yaml-app",
 		Path:     "/my/path",
 	}
-	res := NewAppResource(app, "my-domain")
+	res := NewAppResource(app, "my-domain", "")
 
 	yamlBytes, err := h.ToYAML(res)
 	if err != nil {
@@ -391,7 +391,7 @@ func TestAppResource_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			res := NewAppResource(tt.app, "")
+			res := NewAppResource(tt.app, "", "")
 			err := res.Validate()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)

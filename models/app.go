@@ -38,6 +38,7 @@ type AppYAML struct {
 type AppMetadata struct {
 	Name        string            `yaml:"name"`
 	Domain      string            `yaml:"domain"`
+	Ecosystem   string            `yaml:"ecosystem,omitempty"`
 	Labels      map[string]string `yaml:"labels,omitempty"`
 	Annotations map[string]string `yaml:"annotations,omitempty"`
 }

@@ -132,6 +132,11 @@ func getAll(cmd *cobra.Command) error {
 
 	// JSON/YAML: build a kubectl-style kind: List document via resource.BuildList
 	if getOutputFormat == "json" || getOutputFormat == "yaml" {
+		// Warn when exporting YAML/JSON in a scoped context (global resources excluded)
+		if !scope.ShowAll {
+			render.Warning("Warning: Scoped export excludes global resources (GitRepos, Registries, NvimPlugins, NvimThemes, NvimPackages, TerminalPrompts, TerminalPackages). Use -A for a complete backup.")
+		}
+
 		// Ensure all resource handlers are registered
 		handlers.RegisterAll()
 
@@ -153,6 +158,18 @@ func getAll(cmd *cobra.Command) error {
 			appDomIDs[a.ID] = a.DomainID
 		}
 
+		// Workspace name lookup (for credential scope resolution)
+		wsNames := make(map[int]string)
+		for _, w := range workspaces {
+			wsNames[w.ID] = w.Name
+		}
+
+		// GitRepo name lookup (for workspace export)
+		gitRepoNames := make(map[int64]string)
+		for i := range gitRepos {
+			gitRepoNames[int64(gitRepos[i].ID)] = gitRepos[i].Name
+		}
+
 		// Collect resources in dependency order (DependencyOrder from resource package)
 		var allResources []resource.Resource
 
@@ -166,9 +183,10 @@ func getAll(cmd *cobra.Command) error {
 			allResources = append(allResources, handlers.NewDomainResource(d, ecoNames[d.EcosystemID]))
 		}
 
-		// Apps (need parent domain name)
+		// Apps (need parent domain name + ecosystem name for context-free apply)
 		for _, a := range apps {
-			allResources = append(allResources, handlers.NewAppResource(a, domNames[a.DomainID]))
+			ecoName := ecoNames[domEcoIDs[a.DomainID]]
+			allResources = append(allResources, handlers.NewAppResource(a, domNames[a.DomainID], ecoName))
 		}
 
 		// GitRepos — global but filtered; include only when unscoped
@@ -185,14 +203,20 @@ func getAll(cmd *cobra.Command) error {
 			}
 		}
 
-		// Credentials
+		// Credentials (resolve scopeName from precomputed maps)
 		for _, c := range credentials {
-			allResources = append(allResources, handlers.NewCredentialResource(c, ""))
+			scopeName := resolveCredScopeName(c, ecoNames, domNames, appNames, wsNames)
+			allResources = append(allResources, handlers.NewCredentialResource(c, scopeName))
 		}
 
 		// Workspaces (need parent app name + resolve domain/gitrepo names)
 		for _, w := range workspaces {
-			allResources = append(allResources, handlers.NewWorkspaceResource(w, appNames[w.AppID]))
+			domName := domNames[appDomIDs[w.AppID]]
+			grName := ""
+			if w.GitRepoID.Valid {
+				grName = gitRepoNames[w.GitRepoID.Int64]
+			}
+			allResources = append(allResources, handlers.NewWorkspaceResource(w, appNames[w.AppID], domName, grName))
 		}
 
 		// Global resources using handler List() — only when unscoped (WI-4)
@@ -611,4 +635,21 @@ func filterGitRepos(gitRepos []models.GitRepoDB, sc *scopeContext, filteredApps 
 	// Git repos don't have ecosystem/domain/app scoping in the DB schema yet,
 	// so we show all of them regardless of scope (they're effectively global).
 	return gitRepos
+}
+
+// resolveCredScopeName resolves a credential's scope ID to a human-readable name
+// using precomputed lookup maps (avoids N+1 DB queries).
+func resolveCredScopeName(c *models.CredentialDB, ecoNames, domNames, appNames, wsNames map[int]string) string {
+	switch c.ScopeType {
+	case models.CredentialScopeEcosystem:
+		return ecoNames[int(c.ScopeID)]
+	case models.CredentialScopeDomain:
+		return domNames[int(c.ScopeID)]
+	case models.CredentialScopeApp:
+		return appNames[int(c.ScopeID)]
+	case models.CredentialScopeWorkspace:
+		return wsNames[int(c.ScopeID)]
+	default:
+		return ""
+	}
 }

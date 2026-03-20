@@ -45,17 +45,28 @@ func (h *AppHandler) Apply(ctx resource.Context, data []byte) (resource.Resource
 		return nil, fmt.Errorf("app YAML must specify metadata.domain")
 	}
 
-	// Get active ecosystem from context to resolve domain
-	dbCtx, err := ds.GetContext()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get context: %w", err)
+	// Resolve ecosystem: try metadata.ecosystem first, then fall back to active context
+	var ecosystemID int
+	if appYAML.Metadata.Ecosystem != "" {
+		// Context-free path: resolve ecosystem by name from YAML metadata
+		eco, err := ds.GetEcosystemByName(appYAML.Metadata.Ecosystem)
+		if err != nil {
+			return nil, fmt.Errorf("ecosystem '%s' not found: %w", appYAML.Metadata.Ecosystem, err)
+		}
+		ecosystemID = eco.ID
+	} else {
+		// Fall back to active ecosystem context (existing behavior)
+		dbCtx, err := ds.GetContext()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get context: %w", err)
+		}
+		if dbCtx.ActiveEcosystemID == nil {
+			return nil, fmt.Errorf("no active ecosystem set and no metadata.ecosystem specified; use 'dvm use ecosystem <name>' or add metadata.ecosystem to YAML")
+		}
+		ecosystemID = *dbCtx.ActiveEcosystemID
 	}
 
-	if dbCtx.ActiveEcosystemID == nil {
-		return nil, fmt.Errorf("no active ecosystem set; use 'dvm use ecosystem <name>' first")
-	}
-
-	domain, err := ds.GetDomainByName(*dbCtx.ActiveEcosystemID, domainName)
+	domain, err := ds.GetDomainByName(ecosystemID, domainName)
 	if err != nil {
 		return nil, fmt.Errorf("domain '%s' not found: %w", domainName, err)
 	}
@@ -86,7 +97,7 @@ func (h *AppHandler) Apply(ctx resource.Context, data []byte) (resource.Resource
 		}
 	}
 
-	return &AppResource{app: app, domainName: domainName}, nil
+	return &AppResource{app: app, domainName: domainName, ecosystemName: appYAML.Metadata.Ecosystem}, nil
 }
 
 // Get retrieves an app by name.
@@ -114,11 +125,16 @@ func (h *AppHandler) Get(ctx resource.Context, name string) (resource.Resource, 
 
 	domain, _ := ds.GetDomainByID(app.DomainID)
 	domainName := ""
+	ecosystemName := ""
 	if domain != nil {
 		domainName = domain.Name
+		// Resolve ecosystem name for round-trip fidelity
+		if eco, ecoErr := ds.GetEcosystemByID(domain.EcosystemID); ecoErr == nil {
+			ecosystemName = eco.Name
+		}
 	}
 
-	return &AppResource{app: app, domainName: domainName}, nil
+	return &AppResource{app: app, domainName: domainName, ecosystemName: ecosystemName}, nil
 }
 
 // List returns all apps in the active domain.
@@ -149,10 +165,14 @@ func (h *AppHandler) List(ctx resource.Context) ([]resource.Resource, error) {
 	for i, a := range apps {
 		domain, _ := ds.GetDomainByID(a.DomainID)
 		domainName := ""
+		ecosystemName := ""
 		if domain != nil {
 			domainName = domain.Name
+			if eco, ecoErr := ds.GetEcosystemByID(domain.EcosystemID); ecoErr == nil {
+				ecosystemName = eco.Name
+			}
 		}
-		result[i] = &AppResource{app: a, domainName: domainName}
+		result[i] = &AppResource{app: a, domainName: domainName, ecosystemName: ecosystemName}
 	}
 	return result, nil
 }
@@ -190,13 +210,18 @@ func (h *AppHandler) ToYAML(res resource.Resource) ([]byte, error) {
 	}
 
 	yamlDoc := ar.app.ToYAML(ar.domainName, nil)
+	// Include ecosystem name in metadata for context-free round-trip
+	if ar.ecosystemName != "" {
+		yamlDoc.Metadata.Ecosystem = ar.ecosystemName
+	}
 	return yaml.Marshal(yamlDoc)
 }
 
 // AppResource wraps a models.App to implement resource.Resource.
 type AppResource struct {
-	app        *models.App
-	domainName string
+	app           *models.App
+	domainName    string
+	ecosystemName string
 }
 
 func (r *AppResource) GetKind() string {
@@ -231,8 +256,9 @@ func (r *AppResource) DomainName() string {
 }
 
 // NewAppResource creates a new AppResource from a model.
-func NewAppResource(app *models.App, domainName string) *AppResource {
-	return &AppResource{app: app, domainName: domainName}
+// ecosystemName is needed for context-free YAML round-trip. Pass "" if unknown.
+func NewAppResource(app *models.App, domainName, ecosystemName string) *AppResource {
+	return &AppResource{app: app, domainName: domainName, ecosystemName: ecosystemName}
 }
 
 // NewAppFromModel creates an App model from parameters.

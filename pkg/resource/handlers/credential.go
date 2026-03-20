@@ -257,7 +257,9 @@ func (h *CredentialHandler) List(ctx resource.Context) ([]resource.Resource, err
 
 	resources := make([]resource.Resource, len(creds))
 	for i, cred := range creds {
-		resources[i] = &CredentialResource{credential: cred}
+		// Resolve scopeName for each credential so ToYAML produces valid YAML
+		scopeName, _ := resolveCredentialScopeName(ds, cred.ScopeType, cred.ScopeID)
+		resources[i] = &CredentialResource{credential: cred, scopeName: scopeName}
 	}
 	return resources, nil
 }
