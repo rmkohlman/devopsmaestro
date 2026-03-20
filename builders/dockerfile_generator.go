@@ -176,6 +176,11 @@ func (g *DefaultDockerfileGenerator) Generate() (string, error) {
 	// Switch to root for installing dev tools
 	dockerfile.WriteString("USER root\n\n")
 
+	// Re-declare build args in dev stage — Docker ARG values do not carry across FROM boundaries.
+	// Without this, proxy vars (http_proxy, https_proxy), PIP_INDEX_URL, and other user build args
+	// would not be available to RUN commands in the dev stage (e.g., npm install -g neovim).
+	g.emitAdditionalBuildArgs(&dockerfile, privateRepoInfo.RequiredBuildArgs)
+
 	// Copy binaries from parallel builder stages
 	g.emitCopyFromBuilders(&dockerfile, stages)
 

@@ -3913,3 +3913,159 @@ func TestGenerate_CACerts_NoCerts_NoSection(t *testing.T) {
 		}
 	}
 }
+
+// TestGenerate_BuildArgs_RedeclaredInDevStage verifies that ARG declarations appear in
+// BOTH the base stage and the dev stage. Docker ARG values do not carry across FROM
+// boundaries, so the dev stage must re-declare them for proxy vars and other build args
+// to be available to RUN commands like npm install.
+func TestGenerate_BuildArgs_RedeclaredInDevStage(t *testing.T) {
+	tests := []struct {
+		name     string
+		language string
+		args     []string
+	}{
+		{
+			name:     "python with proxy args",
+			language: "python",
+			args:     []string{"http_proxy", "https_proxy", "PIP_INDEX_URL"},
+		},
+		{
+			name:     "golang with proxy args",
+			language: "golang",
+			args:     []string{"http_proxy", "https_proxy", "GOPROXY"},
+		},
+		{
+			name:     "nodejs with proxy args",
+			language: "nodejs",
+			args:     []string{"http_proxy", "https_proxy", "NPM_CONFIG_REGISTRY"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws := &models.Workspace{
+				ID:        1,
+				Name:      "test-ws",
+				ImageName: "test:latest",
+			}
+			wsYAML := models.WorkspaceSpec{}
+
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:           ws,
+				WorkspaceSpec:       wsYAML,
+				Language:            tt.language,
+				AppPath:             "/tmp/test",
+				PathConfig:          paths.New(t.TempDir()),
+				PrivateRepoInfo:     &utils.PrivateRepoInfo{},
+				AdditionalBuildArgs: tt.args,
+			})
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			// Split at "FROM base AS dev" to isolate base stage vs dev stage
+			parts := strings.SplitN(dockerfile, "FROM base AS dev", 2)
+			if len(parts) != 2 {
+				t.Fatalf("Generate() output missing 'FROM base AS dev' boundary\nDockerfile:\n%s", dockerfile)
+			}
+			baseStage := parts[0]
+			devStage := parts[1]
+
+			for _, arg := range tt.args {
+				argDecl := "ARG " + arg
+				if !strings.Contains(baseStage, argDecl) {
+					t.Errorf("base stage missing %q\nBase stage:\n%s", argDecl, baseStage)
+				}
+				if !strings.Contains(devStage, argDecl) {
+					t.Errorf("dev stage missing %q\nDev stage:\n%s", argDecl, devStage)
+				}
+			}
+		})
+	}
+}
+
+// TestGenerate_NoAdditionalBuildArgs_DevStageHasNoExtraARGs verifies that when no
+// additional build args are configured, the dev stage does not emit any extra ARG block.
+func TestGenerate_NoAdditionalBuildArgs_DevStageHasNoExtraARGs(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:       ws,
+		WorkspaceSpec:   wsYAML,
+		Language:        "python",
+		AppPath:         "/tmp/test",
+		PathConfig:      paths.New(t.TempDir()),
+		PrivateRepoInfo: &utils.PrivateRepoInfo{},
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// Split at "FROM base AS dev" to isolate the dev stage
+	parts := strings.SplitN(dockerfile, "FROM base AS dev", 2)
+	if len(parts) != 2 {
+		t.Fatalf("Generate() output missing 'FROM base AS dev' boundary\nDockerfile:\n%s", dockerfile)
+	}
+	devStage := parts[1]
+
+	if strings.Contains(devStage, "# Additional build arguments") {
+		t.Errorf("dev stage should not contain '# Additional build arguments' when no build args are configured\nDev stage:\n%s", devStage)
+	}
+}
+
+// TestGenerate_WorkspaceBuildArgs_RedeclaredInDevStage verifies that ARG declarations
+// from WorkspaceSpec.Build.Args (not just AdditionalBuildArgs) are also re-declared in
+// the dev stage.
+func TestGenerate_WorkspaceBuildArgs_RedeclaredInDevStage(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{
+		Build: models.DevBuildConfig{
+			Args: map[string]string{
+				"CUSTOM_PROXY": "http://proxy:8080",
+			},
+		},
+	}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:       ws,
+		WorkspaceSpec:   wsYAML,
+		Language:        "python",
+		AppPath:         "/tmp/test",
+		PathConfig:      paths.New(t.TempDir()),
+		PrivateRepoInfo: &utils.PrivateRepoInfo{},
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// Split at "FROM base AS dev" to isolate base stage vs dev stage
+	parts := strings.SplitN(dockerfile, "FROM base AS dev", 2)
+	if len(parts) != 2 {
+		t.Fatalf("Generate() output missing 'FROM base AS dev' boundary\nDockerfile:\n%s", dockerfile)
+	}
+	baseStage := parts[0]
+	devStage := parts[1]
+
+	argDecl := "ARG CUSTOM_PROXY"
+	if !strings.Contains(baseStage, argDecl) {
+		t.Errorf("base stage missing %q\nBase stage:\n%s", argDecl, baseStage)
+	}
+	if !strings.Contains(devStage, argDecl) {
+		t.Errorf("dev stage missing %q\nDev stage:\n%s", argDecl, devStage)
+	}
+}
