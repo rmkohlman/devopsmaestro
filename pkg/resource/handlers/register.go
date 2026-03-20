@@ -56,5 +56,8 @@ func RegisterAll() {
 
 		// CRD resources (v0.29.0 Extensibility)
 		resource.Register(NewCRDHandler())
+
+		// Global defaults (build-args, CA-certs)
+		resource.Register(NewGlobalDefaultsHandler())
 	})
 }

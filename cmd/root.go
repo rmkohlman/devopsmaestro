@@ -40,7 +40,7 @@ create, manage, and deploy workspaces, apps, dependencies, and more.`,
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute(dataStore *db.DataStore, executor *Executor, migrationsFS fs.FS) {
-	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
 		// Initialize logging
 		initLogging()
 
@@ -68,7 +68,7 @@ func Execute(dataStore *db.DataStore, executor *Executor, migrationsFS fs.FS) {
 
 		// Auto-migrate database if needed (skip for commands that don't need DB)
 		if shouldSkipAutoMigration(cmd) {
-			return
+			return nil
 		}
 
 		if dataStore != nil && *dataStore != nil {
@@ -77,11 +77,11 @@ func Execute(dataStore *db.DataStore, executor *Executor, migrationsFS fs.FS) {
 				// Use version-based auto-migration for better performance
 				migrationsApplied, err := db.CheckVersionBasedAutoMigration(driver, migrationsFS, Version, verbose)
 				if err != nil {
-					// Migration failure is critical - exit
+					// Migration failure is critical - return error via errSilent
 					slog.Error("auto-migration failed", "error", err)
 					render.Errorf("Failed to apply database migrations: %v", err)
 					render.Info("Please run 'dvm admin migrate' to fix migration issues.")
-					os.Exit(1)
+					return errSilent
 				}
 
 				if migrationsApplied && verbose {
@@ -95,6 +95,7 @@ func Execute(dataStore *db.DataStore, executor *Executor, migrationsFS fs.FS) {
 				// Don't exit - CRD support is optional, built-in resources still work
 			}
 		}
+		return nil
 	}
 
 	if err := rootCmd.Execute(); err != nil {

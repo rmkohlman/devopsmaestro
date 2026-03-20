@@ -10,7 +10,7 @@ tools:
   bash: true
   write: true
   edit: true
-  task: true
+  task: false
 permission:
   task:
     "*": deny

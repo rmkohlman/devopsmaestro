@@ -120,6 +120,24 @@ func getAll(cmd *cobra.Command) error {
 		themes = nil
 	}
 
+	nvimPackages, err := ds.ListPackages()
+	if err != nil {
+		render.Warning(fmt.Sprintf("failed to list nvim packages: %v", err))
+		nvimPackages = nil
+	}
+
+	terminalPrompts, err := ds.ListTerminalPrompts()
+	if err != nil {
+		render.Warning(fmt.Sprintf("failed to list terminal prompts: %v", err))
+		terminalPrompts = nil
+	}
+
+	terminalPackages, err := ds.ListTerminalPackages()
+	if err != nil {
+		render.Warning(fmt.Sprintf("failed to list terminal packages: %v", err))
+		terminalPackages = nil
+	}
+
 	// Apply scope filtering to hierarchical resources
 	if !scope.ShowAll {
 		ecosystems = filterEcosystems(ecosystems, scope)
@@ -134,7 +152,7 @@ func getAll(cmd *cobra.Command) error {
 	if getOutputFormat == "json" || getOutputFormat == "yaml" {
 		// Warn when exporting YAML/JSON in a scoped context (global resources excluded)
 		if !scope.ShowAll {
-			render.Warning("Warning: Scoped export excludes global resources (GitRepos, Registries, NvimPlugins, NvimThemes, NvimPackages, TerminalPrompts, TerminalPackages). Use -A for a complete backup.")
+			render.Warning("Warning: Scoped export excludes global resources (GitRepos, Registries, NvimPlugins, NvimThemes, NvimPackages, TerminalPrompts, TerminalPackages, GlobalDefaults). Use -A for a complete backup.")
 		}
 
 		// Ensure all resource handlers are registered
@@ -172,6 +190,15 @@ func getAll(cmd *cobra.Command) error {
 
 		// Collect resources in dependency order (DependencyOrder from resource package)
 		var allResources []resource.Resource
+
+		// GlobalDefaults — prepend so they're applied first during restore.
+		// Only when unscoped (global-level configuration).
+		if scope.ShowAll {
+			resCtx := resource.Context{DataStore: ds}
+			if gdRes, err := resource.List(resCtx, handlers.KindGlobalDefaults); err == nil {
+				allResources = append(allResources, gdRes...)
+			}
+		}
 
 		// Ecosystems
 		for _, e := range ecosystems {
@@ -375,6 +402,127 @@ func getAll(cmd *cobra.Command) error {
 	if len(themes) > 0 {
 		b := &nvimThemeTableBuilder{}
 		td := BuildTable(b, themes, wide)
+		renderTable(td)
+	} else {
+		render.Plainf("  (none)")
+	}
+	render.Blank()
+
+	// === Nvim Packages ===
+	render.Info(fmt.Sprintf("=== Nvim Packages (%d) ===", len(nvimPackages)))
+	if len(nvimPackages) > 0 {
+		b := &nvimPackageTableBuilder{}
+		td := BuildTable(b, nvimPackages, wide)
+		renderTable(td)
+	} else {
+		render.Plainf("  (none)")
+	}
+	render.Blank()
+
+	// === Terminal Prompts ===
+	render.Info(fmt.Sprintf("=== Terminal Prompts (%d) ===", len(terminalPrompts)))
+	if len(terminalPrompts) > 0 {
+		b := &terminalPromptTableBuilder{}
+		td := BuildTable(b, terminalPrompts, wide)
+		renderTable(td)
+	} else {
+		render.Plainf("  (none)")
+	}
+	render.Blank()
+
+	// === Terminal Packages ===
+	render.Info(fmt.Sprintf("=== Terminal Packages (%d) ===", len(terminalPackages)))
+	if len(terminalPackages) > 0 {
+		b := &terminalPackageTableBuilder{}
+		td := BuildTable(b, terminalPackages, wide)
+		renderTable(td)
+	} else {
+		render.Plainf("  (none)")
+	}
+	render.Blank()
+
+	// === CA Certs ===
+	// Gather CA certs across all scopes for the summary table
+	var allCACerts []scopedCACert
+	globalCerts, certsErr := GetGlobalCACerts(ds)
+	if certsErr == nil {
+		for _, c := range globalCerts {
+			allCACerts = append(allCACerts, scopedCACert{Name: c.Name, Scope: "global"})
+		}
+	}
+	for _, eco := range ecosystems {
+		ecoYAML := eco.ToYAML(nil)
+		for _, c := range ecoYAML.Spec.CACerts {
+			allCACerts = append(allCACerts, scopedCACert{Name: c.Name, Scope: fmt.Sprintf("ecosystem: %s", eco.Name)})
+		}
+	}
+	for _, dom := range domains {
+		ecoName := ""
+		if eco, err := ds.GetEcosystemByID(dom.EcosystemID); err == nil {
+			ecoName = eco.Name
+		}
+		domYAML := dom.ToYAML(ecoName, nil)
+		for _, c := range domYAML.Spec.CACerts {
+			allCACerts = append(allCACerts, scopedCACert{Name: c.Name, Scope: fmt.Sprintf("domain: %s", dom.Name)})
+		}
+	}
+	for _, app := range apps {
+		buildConfig := app.GetBuildConfig()
+		if buildConfig == nil {
+			continue
+		}
+		for _, c := range buildConfig.CACerts {
+			allCACerts = append(allCACerts, scopedCACert{Name: c.Name, Scope: fmt.Sprintf("app: %s", app.Name)})
+		}
+	}
+	render.Info(fmt.Sprintf("=== CA Certs (%d) ===", len(allCACerts)))
+	if len(allCACerts) > 0 {
+		b := &caCertTableBuilder{}
+		td := BuildTable(b, allCACerts, wide)
+		renderTable(td)
+	} else {
+		render.Plainf("  (none)")
+	}
+	render.Blank()
+
+	// === Build Args ===
+	// Gather build args across all scopes for the summary table
+	var allBuildArgs []scopedBuildArg
+	globalArgs, argsErr := GetGlobalBuildArgs(ds)
+	if argsErr == nil {
+		for k := range globalArgs {
+			allBuildArgs = append(allBuildArgs, scopedBuildArg{Key: k, Scope: "global"})
+		}
+	}
+	for _, eco := range ecosystems {
+		ecoYAML := eco.ToYAML(nil)
+		for k := range ecoYAML.Spec.Build.Args {
+			allBuildArgs = append(allBuildArgs, scopedBuildArg{Key: k, Scope: fmt.Sprintf("ecosystem: %s", eco.Name)})
+		}
+	}
+	for _, dom := range domains {
+		ecoName := ""
+		if eco, err := ds.GetEcosystemByID(dom.EcosystemID); err == nil {
+			ecoName = eco.Name
+		}
+		domYAML := dom.ToYAML(ecoName, nil)
+		for k := range domYAML.Spec.Build.Args {
+			allBuildArgs = append(allBuildArgs, scopedBuildArg{Key: k, Scope: fmt.Sprintf("domain: %s", dom.Name)})
+		}
+	}
+	for _, app := range apps {
+		buildConfig := app.GetBuildConfig()
+		if buildConfig == nil {
+			continue
+		}
+		for k := range buildConfig.Args {
+			allBuildArgs = append(allBuildArgs, scopedBuildArg{Key: k, Scope: fmt.Sprintf("app: %s", app.Name)})
+		}
+	}
+	render.Info(fmt.Sprintf("=== Build Args (%d) ===", len(allBuildArgs)))
+	if len(allBuildArgs) > 0 {
+		b := &buildArgTableBuilder{}
+		td := BuildTable(b, allBuildArgs, wide)
 		renderTable(td)
 	} else {
 		render.Plainf("  (none)")

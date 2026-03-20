@@ -319,8 +319,9 @@ You can specify a custom directory with --config or DVT_CONFIG_DIR.`,
 // =============================================================================
 
 var promptCmd = &cobra.Command{
-	Use:   "prompt",
-	Short: "Manage terminal prompts (Starship, P10k)",
+	Use:     "prompt",
+	Aliases: []string{"pr"},
+	Short:   "Manage terminal prompts (Starship, P10k)",
 	Long: `Manage terminal prompt configurations.
 
 Prompts define how your shell prompt looks using tools like Starship or P10k.
@@ -333,9 +334,8 @@ var promptLibraryCmd = &cobra.Command{
 }
 
 var promptLibraryListCmd = &cobra.Command{
-	Use:     "get",
-	Aliases: []string{"list"},
-	Short:   "List available prompts in the library",
+	Use:   "get",
+	Short: "List available prompts in the library",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		lib, err := promptlibrary.NewPromptLibrary()
 		if err != nil {
@@ -361,10 +361,9 @@ var promptLibraryListCmd = &cobra.Command{
 }
 
 var promptLibraryShowCmd = &cobra.Command{
-	Use:     "describe <name>",
-	Aliases: []string{"show"},
-	Short:   "Show details of a library prompt",
-	Args:    cobra.ExactArgs(1),
+	Use:   "describe <name>",
+	Short: "Show details of a library prompt",
+	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
 
@@ -384,9 +383,8 @@ var promptLibraryShowCmd = &cobra.Command{
 }
 
 var promptLibraryInstallCmd = &cobra.Command{
-	Use:     "import <name>...",
-	Aliases: []string{"install"},
-	Short:   "Import prompts from library to local store",
+	Use:   "import <name>...",
+	Short: "Import prompts from library to local store",
 	Long: `Copy prompt definitions from the built-in library to your local store.
 You can then customize them or use them directly.
 
@@ -468,9 +466,8 @@ var promptLibraryCategoriesCmd = &cobra.Command{
 }
 
 var promptGetCmd = &cobra.Command{
-	Use:     "get [name]",
-	Aliases: []string{"list"},
-	Short:   "Get prompt definition(s)",
+	Use:   "get [name]",
+	Short: "Get prompt definition(s)",
 	Long: `Get terminal prompts stored in the database.
 
 With no arguments, lists all installed prompts.
@@ -573,6 +570,12 @@ func init() {
 	promptGetCmd.Flags().StringP("output", "o", "yaml", "Output format: table, yaml, json")
 	promptApplyCmd.Flags().StringSliceP("filename", "f", nil, "Prompt YAML file(s)")
 	promptDeleteCmd.Flags().Bool("force", false, "Skip confirmation")
+
+	// Hidden backward-compat aliases for deprecated verbs in prompt (after flags)
+	promptLibraryCmd.AddCommand(hiddenAlias("list", promptLibraryListCmd))
+	promptLibraryCmd.AddCommand(hiddenAlias("show", promptLibraryShowCmd))
+	promptLibraryCmd.AddCommand(hiddenAlias("install", promptLibraryInstallCmd))
+	promptCmd.AddCommand(hiddenAlias("list", promptGetCmd))
 }
 
 // =============================================================================
@@ -580,8 +583,9 @@ func init() {
 // =============================================================================
 
 var pluginCmd = &cobra.Command{
-	Use:   "plugin",
-	Short: "Manage shell plugins (zsh-autosuggestions, etc.)",
+	Use:     "plugin",
+	Aliases: []string{"pl"},
+	Short:   "Manage shell plugins (zsh-autosuggestions, etc.)",
 	Long: `Manage shell plugin configurations.
 
 Plugins enhance your shell with features like autosuggestions, syntax highlighting,
@@ -594,9 +598,8 @@ var pluginLibraryCmd = &cobra.Command{
 }
 
 var pluginLibraryListCmd = &cobra.Command{
-	Use:     "get",
-	Aliases: []string{"list"},
-	Short:   "List available plugins in the library",
+	Use:   "get",
+	Short: "List available plugins in the library",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		lib, err := pluginlibrary.NewPluginLibrary()
 		if err != nil {
@@ -622,10 +625,9 @@ var pluginLibraryListCmd = &cobra.Command{
 }
 
 var pluginLibraryShowCmd = &cobra.Command{
-	Use:     "describe <name>",
-	Aliases: []string{"show"},
-	Short:   "Show details of a library plugin",
-	Args:    cobra.ExactArgs(1),
+	Use:   "describe <name>",
+	Short: "Show details of a library plugin",
+	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
 
@@ -645,9 +647,8 @@ var pluginLibraryShowCmd = &cobra.Command{
 }
 
 var pluginLibraryInstallCmd = &cobra.Command{
-	Use:     "import <name>...",
-	Aliases: []string{"install"},
-	Short:   "Import plugins from library to local store",
+	Use:   "import <name>...",
+	Short: "Import plugins from library to local store",
 	Long: `Copy plugin definitions from the built-in library to your local store.
 
 Examples:
@@ -717,9 +718,8 @@ var pluginLibraryCategoriesCmd = &cobra.Command{
 }
 
 var pluginGetCmd = &cobra.Command{
-	Use:     "get [name]",
-	Aliases: []string{"list"},
-	Short:   "Get plugin definition(s)",
+	Use:   "get [name]",
+	Short: "Get plugin definition(s)",
 	Long: `Get shell plugin definitions.
 
 With no arguments, lists all installed plugins.
@@ -847,6 +847,12 @@ func init() {
 	pluginLibraryInstallCmd.Flags().Bool("all", false, "Import all plugins from library")
 	pluginGetCmd.Flags().StringP("output", "o", "yaml", "Output format: table, yaml, json")
 	pluginGenerateCmd.Flags().StringP("manager", "m", "manual", "Plugin manager: zinit, oh-my-zsh, antigen, sheldon, manual")
+
+	// Hidden backward-compat aliases for deprecated verbs in plugin (after flags)
+	pluginLibraryCmd.AddCommand(hiddenAlias("list", pluginLibraryListCmd))
+	pluginLibraryCmd.AddCommand(hiddenAlias("show", pluginLibraryShowCmd))
+	pluginLibraryCmd.AddCommand(hiddenAlias("install", pluginLibraryInstallCmd))
+	pluginCmd.AddCommand(hiddenAlias("list", pluginGetCmd))
 }
 
 // =============================================================================
@@ -917,9 +923,8 @@ Examples:
 }
 
 var shellGetCmd = &cobra.Command{
-	Use:     "get [name]",
-	Aliases: []string{"list"},
-	Short:   "Get shell configuration(s)",
+	Use:   "get [name]",
+	Short: "Get shell configuration(s)",
 	Long: `Get shell configurations.
 
 With no arguments, lists all installed shell configurations.
@@ -1000,6 +1005,9 @@ func init() {
 	// Flags
 	shellApplyCmd.Flags().StringSliceP("filename", "f", nil, "Shell YAML file(s)")
 	shellGetCmd.Flags().StringP("output", "o", "yaml", "Output format: table, yaml, json")
+
+	// Hidden backward-compat alias for deprecated verb in shell (after flags)
+	shellCmd.AddCommand(hiddenAlias("list", shellGetCmd))
 }
 
 // =============================================================================
@@ -1028,9 +1036,8 @@ var profilePresetCmd = &cobra.Command{
 }
 
 var profilePresetListCmd = &cobra.Command{
-	Use:     "get",
-	Aliases: []string{"list"},
-	Short:   "List available profile presets",
+	Use:   "get",
+	Short: "List available profile presets",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		presets := []struct {
 			name        string
@@ -1052,9 +1059,8 @@ var profilePresetListCmd = &cobra.Command{
 }
 
 var profilePresetInstallCmd = &cobra.Command{
-	Use:     "import <name>",
-	Aliases: []string{"install"},
-	Short:   "Import a profile preset",
+	Use:   "import <name>",
+	Short: "Import a profile preset",
 	Long: `Import a profile preset and all its dependencies.
 
 Available presets:
@@ -1146,9 +1152,8 @@ Examples:
 }
 
 var profileGetCmd = &cobra.Command{
-	Use:     "get [name]",
-	Aliases: []string{"list"},
-	Short:   "Get profile definition(s)",
+	Use:   "get [name]",
+	Short: "Get profile definition(s)",
 	Long: `Get terminal profile definitions.
 
 With no arguments, lists all installed profiles.
@@ -1336,6 +1341,11 @@ func init() {
 	profileGetCmd.Flags().StringP("output", "o", "yaml", "Output format: table, yaml, json")
 	profileGenerateCmd.Flags().String("output-dir", "", "Output directory (default: stdout)")
 	profileGenerateCmd.Flags().Bool("dry-run", false, "Show what would be generated")
+
+	// Hidden backward-compat aliases for deprecated verbs in profile (after flags)
+	profilePresetCmd.AddCommand(hiddenAlias("list", profilePresetListCmd))
+	profilePresetCmd.AddCommand(hiddenAlias("install", profilePresetInstallCmd))
+	profileCmd.AddCommand(hiddenAlias("list", profileGetCmd))
 }
 
 // =============================================================================
@@ -1376,6 +1386,18 @@ Examples:
 // =============================================================================
 // HELPERS
 // =============================================================================
+
+// hiddenAlias creates a hidden command that acts as a backward-compatible alias
+// for a deprecated verb. The command prints a deprecation notice when used.
+func hiddenAlias(name string, target *cobra.Command) *cobra.Command {
+	alias := *target
+	alias.Use = name
+	alias.Aliases = nil
+	alias.Hidden = true
+	alias.Short = target.Short + " (deprecated: use " + target.Name() + ")"
+	alias.Deprecated = "use '" + target.Name() + "' instead"
+	return &alias
+}
 
 func getConfigDir() string {
 	if configDir != "" {

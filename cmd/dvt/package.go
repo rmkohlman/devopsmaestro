@@ -46,9 +46,8 @@ Examples:
 
 // packageGetCmd shows package details, or lists all packages when no name is given
 var packageGetCmd = &cobra.Command{
-	Use:     "get [name]",
-	Aliases: []string{"list"},
-	Short:   "Show package details (or list all packages)",
+	Use:   "get [name]",
+	Short: "Show package details (or list all packages)",
 	Long: `Show details of a specific package, or list all packages when no name is given.
 
 Examples:
@@ -621,4 +620,7 @@ func init() {
 
 	// Package install flags
 	packageInstallCmd.Flags().Bool("dry-run", false, "Show what would be installed without installing")
+
+	// Hidden backward-compat alias for deprecated verb in package (after flags)
+	packageCmd.AddCommand(hiddenAlias("list", packageGetCmd))
 }

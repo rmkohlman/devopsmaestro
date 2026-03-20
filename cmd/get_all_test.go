@@ -125,6 +125,55 @@ func createFullTestDataStore(t *testing.T) db.DataStore {
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
+		`CREATE TABLE IF NOT EXISTS nvim_packages (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL UNIQUE,
+			description TEXT,
+			category TEXT,
+			labels TEXT,
+			plugins TEXT NOT NULL DEFAULT '[]',
+			extends TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS terminal_prompts (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL UNIQUE,
+			description TEXT,
+			type TEXT NOT NULL,
+			add_newline BOOLEAN DEFAULT TRUE,
+			palette TEXT,
+			format TEXT,
+			modules TEXT,
+			character TEXT,
+			palette_ref TEXT,
+			colors TEXT,
+			raw_config TEXT,
+			category TEXT,
+			tags TEXT,
+			enabled BOOLEAN DEFAULT TRUE,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS terminal_packages (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL UNIQUE,
+			description TEXT,
+			category TEXT,
+			labels TEXT,
+			plugins TEXT NOT NULL DEFAULT '[]',
+			prompts TEXT NOT NULL DEFAULT '[]',
+			profiles TEXT NOT NULL DEFAULT '[]',
+			wezterm TEXT,
+			extends TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS defaults (
+			key TEXT PRIMARY KEY,
+			value TEXT NOT NULL,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
 	}
 
 	for _, q := range extraQueries {
@@ -163,7 +212,7 @@ func TestGetAll_EmptyDatabase(t *testing.T) {
 
 	output := buf.String()
 
-	// All 9 section headers must appear — counts are always (0) for an empty DB
+	// All 14 section headers must appear — counts are always (0) for an empty DB
 	sections := []string{
 		"=== Ecosystems (0) ===",
 		"=== Domains (0) ===",
@@ -174,6 +223,11 @@ func TestGetAll_EmptyDatabase(t *testing.T) {
 		"=== Git Repos (0) ===",
 		"=== Nvim Plugins (0) ===",
 		"=== Nvim Themes (0) ===",
+		"=== Nvim Packages (0) ===",
+		"=== Terminal Prompts (0) ===",
+		"=== Terminal Packages (0) ===",
+		"=== CA Certs (0) ===",
+		"=== Build Args (0) ===",
 	}
 	for _, section := range sections {
 		assert.Contains(t, output, section, "expected section header %q in output", section)

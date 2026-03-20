@@ -406,9 +406,8 @@ that work well together. Use these commands to explore and install plugins.`,
 }
 
 var libraryListCmd = &cobra.Command{
-	Use:     "get",
-	Aliases: []string{"list"},
-	Short:   "List all plugins in the library",
+	Use:   "get",
+	Short: "List all plugins in the library",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		lib, err := library.NewLibrary()
 		if err != nil {
@@ -440,10 +439,9 @@ var libraryListCmd = &cobra.Command{
 }
 
 var libraryShowCmd = &cobra.Command{
-	Use:     "describe <name>",
-	Aliases: []string{"show"},
-	Short:   "Show details of a library plugin",
-	Args:    cobra.ExactArgs(1),
+	Use:   "describe <name>",
+	Short: "Show details of a library plugin",
+	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
 
@@ -463,9 +461,8 @@ var libraryShowCmd = &cobra.Command{
 }
 
 var libraryInstallCmd = &cobra.Command{
-	Use:     "import <name>...",
-	Aliases: []string{"install"},
-	Short:   "Import plugins from library to local store",
+	Use:   "import <name>...",
+	Short: "Import plugins from library to local store",
 	Long: `Copy plugin definitions from the built-in library to your local store.
 You can then customize them with 'nvp get' and 'nvp apply'.
 
@@ -574,6 +571,12 @@ func init() {
 	libraryListCmd.Flags().StringP("tag", "t", "", "Filter by tag")
 	libraryShowCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json")
 	libraryInstallCmd.Flags().Bool("all", false, "Import all plugins from library")
+
+	// Hidden backward-compat aliases for deprecated verbs (list→get, show→describe, install→import)
+	// MUST be after flag definitions — shallow copy captures FlagSet pointer at copy time
+	libraryCmd.AddCommand(hiddenAlias("list", libraryListCmd))
+	libraryCmd.AddCommand(hiddenAlias("show", libraryShowCmd))
+	libraryCmd.AddCommand(hiddenAlias("install", libraryInstallCmd))
 }
 
 // =============================================================================
@@ -642,9 +645,8 @@ func init() {
 // =============================================================================
 
 var getCmd = &cobra.Command{
-	Use:     "get [name]",
-	Aliases: []string{"list"},
-	Short:   "Get plugin definition(s) from local store",
+	Use:   "get [name]",
+	Short: "Get plugin definition(s) from local store",
 	Long: `Get plugins from the local store.
 
 With no arguments, lists all plugins in the local store.
@@ -993,9 +995,8 @@ Examples:
 }
 
 var themeGetCmd = &cobra.Command{
-	Use:     "get [name]",
-	Aliases: []string{"list"},
-	Short:   "Get theme(s)",
+	Use:   "get [name]",
+	Short: "Get theme(s)",
 	Long: `Get Neovim themes.
 
 With no arguments, lists all installed themes (active theme marked with *).
@@ -1152,9 +1153,8 @@ var themeLibraryCmd = &cobra.Command{
 }
 
 var themeLibraryListCmd = &cobra.Command{
-	Use:     "get",
-	Aliases: []string{"list"},
-	Short:   "List available themes in the library",
+	Use:   "get",
+	Short: "List available themes in the library",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		themes, err := themelibrary.List()
 		if err != nil {
@@ -1181,10 +1181,9 @@ var themeLibraryListCmd = &cobra.Command{
 }
 
 var themeLibraryShowCmd = &cobra.Command{
-	Use:     "describe <name>",
-	Aliases: []string{"show"},
-	Short:   "Show details of a library theme",
-	Args:    cobra.ExactArgs(1),
+	Use:   "describe <name>",
+	Short: "Show details of a library theme",
+	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
 
@@ -1199,10 +1198,9 @@ var themeLibraryShowCmd = &cobra.Command{
 }
 
 var themeLibraryInstallCmd = &cobra.Command{
-	Use:     "import <name>...",
-	Aliases: []string{"install"},
-	Short:   "Import themes from library",
-	Args:    cobra.MinimumNArgs(1),
+	Use:   "import <name>...",
+	Short: "Import themes from library",
+	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		themeStore := getThemeStore()
 		if err := themeStore.Init(); err != nil {
@@ -1667,6 +1665,12 @@ func init() {
 	themeLibraryInstallCmd.Flags().Bool("use", false, "Set as active theme after install")
 	themeGenerateCmd.Flags().String("output-dir", "", "Output directory (default: ~/.config/nvim/lua)")
 	themeGenerateCmd.Flags().Bool("dry-run", false, "Show what would be generated")
+
+	// Hidden backward-compat aliases for deprecated verbs in theme library
+	// MUST be after flag definitions — shallow copy captures FlagSet pointer at copy time
+	themeLibraryCmd.AddCommand(hiddenAlias("list", themeLibraryListCmd))
+	themeLibraryCmd.AddCommand(hiddenAlias("show", themeLibraryShowCmd))
+	themeLibraryCmd.AddCommand(hiddenAlias("install", themeLibraryInstallCmd))
 }
 
 func getThemeStore() *theme.FileStore {
@@ -1873,9 +1877,8 @@ The file is created at ~/.nvp/core.yaml by default.`,
 }
 
 var configShowCmd = &cobra.Command{
-	Use:     "describe",
-	Aliases: []string{"show"},
-	Short:   "Show current core configuration",
+	Use:   "describe",
+	Short: "Show current core configuration",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := loadCoreConfig()
 		if err != nil {
@@ -2085,6 +2088,10 @@ func init() {
 	configShowCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json")
 	configGenerateCmd.Flags().String("output-dir", "", "Output directory (default: ~/.config/nvim)")
 	configGenerateCmd.Flags().Bool("dry-run", false, "Show what would be generated")
+
+	// Hidden backward-compat alias for deprecated verb (show→describe)
+	// MUST be after flag definitions — shallow copy captures FlagSet pointer at copy time
+	configCmd.AddCommand(hiddenAlias("show", configShowCmd))
 }
 
 func loadCoreConfig() (*nvimconfig.CoreConfig, error) {
@@ -2133,6 +2140,19 @@ func findExecutable(name string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("executable not found: %s", name)
+}
+
+// hiddenAlias creates a hidden command that delegates to the target command.
+// Used to keep deprecated verb names (list, show, install) working without
+// showing them in --help output.
+func hiddenAlias(name string, target *cobra.Command) *cobra.Command {
+	alias := *target
+	alias.Use = name
+	alias.Aliases = nil
+	alias.Hidden = true
+	alias.Short = target.Short + " (deprecated: use " + target.Name() + ")"
+	alias.Deprecated = "use '" + target.Name() + "' instead"
+	return &alias
 }
 
 // =============================================================================

@@ -26,9 +26,8 @@ var weztermCmd = &cobra.Command{
 }
 
 var weztermListCmd = &cobra.Command{
-	Use:     "get",
-	Aliases: []string{"list"},
-	Short:   "List available WezTerm presets",
+	Use:   "get",
+	Short: "List available WezTerm presets",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		lib, err := weztermlib.NewWeztermLibrary()
 		if err != nil {
@@ -46,10 +45,9 @@ var weztermListCmd = &cobra.Command{
 }
 
 var weztermShowCmd = &cobra.Command{
-	Use:     "describe <name>",
-	Aliases: []string{"show"},
-	Short:   "Show details of a WezTerm preset",
-	Args:    cobra.ExactArgs(1),
+	Use:   "describe <name>",
+	Short: "Show details of a WezTerm preset",
+	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
 
@@ -256,4 +254,8 @@ func init() {
 
 	// Flags
 	weztermUseCmd.Flags().String("output-file", "", "Output file (default: ~/.wezterm.lua)")
+
+	// Hidden backward-compat aliases for deprecated verbs in wezterm (after flags)
+	weztermCmd.AddCommand(hiddenAlias("list", weztermListCmd))
+	weztermCmd.AddCommand(hiddenAlias("show", weztermShowCmd))
 }

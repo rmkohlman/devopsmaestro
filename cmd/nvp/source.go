@@ -44,9 +44,8 @@ Examples:
 }
 
 var sourceListCmd = &cobra.Command{
-	Use:     "get",
-	Aliases: []string{"list"},
-	Short:   "List available sources",
+	Use:   "get",
+	Short: "List available sources",
 	Long: `List all available external plugin sources.
 	
 Sources are external Neovim configurations that can be used to import
@@ -84,9 +83,8 @@ Examples:
 }
 
 var sourceShowCmd = &cobra.Command{
-	Use:     "describe <name>",
-	Aliases: []string{"show"},
-	Short:   "Show details of a source",
+	Use:   "describe <name>",
+	Short: "Show details of a source",
 	Long: `Show detailed information about an external plugin source.
 	
 This displays metadata about the source including description, URL,
@@ -265,6 +263,11 @@ func init() {
 	sourceSyncCmd.Flags().String("tag", "", "Specific version/tag to sync from")
 	sourceSyncCmd.Flags().Bool("force", false, "Overwrite existing plugins")
 	sourceSyncCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")
+
+	// Hidden backward-compat aliases for deprecated verbs (list→get, show→describe)
+	// MUST be after flag definitions — shallow copy captures FlagSet pointer at copy time
+	sourceCmd.AddCommand(hiddenAlias("list", sourceListCmd))
+	sourceCmd.AddCommand(hiddenAlias("show", sourceShowCmd))
 }
 
 // =============================================================================

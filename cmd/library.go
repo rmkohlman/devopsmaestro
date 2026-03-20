@@ -28,7 +28,7 @@ Examples:
 // libraryListCmd is the 'get' subcommand (formerly 'list')
 var libraryListCmd = &cobra.Command{
 	Use:     "get [resource-type]",
-	Aliases: []string{"list", "ls"},
+	Aliases: []string{"ls"},
 	Short:   "List library resources",
 	Long: `List library resources (plugins, themes, prompts, packages).
 
@@ -52,9 +52,8 @@ Examples:
 
 // libraryShowCmd is the 'describe' subcommand (formerly 'show')
 var libraryShowCmd = &cobra.Command{
-	Use:     "describe [resource-type] [name]",
-	Aliases: []string{"show"},
-	Short:   "Show library resource details",
+	Use:   "describe [resource-type] [name]",
+	Short: "Show library resource details",
 	Long: `Show details of a specific library resource.
 
 Resource types:
@@ -116,6 +115,24 @@ func init() {
 	libraryCmd.AddCommand(libraryShowCmd)
 	libraryCmd.AddCommand(libraryImportCmd)
 
+	// Hidden backward-compat aliases for deprecated verbs (list→get, show→describe)
+	libraryCmd.AddCommand(hiddenAlias("list", libraryListCmd))
+	libraryCmd.AddCommand(hiddenAlias("show", libraryShowCmd))
+
 	// Add library command to root
 	rootCmd.AddCommand(libraryCmd)
+}
+
+// hiddenAlias creates a hidden command that delegates to the target command.
+// Used to keep deprecated verb names (list, show, install) working without
+// showing them in --help output.
+func hiddenAlias(name string, target *cobra.Command) *cobra.Command {
+	alias := *target
+	alias.Use = name
+	alias.Aliases = nil
+	alias.Hidden = true
+	alias.Short = target.Short + " (deprecated: use " + target.Name() + ")"
+	// Deprecated field causes Cobra to print a deprecation notice when used
+	alias.Deprecated = "use '" + target.Name() + "' instead"
+	return &alias
 }

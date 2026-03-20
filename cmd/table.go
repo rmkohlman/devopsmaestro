@@ -440,3 +440,180 @@ func (b *nvimThemeTableBuilder) Row(model any, wide bool) []string {
 
 	return []string{theme.Name, category, theme.PluginRepo, style}
 }
+
+// =============================================================================
+// nvimPackageTableBuilder
+// =============================================================================
+
+// nvimPackageTableBuilder builds table rows for *models.NvimPackageDB values.
+type nvimPackageTableBuilder struct{}
+
+func (b *nvimPackageTableBuilder) Headers(wide bool) []string {
+	headers := []string{"NAME", "CATEGORY", "PLUGINS", "EXTENDS"}
+	if wide {
+		headers = append(headers, "LABELS")
+	}
+	return headers
+}
+
+func (b *nvimPackageTableBuilder) Row(model any, wide bool) []string {
+	pkg := model.(*models.NvimPackageDB)
+
+	category := "-"
+	if pkg.Category.Valid && pkg.Category.String != "" {
+		category = pkg.Category.String
+	}
+
+	pluginCount := fmt.Sprintf("%d", len(pkg.GetPlugins()))
+
+	extends := "-"
+	if pkg.Extends.Valid && pkg.Extends.String != "" {
+		extends = pkg.Extends.String
+	}
+
+	row := []string{pkg.Name, category, pluginCount, extends}
+	if wide {
+		labels := "-"
+		l := pkg.GetLabels()
+		if len(l) > 0 {
+			parts := make([]string, 0, len(l))
+			for k, v := range l {
+				parts = append(parts, k+"="+v)
+			}
+			labels = strings.Join(parts, ",")
+		}
+		row = append(row, labels)
+	}
+	return row
+}
+
+// =============================================================================
+// terminalPromptTableBuilder
+// =============================================================================
+
+// terminalPromptTableBuilder builds table rows for *models.TerminalPromptDB values.
+type terminalPromptTableBuilder struct{}
+
+func (b *terminalPromptTableBuilder) Headers(wide bool) []string {
+	headers := []string{"NAME", "TYPE", "CATEGORY", "ENABLED"}
+	if wide {
+		headers = append(headers, "PALETTE_REF")
+	}
+	return headers
+}
+
+func (b *terminalPromptTableBuilder) Row(model any, wide bool) []string {
+	prompt := model.(*models.TerminalPromptDB)
+
+	category := "-"
+	if prompt.Category.Valid && prompt.Category.String != "" {
+		category = prompt.Category.String
+	}
+
+	enabled := "✗"
+	if prompt.Enabled {
+		enabled = "✓"
+	}
+
+	row := []string{prompt.Name, prompt.Type, category, enabled}
+	if wide {
+		paletteRef := "-"
+		if prompt.PaletteRef.Valid && prompt.PaletteRef.String != "" {
+			paletteRef = prompt.PaletteRef.String
+		}
+		row = append(row, paletteRef)
+	}
+	return row
+}
+
+// =============================================================================
+// terminalPackageTableBuilder
+// =============================================================================
+
+// terminalPackageTableBuilder builds table rows for *models.TerminalPackageDB values.
+type terminalPackageTableBuilder struct{}
+
+func (b *terminalPackageTableBuilder) Headers(wide bool) []string {
+	headers := []string{"NAME", "CATEGORY", "PLUGINS", "PROMPTS", "EXTENDS"}
+	if wide {
+		headers = append(headers, "PROFILES", "LABELS")
+	}
+	return headers
+}
+
+func (b *terminalPackageTableBuilder) Row(model any, wide bool) []string {
+	pkg := model.(*models.TerminalPackageDB)
+
+	category := "-"
+	if pkg.Category.Valid && pkg.Category.String != "" {
+		category = pkg.Category.String
+	}
+
+	pluginCount := fmt.Sprintf("%d", len(pkg.GetPlugins()))
+	promptCount := fmt.Sprintf("%d", len(pkg.GetPrompts()))
+
+	extends := "-"
+	if pkg.Extends.Valid && pkg.Extends.String != "" {
+		extends = pkg.Extends.String
+	}
+
+	row := []string{pkg.Name, category, pluginCount, promptCount, extends}
+	if wide {
+		profileCount := fmt.Sprintf("%d", len(pkg.GetProfiles()))
+		labels := "-"
+		l := pkg.GetLabels()
+		if len(l) > 0 {
+			parts := make([]string, 0, len(l))
+			for k, v := range l {
+				parts = append(parts, k+"="+v)
+			}
+			labels = strings.Join(parts, ",")
+		}
+		row = append(row, profileCount, labels)
+	}
+	return row
+}
+
+// =============================================================================
+// caCertTableBuilder
+// =============================================================================
+
+// scopedCACert holds a CA cert with its scope label for display in get all.
+type scopedCACert struct {
+	Name  string
+	Scope string
+}
+
+// caCertTableBuilder builds table rows for scopedCACert values.
+type caCertTableBuilder struct{}
+
+func (b *caCertTableBuilder) Headers(wide bool) []string {
+	return []string{"NAME", "SCOPE"}
+}
+
+func (b *caCertTableBuilder) Row(model any, wide bool) []string {
+	cert := model.(scopedCACert)
+	return []string{cert.Name, cert.Scope}
+}
+
+// =============================================================================
+// buildArgTableBuilder
+// =============================================================================
+
+// scopedBuildArg holds a build arg with its scope label for display in get all.
+type scopedBuildArg struct {
+	Key   string
+	Scope string
+}
+
+// buildArgTableBuilder builds table rows for scopedBuildArg values.
+type buildArgTableBuilder struct{}
+
+func (b *buildArgTableBuilder) Headers(wide bool) []string {
+	return []string{"KEY", "SCOPE"}
+}
+
+func (b *buildArgTableBuilder) Row(model any, wide bool) []string {
+	arg := model.(scopedBuildArg)
+	return []string{arg.Key, arg.Scope}
+}

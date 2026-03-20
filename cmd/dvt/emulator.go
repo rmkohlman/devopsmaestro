@@ -37,9 +37,8 @@ Examples:
 
 // emulatorGetCmd shows emulator details, or lists all emulators when no name is given
 var emulatorGetCmd = &cobra.Command{
-	Use:     "get [name]",
-	Aliases: []string{"list"},
-	Short:   "Get emulator configuration details (or list all)",
+	Use:   "get [name]",
+	Short: "Get emulator configuration details (or list all)",
 	Long: `Show details of a specific terminal emulator configuration, or list all emulators.
 
 Examples:
@@ -320,9 +319,8 @@ Examples:
 
 // emulatorLibraryListCmd lists library emulators
 var emulatorLibraryListCmd = &cobra.Command{
-	Use:     "get",
-	Aliases: []string{"list"},
-	Short:   "List available library emulators",
+	Use:   "get",
+	Short: "List available library emulators",
 	Long: `List terminal emulator configurations from the built-in library.
 
 Examples:
@@ -354,9 +352,8 @@ Examples:
 
 // emulatorLibraryShowCmd shows library emulator details
 var emulatorLibraryShowCmd = &cobra.Command{
-	Use:     "describe <name>",
-	Aliases: []string{"show"},
-	Short:   "Show library emulator details",
+	Use:   "describe <name>",
+	Short: "Show library emulator details",
 	Long: `Show details of a specific emulator from the built-in library.
 
 Examples:
@@ -500,4 +497,9 @@ func init() {
 
 	// Library show flags
 	emulatorLibraryShowCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json")
+
+	// Hidden backward-compat aliases for deprecated verbs in emulator (after flags)
+	emulatorCmd.AddCommand(hiddenAlias("list", emulatorGetCmd))
+	emulatorLibraryCmd.AddCommand(hiddenAlias("list", emulatorLibraryListCmd))
+	emulatorLibraryCmd.AddCommand(hiddenAlias("show", emulatorLibraryShowCmd))
 }
