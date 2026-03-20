@@ -24,7 +24,6 @@ var (
 	getBuildArgsWorkspace string
 	getBuildArgsGlobal    bool
 	getBuildArgsEffective bool
-	getBuildArgsOutputFmt string
 )
 
 // getBuildArgsCmd displays build args at a specific hierarchy level or the merged result
@@ -49,7 +48,9 @@ Examples:
   dvm get build-args --domain data-sci               # Domain-level args
   dvm get build-args --app ml-api                    # App-level args
   dvm get build-args --workspace dev                 # Workspace-level args
-  dvm get build-args --workspace dev --effective     # Fully merged cascade`,
+  dvm get build-args --workspace dev --effective     # Fully merged cascade
+  dvm get build-args -A                              # All args across all scopes
+  dvm get build-args -o json                         # Output as JSON`,
 	RunE: runGetBuildArgs,
 }
 
@@ -62,14 +63,31 @@ func init() {
 	getBuildArgsCmd.Flags().StringVar(&getBuildArgsWorkspace, "workspace", "", "Get build args at workspace level")
 	getBuildArgsCmd.Flags().BoolVar(&getBuildArgsGlobal, "global", false, "Get global default build args")
 	getBuildArgsCmd.Flags().BoolVar(&getBuildArgsEffective, "effective", false, "Show fully merged cascade result (requires --workspace)")
-	getBuildArgsCmd.Flags().StringVarP(&getBuildArgsOutputFmt, "output", "o", "", "Output format (json, yaml, plain, table, colored)")
+	getBuildArgsCmd.Flags().BoolP("all", "A", false, "List all build args across all scopes")
+	// NOTE: --output/-o is inherited from getCmd PersistentFlags — do not re-register
 }
 
 func runGetBuildArgs(cmd *cobra.Command, args []string) error {
+	allFlag, _ := cmd.Flags().GetBool("all")
+
+	// --all cannot be combined with level-specific flags
+	if allFlag {
+		if getBuildArgsEcosystem != "" || getBuildArgsDomain != "" || getBuildArgsApp != "" ||
+			getBuildArgsWorkspace != "" || getBuildArgsGlobal || getBuildArgsEffective {
+			return fmt.Errorf("--all/-A cannot be combined with --global, --ecosystem, --domain, --app, --workspace, or --effective")
+		}
+
+		ctx, err := buildResourceContext(cmd)
+		if err != nil {
+			return err
+		}
+		return runGetAllBuildArgs(cmd, ctx)
+	}
+
 	// Validate that at least one target flag is provided
 	if getBuildArgsEcosystem == "" && getBuildArgsDomain == "" && getBuildArgsApp == "" &&
 		getBuildArgsWorkspace == "" && !getBuildArgsGlobal {
-		return fmt.Errorf("at least one of --ecosystem, --domain, --app, --workspace, or --global must be specified")
+		return fmt.Errorf("at least one of --ecosystem, --domain, --app, --workspace, --global, or --all must be specified")
 	}
 
 	// --effective requires --workspace (to identify the full hierarchy path)
@@ -90,15 +108,15 @@ func runGetBuildArgs(cmd *cobra.Command, args []string) error {
 	// Level-specific display
 	switch {
 	case getBuildArgsWorkspace != "":
-		return getBuildArgsAtWorkspace(ctx, getBuildArgsWorkspace, getBuildArgsApp)
+		return getBuildArgsAtWorkspace(cmd, ctx, getBuildArgsWorkspace, getBuildArgsApp)
 	case getBuildArgsApp != "":
-		return getBuildArgsAtApp(ctx, getBuildArgsApp)
+		return getBuildArgsAtApp(cmd, ctx, getBuildArgsApp)
 	case getBuildArgsDomain != "":
-		return getBuildArgsAtDomain(ctx, getBuildArgsDomain)
+		return getBuildArgsAtDomain(cmd, ctx, getBuildArgsDomain)
 	case getBuildArgsEcosystem != "":
-		return getBuildArgsAtEcosystem(ctx, getBuildArgsEcosystem)
+		return getBuildArgsAtEcosystem(cmd, ctx, getBuildArgsEcosystem)
 	case getBuildArgsGlobal:
-		return getBuildArgsGlobalLevel(ctx)
+		return getBuildArgsGlobalLevel(cmd, ctx)
 	default:
 		return fmt.Errorf("no hierarchy level specified")
 	}
@@ -147,12 +165,11 @@ func runGetBuildArgsEffective(cmd *cobra.Command, ctx resource.Context) error {
 	}
 
 	if len(resolution.Args) == 0 {
-		render.Info("No build args set anywhere in the hierarchy")
-		return nil
+		return render.OutputWith(getOutputFormat, nil, render.Options{
+			Empty:        true,
+			EmptyMessage: "No build args set anywhere in the hierarchy",
+		})
 	}
-
-	render.Info(fmt.Sprintf("Effective build args for workspace: %s (merged cascade)", getBuildArgsWorkspace))
-	render.Blank()
 
 	// Sort keys for deterministic output
 	keys := make([]string, 0, len(resolution.Args))
@@ -161,19 +178,146 @@ func runGetBuildArgsEffective(cmd *cobra.Command, ctx resource.Context) error {
 	}
 	sort.Strings(keys)
 
-	// Display as table: KEY=VALUE  (SOURCE)
+	// For JSON/YAML, build structured output
+	if getOutputFormat == "json" || getOutputFormat == "yaml" {
+		type argOutput struct {
+			Key    string `json:"key" yaml:"key"`
+			Value  string `json:"value" yaml:"value"`
+			Source string `json:"source" yaml:"source"`
+		}
+		out := make([]argOutput, 0, len(keys))
+		for _, k := range keys {
+			source := resolution.Sources[k]
+			out = append(out, argOutput{
+				Key:    k,
+				Value:  resolution.Args[k],
+				Source: source.String(),
+			})
+		}
+		return render.OutputWith(getOutputFormat, out, render.Options{})
+	}
+
+	// Table/human output
+	rows := make([][]string, 0, len(keys))
 	for _, k := range keys {
 		source := resolution.Sources[k]
-		render.Plainf("  %-40s = %-30s  (%s)", k, resolution.Args[k], source.String())
+		rows = append(rows, []string{k, resolution.Args[k], source.String()})
 	}
-	render.Blank()
-	render.Info("Legend: global < ecosystem < domain < app < workspace (workspace wins)")
+	return render.OutputWith(getOutputFormat, render.TableData{
+		Headers: []string{"KEY", "VALUE", "SOURCE"},
+		Rows:    rows,
+	}, render.Options{
+		Type:  render.TypeTable,
+		Title: fmt.Sprintf("Effective build args for workspace: %s (merged cascade)", getBuildArgsWorkspace),
+	})
+}
 
-	return nil
+// runGetAllBuildArgs lists build args from ALL hierarchy levels.
+func runGetAllBuildArgs(cmd *cobra.Command, ctx resource.Context) error {
+	ds, err := resource.DataStoreAs[db.DataStore](ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get DataStore: %w", err)
+	}
+
+	type scopedArg struct {
+		Key   string `json:"key" yaml:"key"`
+		Value string `json:"value" yaml:"value"`
+		Scope string `json:"scope" yaml:"scope"`
+	}
+
+	var allArgs []scopedArg
+
+	// Helper to add args from a map
+	addArgs := func(argMap map[string]string, scope string) {
+		keys := make([]string, 0, len(argMap))
+		for k := range argMap {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			allArgs = append(allArgs, scopedArg{Key: k, Value: argMap[k], Scope: scope})
+		}
+	}
+
+	// 1. Global
+	globalArgs, err := GetGlobalBuildArgs(ds)
+	if err == nil {
+		addArgs(globalArgs, "global")
+	}
+
+	// 2. All ecosystems
+	ecosystems, _ := ds.ListEcosystems()
+	for _, eco := range ecosystems {
+		ecoYAML := eco.ToYAML(nil)
+		addArgs(ecoYAML.Spec.Build.Args, fmt.Sprintf("ecosystem: %s", eco.Name))
+	}
+
+	// 3. All domains
+	domains, _ := ds.ListAllDomains()
+	for _, dom := range domains {
+		eco, _ := ds.GetEcosystemByID(dom.EcosystemID)
+		ecoName := ""
+		if eco != nil {
+			ecoName = eco.Name
+		}
+		domYAML := dom.ToYAML(ecoName, nil)
+		addArgs(domYAML.Spec.Build.Args, fmt.Sprintf("domain: %s", dom.Name))
+	}
+
+	// 4. All apps
+	apps, _ := ds.ListAllApps()
+	for _, app := range apps {
+		buildConfig := app.GetBuildConfig()
+		if buildConfig == nil {
+			continue
+		}
+		addArgs(buildConfig.Args, fmt.Sprintf("app: %s", app.Name))
+	}
+
+	// 5. All workspaces
+	workspaces, _ := ds.ListAllWorkspaces()
+	for _, ws := range workspaces {
+		app, _ := ds.GetAppByID(ws.AppID)
+		appName := ""
+		if app != nil {
+			appName = app.Name
+		}
+		gitRepoName := ""
+		if ws.GitRepoID.Valid {
+			if gitRepo, err := ds.GetGitRepoByID(ws.GitRepoID.Int64); err == nil && gitRepo != nil {
+				gitRepoName = gitRepo.Name
+			}
+		}
+		wsYAML := ws.ToYAML(appName, gitRepoName)
+		addArgs(wsYAML.Spec.Build.Args, fmt.Sprintf("workspace: %s/%s", appName, ws.Name))
+	}
+
+	if len(allArgs) == 0 {
+		return render.OutputWith(getOutputFormat, nil, render.Options{
+			Empty:        true,
+			EmptyMessage: "No build args found across any scope",
+			EmptyHints:   []string{"dvm set build-arg --global <KEY> <VALUE>"},
+		})
+	}
+
+	// For JSON/YAML, output structured data
+	if getOutputFormat == "json" || getOutputFormat == "yaml" {
+		return render.OutputWith(getOutputFormat, allArgs, render.Options{})
+	}
+
+	// Table output
+	rows := make([][]string, len(allArgs))
+	for i, a := range allArgs {
+		rows[i] = []string{a.Key, a.Value, a.Scope}
+	}
+	return render.OutputWith(getOutputFormat, render.TableData{
+		Headers: []string{"KEY", "VALUE", "SCOPE"},
+		Rows:    rows,
+	}, render.Options{Type: render.TypeTable})
 }
 
 // getBuildArgsAtEcosystem displays build args at the ecosystem level.
-func getBuildArgsAtEcosystem(ctx resource.Context, ecosystemName string) error {
+func getBuildArgsAtEcosystem(cmd *cobra.Command, ctx resource.Context, ecosystemName string) error {
 	res, err := resource.Get(ctx, handlers.KindEcosystem, ecosystemName)
 	if err != nil {
 		return fmt.Errorf("ecosystem %q not found: %w", ecosystemName, err)
@@ -185,7 +329,7 @@ func getBuildArgsAtEcosystem(ctx resource.Context, ecosystemName string) error {
 }
 
 // getBuildArgsAtDomain displays build args at the domain level.
-func getBuildArgsAtDomain(ctx resource.Context, domainName string) error {
+func getBuildArgsAtDomain(cmd *cobra.Command, ctx resource.Context, domainName string) error {
 	res, err := resource.Get(ctx, handlers.KindDomain, domainName)
 	if err != nil {
 		return fmt.Errorf("domain %q not found: %w", domainName, err)
@@ -206,7 +350,7 @@ func getBuildArgsAtDomain(ctx resource.Context, domainName string) error {
 }
 
 // getBuildArgsAtApp displays build args at the app level.
-func getBuildArgsAtApp(ctx resource.Context, appName string) error {
+func getBuildArgsAtApp(cmd *cobra.Command, ctx resource.Context, appName string) error {
 	res, err := resource.Get(ctx, handlers.KindApp, appName)
 	if err != nil {
 		return fmt.Errorf("app %q not found: %w", appName, err)
@@ -224,7 +368,7 @@ func getBuildArgsAtApp(ctx resource.Context, appName string) error {
 }
 
 // getBuildArgsAtWorkspace displays build args at the workspace level.
-func getBuildArgsAtWorkspace(ctx resource.Context, workspaceName, scopeAppName string) error {
+func getBuildArgsAtWorkspace(cmd *cobra.Command, ctx resource.Context, workspaceName, scopeAppName string) error {
 	ds, err := resource.DataStoreAs[db.DataStore](ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get DataStore: %w", err)
@@ -270,7 +414,7 @@ func getBuildArgsAtWorkspace(ctx resource.Context, workspaceName, scopeAppName s
 }
 
 // getBuildArgsGlobalLevel displays the global default build args.
-func getBuildArgsGlobalLevel(ctx resource.Context) error {
+func getBuildArgsGlobalLevel(cmd *cobra.Command, ctx resource.Context) error {
 	ds, err := resource.DataStoreAs[db.DataStore](ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get DataStore: %w", err)
@@ -285,25 +429,37 @@ func getBuildArgsGlobalLevel(ctx resource.Context) error {
 }
 
 // displayBuildArgs renders the build args map for a given level/object.
+// Uses render.OutputWith to support JSON/YAML/table output via the parent -o flag.
 func displayBuildArgs(level, objectName string, argMap map[string]string) error {
 	if len(argMap) == 0 {
-		render.Info(fmt.Sprintf("No build args set at %s level (%s)", level, objectName))
-		return nil
+		return render.OutputWith(getOutputFormat, nil, render.Options{
+			Empty:        true,
+			EmptyMessage: fmt.Sprintf("No build args set at %s level (%s)", level, objectName),
+		})
 	}
 
-	render.Info(fmt.Sprintf("Build args at %s level: %s", level, objectName))
-	render.Blank()
+	// For JSON/YAML, output the map directly
+	if getOutputFormat == "json" || getOutputFormat == "yaml" {
+		return render.OutputWith(getOutputFormat, argMap, render.Options{})
+	}
 
+	// Sort keys for deterministic output
 	keys := make([]string, 0, len(argMap))
 	for k := range argMap {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 
-	for _, k := range keys {
-		render.Plainf("  %s = %s", k, argMap[k])
+	// Table output
+	rows := make([][]string, len(keys))
+	for i, k := range keys {
+		rows[i] = []string{k, argMap[k]}
 	}
-	render.Blank()
-
-	return nil
+	return render.OutputWith(getOutputFormat, render.TableData{
+		Headers: []string{"KEY", "VALUE"},
+		Rows:    rows,
+	}, render.Options{
+		Type:  render.TypeTable,
+		Title: fmt.Sprintf("Build args at %s level: %s", level, objectName),
+	})
 }

@@ -233,6 +233,15 @@ func buildWorkspace(cmd *cobra.Command) error {
 	if err := prepareStagingDirectory(stagingDir, sourcePath, appName, workspaceName, sqlDS, workspace); err != nil {
 		return err
 	}
+	// Ensure staging directory is cleaned up after build completes (success or failure).
+	// This removes cert PEM files and other build artifacts that should not persist on disk.
+	defer func() {
+		if err := os.RemoveAll(stagingDir); err != nil {
+			slog.Warn("failed to clean up staging directory", "path", stagingDir, "error", err)
+		} else {
+			slog.Debug("cleaned up staging directory", "path", stagingDir)
+		}
+	}()
 
 	// Step 4.5a: Resolve hierarchical CA certs (global < ecosystem < domain < app < workspace)
 	// This merges certs from all hierarchy levels before preparing them for the build.
@@ -513,9 +522,13 @@ func prepareCACerts(stagingDir string, caCerts []models.CACertConfig) error {
 		return fmt.Errorf("failed to create vault backend for CA cert resolution: %w", err)
 	}
 
-	// Store as interface so type assertions work for FieldCapableBackend
-	var backend config.SecretBackend = vb
+	return prepareCACertsWithBackend(stagingDir, caCerts, vb)
+}
 
+// prepareCACertsWithBackend is the injectable core of prepareCACerts. It
+// accepts an already-constructed SecretBackend so tests can supply a mock
+// without needing a live MaestroVault daemon.
+func prepareCACertsWithBackend(stagingDir string, caCerts []models.CACertConfig, backend config.SecretBackend) error {
 	// Create certs directory in staging
 	certsDir := filepath.Join(stagingDir, "certs")
 	if err := os.MkdirAll(certsDir, 0755); err != nil {
@@ -561,7 +574,7 @@ func prepareCACerts(stagingDir string, caCerts []models.CACertConfig) error {
 			return fmt.Errorf("CA certificate path %q escapes certs directory", cert.Name)
 		}
 
-		if err := os.WriteFile(certPath, []byte(pemContent), 0644); err != nil {
+		if err := os.WriteFile(certPath, []byte(pemContent), 0600); err != nil {
 			return fmt.Errorf("failed to write CA certificate %q: %w", cert.Name, err)
 		}
 

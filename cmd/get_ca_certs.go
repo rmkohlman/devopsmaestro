@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"fmt"
+	"sort"
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
@@ -24,7 +25,6 @@ var (
 	getCACertsWorkspace string
 	getCACertsGlobal    bool
 	getCACertsEffective bool
-	getCACertsOutputFmt string
 )
 
 // getCACertsCmd displays CA certs at a specific hierarchy level or the merged result
@@ -47,7 +47,9 @@ Examples:
   dvm get ca-certs --domain data-sci               # Domain-level certs
   dvm get ca-certs --app ml-api                    # App-level certs
   dvm get ca-certs --workspace dev                 # Workspace-level certs
-  dvm get ca-certs --workspace dev --effective     # Fully merged cascade`,
+  dvm get ca-certs --workspace dev --effective     # Fully merged cascade
+  dvm get ca-certs -A                              # All certs across all scopes
+  dvm get ca-certs -o json                         # Output as JSON`,
 	RunE: runGetCACerts,
 }
 
@@ -60,14 +62,31 @@ func init() {
 	getCACertsCmd.Flags().StringVar(&getCACertsWorkspace, "workspace", "", "Get CA certs at workspace level")
 	getCACertsCmd.Flags().BoolVar(&getCACertsGlobal, "global", false, "Get global default CA certs")
 	getCACertsCmd.Flags().BoolVar(&getCACertsEffective, "effective", false, "Show fully merged cascade result (requires --workspace)")
-	getCACertsCmd.Flags().StringVarP(&getCACertsOutputFmt, "output", "o", "", "Output format (json, yaml, plain, table, colored)")
+	getCACertsCmd.Flags().BoolP("all", "A", false, "List all CA certs across all scopes")
+	// NOTE: --output/-o is inherited from getCmd PersistentFlags — do not re-register
 }
 
 func runGetCACerts(cmd *cobra.Command, args []string) error {
+	allFlag, _ := cmd.Flags().GetBool("all")
+
+	// --all cannot be combined with level-specific flags
+	if allFlag {
+		if getCACertsEcosystem != "" || getCACertsDomain != "" || getCACertsApp != "" ||
+			getCACertsWorkspace != "" || getCACertsGlobal || getCACertsEffective {
+			return fmt.Errorf("--all/-A cannot be combined with --global, --ecosystem, --domain, --app, --workspace, or --effective")
+		}
+
+		ctx, err := buildResourceContext(cmd)
+		if err != nil {
+			return err
+		}
+		return runGetAllCACerts(cmd, ctx)
+	}
+
 	// Validate that at least one target flag is provided
 	if getCACertsEcosystem == "" && getCACertsDomain == "" && getCACertsApp == "" &&
 		getCACertsWorkspace == "" && !getCACertsGlobal {
-		return fmt.Errorf("at least one of --ecosystem, --domain, --app, --workspace, or --global must be specified")
+		return fmt.Errorf("at least one of --ecosystem, --domain, --app, --workspace, --global, or --all must be specified")
 	}
 
 	// --effective requires --workspace (to identify the full hierarchy path)
@@ -88,15 +107,15 @@ func runGetCACerts(cmd *cobra.Command, args []string) error {
 	// Level-specific display
 	switch {
 	case getCACertsWorkspace != "":
-		return getCACertsAtWorkspace(ctx, getCACertsWorkspace, getCACertsApp)
+		return getCACertsAtWorkspace(cmd, ctx, getCACertsWorkspace, getCACertsApp)
 	case getCACertsApp != "":
-		return getCACertsAtApp(ctx, getCACertsApp)
+		return getCACertsAtApp(cmd, ctx, getCACertsApp)
 	case getCACertsDomain != "":
-		return getCACertsAtDomain(ctx, getCACertsDomain)
+		return getCACertsAtDomain(cmd, ctx, getCACertsDomain)
 	case getCACertsEcosystem != "":
-		return getCACertsAtEcosystem(ctx, getCACertsEcosystem)
+		return getCACertsAtEcosystem(cmd, ctx, getCACertsEcosystem)
 	case getCACertsGlobal:
-		return getCACertsGlobalLevel(ctx)
+		return getCACertsGlobalLevel(cmd, ctx)
 	default:
 		return fmt.Errorf("no hierarchy level specified")
 	}
@@ -145,14 +164,37 @@ func runGetCACertsEffective(cmd *cobra.Command, ctx resource.Context) error {
 	}
 
 	if len(resolution.Certs) == 0 {
-		render.Info("No CA certs set anywhere in the hierarchy")
-		return nil
+		return render.OutputWith(getOutputFormat, nil, render.Options{
+			Empty:        true,
+			EmptyMessage: "No CA certs set anywhere in the hierarchy",
+		})
 	}
 
-	render.Info(fmt.Sprintf("Effective CA certs for workspace: %s (merged cascade)", getCACertsWorkspace))
-	render.Blank()
+	// For JSON/YAML, build structured output
+	if getOutputFormat == "json" || getOutputFormat == "yaml" {
+		type certOutput struct {
+			Name             string `json:"name" yaml:"name"`
+			VaultSecret      string `json:"vaultSecret" yaml:"vaultSecret"`
+			VaultEnvironment string `json:"vaultEnvironment,omitempty" yaml:"vaultEnvironment,omitempty"`
+			VaultField       string `json:"vaultField,omitempty" yaml:"vaultField,omitempty"`
+			Source           string `json:"source" yaml:"source"`
+		}
+		out := make([]certOutput, 0, len(resolution.Certs))
+		for _, cert := range resolution.Certs {
+			source := resolution.Sources[cert.Name]
+			out = append(out, certOutput{
+				Name:             cert.Name,
+				VaultSecret:      cert.VaultSecret,
+				VaultEnvironment: cert.VaultEnvironment,
+				VaultField:       cert.VaultField,
+				Source:           source.String(),
+			})
+		}
+		return render.OutputWith(getOutputFormat, out, render.Options{})
+	}
 
-	// Display as table: NAME  VAULT-SECRET  (SOURCE)
+	// Table/human output
+	rows := make([][]string, 0, len(resolution.Certs))
 	for _, cert := range resolution.Certs {
 		source := resolution.Sources[cert.Name]
 		vaultInfo := cert.VaultSecret
@@ -162,16 +204,143 @@ func runGetCACertsEffective(cmd *cobra.Command, ctx resource.Context) error {
 		if cert.VaultField != "" {
 			vaultInfo += fmt.Sprintf(" (field=%s)", cert.VaultField)
 		}
-		render.Plainf("  %-30s  vault-secret=%-25s  (%s)", cert.Name, vaultInfo, source.String())
+		rows = append(rows, []string{cert.Name, vaultInfo, source.String()})
 	}
-	render.Blank()
-	render.Info("Legend: global < ecosystem < domain < app < workspace (workspace wins, matched by name)")
+	return render.OutputWith(getOutputFormat, render.TableData{
+		Headers: []string{"NAME", "VAULT-SECRET", "SOURCE"},
+		Rows:    rows,
+	}, render.Options{
+		Type:  render.TypeTable,
+		Title: fmt.Sprintf("Effective CA certs for workspace: %s (merged cascade)", getCACertsWorkspace),
+	})
+}
 
-	return nil
+// runGetAllCACerts lists CA certs from ALL hierarchy levels.
+func runGetAllCACerts(cmd *cobra.Command, ctx resource.Context) error {
+	ds, err := resource.DataStoreAs[db.DataStore](ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get DataStore: %w", err)
+	}
+
+	type scopedCert struct {
+		Name             string `json:"name" yaml:"name"`
+		VaultSecret      string `json:"vaultSecret" yaml:"vaultSecret"`
+		VaultEnvironment string `json:"vaultEnvironment,omitempty" yaml:"vaultEnvironment,omitempty"`
+		VaultField       string `json:"vaultField,omitempty" yaml:"vaultField,omitempty"`
+		Scope            string `json:"scope" yaml:"scope"`
+	}
+
+	var allCerts []scopedCert
+
+	// 1. Global
+	globalCerts, err := GetGlobalCACerts(ds)
+	if err == nil {
+		for _, c := range globalCerts {
+			allCerts = append(allCerts, scopedCert{
+				Name: c.Name, VaultSecret: c.VaultSecret,
+				VaultEnvironment: c.VaultEnvironment, VaultField: c.VaultField,
+				Scope: "global",
+			})
+		}
+	}
+
+	// 2. All ecosystems
+	ecosystems, _ := ds.ListEcosystems()
+	for _, eco := range ecosystems {
+		ecoYAML := eco.ToYAML(nil)
+		for _, c := range ecoYAML.Spec.CACerts {
+			allCerts = append(allCerts, scopedCert{
+				Name: c.Name, VaultSecret: c.VaultSecret,
+				VaultEnvironment: c.VaultEnvironment, VaultField: c.VaultField,
+				Scope: fmt.Sprintf("ecosystem: %s", eco.Name),
+			})
+		}
+	}
+
+	// 3. All domains
+	domains, _ := ds.ListAllDomains()
+	for _, dom := range domains {
+		eco, _ := ds.GetEcosystemByID(dom.EcosystemID)
+		ecoName := ""
+		if eco != nil {
+			ecoName = eco.Name
+		}
+		domYAML := dom.ToYAML(ecoName, nil)
+		for _, c := range domYAML.Spec.CACerts {
+			allCerts = append(allCerts, scopedCert{
+				Name: c.Name, VaultSecret: c.VaultSecret,
+				VaultEnvironment: c.VaultEnvironment, VaultField: c.VaultField,
+				Scope: fmt.Sprintf("domain: %s", dom.Name),
+			})
+		}
+	}
+
+	// 4. All apps
+	apps, _ := ds.ListAllApps()
+	for _, app := range apps {
+		buildConfig := app.GetBuildConfig()
+		if buildConfig == nil {
+			continue
+		}
+		for _, c := range buildConfig.CACerts {
+			allCerts = append(allCerts, scopedCert{
+				Name: c.Name, VaultSecret: c.VaultSecret,
+				VaultEnvironment: c.VaultEnvironment, VaultField: c.VaultField,
+				Scope: fmt.Sprintf("app: %s", app.Name),
+			})
+		}
+	}
+
+	// 5. All workspaces
+	workspaces, _ := ds.ListAllWorkspaces()
+	for _, ws := range workspaces {
+		app, _ := ds.GetAppByID(ws.AppID)
+		appName := ""
+		if app != nil {
+			appName = app.Name
+		}
+		gitRepoName := ""
+		if ws.GitRepoID.Valid {
+			if gitRepo, err := ds.GetGitRepoByID(ws.GitRepoID.Int64); err == nil && gitRepo != nil {
+				gitRepoName = gitRepo.Name
+			}
+		}
+		wsYAML := ws.ToYAML(appName, gitRepoName)
+		for _, c := range wsYAML.Spec.Build.CACerts {
+			allCerts = append(allCerts, scopedCert{
+				Name: c.Name, VaultSecret: c.VaultSecret,
+				VaultEnvironment: c.VaultEnvironment, VaultField: c.VaultField,
+				Scope: fmt.Sprintf("workspace: %s/%s", appName, ws.Name),
+			})
+		}
+	}
+
+	if len(allCerts) == 0 {
+		return render.OutputWith(getOutputFormat, nil, render.Options{
+			Empty:        true,
+			EmptyMessage: "No CA certs found across any scope",
+			EmptyHints:   []string{"dvm set ca-cert --global <name> --vault-secret <secret>"},
+		})
+	}
+
+	// For JSON/YAML, output structured data
+	if getOutputFormat == "json" || getOutputFormat == "yaml" {
+		return render.OutputWith(getOutputFormat, allCerts, render.Options{})
+	}
+
+	// Table output
+	rows := make([][]string, len(allCerts))
+	for i, c := range allCerts {
+		rows[i] = []string{c.Name, c.VaultSecret, c.Scope}
+	}
+	return render.OutputWith(getOutputFormat, render.TableData{
+		Headers: []string{"NAME", "VAULT-SECRET", "SCOPE"},
+		Rows:    rows,
+	}, render.Options{Type: render.TypeTable})
 }
 
 // getCACertsAtEcosystem displays CA certs at the ecosystem level.
-func getCACertsAtEcosystem(ctx resource.Context, ecosystemName string) error {
+func getCACertsAtEcosystem(cmd *cobra.Command, ctx resource.Context, ecosystemName string) error {
 	res, err := resource.Get(ctx, handlers.KindEcosystem, ecosystemName)
 	if err != nil {
 		return fmt.Errorf("ecosystem %q not found: %w", ecosystemName, err)
@@ -183,7 +352,7 @@ func getCACertsAtEcosystem(ctx resource.Context, ecosystemName string) error {
 }
 
 // getCACertsAtDomain displays CA certs at the domain level.
-func getCACertsAtDomain(ctx resource.Context, domainName string) error {
+func getCACertsAtDomain(cmd *cobra.Command, ctx resource.Context, domainName string) error {
 	res, err := resource.Get(ctx, handlers.KindDomain, domainName)
 	if err != nil {
 		return fmt.Errorf("domain %q not found: %w", domainName, err)
@@ -204,7 +373,7 @@ func getCACertsAtDomain(ctx resource.Context, domainName string) error {
 }
 
 // getCACertsAtApp displays CA certs at the app level.
-func getCACertsAtApp(ctx resource.Context, appName string) error {
+func getCACertsAtApp(cmd *cobra.Command, ctx resource.Context, appName string) error {
 	res, err := resource.Get(ctx, handlers.KindApp, appName)
 	if err != nil {
 		return fmt.Errorf("app %q not found: %w", appName, err)
@@ -222,7 +391,7 @@ func getCACertsAtApp(ctx resource.Context, appName string) error {
 }
 
 // getCACertsAtWorkspace displays CA certs at the workspace level.
-func getCACertsAtWorkspace(ctx resource.Context, workspaceName, scopeAppName string) error {
+func getCACertsAtWorkspace(cmd *cobra.Command, ctx resource.Context, workspaceName, scopeAppName string) error {
 	ds, err := resource.DataStoreAs[db.DataStore](ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get DataStore: %w", err)
@@ -268,7 +437,7 @@ func getCACertsAtWorkspace(ctx resource.Context, workspaceName, scopeAppName str
 }
 
 // getCACertsGlobalLevel displays the global default CA certs.
-func getCACertsGlobalLevel(ctx resource.Context) error {
+func getCACertsGlobalLevel(cmd *cobra.Command, ctx resource.Context) error {
 	ds, err := resource.DataStoreAs[db.DataStore](ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get DataStore: %w", err)
@@ -283,26 +452,47 @@ func getCACertsGlobalLevel(ctx resource.Context) error {
 }
 
 // displayCACerts renders a CA cert list for a given level/object.
+// Uses render.OutputWith to support JSON/YAML/table output via the parent -o flag.
 func displayCACerts(level, objectName string, certs []models.CACertConfig) error {
 	if len(certs) == 0 {
-		render.Info(fmt.Sprintf("No CA certs set at %s level (%s)", level, objectName))
-		return nil
+		return render.OutputWith(getOutputFormat, nil, render.Options{
+			Empty:        true,
+			EmptyMessage: fmt.Sprintf("No CA certs set at %s level (%s)", level, objectName),
+		})
 	}
 
-	render.Info(fmt.Sprintf("CA certs at %s level: %s", level, objectName))
-	render.Blank()
-
-	for _, c := range certs {
-		vaultInfo := c.VaultSecret
-		if c.VaultEnvironment != "" {
-			vaultInfo += fmt.Sprintf(" (env=%s)", c.VaultEnvironment)
-		}
-		if c.VaultField != "" {
-			vaultInfo += fmt.Sprintf(" (field=%s)", c.VaultField)
-		}
-		render.Plainf("  %-30s  vault-secret=%s", c.Name, vaultInfo)
+	// For JSON/YAML, output the model data directly
+	if getOutputFormat == "json" || getOutputFormat == "yaml" {
+		return render.OutputWith(getOutputFormat, certs, render.Options{})
 	}
-	render.Blank()
 
-	return nil
+	// Sort by name for deterministic output
+	sorted := make([]models.CACertConfig, len(certs))
+	copy(sorted, certs)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Name < sorted[j].Name })
+
+	// Table output
+	rows := make([][]string, len(sorted))
+	for i, c := range sorted {
+		rows[i] = []string{c.Name, formatCACertVaultInfo(c)}
+	}
+	return render.OutputWith(getOutputFormat, render.TableData{
+		Headers: []string{"NAME", "VAULT-SECRET"},
+		Rows:    rows,
+	}, render.Options{
+		Type:  render.TypeTable,
+		Title: fmt.Sprintf("CA certs at %s level: %s", level, objectName),
+	})
+}
+
+// formatCACertVaultInfo formats a CACertConfig's vault info into a display string.
+func formatCACertVaultInfo(c models.CACertConfig) string {
+	vaultInfo := c.VaultSecret
+	if c.VaultEnvironment != "" {
+		vaultInfo += fmt.Sprintf(" (env=%s)", c.VaultEnvironment)
+	}
+	if c.VaultField != "" {
+		vaultInfo += fmt.Sprintf(" (field=%s)", c.VaultField)
+	}
+	return vaultInfo
 }
