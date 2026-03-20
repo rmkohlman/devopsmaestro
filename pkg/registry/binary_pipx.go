@@ -79,7 +79,7 @@ func (m *PipxBinaryManager) EnsureBinary(ctx context.Context) (string, error) {
 	// Find binary path
 	binaryPath := filepath.Join(m.binDir, m.packageName)
 	if _, err := os.Stat(binaryPath); err != nil {
-		return "", fmt.Errorf("binary not found after installation: %w", err)
+		return "", fmt.Errorf("pipx install succeeded but binary not found at %s: %w", binaryPath, err)
 	}
 
 	m.binaryPath = binaryPath

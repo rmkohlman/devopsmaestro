@@ -247,7 +247,11 @@ func TestNoHostPathLeakage(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Prohibited host paths that should NEVER be mounted
+	// Prohibited host paths that should NEVER be mounted.
+	// Note: We do NOT prohibit "/home/" broadly because on Linux the DVM
+	// workspace directory legitimately lives under /home/<user>/.devopsmaestro/.
+	// The second check below ("must be under .devopsmaestro/workspaces/") is
+	// the authoritative guard against host-path leakage.
 	prohibitedPaths := []string{
 		"~/.config/nvim",      // Host nvim config
 		"~/.local/share/nvim", // Host nvim data
@@ -257,7 +261,6 @@ func TestNoHostPathLeakage(t *testing.T) {
 		"/etc",                // System config
 		"/usr",                // System binaries
 		"/var",                // System data
-		"/home/",              // Other user directories
 	}
 
 	mockRuntime := &MockContainerRuntime{

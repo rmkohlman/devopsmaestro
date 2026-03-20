@@ -766,11 +766,13 @@ func TestFetchChecksum_MatchesBinaryFilename(t *testing.T) {
 
 	// The manifest lists multiple architectures; only one matches our binary.
 	// Uses the real sha256sum binary-mode format with "*" prefix on filenames.
+	// The "wrong" entries use obviously-fake OS/arch combos (fake-os-*) so they
+	// can never collide with the current platform on any real OS (macOS, Linux).
 	manifest := fmt.Sprintf(
-		"%s *zot-linux-amd64\n"+
-			"%s *zot-linux-arm64\n"+
+		"%s *zot-fake-os-amd64\n"+
+			"%s *zot-fake-os-arm64\n"+
 			"%s *%s\n"+
-			"%s *zot-windows-amd64\n",
+			"%s *zot-fake-os-386\n",
 		wrongDigest,
 		wrongDigest,
 		correctDigest, binaryFilename,
