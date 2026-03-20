@@ -555,6 +555,13 @@ func prepareCACertsWithBackend(stagingDir string, caCerts []models.CACertConfig,
 			return fmt.Errorf("failed to resolve CA certificate %q from vault: %w", cert.Name, err)
 		}
 
+		slog.Debug("raw PEM content from vault",
+			"name", cert.Name,
+			"length", len(pemContent),
+			"first80", fmt.Sprintf("%q", pemContent[:min(80, len(pemContent))]),
+			"last40", fmt.Sprintf("%q", pemContent[max(0, len(pemContent)-40):]),
+		)
+
 		// Validate PEM content
 		if err := models.ValidatePEMContent(pemContent); err != nil {
 			return fmt.Errorf("CA certificate %q has invalid content: %w", cert.Name, err)
