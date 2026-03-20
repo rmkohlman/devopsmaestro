@@ -123,6 +123,9 @@ func (h *WorkspaceHandler) Apply(ctx resource.Context, data []byte) (resource.Re
 		if !workspace.GitRepoID.Valid {
 			workspace.GitRepoID = existing.GitRepoID
 		}
+		if !workspace.BuildConfig.Valid {
+			workspace.BuildConfig = existing.BuildConfig
+		}
 		if err := ds.UpdateWorkspace(workspace); err != nil {
 			return nil, fmt.Errorf("failed to update workspace: %w", err)
 		}

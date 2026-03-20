@@ -116,15 +116,23 @@ type CACertConfig struct {
 
 // DevBuildConfig defines the build configuration for the dev environment.
 // This focuses on developer tools added on top of the app's base image.
+//
+// Tools and Shell are persisted here as JSON inside the BuildConfig column
+// to avoid schema migrations. They are mapped to/from WorkspaceSpec fields
+// by ToYAML/FromYAML for YAML round-trip fidelity (issue #132).
 type DevBuildConfig struct {
-	Args      map[string]string `yaml:"args,omitempty"`
-	CACerts   []CACertConfig    `yaml:"caCerts,omitempty"`
-	BaseStage BaseStageConfig   `yaml:"baseStage,omitempty"`
-	DevStage  DevStageConfig    `yaml:"devStage,omitempty"`
+	Args      map[string]string `yaml:"args,omitempty" json:"args,omitempty"`
+	CACerts   []CACertConfig    `yaml:"caCerts,omitempty" json:"caCerts,omitempty"`
+	BaseStage BaseStageConfig   `yaml:"baseStage,omitempty" json:"baseStage,omitempty"`
+	DevStage  DevStageConfig    `yaml:"devStage,omitempty" json:"devStage,omitempty"`
+	Tools     ToolsConfig       `yaml:"-" json:"tools,omitempty"` // Stored in JSON only, mapped to spec.Tools by ToYAML/FromYAML
+	Shell     ShellConfig       `yaml:"-" json:"shell,omitempty"` // Stored in JSON only, mapped to spec.Shell by ToYAML/FromYAML
 }
 
 // IsZero implements the yaml.v3 IsZero interface for omitempty support.
 // Returns true when all build config fields are empty/zero.
+// Note: Tools and Shell are yaml:"-" so they don't affect YAML omitempty,
+// but we include them here for JSON serialization completeness.
 func (d DevBuildConfig) IsZero() bool {
 	return len(d.Args) == 0 &&
 		len(d.CACerts) == 0 &&
@@ -154,11 +162,11 @@ type TerminalConfig struct {
 
 // ShellConfig defines shell configuration
 type ShellConfig struct {
-	Type      string   `yaml:"type"`                // zsh, bash
-	Framework string   `yaml:"framework,omitempty"` // oh-my-zsh
-	Theme     string   `yaml:"theme,omitempty"`     // starship, powerlevel10k
-	Plugins   []string `yaml:"plugins,omitempty"`
-	CustomRc  string   `yaml:"customRc,omitempty"`
+	Type      string   `yaml:"type" json:"type,omitempty"`                     // zsh, bash
+	Framework string   `yaml:"framework,omitempty" json:"framework,omitempty"` // oh-my-zsh
+	Theme     string   `yaml:"theme,omitempty" json:"theme,omitempty"`         // starship, powerlevel10k
+	Plugins   []string `yaml:"plugins,omitempty" json:"plugins,omitempty"`
+	CustomRc  string   `yaml:"customRc,omitempty" json:"customRc,omitempty"`
 }
 
 // NvimConfig defines Neovim configuration
@@ -188,13 +196,14 @@ type SSHKeyConfig struct {
 // ContainerConfig defines container runtime settings for the dev environment.
 // Port exposure is handled at the App level, not here.
 type ContainerConfig struct {
-	User       string         `yaml:"user,omitempty"`
-	UID        int            `yaml:"uid,omitempty"`
-	GID        int            `yaml:"gid,omitempty"`
-	WorkingDir string         `yaml:"workingDir,omitempty"`
-	Command    []string       `yaml:"command,omitempty"`
-	Entrypoint []string       `yaml:"entrypoint,omitempty"`
-	Resources  ResourceLimits `yaml:"resources,omitempty"`
+	User               string         `yaml:"user,omitempty"`
+	UID                int            `yaml:"uid,omitempty"`
+	GID                int            `yaml:"gid,omitempty"`
+	WorkingDir         string         `yaml:"workingDir,omitempty"`
+	Command            []string       `yaml:"command,omitempty"`
+	Entrypoint         []string       `yaml:"entrypoint,omitempty"`
+	Resources          ResourceLimits `yaml:"resources,omitempty"`
+	SSHAgentForwarding bool           `yaml:"sshAgentForwarding,omitempty"`
 }
 
 // ResourceLimits defines container resource limits
@@ -254,6 +263,16 @@ func (w *Workspace) ToYAML(appName string, gitRepoName string) WorkspaceYAML {
 		_ = json.Unmarshal([]byte(w.BuildConfig.String), &buildConfig)
 	}
 
+	// Extract Tools and Shell from the BuildConfig JSON blob (issue #132).
+	// These are stored in the JSON but mapped to top-level spec fields in YAML.
+	toolsConfig := buildConfig.Tools
+	shellConfig := buildConfig.Shell
+
+	// Clear Tools/Shell from buildConfig so they don't appear in spec.build YAML
+	// (they are yaml:"-" so this is defensive only)
+	buildConfig.Tools = ToolsConfig{}
+	buildConfig.Shell = ShellConfig{}
+
 	// Create default spec with minimal configuration
 	// This will be enhanced when we implement config storage in DB
 	spec := WorkspaceSpec{
@@ -261,15 +280,18 @@ func (w *Workspace) ToYAML(appName string, gitRepoName string) WorkspaceYAML {
 			Name: w.ImageName,
 		},
 		Build:    buildConfig,
+		Shell:    shellConfig,
+		Tools:    toolsConfig,
 		Nvim:     nvimConfig,
 		Terminal: terminalConfig,
 		Env:      envMap,
 		Container: ContainerConfig{
-			User:       "dev",
-			UID:        1000,
-			GID:        1000,
-			WorkingDir: "/workspace",
-			Command:    []string{"/bin/zsh", "-l"},
+			User:               "dev",
+			UID:                1000,
+			GID:                1000,
+			WorkingDir:         "/workspace",
+			Command:            []string{"/bin/zsh", "-l"},
+			SSHAgentForwarding: w.SSHAgentForwarding,
 		},
 	}
 
@@ -329,11 +351,23 @@ func (w *Workspace) FromYAML(yaml WorkspaceYAML) {
 		w.SetEnv(yaml.Spec.Env)
 	}
 
-	// Persist build config (args, caCerts, baseStage, devStage) as JSON
+	// SSHAgentForwarding — stored as a dedicated bool column (#132)
+	w.SSHAgentForwarding = yaml.Spec.Container.SSHAgentForwarding
+
+	// Persist build config (args, caCerts, baseStage, devStage, tools, shell) as JSON.
+	// Tools and Shell are embedded in the BuildConfig JSON blob to avoid
+	// schema migrations (issue #132).
 	build := yaml.Spec.Build
-	if len(build.Args) > 0 || len(build.CACerts) > 0 ||
+	build.Tools = yaml.Spec.Tools
+	build.Shell = yaml.Spec.Shell
+
+	hasContent := len(build.Args) > 0 || len(build.CACerts) > 0 ||
 		len(build.BaseStage.Packages) > 0 ||
-		len(build.DevStage.Packages) > 0 || len(build.DevStage.DevTools) > 0 || len(build.DevStage.CustomCommands) > 0 {
+		len(build.DevStage.Packages) > 0 || len(build.DevStage.DevTools) > 0 || len(build.DevStage.CustomCommands) > 0 ||
+		!build.Tools.IsZero() ||
+		build.Shell.Type != "" || build.Shell.Framework != "" || build.Shell.Theme != ""
+
+	if hasContent {
 		if b, err := json.Marshal(build); err == nil {
 			w.BuildConfig = sql.NullString{String: string(b), Valid: true}
 		}
