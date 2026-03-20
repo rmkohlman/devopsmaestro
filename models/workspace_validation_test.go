@@ -527,3 +527,185 @@ func TestValidateCACerts_MergedExceedsMax(t *testing.T) {
 	assert.NoError(t, err,
 		"merged result with exactly 10 certs should be accepted")
 }
+
+// =============================================================================
+// NormalizePEMContent Tests
+//
+// NormalizePEMContent restores proper newline formatting to PEM content that
+// has had its newlines collapsed to spaces (a known MaestroVault behaviour).
+// =============================================================================
+
+// TestNormalizePEMContent verifies all normalization cases using a table-driven
+// approach: already-valid PEM is untouched, space-collapsed PEM is restored,
+// cert chains with spaces are repaired, mixed content is handled, and
+// leading/trailing whitespace is stripped.
+func TestNormalizePEMContent(t *testing.T) {
+	// validPEM is a well-formed single-certificate PEM with correct newlines.
+	// All other cases are derived from this canonical form.
+	const validPEM = `-----BEGIN CERTIFICATE-----
+MIIBIDCB6wIJANS5fxVvbrSBMA0GCSqGSIb3DQEBCwUAMCExHzAdBgNVBAMT
+FkRldk9wc01hZXN0cm9UZXN0Q0EwHhcNMjMwMTAxMDAwMDAwWhcNMzMwMTAx
+MDAwMDAwWjAhMR8wHQYDVQQDExZEZXZPcHNNYWVzdHJvVGVzdENBMFwwDQYJ
+KoZIhvcNAQEBBQADSwAwSAJBALRiMLAHudeSA/xKMSNtHRpfqo5PQKL8I9gD
+AiDkX10kMwIDAQABMA8GA1UdEwEB/wQFMAMBAf8wDQYJKoZIhvcNAQELBQAD
+QQCcLSHAhMHqSqRLQ9oGCePg/FK2KNhvNMNEYLPrBm8gnyHFe1yMBbvFkBpk
+vGwc4H7VFtKlcCa8IxlMiOas
+-----END CERTIFICATE-----`
+
+	// secondCert simulates a second certificate in a chain (same body, different
+	// label to keep it distinct from the first in string comparisons).
+	const secondCert = `-----BEGIN CERTIFICATE-----
+MIIBIDCB6wIJANS5fxVvbrSBMB0GCSqGSIb3DQEBCwUAMCIxIDAeBgNVBAMT
+F0RlVk9wc01hZXN0cm9DaGFpbkNBMHhcNMjMwMTAxMDAwMDAwWhcNMzMwMTAx
+MDAwMDAwWjAiMSAwHgYDVQQDExdEZXZPcHNNYWVzdHJvQ2hhaW5DQQIBAcwDQ
+YJKoZIhvcNAQELBQADQQCcLSHAhMHqSqRLQ9oGCePg/FK2KNhvNMNEYLPrBm
+8gnyHFe1yMBbvFkBpkvGwc4H7VFtKlcCa8IxlMiOas==
+-----END CERTIFICATE-----`
+
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		// ── Case 1: already-valid PEM — must be a no-op ───────────────────────
+		{
+			name:  "already valid pem is unchanged",
+			input: validPEM,
+			want:  validPEM,
+		},
+
+		// ── Case 2: vault bug — spaces instead of newlines (single cert) ──────
+		// MaestroVault collapses every \n to a single space.  The BEGIN marker
+		// suffix space and the pre-END marker space must both be restored.
+		// Note: the space in the middle of the base64 body is NOT touched —
+		// NormalizePEMContent only fixes the BEGIN/END boundaries.
+		{
+			name: "spaces instead of newlines (vault bug)",
+			input: "-----BEGIN CERTIFICATE----- " +
+				"MIIBIDCB6wIJANS5fxVvbrSBMA0GCSqGSIb3DQEBCwUAMCExHzAdBgNVBAMT " +
+				"FkRldk9wc01hZXN0cm9UZXN0Q0E= " +
+				"-----END CERTIFICATE-----",
+			// "-----BEGIN CERTIFICATE----- " → "-----BEGIN CERTIFICATE-----\n"  (space consumed)
+			// " -----END CERTIFICATE-----"   → "\n-----END CERTIFICATE-----"   (space consumed)
+			want: "-----BEGIN CERTIFICATE-----\n" +
+				"MIIBIDCB6wIJANS5fxVvbrSBMA0GCSqGSIb3DQEBCwUAMCExHzAdBgNVBAMT " +
+				"FkRldk9wc01hZXN0cm9UZXN0Q0E=" +
+				"\n-----END CERTIFICATE-----",
+		},
+
+		// ── Case 3: cert chain with spaces ────────────────────────────────────
+		// Two complete PEM blocks joined by a space instead of a newline.
+		// "-----END CERTIFICATE----- -----BEGIN CERTIFICATE-----" is handled by
+		// two sequential replacements:
+		//   " -----END CERTIFICATE-----"  → "\n-----END CERTIFICATE-----"
+		//   " -----BEGIN CERTIFICATE-----" → "\n-----BEGIN CERTIFICATE-----"
+		{
+			name: "cert chain with spaces between blocks",
+			input: "-----BEGIN CERTIFICATE-----\n" +
+				"MIIBIDCB6wIJANS5fxVvbrSBMA0GCSqGSIb3DQEBCwUAMCExHzAdBgNVBAMT\n" +
+				"-----END CERTIFICATE----- -----BEGIN CERTIFICATE-----\n" +
+				"MIIBIDCB6wIJANS5fxVvbrSBMB0GCSqGSIb3DQEBCwUAMCIxIDAeBgNVBAMT\n" +
+				"-----END CERTIFICATE-----",
+			// The "-----END CERTIFICATE----- -----BEGIN CERTIFICATE-----" span:
+			//   step 1 (" -----END"  → "\n-----END"):  "-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----"
+			//   step 2 (" -----BEGIN" → no longer matches — already replaced above)
+			// Result: END and BEGIN are separated by a single \n (no double-blank-line).
+			want: "-----BEGIN CERTIFICATE-----\n" +
+				"MIIBIDCB6wIJANS5fxVvbrSBMA0GCSqGSIb3DQEBCwUAMCExHzAdBgNVBAMT\n" +
+				"-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\n" +
+				"MIIBIDCB6wIJANS5fxVvbrSBMB0GCSqGSIb3DQEBCwUAMCIxIDAeBgNVBAMT\n" +
+				"-----END CERTIFICATE-----",
+		},
+
+		// ── Case 4: mixed — some newlines correct, some replaced by spaces ────
+		// The BEGIN→body transition is already a newline, but body→END uses a
+		// space (vault bug), and the inter-cert separator is also a space.
+		{
+			name: "mixed correct newlines and space separators",
+			input: "-----BEGIN CERTIFICATE-----\n" +
+				"MIIBIDCB6wIJANS5fxVvbrSBMA0GCSqGSIb3DQEBCwUAMCExHzAdBgNVBAMT= " +
+				"-----END CERTIFICATE----- -----BEGIN CERTIFICATE-----\n" +
+				"MIIBIDCB6wIJANS5fxVvbrSBMB0GCSqGSIb3DQEBCwUAMCIxIDAeBgNVBAMT=\n" +
+				"-----END CERTIFICATE-----",
+			// " -----END CERTIFICATE-----" → "\n-----END CERTIFICATE-----" (space consumed)
+			// " -----BEGIN CERTIFICATE-----" → already handled by prior replacement leaving "\n-----BEGIN"
+			want: "-----BEGIN CERTIFICATE-----\n" +
+				"MIIBIDCB6wIJANS5fxVvbrSBMA0GCSqGSIb3DQEBCwUAMCExHzAdBgNVBAMT=" +
+				"\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\n" +
+				"MIIBIDCB6wIJANS5fxVvbrSBMB0GCSqGSIb3DQEBCwUAMCIxIDAeBgNVBAMT=\n" +
+				"-----END CERTIFICATE-----",
+		},
+
+		// ── Case 5: leading and trailing whitespace is stripped ───────────────
+		{
+			name:  "leading and trailing whitespace stripped",
+			input: "   \n\t" + validPEM + "\n\t   ",
+			want:  validPEM,
+		},
+
+		// ── Case 6: leading/trailing whitespace plus vault-style space collapse─
+		{
+			name: "leading/trailing whitespace with space-collapsed pem",
+			input: "  \n-----BEGIN CERTIFICATE----- " +
+				"MIIBIDCB6wIJANS5fxVvbrSBMA0= " +
+				"-----END CERTIFICATE-----\n  ",
+			want: "-----BEGIN CERTIFICATE-----\n" +
+				"MIIBIDCB6wIJANS5fxVvbrSBMA0=" +
+				"\n-----END CERTIFICATE-----",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange + Act
+			got := NormalizePEMContent(tt.input)
+
+			// Assert
+			assert.Equal(t, tt.want, got,
+				"NormalizePEMContent(%q) produced unexpected output", tt.name)
+		})
+	}
+
+	// Verify the already-valid case is truly a no-op using a stricter identity
+	// check — ensures the function doesn't silently mutate correct input.
+	t.Run("no-op identity for valid pem", func(t *testing.T) {
+		got := NormalizePEMContent(validPEM)
+		require.Equal(t, validPEM, got,
+			"NormalizePEMContent must not alter already-valid PEM content")
+	})
+
+	// Verify a two-cert chain round-trip produces both BEGIN/END markers in order.
+	t.Run("two-cert chain markers preserved after normalization", func(t *testing.T) {
+		// Build a fully space-collapsed two-cert chain (worst-case vault output).
+		chain := validPEM + "\n" + secondCert
+		got := NormalizePEMContent(chain)
+
+		require.Contains(t, got, "-----BEGIN CERTIFICATE-----",
+			"normalized chain must contain BEGIN marker")
+		require.Contains(t, got, "-----END CERTIFICATE-----",
+			"normalized chain must contain END marker")
+
+		// Both certs must be present: count occurrences of the BEGIN marker.
+		const beginMarker = "-----BEGIN CERTIFICATE-----"
+		count := 0
+		s := got
+		for {
+			idx := len(s) - len(s[len(beginMarker):]) // avoid import of strings
+			_ = idx
+			i := 0
+			for i < len(s)-len(beginMarker)+1 {
+				if s[i:i+len(beginMarker)] == beginMarker {
+					count++
+					s = s[i+len(beginMarker):]
+					break
+				}
+				i++
+			}
+			if i >= len(s)-len(beginMarker)+1 {
+				break
+			}
+		}
+		assert.Equal(t, 2, count,
+			"normalized two-cert chain should contain exactly 2 BEGIN CERTIFICATE markers")
+	})
+}

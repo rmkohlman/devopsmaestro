@@ -562,6 +562,9 @@ func prepareCACertsWithBackend(stagingDir string, caCerts []models.CACertConfig,
 			"last40", fmt.Sprintf("%q", pemContent[max(0, len(pemContent)-40):]),
 		)
 
+		// Normalize PEM content — vault backends may collapse newlines to spaces
+		pemContent = models.NormalizePEMContent(pemContent)
+
 		// Validate PEM content
 		if err := models.ValidatePEMContent(pemContent); err != nil {
 			return fmt.Errorf("CA certificate %q has invalid content: %w", cert.Name, err)

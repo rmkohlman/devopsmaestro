@@ -466,6 +466,28 @@ func ValidateCACerts(certs []CACertConfig) error {
 	return nil
 }
 
+// NormalizePEMContent restores proper newline formatting to PEM content.
+// MaestroVault (and some other stores) may collapse newlines to spaces when
+// storing PEM certificates. This function converts those spaces back to
+// newlines so that pem.Decode and downstream tools (e.g. update-ca-certificates
+// inside the container) can parse the content correctly.
+//
+// It handles single certificates and certificate chains.
+func NormalizePEMContent(content string) string {
+	s := strings.TrimSpace(content)
+
+	// Space after BEGIN marker → newline (e.g. "-----BEGIN CERTIFICATE----- MIIJ...")
+	s = strings.ReplaceAll(s, "-----BEGIN CERTIFICATE----- ", "-----BEGIN CERTIFICATE-----\n")
+
+	// Space before END marker → newline (e.g. "...base64 -----END CERTIFICATE-----")
+	s = strings.ReplaceAll(s, " -----END CERTIFICATE-----", "\n-----END CERTIFICATE-----")
+
+	// Space before a mid-chain BEGIN marker → newline (cert chains)
+	s = strings.ReplaceAll(s, " -----BEGIN CERTIFICATE-----", "\n-----BEGIN CERTIFICATE-----")
+
+	return s
+}
+
 // ValidatePEMContent validates that the content is a valid PEM-encoded CA certificate.
 // It performs deep validation using crypto/x509:
 //   - Decodes the PEM block (must be CERTIFICATE type)
@@ -473,7 +495,7 @@ func ValidateCACerts(certs []CACertConfig) error {
 //   - Verifies BasicConstraints CA=true
 //   - Rejects content containing private key material
 func ValidatePEMContent(content string) error {
-	trimmed := strings.TrimSpace(content)
+	trimmed := NormalizePEMContent(content)
 	if !strings.HasPrefix(trimmed, "-----BEGIN CERTIFICATE-----") {
 		return fmt.Errorf("invalid PEM content: must start with -----BEGIN CERTIFICATE-----")
 	}
