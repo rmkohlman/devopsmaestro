@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strings"
 	"time"
@@ -488,12 +489,17 @@ func NormalizePEMContent(content string) string {
 	return s
 }
 
-// ValidatePEMContent validates that the content is a valid PEM-encoded CA certificate.
+// ValidatePEMContent validates that the content contains valid PEM-encoded X.509
+// certificates. It handles single certificates and certificate chains (bundles).
 // It performs deep validation using crypto/x509:
-//   - Decodes the PEM block (must be CERTIFICATE type)
-//   - Parses the X.509 certificate
-//   - Verifies BasicConstraints CA=true
+//   - Decodes every PEM block (must be CERTIFICATE type)
+//   - Parses each X.509 certificate
+//   - Rejects expired certificates (with a clear error naming the cert)
+//   - Logs a DEBUG warning if a certificate does not have BasicConstraints CA=true
 //   - Rejects content containing private key material
+//
+// Note: Certificates without CA:TRUE are accepted — users may legitimately trust
+// leaf/server certificates or full chains in their ca-certs store.
 func ValidatePEMContent(content string) error {
 	trimmed := NormalizePEMContent(content)
 	if !strings.HasPrefix(trimmed, "-----BEGIN CERTIFICATE-----") {
@@ -508,24 +514,46 @@ func ValidatePEMContent(content string) error {
 		return fmt.Errorf("PEM content must not contain private key material")
 	}
 
-	// Decode and parse PEM block
-	block, _ := pem.Decode([]byte(trimmed))
-	if block == nil {
+	// Parse ALL certificates in the PEM bundle
+	remaining := []byte(trimmed)
+	certIndex := 0
+	for {
+		var block *pem.Block
+		block, remaining = pem.Decode(remaining)
+		if block == nil {
+			break
+		}
+
+		if block.Type != "CERTIFICATE" {
+			return fmt.Errorf("PEM block type is %q, expected CERTIFICATE", block.Type)
+		}
+
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return fmt.Errorf("failed to parse X.509 certificate at position %d: %w", certIndex, err)
+		}
+
+		// Reject expired certificates
+		if time.Now().After(cert.NotAfter) {
+			return fmt.Errorf("certificate at position %d (CN=%s) has expired (NotAfter=%s)",
+				certIndex, cert.Subject.CommonName, cert.NotAfter.Format(time.RFC3339))
+		}
+
+		// Log informational warning if cert is not a CA — not blocking
+		if !cert.IsCA {
+			slog.Debug("certificate does not have CA:TRUE — accepting per user intent",
+				"position", certIndex,
+				"cn", cert.Subject.CommonName,
+				"isCA", cert.IsCA,
+			)
+		}
+
+		certIndex++
+	}
+
+	// At least one certificate must have been parsed
+	if certIndex == 0 {
 		return fmt.Errorf("failed to decode PEM block")
-	}
-	if block.Type != "CERTIFICATE" {
-		return fmt.Errorf("PEM block type is %q, expected CERTIFICATE", block.Type)
-	}
-
-	// Parse X.509 certificate
-	cert, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return fmt.Errorf("failed to parse X.509 certificate: %w", err)
-	}
-
-	// Verify CA flag
-	if !cert.IsCA {
-		return fmt.Errorf("certificate is not a CA certificate (BasicConstraints CA=false)")
 	}
 
 	return nil

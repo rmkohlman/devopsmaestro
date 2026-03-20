@@ -1,8 +1,15 @@
 package models
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
+	"math/big"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -360,13 +367,11 @@ OUhBijtAaeDg
 	assert.NoError(t, err, "valid CA certificate PEM should be accepted")
 }
 
-// TestValidatePEMContent_LeafCert verifies that ValidatePEMContent rejects
+// TestValidatePEMContent_LeafCert verifies that ValidatePEMContent accepts
 // a PEM containing a leaf (end-entity) certificate — one where
-// BasicConstraints.IsCA is false (or BasicConstraints is absent).
-//
-// RED: WILL FAIL — current implementation does NOT parse x509; it only checks
-// BEGIN/END markers. The call below will incorrectly return nil. After Phase 3
-// adds x509 parsing, this test MUST pass (leaf cert → error).
+// BasicConstraints.IsCA is false. Per issue #143, users may legitimately
+// trust server certificates in their ca-certs store. A debug-level warning
+// is logged but the cert is accepted.
 func TestValidatePEMContent_LeafCert(t *testing.T) {
 	// Real leaf certificate (CA:FALSE) generated with:
 	//   openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out key.pem
@@ -393,10 +398,8 @@ GRp7Y6Z0Xr9qzitRKCKyJptV56q2Eg==
 -----END CERTIFICATE-----`
 
 	err := ValidatePEMContent(leafCertPEM)
-	require.Error(t, err,
-		"leaf certificate (IsCA=false) should be rejected by ValidatePEMContent")
-	assert.Contains(t, err.Error(), "CA",
-		"error message should mention CA requirement")
+	assert.NoError(t, err,
+		"leaf certificate (IsCA=false) should be accepted by ValidatePEMContent (issue #143)")
 }
 
 // TestValidatePEMContent_PrivateKeyRejected verifies that ValidatePEMContent
@@ -708,4 +711,136 @@ YJKoZIhvcNAQELBQADQQCcLSHAhMHqSqRLQ9oGCePg/FK2KNhvNMNEYLPrBm
 		assert.Equal(t, 2, count,
 			"normalized two-cert chain should contain exactly 2 BEGIN CERTIFICATE markers")
 	})
+}
+
+// =============================================================================
+// Issue #143: Certificate chain and non-CA cert acceptance tests
+//
+// These tests verify that ValidatePEMContent:
+//   - Accepts leaf/server certs (CA=false) with a debug warning
+//   - Accepts certificate chains (leaf + intermediate + root)
+//   - Rejects chains containing an expired certificate
+//   - Still accepts single valid CA certs (regression check)
+//   - Still rejects empty PEM / garbage data (regression check)
+// =============================================================================
+
+// generateTestCert creates a self-signed X.509 certificate for testing.
+// If isCA is true, BasicConstraints CA:TRUE is set. The cert is valid from
+// notBefore to notAfter. Returns the PEM-encoded certificate string.
+func generateTestCert(t *testing.T, cn string, isCA bool, notBefore, notAfter time.Time) string {
+	t.Helper()
+
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err, "failed to generate RSA key for test cert")
+
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: cn},
+		NotBefore:    notBefore,
+		NotAfter:     notAfter,
+		IsCA:         isCA,
+		KeyUsage:     x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
+	}
+	if isCA {
+		template.BasicConstraintsValid = true
+	} else {
+		template.BasicConstraintsValid = true
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	require.NoError(t, err, "failed to create test certificate")
+
+	pemBlock := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: certDER,
+	})
+
+	return string(pemBlock)
+}
+
+// TestValidatePEMContent_CertificateChain verifies that a PEM bundle containing
+// multiple certificates (leaf + intermediate + root) is accepted when all certs
+// are valid.
+func TestValidatePEMContent_CertificateChain(t *testing.T) {
+	now := time.Now()
+	leaf := generateTestCert(t, "Leaf Cert", false, now.Add(-time.Hour), now.Add(24*time.Hour))
+	intermediate := generateTestCert(t, "Intermediate CA", true, now.Add(-time.Hour), now.Add(24*time.Hour))
+	root := generateTestCert(t, "Root CA", true, now.Add(-time.Hour), now.Add(24*time.Hour))
+
+	chain := leaf + intermediate + root
+
+	err := ValidatePEMContent(chain)
+	assert.NoError(t, err,
+		"certificate chain (leaf + intermediate + root) should be accepted when all certs are valid")
+}
+
+// TestValidatePEMContent_ChainWithExpiredCert verifies that a PEM bundle
+// containing at least one expired certificate is rejected with a clear error.
+func TestValidatePEMContent_ChainWithExpiredCert(t *testing.T) {
+	now := time.Now()
+	validCert := generateTestCert(t, "Valid CA", true, now.Add(-time.Hour), now.Add(24*time.Hour))
+	expiredCert := generateTestCert(t, "Expired CA", true, now.Add(-48*time.Hour), now.Add(-24*time.Hour))
+
+	chain := validCert + expiredCert
+
+	err := ValidatePEMContent(chain)
+	require.Error(t, err,
+		"chain with an expired certificate should be rejected")
+	assert.Contains(t, err.Error(), "expired",
+		"error message should mention expiration")
+	assert.Contains(t, err.Error(), "Expired CA",
+		"error message should name the expired certificate")
+}
+
+// TestValidatePEMContent_SingleValidCA is a regression check ensuring a
+// single valid CA certificate continues to be accepted after the IsCA
+// check removal.
+func TestValidatePEMContent_SingleValidCA(t *testing.T) {
+	now := time.Now()
+	caPEM := generateTestCert(t, "Regression Test CA", true, now.Add(-time.Hour), now.Add(24*time.Hour))
+
+	err := ValidatePEMContent(caPEM)
+	assert.NoError(t, err,
+		"single valid CA certificate should be accepted (regression check)")
+}
+
+// TestValidatePEMContent_EmptyAndGarbage is a regression check ensuring
+// empty PEM content and garbage data are still rejected.
+func TestValidatePEMContent_EmptyAndGarbage(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		errMsg  string
+	}{
+		{
+			name:    "empty string",
+			content: "",
+			errMsg:  "BEGIN CERTIFICATE",
+		},
+		{
+			name:    "whitespace only",
+			content: "   \n\t  ",
+			errMsg:  "BEGIN CERTIFICATE",
+		},
+		{
+			name:    "random garbage",
+			content: "this is totally not a certificate!!!",
+			errMsg:  "BEGIN CERTIFICATE",
+		},
+		{
+			name:    "looks like PEM but garbage body",
+			content: "-----BEGIN CERTIFICATE-----\ndGhpcyBpcyBub3QgYSB2YWxpZCBERVIgY2VydGlmaWNhdGUgYXQgYWxsCg==\n-----END CERTIFICATE-----",
+			errMsg:  "parse",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidatePEMContent(tt.content)
+			require.Error(t, err,
+				"invalid content %q should be rejected", tt.name)
+			assert.Contains(t, err.Error(), tt.errMsg,
+				"error message should contain %q", tt.errMsg)
+		})
+	}
 }
