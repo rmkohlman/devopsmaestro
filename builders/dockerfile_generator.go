@@ -1191,7 +1191,8 @@ func (g *DefaultDockerfileGenerator) generateNvimSection(dockerfile *strings.Bui
 	// Install lazy.nvim and plugins as dev user with proper error handling
 	dockerfile.WriteString(fmt.Sprintf("USER %s\n", user))
 	dockerfile.WriteString("# Bootstrap lazy.nvim and install plugins\n")
-	dockerfile.WriteString("RUN nvim --headless \"+Lazy! sync\" +qa 2>&1 | tee /tmp/nvim-install.log || \\\n")
+	dockerfile.WriteString("RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \\\n")
+	dockerfile.WriteString("    nvim --headless \"+Lazy! sync\" +qa 2>&1 | tee /tmp/nvim-install.log || \\\n")
 	dockerfile.WriteString("    (cat /tmp/nvim-install.log && exit 1)\n\n")
 
 	// Install Treesitter parsers at build time (reduces first-attach startup time)
@@ -1251,7 +1252,8 @@ func (g *DefaultDockerfileGenerator) installMasonTools(dockerfile *strings.Build
 
 	dockerfile.WriteString("# Install LSPs, linters, and formatters via Mason at build time\n")
 	toolList := strings.Join(tools, " ")
-	dockerfile.WriteString(fmt.Sprintf("RUN nvim --headless -c \"MasonInstall %s\" -c \"sleep 60\" -c \"qa\" 2>&1\n\n", toolList))
+	dockerfile.WriteString("RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \\\n")
+	dockerfile.WriteString(fmt.Sprintf("    nvim --headless -c \"MasonInstall %s\" -c \"sleep 60\" -c \"qa\" 2>&1\n\n", toolList))
 }
 
 // getTreesitterParsersForLanguage returns Treesitter parsers for the detected language
@@ -1297,5 +1299,6 @@ func (g *DefaultDockerfileGenerator) installTreesitterParsers(dockerfile *string
 	// The new nvim-treesitter API has require('nvim-treesitter').install():wait()
 	// which blocks until parsers are fully compiled
 	luaParsers := "'" + strings.Join(parsers, "', '") + "'"
-	dockerfile.WriteString(fmt.Sprintf("RUN nvim --headless -c \"lua require('nvim-treesitter').install({%s}):wait()\" -c \"qa\" 2>&1\n\n", luaParsers))
+	dockerfile.WriteString("RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \\\n")
+	dockerfile.WriteString(fmt.Sprintf("    nvim --headless -c \"lua require('nvim-treesitter').install({%s}):wait()\" -c \"qa\" 2>&1\n\n", luaParsers))
 }

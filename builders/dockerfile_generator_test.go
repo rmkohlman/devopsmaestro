@@ -1286,9 +1286,9 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 					HasTreesitter: true,
 				},
 			},
-			wantMason: "RUN nvim --headless -c \"MasonInstall",
+			wantMason: "nvim --headless -c \"MasonInstall",
 			noMason:   "Mason not installed - skipping LSP pre-install",
-			wantTS:    "RUN nvim --headless -c \"lua require('nvim-treesitter').install",
+			wantTS:    "nvim --headless -c \"lua require('nvim-treesitter').install",
 			noTS:      "Treesitter not installed - skipping parser pre-install",
 		},
 		{
@@ -1300,9 +1300,9 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 				},
 			},
 			wantMason: "Mason not installed - skipping LSP pre-install",
-			noMason:   "RUN nvim --headless -c \"MasonInstall",
+			noMason:   "MasonInstall",
 			wantTS:    "Treesitter not installed - skipping parser pre-install",
-			noTS:      "RUN nvim --headless -c \"lua require('nvim-treesitter').install",
+			noTS:      "nvim-treesitter",
 		},
 		{
 			name: "with Mason only",
@@ -1312,10 +1312,10 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 					HasTreesitter: false,
 				},
 			},
-			wantMason: "RUN nvim --headless -c \"MasonInstall",
+			wantMason: "nvim --headless -c \"MasonInstall",
 			noMason:   "Mason not installed - skipping LSP pre-install",
 			wantTS:    "Treesitter not installed - skipping parser pre-install",
-			noTS:      "RUN nvim --headless -c \"lua require('nvim-treesitter').install",
+			noTS:      "nvim-treesitter",
 		},
 		{
 			name: "with Treesitter only",
@@ -1326,16 +1326,16 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 				},
 			},
 			wantMason: "Mason not installed - skipping LSP pre-install",
-			noMason:   "RUN nvim --headless -c \"MasonInstall",
-			wantTS:    "RUN nvim --headless -c \"lua require('nvim-treesitter').install",
+			noMason:   "MasonInstall",
+			wantTS:    "nvim --headless -c \"lua require('nvim-treesitter').install",
 			noTS:      "Treesitter not installed - skipping parser pre-install",
 		},
 		{
 			name:      "nil manifest (backward compatibility)",
 			manifest:  nil,
-			wantMason: "RUN nvim --headless -c \"MasonInstall",
+			wantMason: "nvim --headless -c \"MasonInstall",
 			noMason:   "",
-			wantTS:    "RUN nvim --headless -c \"lua require('nvim-treesitter').install",
+			wantTS:    "nvim --headless -c \"lua require('nvim-treesitter').install",
 			noTS:      "",
 		},
 	}
@@ -4259,6 +4259,415 @@ func TestDockerfileGenerator_NpmLanguageTools_ProxyUnsetFallback(t *testing.T) {
 								i+1, envVar, fallbackRegion)
 						}
 					}
+				}
+			}
+		})
+	}
+}
+
+// =============================================================================
+// Issue #147 — nvim-section RUN commands missing proxy-unset prefix (TDD Phase 2)
+// =============================================================================
+
+// TestDockerfileGenerator_LazySyncStep_ProxyUnsetPrefix verifies that the
+// `nvim --headless "+Lazy! sync"` RUN command in generateNvimSection() is prefixed
+// with `unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY
+// npm_config_registry &&` before the nvim invocation.
+//
+// Without the prefix, lazy.nvim runs `git clone` for plugins while inheriting
+// HTTP_PROXY/HTTPS_PROXY ARG values that point at an unreachable Squid proxy
+// inside the Colima heavy-local VM, causing plugin installation failures.
+//
+// Phase 2 failing test for Issue #147 — fix NOT yet implemented.
+// MUST FAIL against current code (line 1194 has no unset prefix).
+func TestDockerfileGenerator_LazySyncStep_ProxyUnsetPrefix(t *testing.T) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("failed to get home dir: %v", err)
+	}
+
+	tests := []struct {
+		name     string
+		language string
+		version  string
+	}{
+		{
+			name:     "python/debian — lazy sync in dev stage",
+			language: "python",
+			version:  "3.11",
+		},
+		{
+			name:     "golang — lazy sync in dev stage",
+			language: "golang",
+			version:  "1.22",
+		},
+		{
+			name:     "nodejs — lazy sync in dev stage",
+			language: "nodejs",
+			version:  "20",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create staging dir with nvim config to trigger generateNvimSection()
+			repoName := "test-lazy-proxy-" + tt.language
+			stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", repoName)
+			nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
+			if err := os.MkdirAll(nvimConfigPath, 0755); err != nil {
+				t.Fatalf("failed to create nvim config dir: %v", err)
+			}
+			defer os.RemoveAll(stagingDir)
+
+			initLuaPath := filepath.Join(nvimConfigPath, "init.lua")
+			if err := os.WriteFile(initLuaPath, []byte("-- test"), 0644); err != nil {
+				t.Fatalf("failed to create init.lua: %v", err)
+			}
+
+			sourcePath := filepath.Join("/tmp", "dvm-clone-xyz", repoName)
+
+			ws := &models.Workspace{
+				ID:        1,
+				Name:      "test-ws",
+				ImageName: "test:latest",
+			}
+			wsYAML := models.WorkspaceSpec{
+				Nvim: models.NvimConfig{
+					Structure: "custom",
+				},
+			}
+
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: wsYAML,
+				Language:      tt.language,
+				Version:       tt.version,
+				AppPath:       sourcePath,
+				PathConfig:    paths.New(homeDir),
+			})
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			// Verify the Lazy! sync command is present at all
+			if !strings.Contains(dockerfile, `"+Lazy! sync"`) {
+				t.Fatalf("Generate() missing '+Lazy! sync' command — test requires it to be present for language=%s", tt.language)
+			}
+
+			// MUST have: unset prefix on the RUN containing "+Lazy! sync"
+			// Expected form:
+			//   RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \
+			//       nvim --headless "+Lazy! sync" +qa 2>&1 | ...
+			//
+			// Locate the RUN block containing "+Lazy! sync" and check the preceding context
+			lazyIdx := strings.Index(dockerfile, `"+Lazy! sync"`)
+			if lazyIdx < 0 {
+				t.Fatalf("cannot locate '+Lazy! sync' in generated Dockerfile")
+			}
+
+			// Look back up to 300 characters before the command for the unset prefix
+			lookbackStart := lazyIdx - 300
+			if lookbackStart < 0 {
+				lookbackStart = 0
+			}
+			context := dockerfile[lookbackStart : lazyIdx+len(`"+Lazy! sync"`)]
+
+			// Find the last RUN keyword before the +Lazy! sync command
+			lastRunIdx := strings.LastIndex(context, "RUN ")
+			if lastRunIdx < 0 {
+				t.Fatalf("no RUN keyword found before '+Lazy! sync' in context:\n%s", context)
+			}
+			runBlock := context[lastRunIdx:]
+
+			requiredUnsets := []string{
+				"unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry",
+			}
+			for _, want := range requiredUnsets {
+				if !strings.Contains(runBlock, want) {
+					t.Errorf("[%s] Lazy! sync RUN command missing proxy-unset prefix: %q\n"+
+						"The '+Lazy! sync' step must unset all proxy/registry env vars before running\n"+
+						"because lazy.nvim runs 'git clone' which honors HTTP_PROXY/HTTPS_PROXY.\n"+
+						"Expected prefix: unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry\n"+
+						"RUN block found:\n%s",
+						tt.name, want, runBlock)
+				}
+			}
+		})
+	}
+}
+
+// TestDockerfileGenerator_MasonInstallStep_ProxyUnsetPrefix verifies that the
+// `nvim --headless -c "MasonInstall ..."` RUN command in installMasonTools() is
+// prefixed with `unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy
+// NPM_CONFIG_REGISTRY npm_config_registry &&` before the nvim invocation.
+//
+// Without the prefix, Mason internally spawns `npm install` for npm-based
+// packages (pyright, typescript-language-server, etc.) which inherit the
+// NPM_CONFIG_REGISTRY ARG pointing at an unreachable Verdaccio proxy, causing
+// 503 errors at build time.
+//
+// Phase 2 failing test for Issue #147 — fix NOT yet implemented.
+// MUST FAIL against current code (line 1254 has no unset prefix).
+func TestDockerfileGenerator_MasonInstallStep_ProxyUnsetPrefix(t *testing.T) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("failed to get home dir: %v", err)
+	}
+
+	tests := []struct {
+		name     string
+		language string
+		version  string
+	}{
+		{
+			name:     "python — mason install in dev stage",
+			language: "python",
+			version:  "3.11",
+		},
+		{
+			name:     "golang — mason install in dev stage",
+			language: "golang",
+			version:  "1.22",
+		},
+		{
+			name:     "nodejs — mason install in dev stage",
+			language: "nodejs",
+			version:  "20",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create staging dir with nvim config to trigger installMasonTools()
+			repoName := "test-mason-proxy-" + tt.language
+			stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", repoName)
+			nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
+			if err := os.MkdirAll(nvimConfigPath, 0755); err != nil {
+				t.Fatalf("failed to create nvim config dir: %v", err)
+			}
+			defer os.RemoveAll(stagingDir)
+
+			initLuaPath := filepath.Join(nvimConfigPath, "init.lua")
+			if err := os.WriteFile(initLuaPath, []byte("-- test"), 0644); err != nil {
+				t.Fatalf("failed to create init.lua: %v", err)
+			}
+
+			sourcePath := filepath.Join("/tmp", "dvm-clone-xyz", repoName)
+
+			ws := &models.Workspace{
+				ID:        1,
+				Name:      "test-ws",
+				ImageName: "test:latest",
+			}
+			wsYAML := models.WorkspaceSpec{
+				Nvim: models.NvimConfig{
+					Structure: "custom",
+				},
+			}
+
+			// Enable Mason so installMasonTools() emits the MasonInstall RUN
+			manifest := &plugin.PluginManifest{
+				Features: plugin.PluginFeatures{
+					HasMason:      true,
+					HasTreesitter: false,
+				},
+			}
+
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: wsYAML,
+				Language:      tt.language,
+				Version:       tt.version,
+				AppPath:       sourcePath,
+				PathConfig:    paths.New(homeDir),
+			})
+			gen.SetPluginManifest(manifest)
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			// Verify the MasonInstall command is present at all
+			if !strings.Contains(dockerfile, "MasonInstall") {
+				t.Fatalf("Generate() missing 'MasonInstall' command — test requires it to be present for language=%s", tt.language)
+			}
+
+			// MUST have: unset prefix on the RUN containing "MasonInstall"
+			// Expected form:
+			//   RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \
+			//       nvim --headless -c "MasonInstall ..." -c "sleep 60" -c "qa" 2>&1
+			masonIdx := strings.Index(dockerfile, "MasonInstall")
+			if masonIdx < 0 {
+				t.Fatalf("cannot locate 'MasonInstall' in generated Dockerfile")
+			}
+
+			// Look back up to 300 characters before the command for the unset prefix
+			lookbackStart := masonIdx - 300
+			if lookbackStart < 0 {
+				lookbackStart = 0
+			}
+			context := dockerfile[lookbackStart : masonIdx+len("MasonInstall")]
+
+			// Find the last RUN keyword before the MasonInstall command
+			lastRunIdx := strings.LastIndex(context, "RUN ")
+			if lastRunIdx < 0 {
+				t.Fatalf("no RUN keyword found before 'MasonInstall' in context:\n%s", context)
+			}
+			runBlock := context[lastRunIdx:]
+
+			requiredUnsets := []string{
+				"unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry",
+			}
+			for _, want := range requiredUnsets {
+				if !strings.Contains(runBlock, want) {
+					t.Errorf("[%s] MasonInstall RUN command missing proxy-unset prefix: %q\n"+
+						"Mason spawns 'npm install' internally for npm-based packages (pyright, tsserver, etc.).\n"+
+						"Those subprocesses inherit NPM_CONFIG_REGISTRY/HTTP_PROXY ARG values that point at\n"+
+						"unreachable host.docker.internal registries, causing 503 failures at build time.\n"+
+						"Expected prefix: unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry\n"+
+						"RUN block found:\n%s",
+						tt.name, want, runBlock)
+				}
+			}
+		})
+	}
+}
+
+// TestDockerfileGenerator_TreesitterInstallStep_ProxyUnsetPrefix verifies that the
+// `nvim --headless -c "lua require('nvim-treesitter').install(...)"` RUN command in
+// installTreesitterParsers() is prefixed with `unset HTTP_PROXY HTTPS_PROXY
+// http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry &&` before the
+// nvim invocation.
+//
+// Without the prefix, nvim-treesitter compiles parsers from source by fetching
+// grammar repos via `git clone` from GitHub. With HTTP_PROXY/HTTPS_PROXY set to
+// an unreachable Squid proxy, these git clones will timeout or fail.
+//
+// Phase 2 failing test for Issue #147 — fix NOT yet implemented.
+// MUST FAIL against current code (line 1300 has no unset prefix).
+func TestDockerfileGenerator_TreesitterInstallStep_ProxyUnsetPrefix(t *testing.T) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("failed to get home dir: %v", err)
+	}
+
+	tests := []struct {
+		name     string
+		language string
+		version  string
+	}{
+		{
+			name:     "python — treesitter install in dev stage",
+			language: "python",
+			version:  "3.11",
+		},
+		{
+			name:     "golang — treesitter install in dev stage",
+			language: "golang",
+			version:  "1.22",
+		},
+		{
+			name:     "nodejs — treesitter install in dev stage",
+			language: "nodejs",
+			version:  "20",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create staging dir with nvim config to trigger installTreesitterParsers()
+			repoName := "test-ts-proxy-" + tt.language
+			stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", repoName)
+			nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
+			if err := os.MkdirAll(nvimConfigPath, 0755); err != nil {
+				t.Fatalf("failed to create nvim config dir: %v", err)
+			}
+			defer os.RemoveAll(stagingDir)
+
+			initLuaPath := filepath.Join(nvimConfigPath, "init.lua")
+			if err := os.WriteFile(initLuaPath, []byte("-- test"), 0644); err != nil {
+				t.Fatalf("failed to create init.lua: %v", err)
+			}
+
+			sourcePath := filepath.Join("/tmp", "dvm-clone-xyz", repoName)
+
+			ws := &models.Workspace{
+				ID:        1,
+				Name:      "test-ws",
+				ImageName: "test:latest",
+			}
+			wsYAML := models.WorkspaceSpec{
+				Nvim: models.NvimConfig{
+					Structure: "custom",
+				},
+			}
+
+			// Enable Treesitter so installTreesitterParsers() emits the TSInstall RUN
+			manifest := &plugin.PluginManifest{
+				Features: plugin.PluginFeatures{
+					HasMason:      false,
+					HasTreesitter: true,
+				},
+			}
+
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: wsYAML,
+				Language:      tt.language,
+				Version:       tt.version,
+				AppPath:       sourcePath,
+				PathConfig:    paths.New(homeDir),
+			})
+			gen.SetPluginManifest(manifest)
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			// Verify the nvim-treesitter install command is present at all
+			if !strings.Contains(dockerfile, "nvim-treesitter") {
+				t.Fatalf("Generate() missing 'nvim-treesitter' install command — test requires it to be present for language=%s", tt.language)
+			}
+
+			// MUST have: unset prefix on the RUN containing the treesitter install
+			// Expected form:
+			//   RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \
+			//       nvim --headless -c "lua require('nvim-treesitter').install({...}):wait()" -c "qa" 2>&1
+			tsIdx := strings.Index(dockerfile, "nvim-treesitter")
+			if tsIdx < 0 {
+				t.Fatalf("cannot locate 'nvim-treesitter' in generated Dockerfile")
+			}
+
+			// Look back up to 300 characters before the command for the unset prefix
+			lookbackStart := tsIdx - 300
+			if lookbackStart < 0 {
+				lookbackStart = 0
+			}
+			context := dockerfile[lookbackStart : tsIdx+len("nvim-treesitter")]
+
+			// Find the last RUN keyword before the treesitter install command
+			lastRunIdx := strings.LastIndex(context, "RUN ")
+			if lastRunIdx < 0 {
+				t.Fatalf("no RUN keyword found before 'nvim-treesitter' install in context:\n%s", context)
+			}
+			runBlock := context[lastRunIdx:]
+
+			requiredUnsets := []string{
+				"unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry",
+			}
+			for _, want := range requiredUnsets {
+				if !strings.Contains(runBlock, want) {
+					t.Errorf("[%s] nvim-treesitter install RUN command missing proxy-unset prefix: %q\n"+
+						"nvim-treesitter compiles parsers from source by fetching grammar repos via 'git clone'.\n"+
+						"With HTTP_PROXY/HTTPS_PROXY inherited from the dev stage ARG declarations, these\n"+
+						"git clones route through an unreachable Squid proxy and fail.\n"+
+						"Expected prefix: unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry\n"+
+						"RUN block found:\n%s",
+						tt.name, want, runBlock)
 				}
 			}
 		})

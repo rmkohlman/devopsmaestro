@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fix npm install proxy fallback in generated Dockerfiles — `npm install -g neovim` and language tool installs now unset proxy/registry env vars on retry, preventing 503 errors on Colima VMs (#146)
+- Fix proxy env var leakage into nvim build steps — Lazy sync, MasonInstall, and Treesitter install now unset proxy/registry env vars before execution, preventing 503 errors on Colima VMs (#147)
 
 ---
 
