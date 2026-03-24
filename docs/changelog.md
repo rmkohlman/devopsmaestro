@@ -2,7 +2,7 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
-## Unreleased
+## v0.59.9 (2026-03-24)
 
 **opencode Integration (CLI Tool + nvim Plugin)**
 
@@ -21,6 +21,8 @@ Two independent tracks for using the opencode AI coding assistant in DevOpsMaest
 - **Plural get YAML format** — `dvm get ecosystems -o yaml`, `dvm get apps -o yaml`, and all other plural get commands now wrap output in a `kind: List` envelope. Output is directly consumable by `dvm apply -f` for backup/restore workflows (#154).
 - **Registry trusted host detection** — `isLocalHost()` now recognizes `host.docker.internal`, ensuring `PIP_TRUSTED_HOST` is correctly set when a local devpi registry is used during Docker builds. Prevents pip from rejecting the local registry URL as untrusted (#148).
 - **Scoped YAML export ecosystem filtering** — `filterApps()` now correctly filters apps by ecosystem domain membership when using `--ecosystem` scope. Previously, apps from other ecosystems leaked into the export with empty `domain` and `ecosystem` metadata fields (#149).
+- **Ecosystem-scoped export credential filtering** — `filterCredentials()` in `cmd/get_all.go` now walks the full hierarchy using filtered domain/app/workspace slices (same pattern as `filterApps`/`filterWorkspaces`). Previously, only top-level credentials were exported; credentials attached to any domain, app, or workspace within the scoped ecosystem are now included (#155).
+- **CRDs missing from `dvm get all` export** — `getAll()` now queries CRD resources for both YAML/JSON and table output paths. CRD definitions were silently omitted from backup exports despite having a registered handler; they now appear in `dvm get all -A -o yaml` output and can be re-applied via `dvm apply -f` (#156).
 
 ## v0.57.1 (2026-03-18)
 

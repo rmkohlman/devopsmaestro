@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [v0.59.9] - 2026-03-24
 
 ### Added
 
@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix proxy env var leakage into nvim build steps — Lazy sync, MasonInstall, and Treesitter install now unset proxy/registry env vars before execution, preventing 503 errors on Colima VMs (#147)
 - Fix registry trusted host detection for Docker builds — `isLocalHost()` now recognizes `host.docker.internal`, ensuring `PIP_TRUSTED_HOST` is set for local devpi registries (#148)
 - Fix scoped YAML export including cross-ecosystem resources — `filterApps()` now correctly filters apps by ecosystem domain membership, preventing empty metadata in exports (#149)
+- Fix ecosystem-scoped export missing credentials — `filterCredentials()` in `cmd/get_all.go` now walks the full hierarchy using filtered domain/app/workspace slices, matching the pattern used by `filterApps`/`filterWorkspaces`; credentials attached at any level within the scoped ecosystem are now included and credentials from other ecosystems are excluded (#155)
+- Fix CRDs missing from `dvm get all` export — `getAll()` now queries CRD resources for both YAML/JSON and table output paths; added `crdTableBuilder` in `cmd/table.go`; CRD definitions are no longer silently omitted from backup exports and can be re-applied via `dvm apply -f` (#156)
 
 ---
 

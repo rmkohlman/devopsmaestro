@@ -174,6 +174,29 @@ func createFullTestDataStore(t *testing.T) db.DataStore {
 			value TEXT NOT NULL,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
+		`CREATE TABLE IF NOT EXISTS custom_resource_definitions (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			kind TEXT NOT NULL UNIQUE,
+			"group" TEXT NOT NULL,
+			singular TEXT NOT NULL,
+			plural TEXT NOT NULL,
+			short_names TEXT,
+			scope TEXT NOT NULL CHECK(scope IN ('Global', 'Workspace', 'App', 'Domain', 'Ecosystem')),
+			versions TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS custom_resources (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			kind TEXT NOT NULL,
+			name TEXT NOT NULL,
+			namespace TEXT,
+			spec TEXT,
+			status TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(kind, name, namespace)
+		)`,
 	}
 
 	for _, q := range extraQueries {
@@ -2009,6 +2032,246 @@ func TestGetAll_EcosystemScoped_YAML_AppMetadataNotEmpty(t *testing.T) {
 		assert.NotEmpty(t, ecoVal,
 			"App item metadata.ecosystem must not be empty; an empty ecosystem indicates a leaked cross-ecosystem app (Bug #149)")
 	}
+}
+
+// ===========================================================================
+// Bug #156 Tests: CRDs missing from `dvm get all` output
+//
+// ROOT CAUSE: getAll() in cmd/get_all.go queries 13 resource types but never
+// calls ds.ListCRDs() or resource.List(resCtx, handlers.KindCRD). The CRD
+// handler, model, DB layer, and registration all exist — they are simply
+// never invoked in the export pipeline.
+//
+// These tests MUST FAIL until the fix adds CRD querying to both the
+// JSON/YAML export path AND the human-readable table output path.
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// TestGetAll_YAML_IncludesCRDs  [Bug #156 - RED]
+// ---------------------------------------------------------------------------
+
+// TestGetAll_YAML_IncludesCRDs verifies that when CRDs exist in the database,
+// `dvm get all -o yaml` (with -A for unscoped/all) includes them in the List
+// items with kind: "CustomResourceDefinition".
+//
+// RED: FAILS today because getAll() never calls resource.List(resCtx, KindCRD)
+// and never appends CRD resources to allResources.
+func TestGetAll_YAML_IncludesCRDs(t *testing.T) {
+	dataStore := createFullTestDataStore(t)
+	defer dataStore.Close()
+
+	// Seed a CRD
+	crdModel := &models.CustomResourceDefinition{
+		Kind:     "Pipeline",
+		Group:    "ci.devopsmaestro.io",
+		Singular: "pipeline",
+		Plural:   "pipelines",
+		Scope:    "Global",
+	}
+	require.NoError(t, dataStore.CreateCRD(crdModel))
+
+	// Use scoped command helper with -A to ensure ShowAll = true (global resource path)
+	cmd := newScopedGetAllCmd(t, dataStore)
+
+	var buf bytes.Buffer
+	origWriter := render.GetWriter()
+	render.SetWriter(&buf)
+	defer render.SetWriter(origWriter)
+
+	origFormat := getOutputFormat
+	defer func() { getOutputFormat = origFormat }()
+	getOutputFormat = "yaml"
+
+	cmd.SetArgs([]string{"-A"})
+	err := cmd.Execute()
+	require.NoError(t, err, "getAll YAML with -A should not error")
+
+	var result map[string]interface{}
+	err = yaml.Unmarshal(buf.Bytes(), &result)
+	require.NoError(t, err, "output should be valid YAML; got: %s", buf.String())
+	require.Equal(t, "List", result["kind"])
+
+	itemsRaw := result["items"]
+	require.NotNil(t, itemsRaw, "items must not be nil when CRD exists")
+	items, ok := itemsRaw.([]interface{})
+	require.True(t, ok, "items should be a YAML sequence")
+
+	// Find the CRD item in the list
+	var foundCRD bool
+	for _, rawItem := range items {
+		item, ok := rawItem.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if item["kind"] == "CustomResourceDefinition" {
+			meta, _ := item["metadata"].(map[string]interface{})
+			if meta != nil {
+				// CRD metadata name is "<plural>.<group>"
+				foundCRD = true
+			}
+		}
+	}
+
+	assert.True(t, foundCRD,
+		"YAML export with -A must include CRDs (kind: CustomResourceDefinition) — Bug #156: CRDs are never queried in getAll()")
+}
+
+// ---------------------------------------------------------------------------
+// TestGetAll_Table_HasCRDSectionHeader  [Bug #156 - RED]
+// ---------------------------------------------------------------------------
+
+// TestGetAll_Table_HasCRDSectionHeader verifies that the human-readable table
+// output of `dvm get all` includes a "=== CRDs (N) ===" section header.
+//
+// RED: FAILS today because getAll() has no ds.ListCRDs() call and no CRD
+// section in the table output path (lines ~289-531 of get_all.go).
+func TestGetAll_Table_HasCRDSectionHeader(t *testing.T) {
+	dataStore := createFullTestDataStore(t)
+	defer dataStore.Close()
+
+	// Seed one CRD so the section shows (1) not (0)
+	crdModel := &models.CustomResourceDefinition{
+		Kind:     "BuildPlan",
+		Group:    "build.devopsmaestro.io",
+		Singular: "buildplan",
+		Plural:   "buildplans",
+		Scope:    "Global",
+	}
+	require.NoError(t, dataStore.CreateCRD(crdModel))
+
+	cmd := newGetAllTestCmd(t, dataStore)
+
+	var buf bytes.Buffer
+	origWriter := render.GetWriter()
+	render.SetWriter(&buf)
+	defer render.SetWriter(origWriter)
+
+	origFormat := getOutputFormat
+	defer func() { getOutputFormat = origFormat }()
+	getOutputFormat = "" // default human-readable
+
+	err := getAll(cmd)
+	require.NoError(t, err, "getAll should not error with a CRD in DB")
+
+	output := buf.String()
+
+	// The CRD section header must appear — with count (1) since we seeded one CRD
+	assert.Contains(t, output, "=== CRDs (1) ===",
+		"table output must include '=== CRDs (1) ===' section header — Bug #156: CRD section is absent from getAll() table output")
+
+	// The CRD kind name should appear in the table row
+	assert.Contains(t, output, "BuildPlan",
+		"CRD kind name 'BuildPlan' should appear in the CRD section table")
+}
+
+// ---------------------------------------------------------------------------
+// TestGetAll_YAML_UnscopedIncludesCRDs  [Bug #156 - RED]
+// ---------------------------------------------------------------------------
+
+// TestGetAll_YAML_UnscopedIncludesCRDs verifies that CRDs appear in the
+// ecosystem-scoped YAML export when -A (show all) flag is set, since CRDs
+// are global resources (not scoped to any ecosystem/domain/app).
+//
+// RED: FAILS today because the ShowAll block in getAll() (lines ~251-278)
+// has no resource.List(resCtx, KindCRD) call for CRDs.
+func TestGetAll_YAML_UnscopedIncludesCRDs(t *testing.T) {
+	dataStore := createFullTestDataStore(t)
+	defer dataStore.Close()
+
+	// Seed an ecosystem (to have some scoped data)
+	eco := &models.Ecosystem{Name: "eco-crd-scope-test"}
+	require.NoError(t, dataStore.CreateEcosystem(eco))
+
+	// Seed a global CRD
+	crdModel := &models.CustomResourceDefinition{
+		Kind:     "Feature",
+		Group:    "feature.devopsmaestro.io",
+		Singular: "feature",
+		Plural:   "features",
+		Scope:    "Global",
+	}
+	require.NoError(t, dataStore.CreateCRD(crdModel))
+
+	// Use -A to force ShowAll (global resource export)
+	cmd := newScopedGetAllCmd(t, dataStore)
+
+	var buf bytes.Buffer
+	origWriter := render.GetWriter()
+	render.SetWriter(&buf)
+	defer render.SetWriter(origWriter)
+
+	origFormat := getOutputFormat
+	defer func() { getOutputFormat = origFormat }()
+	getOutputFormat = "yaml"
+
+	cmd.SetArgs([]string{"-A"})
+	err := cmd.Execute()
+	require.NoError(t, err, "getAll with -A should not error")
+
+	var result map[string]interface{}
+	err = yaml.Unmarshal(buf.Bytes(), &result)
+	require.NoError(t, err, "output must be valid YAML")
+	require.Equal(t, "List", result["kind"])
+
+	itemsRaw := result["items"]
+	require.NotNil(t, itemsRaw, "items must not be nil")
+	items, ok := itemsRaw.([]interface{})
+	require.True(t, ok)
+
+	var foundCRD bool
+	for _, rawItem := range items {
+		item, ok := rawItem.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if item["kind"] == "CustomResourceDefinition" {
+			foundCRD = true
+			break
+		}
+	}
+
+	assert.True(t, foundCRD,
+		"unscoped YAML export (-A) must include CRDs as global resources — Bug #156: CRDs never added to allResources in the ShowAll block")
+}
+
+// ---------------------------------------------------------------------------
+// TestGetAll_NoCRDs_NoError  [Bug #156 - GREEN]
+// ---------------------------------------------------------------------------
+
+// TestGetAll_NoCRDs_NoError verifies that `dvm get all` does not error when
+// there are no CRDs in the database. This should pass both before and after
+// the fix (graceful empty case). It also verifies the CRD section shows (0).
+//
+// This test documents the expected behavior after the fix: the CRD section
+// header "=== CRDs (0) ===" must appear even when there are zero CRDs.
+//
+// RED until fix: The section header won't be present because CRDs are never
+// listed. After fix: Both no-error AND the (0) count header must hold.
+func TestGetAll_NoCRDs_NoError(t *testing.T) {
+	dataStore := createFullTestDataStore(t)
+	defer dataStore.Close()
+
+	// No CRDs seeded — empty custom_resource_definitions table
+
+	cmd := newGetAllTestCmd(t, dataStore)
+
+	var buf bytes.Buffer
+	origWriter := render.GetWriter()
+	render.SetWriter(&buf)
+	defer render.SetWriter(origWriter)
+
+	origFormat := getOutputFormat
+	defer func() { getOutputFormat = origFormat }()
+	getOutputFormat = "" // default human-readable
+
+	err := getAll(cmd)
+	assert.NoError(t, err, "getAll should not error when there are no CRDs in the database")
+
+	output := buf.String()
+
+	// After fix: the CRD section header must appear with count (0)
+	assert.Contains(t, output, "=== CRDs (0) ===",
+		"table output must include '=== CRDs (0) ===' section header even when no CRDs exist — Bug #156: CRD section is absent from getAll()")
 }
 
 // TestGetAll_EcosystemScoped_WorkspacesNotLeaked verifies that when scoped to

@@ -617,3 +617,28 @@ func (b *buildArgTableBuilder) Row(model any, wide bool) []string {
 	arg := model.(scopedBuildArg)
 	return []string{arg.Key, arg.Scope}
 }
+
+// =============================================================================
+// crdTableBuilder
+// =============================================================================
+
+// crdTableBuilder builds table rows for *models.CustomResourceDefinition values.
+type crdTableBuilder struct{}
+
+func (b *crdTableBuilder) Headers(wide bool) []string {
+	headers := []string{"KIND", "GROUP", "SCOPE", "PLURAL"}
+	if wide {
+		headers = append(headers, "SINGULAR", "CREATED")
+	}
+	return headers
+}
+
+func (b *crdTableBuilder) Row(model any, wide bool) []string {
+	crd := model.(*models.CustomResourceDefinition)
+
+	row := []string{crd.Kind, crd.Group, crd.Scope, crd.Plural}
+	if wide {
+		row = append(row, crd.Singular, crd.CreatedAt.Format("2006-01-02 15:04"))
+	}
+	return row
+}

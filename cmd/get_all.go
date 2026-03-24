@@ -138,13 +138,19 @@ func getAll(cmd *cobra.Command) error {
 		terminalPackages = nil
 	}
 
+	crds, err := ds.ListCRDs()
+	if err != nil {
+		render.Warning(fmt.Sprintf("failed to list CRDs: %v", err))
+		crds = nil
+	}
+
 	// Apply scope filtering to hierarchical resources
 	if !scope.ShowAll {
 		ecosystems = filterEcosystems(ecosystems, scope)
 		domains = filterDomains(domains, scope)
 		apps = filterApps(apps, scope, domains)
 		workspaces = filterWorkspaces(workspaces, scope, apps)
-		credentials = filterCredentials(credentials, scope)
+		credentials = filterCredentials(credentials, scope, domains, apps, workspaces)
 		gitRepos = filterGitRepos(gitRepos, scope, apps)
 	}
 
@@ -152,7 +158,7 @@ func getAll(cmd *cobra.Command) error {
 	if getOutputFormat == "json" || getOutputFormat == "yaml" {
 		// Warn when exporting YAML/JSON in a scoped context (global resources excluded)
 		if !scope.ShowAll {
-			render.Warning("Warning: Scoped export excludes global resources (GitRepos, Registries, NvimPlugins, NvimThemes, NvimPackages, TerminalPrompts, TerminalPackages, GlobalDefaults). Use -A for a complete backup.")
+			render.Warning("Warning: Scoped export excludes global resources (GitRepos, Registries, NvimPlugins, NvimThemes, NvimPackages, TerminalPrompts, TerminalPackages, CRDs, GlobalDefaults). Use -A for a complete backup.")
 		}
 
 		// Ensure all resource handlers are registered
@@ -274,6 +280,11 @@ func getAll(cmd *cobra.Command) error {
 			// TerminalPackages (WI-5)
 			if termPkgRes, err := resource.List(resCtx, handlers.KindTerminalPackage); err == nil {
 				allResources = append(allResources, termPkgRes...)
+			}
+
+			// CRDs (Bug #156)
+			if crdRes, err := resource.List(resCtx, handlers.KindCRD); err == nil {
+				allResources = append(allResources, crdRes...)
 			}
 		}
 
@@ -436,6 +447,17 @@ func getAll(cmd *cobra.Command) error {
 	if len(terminalPackages) > 0 {
 		b := &terminalPackageTableBuilder{}
 		td := BuildTable(b, terminalPackages, wide)
+		renderTable(td)
+	} else {
+		render.Plainf("  (none)")
+	}
+	render.Blank()
+
+	// === CRDs ===
+	render.Info(fmt.Sprintf("=== CRDs (%d) ===", len(crds)))
+	if len(crds) > 0 {
+		b := &crdTableBuilder{}
+		td := BuildTable(b, crds, wide)
 		renderTable(td)
 	} else {
 		render.Plainf("  (none)")
@@ -752,9 +774,27 @@ func filterWorkspaces(workspaces []*models.Workspace, sc *scopeContext, filtered
 }
 
 // filterCredentials filters credentials to those scoped within the hierarchy.
-func filterCredentials(credentials []*models.CredentialDB, sc *scopeContext) []*models.CredentialDB {
+// filteredDomains, filteredApps, and filteredWorkspaces should be the
+// already-filtered slices (scoped to the target ecosystem/domain/app) so that
+// hierarchy-walking works correctly — a credential is included if its ScopeID
+// matches any entity in the filtered set for its scope type.
+func filterCredentials(credentials []*models.CredentialDB, sc *scopeContext, filteredDomains []*models.Domain, filteredApps []*models.App, filteredWorkspaces []*models.Workspace) []*models.CredentialDB {
 	if sc.EcosystemID == nil {
 		return credentials
+	}
+
+	// Build allowed-ID sets from the already-filtered slices
+	allowedDomains := make(map[int64]bool)
+	for _, d := range filteredDomains {
+		allowedDomains[int64(d.ID)] = true
+	}
+	allowedApps := make(map[int64]bool)
+	for _, a := range filteredApps {
+		allowedApps[int64(a.ID)] = true
+	}
+	allowedWorkspaces := make(map[int64]bool)
+	for _, w := range filteredWorkspaces {
+		allowedWorkspaces[int64(w.ID)] = true
 	}
 
 	var filtered []*models.CredentialDB
@@ -765,17 +805,15 @@ func filterCredentials(credentials []*models.CredentialDB, sc *scopeContext) []*
 				filtered = append(filtered, c)
 			}
 		case models.CredentialScopeDomain:
-			if sc.DomainID != nil && c.ScopeID == int64(*sc.DomainID) {
+			if allowedDomains[c.ScopeID] {
 				filtered = append(filtered, c)
 			}
 		case models.CredentialScopeApp:
-			if sc.AppID != nil && c.ScopeID == int64(*sc.AppID) {
+			if allowedApps[c.ScopeID] {
 				filtered = append(filtered, c)
 			}
 		case models.CredentialScopeWorkspace:
-			// Workspace-scoped credentials are shown when viewing the parent app scope
-			// For now, include them if we have any scope narrower than ecosystem
-			if sc.AppID != nil {
+			if allowedWorkspaces[c.ScopeID] {
 				filtered = append(filtered, c)
 			}
 		}
