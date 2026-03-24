@@ -876,10 +876,14 @@ func (g *DefaultDockerfileGenerator) generateDevStage(dockerfile *strings.Builde
 	}
 
 	// npm install neovim (needed by Mason) - with cache mount
+	// Falls back to direct npmjs.org access if HTTP proxy/registry is unreachable
 	if g.workspaceYAML.Nvim.Structure != "none" {
 		dockerfile.WriteString("# Install neovim npm package for Mason\n")
+		dockerfile.WriteString("# Falls back to direct npmjs.org access if HTTP proxy/registry is unreachable\n")
 		dockerfile.WriteString("RUN --mount=type=cache,target=/root/.npm \\\n")
-		dockerfile.WriteString("    npm install -g neovim\n\n")
+		dockerfile.WriteString("    npm install -g neovim || \\\n")
+		dockerfile.WriteString("    (unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry \\\n")
+		dockerfile.WriteString("    && npm install -g neovim)\n\n")
 	}
 
 	// Install language-specific tools (non-Go, since Go tools come from parallel builder)
@@ -1066,12 +1070,11 @@ func (g *DefaultDockerfileGenerator) installLanguageTools(dockerfile *strings.Bu
 		dockerfile.WriteString("# Go tools installed via parallel builder stage\n\n")
 
 	case "nodejs":
+		toolsList := strings.Join(tools, " ")
 		dockerfile.WriteString("RUN --mount=type=cache,target=/root/.npm \\\n")
-		dockerfile.WriteString("    npm install -g")
-		for _, tool := range tools {
-			dockerfile.WriteString(fmt.Sprintf(" %s", tool))
-		}
-		dockerfile.WriteString("\n\n")
+		dockerfile.WriteString(fmt.Sprintf("    npm install -g %s || \\\n", toolsList))
+		dockerfile.WriteString("    (unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry \\\n")
+		dockerfile.WriteString(fmt.Sprintf("    && npm install -g %s)\n\n", toolsList))
 	}
 }
 

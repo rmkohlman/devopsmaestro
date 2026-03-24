@@ -4069,3 +4069,198 @@ func TestGenerate_WorkspaceBuildArgs_RedeclaredInDevStage(t *testing.T) {
 		t.Errorf("dev stage missing %q\nDev stage:\n%s", argDecl, devStage)
 	}
 }
+
+// =============================================================================
+// Issue #146 — npm install proxy-unset fallback (TDD Phase 2 — FAILING TESTS)
+// =============================================================================
+
+// TestDockerfileGenerator_NpmNeovimInstall_ProxyUnsetFallback verifies that the global
+// `npm install -g neovim` command in the dev stage includes a proxy-unset fallback,
+// matching the existing pip pattern. This prevents 503 failures when BuildKit injects
+// NPM_CONFIG_REGISTRY / HTTP_PROXY env vars pointing at host.docker.internal registries
+// that are unreachable inside the Colima heavy-local VM.
+//
+// Phase 2 failing test for Issue #146 — fix NOT yet implemented.
+// MUST FAIL against current code (no fallback on npm install -g neovim at line 882).
+func TestDockerfileGenerator_NpmNeovimInstall_ProxyUnsetFallback(t *testing.T) {
+	tests := []struct {
+		name     string
+		language string
+		version  string
+	}{
+		{
+			name:     "python/debian — neovim npm package in dev stage",
+			language: "python",
+			version:  "3.11",
+		},
+		{
+			name:     "nodejs — neovim npm package in dev stage",
+			language: "nodejs",
+			version:  "20",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws := &models.Workspace{
+				ID:        1,
+				Name:      "test-ws",
+				ImageName: "test:latest",
+			}
+			wsYAML := models.WorkspaceSpec{}
+
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: wsYAML,
+				Language:      tt.language,
+				Version:       tt.version,
+				AppPath:       "/tmp/test",
+				PathConfig:    paths.New(t.TempDir()),
+			})
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			// Verify the npm install -g neovim command is present at all
+			if !strings.Contains(dockerfile, "npm install -g neovim") {
+				t.Fatalf("Generate() missing 'npm install -g neovim' — test requires it to be present for language=%s", tt.language)
+			}
+
+			// MUST have: fallback pattern on npm install -g neovim
+			// Expected form (matching pip pattern):
+			//   npm install -g neovim || \
+			//   (unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && npm install -g neovim)
+			wantPatterns := []string{
+				"npm install -g neovim ||",
+				"unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry",
+			}
+			for _, want := range wantPatterns {
+				if !strings.Contains(dockerfile, want) {
+					t.Errorf("npm install -g neovim missing proxy-unset fallback pattern: %q\n"+
+						"All npm install commands must have a proxy-unset fallback to handle\n"+
+						"unreachable NPM_CONFIG_REGISTRY/HTTP_PROXY injected by BuildRegistryCoordinator.\n"+
+						"See pip fallback pattern at installLanguageTools() for reference.\n"+
+						"Language: %s", want, tt.language)
+				}
+			}
+
+			// MUST NOT have: bare npm install without fallback
+			// If the fallback is present, this check ensures it's actually a fallback
+			// (i.e., the original install attempt comes first)
+			if strings.Contains(dockerfile, "npm install -g neovim\n") {
+				t.Errorf("npm install -g neovim has no fallback — line ends immediately after command.\n"+
+					"Must use '|| (unset ... && npm install -g neovim)' fallback pattern.\n"+
+					"Language: %s", tt.language)
+			}
+		})
+	}
+}
+
+// TestDockerfileGenerator_NpmLanguageTools_ProxyUnsetFallback verifies that the
+// installLanguageTools() nodejs case also includes a proxy-unset fallback for any
+// `npm install -g` commands, matching the pip fallback pattern already used for python.
+//
+// Phase 2 failing test for Issue #146 — fix NOT yet implemented.
+// MUST FAIL against current code (installLanguageTools nodejs case at line 1069 has no fallback).
+func TestDockerfileGenerator_NpmLanguageTools_ProxyUnsetFallback(t *testing.T) {
+	tests := []struct {
+		name      string
+		language  string
+		version   string
+		devTools  []string
+		wantTools []string
+	}{
+		{
+			name:      "nodejs with custom dev tools",
+			language:  "nodejs",
+			version:   "20",
+			devTools:  []string{"typescript", "ts-node"},
+			wantTools: []string{"typescript", "ts-node"},
+		},
+		{
+			name:      "nodejs with default dev tools",
+			language:  "nodejs",
+			version:   "20",
+			devTools:  []string{}, // empty → default tools
+			wantTools: []string{}, // just verify fallback exists, not specific tools
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws := &models.Workspace{
+				ID:        1,
+				Name:      "test-ws",
+				ImageName: "test:latest",
+			}
+			wsYAML := models.WorkspaceSpec{
+				Build: models.DevBuildConfig{
+					DevStage: models.DevStageConfig{
+						DevTools: tt.devTools,
+					},
+				},
+			}
+
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: wsYAML,
+				Language:      tt.language,
+				Version:       tt.version,
+				AppPath:       "/tmp/test",
+				PathConfig:    paths.New(t.TempDir()),
+			})
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			// Find the "Install language-specific tools" section for nodejs
+			if !strings.Contains(dockerfile, "# Install language-specific tools") {
+				// Some configs may not trigger this section — skip gracefully
+				t.Skip("No language-specific tools section generated — skipping")
+			}
+
+			// Find all npm install -g occurrences (excluding the neovim one which has its own test)
+			// and verify each has a fallback
+			lines := strings.Split(dockerfile, "\n")
+			for i, line := range lines {
+				trimmed := strings.TrimSpace(line)
+				// Match npm install -g lines that are NOT the neovim Mason install
+				if strings.HasPrefix(trimmed, "npm install -g") && !strings.Contains(trimmed, "neovim") {
+					// Check that the next meaningful line contains the fallback
+					// i.e., the line should end with || \ or the next line should be || (
+					hasTrailingFallback := strings.Contains(line, "||") ||
+						(i+1 < len(lines) && strings.Contains(lines[i+1], "||"))
+					if !hasTrailingFallback {
+						t.Errorf("npm install -g command at line %d has no proxy-unset fallback: %q\n"+
+							"All npm install commands must use '|| (unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && npm install ...)' fallback.\n"+
+							"See pip fallback pattern in installLanguageTools() python case for reference.",
+							i+1, line)
+					}
+
+					// Verify the specific vars that must be unset
+					fallbackRegion := strings.Join(lines[i:min(i+5, len(lines))], "\n")
+					requiredUnsets := []string{
+						"HTTP_PROXY",
+						"HTTPS_PROXY",
+						"http_proxy",
+						"https_proxy",
+						"NPM_CONFIG_REGISTRY",
+						"npm_config_registry",
+					}
+					for _, envVar := range requiredUnsets {
+						if !strings.Contains(fallbackRegion, envVar) {
+							t.Errorf("npm install -g fallback at line %d missing unset for %q.\n"+
+								"Must unset: HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry\n"+
+								"Fallback region:\n%s",
+								i+1, envVar, fallbackRegion)
+						}
+					}
+				}
+			}
+		})
+	}
+}

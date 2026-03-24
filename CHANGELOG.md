@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **rmkohlman package** updated — `snacks` and `opencode` added to the `rmkohlman-nvim.yaml` plugin package (`repos/nvim-yaml-plugins/packages/rmkohlman-nvim.yaml`) (#112)
 - **Documentation** — new setup guides: [opencode CLI Tool](docs/dvm/opencode.md) covering workspace YAML, API key configuration, and proxy setup; [opencode.nvim Plugin](docs/nvp/opencode.md) covering plugin installation, keybindings, and combined setup (#125)
 
+### Fixed
+
+- Fix npm install proxy fallback in generated Dockerfiles — `npm install -g neovim` and language tool installs now unset proxy/registry env vars on retry, preventing 503 errors on Colima VMs (#146)
+
 ---
 
 ## [v0.58.0] - 2026-03-19 — Security Hardening, Data Integrity, and CLI Normalization
