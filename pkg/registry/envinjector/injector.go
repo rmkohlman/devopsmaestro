@@ -124,5 +124,5 @@ func (ei *EnvironmentInjector) InjectForDocker(registries []*models.Registry) ma
 
 // isLocalHost checks if a host is localhost (for PIP_TRUSTED_HOST security)
 func isLocalHost(host string) bool {
-	return host == "localhost" || host == "127.0.0.1" || host == "::1"
+	return host == "localhost" || host == "127.0.0.1" || host == "::1" || host == "host.docker.internal"
 }

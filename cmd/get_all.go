@@ -142,7 +142,7 @@ func getAll(cmd *cobra.Command) error {
 	if !scope.ShowAll {
 		ecosystems = filterEcosystems(ecosystems, scope)
 		domains = filterDomains(domains, scope)
-		apps = filterApps(apps, scope)
+		apps = filterApps(apps, scope, domains)
 		workspaces = filterWorkspaces(workspaces, scope, apps)
 		credentials = filterCredentials(credentials, scope)
 		gitRepos = filterGitRepos(gitRepos, scope, apps)
@@ -691,12 +691,20 @@ func filterDomains(domains []*models.Domain, sc *scopeContext) []*models.Domain 
 }
 
 // filterApps filters apps to those in the scoped domain and/or app.
-func filterApps(apps []*models.App, sc *scopeContext) []*models.App {
+// filteredDomains should be the already-filtered domain list (scoped to the
+// target ecosystem) so that ecosystem-only scoping can determine which apps
+// belong to the ecosystem via their DomainID.
+func filterApps(apps []*models.App, sc *scopeContext, filteredDomains []*models.Domain) []*models.App {
 	if sc.DomainID == nil && sc.EcosystemID == nil {
 		return apps
 	}
 
-	// Build set of allowed domain IDs from scope
+	// Build set of allowed domain IDs from the already-filtered domains
+	allowedDomains := make(map[int]bool)
+	for _, d := range filteredDomains {
+		allowedDomains[d.ID] = true
+	}
+
 	var filtered []*models.App
 	for _, a := range apps {
 		if sc.AppID != nil {
@@ -712,14 +720,11 @@ func filterApps(apps []*models.App, sc *scopeContext) []*models.App {
 			}
 			continue
 		}
-		// Ecosystem scope only: we need to check if app's domain is in the ecosystem.
-		// Since we already filtered domains, we can check domain membership.
-		// But we don't have domains here, so we'll keep all apps and rely on
-		// the caller to have filtered domains. Instead, we'll use a simpler approach:
-		// keep the app if its DomainID matches any domain in the filtered set.
-		// For now, accept all apps when only ecosystem is scoped (the domain filter
-		// will have already narrowed things).
-		filtered = append(filtered, a)
+		// Ecosystem scope only: include only apps whose domain is in the
+		// filtered domain set (i.e., belongs to the scoped ecosystem).
+		if allowedDomains[a.DomainID] {
+			filtered = append(filtered, a)
+		}
 	}
 	return filtered
 }

@@ -14,6 +14,11 @@ Two independent tracks for using the opencode AI coding assistant in DevOpsMaest
 - **rmkohlman package** updated to include both `snacks` and `opencode`.
 - Either track works standalone — the plugin does not require the CLI binary, and the CLI binary does not require the plugin.
 
+**Bug Fixes**
+
+- **Registry trusted host detection** — `isLocalHost()` now recognizes `host.docker.internal`, ensuring `PIP_TRUSTED_HOST` is correctly set when a local devpi registry is used during Docker builds. Prevents pip from rejecting the local registry URL as untrusted (#148).
+- **Scoped YAML export ecosystem filtering** — `filterApps()` now correctly filters apps by ecosystem domain membership when using `--ecosystem` scope. Previously, apps from other ecosystems leaked into the export with empty `domain` and `ecosystem` metadata fields (#149).
+
 ## v0.57.1 (2026-03-18)
 
 **Bug Fixes from Local Testing**

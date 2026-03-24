@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fix npm install proxy fallback in generated Dockerfiles — `npm install -g neovim` and language tool installs now unset proxy/registry env vars on retry, preventing 503 errors on Colima VMs (#146)
 - Fix proxy env var leakage into nvim build steps — Lazy sync, MasonInstall, and Treesitter install now unset proxy/registry env vars before execution, preventing 503 errors on Colima VMs (#147)
+- Fix registry trusted host detection for Docker builds — `isLocalHost()` now recognizes `host.docker.internal`, ensuring `PIP_TRUSTED_HOST` is set for local devpi registries (#148)
+- Fix scoped YAML export including cross-ecosystem resources — `filterApps()` now correctly filters apps by ecosystem domain membership, preventing empty metadata in exports (#149)
 
 ---
 

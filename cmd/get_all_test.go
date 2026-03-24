@@ -1698,3 +1698,386 @@ func TestGetAll_YAML_RoundTrip(t *testing.T) {
 	assert.Equal(t, "devopsmaestro.io/v1", listDoc["apiVersion"])
 	assert.NotNil(t, listDoc["items"], "List document must have items field for apply round-trip")
 }
+
+// ===========================================================================
+// Bug #149 Tests: filterApps() ignores ecosystem scope
+//
+// ROOT CAUSE: cmd/get_all.go filterApps() line 722 unconditionally appends
+// ALL apps when only EcosystemID is set (DomainID == nil).
+// The comment even says "For now, accept all apps when only ecosystem is scoped".
+//
+// These tests call filterApps() directly (unit tests) AND test the full
+// getAll() pipeline (integration tests). They MUST FAIL until the fix
+// passes the already-filtered domains slice to filterApps() so it can
+// check domain membership.
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// TestFilterApps_EcosystemScope_ExcludesCrossEcosystemApps  [Bug #149 - RED]
+// ---------------------------------------------------------------------------
+
+// TestFilterApps_EcosystemScope_ExcludesCrossEcosystemApps is a direct unit
+// test of filterApps(). It verifies that when only EcosystemID is set in
+// the scope, apps whose DomainID does NOT belong to any domain in the scoped
+// ecosystem are excluded.
+//
+// RED: This FAILS today because filterApps() appends ALL apps unconditionally
+// when sc.DomainID == nil and sc.EcosystemID != nil (line 722 of get_all.go).
+func TestFilterApps_EcosystemScope_ExcludesCrossEcosystemApps(t *testing.T) {
+	// Arrange
+	ecoID := 10
+	sc := &scopeContext{EcosystemID: &ecoID}
+
+	// Domains: domainA belongs to ecosystem 10; domainB belongs to ecosystem 99
+	domainA := &models.Domain{ID: 1, EcosystemID: 10, Name: "domain-in-scope"}
+	domainB := &models.Domain{ID: 2, EcosystemID: 99, Name: "domain-out-of-scope"}
+	_ = domainB // domainB is in different ecosystem — its apps must be excluded
+
+	// Apps: appA is under domainA (in scope), appB is under domainB (out of scope)
+	appA := &models.App{ID: 101, DomainID: domainA.ID, Name: "app-in-scope"}
+	appB := &models.App{ID: 102, DomainID: domainB.ID, Name: "app-out-of-scope"}
+
+	allApps := []*models.App{appA, appB}
+	filteredDomains := []*models.Domain{domainA} // only domain in ecosystem 10
+
+	// Act — call filterApps with the already-filtered domains
+	result := filterApps(allApps, sc, filteredDomains)
+
+	// Assert — only appA (whose domain is in scope) should be returned
+	assert.Len(t, result, 1, "filterApps should return only apps whose domain is in the scoped ecosystem")
+	if len(result) > 0 {
+		assert.Equal(t, appA.ID, result[0].ID, "returned app should be the one in the scoped ecosystem")
+	}
+	for _, a := range result {
+		assert.NotEqual(t, appB.ID, a.ID, "app from out-of-scope ecosystem must NOT be included")
+	}
+}
+
+// TestFilterApps_EcosystemScope_IncludesOnlyInScopeApps verifies that when
+// multiple apps span multiple ecosystems, only the ecosystem-scoped apps survive.
+//
+// RED: filterApps() currently returns ALL apps in the ecosystem-only path.
+func TestFilterApps_EcosystemScope_IncludesOnlyInScopeApps(t *testing.T) {
+	// Arrange — three ecosystems, three domains, six apps
+	ecoID := 1
+
+	// Ecosystem 1 domains (in scope)
+	dom1 := &models.Domain{ID: 10, EcosystemID: 1, Name: "dom-eco1-a"}
+	dom2 := &models.Domain{ID: 11, EcosystemID: 1, Name: "dom-eco1-b"}
+
+	// Ecosystem 2 domains (out of scope)
+	dom3 := &models.Domain{ID: 20, EcosystemID: 2, Name: "dom-eco2"}
+
+	// Ecosystem 3 domains (out of scope)
+	dom4 := &models.Domain{ID: 30, EcosystemID: 3, Name: "dom-eco3"}
+
+	apps := []*models.App{
+		{ID: 1, DomainID: dom1.ID, Name: "app-eco1-dom1-a"},
+		{ID: 2, DomainID: dom1.ID, Name: "app-eco1-dom1-b"},
+		{ID: 3, DomainID: dom2.ID, Name: "app-eco1-dom2"},
+		{ID: 4, DomainID: dom3.ID, Name: "app-eco2"},
+		{ID: 5, DomainID: dom4.ID, Name: "app-eco3"},
+	}
+
+	// filteredDomains only includes domains in ecosystem 1
+	filteredDomains := []*models.Domain{dom1, dom2}
+
+	sc := &scopeContext{EcosystemID: &ecoID}
+
+	// Act
+	result := filterApps(apps, sc, filteredDomains)
+
+	// Assert — exactly 3 apps (IDs 1, 2, 3) from ecosystem 1
+	assert.Len(t, result, 3, "should return exactly 3 apps belonging to ecosystem 1")
+
+	resultIDs := make(map[int]bool)
+	for _, a := range result {
+		resultIDs[a.ID] = true
+	}
+	assert.True(t, resultIDs[1], "app-eco1-dom1-a (ID=1) should be included")
+	assert.True(t, resultIDs[2], "app-eco1-dom1-b (ID=2) should be included")
+	assert.True(t, resultIDs[3], "app-eco1-dom2 (ID=3) should be included")
+	assert.False(t, resultIDs[4], "app-eco2 (ID=4) must NOT be included (different ecosystem)")
+	assert.False(t, resultIDs[5], "app-eco3 (ID=5) must NOT be included (different ecosystem)")
+}
+
+// TestFilterApps_NoScope_ReturnsAll verifies that filterApps() returns all
+// apps unmodified when neither EcosystemID nor DomainID is set.
+//
+// GREEN: This is the unscoped path — should continue working after the fix.
+func TestFilterApps_NoScope_ReturnsAll(t *testing.T) {
+	sc := &scopeContext{} // no scope set
+
+	apps := []*models.App{
+		{ID: 1, DomainID: 10, Name: "app-a"},
+		{ID: 2, DomainID: 20, Name: "app-b"},
+	}
+	var domains []*models.Domain // empty — irrelevant for unscoped
+
+	result := filterApps(apps, sc, domains)
+	assert.Len(t, result, 2, "unscoped filterApps should return all apps")
+}
+
+// TestFilterApps_DomainScope_StillWorks verifies that filtering by DomainID
+// continues to work correctly after the fix (regression guard).
+//
+// GREEN: The DomainID path is not broken — should continue to work.
+func TestFilterApps_DomainScope_StillWorks(t *testing.T) {
+	ecoID := 1
+	domID := 10
+	sc := &scopeContext{EcosystemID: &ecoID, DomainID: &domID}
+
+	filteredDomains := []*models.Domain{
+		{ID: 10, EcosystemID: 1, Name: "dom-in-scope"},
+	}
+
+	apps := []*models.App{
+		{ID: 1, DomainID: 10, Name: "app-in-domain"},
+		{ID: 2, DomainID: 11, Name: "app-other-domain"},
+	}
+
+	result := filterApps(apps, sc, filteredDomains)
+	assert.Len(t, result, 1, "domain-scoped filterApps should only return apps in that domain")
+	assert.Equal(t, 1, result[0].ID, "should return app-in-domain")
+}
+
+// TestFilterApps_AppScope_StillWorks verifies that filtering by AppID
+// continues to work correctly after the fix (regression guard).
+//
+// GREEN: The AppID path is not broken — should continue to work.
+func TestFilterApps_AppScope_StillWorks(t *testing.T) {
+	ecoID := 1
+	domID := 10
+	appID := 42
+	sc := &scopeContext{EcosystemID: &ecoID, DomainID: &domID, AppID: &appID}
+
+	filteredDomains := []*models.Domain{
+		{ID: 10, EcosystemID: 1, Name: "dom-in-scope"},
+	}
+
+	apps := []*models.App{
+		{ID: 42, DomainID: 10, Name: "target-app"},
+		{ID: 43, DomainID: 10, Name: "other-app"},
+	}
+
+	result := filterApps(apps, sc, filteredDomains)
+	assert.Len(t, result, 1, "app-scoped filterApps should return only the targeted app")
+	assert.Equal(t, 42, result[0].ID)
+}
+
+// ---------------------------------------------------------------------------
+// TestGetAll_EcosystemScoped_ExcludesCrossEcosystemApps  [Bug #149 - RED]
+// ---------------------------------------------------------------------------
+
+// TestGetAll_EcosystemScoped_ExcludesCrossEcosystemApps is a full integration
+// test through the getAll() pipeline. It seeds two ecosystems with apps under
+// each, then scopes to one ecosystem and verifies that apps from the other
+// ecosystem do NOT appear in the output.
+//
+// RED: Currently FAILS because filterApps() leaks all apps when only
+// EcosystemID is scoped — eco-beta's app appears in eco-alpha's output.
+func TestGetAll_EcosystemScoped_ExcludesCrossEcosystemApps(t *testing.T) {
+	dataStore := createFullTestDataStore(t)
+	defer dataStore.Close()
+
+	// Seed ecosystem alpha with one domain and one app
+	ecoAlpha := &models.Ecosystem{Name: "eco-filter-alpha"}
+	require.NoError(t, dataStore.CreateEcosystem(ecoAlpha))
+
+	domAlpha := &models.Domain{Name: "dom-filter-alpha", EcosystemID: ecoAlpha.ID}
+	require.NoError(t, dataStore.CreateDomain(domAlpha))
+
+	appAlpha := &models.App{Name: "app-filter-alpha", Path: "/alpha", DomainID: domAlpha.ID}
+	require.NoError(t, dataStore.CreateApp(appAlpha))
+
+	// Seed ecosystem beta with one domain and one app
+	ecoBeta := &models.Ecosystem{Name: "eco-filter-beta"}
+	require.NoError(t, dataStore.CreateEcosystem(ecoBeta))
+
+	domBeta := &models.Domain{Name: "dom-filter-beta", EcosystemID: ecoBeta.ID}
+	require.NoError(t, dataStore.CreateDomain(domBeta))
+
+	appBeta := &models.App{Name: "app-filter-beta", Path: "/beta", DomainID: domBeta.ID}
+	require.NoError(t, dataStore.CreateApp(appBeta))
+
+	cmd := newScopedGetAllCmd(t, dataStore)
+
+	var buf bytes.Buffer
+	origWriter := render.GetWriter()
+	render.SetWriter(&buf)
+	defer render.SetWriter(origWriter)
+
+	origFormat := getOutputFormat
+	defer func() { getOutputFormat = origFormat }()
+	getOutputFormat = ""
+
+	// Scope to eco-filter-alpha only
+	cmd.SetArgs([]string{"--ecosystem", "eco-filter-alpha"})
+	err := cmd.Execute()
+	require.NoError(t, err)
+
+	output := buf.String()
+
+	// apps from alpha ecosystem MUST appear
+	assert.Contains(t, output, "app-filter-alpha",
+		"app in scoped ecosystem should appear in output")
+
+	// apps from beta ecosystem MUST NOT appear
+	assert.NotContains(t, output, "app-filter-beta",
+		"app from out-of-scope ecosystem must NOT appear — this is the Bug #149 regression")
+}
+
+// TestGetAll_EcosystemScoped_YAML_AppMetadataNotEmpty verifies that when
+// scoped to an ecosystem, apps in the YAML output have non-empty domain and
+// ecosystem metadata fields.
+//
+// RED: Today, leaked apps (from other ecosystems) appear in output with
+// empty domain/ecosystem fields because the lookup maps only contain
+// domains from the filtered set. After the fix, this secondary symptom
+// also disappears (no leaked apps = no empty metadata).
+func TestGetAll_EcosystemScoped_YAML_AppMetadataNotEmpty(t *testing.T) {
+	dataStore := createFullTestDataStore(t)
+	defer dataStore.Close()
+
+	// Seed one ecosystem with a domain and an app
+	eco := &models.Ecosystem{Name: "eco-meta-check"}
+	require.NoError(t, dataStore.CreateEcosystem(eco))
+
+	dom := &models.Domain{Name: "dom-meta-check", EcosystemID: eco.ID}
+	require.NoError(t, dataStore.CreateDomain(dom))
+
+	app := &models.App{Name: "app-meta-check", Path: "/meta", DomainID: dom.ID}
+	require.NoError(t, dataStore.CreateApp(app))
+
+	// Seed a second ecosystem with an app that should NOT leak
+	ecoOther := &models.Ecosystem{Name: "eco-meta-other"}
+	require.NoError(t, dataStore.CreateEcosystem(ecoOther))
+
+	domOther := &models.Domain{Name: "dom-meta-other", EcosystemID: ecoOther.ID}
+	require.NoError(t, dataStore.CreateDomain(domOther))
+
+	appOther := &models.App{Name: "app-meta-other", Path: "/other", DomainID: domOther.ID}
+	require.NoError(t, dataStore.CreateApp(appOther))
+
+	cmd := newScopedGetAllCmd(t, dataStore)
+
+	var buf bytes.Buffer
+	origWriter := render.GetWriter()
+	render.SetWriter(&buf)
+	defer render.SetWriter(origWriter)
+
+	origFormat := getOutputFormat
+	defer func() { getOutputFormat = origFormat }()
+	getOutputFormat = "yaml"
+
+	// Scope to eco-meta-check only
+	cmd.SetArgs([]string{"--ecosystem", "eco-meta-check"})
+	err := cmd.Execute()
+	require.NoError(t, err)
+
+	var result map[string]interface{}
+	err = yaml.Unmarshal(buf.Bytes(), &result)
+	require.NoError(t, err, "output must be valid YAML")
+	require.Equal(t, "List", result["kind"])
+
+	itemsRaw := result["items"]
+	require.NotNil(t, itemsRaw, "items must not be nil")
+	items, ok := itemsRaw.([]interface{})
+	require.True(t, ok, "items must be a list")
+
+	// Find all App items and verify their metadata is populated
+	for _, rawItem := range items {
+		item, ok := rawItem.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if item["kind"] != "App" {
+			continue
+		}
+
+		meta, hasMeta := item["metadata"].(map[string]interface{})
+		require.True(t, hasMeta, "App item must have metadata field")
+
+		// domain field must NOT be empty — leaked cross-ecosystem apps
+		// have domain="" because the lookup map doesn't contain their domain
+		domainVal, _ := meta["domain"].(string)
+		assert.NotEmpty(t, domainVal,
+			"App item metadata.domain must not be empty; an empty domain indicates a leaked cross-ecosystem app (Bug #149)")
+
+		// ecosystem field must NOT be empty for the same reason
+		ecoVal, _ := meta["ecosystem"].(string)
+		assert.NotEmpty(t, ecoVal,
+			"App item metadata.ecosystem must not be empty; an empty ecosystem indicates a leaked cross-ecosystem app (Bug #149)")
+	}
+}
+
+// TestGetAll_EcosystemScoped_WorkspacesNotLeaked verifies that when scoped to
+// an ecosystem, workspaces belonging to apps in OTHER ecosystems do not appear.
+//
+// RED: Since filterApps() leaks all apps, filterWorkspaces() (which correctly
+// uses the filtered apps list) will also include workspaces for leaked apps.
+func TestGetAll_EcosystemScoped_WorkspacesNotLeaked(t *testing.T) {
+	dataStore := createFullTestDataStore(t)
+	defer dataStore.Close()
+
+	// Seed ecosystem alpha with a full hierarchy
+	ecoAlpha := &models.Ecosystem{Name: "eco-ws-alpha"}
+	require.NoError(t, dataStore.CreateEcosystem(ecoAlpha))
+
+	domAlpha := &models.Domain{Name: "dom-ws-alpha", EcosystemID: ecoAlpha.ID}
+	require.NoError(t, dataStore.CreateDomain(domAlpha))
+
+	appAlpha := &models.App{Name: "app-ws-alpha", Path: "/a", DomainID: domAlpha.ID}
+	require.NoError(t, dataStore.CreateApp(appAlpha))
+
+	wsAlpha := &models.Workspace{
+		Name:      "ws-in-alpha",
+		Slug:      "eco-ws-alpha/dom-ws-alpha/app-ws-alpha/ws-in-alpha",
+		AppID:     appAlpha.ID,
+		ImageName: "ubuntu:22.04",
+		Status:    "stopped",
+	}
+	require.NoError(t, dataStore.CreateWorkspace(wsAlpha))
+
+	// Seed ecosystem beta with a full hierarchy
+	ecoBeta := &models.Ecosystem{Name: "eco-ws-beta"}
+	require.NoError(t, dataStore.CreateEcosystem(ecoBeta))
+
+	domBeta := &models.Domain{Name: "dom-ws-beta", EcosystemID: ecoBeta.ID}
+	require.NoError(t, dataStore.CreateDomain(domBeta))
+
+	appBeta := &models.App{Name: "app-ws-beta", Path: "/b", DomainID: domBeta.ID}
+	require.NoError(t, dataStore.CreateApp(appBeta))
+
+	wsBeta := &models.Workspace{
+		Name:      "ws-in-beta",
+		Slug:      "eco-ws-beta/dom-ws-beta/app-ws-beta/ws-in-beta",
+		AppID:     appBeta.ID,
+		ImageName: "ubuntu:22.04",
+		Status:    "stopped",
+	}
+	require.NoError(t, dataStore.CreateWorkspace(wsBeta))
+
+	cmd := newScopedGetAllCmd(t, dataStore)
+
+	var buf bytes.Buffer
+	origWriter := render.GetWriter()
+	render.SetWriter(&buf)
+	defer render.SetWriter(origWriter)
+
+	origFormat := getOutputFormat
+	defer func() { getOutputFormat = origFormat }()
+	getOutputFormat = ""
+
+	// Scope to eco-ws-alpha only
+	cmd.SetArgs([]string{"--ecosystem", "eco-ws-alpha"})
+	err := cmd.Execute()
+	require.NoError(t, err)
+
+	output := buf.String()
+
+	assert.Contains(t, output, "ws-in-alpha",
+		"workspace belonging to scoped ecosystem should appear")
+	assert.NotContains(t, output, "ws-in-beta",
+		"workspace belonging to out-of-scope ecosystem must NOT appear (Bug #149 cascade)")
+}

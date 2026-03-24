@@ -334,3 +334,115 @@ func TestEnvironmentInjector_UnknownRegistryType(t *testing.T) {
 	// Implementation should gracefully handle this
 	assert.NotNil(t, envVars)
 }
+
+// ---------------------------------------------------------------------------
+// Tests for issue #148: host.docker.internal not treated as local host,
+// causing PIP_TRUSTED_HOST to be omitted for Docker build-time devpi injection.
+// These tests FAIL until isLocalHost() includes "host.docker.internal".
+// ---------------------------------------------------------------------------
+
+// TestIsLocalHost_HostDockerInternal verifies that host.docker.internal is
+// recognised as a local host so PIP_TRUSTED_HOST is set during Docker builds.
+// FAILS until isLocalHost() is updated (issue #148).
+func TestIsLocalHost_HostDockerInternal(t *testing.T) {
+	// isLocalHost is package-private; exercise it via InjectForAttachWithHost.
+	injector := NewEnvironmentInjector()
+
+	registry := &models.Registry{
+		Name: "devpi",
+		Type: "devpi",
+		Port: 3141,
+	}
+
+	envVars := injector.InjectForAttachWithHost(registry, "host.docker.internal")
+
+	// host.docker.internal is the Docker-internal loopback — it must be trusted.
+	assert.Contains(t, envVars, "PIP_TRUSTED_HOST",
+		"isLocalHost(\"host.docker.internal\") must return true so PIP_TRUSTED_HOST is set")
+	assert.Equal(t, "host.docker.internal", envVars["PIP_TRUSTED_HOST"],
+		"PIP_TRUSTED_HOST must equal \"host.docker.internal\"")
+}
+
+// TestInjectForBuild_DevPI_SetsPIPTrustedHost verifies that InjectForBuild()
+// always includes PIP_TRUSTED_HOST=host.docker.internal for devpi registries.
+// FAILS until the fix in issue #148 is applied.
+func TestInjectForBuild_DevPI_SetsPIPTrustedHost(t *testing.T) {
+	injector := NewEnvironmentInjector()
+
+	registry := &models.Registry{
+		Name: "my-devpi",
+		Type: "devpi",
+		Port: 3141,
+	}
+
+	envVars := injector.InjectForBuild(registry)
+
+	// PIP_INDEX_URL must point at host.docker.internal (existing behaviour).
+	assert.Contains(t, envVars, "PIP_INDEX_URL")
+	assert.Equal(t, "http://host.docker.internal:3141/root/pypi/+simple/", envVars["PIP_INDEX_URL"])
+
+	// PIP_TRUSTED_HOST must be set — pip rejects HTTP URLs from untrusted hosts.
+	assert.Contains(t, envVars, "PIP_TRUSTED_HOST",
+		"InjectForBuild must set PIP_TRUSTED_HOST so pip accepts the HTTP devpi URL")
+	assert.Equal(t, "host.docker.internal", envVars["PIP_TRUSTED_HOST"],
+		"PIP_TRUSTED_HOST must equal \"host.docker.internal\" for Docker build-time injection")
+}
+
+// TestPIPTrustedHostOnlyLocal_IncludesHostDockerInternal extends the existing
+// table-driven test to assert host.docker.internal is treated as local.
+// FAILS until isLocalHost() is updated (issue #148).
+func TestPIPTrustedHostOnlyLocal_IncludesHostDockerInternal(t *testing.T) {
+	tests := []struct {
+		name            string
+		registryHost    string
+		shouldHaveTrust bool
+	}{
+		{
+			name:            "localhost should have PIP_TRUSTED_HOST",
+			registryHost:    "localhost",
+			shouldHaveTrust: true,
+		},
+		{
+			name:            "127.0.0.1 should have PIP_TRUSTED_HOST",
+			registryHost:    "127.0.0.1",
+			shouldHaveTrust: true,
+		},
+		{
+			name:            "::1 should have PIP_TRUSTED_HOST",
+			registryHost:    "::1",
+			shouldHaveTrust: true,
+		},
+		{
+			// This case currently FAILS — the bug in issue #148.
+			name:            "host.docker.internal should have PIP_TRUSTED_HOST",
+			registryHost:    "host.docker.internal",
+			shouldHaveTrust: true,
+		},
+		{
+			name:            "external host should NOT have PIP_TRUSTED_HOST",
+			registryHost:    "registry.example.com",
+			shouldHaveTrust: false,
+		},
+	}
+
+	injector := NewEnvironmentInjector()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			envVars := injector.InjectForAttachWithHost(&models.Registry{
+				Name: "test-devpi",
+				Type: "devpi",
+				Port: 3141,
+			}, tt.registryHost)
+
+			if tt.shouldHaveTrust {
+				assert.Contains(t, envVars, "PIP_TRUSTED_HOST",
+					"host %q should be trusted but PIP_TRUSTED_HOST was not set", tt.registryHost)
+				assert.Equal(t, tt.registryHost, envVars["PIP_TRUSTED_HOST"])
+			} else {
+				assert.NotContains(t, envVars, "PIP_TRUSTED_HOST",
+					"host %q should NOT be trusted but PIP_TRUSTED_HOST was set", tt.registryHost)
+			}
+		})
+	}
+}
