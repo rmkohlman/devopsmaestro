@@ -254,6 +254,30 @@ func getDomains(cmd *cobra.Command) error {
 		activeDomainID = ctx.ActiveDomainID
 	}
 
+	// For JSON/YAML, wrap in kind: List envelope for round-trip compatibility (issue #154)
+	if getOutputFormat == "json" || getOutputFormat == "yaml" {
+		handlers.RegisterAll()
+		if len(domains) == 0 {
+			return render.OutputWith(getOutputFormat, resource.NewResourceList(), render.Options{Type: render.TypeAuto})
+		}
+		// Convert domain models to Resource objects for BuildList
+		domainResources := make([]resource.Resource, len(domains))
+		for i, d := range domains {
+			eco, _ := ds.GetEcosystemByID(d.EcosystemID)
+			ecoName := ""
+			if eco != nil {
+				ecoName = eco.Name
+			}
+			domainResources[i] = handlers.NewDomainResource(d, ecoName)
+		}
+		resCtx := resource.Context{DataStore: ds}
+		list, err := resource.BuildList(resCtx, domainResources)
+		if err != nil {
+			return fmt.Errorf("failed to build resource list: %w", err)
+		}
+		return render.OutputWith(getOutputFormat, list, render.Options{Type: render.TypeAuto})
+	}
+
 	if len(domains) == 0 {
 		msg := fmt.Sprintf("No domains found in ecosystem '%s'", ecosystemName)
 		if allFlag {
@@ -264,26 +288,6 @@ func getDomains(cmd *cobra.Command) error {
 			EmptyMessage: msg,
 			EmptyHints:   []string{"dvm create domain <name>"},
 		})
-	}
-
-	// For JSON/YAML, output the model data directly
-	if getOutputFormat == "json" || getOutputFormat == "yaml" {
-		// Need to get ecosystem names and app names for YAML output
-		domainsYAML := make([]models.DomainYAML, len(domains))
-		for i, d := range domains {
-			eco, _ := ds.GetEcosystemByID(d.EcosystemID)
-			ecoName := ""
-			if eco != nil {
-				ecoName = eco.Name
-			}
-			apps, _ := ds.ListAppsByDomain(d.ID)
-			appNames := make([]string, len(apps))
-			for j, a := range apps {
-				appNames[j] = a.Name
-			}
-			domainsYAML[i] = d.ToYAML(ecoName, appNames)
-		}
-		return render.OutputWith(getOutputFormat, domainsYAML, render.Options{})
 	}
 
 	// Determine if wide format

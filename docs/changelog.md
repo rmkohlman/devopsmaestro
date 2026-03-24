@@ -16,6 +16,9 @@ Two independent tracks for using the opencode AI coding assistant in DevOpsMaest
 
 **Bug Fixes**
 
+- **Apply error reporting** — `ApplyList` now reports the resource kind, name, and failure reason for each failed item instead of just a total count. When `dvm apply -f backup.yaml` processes a `kind: List`, actionable errors like `"Item 3 (App 'foo') failed: <reason>"` are surfaced for every failure (#152).
+- **Workspace domain disambiguation** — workspace YAML now includes `metadata.ecosystem`, and apply scopes domain resolution to the correct ecosystem. Cross-ecosystem domain name collisions (e.g., two ecosystems each with a domain named "library") are detected and error instead of silently resolving to the wrong one (#153).
+- **Plural get YAML format** — `dvm get ecosystems -o yaml`, `dvm get apps -o yaml`, and all other plural get commands now wrap output in a `kind: List` envelope. Output is directly consumable by `dvm apply -f` for backup/restore workflows (#154).
 - **Registry trusted host detection** — `isLocalHost()` now recognizes `host.docker.internal`, ensuring `PIP_TRUSTED_HOST` is correctly set when a local devpi registry is used during Docker builds. Prevents pip from rejecting the local registry URL as untrusted (#148).
 - **Scoped YAML export ecosystem filtering** — `filterApps()` now correctly filters apps by ecosystem domain membership when using `--ecosystem` scope. Previously, apps from other ecosystems leaked into the export with empty `domain` and `ecosystem` metadata fields (#149).
 

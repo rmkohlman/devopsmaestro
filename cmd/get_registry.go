@@ -65,6 +65,26 @@ func getRegistries(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to list registries: %w", err)
 	}
 
+	// For JSON/YAML, produce a kind: List envelope (issue #154)
+	if getOutputFormat == "json" || getOutputFormat == "yaml" {
+		if len(resources) == 0 {
+			return render.OutputWith(getOutputFormat, resource.NewResourceList(), render.Options{})
+		}
+		list := resource.NewResourceList()
+		for _, res := range resources {
+			rr := res.(*handlers.RegistryResource)
+			reg := rr.Registry()
+			ry := reg.ToYAML()
+			status := registryLiveStatus(context.Background(), reg)
+			ry.Status = &models.RegistryStatusYAML{
+				State:    status,
+				Endpoint: fmt.Sprintf("http://localhost:%d", reg.Port),
+			}
+			list.Items = append(list.Items, ry)
+		}
+		return render.OutputWith(getOutputFormat, list, render.Options{})
+	}
+
 	if len(resources) == 0 {
 		return render.OutputWith(getOutputFormat, nil, render.Options{
 			Empty:        true,
@@ -78,21 +98,6 @@ func getRegistries(cmd *cobra.Command) error {
 	for i, res := range resources {
 		rr := res.(*handlers.RegistryResource)
 		registries[i] = rr.Registry()
-	}
-
-	// For JSON/YAML, output the model data directly
-	if getOutputFormat == "json" || getOutputFormat == "yaml" {
-		registriesYAML := make([]models.RegistryYAML, len(registries))
-		for i, r := range registries {
-			ry := r.ToYAML()
-			status := registryLiveStatus(context.Background(), r)
-			ry.Status = &models.RegistryStatusYAML{
-				State:    status,
-				Endpoint: fmt.Sprintf("http://localhost:%d", r.Port),
-			}
-			registriesYAML[i] = ry
-		}
-		return render.OutputWith(getOutputFormat, registriesYAML, render.Options{})
 	}
 
 	// Determine if wide format

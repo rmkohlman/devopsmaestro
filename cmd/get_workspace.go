@@ -6,7 +6,9 @@ import (
 	"devopsmaestro/models"
 	themeresolver "devopsmaestro/pkg/colors/resolver"
 	"devopsmaestro/pkg/resolver"
+	"devopsmaestro/pkg/resource/handlers"
 	"github.com/rmkohlman/MaestroSDK/render"
+	"github.com/rmkohlman/MaestroSDK/resource"
 
 	"github.com/spf13/cobra"
 )
@@ -26,37 +28,52 @@ func getWorkspaces(cmd *cobra.Command) error {
 			return fmt.Errorf("failed to list all workspaces: %w", err)
 		}
 
+		// For JSON/YAML, wrap in kind: List envelope for round-trip compatibility (issue #154)
+		if getOutputFormat == "json" || getOutputFormat == "yaml" {
+			handlers.RegisterAll()
+			if len(workspaces) == 0 {
+				return render.OutputWith(getOutputFormat, resource.NewResourceList(), render.Options{Type: render.TypeAuto})
+			}
+			wsResources := make([]resource.Resource, len(workspaces))
+			for i, ws := range workspaces {
+				app, _ := sqlDS.GetAppByID(ws.AppID)
+				appName := ""
+				domName := ""
+				ecoName := ""
+				if app != nil {
+					appName = app.Name
+					dom, _ := sqlDS.GetDomainByID(app.DomainID)
+					if dom != nil {
+						domName = dom.Name
+						eco, _ := sqlDS.GetEcosystemByID(dom.EcosystemID)
+						if eco != nil {
+							ecoName = eco.Name
+						}
+					}
+				}
+				gitRepoName := ""
+				if ws.GitRepoID.Valid {
+					gitRepo, gitErr := sqlDS.GetGitRepoByID(ws.GitRepoID.Int64)
+					if gitErr == nil && gitRepo != nil {
+						gitRepoName = gitRepo.Name
+					}
+				}
+				wsResources[i] = handlers.NewWorkspaceResource(ws, appName, domName, gitRepoName, ecoName)
+			}
+			resCtx := resource.Context{DataStore: sqlDS}
+			list, listErr := resource.BuildList(resCtx, wsResources)
+			if listErr != nil {
+				return fmt.Errorf("failed to build resource list: %w", listErr)
+			}
+			return render.OutputWith(getOutputFormat, list, render.Options{Type: render.TypeAuto})
+		}
+
 		if len(workspaces) == 0 {
 			return render.OutputWith(getOutputFormat, nil, render.Options{
 				Empty:        true,
 				EmptyMessage: "No workspaces found",
 				EmptyHints:   []string{"dvm create workspace <name>"},
 			})
-		}
-
-		// For JSON/YAML, output the model data directly
-		if getOutputFormat == "json" || getOutputFormat == "yaml" {
-			workspacesYAML := make([]models.WorkspaceYAML, len(workspaces))
-			for i, ws := range workspaces {
-				// Get app name for this workspace
-				app, _ := sqlDS.GetAppByID(ws.AppID)
-				appName := ""
-				if app != nil {
-					appName = app.Name
-				}
-
-				// Resolve GitRepo name if GitRepoID is set
-				gitRepoName := ""
-				if ws.GitRepoID.Valid {
-					gitRepo, err := sqlDS.GetGitRepoByID(ws.GitRepoID.Int64)
-					if err == nil && gitRepo != nil {
-						gitRepoName = gitRepo.Name
-					}
-				}
-
-				workspacesYAML[i] = ws.ToYAML(appName, gitRepoName)
-			}
-			return render.OutputWith(getOutputFormat, workspacesYAML, render.Options{})
 		}
 
 		// Determine if wide format
@@ -166,21 +183,34 @@ func getWorkspaces(cmd *cobra.Command) error {
 			})
 		}
 
-		// For JSON/YAML, output the model data directly
+		// For JSON/YAML, wrap in kind: List envelope for round-trip compatibility (issue #154)
 		if getOutputFormat == "json" || getOutputFormat == "yaml" {
-			workspacesYAML := make([]models.WorkspaceYAML, len(results))
+			handlers.RegisterAll()
+			wsResources := make([]resource.Resource, len(results))
 			for i, wh := range results {
-				// Resolve GitRepo name if GitRepoID is set
 				gitRepoName := ""
 				if wh.Workspace.GitRepoID.Valid {
-					gitRepo, err := sqlDS.GetGitRepoByID(wh.Workspace.GitRepoID.Int64)
-					if err == nil && gitRepo != nil {
+					gitRepo, gitErr := sqlDS.GetGitRepoByID(wh.Workspace.GitRepoID.Int64)
+					if gitErr == nil && gitRepo != nil {
 						gitRepoName = gitRepo.Name
 					}
 				}
-				workspacesYAML[i] = wh.Workspace.ToYAML(wh.App.Name, gitRepoName)
+				domName := ""
+				if wh.Domain != nil {
+					domName = wh.Domain.Name
+				}
+				ecoName := ""
+				if wh.Ecosystem != nil {
+					ecoName = wh.Ecosystem.Name
+				}
+				wsResources[i] = handlers.NewWorkspaceResource(wh.Workspace, wh.App.Name, domName, gitRepoName, ecoName)
 			}
-			return render.OutputWith(getOutputFormat, workspacesYAML, render.Options{})
+			resCtx := resource.Context{DataStore: sqlDS}
+			list, listErr := resource.BuildList(resCtx, wsResources)
+			if listErr != nil {
+				return fmt.Errorf("failed to build resource list: %w", listErr)
+			}
+			return render.OutputWith(getOutputFormat, list, render.Options{Type: render.TypeAuto})
 		}
 
 		// Determine if wide format
@@ -288,21 +318,40 @@ func getWorkspaces(cmd *cobra.Command) error {
 		})
 	}
 
-	// For JSON/YAML, output the model data directly
+	// For JSON/YAML, wrap in kind: List envelope for round-trip compatibility (issue #154)
 	if getOutputFormat == "json" || getOutputFormat == "yaml" {
-		workspacesYAML := make([]models.WorkspaceYAML, len(workspaces))
+		handlers.RegisterAll()
+		if len(workspaces) == 0 {
+			return render.OutputWith(getOutputFormat, resource.NewResourceList(), render.Options{Type: render.TypeAuto})
+		}
+		// Resolve domain/ecosystem names for context-free output
+		domName := ""
+		ecoName := ""
+		dom, _ := sqlDS.GetDomainByID(app.DomainID)
+		if dom != nil {
+			domName = dom.Name
+			eco, _ := sqlDS.GetEcosystemByID(dom.EcosystemID)
+			if eco != nil {
+				ecoName = eco.Name
+			}
+		}
+		wsResources := make([]resource.Resource, len(workspaces))
 		for i, ws := range workspaces {
-			// Resolve GitRepo name if GitRepoID is set
 			gitRepoName := ""
 			if ws.GitRepoID.Valid {
-				gitRepo, err := sqlDS.GetGitRepoByID(ws.GitRepoID.Int64)
-				if err == nil && gitRepo != nil {
+				gitRepo, gitErr := sqlDS.GetGitRepoByID(ws.GitRepoID.Int64)
+				if gitErr == nil && gitRepo != nil {
 					gitRepoName = gitRepo.Name
 				}
 			}
-			workspacesYAML[i] = ws.ToYAML(appName, gitRepoName)
+			wsResources[i] = handlers.NewWorkspaceResource(ws, appName, domName, gitRepoName, ecoName)
 		}
-		return render.OutputWith(getOutputFormat, workspacesYAML, render.Options{})
+		resCtx := resource.Context{DataStore: sqlDS}
+		list, listErr := resource.BuildList(resCtx, wsResources)
+		if listErr != nil {
+			return fmt.Errorf("failed to build resource list: %w", listErr)
+		}
+		return render.OutputWith(getOutputFormat, list, render.Options{Type: render.TypeAuto})
 	}
 
 	// Determine if wide format

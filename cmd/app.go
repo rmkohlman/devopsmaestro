@@ -307,6 +307,35 @@ func getApps(cmd *cobra.Command) error {
 		activeAppID = ctx.ActiveAppID
 	}
 
+	// For JSON/YAML, wrap in kind: List envelope for round-trip compatibility (issue #154)
+	if getOutputFormat == "json" || getOutputFormat == "yaml" {
+		handlers.RegisterAll()
+		if len(apps) == 0 {
+			return render.OutputWith(getOutputFormat, resource.NewResourceList(), render.Options{Type: render.TypeAuto})
+		}
+		// Convert app models to Resource objects for BuildList
+		appResources := make([]resource.Resource, len(apps))
+		for i, a := range apps {
+			dom, _ := ds.GetDomainByID(a.DomainID)
+			domName := ""
+			ecoName := ""
+			if dom != nil {
+				domName = dom.Name
+				eco, _ := ds.GetEcosystemByID(dom.EcosystemID)
+				if eco != nil {
+					ecoName = eco.Name
+				}
+			}
+			appResources[i] = handlers.NewAppResource(a, domName, ecoName)
+		}
+		resCtx := resource.Context{DataStore: ds}
+		list, err := resource.BuildList(resCtx, appResources)
+		if err != nil {
+			return fmt.Errorf("failed to build resource list: %w", err)
+		}
+		return render.OutputWith(getOutputFormat, list, render.Options{Type: render.TypeAuto})
+	}
+
 	if len(apps) == 0 {
 		msg := fmt.Sprintf("No apps found in domain '%s'", domainName)
 		if allFlag {
@@ -317,26 +346,6 @@ func getApps(cmd *cobra.Command) error {
 			EmptyMessage: msg,
 			EmptyHints:   []string{"dvm create app <name> --path <path>"},
 		})
-	}
-
-	// For JSON/YAML, output the model data directly
-	if getOutputFormat == "json" || getOutputFormat == "yaml" {
-		// Need to get domain names and workspace names for YAML output
-		appsYAML := make([]models.AppYAML, len(apps))
-		for i, a := range apps {
-			dom, _ := ds.GetDomainByID(a.DomainID)
-			domName := ""
-			if dom != nil {
-				domName = dom.Name
-			}
-			workspaces, _ := ds.ListWorkspacesByApp(a.ID)
-			wsNames := make([]string, len(workspaces))
-			for j, w := range workspaces {
-				wsNames[j] = w.Name
-			}
-			appsYAML[i] = a.ToYAML(domName, wsNames)
-		}
-		return render.OutputWith(getOutputFormat, appsYAML, render.Options{})
 	}
 
 	// Determine if wide format

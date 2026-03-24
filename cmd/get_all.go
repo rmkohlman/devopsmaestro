@@ -236,14 +236,15 @@ func getAll(cmd *cobra.Command) error {
 			allResources = append(allResources, handlers.NewCredentialResource(c, scopeName))
 		}
 
-		// Workspaces (need parent app name + resolve domain/gitrepo names)
+		// Workspaces (need parent app name + resolve domain/gitrepo/ecosystem names)
 		for _, w := range workspaces {
 			domName := domNames[appDomIDs[w.AppID]]
 			grName := ""
 			if w.GitRepoID.Valid {
 				grName = gitRepoNames[w.GitRepoID.Int64]
 			}
-			allResources = append(allResources, handlers.NewWorkspaceResource(w, appNames[w.AppID], domName, grName))
+			ecoName := ecoNames[domEcoIDs[appDomIDs[w.AppID]]]
+			allResources = append(allResources, handlers.NewWorkspaceResource(w, appNames[w.AppID], domName, grName, ecoName))
 		}
 
 		// Global resources using handler List() — only when unscoped (WI-4)

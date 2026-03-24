@@ -202,6 +202,19 @@ func getEcosystems(cmd *cobra.Command) error {
 		}
 	}
 
+	// For JSON/YAML, wrap in kind: List envelope for round-trip compatibility (issue #154)
+	if getOutputFormat == "json" || getOutputFormat == "yaml" {
+		handlers.RegisterAll()
+		if len(resources) == 0 {
+			return render.OutputWith(getOutputFormat, resource.NewResourceList(), render.Options{Type: render.TypeAuto})
+		}
+		list, err := resource.BuildList(ctx, resources)
+		if err != nil {
+			return fmt.Errorf("failed to build resource list: %w", err)
+		}
+		return render.OutputWith(getOutputFormat, list, render.Options{Type: render.TypeAuto})
+	}
+
 	if len(resources) == 0 {
 		return render.OutputWith(getOutputFormat, nil, render.Options{
 			Empty:        true,
@@ -215,20 +228,6 @@ func getEcosystems(cmd *cobra.Command) error {
 	for i, res := range resources {
 		er := res.(*handlers.EcosystemResource)
 		ecosystems[i] = er.Ecosystem()
-	}
-
-	// For JSON/YAML, output the model data directly
-	if getOutputFormat == "json" || getOutputFormat == "yaml" {
-		ecosystemsYAML := make([]models.EcosystemYAML, len(ecosystems))
-		for i, e := range ecosystems {
-			domains, _ := ds.ListDomainsByEcosystem(e.ID)
-			domainNames := make([]string, len(domains))
-			for j, d := range domains {
-				domainNames[j] = d.Name
-			}
-			ecosystemsYAML[i] = e.ToYAML(domainNames)
-		}
-		return render.OutputWith(getOutputFormat, ecosystemsYAML, render.Options{})
 	}
 
 	// Determine if wide format

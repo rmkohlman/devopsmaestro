@@ -49,22 +49,47 @@ func (h *WorkspaceHandler) Apply(ctx resource.Context, data []byte) (resource.Re
 	// Resolve domain: try metadata.domain first, then fall back to active context
 	var domainID int
 	if wsYAML.Metadata.Domain != "" {
-		// Resolve domain by name across all ecosystems
-		allDomains, err := ds.ListAllDomains()
-		if err != nil {
-			return nil, fmt.Errorf("failed to list domains: %w", err)
-		}
-		var found *models.Domain
-		for _, d := range allDomains {
-			if d.Name == wsYAML.Metadata.Domain {
-				found = d
-				break
+		if wsYAML.Metadata.Ecosystem != "" {
+			// Ecosystem-scoped domain resolution: use GetEcosystemByName + ListDomainsByEcosystem
+			eco, err := ds.GetEcosystemByName(wsYAML.Metadata.Ecosystem)
+			if err != nil {
+				return nil, fmt.Errorf("ecosystem '%s' not found: %w", wsYAML.Metadata.Ecosystem, err)
 			}
+			ecoDomains, err := ds.ListDomainsByEcosystem(eco.ID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to list domains for ecosystem '%s': %w", wsYAML.Metadata.Ecosystem, err)
+			}
+			var found *models.Domain
+			for _, d := range ecoDomains {
+				if d.Name == wsYAML.Metadata.Domain {
+					found = d
+					break
+				}
+			}
+			if found == nil {
+				return nil, fmt.Errorf("domain '%s' not found in ecosystem '%s'", wsYAML.Metadata.Domain, wsYAML.Metadata.Ecosystem)
+			}
+			domainID = found.ID
+		} else {
+			// No ecosystem hint — resolve domain by name across all ecosystems
+			allDomains, err := ds.ListAllDomains()
+			if err != nil {
+				return nil, fmt.Errorf("failed to list domains: %w", err)
+			}
+			var matches []*models.Domain
+			for _, d := range allDomains {
+				if d.Name == wsYAML.Metadata.Domain {
+					matches = append(matches, d)
+				}
+			}
+			if len(matches) == 0 {
+				return nil, fmt.Errorf("domain '%s' not found", wsYAML.Metadata.Domain)
+			}
+			if len(matches) > 1 {
+				return nil, fmt.Errorf("domain '%s' is ambiguous (exists in %d ecosystems); add metadata.ecosystem to disambiguate", wsYAML.Metadata.Domain, len(matches))
+			}
+			domainID = matches[0].ID
 		}
-		if found == nil {
-			return nil, fmt.Errorf("domain '%s' not found", wsYAML.Metadata.Domain)
-		}
-		domainID = found.ID
 	} else {
 		// Fall back to active context (existing behavior)
 		dbCtx, err := ds.GetContext()
@@ -154,11 +179,25 @@ func (h *WorkspaceHandler) Apply(ctx resource.Context, data []byte) (resource.Re
 		}
 	}
 
+	// Resolve ecosystem name for the resource output
+	ecosystemName := wsYAML.Metadata.Ecosystem
+	if ecosystemName == "" {
+		// Look up ecosystem name from domain for round-trip fidelity
+		domain, domErr := ds.GetDomainByID(domainID)
+		if domErr == nil {
+			eco, ecoErr := ds.GetEcosystemByID(domain.EcosystemID)
+			if ecoErr == nil {
+				ecosystemName = eco.Name
+			}
+		}
+	}
+
 	return &WorkspaceResource{
-		workspace:   workspace,
-		appName:     appName,
-		domainName:  domainName,
-		gitRepoName: wsYAML.Spec.GitRepo, // Store gitrepo name from YAML
+		workspace:     workspace,
+		appName:       appName,
+		domainName:    domainName,
+		ecosystemName: ecosystemName,
+		gitRepoName:   wsYAML.Spec.GitRepo, // Store gitrepo name from YAML
 	}, nil
 }
 
@@ -188,12 +227,18 @@ func (h *WorkspaceHandler) Get(ctx resource.Context, name string) (resource.Reso
 	app, _ := ds.GetAppByID(workspace.AppID)
 	appName := ""
 	domainName := ""
+	ecosystemName := ""
 	if app != nil {
 		appName = app.Name
 		// Resolve domain name for round-trip fidelity
 		domain, domErr := ds.GetDomainByID(app.DomainID)
 		if domErr == nil {
 			domainName = domain.Name
+			// Resolve ecosystem name for cross-ecosystem disambiguation
+			eco, ecoErr := ds.GetEcosystemByID(domain.EcosystemID)
+			if ecoErr == nil {
+				ecosystemName = eco.Name
+			}
 		}
 	}
 
@@ -207,10 +252,11 @@ func (h *WorkspaceHandler) Get(ctx resource.Context, name string) (resource.Reso
 	}
 
 	return &WorkspaceResource{
-		workspace:   workspace,
-		appName:     appName,
-		domainName:  domainName,
-		gitRepoName: gitRepoName,
+		workspace:     workspace,
+		appName:       appName,
+		domainName:    domainName,
+		ecosystemName: ecosystemName,
+		gitRepoName:   gitRepoName,
 	}, nil
 }
 
@@ -243,12 +289,18 @@ func (h *WorkspaceHandler) List(ctx resource.Context) ([]resource.Resource, erro
 		app, _ := ds.GetAppByID(ws.AppID)
 		appName := ""
 		domainName := ""
+		ecosystemName := ""
 		if app != nil {
 			appName = app.Name
 			// Resolve domain name for round-trip fidelity
 			domain, domErr := ds.GetDomainByID(app.DomainID)
 			if domErr == nil {
 				domainName = domain.Name
+				// Resolve ecosystem name for cross-ecosystem disambiguation
+				eco, ecoErr := ds.GetEcosystemByID(domain.EcosystemID)
+				if ecoErr == nil {
+					ecosystemName = eco.Name
+				}
 			}
 		}
 
@@ -262,10 +314,11 @@ func (h *WorkspaceHandler) List(ctx resource.Context) ([]resource.Resource, erro
 		}
 
 		result[i] = &WorkspaceResource{
-			workspace:   ws,
-			appName:     appName,
-			domainName:  domainName,
-			gitRepoName: gitRepoName,
+			workspace:     ws,
+			appName:       appName,
+			domainName:    domainName,
+			ecosystemName: ecosystemName,
+			gitRepoName:   gitRepoName,
 		}
 	}
 	return result, nil
@@ -308,15 +361,20 @@ func (h *WorkspaceHandler) ToYAML(res resource.Resource) ([]byte, error) {
 	if wr.domainName != "" {
 		yamlDoc.Metadata.Domain = wr.domainName
 	}
+	// Include ecosystem name in metadata for cross-ecosystem disambiguation
+	if wr.ecosystemName != "" {
+		yamlDoc.Metadata.Ecosystem = wr.ecosystemName
+	}
 	return yaml.Marshal(yamlDoc)
 }
 
 // WorkspaceResource wraps a models.Workspace to implement resource.Resource.
 type WorkspaceResource struct {
-	workspace   *models.Workspace
-	appName     string
-	domainName  string // Domain name for YAML output (context-free apply)
-	gitRepoName string // Name of the GitRepo, if any
+	workspace     *models.Workspace
+	appName       string
+	domainName    string // Domain name for YAML output (context-free apply)
+	ecosystemName string // Ecosystem name for YAML output (cross-ecosystem disambiguation)
+	gitRepoName   string // Name of the GitRepo, if any
 }
 
 func (r *WorkspaceResource) GetKind() string {
@@ -351,14 +409,20 @@ func (r *WorkspaceResource) AppName() string {
 }
 
 // NewWorkspaceResource creates a new WorkspaceResource from a model.
-// domainName and gitRepoName should be precomputed by the caller (e.g. get_all.go)
-// for context-free YAML serialization. Pass "" if unknown.
-func NewWorkspaceResource(workspace *models.Workspace, appName, domainName, gitRepoName string) *WorkspaceResource {
+// domainName, gitRepoName, and ecosystemName should be precomputed by the caller
+// (e.g. get_all.go) for context-free YAML serialization. Pass "" if unknown.
+// ecosystemName is optional — pass as extra[0] if available.
+func NewWorkspaceResource(workspace *models.Workspace, appName, domainName, gitRepoName string, extra ...string) *WorkspaceResource {
+	ecosystemName := ""
+	if len(extra) > 0 {
+		ecosystemName = extra[0]
+	}
 	return &WorkspaceResource{
-		workspace:   workspace,
-		appName:     appName,
-		domainName:  domainName,
-		gitRepoName: gitRepoName,
+		workspace:     workspace,
+		appName:       appName,
+		domainName:    domainName,
+		ecosystemName: ecosystemName,
+		gitRepoName:   gitRepoName,
 	}
 }
 

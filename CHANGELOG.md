@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fix apply error reporting — `ApplyList` now includes resource kind, name, and failure reason for each failed item instead of just a count (#152)
+- Fix workspace domain disambiguation — workspace YAML now includes `metadata.ecosystem`, and apply resolves domains within the correct ecosystem; cross-ecosystem domain name collisions now error (#153)
+- Fix plural get YAML format — commands like `dvm get ecosystems -o yaml` now wrap output in `kind: List` envelope for compatibility with `dvm apply -f` (#154)
 - Fix npm install proxy fallback in generated Dockerfiles — `npm install -g neovim` and language tool installs now unset proxy/registry env vars on retry, preventing 503 errors on Colima VMs (#146)
 - Fix proxy env var leakage into nvim build steps — Lazy sync, MasonInstall, and Treesitter install now unset proxy/registry env vars before execution, preventing 503 errors on Colima VMs (#147)
 - Fix registry trusted host detection for Docker builds — `isLocalHost()` now recognizes `host.docker.internal`, ensuring `PIP_TRUSTED_HOST` is set for local devpi registries (#148)
