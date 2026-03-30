@@ -30,6 +30,7 @@ type globalDefaultsMetadata struct {
 }
 
 type globalDefaultsSpec struct {
+	Theme     string                `yaml:"theme,omitempty"`
 	BuildArgs map[string]string     `yaml:"buildArgs,omitempty"`
 	CACerts   []models.CACertConfig `yaml:"caCerts,omitempty"`
 }
@@ -58,6 +59,13 @@ func (h *GlobalDefaultsHandler) Apply(ctx resource.Context, data []byte) (resour
 		return nil, fmt.Errorf("failed to get DefaultStore: %w", err)
 	}
 
+	// Restore theme
+	if doc.Spec.Theme != "" {
+		if err := ds.SetDefault("theme", doc.Spec.Theme); err != nil {
+			return nil, fmt.Errorf("failed to set global theme: %w", err)
+		}
+	}
+
 	// Restore build args
 	if len(doc.Spec.BuildArgs) > 0 {
 		b, err := json.Marshal(doc.Spec.BuildArgs)
@@ -81,6 +89,7 @@ func (h *GlobalDefaultsHandler) Apply(ctx resource.Context, data []byte) (resour
 	}
 
 	return &GlobalDefaultsResource{
+		theme:     doc.Spec.Theme,
 		buildArgs: doc.Spec.BuildArgs,
 		caCerts:   doc.Spec.CACerts,
 	}, nil
@@ -93,12 +102,13 @@ func (h *GlobalDefaultsHandler) Get(ctx resource.Context, name string) (resource
 		return nil, fmt.Errorf("failed to get DefaultStore: %w", err)
 	}
 
-	buildArgs, caCerts, err := loadGlobalDefaults(ds)
+	buildArgs, caCerts, theme, err := loadGlobalDefaults(ds)
 	if err != nil {
 		return nil, err
 	}
 
 	return &GlobalDefaultsResource{
+		theme:     theme,
 		buildArgs: buildArgs,
 		caCerts:   caCerts,
 	}, nil
@@ -111,18 +121,19 @@ func (h *GlobalDefaultsHandler) List(ctx resource.Context) ([]resource.Resource,
 		return nil, fmt.Errorf("failed to get DefaultStore: %w", err)
 	}
 
-	buildArgs, caCerts, err := loadGlobalDefaults(ds)
+	buildArgs, caCerts, theme, err := loadGlobalDefaults(ds)
 	if err != nil {
 		return nil, err
 	}
 
 	// Only include if there's actually something to export
-	if len(buildArgs) == 0 && len(caCerts) == 0 {
+	if len(buildArgs) == 0 && len(caCerts) == 0 && theme == "" {
 		return nil, nil
 	}
 
 	return []resource.Resource{
 		&GlobalDefaultsResource{
+			theme:     theme,
 			buildArgs: buildArgs,
 			caCerts:   caCerts,
 		},
@@ -158,6 +169,7 @@ func (h *GlobalDefaultsHandler) ToYAML(res resource.Resource) ([]byte, error) {
 		Kind:       KindGlobalDefaults,
 		Metadata:   globalDefaultsMetadata{Name: "global-defaults"},
 		Spec: globalDefaultsSpec{
+			Theme:     gdr.theme,
 			BuildArgs: gdr.buildArgs,
 			CACerts:   gdr.caCerts,
 		},
@@ -166,32 +178,37 @@ func (h *GlobalDefaultsHandler) ToYAML(res resource.Resource) ([]byte, error) {
 	return yaml.Marshal(doc)
 }
 
-// loadGlobalDefaults reads build-args and ca-certs from the defaults table.
-func loadGlobalDefaults(ds db.DefaultsStore) (map[string]string, []models.CACertConfig, error) {
+// loadGlobalDefaults reads build-args, ca-certs, and theme from the defaults table.
+func loadGlobalDefaults(ds db.DefaultsStore) (map[string]string, []models.CACertConfig, string, error) {
 	var buildArgs map[string]string
 	var caCerts []models.CACertConfig
 
 	raw, err := ds.GetDefault("build-args")
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get global build args: %w", err)
+		return nil, nil, "", fmt.Errorf("failed to get global build args: %w", err)
 	}
 	if raw != "" {
 		if err := json.Unmarshal([]byte(raw), &buildArgs); err != nil {
-			return nil, nil, fmt.Errorf("failed to parse global build args: %w", err)
+			return nil, nil, "", fmt.Errorf("failed to parse global build args: %w", err)
 		}
 	}
 
 	raw, err = ds.GetDefault("ca-certs")
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get global CA certs: %w", err)
+		return nil, nil, "", fmt.Errorf("failed to get global CA certs: %w", err)
 	}
 	if raw != "" {
 		if err := json.Unmarshal([]byte(raw), &caCerts); err != nil {
-			return nil, nil, fmt.Errorf("failed to parse global CA certs: %w", err)
+			return nil, nil, "", fmt.Errorf("failed to parse global CA certs: %w", err)
 		}
 	}
 
-	return buildArgs, caCerts, nil
+	theme, err := ds.GetDefault("theme")
+	if err != nil {
+		return nil, nil, "", fmt.Errorf("failed to get global theme: %w", err)
+	}
+
+	return buildArgs, caCerts, theme, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -200,6 +217,7 @@ func loadGlobalDefaults(ds db.DefaultsStore) (map[string]string, []models.CACert
 
 // GlobalDefaultsResource wraps global defaults to implement resource.Resource.
 type GlobalDefaultsResource struct {
+	theme     string
 	buildArgs map[string]string
 	caCerts   []models.CACertConfig
 }
@@ -216,6 +234,11 @@ func (r *GlobalDefaultsResource) Validate() error {
 	return nil
 }
 
+// Theme returns the underlying theme name.
+func (r *GlobalDefaultsResource) Theme() string {
+	return r.theme
+}
+
 // BuildArgs returns the underlying build args map.
 func (r *GlobalDefaultsResource) BuildArgs() map[string]string {
 	return r.buildArgs
@@ -227,8 +250,9 @@ func (r *GlobalDefaultsResource) CACerts() []models.CACertConfig {
 }
 
 // NewGlobalDefaultsResource creates a new GlobalDefaultsResource.
-func NewGlobalDefaultsResource(buildArgs map[string]string, caCerts []models.CACertConfig) *GlobalDefaultsResource {
+func NewGlobalDefaultsResource(theme string, buildArgs map[string]string, caCerts []models.CACertConfig) *GlobalDefaultsResource {
 	return &GlobalDefaultsResource{
+		theme:     theme,
 		buildArgs: buildArgs,
 		caCerts:   caCerts,
 	}
