@@ -2,6 +2,14 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.59.11 (2026-03-30)
+
+**Bug Fixes**
+
+- **`kind: GlobalDefaults` missing global default theme on export** — `globalDefaultsSpec` now includes a `Theme` field. `loadGlobalDefaults()`, `ToYAML()`, `Apply()`, and `List()` updated so the theme set via `dvm set theme X` is exported and fully restored after a wipe-and-restore cycle (#174).
+- **App–GitRepo association lost on YAML export** — `AppSpec` now includes a `GitRepo` field. `ToYAML()`, `Apply()`, `Get()`, and `List()` resolve the `GitRepoID` foreign key to/from the repo name so the association survives export → wipe → restore without data loss. MaestroSDK updated to v0.1.3 to reorder `DependencyOrder` so `GitRepo` is applied before `App` (#175).
+- **`dvm get app <name> -o yaml` missing `metadata.ecosystem`** — singular app get now sets ecosystem from the active context, matching the enrichment applied by the plural list handler (#176).
+
 ## v0.59.10 (2026-03-30)
 
 **Bug Fixes**
