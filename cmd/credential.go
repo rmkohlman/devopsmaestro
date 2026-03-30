@@ -252,11 +252,23 @@ Examples:
 		if description != "" {
 			cred.Description = &description
 		}
-		if usernameVar != "" {
-			cred.UsernameVar = &usernameVar
-		}
-		if passwordVar != "" {
-			cred.PasswordVar = &passwordVar
+		// Build VaultFields map from --username-var / --password-var flags.
+		// This makes CLI-created credentials structurally identical to
+		// YAML-applied credentials that use spec.vaultFields.
+		if usernameVar != "" || passwordVar != "" {
+			vaultFields := make(map[string]string)
+			if usernameVar != "" {
+				vaultFields[usernameVar] = usernameVar
+			}
+			if passwordVar != "" {
+				vaultFields[passwordVar] = passwordVar
+			}
+			vfJSON, err := json.Marshal(vaultFields)
+			if err != nil {
+				return fmt.Errorf("failed to serialize vault fields: %w", err)
+			}
+			vfStr := string(vfJSON)
+			cred.VaultFields = &vfStr
 		}
 
 		// Parse --vault-field flags

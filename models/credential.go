@@ -134,6 +134,10 @@ func (c *CredentialDB) ToUsernameConfig() config.CredentialConfig {
 	if c.VaultEnv != nil {
 		cfg.VaultEnv = *c.VaultEnv
 	}
+	// Set VaultField to the username var name for field-level vault access
+	if c.UsernameVar != nil {
+		cfg.VaultField = *c.UsernameVar
+	}
 	return cfg
 }
 
@@ -147,6 +151,10 @@ func (c *CredentialDB) ToPasswordConfig() config.CredentialConfig {
 	}
 	if c.VaultEnv != nil {
 		cfg.VaultEnv = *c.VaultEnv
+	}
+	// Set VaultField to the password var name for field-level vault access
+	if c.PasswordVar != nil {
+		cfg.VaultField = *c.PasswordVar
 	}
 	return cfg
 }

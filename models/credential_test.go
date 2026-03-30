@@ -2016,3 +2016,162 @@ func TestValidateCredentialYAML_VaultFields_ExactlyFiftyFields(t *testing.T) {
 	err := ValidateCredentialYAML(y)
 	assert.NoError(t, err, "exactly 50 vault fields must be accepted")
 }
+
+// =============================================================================
+// TDD Phase 2 (RED): Bug #157 — Missing VaultField in dual-field config
+// =============================================================================
+// Bug: ToUsernameConfig() and ToPasswordConfig() produce CredentialConfig
+// objects WITHOUT VaultField set, causing vault resolution to call
+// backend.Get() (whole-secret fetch) instead of backend.GetField()
+// (field-level fetch). This makes dual-field credentials non-functional.
+//
+// Both tests WILL FAIL until models/credential.go is fixed to set VaultField
+// in ToUsernameConfig() and ToPasswordConfig().
+// =============================================================================
+
+// TestCredentialDB_ToUsernameConfig_SetsVaultField verifies that
+// ToUsernameConfig() sets VaultField to the UsernameVar value, enabling
+// field-level vault access (GetField) rather than whole-secret access (Get).
+//
+// BUG #157 — WILL FAIL until ToUsernameConfig sets VaultField.
+func TestCredentialDB_ToUsernameConfig_SetsVaultField(t *testing.T) {
+	vaultSecret := "github-creds"
+	vaultEnv := "production"
+	usernameVar := "GITHUB_USERNAME"
+	passwordVar := "GITHUB_PAT"
+
+	cred := &CredentialDB{
+		Name:        "github-creds",
+		Source:      "vault",
+		VaultSecret: &vaultSecret,
+		VaultEnv:    &vaultEnv,
+		UsernameVar: &usernameVar,
+		PasswordVar: &passwordVar,
+	}
+
+	cfg := cred.ToUsernameConfig()
+
+	assert.Equal(t, config.SourceVault, cfg.Source,
+		"ToUsernameConfig must set Source to SourceVault")
+	assert.Equal(t, "github-creds", cfg.VaultSecret,
+		"ToUsernameConfig must copy VaultSecret")
+	assert.Equal(t, "production", cfg.VaultEnv,
+		"ToUsernameConfig must copy VaultEnv")
+	// BUG: VaultField is "" — should be "GITHUB_USERNAME" to enable GetField()
+	assert.Equal(t, "GITHUB_USERNAME", cfg.VaultField,
+		"ToUsernameConfig MUST set VaultField to the UsernameVar name so "+
+			"vault resolution calls GetField(secret, env, field) not Get(secret, env)")
+}
+
+// TestCredentialDB_ToPasswordConfig_SetsVaultField verifies that
+// ToPasswordConfig() sets VaultField to the PasswordVar value, enabling
+// field-level vault access (GetField) rather than whole-secret access (Get).
+//
+// BUG #157 — WILL FAIL until ToPasswordConfig sets VaultField.
+func TestCredentialDB_ToPasswordConfig_SetsVaultField(t *testing.T) {
+	vaultSecret := "github-creds"
+	vaultEnv := "production"
+	usernameVar := "GITHUB_USERNAME"
+	passwordVar := "GITHUB_PAT"
+
+	cred := &CredentialDB{
+		Name:        "github-creds",
+		Source:      "vault",
+		VaultSecret: &vaultSecret,
+		VaultEnv:    &vaultEnv,
+		UsernameVar: &usernameVar,
+		PasswordVar: &passwordVar,
+	}
+
+	cfg := cred.ToPasswordConfig()
+
+	assert.Equal(t, config.SourceVault, cfg.Source,
+		"ToPasswordConfig must set Source to SourceVault")
+	assert.Equal(t, "github-creds", cfg.VaultSecret,
+		"ToPasswordConfig must copy VaultSecret")
+	assert.Equal(t, "production", cfg.VaultEnv,
+		"ToPasswordConfig must copy VaultEnv")
+	// BUG: VaultField is "" — should be "GITHUB_PAT" to enable GetField()
+	assert.Equal(t, "GITHUB_PAT", cfg.VaultField,
+		"ToPasswordConfig MUST set VaultField to the PasswordVar name so "+
+			"vault resolution calls GetField(secret, env, field) not Get(secret, env)")
+}
+
+// TestCredentialDB_ToUsernameConfig_SetsVaultField_WithVaultUsernameSecret
+// verifies that ToUsernameConfig() sets VaultField even when VaultUsernameSecret
+// is used (i.e., username comes from a separate vault secret).
+//
+// BUG #157 — WILL FAIL until ToUsernameConfig sets VaultField.
+func TestCredentialDB_ToUsernameConfig_SetsVaultField_WithVaultUsernameSecret(t *testing.T) {
+	vaultSecret := "github-pat-secret"
+	vaultUsernameSecret := "github-user-secret"
+	usernameVar := "GITHUB_USERNAME"
+
+	cred := &CredentialDB{
+		Name:                "github-creds",
+		Source:              "vault",
+		VaultSecret:         &vaultSecret,
+		VaultUsernameSecret: &vaultUsernameSecret,
+		UsernameVar:         &usernameVar,
+	}
+
+	cfg := cred.ToUsernameConfig()
+
+	assert.Equal(t, config.SourceVault, cfg.Source)
+	// When VaultUsernameSecret is set, ToUsernameConfig uses it as the vault secret
+	assert.Equal(t, "github-user-secret", cfg.VaultSecret,
+		"ToUsernameConfig must use VaultUsernameSecret when available")
+	// VaultField must be set to the username var name
+	assert.Equal(t, "GITHUB_USERNAME", cfg.VaultField,
+		"ToUsernameConfig MUST set VaultField to the UsernameVar name even when "+
+			"VaultUsernameSecret is used")
+}
+
+// TestCredentialDB_ToMapEntries_DualField_SetsVaultField verifies the end-to-end
+// path: when a dual-field credential (IsDualField() == true) is converted via
+// ToMapEntries(), both resulting CredentialConfigs must have VaultField set.
+//
+// Without VaultField, ResolveCredentialWithBackend calls backend.Get() (fetches
+// entire secret) instead of backend.GetField() (fetches specific field).
+//
+// BUG #157 — WILL FAIL until ToUsernameConfig/ToPasswordConfig set VaultField.
+func TestCredentialDB_ToMapEntries_DualField_SetsVaultField(t *testing.T) {
+	vaultSecret := "github-creds"
+	vaultEnv := "staging"
+	usernameVar := "GITHUB_USERNAME"
+	passwordVar := "GITHUB_PAT"
+
+	cred := &CredentialDB{
+		Name:        "github-creds",
+		Source:      "vault",
+		VaultSecret: &vaultSecret,
+		VaultEnv:    &vaultEnv,
+		UsernameVar: &usernameVar,
+		PasswordVar: &passwordVar,
+	}
+
+	entries := cred.ToMapEntries()
+
+	require.Len(t, entries, 2,
+		"dual-field credential must produce 2 map entries")
+
+	userCfg, ok := entries["GITHUB_USERNAME"]
+	require.True(t, ok, "map must contain GITHUB_USERNAME key")
+	assert.Equal(t, config.SourceVault, userCfg.Source)
+	assert.Equal(t, "github-creds", userCfg.VaultSecret)
+	assert.Equal(t, "staging", userCfg.VaultEnv)
+	// BUG: VaultField is currently "" — should be "GITHUB_USERNAME"
+	assert.Equal(t, "GITHUB_USERNAME", userCfg.VaultField,
+		"GITHUB_USERNAME entry MUST have VaultField='GITHUB_USERNAME' so vault "+
+			"resolution calls GetField not Get")
+
+	passCfg, ok := entries["GITHUB_PAT"]
+	require.True(t, ok, "map must contain GITHUB_PAT key")
+	assert.Equal(t, config.SourceVault, passCfg.Source)
+	assert.Equal(t, "github-creds", passCfg.VaultSecret)
+	assert.Equal(t, "staging", passCfg.VaultEnv)
+	// BUG: VaultField is currently "" — should be "GITHUB_PAT"
+	assert.Equal(t, "GITHUB_PAT", passCfg.VaultField,
+		"GITHUB_PAT entry MUST have VaultField='GITHUB_PAT' so vault "+
+			"resolution calls GetField not Get")
+}

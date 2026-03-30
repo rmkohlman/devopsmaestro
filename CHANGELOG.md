@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.59.10] - 2026-03-30
+
+### Fixed
+
+- Fix `dvm create credential` CLI flags not mapping to YAML spec — `--username-var` and `--password-var` now build a `VaultFields` JSON map instead of setting deprecated separate DB columns; CLI-created credentials are now structurally identical to YAML-applied credentials (`cmd/credential.go`) (#157)
+- Fix `ToUsernameConfig()` and `ToPasswordConfig()` not propagating vault field — both methods now set `VaultField` on the output `CredentialConfig`, enabling field-level vault secret access instead of a whole-secret fetch (`models/credential.go`) (#157)
+
+---
+
 ## [v0.59.9] - 2026-03-24
 
 ### Added
