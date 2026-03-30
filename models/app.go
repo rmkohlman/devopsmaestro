@@ -47,6 +47,7 @@ type AppMetadata struct {
 type AppSpec struct {
 	Path         string             `yaml:"path"`
 	Theme        string             `yaml:"theme,omitempty"`
+	GitRepo      string             `yaml:"gitRepo,omitempty"`
 	Language     AppLanguageConfig  `yaml:"language,omitempty"`
 	Build        AppBuildConfig     `yaml:"build,omitempty"`
 	Dependencies AppDependencies    `yaml:"dependencies,omitempty"`
@@ -100,7 +101,8 @@ type AppServiceConfig struct {
 
 // ToYAML converts an App to YAML format.
 // workspaceNames should contain the names of child workspaces (pass nil for empty).
-func (a *App) ToYAML(domainName string, workspaceNames []string) AppYAML {
+// gitRepoName is the resolved name of the associated git repo (pass "" if none).
+func (a *App) ToYAML(domainName string, workspaceNames []string, gitRepoName string) AppYAML {
 	description := ""
 	if a.Description.Valid {
 		description = a.Description.String
@@ -140,6 +142,7 @@ func (a *App) ToYAML(domainName string, workspaceNames []string) AppYAML {
 		Spec: AppSpec{
 			Path:       a.Path,
 			Theme:      theme,
+			GitRepo:    gitRepoName,
 			Language:   langConfig,
 			Build:      buildConfig,
 			Workspaces: workspaceNames,

@@ -249,7 +249,7 @@ func deleteCACertAtApp(ctx resource.Context, appName, certName string) error {
 		return fmt.Errorf("failed to get domain for app: %w", err)
 	}
 
-	appYAML := app.ToYAML(domain.Name, nil)
+	appYAML := app.ToYAML(domain.Name, nil, "")
 	appYAML.Spec.Build.CACerts = parseCACertsFromWrappedJSON(updatedJSON)
 
 	data, err := yaml.Marshal(appYAML)

@@ -326,7 +326,14 @@ func getApps(cmd *cobra.Command) error {
 					ecoName = eco.Name
 				}
 			}
-			appResources[i] = handlers.NewAppResource(a, domName, ecoName)
+			// Resolve git repo name if associated
+			gitRepoName := ""
+			if a.GitRepoID.Valid {
+				if gr, grErr := ds.GetGitRepoByID(a.GitRepoID.Int64); grErr == nil && gr != nil {
+					gitRepoName = gr.Name
+				}
+			}
+			appResources[i] = handlers.NewAppResource(a, domName, ecoName, gitRepoName)
 		}
 		resCtx := resource.Context{DataStore: ds}
 		list, err := resource.BuildList(resCtx, appResources)
@@ -495,7 +502,16 @@ func getApp(cmd *cobra.Command, name string) error {
 		for j, w := range workspaces {
 			wsNames[j] = w.Name
 		}
-		return render.OutputWith(getOutputFormat, app.ToYAML(domain.Name, wsNames), render.Options{})
+		// Resolve git repo name if associated
+		gitRepoName := ""
+		if app.GitRepoID.Valid {
+			if gr, grErr := ds.GetGitRepoByID(app.GitRepoID.Int64); grErr == nil && gr != nil {
+				gitRepoName = gr.Name
+			}
+		}
+		yamlDoc := app.ToYAML(domain.Name, wsNames, gitRepoName)
+		yamlDoc.Metadata.Ecosystem = ecosystemName
+		return render.OutputWith(getOutputFormat, yamlDoc, render.Options{})
 	}
 
 	// For human output, show detail view

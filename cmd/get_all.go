@@ -219,7 +219,12 @@ func getAll(cmd *cobra.Command) error {
 		// Apps (need parent domain name + ecosystem name for context-free apply)
 		for _, a := range apps {
 			ecoName := ecoNames[domEcoIDs[a.DomainID]]
-			allResources = append(allResources, handlers.NewAppResource(a, domNames[a.DomainID], ecoName))
+			// Resolve git repo name if associated
+			gitRepoName := ""
+			if a.GitRepoID.Valid {
+				gitRepoName = gitRepoNames[a.GitRepoID.Int64]
+			}
+			allResources = append(allResources, handlers.NewAppResource(a, domNames[a.DomainID], ecoName, gitRepoName))
 		}
 
 		// GitRepos — global but filtered; include only when unscoped

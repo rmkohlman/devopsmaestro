@@ -77,6 +77,15 @@ func (h *AppHandler) Apply(ctx resource.Context, data []byte) (resource.Resource
 	}
 	app.FromYAML(appYAML)
 
+	// Resolve GitRepo if specified in YAML
+	if appYAML.Spec.GitRepo != "" {
+		gitRepo, err := ds.GetGitRepoByName(appYAML.Spec.GitRepo)
+		if err != nil {
+			return nil, fmt.Errorf("gitrepo '%s' not found: %w", appYAML.Spec.GitRepo, err)
+		}
+		app.GitRepoID = sql.NullInt64{Int64: int64(gitRepo.ID), Valid: true}
+	}
+
 	// Check if app exists
 	existing, _ := ds.GetAppByName(domain.ID, app.Name)
 	if existing != nil {
@@ -97,7 +106,7 @@ func (h *AppHandler) Apply(ctx resource.Context, data []byte) (resource.Resource
 		}
 	}
 
-	return &AppResource{app: app, domainName: domainName, ecosystemName: appYAML.Metadata.Ecosystem}, nil
+	return &AppResource{app: app, domainName: domainName, ecosystemName: appYAML.Metadata.Ecosystem, gitRepoName: appYAML.Spec.GitRepo}, nil
 }
 
 // Get retrieves an app by name.
@@ -134,7 +143,16 @@ func (h *AppHandler) Get(ctx resource.Context, name string) (resource.Resource, 
 		}
 	}
 
-	return &AppResource{app: app, domainName: domainName, ecosystemName: ecosystemName}, nil
+	// Resolve GitRepo name if GitRepoID is set
+	gitRepoName := ""
+	if app.GitRepoID.Valid {
+		gitRepo, grErr := ds.GetGitRepoByID(app.GitRepoID.Int64)
+		if grErr == nil && gitRepo != nil {
+			gitRepoName = gitRepo.Name
+		}
+	}
+
+	return &AppResource{app: app, domainName: domainName, ecosystemName: ecosystemName, gitRepoName: gitRepoName}, nil
 }
 
 // List returns all apps in the active domain.
@@ -172,7 +190,15 @@ func (h *AppHandler) List(ctx resource.Context) ([]resource.Resource, error) {
 				ecosystemName = eco.Name
 			}
 		}
-		result[i] = &AppResource{app: a, domainName: domainName, ecosystemName: ecosystemName}
+		// Resolve GitRepo name if GitRepoID is set
+		gitRepoName := ""
+		if a.GitRepoID.Valid {
+			gitRepo, grErr := ds.GetGitRepoByID(a.GitRepoID.Int64)
+			if grErr == nil && gitRepo != nil {
+				gitRepoName = gitRepo.Name
+			}
+		}
+		result[i] = &AppResource{app: a, domainName: domainName, ecosystemName: ecosystemName, gitRepoName: gitRepoName}
 	}
 	return result, nil
 }
@@ -209,7 +235,7 @@ func (h *AppHandler) ToYAML(res resource.Resource) ([]byte, error) {
 		return nil, fmt.Errorf("expected AppResource, got %T", res)
 	}
 
-	yamlDoc := ar.app.ToYAML(ar.domainName, nil)
+	yamlDoc := ar.app.ToYAML(ar.domainName, nil, ar.gitRepoName)
 	// Include ecosystem name in metadata for context-free round-trip
 	if ar.ecosystemName != "" {
 		yamlDoc.Metadata.Ecosystem = ar.ecosystemName
@@ -222,6 +248,7 @@ type AppResource struct {
 	app           *models.App
 	domainName    string
 	ecosystemName string
+	gitRepoName   string // Name of the GitRepo, if any
 }
 
 func (r *AppResource) GetKind() string {
@@ -257,8 +284,13 @@ func (r *AppResource) DomainName() string {
 
 // NewAppResource creates a new AppResource from a model.
 // ecosystemName is needed for context-free YAML round-trip. Pass "" if unknown.
-func NewAppResource(app *models.App, domainName, ecosystemName string) *AppResource {
-	return &AppResource{app: app, domainName: domainName, ecosystemName: ecosystemName}
+// gitRepoName is optional — pass as extra[0] if available.
+func NewAppResource(app *models.App, domainName, ecosystemName string, extra ...string) *AppResource {
+	gitRepoName := ""
+	if len(extra) > 0 {
+		gitRepoName = extra[0]
+	}
+	return &AppResource{app: app, domainName: domainName, ecosystemName: ecosystemName, gitRepoName: gitRepoName}
 }
 
 // NewAppFromModel creates an App model from parameters.
