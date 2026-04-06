@@ -20,7 +20,8 @@ var getAllCmd = &cobra.Command{
 	Long: `Show a summary of all resources across the system.
 
 Displays all ecosystems, domains, apps, workspaces, credentials,
-registries, git repos, nvim plugins, and nvim themes.
+registries, git repos, nvim plugins, nvim themes, terminal prompts,
+terminal packages, and terminal plugins.
 
 By default, resources are scoped to the active context (ecosystem, domain,
 or app). Use flags to override the scope:
@@ -139,6 +140,13 @@ func getAll(cmd *cobra.Command) error {
 		terminalPackages = nil
 	}
 
+	terminalPlugins, err := ds.ListTerminalPlugins()
+	if err != nil {
+		// Silently ignore — table may not exist in older DBs.
+		// Unlike render.Warning(), silent nil avoids polluting YAML/JSON output.
+		terminalPlugins = nil
+	}
+
 	crds, err := ds.ListCRDs()
 	if err != nil {
 		render.Warning(fmt.Sprintf("failed to list CRDs: %v", err))
@@ -159,7 +167,7 @@ func getAll(cmd *cobra.Command) error {
 	if getOutputFormat == "json" || getOutputFormat == "yaml" {
 		// Warn when exporting YAML/JSON in a scoped context (global resources excluded)
 		if !scope.ShowAll {
-			render.Warning("Warning: Scoped export excludes global resources (GitRepos, Registries, NvimPlugins, NvimThemes, NvimPackages, TerminalPrompts, TerminalPackages, CRDs, GlobalDefaults). Use -A for a complete backup.")
+			render.Warning("Warning: Scoped export excludes global resources (GitRepos, Registries, NvimPlugins, NvimThemes, NvimPackages, TerminalPrompts, TerminalPackages, TerminalPlugins, CRDs, GlobalDefaults). Use -A for a complete backup.")
 		}
 
 		// Ensure all resource handlers are registered
@@ -296,6 +304,11 @@ func getAll(cmd *cobra.Command) error {
 			// TerminalPackages (WI-5)
 			if termPkgRes, err := resource.List(resCtx, handlers.KindTerminalPackage); err == nil {
 				allResources = append(allResources, termPkgRes...)
+			}
+
+			// TerminalPlugins (#182)
+			if termPluginRes, err := resource.List(resCtx, handlers.KindTerminalPlugin); err == nil {
+				allResources = append(allResources, termPluginRes...)
 			}
 
 			// CRDs (Bug #156)
@@ -480,6 +493,17 @@ func getAll(cmd *cobra.Command) error {
 	if len(terminalPackages) > 0 {
 		b := &terminalPackageTableBuilder{}
 		td := BuildTable(b, terminalPackages, wide)
+		renderTable(td)
+	} else {
+		render.Plainf("  (none)")
+	}
+	render.Blank()
+
+	// === Terminal Plugins ===
+	render.Info(fmt.Sprintf("=== Terminal Plugins (%d) ===", len(terminalPlugins)))
+	if len(terminalPlugins) > 0 {
+		b := &terminalPluginTableBuilder{}
+		td := BuildTable(b, terminalPlugins, wide)
 		renderTable(td)
 	} else {
 		render.Plainf("  (none)")

@@ -575,6 +575,44 @@ func (b *terminalPackageTableBuilder) Row(model any, wide bool) []string {
 }
 
 // =============================================================================
+// terminalPluginTableBuilder
+// =============================================================================
+
+// terminalPluginTableBuilder builds table rows for *models.TerminalPluginDB values.
+type terminalPluginTableBuilder struct{}
+
+func (b *terminalPluginTableBuilder) Headers(wide bool) []string {
+	headers := []string{"NAME", "REPO", "SHELL", "MANAGER", "ENABLED"}
+	if wide {
+		headers = append(headers, "CATEGORY", "DESCRIPTION")
+	}
+	return headers
+}
+
+func (b *terminalPluginTableBuilder) Row(model any, wide bool) []string {
+	plugin := model.(*models.TerminalPluginDB)
+
+	enabled := "✗"
+	if plugin.Enabled {
+		enabled = "✓"
+	}
+
+	row := []string{plugin.Name, plugin.Repo, plugin.Shell, plugin.Manager, enabled}
+	if wide {
+		category := "-"
+		if plugin.Category.Valid && plugin.Category.String != "" {
+			category = plugin.Category.String
+		}
+		description := "-"
+		if plugin.Description.Valid && plugin.Description.String != "" {
+			description = plugin.Description.String
+		}
+		row = append(row, category, description)
+	}
+	return row
+}
+
+// =============================================================================
 // caCertTableBuilder
 // =============================================================================
 

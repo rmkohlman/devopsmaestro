@@ -44,6 +44,7 @@ func RegisterAll() {
 		// Terminal resources
 		resource.Register(NewTerminalPromptHandler())
 		resource.Register(NewTerminalPackageHandler())
+		resource.Register(NewTerminalPluginHandler())
 
 		// Package registry resources
 		resource.Register(NewRegistryHandler())

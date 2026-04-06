@@ -2,6 +2,12 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.59.18 (2026-04-06)
+
+**Bug Fixes**
+
+- **Terminal plugin handler** — Terminal plugins are now exported by `dvm get all -A -o yaml` and restorable via `dvm apply -f`. Created new `TerminalPluginHandler` with full Apply/Get/List/Delete/ToYAML support, registered in the resource system, and added to the export pipeline and table output (#182).
+
 ## v0.59.17 (2026-04-06)
 
 **Bug Fixes**

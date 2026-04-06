@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.59.18] - 2026-04-06
+
+### Fixed
+
+- **Terminal plugin handler** — Terminal plugins are now exported by `dvm get all -A -o yaml` and restorable via `dvm apply -f`. Created new `TerminalPluginHandler` with full Apply/Get/List/Delete/ToYAML support, registered in the resource system, and added to the export pipeline and table output. ([#182](https://github.com/rmkohlman/devopsmaestro/issues/182))
+
+---
+
 ## [v0.59.17] - 2026-04-06
 
 ### Fixed
