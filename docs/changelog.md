@@ -2,6 +2,12 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.59.19 (2026-04-06)
+
+**Bug Fixes**
+
+- **Singular get YAML for credential and gitrepo** — `dvm get credential <name> -o yaml` and `dvm get gitrepo <name> -o yaml` now produce proper resource format (`apiVersion/kind/metadata/spec`) instead of plain text or flat map. Output is `dvm apply`-compatible (#183).
+
 ## v0.59.18 (2026-04-06)
 
 **Bug Fixes**

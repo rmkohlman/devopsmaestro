@@ -439,9 +439,23 @@ func runGetGitRepo(cmd *cobra.Command, args []string) error {
 	// Get output format
 	format, _ := cmd.Flags().GetString("output")
 
-	// JSON/YAML: use map for serialization
+	// JSON/YAML: use ToYAML for apiVersion/kind/metadata/spec format (issue #183)
 	if format == "json" || format == "yaml" {
-		return render.OutputWith(format, gitRepoToMap(repo), render.Options{})
+		// Resolve credential name if associated
+		credentialName := ""
+		if repo.CredentialID.Valid {
+			creds, credErr := dataStore.ListAllCredentials()
+			if credErr == nil {
+				for _, c := range creds {
+					if c.ID == repo.CredentialID.Int64 {
+						credentialName = c.Name
+						break
+					}
+				}
+			}
+		}
+		yamlDoc := repo.ToYAML(credentialName)
+		return render.OutputWith(format, yamlDoc, render.Options{})
 	}
 
 	// Human output: use KeyValueData

@@ -134,7 +134,14 @@ Examples:
 			return fmt.Errorf("credential '%s' not found in %s scope: %w", credName, scopeType, err)
 		}
 
-		// Display credential details
+		// For JSON/YAML, output the model data via ToYAML (issue #183)
+		if getOutputFormat == "json" || getOutputFormat == "yaml" {
+			scopeName := resolveCredentialScopeTargetName(ds, cred.ScopeType, cred.ScopeID)
+			yamlDoc := cred.ToYAML(scopeName)
+			return render.OutputWith(getOutputFormat, yamlDoc, render.Options{})
+		}
+
+		// Display credential details (plain text)
 		render.Plainf("Name:      %s", cred.Name)
 		render.Plainf("Scope:     %s", resolveScopeName(ds, cred.ScopeType, cred.ScopeID))
 		render.Plainf("Source:    %s", cred.Source)
@@ -221,6 +228,32 @@ func resolveScopeName(ds db.DataStore, scopeType models.CredentialScopeType, sco
 		return fmt.Sprintf("%s: %s", scopeType, name)
 	}
 	return fmt.Sprintf("%s (ID: %d)", scopeType, scopeID)
+}
+
+// resolveCredentialScopeTargetName resolves a credential scope to just the
+// target entity name (e.g. "prod" for an ecosystem). This is the raw name
+// required by CredentialDB.ToYAML, as opposed to resolveScopeName which
+// returns a "type: name" string for human display.
+func resolveCredentialScopeTargetName(ds db.DataStore, scopeType models.CredentialScopeType, scopeID int64) string {
+	switch scopeType {
+	case models.CredentialScopeEcosystem:
+		if e, err := ds.GetEcosystemByID(int(scopeID)); err == nil {
+			return e.Name
+		}
+	case models.CredentialScopeDomain:
+		if d, err := ds.GetDomainByID(int(scopeID)); err == nil {
+			return d.Name
+		}
+	case models.CredentialScopeApp:
+		if a, err := ds.GetAppByID(int(scopeID)); err == nil {
+			return a.Name
+		}
+	case models.CredentialScopeWorkspace:
+		if w, err := ds.GetWorkspaceByID(int(scopeID)); err == nil {
+			return w.Name
+		}
+	}
+	return ""
 }
 
 // formatTargetVars returns a comma-separated string of the env var names
