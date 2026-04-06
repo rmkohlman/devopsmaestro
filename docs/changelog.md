@@ -2,6 +2,12 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.59.14 (2026-04-06)
+
+**Bug Fixes**
+
+- **Registry fields round-trip** — `dvm get registry -o yaml` now exports `enabled`, `storage`, and `idleTimeout` fields. Previously all three were silently dropped, causing registries to restore as disabled with default storage/timeout after backup/restore. Uses `*bool` for Enabled to distinguish "omitted" (defaults to `true`) from "explicitly false" (#178).
+
 ## v0.59.13 (2026-04-06)
 
 **Bug Fixes**

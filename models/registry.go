@@ -47,11 +47,14 @@ type RegistryMetadata struct {
 }
 
 type RegistrySpec struct {
-	Type      string                 `yaml:"type"`
-	Version   string                 `yaml:"version"`
-	Port      int                    `yaml:"port,omitempty"`
-	Lifecycle string                 `yaml:"lifecycle,omitempty"`
-	Config    map[string]interface{} `yaml:"config,omitempty"`
+	Type        string                 `yaml:"type"`
+	Version     string                 `yaml:"version"`
+	Enabled     *bool                  `yaml:"enabled,omitempty"`
+	Port        int                    `yaml:"port,omitempty"`
+	Lifecycle   string                 `yaml:"lifecycle,omitempty"`
+	Storage     string                 `yaml:"storage,omitempty"`
+	IdleTimeout int                    `yaml:"idleTimeout,omitempty"`
+	Config      map[string]interface{} `yaml:"config,omitempty"`
 }
 
 // Minimum idle timeout for on-demand registries (seconds).
@@ -94,6 +97,7 @@ var defaultStorage = map[string]string{
 
 // ToYAML converts Registry to RegistryYAML
 func (r *Registry) ToYAML() RegistryYAML {
+	enabled := r.Enabled
 	yaml := RegistryYAML{
 		APIVersion: "devopsmaestro.io/v1",
 		Kind:       "Registry",
@@ -101,10 +105,13 @@ func (r *Registry) ToYAML() RegistryYAML {
 			Name: r.Name,
 		},
 		Spec: RegistrySpec{
-			Type:      r.Type,
-			Version:   r.Version,
-			Port:      r.Port,
-			Lifecycle: r.Lifecycle,
+			Type:        r.Type,
+			Version:     r.Version,
+			Enabled:     &enabled,
+			Port:        r.Port,
+			Lifecycle:   r.Lifecycle,
+			Storage:     r.Storage,
+			IdleTimeout: r.IdleTimeout,
 		},
 	}
 
@@ -129,6 +136,17 @@ func (r *Registry) FromYAML(yaml RegistryYAML) {
 	r.Version = yaml.Spec.Version
 	r.Port = yaml.Spec.Port
 	r.Lifecycle = yaml.Spec.Lifecycle
+	r.Storage = yaml.Spec.Storage
+	r.IdleTimeout = yaml.Spec.IdleTimeout
+
+	// Default Enabled=true when the field is omitted from YAML.
+	// A nil pointer means the field was absent; Go's bool zero value (false)
+	// would silently disable all registries restored from legacy YAML.
+	if yaml.Spec.Enabled == nil {
+		r.Enabled = true
+	} else {
+		r.Enabled = *yaml.Spec.Enabled
+	}
 
 	if yaml.Metadata.Description != "" {
 		r.Description = sql.NullString{String: yaml.Metadata.Description, Valid: true}
