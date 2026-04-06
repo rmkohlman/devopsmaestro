@@ -2,6 +2,12 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.59.21 (2026-04-06)
+
+**Bug Fixes**
+
+- **Python build without requirements.txt** — `dvm build` no longer fails for Python projects that have no `requirements.txt`. The Dockerfile generator now checks for `requirements.txt` existence before emitting `COPY`/`pip install` commands; projects without it receive a comment `# No requirements.txt found — skipping pip install` instead (#186).
+
 ## v0.59.20 (2026-04-06)
 
 **Bug Fixes**

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.59.21] - 2026-04-06
+
+### Fixed
+
+- **Python build without requirements.txt** — `dvm build` no longer fails for Python projects that have no `requirements.txt`. The Dockerfile generator now checks for `requirements.txt` existence before emitting `COPY`/`pip install` commands; projects without it receive a comment `# No requirements.txt found — skipping pip install` instead. ([#186](https://github.com/rmkohlman/devopsmaestro/issues/186))
+
+---
+
 ## [v0.59.20] - 2026-04-06
 
 ### Fixed
