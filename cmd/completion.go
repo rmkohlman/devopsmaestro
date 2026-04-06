@@ -59,10 +59,12 @@ Examples:
 	},
 }
 
-func init() {
-	// Register custom completion functions for dynamic suggestions
-	registerDynamicCompletions()
-}
+// init for completion registration is in zz_completion_init.go to ensure
+// it runs AFTER all command init() functions have registered their flags.
+// Go processes init() functions in file-name order within a package;
+// completion.go (starting with 'c') would run before files like get.go,
+// set_build_arg.go, etc., causing RegisterFlagCompletionFunc to silently
+// fail because the flags don't exist yet.
 
 // registerDynamicCompletions registers custom completion functions
 func registerDynamicCompletions() {

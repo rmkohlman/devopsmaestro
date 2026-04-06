@@ -5,8 +5,8 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
-	"github.com/rmkohlman/MaestroSDK/resource"
 	"devopsmaestro/pkg/resource/handlers"
+	"github.com/rmkohlman/MaestroSDK/resource"
 
 	"github.com/spf13/cobra"
 )
@@ -461,5 +461,26 @@ func registerAllFlagCompletions() {
 		if cmd != nil {
 			registerWorkspaceAppFlagCompletions(cmd)
 		}
+	}
+
+	// === Build-arg commands with hierarchy flags (-e/-d/-a/-w) ===
+	for _, cmd := range []*cobra.Command{setBuildArgCmd, deleteBuildArgCmd, getBuildArgsCmd} {
+		if cmd != nil {
+			registerHierarchyFlagCompletions(cmd)
+		}
+	}
+
+	// === CA-cert commands with hierarchy flags (-e/-d/-a/-w) ===
+	for _, cmd := range []*cobra.Command{setCACertCmd, deleteCACertCmd, getCACertsCmd} {
+		if cmd != nil {
+			registerHierarchyFlagCompletions(cmd)
+		}
+	}
+
+	// === Get-all command (ecosystem, domain, app only — no workspace flag) ===
+	if getAllCmd != nil {
+		getAllCmd.RegisterFlagCompletionFunc("ecosystem", completeEcosystems)
+		getAllCmd.RegisterFlagCompletionFunc("domain", completeDomains)
+		getAllCmd.RegisterFlagCompletionFunc("app", completeApps)
 	}
 }

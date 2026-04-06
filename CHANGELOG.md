@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.60.0] - 2026-04-06
+
+### Enhanced
+
+- **Shell completion for all scoped commands** — Tab completion now works for `--ecosystem`, `--domain`, `--app`, and `--workspace` flags across all commands that accept them. Added 27 missing flag completions across 7 commands: `set build-arg`, `delete build-arg`, `get build-args`, `set ca-cert`, `delete ca-cert`, `get ca-certs`, and `get all`. Fixed an init ordering bug where completion registration ran before command flags were defined by moving registration to `zz_completion_init.go`. ([#187](https://github.com/rmkohlman/devopsmaestro/issues/187))
+
+---
+
 ## [v0.59.21] - 2026-04-06
 
 ### Fixed
