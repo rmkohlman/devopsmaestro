@@ -2,6 +2,12 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.59.15 (2026-04-06)
+
+**Bug Fixes**
+
+- **GlobalDefaults full key coverage** — `kind: GlobalDefaults` now exports and restores all defaults table keys: `nvim-package`, `terminal-package`, `plugins`, 5 registry type defaults (`registry-oci`, `registry-pypi`, `registry-npm`, `registry-go`, `registry-http`), and `registry-idle-timeout`. Previously only `buildArgs`, `caCerts`, and `theme` were handled — 9 keys were silently lost on backup/restore. Also fixed `Delete()` to clear all 12 keys (#177).
+
 ## v0.59.14 (2026-04-06)
 
 **Bug Fixes**
