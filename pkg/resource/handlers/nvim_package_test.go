@@ -189,12 +189,10 @@ func TestNvimPackageHandler_List(t *testing.T) {
 		t.Fatalf("List() error = %v", err)
 	}
 
-	// List now includes both database packages AND library packages
-	// Library has 12 packages (core, full, maestro, go-dev, python-dev, maestro-go, maestro-python, maestro-rust, maestro-node, maestro-java, maestro-gleam, maestro-dotnet)
-	// Database has 2 packages (package1, package2)
-	// Total should be at least 14 (could be more if library grows)
-	if len(resources) < 14 {
-		t.Errorf("List() returned %d resources, want at least 14 (2 db + 12 library)", len(resources))
+	// List() returns only user-configured (DB) packages — library packages are NOT included.
+	// Library packages are available via Get() fallback for single-item resolution.
+	if len(resources) != 2 {
+		t.Errorf("List() returned %d resources, want exactly 2 (DB packages only)", len(resources))
 	}
 
 	// Verify our database packages are included
@@ -204,10 +202,6 @@ func TestNvimPackageHandler_List(t *testing.T) {
 	}
 	if !names["package1"] || !names["package2"] {
 		t.Error("List() did not return expected database package names")
-	}
-	// Also verify library packages are included
-	if !names["core"] {
-		t.Error("List() did not return library package 'core'")
 	}
 }
 

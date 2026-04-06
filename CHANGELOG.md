@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.59.16] - 2026-04-06
+
+### Fixed
+
+- **Nvim theme/package export filter** — `NvimTheme.List()` and `NvimPackage.List()` no longer merge embedded library items into YAML export. Previously, 34 library themes and 12 library packages were exported alongside user-configured items, causing YAML bloat and DB pollution on restore. Only user-configured items are now exported. ([#181](https://github.com/rmkohlman/devopsmaestro/issues/181))
+
+---
+
 ## [v0.59.15] - 2026-04-06
 
 ### Fixed

@@ -114,48 +114,17 @@ func (h *NvimPackageHandler) List(ctx resource.Context) ([]resource.Resource, er
 		return nil, err
 	}
 
-	userPackages := make([]*nvimpkg.Package, len(dbPackages))
+	// Convert DB packages to resources — only user-configured packages are
+	// returned. Library packages are NOT included; they are available via
+	// Get() fallback for single-item resolution but must not appear in
+	// List() (used for export).
+	result := make([]resource.Resource, len(dbPackages))
 	for i, dbPkg := range dbPackages {
 		pkg, err := h.fromDBModel(dbPkg)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert DB model to pkg: %w", err)
 		}
-		userPackages[i] = pkg
-	}
-
-	// Get library packages
-	lib, err := library.NewLibrary()
-	if err != nil {
-		// If library fails to load, just return user packages
-		result := make([]resource.Resource, len(userPackages))
-		for i, p := range userPackages {
-			result[i] = &NvimPackageResource{pkg: p}
-		}
-		return result, nil
-	}
-
-	libraryPackages := lib.List()
-
-	// Create a map of user package names for deduplication
-	userPackageNames := make(map[string]bool)
-	for _, p := range userPackages {
-		userPackageNames[p.Name] = true
-	}
-
-	// Combine user and library packages (user packages take precedence)
-	allPackages := make([]*nvimpkg.Package, len(userPackages))
-	copy(allPackages, userPackages)
-
-	for _, p := range libraryPackages {
-		if !userPackageNames[p.Name] {
-			allPackages = append(allPackages, p)
-		}
-	}
-
-	// Convert to resources
-	result := make([]resource.Resource, len(allPackages))
-	for i, p := range allPackages {
-		result[i] = &NvimPackageResource{pkg: p}
+		result[i] = &NvimPackageResource{pkg: pkg}
 	}
 
 	return result, nil

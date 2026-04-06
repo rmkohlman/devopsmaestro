@@ -108,10 +108,10 @@ func TestNvimThemeHandler_List(t *testing.T) {
 		t.Fatalf("List() error = %v", err)
 	}
 
-	// With library fallback, we should have user themes + library themes
-	// We know there are 2 user themes and ~34 library themes
-	if len(resources) < 30 {
-		t.Errorf("List() returned %d resources, expected at least 30 (2 user + library themes)", len(resources))
+	// List() returns only user-configured themes (not library themes).
+	// Library themes are available via Get() fallback for single-item resolution.
+	if len(resources) != 2 {
+		t.Errorf("List() returned %d resources, want exactly 2 (user themes only)", len(resources))
 	}
 
 	// Verify our user themes are present
@@ -270,7 +270,7 @@ func TestNvimThemeHandler_LibraryFallback_List(t *testing.T) {
 	// Add some user themes
 	memStore.Save(&theme.Theme{Name: "user-theme1", Plugin: theme.ThemePlugin{Repo: "user/theme1"}})
 	memStore.Save(&theme.Theme{Name: "user-theme2", Plugin: theme.ThemePlugin{Repo: "user/theme2"}})
-	// Add a user theme that overrides a library theme
+	// Add a user theme that shares a name with a library theme
 	memStore.Save(&theme.Theme{Name: "dracula", Plugin: theme.ThemePlugin{Repo: "user/custom-dracula"}})
 
 	ctx := resource.Context{
@@ -282,10 +282,10 @@ func TestNvimThemeHandler_LibraryFallback_List(t *testing.T) {
 		t.Fatalf("List() error = %v", err)
 	}
 
-	// Should have user themes + library themes (minus duplicates)
-	// We expect at least 3 themes: 2 unique user themes + 1 overridden user theme + many library themes
-	if len(resources) < 30 { // We know there are ~34 library themes
-		t.Errorf("List() returned %d resources, expected at least 30 (library + user themes)", len(resources))
+	// List() returns only user-configured themes — library themes are NOT included.
+	// Library themes are available via Get() fallback for single-item resolution.
+	if len(resources) != 3 {
+		t.Errorf("List() returned %d resources, want exactly 3 (user themes only)", len(resources))
 	}
 
 	// Verify user themes are present
@@ -301,11 +301,11 @@ func TestNvimThemeHandler_LibraryFallback_List(t *testing.T) {
 		}
 	}
 
-	// Verify some known library themes are present
-	expectedLibraryThemes := []string{"coolnight-ocean", "catppuccin-mocha", "nord"}
-	for _, name := range expectedLibraryThemes {
-		if !names[name] {
-			t.Errorf("Expected library theme %q not found in list", name)
+	// Verify library-only themes are NOT present (they should not appear in List())
+	libraryOnlyThemes := []string{"coolnight-ocean", "catppuccin-mocha", "nord"}
+	for _, name := range libraryOnlyThemes {
+		if names[name] {
+			t.Errorf("Library theme %q should NOT appear in List() — library items are excluded from export", name)
 		}
 	}
 

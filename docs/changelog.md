@@ -2,6 +2,12 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.59.16 (2026-04-06)
+
+**Bug Fixes**
+
+- **Nvim theme/package export filter** — `NvimTheme.List()` and `NvimPackage.List()` no longer merge embedded library items into YAML export. Previously, 34 library themes and 12 library packages were exported alongside user-configured items, causing YAML bloat and DB pollution on restore. Only user-configured items are now exported (#181).
+
 ## v0.59.15 (2026-04-06)
 
 **Bug Fixes**
