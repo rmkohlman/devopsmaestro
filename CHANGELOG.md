@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.59.17] - 2026-04-06
+
+### Fixed
+
+- **CRD instance export** — `dvm get all -A -o yaml` now exports custom resource instances alongside their CRD definitions. Previously only definitions were exported — all instance data was silently lost on backup/restore. Also fixed `toResourceMap()` to include `apiVersion` field. ([#180](https://github.com/rmkohlman/devopsmaestro/issues/180))
+
+---
+
 ## [v0.59.16] - 2026-04-06
 
 ### Fixed

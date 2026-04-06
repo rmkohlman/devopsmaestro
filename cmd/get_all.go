@@ -5,6 +5,7 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
+	"devopsmaestro/pkg/crd"
 	"devopsmaestro/pkg/resource/handlers"
 	"github.com/rmkohlman/MaestroSDK/render"
 	"github.com/rmkohlman/MaestroSDK/resource"
@@ -307,6 +308,23 @@ func getAll(cmd *cobra.Command) error {
 		list, err := resource.BuildList(resCtx, allResources)
 		if err != nil {
 			return fmt.Errorf("failed to build resource list: %w", err)
+		}
+
+		// CRD instances — export custom resource instances for each registered CRD kind.
+		// These are appended after BuildList so that CRD definitions (already in the
+		// list via KindCRD above) appear before their instances, ensuring correct
+		// restore ordering (schema before data). (Bug #180)
+		if crds != nil {
+			for _, crdDef := range crds {
+				instances, err := ds.ListCustomResources(crdDef.Kind)
+				if err != nil {
+					render.Warning(fmt.Sprintf("failed to list instances for CRD %s: %v", crdDef.Kind, err))
+					continue
+				}
+				for _, inst := range instances {
+					list.Items = append(list.Items, crd.ToResourceMap(inst))
+				}
+			}
 		}
 
 		return render.OutputWith(getOutputFormat, list, render.Options{Type: render.TypeAuto})

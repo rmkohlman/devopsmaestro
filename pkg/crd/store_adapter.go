@@ -244,8 +244,9 @@ func (a *DataStoreAdapter) toResourceMap(cr *models.CustomResource) map[string]i
 	}
 
 	result := map[string]interface{}{
-		"kind":     cr.Kind,
-		"metadata": metadata,
+		"apiVersion": "devopsmaestro.io/v1alpha1",
+		"kind":       cr.Kind,
+		"metadata":   metadata,
 	}
 	if spec != nil {
 		result["spec"] = spec
@@ -255,4 +256,12 @@ func (a *DataStoreAdapter) toResourceMap(cr *models.CustomResource) map[string]i
 	}
 
 	return result
+}
+
+// ToResourceMap converts a models.CustomResource to a map[string]interface{} for
+// YAML/JSON export. This is the exported version used by cmd/get_all.go to
+// serialize CRD instances into the List document.
+func ToResourceMap(cr *models.CustomResource) map[string]interface{} {
+	adapter := &DataStoreAdapter{}
+	return adapter.toResourceMap(cr)
 }

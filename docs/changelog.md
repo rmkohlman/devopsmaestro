@@ -2,6 +2,12 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.59.17 (2026-04-06)
+
+**Bug Fixes**
+
+- **CRD instance export** — `dvm get all -A -o yaml` now exports custom resource instances alongside their CRD definitions. Previously only definitions were exported — all instance data was silently lost on backup/restore. Also fixed `toResourceMap()` to include `apiVersion` field (#180).
+
 ## v0.59.16 (2026-04-06)
 
 **Bug Fixes**
