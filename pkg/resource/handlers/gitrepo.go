@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"fmt"
 
 	"devopsmaestro/db"
@@ -38,9 +39,19 @@ func (h *GitRepoHandler) Apply(ctx resource.Context, data []byte) (resource.Reso
 	repo.FromYAML(gitRepoYAML)
 
 	// Get the datastore
-	ds, err := resource.DataStoreAs[db.GitRepoStore](ctx)
+	ds, err := resource.DataStoreAs[db.DataStore](ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	// Resolve Credential name → CredentialID if specified in YAML
+	credentialName := gitRepoYAML.Spec.Credential
+	if credentialName != "" {
+		cred, credErr := ds.GetCredentialByName(credentialName)
+		if credErr != nil {
+			return nil, fmt.Errorf("credential '%s' not found: %w", credentialName, credErr)
+		}
+		repo.CredentialID = sql.NullInt64{Int64: cred.ID, Valid: true}
 	}
 
 	// Check if git repo exists
@@ -72,12 +83,12 @@ func (h *GitRepoHandler) Apply(ctx resource.Context, data []byte) (resource.Reso
 		}
 	}
 
-	return &GitRepoResource{gitRepo: repo}, nil
+	return &GitRepoResource{gitRepo: repo, credentialName: credentialName}, nil
 }
 
 // Get retrieves a git repo by name.
 func (h *GitRepoHandler) Get(ctx resource.Context, name string) (resource.Resource, error) {
-	ds, err := resource.DataStoreAs[db.GitRepoStore](ctx)
+	ds, err := resource.DataStoreAs[db.DataStore](ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -87,12 +98,26 @@ func (h *GitRepoHandler) Get(ctx resource.Context, name string) (resource.Resour
 		return nil, err
 	}
 
-	return &GitRepoResource{gitRepo: repo}, nil
+	// Resolve CredentialID → credential name
+	credentialName := ""
+	if repo.CredentialID.Valid {
+		creds, credErr := ds.ListAllCredentials()
+		if credErr == nil {
+			for _, c := range creds {
+				if c.ID == repo.CredentialID.Int64 {
+					credentialName = c.Name
+					break
+				}
+			}
+		}
+	}
+
+	return &GitRepoResource{gitRepo: repo, credentialName: credentialName}, nil
 }
 
 // List returns all git repos.
 func (h *GitRepoHandler) List(ctx resource.Context) ([]resource.Resource, error) {
-	ds, err := resource.DataStoreAs[db.GitRepoStore](ctx)
+	ds, err := resource.DataStoreAs[db.DataStore](ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -102,16 +127,29 @@ func (h *GitRepoHandler) List(ctx resource.Context) ([]resource.Resource, error)
 		return nil, err
 	}
 
+	// Build credential ID → name lookup for resolving CredentialID references
+	credNames := make(map[int64]string)
+	creds, credErr := ds.ListAllCredentials()
+	if credErr == nil {
+		for _, c := range creds {
+			credNames[c.ID] = c.Name
+		}
+	}
+
 	result := make([]resource.Resource, len(repos))
 	for i := range repos {
-		result[i] = &GitRepoResource{gitRepo: &repos[i]}
+		credentialName := ""
+		if repos[i].CredentialID.Valid {
+			credentialName = credNames[repos[i].CredentialID.Int64]
+		}
+		result[i] = &GitRepoResource{gitRepo: &repos[i], credentialName: credentialName}
 	}
 	return result, nil
 }
 
 // Delete removes a git repo by name.
 func (h *GitRepoHandler) Delete(ctx resource.Context, name string) error {
-	ds, err := resource.DataStoreAs[db.GitRepoStore](ctx)
+	ds, err := resource.DataStoreAs[db.DataStore](ctx)
 	if err != nil {
 		return err
 	}
@@ -132,18 +170,24 @@ func (h *GitRepoHandler) ToYAML(res resource.Resource) ([]byte, error) {
 		return nil, fmt.Errorf("expected GitRepoResource, got %T", res)
 	}
 
-	yamlDoc := gr.gitRepo.ToYAML()
+	yamlDoc := gr.gitRepo.ToYAML(gr.credentialName)
 	return yaml.Marshal(yamlDoc)
 }
 
 // GitRepoResource wraps a models.GitRepoDB to implement resource.Resource.
 type GitRepoResource struct {
-	gitRepo *models.GitRepoDB
+	gitRepo        *models.GitRepoDB
+	credentialName string // Name of the associated credential, if any
 }
 
 // NewGitRepoResource creates a new GitRepoResource from a model.
-func NewGitRepoResource(repo *models.GitRepoDB) *GitRepoResource {
-	return &GitRepoResource{gitRepo: repo}
+// credentialName is optional — pass as extra[0] if available.
+func NewGitRepoResource(repo *models.GitRepoDB, extra ...string) *GitRepoResource {
+	credentialName := ""
+	if len(extra) > 0 {
+		credentialName = extra[0]
+	}
+	return &GitRepoResource{gitRepo: repo, credentialName: credentialName}
 }
 
 func (r *GitRepoResource) GetKind() string {

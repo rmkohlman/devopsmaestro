@@ -2,6 +2,12 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.59.13 (2026-04-06)
+
+**Bug Fixes**
+
+- **GitRepo credential round-trip** — git repos created with `--auth-type https --credential <name>` now preserve their credential association across YAML export/restore. Added `credential` field to `GitRepoSpec`; `ToYAML()` resolves `CredentialID` → credential name, `FromYAML()` reads the name from spec, `Apply()` resolves name → `CredentialID`, and `List()`/`Get()` resolve `CredentialID` → name on output (#179).
+
 ## v0.59.12 (2026-04-06)
 
 **Bug Fixes**

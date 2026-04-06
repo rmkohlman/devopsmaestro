@@ -20,7 +20,7 @@ func TestGitRepoDB_ToYAML(t *testing.T) {
 		SyncIntervalMinutes: 30,
 	}
 
-	yamlDoc := repo.ToYAML()
+	yamlDoc := repo.ToYAML("")
 
 	if yamlDoc.APIVersion != "devopsmaestro.io/v1" {
 		t.Errorf("ToYAML() APIVersion = %q, want %q", yamlDoc.APIVersion, "devopsmaestro.io/v1")
@@ -54,7 +54,7 @@ func TestGitRepoDB_ToYAML_MinimalFields(t *testing.T) {
 		URL:  "https://github.com/user/minimal",
 	}
 
-	yamlDoc := repo.ToYAML()
+	yamlDoc := repo.ToYAML("")
 
 	if yamlDoc.APIVersion != "devopsmaestro.io/v1" {
 		t.Errorf("ToYAML() APIVersion = %q, want %q", yamlDoc.APIVersion, "devopsmaestro.io/v1")
@@ -135,7 +135,7 @@ func TestGitRepoDB_RoundTrip(t *testing.T) {
 	}
 
 	// ToYAML then FromYAML
-	yamlDoc := original.ToYAML()
+	yamlDoc := original.ToYAML("")
 	restored := &GitRepoDB{}
 	restored.FromYAML(yamlDoc)
 

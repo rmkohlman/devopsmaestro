@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.59.13] - 2026-04-06
+
+### Fixed
+
+- **GitRepo credential round-trip** — git repos with `--auth-type https --credential <name>` now preserve their credential association in YAML export/restore. Added `credential` field to `GitRepoSpec`, with name↔ID resolution in handler Apply/ToYAML/List/Get ([#179](https://github.com/rmkohlman/devopsmaestro/issues/179))
+
+---
+
 ## [v0.59.12] - 2026-04-06
 
 ### Fixed

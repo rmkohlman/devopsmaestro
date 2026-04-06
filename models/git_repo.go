@@ -46,12 +46,14 @@ type GitRepoSpec struct {
 	URL                 string `yaml:"url"`
 	DefaultRef          string `yaml:"defaultRef,omitempty"`
 	AuthType            string `yaml:"authType,omitempty"`
+	Credential          string `yaml:"credential,omitempty"`
 	AutoSync            bool   `yaml:"autoSync,omitempty"`
 	SyncIntervalMinutes int    `yaml:"syncIntervalMinutes,omitempty"`
 }
 
 // ToYAML converts a GitRepoDB to YAML format.
-func (r *GitRepoDB) ToYAML() GitRepoYAML {
+// credentialName is the resolved name of the associated credential (pass "" if none).
+func (r *GitRepoDB) ToYAML(credentialName string) GitRepoYAML {
 	return GitRepoYAML{
 		APIVersion: "devopsmaestro.io/v1",
 		Kind:       KindGitRepoModel,
@@ -64,6 +66,7 @@ func (r *GitRepoDB) ToYAML() GitRepoYAML {
 			URL:                 r.URL,
 			DefaultRef:          r.DefaultRef,
 			AuthType:            r.AuthType,
+			Credential:          credentialName,
 			AutoSync:            r.AutoSync,
 			SyncIntervalMinutes: r.SyncIntervalMinutes,
 		},

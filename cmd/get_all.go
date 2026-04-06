@@ -194,6 +194,12 @@ func getAll(cmd *cobra.Command) error {
 			gitRepoNames[int64(gitRepos[i].ID)] = gitRepos[i].Name
 		}
 
+		// Credential ID → name lookup (for git repo export)
+		credNames := make(map[int64]string)
+		for _, c := range credentials {
+			credNames[c.ID] = c.Name
+		}
+
 		// Collect resources in dependency order (DependencyOrder from resource package)
 		var allResources []resource.Resource
 
@@ -230,7 +236,11 @@ func getAll(cmd *cobra.Command) error {
 		// GitRepos — global but filtered; include only when unscoped
 		if scope.ShowAll {
 			for i := range gitRepos {
-				allResources = append(allResources, handlers.NewGitRepoResource(&gitRepos[i]))
+				credName := ""
+				if gitRepos[i].CredentialID.Valid {
+					credName = credNames[gitRepos[i].CredentialID.Int64]
+				}
+				allResources = append(allResources, handlers.NewGitRepoResource(&gitRepos[i], credName))
 			}
 		}
 
