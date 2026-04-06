@@ -231,15 +231,17 @@ func getAll(cmd *cobra.Command) error {
 			allResources = append(allResources, handlers.NewDomainResource(d, ecoNames[d.EcosystemID]))
 		}
 
-		// Apps (need parent domain name + ecosystem name for context-free apply)
-		for _, a := range apps {
-			ecoName := ecoNames[domEcoIDs[a.DomainID]]
-			// Resolve git repo name if associated
-			gitRepoName := ""
-			if a.GitRepoID.Valid {
-				gitRepoName = gitRepoNames[a.GitRepoID.Int64]
+		// Registries — global; include only when unscoped
+		if scope.ShowAll {
+			for _, r := range registries {
+				allResources = append(allResources, handlers.NewRegistryResource(r))
 			}
-			allResources = append(allResources, handlers.NewAppResource(a, domNames[a.DomainID], ecoName, gitRepoName))
+		}
+
+		// Credentials (resolve scopeName from precomputed maps)
+		for _, c := range credentials {
+			scopeName := resolveCredScopeName(c, ecoNames, domNames, appNames, wsNames)
+			allResources = append(allResources, handlers.NewCredentialResource(c, scopeName))
 		}
 
 		// GitRepos — global but filtered; include only when unscoped
@@ -253,17 +255,15 @@ func getAll(cmd *cobra.Command) error {
 			}
 		}
 
-		// Registries — global; include only when unscoped
-		if scope.ShowAll {
-			for _, r := range registries {
-				allResources = append(allResources, handlers.NewRegistryResource(r))
+		// Apps (need parent domain name + ecosystem name for context-free apply)
+		for _, a := range apps {
+			ecoName := ecoNames[domEcoIDs[a.DomainID]]
+			// Resolve git repo name if associated
+			gitRepoName := ""
+			if a.GitRepoID.Valid {
+				gitRepoName = gitRepoNames[a.GitRepoID.Int64]
 			}
-		}
-
-		// Credentials (resolve scopeName from precomputed maps)
-		for _, c := range credentials {
-			scopeName := resolveCredScopeName(c, ecoNames, domNames, appNames, wsNames)
-			allResources = append(allResources, handlers.NewCredentialResource(c, scopeName))
+			allResources = append(allResources, handlers.NewAppResource(a, domNames[a.DomainID], ecoName, gitRepoName))
 		}
 
 		// Workspaces (need parent app name + resolve domain/gitrepo/ecosystem names)

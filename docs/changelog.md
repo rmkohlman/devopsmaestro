@@ -2,6 +2,12 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.59.20 (2026-04-06)
+
+**Bug Fixes**
+
+- **Export resource ordering** — `dvm get all -o yaml` now emits resources in dependency order so that `dvm apply -f` can restore a full backup without cross-reference failures. Registries, Credentials, and GitRepos are emitted before Apps (which reference GitRepos), and GitRepos are emitted after Credentials (which GitRepos reference). Correct emit order: `GlobalDefaults → Ecosystem → Domain → Registry → Credential → GitRepo → App → Workspace → (nvim/terminal/CRD resources)` (#184).
+
 ## v0.59.19 (2026-04-06)
 
 **Bug Fixes**

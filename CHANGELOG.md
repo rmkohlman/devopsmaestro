@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.59.20] - 2026-04-06
+
+### Fixed
+
+- **Export resource ordering** — `dvm get all -o yaml` now emits resources in dependency order so that `dvm apply -f` can restore a full backup without cross-reference failures. Registries, Credentials, and GitRepos are emitted before Apps (which reference GitRepos), and GitRepos are emitted after Credentials (which GitRepos reference). Correct emit order: `GlobalDefaults → Ecosystem → Domain → Registry → Credential → GitRepo → App → Workspace → (nvim/terminal/CRD resources)`. ([#184](https://github.com/rmkohlman/devopsmaestro/issues/184))
+
+---
+
 ## [v0.59.19] - 2026-04-06
 
 ### Fixed
