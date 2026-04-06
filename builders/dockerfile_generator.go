@@ -1022,6 +1022,7 @@ func (g *DefaultDockerfileGenerator) getDefaultPackages() []string {
 		"curl",
 		"wget",
 		"zsh",
+		"openssh-client",
 	}
 
 	// Add language-specific base packages

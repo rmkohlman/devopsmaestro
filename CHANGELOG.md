@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.60.1] - 2026-04-06
+
+### Fixed
+
+- **SSH client in workspace containers** — Workspace containers now include `openssh-client` in the default package list. SSH-based git operations (`fetch`, `pull`, `push`) and lazygit now work out of the box. Previously, slim base images lacked the `ssh` binary, causing "No such file or directory" errors. ([#190](https://github.com/rmkohlman/devopsmaestro/issues/190))
+
+---
+
 ## [v0.60.0] - 2026-04-06
 
 ### Enhanced
