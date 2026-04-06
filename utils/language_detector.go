@@ -3,8 +3,25 @@ package utils
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
+
+// semverRegex matches the first semantic version pattern (MAJOR.MINOR or MAJOR.MINOR.PATCH)
+var semverRegex = regexp.MustCompile(`(\d+\.\d+(?:\.\d+)?)`)
+
+// extractVersion extracts a semantic version from raw file content.
+// If the content is empty or contains no version pattern, returns the fallback.
+func extractVersion(raw, fallback string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return fallback
+	}
+	if m := semverRegex.FindString(raw); m != "" {
+		return m
+	}
+	return fallback
+}
 
 // Language represents a detected programming language
 type Language struct {
@@ -118,15 +135,17 @@ func DetectVersion(lang, appPath string) string {
 }
 
 func detectPythonVersion(appPath string) string {
+	const fallback = "3.11"
+
 	// Check for .python-version file
 	versionFile := filepath.Join(appPath, ".python-version")
 	if data, err := os.ReadFile(versionFile); err == nil {
-		return strings.TrimSpace(string(data))
+		return extractVersion(string(data), fallback)
 	}
 
 	// Check pyproject.toml or setup.py for python_requires
 	// For now, return a sensible default
-	return "3.11"
+	return fallback
 }
 
 func detectGoVersion(appPath string) string {
@@ -148,11 +167,13 @@ func detectGoVersion(appPath string) string {
 }
 
 func detectNodeVersion(appPath string) string {
+	const fallback = "20"
+
 	// Check .nvmrc
 	nvmrc := filepath.Join(appPath, ".nvmrc")
 	if data, err := os.ReadFile(nvmrc); err == nil {
-		return strings.TrimSpace(string(data))
+		return extractVersion(string(data), fallback)
 	}
 
-	return "20"
+	return fallback
 }

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.60.2] - 2026-04-06
+
+### Fixed
+
+- **Version detection**: `detectPythonVersion()` and `detectNodeVersion()` now extract semantic version from `.python-version` and `.nvmrc` files that contain prefixed or suffixed strings (e.g., `daa-api-3.9.9` → `3.9.9`, `v18.17.0` → `18.17.0`). Non-numeric aliases like `lts/*` fall back to defaults. Fixes [#189](https://github.com/rmkohlman/devopsmaestro/issues/189)
+
+---
+
 ## [v0.60.1] - 2026-04-06
 
 ### Fixed

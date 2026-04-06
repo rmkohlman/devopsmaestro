@@ -2,6 +2,12 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.60.2 (2026-04-06)
+
+**Bug Fixes**
+
+- **Version detection** — `detectPythonVersion()` and `detectNodeVersion()` now extract semantic version from `.python-version` and `.nvmrc` files that contain prefixed or suffixed strings (e.g., `daa-api-3.9.9` → `3.9.9`, `v18.17.0` → `18.17.0`). Non-numeric aliases like `lts/*` fall back to defaults (#189).
+
 ## v0.60.1 (2026-04-06)
 
 **Bug Fixes**
