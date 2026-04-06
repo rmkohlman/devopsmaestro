@@ -113,6 +113,12 @@ func (h *WorkspaceHandler) Apply(ctx resource.Context, data []byte) (resource.Re
 	}
 	workspace.FromYAML(wsYAML)
 
+	// Defensive: ensure env is always valid before DB write (issue #185).
+	// FromYAML should already handle this, but guard against edge cases.
+	if !workspace.Env.Valid {
+		workspace.SetEnv(map[string]string{})
+	}
+
 	// Resolve GitRepo if specified in YAML
 	if wsYAML.Spec.GitRepo != "" {
 		gitRepo, err := ds.GetGitRepoByName(wsYAML.Spec.GitRepo)

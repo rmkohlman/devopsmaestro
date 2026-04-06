@@ -2,6 +2,12 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.59.12 (2026-04-06)
+
+**Bug Fixes**
+
+- **Workspace env round-trip** — `dvm get all -o yaml` now always exports the `env` field for workspaces (previously omitted when empty due to `omitempty` tag on `WorkspaceSpec.Env`). `dvm apply -f` defaults a missing or null env to an empty map before the DB write, fixing `NOT NULL constraint failed: workspaces.env` errors on backup/restore cycles (`models/workspace.go`, `pkg/resource/handlers/workspace.go`) (#185).
+
 ## v0.59.11 (2026-03-30)
 
 **Bug Fixes**

@@ -72,7 +72,7 @@ type WorkspaceSpec struct {
 	Tools     ToolsConfig       `yaml:"tools,omitempty"`
 	Mounts    []MountConfig     `yaml:"mounts,omitempty"`
 	SSHKey    SSHKeyConfig      `yaml:"sshKey,omitempty"`
-	Env       map[string]string `yaml:"env,omitempty"`
+	Env       map[string]string `yaml:"env"`
 	Container ContainerConfig   `yaml:"container"`
 	GitRepo   string            `yaml:"gitrepo,omitempty"` // Name of GitRepo resource to clone
 }
@@ -253,10 +253,11 @@ func (w *Workspace) ToYAML(appName string, gitRepoName string) WorkspaceYAML {
 		terminalConfig.Package = w.TerminalPackage.String
 	}
 
-	// Include env variables if any are set
+	// Always include env in YAML export (even if empty) to satisfy
+	// the NOT NULL constraint on round-trip apply (issue #185).
 	envMap := w.GetEnv()
-	if len(envMap) == 0 {
-		envMap = nil // Ensure omitempty works for YAML serialization
+	if envMap == nil {
+		envMap = make(map[string]string)
 	}
 
 	// Restore build config from DB JSON blob if present
@@ -348,10 +349,13 @@ func (w *Workspace) FromYAML(yaml WorkspaceYAML) {
 		w.TerminalPackage = sql.NullString{String: yaml.Spec.Terminal.Package, Valid: true}
 	}
 
-	// Environment variables
-	if len(yaml.Spec.Env) > 0 {
-		w.SetEnv(yaml.Spec.Env)
+	// Environment variables — always call SetEnv to ensure Env.Valid=true
+	// so the NOT NULL constraint is satisfied on DB write (issue #185).
+	env := yaml.Spec.Env
+	if env == nil {
+		env = make(map[string]string)
 	}
+	w.SetEnv(env)
 
 	// SSHAgentForwarding — stored as a dedicated bool column (#132)
 	w.SSHAgentForwarding = yaml.Spec.Container.SSHAgentForwarding
