@@ -53,9 +53,23 @@ func (r *ContainerdRuntimeV2) attachViaColima(ctx context.Context, opts AttachOp
 		shell = "/bin/zsh"
 	}
 
+	// Compute effective UID/GID for exec session (default to 1000 if not set)
+	uid := opts.UID
+	if uid == 0 {
+		uid = 1000
+	}
+	gid := opts.GID
+	if gid == 0 {
+		gid = 1000
+	}
+	userStr := fmt.Sprintf("%d:%d", uid, gid)
+
 	// Start building the nerdctl exec command
 	var cmdParts []string
 	cmdParts = append(cmdParts, "sudo", "nerdctl", "--namespace", shellEscape(r.namespace), "exec", "-it")
+
+	// Defense-in-depth: explicitly set user for exec sessions
+	cmdParts = append(cmdParts, "--user", userStr)
 
 	// Add environment variables
 	for key, value := range opts.Env {

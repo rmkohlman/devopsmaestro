@@ -207,6 +207,11 @@ func runAttach(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to get mount path: %w", err)
 	}
 
+	// Get workspace container config for UID/GID
+	workspaceYAML := workspace.ToYAML(appName, "")
+	containerUID := workspaceYAML.Spec.Container.UID
+	containerGID := workspaceYAML.Spec.Container.GID
+
 	containerID, err := runtime.StartWorkspace(context.Background(), operators.StartOptions{
 		ImageName:     imageName,
 		WorkspaceName: workspaceName,
@@ -215,6 +220,8 @@ func runAttach(cmd *cobra.Command) error {
 		EcosystemName: ecosystemName,
 		DomainName:    domainName,
 		AppPath:       mountPath,
+		UID:           containerUID,
+		GID:           containerGID,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to start workspace: %w", err)
@@ -259,6 +266,8 @@ func runAttach(cmd *cobra.Command) error {
 		Env:         envVars,
 		Shell:       "/bin/zsh",
 		LoginShell:  true,
+		UID:         containerUID,
+		GID:         containerGID,
 	}
 
 	// Set terminal tab title via OSC 0 escape sequence (standard xterm protocol).

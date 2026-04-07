@@ -54,6 +54,8 @@ type AttachOptions struct {
 	Env         map[string]string // Environment variables for the shell session
 	Shell       string            // Shell to use (default: /bin/zsh)
 	LoginShell  bool              // Use login shell (default: true)
+	UID         int               // User ID for exec session (default: 1000)
+	GID         int               // Group ID for exec session (default: 1000)
 }
 
 // WorkspaceInfo contains information about a running workspace
@@ -103,6 +105,8 @@ type StartOptions struct {
 	SSHAgentForwarding bool              // Enable SSH agent forwarding (opt-in, default: false)
 	WorkspaceSlug      string            // Workspace slug for path computation (v0.19.0)
 	Mounts             []MountConfig     // Additional volume mounts (v0.19.0)
+	UID                int               // Container user ID (default: 1000)
+	GID                int               // Container group ID (default: 1000)
 }
 
 // ContainerNamingStrategy defines the interface for generating and parsing container names

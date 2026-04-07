@@ -126,13 +126,24 @@ func (r *ContainerdRuntimeV2) startWorkspaceViaColima(ctx context.Context, opts 
 		workingDir = "/workspace"
 	}
 
+	// Compute effective UID/GID (default to 1000 if not set)
+	uid := opts.UID
+	if uid == 0 {
+		uid = 1000
+	}
+	gid := opts.GID
+	if gid == 0 {
+		gid = 1000
+	}
+	userStr := fmt.Sprintf("%d:%d", uid, gid)
+
 	// Build the nerdctl run command parts
 	nerdctlArgs := []string{
 		"sudo", "nerdctl",
 		"--namespace", r.namespace,
 		"run", "-d",
 		"--name", containerName,
-		"--user", "1000:1000", // Run as non-root dev user (security: least privilege)
+		"--user", userStr, // Run as non-root dev user (security: least privilege)
 		"-w", workingDir,
 	}
 
@@ -327,6 +338,16 @@ func (r *ContainerdRuntimeV2) startWorkspaceDirectAPI(ctx context.Context, opts 
 		envSlice = append(envSlice, fmt.Sprintf("SSH_AUTH_SOCK=%s", containerSocket))
 	}
 
+	// Compute effective UID/GID (default to 1000 if not set)
+	uid := opts.UID
+	if uid == 0 {
+		uid = 1000
+	}
+	gid := opts.GID
+	if gid == 0 {
+		gid = 1000
+	}
+
 	// Create container with proper OCI spec
 	// Use Compose to combine base spec with customizations
 	container, err := r.client.NewContainer(
@@ -345,7 +366,7 @@ func (r *ContainerdRuntimeV2) startWorkspaceDirectAPI(ctx context.Context, opts 
 				oci.WithProcessCwd(workingDir),
 				oci.WithEnv(envSlice),
 				oci.WithMounts(mounts),
-				oci.WithUserID(1000), // Run as non-root dev user (security: least privilege)
+				oci.WithUserID(uint32(uid)), // Run as non-root dev user (security: least privilege)
 				oci.WithUsername("dev"),
 				// Don't set TTY here - nerdctl exec will handle TTY allocation
 			),

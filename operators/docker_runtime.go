@@ -188,12 +188,23 @@ func (d *DockerRuntime) StartWorkspace(ctx context.Context, opts StartOptions) (
 		env = append(env, fmt.Sprintf("DVM_WORKSPACE=%s", opts.WorkspaceName))
 	}
 
+	// Compute effective UID/GID (default to 1000 if not set)
+	uid := opts.UID
+	if uid == 0 {
+		uid = 1000
+	}
+	gid := opts.GID
+	if gid == 0 {
+		gid = 1000
+	}
+	userStr := fmt.Sprintf("%d:%d", uid, gid)
+
 	// Create container configuration with proper DVM labels
 	containerConfig := &container.Config{
 		Image:      opts.ImageName,
 		Cmd:        command,
 		WorkingDir: workingDir,
-		User:       "1000:1000", // Run as non-root dev user (security: least privilege)
+		User:       userStr, // Run as non-root dev user (security: least privilege)
 		Tty:        true,
 		OpenStdin:  true,
 		Env:        env,
@@ -277,6 +288,17 @@ func (d *DockerRuntime) AttachToWorkspace(ctx context.Context, opts AttachOption
 		env = append(env, fmt.Sprintf("%s=%s", key, value))
 	}
 
+	// Compute effective UID/GID for exec session (default to 1000 if not set)
+	uid := opts.UID
+	if uid == 0 {
+		uid = 1000
+	}
+	gid := opts.GID
+	if gid == 0 {
+		gid = 1000
+	}
+	userStr := fmt.Sprintf("%d:%d", uid, gid)
+
 	// Execute shell in the container with interactive TTY
 	execConfig := container.ExecOptions{
 		AttachStdin:  true,
@@ -285,6 +307,7 @@ func (d *DockerRuntime) AttachToWorkspace(ctx context.Context, opts AttachOption
 		Tty:          true,
 		Cmd:          cmd,
 		Env:          env,
+		User:         userStr, // Defense-in-depth: explicitly set user for exec sessions
 	}
 
 	execResp, err := d.client.ContainerExecCreate(ctx, opts.WorkspaceID, execConfig)

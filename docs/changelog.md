@@ -2,6 +2,16 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.60.3 (2026-04-06)
+
+**Bug Fixes**
+
+- **Container UID/GID** — Runtime no longer hardcodes UID/GID 1000:1000. `StartOptions` and `AttachOptions` now carry dynamic UID/GID fields populated from workspace configuration, with 1000 as the default when unset (#98).
+
+**Security**
+
+- **Exec sessions** — `nerdctl exec` and Docker `ContainerExecCreate` now explicitly set `--user` for defense-in-depth (#97).
+
 ## v0.60.2 (2026-04-06)
 
 **Bug Fixes**
