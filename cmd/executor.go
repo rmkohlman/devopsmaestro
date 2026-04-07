@@ -4,9 +4,8 @@ import (
 	"context"
 	"devopsmaestro/db"
 	"fmt"
-	"github.com/rmkohlman/MaestroSDK/render"
 
-	"github.com/stretchr/testify/mock"
+	"github.com/rmkohlman/MaestroSDK/render"
 )
 
 type Executor interface {
@@ -34,14 +33,4 @@ func NewExecutor(dataStore db.DataStore) Executor {
 	return &DefaultExecutor{
 		DataStore: dataStore,
 	}
-}
-
-// MockExecutor is a mock implementation of the Executor interface.
-type MockExecutor struct {
-	mock.Mock
-}
-
-func (m *MockExecutor) Execute(ctx context.Context) error {
-	args := m.Called(ctx)
-	return args.Error(0)
 }

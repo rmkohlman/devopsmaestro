@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.60.5] - 2026-04-06
+
+### Fixed
+
+- **SSH agent forwarding in `dvm attach`** — When a workspace has `ssh_agent_forwarding=true` in the database, the SSH agent socket is now properly forwarded into the container. Previously, `SSHAgentForwarding` was read from the workspace record but never passed into `StartOptions`, so the setting was silently ignored at runtime. Fixes [#133](https://github.com/rmkohlman/devopsmaestro/issues/133)
+- **Remove `testify/mock` from production binary** — Removed dead `MockExecutor` struct and the `testify/mock` import from `cmd/executor.go`. A test dependency was leaking into the production binary, adding unnecessary bloat. Fixes [#70](https://github.com/rmkohlman/devopsmaestro/issues/70)
+
+---
+
 ## [v0.60.4] - 2026-04-06
 
 ### Fixed

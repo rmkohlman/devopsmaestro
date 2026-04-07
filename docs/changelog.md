@@ -2,6 +2,13 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.60.5 (2026-04-06)
+
+**Bug Fixes**
+
+- **SSH agent forwarding in `dvm attach`** — When a workspace has `ssh_agent_forwarding=true` in the database, the SSH agent socket is now properly forwarded into the container. Previously, `SSHAgentForwarding` was read from the workspace record but never passed into `StartOptions`, so the setting was silently ignored at runtime (#133).
+- **Remove `testify/mock` from production binary** — Removed dead `MockExecutor` struct and the `testify/mock` import from `cmd/executor.go`. A test dependency was leaking into the production binary, adding unnecessary bloat (#70).
+
 ## v0.60.4 (2026-04-06)
 
 **Bug Fixes**
