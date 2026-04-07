@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.60.7] - 2026-04-06
+
+### Fixed
+
+- **Credential export ordering in `dvm get all -o yaml`** — Credentials are now emitted after Apps and Workspaces in the YAML export, ensuring app-scoped and workspace-scoped credentials can be correctly restored by `dvm apply -f`. Previously, credentials were appended before Workspaces, causing restore failures for scoped credentials. Fixes [#195](https://github.com/rmkohlman/devopsmaestro/issues/195)
+
+### Added
+
+- **Full multi-ecosystem round-trip integration test** (`pkg/resource/handlers/full_roundtrip_test.go`) — `TestFullSystemRoundTrip` validates the complete GitOps backup/restore contract across 29 resources, 15 kinds, and 2 ecosystems. Covers export → wipe → restore → compare fidelity, idempotency (apply twice, assert no duplicates), and cross-ecosystem leakage prevention. Closes [#173](https://github.com/rmkohlman/devopsmaestro/issues/173)
+- **`KindTerminalPrompt` exported constant** — Added to `pkg/resource/handlers/terminal_prompt.go` for handler consistency across the resource system.
+
+### Changed
+
+- **MaestroSDK** updated to v0.1.4
+
+---
+
 ## [v0.60.6] - 2026-04-06
 
 ### Testing

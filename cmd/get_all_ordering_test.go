@@ -9,14 +9,13 @@ package cmd
 // the emit order in get_all.go is fixed.
 //
 // Correct dependency order:
-//   GlobalDefaults → Ecosystem → Domain → Registry → Credential →
-//   GitRepo → App → Workspace → NvimPlugin → NvimTheme → NvimPackage →
+//   GlobalDefaults → Ecosystem → Domain → Registry → GitRepo → App →
+//   Workspace → Credential → NvimPlugin → NvimTheme → NvimPackage →
 //   TerminalPrompt → TerminalPackage → TerminalPlugin → CRD
 // ---------------------------------------------------------------------------
 
 import (
 	"bytes"
-	"database/sql"
 	"strings"
 	"testing"
 
@@ -34,22 +33,34 @@ func kindIndexInYAML(output, k string) int {
 }
 
 // ---------------------------------------------------------------------------
-// TestGetAllOrdering_CredentialBeforeGitRepo
+// TestGetAllOrdering_CredentialAfterWorkspace
 //
-// Verifies that Credential items appear before GitRepo items in the YAML
-// export. GitRepos may reference credentials via credentialID, so credentials
-// must exist before git repos are applied during restore.
-//
-// FAILS until get_all.go emits Credential before GitRepo.
+// Verifies that Credential items appear after Workspace items in the YAML
+// export. Credentials can be scoped to apps or workspaces, so those scope
+// targets must exist before credentials are applied during restore. (#195)
 // ---------------------------------------------------------------------------
 
-func TestGetAllOrdering_CredentialBeforeGitRepo(t *testing.T) {
+func TestGetAllOrdering_CredentialAfterWorkspace(t *testing.T) {
 	ds := createFullTestDataStore(t)
 	defer ds.Close()
 
-	// Seed one ecosystem so scope resolves to ShowAll (no active context)
+	// Seed ecosystem, domain, app, and workspace so the output has both kinds
 	eco := &models.Ecosystem{Name: "ord-eco"}
 	require.NoError(t, ds.CreateEcosystem(eco))
+
+	dom := &models.Domain{Name: "ord-dom", EcosystemID: eco.ID}
+	require.NoError(t, ds.CreateDomain(dom))
+
+	app := &models.App{Name: "ord-app", Path: "/ord", DomainID: dom.ID}
+	require.NoError(t, ds.CreateApp(app))
+
+	ws := &models.Workspace{
+		Name:      "ord-ws",
+		AppID:     app.ID,
+		ImageName: "ubuntu:22.04",
+		Status:    "stopped",
+	}
+	require.NoError(t, ds.CreateWorkspace(ws))
 
 	// Seed a credential scoped to the ecosystem
 	envVar := "ORD_TOKEN"
@@ -61,18 +72,6 @@ func TestGetAllOrdering_CredentialBeforeGitRepo(t *testing.T) {
 		EnvVar:    &envVar,
 	}
 	require.NoError(t, ds.CreateCredential(cred))
-
-	// Seed a git repo that references the credential
-	repo := &models.GitRepoDB{
-		Name:         "ord-repo",
-		URL:          "https://github.com/org/ord.git",
-		Slug:         "github.com_org_ord",
-		DefaultRef:   "main",
-		AuthType:     "ssh",
-		SyncStatus:   "pending",
-		CredentialID: sql.NullInt64{Int64: cred.ID, Valid: true},
-	}
-	require.NoError(t, ds.CreateGitRepo(repo))
 
 	cmd := newGetAllTestCmd(t, ds)
 
@@ -90,24 +89,23 @@ func TestGetAllOrdering_CredentialBeforeGitRepo(t *testing.T) {
 	output := buf.String()
 
 	credIdx := kindIndexInYAML(output, "Credential")
-	gitRepoIdx := kindIndexInYAML(output, "GitRepo")
+	wsIdx := kindIndexInYAML(output, "Workspace")
 
 	require.NotEqual(t, -1, credIdx, "YAML output must contain a Credential item")
-	require.NotEqual(t, -1, gitRepoIdx, "YAML output must contain a GitRepo item")
+	require.NotEqual(t, -1, wsIdx, "YAML output must contain a Workspace item")
 
-	assert.Less(t, credIdx, gitRepoIdx,
-		"Credential (idx=%d) must appear BEFORE GitRepo (idx=%d) in YAML export — FAILS until #184 is fixed",
-		credIdx, gitRepoIdx)
+	assert.Less(t, wsIdx, credIdx,
+		"Workspace (idx=%d) must appear BEFORE Credential (idx=%d) in YAML export — credentials can be workspace-scoped (#195)",
+		wsIdx, credIdx)
 }
 
 // ---------------------------------------------------------------------------
 // TestGetAllOrdering_DependencyChain
 //
 // Verifies the broader dependency chain:
-//   Ecosystem → Domain → Registry → Credential → GitRepo → App → Workspace
+//   Ecosystem → Domain → Registry → GitRepo → App → Workspace → Credential
 //
 // Each kind must appear strictly before the next in the YAML output.
-// FAILS until get_all.go is reordered to match the dependency chain.
 // ---------------------------------------------------------------------------
 
 func TestGetAllOrdering_DependencyChain(t *testing.T) {
@@ -197,11 +195,11 @@ func TestGetAllOrdering_DependencyChain(t *testing.T) {
 	}
 
 	// Assert the dependency chain order
-	chain := []string{"Ecosystem", "Domain", "Registry", "Credential", "GitRepo", "App", "Workspace"}
+	chain := []string{"Ecosystem", "Domain", "Registry", "GitRepo", "App", "Workspace", "Credential"}
 	for i := 0; i < len(chain)-1; i++ {
 		a, b := chain[i], chain[i+1]
 		assert.Less(t, positions[a], positions[b],
-			"%s (idx=%d) must appear BEFORE %s (idx=%d) in YAML — FAILS until #184 is fixed",
+			"%s (idx=%d) must appear BEFORE %s (idx=%d) in YAML — #195 fix",
 			a, positions[a], b, positions[b])
 	}
 }

@@ -238,12 +238,6 @@ func getAll(cmd *cobra.Command) error {
 			}
 		}
 
-		// Credentials (resolve scopeName from precomputed maps)
-		for _, c := range credentials {
-			scopeName := resolveCredScopeName(c, ecoNames, domNames, appNames, wsNames)
-			allResources = append(allResources, handlers.NewCredentialResource(c, scopeName))
-		}
-
 		// GitRepos — global but filtered; include only when unscoped
 		if scope.ShowAll {
 			for i := range gitRepos {
@@ -275,6 +269,14 @@ func getAll(cmd *cobra.Command) error {
 			}
 			ecoName := ecoNames[domEcoIDs[appDomIDs[w.AppID]]]
 			allResources = append(allResources, handlers.NewWorkspaceResource(w, appNames[w.AppID], domName, grName, ecoName))
+		}
+
+		// Credentials — emitted AFTER Apps and Workspaces because credentials
+		// can be scoped to apps or workspaces, and those must exist before
+		// credential restore. (#195)
+		for _, c := range credentials {
+			scopeName := resolveCredScopeName(c, ecoNames, domNames, appNames, wsNames)
+			allResources = append(allResources, handlers.NewCredentialResource(c, scopeName))
 		}
 
 		// Global resources using handler List() — only when unscoped (WI-4)

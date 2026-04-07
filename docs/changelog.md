@@ -2,6 +2,21 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.60.7 (2026-04-06)
+
+**Bug Fixes**
+
+- **Credential export ordering** — `dvm get all -o yaml` now emits credentials after apps and workspaces, fixing restore of app-scoped and workspace-scoped credentials via `dvm apply -f` (#195).
+
+**New**
+
+- **Full multi-ecosystem round-trip test** — `TestFullSystemRoundTrip` in `pkg/resource/handlers/full_roundtrip_test.go` covers 29 resources across 15 kinds and 2 ecosystems. Validates export → wipe → restore → compare fidelity, idempotency, and cross-ecosystem leakage prevention (#173).
+- **`KindTerminalPrompt` constant** — Exported from `pkg/resource/handlers/terminal_prompt.go` for handler consistency.
+
+**Dependencies**
+
+- MaestroSDK updated to v0.1.4.
+
 ## v0.60.6 (2026-04-06)
 
 **Testing**
