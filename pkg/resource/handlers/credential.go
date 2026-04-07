@@ -5,6 +5,7 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
+	"devopsmaestro/pkg/credentialbridge"
 	"github.com/rmkohlman/MaestroSDK/resource"
 
 	"gopkg.in/yaml.v3"
@@ -33,7 +34,7 @@ func (h *CredentialHandler) Apply(ctx resource.Context, data []byte) (resource.R
 	}
 
 	// Validate the YAML
-	if err := models.ValidateCredentialYAML(credYAML); err != nil {
+	if err := credentialbridge.ValidateCredentialYAML(credYAML); err != nil {
 		return nil, err
 	}
 
@@ -308,7 +309,7 @@ func (r *CredentialResource) GetName() string {
 
 func (r *CredentialResource) Validate() error {
 	y := r.credential.ToYAML(r.scopeName)
-	return models.ValidateCredentialYAML(y)
+	return credentialbridge.ValidateCredentialYAML(y)
 }
 
 // Credential returns the underlying CredentialDB model.

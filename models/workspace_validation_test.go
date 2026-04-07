@@ -1,4 +1,4 @@
-package models
+package models_test
 
 import (
 	"crypto/rand"
@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"devopsmaestro/models"
+	"devopsmaestro/pkg/envvalidation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -129,9 +131,7 @@ func TestValidateBuildArgKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────
-			// ValidateBuildArgKey does not exist yet — WI-1/WI-3.
-			err := ValidateBuildArgKey(tt.key)
+			err := envvalidation.ValidateEnvKey(tt.key)
 			// ─────────────────────────────────────────────────────────────────
 			if tt.wantErr {
 				require.Error(t, err,
@@ -218,9 +218,7 @@ func TestIsDangerousEnvVar(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// ── COMPILE ERROR EXPECTED BELOW ─────────────────────────────────
-			// IsDangerousEnvVar does not exist yet — WI-1/WI-3.
-			got := IsDangerousEnvVar(tt.key)
+			got := envvalidation.IsDangerousEnvVar(tt.key)
 			// ─────────────────────────────────────────────────────────────────
 			assert.Equal(t, tt.wantDanger, got,
 				"IsDangerousEnvVar(%q) = %v, want %v", tt.key, got, tt.wantDanger)
@@ -233,8 +231,8 @@ func TestIsDangerousEnvVar(t *testing.T) {
 //
 // These tests reference validation methods that do NOT exist yet:
 //   - CACertConfig.Validate() error
-//   - ValidateCACerts(certs []CACertConfig) error
-//   - ValidatePEMContent(content string) error
+//   - models.ValidateCACerts(certs []CACertConfig) error
+//   - models.ValidatePEMContent(content string) error
 //
 // They will fail to COMPILE until the implementation is added in Phase 3.
 // =============================================================================
@@ -242,7 +240,7 @@ func TestIsDangerousEnvVar(t *testing.T) {
 // TestCACertConfig_Validation_RequiresName verifies that CACertConfig.Validate
 // returns an error when Name is empty.
 func TestCACertConfig_Validation_RequiresName(t *testing.T) {
-	cert := CACertConfig{Name: "", VaultSecret: "test-secret"}
+	cert := models.CACertConfig{Name: "", VaultSecret: "test-secret"}
 	err := cert.Validate()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "name")
@@ -251,7 +249,7 @@ func TestCACertConfig_Validation_RequiresName(t *testing.T) {
 // TestCACertConfig_Validation_RequiresVaultSecret verifies that
 // CACertConfig.Validate returns an error when VaultSecret is empty.
 func TestCACertConfig_Validation_RequiresVaultSecret(t *testing.T) {
-	cert := CACertConfig{Name: "my-cert", VaultSecret: ""}
+	cert := models.CACertConfig{Name: "my-cert", VaultSecret: ""}
 	err := cert.Validate()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "vaultSecret")
@@ -261,14 +259,14 @@ func TestCACertConfig_Validation_RequiresVaultSecret(t *testing.T) {
 // a maximum of 10 CA certificates.
 func TestCACertConfig_Validation_MaxCerts(t *testing.T) {
 	// Create 11 certs (over the limit of 10)
-	certs := make([]CACertConfig, 11)
+	certs := make([]models.CACertConfig, 11)
 	for i := range certs {
-		certs[i] = CACertConfig{
+		certs[i] = models.CACertConfig{
 			Name:        fmt.Sprintf("cert-%d", i),
 			VaultSecret: fmt.Sprintf("secret-%d", i),
 		}
 	}
-	err := ValidateCACerts(certs)
+	err := models.ValidateCACerts(certs)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "10")
 }
@@ -277,7 +275,7 @@ func TestCACertConfig_Validation_MaxCerts(t *testing.T) {
 // rejects content that is not in PEM format (no BEGIN/END markers).
 func TestCACertConfig_Validation_PEMFormat(t *testing.T) {
 	// Non-PEM content (no BEGIN/END markers)
-	err := ValidatePEMContent("this is not a PEM certificate")
+	err := models.ValidatePEMContent("this is not a PEM certificate")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "PEM")
 }
@@ -287,7 +285,7 @@ func TestCACertConfig_Validation_PEMFormat(t *testing.T) {
 func TestCACertConfig_Validation_PEMTruncated(t *testing.T) {
 	// PEM with BEGIN but no END marker
 	truncated := "-----BEGIN CERTIFICATE-----\nMIIBkTCB+wIJ"
-	err := ValidatePEMContent(truncated)
+	err := models.ValidatePEMContent(truncated)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "END")
 }
@@ -305,7 +303,7 @@ func TestCACertConfig_Validation_RejectsPathTraversal(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cert := CACertConfig{Name: tt.certName, VaultSecret: "secret"}
+			cert := models.CACertConfig{Name: tt.certName, VaultSecret: "secret"}
 			err := cert.Validate()
 			require.Error(t, err)
 		})
@@ -363,7 +361,7 @@ FFqZqdhjOhsCGn9OpTKSS9kuZloj/94ePzTcUOOj+yIqTCVl3hNYVhzLzyDBg1QX
 OUhBijtAaeDg
 -----END CERTIFICATE-----`
 
-	err := ValidatePEMContent(validCAPEM)
+	err := models.ValidatePEMContent(validCAPEM)
 	assert.NoError(t, err, "valid CA certificate PEM should be accepted")
 }
 
@@ -397,7 +395,7 @@ kwOiuCbHlQWkBigSvodkDIGT+tSSjU0jh6o1q77+7/hdinzuEYbBYuJ3zg3TBG/l
 GRp7Y6Z0Xr9qzitRKCKyJptV56q2Eg==
 -----END CERTIFICATE-----`
 
-	err := ValidatePEMContent(leafCertPEM)
+	err := models.ValidatePEMContent(leafCertPEM)
 	assert.NoError(t, err,
 		"leaf certificate (IsCA=false) should be accepted by ValidatePEMContent (issue #143)")
 }
@@ -416,7 +414,7 @@ MIIEowIBAAKCAQEA2a2rwplBQLzHPZe5TNJNK7bLzQKFRDtyePFuUBOQHNagFqNs
 n91bCFMFDRGmHkSV0xE0lG1iRITgMjTaEJ9p5butAHzOGBnf3OmBOI7OUmskbfvL
 -----END RSA PRIVATE KEY-----`
 
-	err := ValidatePEMContent(privateKeyPEM)
+	err := models.ValidatePEMContent(privateKeyPEM)
 	require.Error(t, err,
 		"PEM block with type RSA PRIVATE KEY should be rejected")
 	// After Phase 3, the error must mention "CERTIFICATE" or "block type":
@@ -439,7 +437,7 @@ dGhpcyBpcyBub3QgYSB2YWxpZCBERVIgY2VydGlmaWNhdGUgYXQgYWxsCg==
 
 	// RED: This INCORRECTLY returns nil today (marker check only).
 	// After Phase 3, ValidatePEMContent must return an error for invalid DER.
-	err := ValidatePEMContent(garbageDERPEM)
+	err := models.ValidatePEMContent(garbageDERPEM)
 	require.Error(t, err,
 		"PEM with invalid DER body should be rejected by ValidatePEMContent")
 	assert.Contains(t, err.Error(), "parse",
@@ -476,7 +474,7 @@ func TestCACertConfig_NameMaxLength(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cert := CACertConfig{Name: tt.certName, VaultSecret: "some-secret"}
+			cert := models.CACertConfig{Name: tt.certName, VaultSecret: "some-secret"}
 			err := cert.Validate()
 			if tt.wantErr {
 				// RED: currently passes (no length check) — must fail after Phase 3.
@@ -509,16 +507,16 @@ func TestCACertConfig_NameMaxLength(t *testing.T) {
 func TestValidateCACerts_MergedExceedsMax(t *testing.T) {
 	// Simulate a merged result from 3 hierarchy levels that together produce 11 certs.
 	// e.g., Ecosystem contributes 4, Domain adds 4 more, App adds 3 more unique names.
-	mergedCerts := make([]CACertConfig, 11)
+	mergedCerts := make([]models.CACertConfig, 11)
 	for i := range mergedCerts {
-		mergedCerts[i] = CACertConfig{
+		mergedCerts[i] = models.CACertConfig{
 			Name:        fmt.Sprintf("merged-cert-%d", i),
 			VaultSecret: fmt.Sprintf("vault-secret-%d", i),
 		}
 	}
 
 	// Verify the 11-cert merged result is rejected.
-	err := ValidateCACerts(mergedCerts)
+	err := models.ValidateCACerts(mergedCerts)
 	require.Error(t, err,
 		"merged cascade result with 11 certs should exceed the 10-cert maximum")
 	assert.Contains(t, err.Error(), "10",
@@ -526,7 +524,7 @@ func TestValidateCACerts_MergedExceedsMax(t *testing.T) {
 
 	// Also verify that exactly 10 is accepted (boundary condition).
 	exactlyTen := mergedCerts[:10]
-	err = ValidateCACerts(exactlyTen)
+	err = models.ValidateCACerts(exactlyTen)
 	assert.NoError(t, err,
 		"merged result with exactly 10 certs should be accepted")
 }
@@ -661,7 +659,7 @@ YJKoZIhvcNAQELBQADQQCcLSHAhMHqSqRLQ9oGCePg/FK2KNhvNMNEYLPrBm
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange + Act
-			got := NormalizePEMContent(tt.input)
+			got := models.NormalizePEMContent(tt.input)
 
 			// Assert
 			assert.Equal(t, tt.want, got,
@@ -672,7 +670,7 @@ YJKoZIhvcNAQELBQADQQCcLSHAhMHqSqRLQ9oGCePg/FK2KNhvNMNEYLPrBm
 	// Verify the already-valid case is truly a no-op using a stricter identity
 	// check — ensures the function doesn't silently mutate correct input.
 	t.Run("no-op identity for valid pem", func(t *testing.T) {
-		got := NormalizePEMContent(validPEM)
+		got := models.NormalizePEMContent(validPEM)
 		require.Equal(t, validPEM, got,
 			"NormalizePEMContent must not alter already-valid PEM content")
 	})
@@ -681,7 +679,7 @@ YJKoZIhvcNAQELBQADQQCcLSHAhMHqSqRLQ9oGCePg/FK2KNhvNMNEYLPrBm
 	t.Run("two-cert chain markers preserved after normalization", func(t *testing.T) {
 		// Build a fully space-collapsed two-cert chain (worst-case vault output).
 		chain := validPEM + "\n" + secondCert
-		got := NormalizePEMContent(chain)
+		got := models.NormalizePEMContent(chain)
 
 		require.Contains(t, got, "-----BEGIN CERTIFICATE-----",
 			"normalized chain must contain BEGIN marker")
@@ -769,7 +767,7 @@ func TestValidatePEMContent_CertificateChain(t *testing.T) {
 
 	chain := leaf + intermediate + root
 
-	err := ValidatePEMContent(chain)
+	err := models.ValidatePEMContent(chain)
 	assert.NoError(t, err,
 		"certificate chain (leaf + intermediate + root) should be accepted when all certs are valid")
 }
@@ -783,7 +781,7 @@ func TestValidatePEMContent_ChainWithExpiredCert(t *testing.T) {
 
 	chain := validCert + expiredCert
 
-	err := ValidatePEMContent(chain)
+	err := models.ValidatePEMContent(chain)
 	require.Error(t, err,
 		"chain with an expired certificate should be rejected")
 	assert.Contains(t, err.Error(), "expired",
@@ -799,7 +797,7 @@ func TestValidatePEMContent_SingleValidCA(t *testing.T) {
 	now := time.Now()
 	caPEM := generateTestCert(t, "Regression Test CA", true, now.Add(-time.Hour), now.Add(24*time.Hour))
 
-	err := ValidatePEMContent(caPEM)
+	err := models.ValidatePEMContent(caPEM)
 	assert.NoError(t, err,
 		"single valid CA certificate should be accepted (regression check)")
 }
@@ -836,7 +834,7 @@ func TestValidatePEMContent_EmptyAndGarbage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidatePEMContent(tt.content)
+			err := models.ValidatePEMContent(tt.content)
 			require.Error(t, err,
 				"invalid content %q should be rejected", tt.name)
 			assert.Contains(t, err.Error(), tt.errMsg,

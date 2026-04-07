@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"devopsmaestro/models"
+	"devopsmaestro/pkg/credentialbridge"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -236,7 +237,7 @@ func TestCLICreateCredential_ToMapEntries_DualVar_HasVaultField(t *testing.T) {
 		"GITHUB_USERNAME", "GITHUB_PAT",
 	)
 
-	entries := cred.ToMapEntries()
+	entries := credentialbridge.ToMapEntries(cred)
 
 	require.Len(t, entries, 2,
 		"dual-var CLI credential must fan out to 2 map entries")

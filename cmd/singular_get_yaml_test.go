@@ -24,6 +24,7 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
+	"devopsmaestro/pkg/credentialbridge"
 	"devopsmaestro/pkg/resource/handlers"
 	"github.com/rmkohlman/MaestroSDK/render"
 
@@ -300,7 +301,7 @@ func TestGetCredentialSingular_YAMLApplyCompatible(t *testing.T) {
 		"BUG #183: credential YAML spec.source must be 'env'")
 
 	// Validate the YAML passes the model validator (same check apply uses)
-	err = models.ValidateCredentialYAML(credYAML)
+	err = credentialbridge.ValidateCredentialYAML(credYAML)
 	assert.NoError(t, err,
 		"BUG #183: singular credential YAML must pass ValidateCredentialYAML; "+
 			"plain-text output will fail validation")

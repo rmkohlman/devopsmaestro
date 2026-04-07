@@ -5,6 +5,7 @@ import (
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/operators"
+	"devopsmaestro/pkg/credentialbridge"
 	ws "devopsmaestro/pkg/workspace"
 	"devopsmaestro/utils"
 	"fmt"
@@ -322,7 +323,7 @@ func loadBuildCredentials(ds db.DataStore, app *models.App, workspace *models.Wo
 						Type:        "ecosystem",
 						ID:          int64(ecosystem.ID),
 						Name:        ecosystem.Name,
-						Credentials: models.CredentialsToMap(ecoCreds),
+						Credentials: credentialbridge.CredentialsToMap(ecoCreds),
 					})
 					slog.Debug("loaded ecosystem credentials", "ecosystem", ecosystem.Name, "count", len(ecoCreds))
 				}
@@ -335,7 +336,7 @@ func loadBuildCredentials(ds db.DataStore, app *models.App, workspace *models.Wo
 					Type:        "domain",
 					ID:          int64(domain.ID),
 					Name:        domain.Name,
-					Credentials: models.CredentialsToMap(domainCreds),
+					Credentials: credentialbridge.CredentialsToMap(domainCreds),
 				})
 				slog.Debug("loaded domain credentials", "domain", domain.Name, "count", len(domainCreds))
 			}
@@ -349,7 +350,7 @@ func loadBuildCredentials(ds db.DataStore, app *models.App, workspace *models.Wo
 			Type:        "app",
 			ID:          int64(app.ID),
 			Name:        app.Name,
-			Credentials: models.CredentialsToMap(appCreds),
+			Credentials: credentialbridge.CredentialsToMap(appCreds),
 		})
 		slog.Debug("loaded app credentials", "app", app.Name, "count", len(appCreds))
 	}
@@ -362,7 +363,7 @@ func loadBuildCredentials(ds db.DataStore, app *models.App, workspace *models.Wo
 				Type:        "workspace",
 				ID:          int64(workspace.ID),
 				Name:        workspace.Name,
-				Credentials: models.CredentialsToMap(wsCreds),
+				Credentials: credentialbridge.CredentialsToMap(wsCreds),
 			})
 			slog.Debug("loaded workspace credentials", "workspace", workspace.Name, "count", len(wsCreds))
 		}
