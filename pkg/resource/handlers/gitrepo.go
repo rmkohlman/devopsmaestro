@@ -3,10 +3,12 @@ package handlers
 import (
 	"database/sql"
 	"fmt"
+	"os"
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/mirror"
+	"github.com/rmkohlman/MaestroSDK/paths"
 	"github.com/rmkohlman/MaestroSDK/resource"
 
 	"gopkg.in/yaml.v3"
@@ -15,11 +17,30 @@ import (
 const KindGitRepo = "GitRepo"
 
 // GitRepoHandler handles GitRepo resources.
-type GitRepoHandler struct{}
+type GitRepoHandler struct {
+	// MirrorBaseDir overrides the default mirror directory (~/.devopsmaestro/repos/).
+	// When empty, the handler resolves the path from paths.Default().
+	// Tests set this to a temp directory for isolation.
+	MirrorBaseDir string
+}
 
 // NewGitRepoHandler creates a new GitRepo handler.
 func NewGitRepoHandler() *GitRepoHandler {
 	return &GitRepoHandler{}
+}
+
+// mirrorBaseDir returns the resolved mirror base directory.
+// If h.MirrorBaseDir is set, it is used directly; otherwise the default
+// path (~/.devopsmaestro/repos/) is resolved via paths.Default().
+func (h *GitRepoHandler) mirrorBaseDir() string {
+	if h.MirrorBaseDir != "" {
+		return h.MirrorBaseDir
+	}
+	pc, err := paths.Default()
+	if err != nil {
+		return ""
+	}
+	return pc.ReposDir()
 }
 
 func (h *GitRepoHandler) Kind() string {
@@ -80,6 +101,20 @@ func (h *GitRepoHandler) Apply(ctx resource.Context, data []byte) (resource.Reso
 		repo, err = ds.GetGitRepoByName(repo.Name)
 		if err != nil {
 			return nil, fmt.Errorf("failed to retrieve created git repo: %w", err)
+		}
+	}
+
+	// Initialize mirror on filesystem (non-fatal on failure).
+	// After the DB record is persisted, clone the bare mirror if it doesn't
+	// already exist. This ensures that after `dvm apply -f backup.yaml` the
+	// mirror directory is present and downstream operations (attach, build)
+	// work immediately. (Issue #193)
+	if baseDir := h.mirrorBaseDir(); baseDir != "" && repo.Slug != "" && repo.URL != "" {
+		mirrorMgr := mirror.NewGitMirrorManager(baseDir)
+		if !mirrorMgr.Exists(repo.Slug) {
+			if _, cloneErr := mirrorMgr.Clone(repo.URL, repo.Slug); cloneErr != nil {
+				fmt.Fprintf(os.Stderr, "⚠ Failed to clone mirror for %s: %v\n", repo.Name, cloneErr)
+			}
 		}
 	}
 

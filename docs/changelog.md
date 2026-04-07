@@ -2,6 +2,12 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.60.4 (2026-04-06)
+
+**Bug Fixes**
+
+- **`dvm apply` filesystem provisioning** — `dvm apply -f backup.yaml` now creates actual filesystem directories for GitRepo bare mirrors and Workspace directories after saving DB records. Previously, records were written to the database but no directories were created, causing `dvm build` and `dvm attach` to fail after restoring from a YAML backup. Clone failures are non-fatal (warnings only) and operations are idempotent — re-applying is safe (#193).
+
 ## v0.60.3 (2026-04-06)
 
 **Bug Fixes**

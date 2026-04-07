@@ -3,10 +3,14 @@ package handlers
 import (
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
+	"devopsmaestro/pkg/mirror"
 	ws "devopsmaestro/pkg/workspace"
+	"github.com/rmkohlman/MaestroSDK/paths"
 	"github.com/rmkohlman/MaestroSDK/resource"
 
 	"gopkg.in/yaml.v3"
@@ -15,11 +19,45 @@ import (
 const KindWorkspace = "Workspace"
 
 // WorkspaceHandler handles Workspace resources.
-type WorkspaceHandler struct{}
+type WorkspaceHandler struct {
+	// WorkspacesBaseDir overrides the default workspaces directory
+	// (~/.devopsmaestro/workspaces/). When empty, the handler resolves the
+	// path from paths.Default(). Tests set this to a temp directory.
+	WorkspacesBaseDir string
+
+	// MirrorBaseDir overrides the default mirror directory
+	// (~/.devopsmaestro/repos/). When empty, the handler resolves the path
+	// from paths.Default(). Tests set this to a temp directory.
+	MirrorBaseDir string
+}
 
 // NewWorkspaceHandler creates a new Workspace handler.
 func NewWorkspaceHandler() *WorkspaceHandler {
 	return &WorkspaceHandler{}
+}
+
+// workspacesBaseDir returns the resolved workspaces base directory.
+func (h *WorkspaceHandler) workspacesBaseDir() string {
+	if h.WorkspacesBaseDir != "" {
+		return h.WorkspacesBaseDir
+	}
+	pc, err := paths.Default()
+	if err != nil {
+		return ""
+	}
+	return pc.WorkspacesDir()
+}
+
+// mirrorBaseDir returns the resolved mirror base directory.
+func (h *WorkspaceHandler) mirrorBaseDir() string {
+	if h.MirrorBaseDir != "" {
+		return h.MirrorBaseDir
+	}
+	pc, err := paths.Default()
+	if err != nil {
+		return ""
+	}
+	return pc.ReposDir()
 }
 
 func (h *WorkspaceHandler) Kind() string {
@@ -172,6 +210,48 @@ func (h *WorkspaceHandler) Apply(ctx resource.Context, data []byte) (resource.Re
 		workspace, err = ds.GetWorkspaceByName(app.ID, workspace.Name)
 		if err != nil {
 			return nil, fmt.Errorf("failed to retrieve created workspace: %w", err)
+		}
+	}
+
+	// Initialize workspace directory structure on filesystem (non-fatal).
+	// After the DB record is persisted, create the workspace directory tree
+	// (repo/, volume/, .dvm/ etc.) if it doesn't already exist. This ensures
+	// that after `dvm apply -f backup.yaml` the workspace directories are
+	// present and downstream operations (attach, build) work immediately.
+	// (Issue #193)
+	if wsBaseDir := h.workspacesBaseDir(); wsBaseDir != "" && workspace.Slug != "" {
+		wsPath := filepath.Join(wsBaseDir, workspace.Slug)
+		if _, statErr := os.Stat(wsPath); os.IsNotExist(statErr) {
+			if dirErr := ws.CreateWorkspaceDirectories(wsPath); dirErr != nil {
+				fmt.Fprintf(os.Stderr, "⚠ Failed to create workspace directories for %s: %v\n", workspace.Name, dirErr)
+			}
+		}
+
+		// Clone from GitRepo mirror to workspace repo/ if a GitRepo is associated.
+		if workspace.GitRepoID.Valid {
+			repoPath := filepath.Join(wsPath, "repo")
+			// Only clone if repo/ is empty (no .git directory yet).
+			if _, statErr := os.Stat(filepath.Join(repoPath, ".git")); os.IsNotExist(statErr) {
+				gitRepo, gitErr := ds.GetGitRepoByID(workspace.GitRepoID.Int64)
+				if gitErr == nil && gitRepo != nil {
+					mBaseDir := h.mirrorBaseDir()
+					if mBaseDir != "" {
+						mirrorMgr := mirror.NewGitMirrorManager(mBaseDir)
+						if mirrorMgr.Exists(gitRepo.Slug) {
+							// Remove the empty repo/ directory created by CreateWorkspaceDirectories
+							// so CloneToWorkspace can create it as a proper git checkout.
+							os.RemoveAll(repoPath)
+							ref := gitRepo.DefaultRef
+							if ref == "" {
+								ref = "main"
+							}
+							if cloneErr := mirrorMgr.CloneToWorkspace(gitRepo.Slug, repoPath, ref); cloneErr != nil {
+								fmt.Fprintf(os.Stderr, "⚠ Failed to clone workspace repo for %s: %v\n", workspace.Name, cloneErr)
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 
