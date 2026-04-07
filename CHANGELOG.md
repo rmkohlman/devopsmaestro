@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.60.6] - 2026-04-06
+
+### Testing
+
+- **Progressive stacking integration test** (`pkg/resource/handlers/progressive_stacking_test.go`) — Validates the GitOps round-trip contract by building a full DVM hierarchy incrementally across 5 steps (ecosystem → domain → app → workspace → registries + globals). Verifies that YAML export at each step is a strict superset of the previous — no earlier resources disappear as the hierarchy grows. Covers full round-trip fidelity (export → wipe DB → `ApplyList` → re-export → verify parity; 10/10 resources restored), and confirms all handlers are idempotent upserts by applying the same YAML twice and asserting no duplicates are created. Closes [#172](https://github.com/rmkohlman/devopsmaestro/issues/172) (Epic [#158](https://github.com/rmkohlman/devopsmaestro/issues/158) Phase 3)
+
+---
+
 ## [v0.60.5] - 2026-04-06
 
 ### Fixed

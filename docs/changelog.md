@@ -2,6 +2,12 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.60.6 (2026-04-06)
+
+**Testing**
+
+- **Progressive stacking integration test** — New test file `pkg/resource/handlers/progressive_stacking_test.go` validates the GitOps round-trip contract by building a full DVM hierarchy incrementally across 5 steps (ecosystem → domain → app → workspace → registries + globals). Verifies YAML export at each step is a strict superset of the previous — no earlier resources disappear as the hierarchy grows. Covers full round-trip fidelity (export → wipe DB → `ApplyList` → re-export → verify parity; 10/10 resources restored) and confirms all handlers are idempotent upserts by applying the same YAML twice and asserting no duplicates (#172).
+
 ## v0.60.5 (2026-04-06)
 
 **Bug Fixes**
