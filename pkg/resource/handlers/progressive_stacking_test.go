@@ -51,6 +51,12 @@ func stackingSchema() []string {
 		`CREATE TABLE IF NOT EXISTS defaults (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
 		`CREATE TABLE IF NOT EXISTS context (id INTEGER PRIMARY KEY CHECK (id = 1), active_ecosystem_id INTEGER, active_domain_id INTEGER, active_app_id INTEGER, active_workspace_id INTEGER, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
 		`INSERT OR IGNORE INTO context (id) VALUES (1)`,
+		`CREATE TABLE IF NOT EXISTS nvim_themes (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, description TEXT, author TEXT, category TEXT, plugin_repo TEXT NOT NULL, plugin_branch TEXT, plugin_tag TEXT, style TEXT, transparent BOOLEAN DEFAULT FALSE, colors TEXT, options TEXT, is_active BOOLEAN DEFAULT FALSE, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+		`CREATE TABLE IF NOT EXISTS nvim_packages (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, description TEXT, category TEXT, labels TEXT, plugins TEXT NOT NULL, extends TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+		`CREATE TABLE IF NOT EXISTS terminal_plugins (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, description TEXT, repo TEXT NOT NULL, category TEXT, shell TEXT NOT NULL DEFAULT 'zsh', manager TEXT NOT NULL DEFAULT 'manual', load_command TEXT, source_file TEXT, dependencies TEXT NOT NULL DEFAULT '[]', env_vars TEXT NOT NULL DEFAULT '{}', labels TEXT NOT NULL DEFAULT '{}', enabled BOOLEAN NOT NULL DEFAULT 1, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+		`CREATE TABLE IF NOT EXISTS terminal_packages (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, description TEXT, category TEXT, labels TEXT, plugins TEXT NOT NULL DEFAULT '[]', prompts TEXT NOT NULL DEFAULT '[]', profiles TEXT NOT NULL DEFAULT '[]', wezterm TEXT, extends TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+		`CREATE TABLE IF NOT EXISTS custom_resource_definitions (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL UNIQUE, "group" TEXT NOT NULL, singular TEXT NOT NULL, plural TEXT NOT NULL, short_names TEXT, scope TEXT NOT NULL CHECK(scope IN ('Global', 'Workspace', 'App', 'Domain', 'Ecosystem')), versions TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+		`CREATE TABLE IF NOT EXISTS custom_resources (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, name TEXT NOT NULL, namespace TEXT, spec TEXT, status TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE(kind, name, namespace))`,
 	}
 }
 
@@ -80,16 +86,25 @@ func exportSnapshot(t *testing.T, ds *db.SQLDataStore) (string, map[string]int) 
 		}
 	}
 
+	// Export in topological order so that ApplyList restore succeeds:
+	// parent resources must precede child/dependent resources.
+	// Credentials come LAST in the hierarchy so scope targets (app, workspace)
+	// exist when credentials are re-applied during restore.
 	listFrom(KindGlobalDefaults)
 	appendFrom(NewEcosystemHandler())
 	appendFrom(NewDomainHandler())
-	appendFrom(NewRegistryHandler())
-	appendFrom(NewCredentialHandler())
 	appendFrom(NewGitRepoHandler())
+	appendFrom(NewRegistryHandler())
 	appendFrom(NewAppHandler())
 	appendFrom(NewWorkspaceHandler())
+	appendFrom(NewCredentialHandler())
 	listFrom(KindNvimPlugin)
-	listFrom("TerminalPrompt")
+	listFrom(KindTerminalPrompt)
+	appendFrom(NewNvimThemeHandler())
+	appendFrom(NewNvimPackageHandler())
+	appendFrom(NewTerminalPluginHandler())
+	appendFrom(NewTerminalPackageHandler())
+	appendFrom(NewCRDHandler())
 
 	list, err := resource.BuildList(ctx, res)
 	if err != nil {
@@ -189,7 +204,7 @@ func TestProgressiveStacking(t *testing.T) {
 	// Note: TerminalPrompt uses devopsmaestro.io/v1 (same as all other kinds).
 	// The terminal/v1alpha1 apiVersion was accepted by prompt.Parse (no validation)
 	// but is inconsistent — the exported YAML always emits devopsmaestro.io/v1.
-	doApply(t, ctx, "TerminalPrompt", "apiVersion: devopsmaestro.io/v1\nkind: TerminalPrompt\nmetadata:\n  name: starship-default\nspec:\n  type: starship\n")
+	doApply(t, ctx, KindTerminalPrompt, "apiVersion: devopsmaestro.io/v1\nkind: TerminalPrompt\nmetadata:\n  name: starship-default\nspec:\n  type: starship\n")
 	y4, c4 := exportSnapshot(t, ds)
 	checkNonDecreasing(t, c3, c4, "4")
 	mustContain(t, y4, "api-server", "step4 app survives")

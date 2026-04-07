@@ -12,6 +12,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// KindTerminalPrompt is the resource kind for terminal prompts.
+// It aliases prompt.KindTerminalPrompt so that other files in this package
+// can reference the constant without importing the prompt package directly.
+const KindTerminalPrompt = "TerminalPrompt"
+
 // TerminalPromptHandler handles TerminalPrompt resources.
 type TerminalPromptHandler struct{}
 
