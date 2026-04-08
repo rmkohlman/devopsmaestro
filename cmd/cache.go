@@ -65,7 +65,7 @@ func init() {
 	cacheClearCmd.Flags().Bool("npm", false, "Clear npm cache mount")
 	cacheClearCmd.Flags().Bool("pip", false, "Clear pip cache mount")
 	cacheClearCmd.Flags().Bool("staging", false, "Clear build staging directory")
-	cacheClearCmd.Flags().Bool("force", false, "Skip confirmation prompt")
+	AddForceConfirmFlag(cacheClearCmd)
 
 	cacheCmd.AddCommand(cacheClearCmd)
 	rootCmd.AddCommand(cacheCmd)

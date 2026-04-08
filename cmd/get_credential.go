@@ -196,7 +196,7 @@ func init() {
 	getCmd.AddCommand(getCredentialCmd)
 
 	// --all flag for list command
-	getCredentialsCmd.Flags().BoolP("all", "A", false, "List all credentials across all scopes")
+	AddAllFlag(getCredentialsCmd, "List all credentials across all scopes")
 
 	// Scope flags for both commands
 	addCredentialScopeFlags(getCredentialsCmd)

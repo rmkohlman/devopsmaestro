@@ -167,8 +167,8 @@ func init() {
 	rolloutUndoCmd.AddCommand(rolloutUndoRegistryCmd)
 
 	// Add output format flags to status and history
-	rolloutStatusRegistryCmd.Flags().StringP("output", "o", "", "Output format (json, yaml, table)")
-	rolloutHistoryRegistryCmd.Flags().StringP("output", "o", "", "Output format (json, yaml, table)")
+	AddOutputFlag(rolloutStatusRegistryCmd, "")
+	AddOutputFlag(rolloutHistoryRegistryCmd, "")
 }
 
 // ========== Implementation Functions ==========

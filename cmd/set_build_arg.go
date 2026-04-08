@@ -58,7 +58,7 @@ func init() {
 	setBuildArgCmd.Flags().StringVar(&setBuildArgApp, "app", "", "Set at app level")
 	setBuildArgCmd.Flags().StringVar(&setBuildArgWorkspace, "workspace", "", "Set at workspace level")
 	setBuildArgCmd.Flags().BoolVar(&setBuildArgGlobal, "global", false, "Set as DVM-wide default")
-	setBuildArgCmd.Flags().BoolVar(&setBuildArgDryRun, "dry-run", false, "Preview changes without applying")
+	AddDryRunFlag(setBuildArgCmd, &setBuildArgDryRun)
 }
 
 func runSetBuildArg(cmd *cobra.Command, args []string) error {

@@ -62,7 +62,7 @@ func init() {
 	getCACertsCmd.Flags().StringVar(&getCACertsWorkspace, "workspace", "", "Get CA certs at workspace level")
 	getCACertsCmd.Flags().BoolVar(&getCACertsGlobal, "global", false, "Get global default CA certs")
 	getCACertsCmd.Flags().BoolVar(&getCACertsEffective, "effective", false, "Show fully merged cascade result (requires --workspace)")
-	getCACertsCmd.Flags().BoolP("all", "A", false, "List all CA certs across all scopes")
+	AddAllFlag(getCACertsCmd, "List all CA certs across all scopes")
 	// NOTE: --output/-o is inherited from getCmd PersistentFlags — do not re-register
 }
 

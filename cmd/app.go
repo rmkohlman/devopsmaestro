@@ -671,12 +671,12 @@ func init() {
 
 	// App get/delete flags
 	getAppsCmd.Flags().StringP("domain", "d", "", "Domain name (defaults to active domain)")
-	getAppsCmd.Flags().BoolP("all", "A", false, "List apps from all domains")
+	AddAllFlag(getAppsCmd, "List apps from all domains")
 	getAppsCmd.Flags().BoolVar(&showTheme, "show-theme", false, "Show theme resolution information")
 	getAppCmd.Flags().StringP("domain", "d", "", "Domain name (defaults to active domain)")
 	getAppCmd.Flags().BoolVar(&showTheme, "show-theme", false, "Show theme resolution information")
 	deleteAppCmd.Flags().StringP("domain", "d", "", "Domain name (defaults to active domain)")
-	deleteAppCmd.Flags().Bool("force", false, "Skip confirmation prompt")
+	AddForceConfirmFlag(deleteAppCmd)
 }
 
 // getActiveApp returns the active app from the context

@@ -65,7 +65,7 @@ func init() {
 	setCACertCmd.Flags().StringVar(&setCACertApp, "app", "", "Set at app level")
 	setCACertCmd.Flags().StringVar(&setCACertWorkspace, "workspace", "", "Set at workspace level")
 	setCACertCmd.Flags().BoolVar(&setCACertGlobal, "global", false, "Set as DVM-wide default")
-	setCACertCmd.Flags().BoolVar(&setCACertDryRun, "dry-run", false, "Preview changes without applying")
+	AddDryRunFlag(setCACertCmd, &setCACertDryRun)
 
 	_ = setCACertCmd.MarkFlagRequired("vault-secret")
 }

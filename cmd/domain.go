@@ -592,12 +592,12 @@ func init() {
 
 	// Domain get/delete flags
 	getDomainsCmd.Flags().StringP("ecosystem", "e", "", "Ecosystem name (defaults to active ecosystem)")
-	getDomainsCmd.Flags().BoolP("all", "A", false, "List domains from all ecosystems")
+	AddAllFlag(getDomainsCmd, "List domains from all ecosystems")
 	getDomainsCmd.Flags().BoolVar(&showTheme, "show-theme", false, "Show theme resolution information")
 	getDomainCmd.Flags().StringP("ecosystem", "e", "", "Ecosystem name (defaults to active ecosystem)")
 	getDomainCmd.Flags().BoolVar(&showTheme, "show-theme", false, "Show theme resolution information")
 	deleteDomainCmd.Flags().StringP("ecosystem", "e", "", "Ecosystem name (defaults to active ecosystem)")
-	deleteDomainCmd.Flags().Bool("force", false, "Skip confirmation prompt")
+	AddForceConfirmFlag(deleteDomainCmd)
 }
 
 // getActiveDomain returns the active domain from the context

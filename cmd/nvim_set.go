@@ -90,7 +90,7 @@ func init() {
 
 	// Add kubectl-style flags
 	setNvimPluginCmd.Flags().StringVarP(&setNvimPluginOutput, "output", "o", "", "Output format (json, yaml, plain, table, colored)")
-	setNvimPluginCmd.Flags().BoolVar(&setNvimPluginDryRun, "dry-run", false, "Preview changes without applying")
+	AddDryRunFlag(setNvimPluginCmd, &setNvimPluginDryRun)
 
 	// Make workspace and global mutually exclusive
 	setNvimPluginCmd.MarkFlagsMutuallyExclusive("workspace", "global")

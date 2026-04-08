@@ -102,7 +102,7 @@ func init() {
 	setTerminalPromptCmd.Flags().StringVarP(&setTerminalWorkspaceFlag, "workspace", "w", "", "Workspace to configure (required)")
 	setTerminalPromptCmd.Flags().StringVarP(&setTerminalAppFlag, "app", "a", "", "App for workspace (defaults to active)")
 	setTerminalPromptCmd.Flags().BoolVar(&setTerminalClearFlag, "clear", false, "Remove prompt from workspace")
-	setTerminalPromptCmd.Flags().BoolVar(&setTerminalDryRun, "dry-run", false, "Preview changes without applying")
+	AddDryRunFlag(setTerminalPromptCmd, &setTerminalDryRun)
 	setTerminalPromptCmd.Flags().StringVarP(&setTerminalOutput, "output", "o", "", "Output format (json, yaml, plain, table, colored)")
 	setTerminalPromptCmd.MarkFlagRequired("workspace")
 
@@ -111,7 +111,7 @@ func init() {
 	setTerminalPluginCmd.Flags().StringVarP(&setTerminalAppFlag, "app", "a", "", "App for workspace (defaults to active)")
 	setTerminalPluginCmd.Flags().BoolVar(&setTerminalAllFlag, "all", false, "Add all plugins from library")
 	setTerminalPluginCmd.Flags().BoolVar(&setTerminalClearFlag, "clear", false, "Remove all plugins from workspace")
-	setTerminalPluginCmd.Flags().BoolVar(&setTerminalDryRun, "dry-run", false, "Preview changes without applying")
+	AddDryRunFlag(setTerminalPluginCmd, &setTerminalDryRun)
 	setTerminalPluginCmd.Flags().StringVarP(&setTerminalOutput, "output", "o", "", "Output format (json, yaml, plain, table, colored)")
 	setTerminalPluginCmd.MarkFlagRequired("workspace")
 
@@ -119,7 +119,7 @@ func init() {
 	setTerminalPackageCmd.Flags().StringVarP(&setTerminalWorkspaceFlag, "workspace", "w", "", "Workspace to configure (required)")
 	setTerminalPackageCmd.Flags().StringVarP(&setTerminalAppFlag, "app", "a", "", "App for workspace (defaults to active)")
 	setTerminalPackageCmd.Flags().BoolVar(&setTerminalClearFlag, "clear", false, "Remove package from workspace")
-	setTerminalPackageCmd.Flags().BoolVar(&setTerminalDryRun, "dry-run", false, "Preview changes without applying")
+	AddDryRunFlag(setTerminalPackageCmd, &setTerminalDryRun)
 	setTerminalPackageCmd.Flags().StringVarP(&setTerminalOutput, "output", "o", "", "Output format (json, yaml, plain, table, colored)")
 	setTerminalPackageCmd.MarkFlagRequired("workspace")
 }

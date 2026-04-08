@@ -63,7 +63,7 @@ func init() {
 	getBuildArgsCmd.Flags().StringVar(&getBuildArgsWorkspace, "workspace", "", "Get build args at workspace level")
 	getBuildArgsCmd.Flags().BoolVar(&getBuildArgsGlobal, "global", false, "Get global default build args")
 	getBuildArgsCmd.Flags().BoolVar(&getBuildArgsEffective, "effective", false, "Show fully merged cascade result (requires --workspace)")
-	getBuildArgsCmd.Flags().BoolP("all", "A", false, "List all build args across all scopes")
+	AddAllFlag(getBuildArgsCmd, "List all build args across all scopes")
 	// NOTE: --output/-o is inherited from getCmd PersistentFlags — do not re-register
 }
 

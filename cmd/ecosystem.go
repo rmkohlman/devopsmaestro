@@ -486,7 +486,7 @@ func init() {
 	}
 
 	// Ecosystem deletion flags
-	deleteEcosystemCmd.Flags().Bool("force", false, "Skip confirmation prompt")
+	AddForceConfirmFlag(deleteEcosystemCmd)
 
 	// Ecosystem creation flags
 	createEcosystemCmd.Flags().StringVar(&ecosystemDescription, "description", "", "Ecosystem description")

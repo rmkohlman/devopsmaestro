@@ -103,12 +103,12 @@ Examples:
 
 func init() {
 	// Add output format flag to list and show commands
-	libraryListCmd.Flags().StringP("output", "o", "table", "Output format (table|yaml|json)")
-	libraryShowCmd.Flags().StringP("output", "o", "table", "Output format (table|yaml|json)")
+	AddOutputFlag(libraryListCmd, "table")
+	AddOutputFlag(libraryShowCmd, "table")
 
 	// Add flags to import command
 	libraryImportCmd.Flags().Bool("all", false, "Import all resource types")
-	libraryImportCmd.Flags().StringP("output", "o", "table", "Output format (table|yaml|json)")
+	AddOutputFlag(libraryImportCmd, "table")
 
 	// Add subcommands
 	libraryCmd.AddCommand(libraryListCmd)

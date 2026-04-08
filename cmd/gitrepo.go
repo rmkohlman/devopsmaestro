@@ -192,7 +192,7 @@ func init() {
 	// Register delete subcommand
 	deleteCmd.AddCommand(deleteGitRepoCmd)
 	deleteGitRepoCmd.Flags().Bool("keep-mirror", false, "Keep mirror directory on disk")
-	deleteGitRepoCmd.Flags().Bool("force", false, "Skip confirmation prompt")
+	AddForceConfirmFlag(deleteGitRepoCmd)
 
 	// Create or get sync command
 	idx := findCommandIndex(rootCmd, "sync")

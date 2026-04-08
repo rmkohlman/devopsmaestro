@@ -93,7 +93,7 @@ func init() {
 
 	// Add kubectl-style flags
 	setThemeCmd.Flags().StringVarP(&setThemeOutput, "output", "o", "", "Output format (json, yaml, plain, table, colored)")
-	setThemeCmd.Flags().BoolVar(&setThemeDryRun, "dry-run", false, "Preview changes without applying")
+	AddDryRunFlag(setThemeCmd, &setThemeDryRun)
 	setThemeCmd.Flags().BoolVar(&setThemeShowCascade, "show-cascade", false, "Show theme cascade effect")
 
 	// --global is mutually exclusive with every other level flag.

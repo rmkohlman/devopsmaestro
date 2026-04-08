@@ -455,24 +455,24 @@ func init() {
 	deleteCmd.AddCommand(deleteWorkspaceCmd)
 
 	// Add flags for nvim plugin
-	deleteNvimPluginCmd.Flags().Bool("force", false, "Skip confirmation prompt")
+	AddForceConfirmFlag(deleteNvimPluginCmd)
 	deleteNvimPluginCmd.Flags().StringVarP(&deleteNvimWorkspaceFlag, "workspace", "w", "", "Remove from workspace (instead of global library)")
 	deleteNvimPluginCmd.Flags().StringVarP(&deleteNvimAppFlag, "app", "a", "", "App for workspace (defaults to active)")
 
 	// Add flags for workspace
-	deleteWorkspaceCmd.Flags().Bool("force", false, "Skip confirmation prompt")
+	AddForceConfirmFlag(deleteWorkspaceCmd)
 	deleteWorkspaceCmd.Flags().StringP("app", "a", "", "App name (defaults to active app)")
 
 	// Registry command
 	deleteCmd.AddCommand(deleteRegistryCmd)
 
 	// Registry deletion flags
-	deleteRegistryCmd.Flags().Bool("force", false, "Skip confirmation prompt")
+	AddForceConfirmFlag(deleteRegistryCmd)
 
 	// Credential command
 	deleteCmd.AddCommand(deleteCredentialCmd)
 
 	// Credential deletion flags
-	deleteCredentialCmd.Flags().Bool("force", false, "Skip confirmation prompt")
+	AddForceConfirmFlag(deleteCredentialCmd)
 	addCredentialScopeFlags(deleteCredentialCmd)
 }
