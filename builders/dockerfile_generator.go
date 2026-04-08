@@ -1167,11 +1167,11 @@ func (g *DefaultDockerfileGenerator) generateNvimSection(dockerfile *strings.Bui
 	pc := g.pathConfig
 	if pc == nil {
 		// Fallback for backward compatibility
-		homeDir, err := os.UserHomeDir()
+		var err error
+		pc, err = paths.Default()
 		if err != nil {
 			return fmt.Errorf("cannot determine home directory: %w", err)
 		}
-		pc = paths.New(homeDir)
 	}
 	stagingDir := pc.BuildStagingDir(filepath.Base(g.appPath))
 	nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")

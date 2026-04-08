@@ -1,7 +1,6 @@
 package registry
 
 import (
-	"os"
 	"path/filepath"
 	"time"
 
@@ -66,8 +65,10 @@ func NewHttpProxyConfig() *HttpProxyConfig {
 // DefaultHttpProxyConfig returns an HttpProxyConfig with sensible defaults
 // including paths set relative to the user's home directory.
 func DefaultHttpProxyConfig() HttpProxyConfig {
-	homeDir, _ := os.UserHomeDir()
-	baseDir := paths.New(homeDir).SquidDir()
+	var baseDir string
+	if pc, err := paths.Default(); err == nil {
+		baseDir = pc.SquidDir()
+	}
 
 	return HttpProxyConfig{
 		Port:            3128,

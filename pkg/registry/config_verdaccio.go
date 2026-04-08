@@ -2,7 +2,6 @@ package registry
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -235,12 +234,15 @@ func GenerateVerdaccioConfig(cfg NpmProxyConfig) (string, error) {
 
 // DefaultNpmProxyConfig returns an NpmProxyConfig with sensible defaults.
 func DefaultNpmProxyConfig() NpmProxyConfig {
-	homeDir, _ := os.UserHomeDir()
+	var storage string
+	if pc, err := paths.Default(); err == nil {
+		storage = pc.VerdaccioStorage()
+	}
 	return NpmProxyConfig{
 		Enabled:     true,
 		Lifecycle:   "on-demand",
 		Port:        4873,
-		Storage:     paths.New(homeDir).VerdaccioStorage(),
+		Storage:     storage,
 		IdleTimeout: 30 * time.Minute,
 		MaxBodySize: "10mb",
 		Upstreams:   defaultNpmUpstreams(),

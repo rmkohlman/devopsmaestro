@@ -2,7 +2,6 @@ package registry
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/rmkohlman/MaestroSDK/paths"
@@ -122,12 +121,15 @@ GOPROXY = "%s"
 
 // DefaultGoModuleConfig returns a GoModuleConfig with sensible defaults.
 func DefaultGoModuleConfig() GoModuleConfig {
-	homeDir, _ := os.UserHomeDir()
+	var storage string
+	if pc, err := paths.Default(); err == nil {
+		storage = pc.AthensStorage()
+	}
 	return GoModuleConfig{
 		Enabled:     true,
 		Lifecycle:   "on-demand",
 		Port:        3000,
-		Storage:     paths.New(homeDir).AthensStorage(),
+		Storage:     storage,
 		IdleTimeout: 30 * time.Minute,
 		Upstreams:   defaultUpstreams(),
 	}

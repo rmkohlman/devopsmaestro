@@ -2,7 +2,7 @@ package operators
 
 import (
 	"context"
-	"os"
+	"fmt"
 	"strings"
 
 	"github.com/rmkohlman/MaestroSDK/paths"
@@ -238,8 +238,11 @@ func (opts StartOptions) ComputeWorkspaceMounts() ([]MountConfig, error) {
 
 	// Import workspace package for path computation (must be done at call site)
 	// Compute the resolved workspace path using PathConfig
-	homeDir, _ := os.UserHomeDir()
-	workspacePath := paths.New(homeDir).WorkspacePath(opts.WorkspaceSlug)
+	pc, err := paths.Default()
+	if err != nil {
+		return nil, fmt.Errorf("cannot determine home directory: %w", err)
+	}
+	workspacePath := pc.WorkspacePath(opts.WorkspaceSlug)
 
 	mounts := []MountConfig{
 		// Volume mounts (read-write)

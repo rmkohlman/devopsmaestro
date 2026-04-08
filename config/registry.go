@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/rmkohlman/MaestroSDK/paths"
@@ -67,8 +66,9 @@ func GetRegistryConfig() *RegistryConfig {
 		cfg.Port = 5001
 	}
 	if cfg.Storage == "" {
-		homeDir, _ := os.UserHomeDir()
-		cfg.Storage = paths.New(homeDir).RegistryStorage()
+		if pc, err := paths.Default(); err == nil {
+			cfg.Storage = pc.RegistryStorage()
+		}
 	}
 	if cfg.Lifecycle == "" {
 		cfg.Lifecycle = "on-demand"
@@ -85,12 +85,15 @@ func GetRegistryConfig() *RegistryConfig {
 
 // DefaultRegistryConfig returns a RegistryConfig with sensible defaults.
 func DefaultRegistryConfig() *RegistryConfig {
-	homeDir, _ := os.UserHomeDir()
+	var storage string
+	if pc, err := paths.Default(); err == nil {
+		storage = pc.RegistryStorage()
+	}
 	return &RegistryConfig{
 		Enabled:     true,
 		Lifecycle:   "on-demand",
 		Port:        5001,
-		Storage:     paths.New(homeDir).RegistryStorage(),
+		Storage:     storage,
 		IdleTimeout: 30 * time.Minute,
 		Mirrors:     defaultMirrors(),
 	}

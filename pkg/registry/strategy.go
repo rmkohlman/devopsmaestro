@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -51,10 +50,12 @@ func resolveStoragePath(reg *models.Registry, configKey string) (string, error) 
 		var configMap map[string]interface{}
 		if err := json.Unmarshal([]byte(reg.Config.String), &configMap); err == nil {
 			if val, ok := configMap[configKey].(string); ok && val != "" {
-				homeDir, err := os.UserHomeDir()
+				pc, err := paths.Default()
 				if err != nil {
 					return "", fmt.Errorf("cannot determine home directory: %w", err)
 				}
+				// Extract homeDir for validation by navigating up from Root
+				homeDir := filepath.Dir(pc.Root())
 				if err := validateStoragePath(val, homeDir); err != nil {
 					return "", err
 				}
@@ -64,11 +65,11 @@ func resolveStoragePath(reg *models.Registry, configKey string) (string, error) 
 	}
 
 	// Otherwise use default path under ~/.devopsmaestro
-	homeDir, err := os.UserHomeDir()
+	pc, err := paths.Default()
 	if err != nil {
 		return "", fmt.Errorf("cannot determine home directory: %w", err)
 	}
-	return paths.New(homeDir).RegistryDir(reg.Name), nil
+	return pc.RegistryDir(reg.Name), nil
 }
 
 // --- Zot Strategy ---
@@ -554,11 +555,11 @@ func (s *SquidStrategy) CreateManager(reg *models.Registry) (ServiceManager, err
 	// Determine storage path - override defaults if not set in custom config
 	// For Squid, if "cacheDir" is specified in config, use its parent directory
 	// as the base storage path. Otherwise fall back to the default registry path.
-	homeDir, err := os.UserHomeDir()
+	pc, err := paths.Default()
 	if err != nil {
 		return nil, fmt.Errorf("cannot determine home directory: %w", err)
 	}
-	defaultPath := paths.New(homeDir).RegistryDir(reg.Name)
+	defaultPath := pc.RegistryDir(reg.Name)
 	storagePath, err := resolveStoragePath(reg, "cacheDir")
 	if err != nil {
 		return nil, fmt.Errorf("invalid storage path for registry %q: %w", reg.Name, err)

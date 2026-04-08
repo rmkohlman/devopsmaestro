@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"github.com/rmkohlman/MaestroSDK/paths"
 	"github.com/rmkohlman/MaestroSDK/render"
-	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -645,11 +644,11 @@ func runSyncGitRepos(cmd *cobra.Command, args []string) error {
 
 // getGitRepoBaseDir returns the base directory for git mirrors
 func getGitRepoBaseDir() string {
-	homeDir, err := os.UserHomeDir()
+	pc, err := paths.Default()
 	if err != nil {
-		homeDir = "."
+		return "."
 	}
-	return paths.New(homeDir).ReposDir()
+	return pc.ReposDir()
 }
 
 // gitRepoToMap converts a GitRepoDB to a map for JSON/YAML serialization

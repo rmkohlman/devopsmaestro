@@ -21,17 +21,15 @@ var initCmd = &cobra.Command{
 		render.Progress("Initializing DevOpsMaestro...")
 		slog.Info("starting initialization")
 
-		// Get home directory
-		homeDir, err := os.UserHomeDir()
+		// Get path configuration
+		pc, err := paths.Default()
 		if err != nil {
 			slog.Error("failed to get home directory", "error", err)
 			render.Errorf("Failed to get home directory: %v", err)
 			return
 		}
-		slog.Debug("resolved home directory", "path", homeDir)
 
 		// Create ~/.devopsmaestro directory structure
-		pc := paths.New(homeDir)
 		dvmDir := pc.Root()
 		dirs := []string{
 			dvmDir,

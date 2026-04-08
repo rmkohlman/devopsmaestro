@@ -2,7 +2,6 @@ package registry
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/rmkohlman/MaestroSDK/paths"
 )
@@ -72,12 +71,15 @@ func GenerateZotConfig(cfg RegistryConfig) (map[string]interface{}, error) {
 
 // DefaultRegistryConfig returns a RegistryConfig with sensible defaults.
 func DefaultRegistryConfig() RegistryConfig {
-	homeDir, _ := os.UserHomeDir()
+	var storage string
+	if pc, err := paths.Default(); err == nil {
+		storage = pc.RegistryStorage()
+	}
 	return RegistryConfig{
 		Enabled:     true,
 		Lifecycle:   "on-demand",
 		Port:        5001,
-		Storage:     paths.New(homeDir).RegistryStorage(),
+		Storage:     storage,
 		IdleTimeout: 30 * defaultMinute,
 		Mirrors:     defaultMirrors(),
 	}

@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+
+	"github.com/rmkohlman/MaestroSDK/paths"
 )
 
 // PipxBinaryManager manages Python binaries installed via pipx.
@@ -24,9 +26,13 @@ type PipxBinaryManager struct {
 
 // NewPipxBinaryManager creates a new PipxBinaryManager for the given package.
 func NewPipxBinaryManager(packageName, version string) *PipxBinaryManager {
-	// Default pipx bin directory
-	homeDir, _ := os.UserHomeDir()
-	binDir := filepath.Join(homeDir, ".local", "bin")
+	// Default pipx bin directory — this is a system path (not a DVM config path),
+	// so we use paths.Default() to get the home directory consistently.
+	var binDir string
+	if pc, err := paths.Default(); err == nil {
+		homeDir := filepath.Dir(pc.Root())
+		binDir = filepath.Join(homeDir, ".local", "bin")
+	}
 
 	return &PipxBinaryManager{
 		packageName: packageName,

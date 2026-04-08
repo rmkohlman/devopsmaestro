@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+
+	"github.com/rmkohlman/MaestroSDK/paths"
 )
 
 // NpmBinaryManager manages binaries installed via npm global install.
@@ -25,9 +27,13 @@ type NpmBinaryManager struct {
 
 // NewNpmBinaryManager creates a new NpmBinaryManager for the given package.
 func NewNpmBinaryManager(packageName, version string) *NpmBinaryManager {
-	// Default npm global bin directory
-	homeDir, _ := os.UserHomeDir()
-	binDir := filepath.Join(homeDir, ".npm-global", "bin")
+	// Default npm global bin directory — this is a system path (not a DVM config path),
+	// so we use paths.Default() to get the home directory consistently.
+	var binDir string
+	if pc, err := paths.Default(); err == nil {
+		homeDir := filepath.Dir(pc.Root())
+		binDir = filepath.Join(homeDir, ".npm-global", "bin")
+	}
 
 	return &NpmBinaryManager{
 		packageName: packageName,

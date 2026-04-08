@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/rmkohlman/MaestroSDK/paths"
 )
 
 // sensitivePathPrefixes are host paths that must never be bind-mounted into a
@@ -18,7 +20,7 @@ var sensitivePathPrefixes []string
 var initSensitiveOnce sync.Once
 
 // InitSensitivePaths builds the list of sensitive path prefixes that must never
-// be bind-mounted. It resolves home-relative paths using os.UserHomeDir.
+// be bind-mounted. It resolves home-relative paths using paths.Default().
 // This function is idempotent — safe to call multiple times.
 func InitSensitivePaths() {
 	initSensitiveOnce.Do(func() {
@@ -47,7 +49,8 @@ func InitSensitivePaths() {
 
 		sensitivePathPrefixes = append(sensitivePathPrefixes, static...)
 
-		if home, err := os.UserHomeDir(); err == nil {
+		if pc, err := paths.Default(); err == nil {
+			home := filepath.Dir(pc.Root())
 			for _, rel := range homeRelative {
 				sensitivePathPrefixes = append(sensitivePathPrefixes, filepath.Join(home, rel))
 			}

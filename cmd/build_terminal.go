@@ -6,6 +6,9 @@ import (
 	"devopsmaestro/models"
 	colorresolver "devopsmaestro/pkg/colors/resolver"
 	"devopsmaestro/pkg/resource/handlers"
+	"fmt"
+	"github.com/rmkohlman/MaestroPalette"
+	"github.com/rmkohlman/MaestroSDK/paths"
 	terminalpkg "github.com/rmkohlman/MaestroTerminal/terminalops/package"
 	terminalpkglib "github.com/rmkohlman/MaestroTerminal/terminalops/package/library"
 	"github.com/rmkohlman/MaestroTerminal/terminalops/prompt"
@@ -14,9 +17,6 @@ import (
 	extlib "github.com/rmkohlman/MaestroTerminal/terminalops/prompt/extension/library"
 	promptstyle "github.com/rmkohlman/MaestroTerminal/terminalops/prompt/style"
 	stylelib "github.com/rmkohlman/MaestroTerminal/terminalops/prompt/style/library"
-	"fmt"
-	"github.com/rmkohlman/MaestroPalette"
-	"github.com/rmkohlman/MaestroSDK/paths"
 	theme "github.com/rmkohlman/MaestroTheme"
 	"log/slog"
 	"os"
@@ -225,11 +225,11 @@ compinit
 	}
 
 	// Resolve theme from hierarchy (workspace -> app -> domain -> ecosystem -> global)
-	homeDir, err := os.UserHomeDir()
+	pc, err := paths.Default()
 	if err != nil {
 		return fmt.Errorf("failed to get home directory: %w", err)
 	}
-	nvpDir := paths.New(homeDir).NVPRoot()
+	nvpDir := pc.NVPRoot()
 	themeStore := theme.NewFileStore(nvpDir)
 
 	themeCtx := context.Background()

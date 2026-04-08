@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rmkohlman/MaestroSDK/paths"
 	"github.com/spf13/viper"
 )
 
@@ -131,10 +132,9 @@ func ResolveVaultTokenFromDir(configDir string, creator ...TokenCreator) (string
 // ResolveVaultToken resolves a vault token using the production config directory.
 // Convenience wrapper around ResolveVaultTokenFromDir.
 func ResolveVaultToken(creator ...TokenCreator) (string, error) {
-	home, err := os.UserHomeDir()
+	pc, err := paths.Default()
 	if err != nil {
 		return "", fmt.Errorf("cannot determine home directory: %w", err)
 	}
-	configDir := filepath.Join(home, ".devopsmaestro")
-	return ResolveVaultTokenFromDir(configDir, creator...)
+	return ResolveVaultTokenFromDir(pc.Root(), creator...)
 }

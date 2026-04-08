@@ -2,7 +2,6 @@ package registry
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -151,12 +150,15 @@ host: 127.0.0.1
 
 // DefaultPyPIProxyConfig returns a PyPIProxyConfig with sensible defaults.
 func DefaultPyPIProxyConfig() PyPIProxyConfig {
-	homeDir, _ := os.UserHomeDir()
+	var storage string
+	if pc, err := paths.Default(); err == nil {
+		storage = pc.DevpiStorage()
+	}
 	return PyPIProxyConfig{
 		Enabled:     true,
 		Lifecycle:   "on-demand",
 		Port:        3141,
-		Storage:     paths.New(homeDir).DevpiStorage(),
+		Storage:     storage,
 		IdleTimeout: 30 * time.Minute,
 		Upstreams:   defaultPyPIUpstreams(),
 	}

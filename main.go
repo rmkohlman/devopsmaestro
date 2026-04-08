@@ -30,14 +30,14 @@ func run(dataStoreInstance db.DataStore, executor cmd.Executor, migrationsFS fs.
 }
 
 func loadConfig() error {
-	// Get home directory
-	homeDir, err := os.UserHomeDir()
+	// Resolve config path via standard path config
+	pc, err := paths.Default()
 	if err != nil {
 		return fmt.Errorf("failed to get home directory: %w", err)
 	}
 
 	// Set config path to ~/.devopsmaestro
-	configPath := paths.New(homeDir).Root()
+	configPath := pc.Root()
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(configPath)
