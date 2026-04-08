@@ -475,10 +475,6 @@ func getWorkspace(cmd *cobra.Command, name string) error {
 		app = result.App
 		appName = app.Name
 
-		// Update context to the resolved workspace
-		if err := updateContextFromHierarchy(sqlDS, result); err != nil {
-			// Continue anyway - this is not fatal
-		}
 	} else {
 		// Fall back to existing context-based behavior (DB-backed)
 		var err error

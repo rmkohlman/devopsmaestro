@@ -109,12 +109,6 @@ func runAttach(cmd *cobra.Command) error {
 		ecosystemName = result.Ecosystem.Name
 		domainName = result.Domain.Name
 
-		// Update context to the resolved workspace
-		if err := updateContextFromHierarchy(ds, result); err != nil {
-			slog.Warn("failed to update context", "error", err)
-			// Continue anyway - this is not fatal
-		}
-
 		render.Info(fmt.Sprintf("Resolved: %s", result.FullPath()))
 	} else {
 		// Fall back to existing context-based behavior (DB-backed)

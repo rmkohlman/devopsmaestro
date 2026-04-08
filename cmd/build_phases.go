@@ -59,10 +59,6 @@ func (bc *buildContext) resolveFromHierarchyFlags() error {
 	bc.appName = bc.app.Name
 	bc.workspaceName = bc.workspace.Name
 
-	if err := updateContextFromHierarchy(bc.ds, result); err != nil {
-		slog.Warn("failed to update context", "error", err)
-	}
-
 	render.Info(fmt.Sprintf("Resolved: %s", result.FullPath()))
 	return nil
 }
