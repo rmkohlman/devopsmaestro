@@ -3,10 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"sort"
-	"text/tabwriter"
 
+	"github.com/rmkohlman/MaestroSDK/render"
 	"github.com/rmkohlman/MaestroTerminal/terminalops/plugin"
 	"github.com/rmkohlman/MaestroTerminal/terminalops/profile"
 	"github.com/rmkohlman/MaestroTerminal/terminalops/prompt"
@@ -47,16 +46,11 @@ func outputPrompts(prompts []*prompt.Prompt, format string) error {
 		}
 		fmt.Println(string(data))
 	case "table", "":
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "NAME\tTYPE\tCATEGORY\tDESCRIPTION")
+		tb := render.NewTableBuilder("NAME", "TYPE", "CATEGORY", "DESCRIPTION")
 		for _, p := range prompts {
-			desc := p.Description
-			if len(desc) > 40 {
-				desc = desc[:37] + "..."
-			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", p.Name, p.Type, p.Category, desc)
+			tb.AddRow(p.Name, string(p.Type), p.Category, render.Truncate(p.Description, 40))
 		}
-		w.Flush()
+		return render.OutputWith("", tb.Build(), render.Options{Type: render.TypeTable})
 	default:
 		return fmt.Errorf("unknown format: %s", format)
 	}
@@ -111,16 +105,11 @@ func outputPlugins(plugins []*plugin.Plugin, format string) error {
 		}
 		fmt.Println(string(data))
 	case "table", "":
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "NAME\tREPO\tMANAGER\tDESCRIPTION")
+		tb := render.NewTableBuilder("NAME", "REPO", "MANAGER", "DESCRIPTION")
 		for _, p := range plugins {
-			desc := p.Description
-			if len(desc) > 35 {
-				desc = desc[:32] + "..."
-			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", p.Name, p.Repo, p.Manager, desc)
+			tb.AddRow(p.Name, p.Repo, string(p.Manager), render.Truncate(p.Description, 35))
 		}
-		w.Flush()
+		return render.OutputWith("", tb.Build(), render.Options{Type: render.TypeTable})
 	default:
 		return fmt.Errorf("unknown format: %s", format)
 	}
@@ -175,13 +164,16 @@ func outputShells(shells []*shell.Shell, format string) error {
 		}
 		fmt.Println(string(data))
 	case "table", "":
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "NAME\tSHELL\tALIASES\tENV VARS\tFUNCTIONS")
+		tb := render.NewTableBuilder("NAME", "SHELL", "ALIASES", "ENV VARS", "FUNCTIONS")
 		for _, s := range shells {
-			fmt.Fprintf(w, "%s\t%s\t%d\t%d\t%d\n",
-				s.Name, s.ShellType, len(s.Aliases), len(s.Env), len(s.Functions))
+			tb.AddRow(
+				s.Name, string(s.ShellType),
+				fmt.Sprintf("%d", len(s.Aliases)),
+				fmt.Sprintf("%d", len(s.Env)),
+				fmt.Sprintf("%d", len(s.Functions)),
+			)
 		}
-		w.Flush()
+		return render.OutputWith("", tb.Build(), render.Options{Type: render.TypeTable})
 	default:
 		return fmt.Errorf("unknown format: %s", format)
 	}
@@ -236,20 +228,15 @@ func outputProfiles(profiles []*profile.Profile, format string) error {
 		}
 		fmt.Println(string(data))
 	case "table", "":
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "NAME\tPROMPT\tPLUGINS\tDESCRIPTION")
+		tb := render.NewTableBuilder("NAME", "PROMPT", "PLUGINS", "DESCRIPTION")
 		for _, p := range profiles {
-			desc := p.Description
-			if len(desc) > 35 {
-				desc = desc[:32] + "..."
-			}
 			promptName := ""
 			if p.Prompt != nil {
 				promptName = p.Prompt.Name
 			}
-			fmt.Fprintf(w, "%s\t%s\t%d\t%s\n", p.Name, promptName, len(p.Plugins), desc)
+			tb.AddRow(p.Name, promptName, fmt.Sprintf("%d", len(p.Plugins)), render.Truncate(p.Description, 35))
 		}
-		w.Flush()
+		return render.OutputWith("", tb.Build(), render.Options{Type: render.TypeTable})
 	default:
 		return fmt.Errorf("unknown format: %s", format)
 	}

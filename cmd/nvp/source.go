@@ -2,10 +2,8 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
-	"text/tabwriter"
 
 	nvimpackage "github.com/rmkohlman/MaestroNvim/nvimops/package"
 	"github.com/rmkohlman/MaestroNvim/nvimops/sync"
@@ -282,17 +280,11 @@ func outputSources(sources []*sync.SourceInfo, format string) error {
 	case "json":
 		return render.OutputWith("json", sources, render.Options{})
 	case "table", "":
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "NAME\tTYPE\tDESCRIPTION")
+		tb := render.NewTableBuilder("NAME", "TYPE", "DESCRIPTION")
 		for _, source := range sources {
-			desc := source.Description
-			if len(desc) > 50 {
-				desc = desc[:47] + "..."
-			}
-			fmt.Fprintf(w, "%s\t%s\t%s\n", source.Name, source.Type, desc)
+			tb.AddRow(source.Name, source.Type, render.Truncate(source.Description, 50))
 		}
-		w.Flush()
-		return nil
+		return render.OutputWith("", tb.Build(), render.Options{Type: render.TypeTable})
 	default:
 		return fmt.Errorf("unknown format: %s", format)
 	}

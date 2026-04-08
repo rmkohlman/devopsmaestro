@@ -3,9 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"text/tabwriter"
 
+	"github.com/rmkohlman/MaestroSDK/render"
 	theme "github.com/rmkohlman/MaestroTheme"
 	themelibrary "github.com/rmkohlman/MaestroTheme/library"
 	"gopkg.in/yaml.v3"
@@ -36,20 +35,15 @@ func outputThemes(themes []*theme.Theme, format string, activeName string) error
 		}
 		fmt.Println(string(data))
 	case "table", "":
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "NAME\tCATEGORY\tPLUGIN\tACTIVE\tDESCRIPTION")
+		tb := render.NewTableBuilder("NAME", "CATEGORY", "PLUGIN", "ACTIVE", "DESCRIPTION")
 		for _, t := range themes {
 			active := ""
 			if t.Name == activeName {
 				active = "*"
 			}
-			desc := t.Description
-			if len(desc) > 35 {
-				desc = desc[:32] + "..."
-			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", t.Name, t.Category, t.Plugin.Repo, active, desc)
+			tb.AddRow(t.Name, t.Category, t.Plugin.Repo, active, render.Truncate(t.Description, 35))
 		}
-		w.Flush()
+		return render.OutputWith(format, tb.Build(), render.Options{Type: render.TypeTable})
 	default:
 		return fmt.Errorf("unknown format: %s", format)
 	}
@@ -91,16 +85,11 @@ func outputThemeInfos(themes []themelibrary.ThemeInfo, format string) error {
 		}
 		fmt.Println(string(data))
 	case "table", "":
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "NAME\tCATEGORY\tPLUGIN\tDESCRIPTION")
+		tb := render.NewTableBuilder("NAME", "CATEGORY", "PLUGIN", "DESCRIPTION")
 		for _, t := range themes {
-			desc := t.Description
-			if len(desc) > 40 {
-				desc = desc[:37] + "..."
-			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", t.Name, t.Category, t.Plugin, desc)
+			tb.AddRow(t.Name, t.Category, t.Plugin, render.Truncate(t.Description, 40))
 		}
-		w.Flush()
+		return render.OutputWith(format, tb.Build(), render.Options{Type: render.TypeTable})
 	default:
 		return fmt.Errorf("unknown format: %s", format)
 	}

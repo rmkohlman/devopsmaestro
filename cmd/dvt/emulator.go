@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"sort"
-	"text/tabwriter"
 
 	"devopsmaestro/db"
 	"devopsmaestro/pkg/terminalbridge"
@@ -414,8 +413,7 @@ func outputEmulators(emulators []*emulator.Emulator, format string) error {
 		}
 		fmt.Println(string(data))
 	case "table", "":
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "NAME\tTYPE\tENABLED\tCATEGORY\tDESCRIPTION")
+		tb := render.NewTableBuilder("NAME", "TYPE", "ENABLED", "CATEGORY", "DESCRIPTION")
 
 		for _, emu := range emulators {
 			enabled := "false"
@@ -423,20 +421,14 @@ func outputEmulators(emulators []*emulator.Emulator, format string) error {
 				enabled = "true"
 			}
 
-			desc := emu.Description
-			if len(desc) > 40 {
-				desc = desc[:37] + "..."
-			}
-
 			category := emu.Category
 			if category == "" {
 				category = "-"
 			}
 
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
-				emu.Name, emu.Type, enabled, category, desc)
+			tb.AddRow(emu.Name, string(emu.Type), enabled, category, render.Truncate(emu.Description, 40))
 		}
-		w.Flush()
+		return render.OutputWith("", tb.Build(), render.Options{Type: render.TypeTable})
 	default:
 		return fmt.Errorf("unknown format: %s", format)
 	}

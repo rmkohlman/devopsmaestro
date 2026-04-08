@@ -14,7 +14,7 @@ require (
 	github.com/opencontainers/runtime-spec v1.3.0
 	github.com/rmkohlman/MaestroNvim v0.2.3
 	github.com/rmkohlman/MaestroPalette v0.1.0
-	github.com/rmkohlman/MaestroSDK v0.1.4
+	github.com/rmkohlman/MaestroSDK v0.1.5
 	github.com/rmkohlman/MaestroTerminal v0.1.0
 	github.com/rmkohlman/MaestroTheme v0.1.0
 	github.com/rmkohlman/MaestroVault v0.7.0
@@ -161,5 +161,3 @@ require (
 	github.com/stretchr/testify v1.11.1
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 )
-
-replace github.com/rmkohlman/MaestroSDK => ../MaestroSDK

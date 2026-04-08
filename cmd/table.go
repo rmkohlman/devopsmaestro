@@ -56,11 +56,9 @@ func truncateRight(s string, maxLen int) string {
 
 // truncateLeft truncates s to maxLen by keeping the first (maxLen-3) chars
 // and suffixing with "...". If len(s) <= maxLen the original string is returned.
+// Delegates to render.Truncate for the shared implementation.
 func truncateLeft(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen-3] + "..."
+	return render.Truncate(s, maxLen)
 }
 
 // activeMarker returns "● " + name when the IDs match, otherwise just name.

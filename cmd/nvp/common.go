@@ -6,12 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"text/tabwriter"
 
 	"github.com/rmkohlman/MaestroNvim/nvimops"
 	"github.com/rmkohlman/MaestroNvim/nvimops/plugin"
 	"github.com/rmkohlman/MaestroNvim/nvimops/store"
 	"github.com/rmkohlman/MaestroSDK/paths"
+	"github.com/rmkohlman/MaestroSDK/render"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -80,20 +80,15 @@ func outputPlugins(plugins []*plugin.Plugin, format string) error {
 		}
 		fmt.Println(string(data))
 	case "table", "":
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "NAME\tCATEGORY\tENABLED\tDESCRIPTION")
+		tb := render.NewTableBuilder("NAME", "CATEGORY", "ENABLED", "DESCRIPTION")
 		for _, p := range plugins {
 			enabled := "yes"
 			if !p.Enabled {
 				enabled = "no"
 			}
-			desc := p.Description
-			if len(desc) > 40 {
-				desc = desc[:37] + "..."
-			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", p.Name, p.Category, enabled, desc)
+			tb.AddRow(p.Name, p.Category, enabled, render.Truncate(p.Description, 40))
 		}
-		w.Flush()
+		return render.OutputWith(format, tb.Build(), render.Options{Type: render.TypeTable})
 	default:
 		return fmt.Errorf("unknown format: %s", format)
 	}

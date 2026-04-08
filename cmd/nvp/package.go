@@ -3,10 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
-	"text/tabwriter"
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
@@ -283,11 +281,11 @@ func outputPackages(packages []*nvimpackage.Package, format string, wide bool, l
 		}
 		fmt.Println(string(data))
 	case "table", "":
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		var tb *render.TableBuilder
 		if wide {
-			fmt.Fprintln(w, "NAME\tTYPE\tCATEGORY\tPLUGINS\tEXTENDS\tDESCRIPTION")
+			tb = render.NewTableBuilder("NAME", "TYPE", "CATEGORY", "PLUGINS", "EXTENDS", "DESCRIPTION")
 		} else {
-			fmt.Fprintln(w, "NAME\tTYPE\tPLUGINS\tCATEGORY\tDESCRIPTION")
+			tb = render.NewTableBuilder("NAME", "TYPE", "PLUGINS", "CATEGORY", "DESCRIPTION")
 		}
 
 		for _, p := range packages {
@@ -298,20 +296,15 @@ func outputPackages(packages []*nvimpackage.Package, format string, wide bool, l
 				pluginCount = len(allPlugins)
 			}
 
-			desc := p.Description
-			if len(desc) > 40 {
-				desc = desc[:37] + "..."
-			}
+			desc := render.Truncate(p.Description, 40)
 
 			if wide {
-				fmt.Fprintf(w, "%s\tlibrary\t%s\t%d\t%s\t%s\n",
-					p.Name, p.Category, pluginCount, p.Extends, desc)
+				tb.AddRow(p.Name, "library", p.Category, fmt.Sprintf("%d", pluginCount), p.Extends, desc)
 			} else {
-				fmt.Fprintf(w, "%s\tlibrary\t%d\t%s\t%s\n",
-					p.Name, pluginCount, p.Category, desc)
+				tb.AddRow(p.Name, "library", fmt.Sprintf("%d", pluginCount), p.Category, desc)
 			}
 		}
-		w.Flush()
+		return render.OutputWith("", tb.Build(), render.Options{Type: render.TypeTable})
 	default:
 		return fmt.Errorf("unknown format: %s", format)
 	}

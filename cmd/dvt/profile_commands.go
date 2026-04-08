@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/rmkohlman/MaestroSDK/render"
 	"github.com/rmkohlman/MaestroTerminal/terminalops/profile"
@@ -52,13 +51,11 @@ var profilePresetListCmd = &cobra.Command{
 			{"power-user", "Full-featured setup with all plugins and nerd font support"},
 		}
 
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "NAME\tDESCRIPTION")
+		tb := render.NewTableBuilder("NAME", "DESCRIPTION")
 		for _, p := range presets {
-			fmt.Fprintf(w, "%s\t%s\n", p.name, p.description)
+			tb.AddRow(p.name, p.description)
 		}
-		w.Flush()
-		return nil
+		return render.OutputWith("", tb.Build(), render.Options{Type: render.TypeTable})
 	},
 }
 
