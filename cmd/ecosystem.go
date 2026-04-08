@@ -148,11 +148,12 @@ Examples:
 			if err := ds.SetActiveEcosystem(nil); err != nil {
 				return fmt.Errorf("failed to clear ecosystem context: %w", err)
 			}
-			// Also clear downstream context (domain, app)
+			// Also clear downstream context (domain, app, workspace)
 			ds.SetActiveDomain(nil)
 			ds.SetActiveApp(nil)
+			ds.SetActiveWorkspace(nil)
 
-			render.Success("Cleared ecosystem context (domain and app also cleared)")
+			render.Success("Cleared ecosystem context (domain, app, and workspace also cleared)")
 			return nil
 		}
 
@@ -164,6 +165,13 @@ Examples:
 			return errSilent
 		}
 
+		// Handle --export flag: print export statement and return
+		exportFlag, _ := cmd.Flags().GetBool("export")
+		if exportFlag {
+			fmt.Fprintf(cmd.OutOrStdout(), "export DVM_ECOSYSTEM=%s\n", ecosystemName)
+			return nil
+		}
+
 		// Set ecosystem as active
 		if err := ds.SetActiveEcosystem(&ecosystem.ID); err != nil {
 			return fmt.Errorf("failed to set active ecosystem: %w", err)
@@ -172,6 +180,7 @@ Examples:
 		// Clear downstream context since we're switching ecosystems
 		ds.SetActiveDomain(nil)
 		ds.SetActiveApp(nil)
+		ds.SetActiveWorkspace(nil)
 
 		render.Success(fmt.Sprintf("Switched to ecosystem '%s'", ecosystemName))
 		render.Blank()

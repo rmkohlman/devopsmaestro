@@ -166,10 +166,11 @@ Examples:
 			if err := ds.SetActiveDomain(nil); err != nil {
 				return fmt.Errorf("failed to clear domain context: %w", err)
 			}
-			// Also clear downstream context (app)
+			// Also clear downstream context (app, workspace)
 			ds.SetActiveApp(nil)
+			ds.SetActiveWorkspace(nil)
 
-			render.Success("Cleared domain context (app also cleared)")
+			render.Success("Cleared domain context (app and workspace also cleared)")
 			return nil
 		}
 
@@ -189,6 +190,13 @@ Examples:
 			return errSilent
 		}
 
+		// Handle --export flag: print export statement and return
+		exportFlag, _ := cmd.Flags().GetBool("export")
+		if exportFlag {
+			fmt.Fprintf(cmd.OutOrStdout(), "export DVM_DOMAIN=%s\n", domainName)
+			return nil
+		}
+
 		// Set domain as active
 		if err := ds.SetActiveDomain(&domain.ID); err != nil {
 			return fmt.Errorf("failed to set active domain: %w", err)
@@ -196,6 +204,7 @@ Examples:
 
 		// Clear downstream context since we're switching domains
 		ds.SetActiveApp(nil)
+		ds.SetActiveWorkspace(nil)
 
 		render.Success(fmt.Sprintf("Switched to domain '%s' in ecosystem '%s'", domainName, ecosystem.Name))
 		render.Blank()

@@ -15,22 +15,35 @@ import (
 var useCmd = &cobra.Command{
 	Use:   "use",
 	Short: "Switch active context",
-	Long: `Switch the active app or workspace context (kubectl-style).
+	Long: `Switch the active context (kubectl-style).
 
 Use 'none' as the name to clear the context, or use --clear to clear all context.
 
 Resource aliases (kubectl-style):
+  ecosystem → eco
+  domain    → dom
   app       → a, application
   workspace → ws
 
+Environment variables for per-terminal-tab context:
+  DVM_ECOSYSTEM    Override active ecosystem
+  DVM_DOMAIN       Override active domain
+  DVM_APP          Override active app
+  DVM_WORKSPACE    Override active workspace
+
+Resolution order: flags > env vars > stored context
+
 Examples:
-  dvm use app my-api            # Set active app
-  dvm use a my-api              # Short form
-  dvm use workspace dev         # Set active workspace
-  dvm use ws dev                # Short form
-  dvm use app none              # Clear app context
-  dvm use workspace none        # Clear workspace context
-  dvm use --clear               # Clear all context`,
+  dvm use ecosystem my-platform  # Set active ecosystem
+  dvm use domain backend         # Set active domain
+  dvm use app my-api             # Set active app
+  dvm use a my-api               # Short form
+  dvm use workspace dev          # Set active workspace
+  dvm use ws dev                 # Short form
+  dvm use app none               # Clear app context
+  dvm use workspace none         # Clear workspace context
+  dvm use --clear                # Clear all context
+  dvm use app myapi --export     # Print 'export DVM_APP=myapi' for shell eval`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Check if --clear flag was passed
 		clearAll, _ := cmd.Flags().GetBool("clear")
@@ -105,6 +118,13 @@ Examples:
 			render.Error(fmt.Sprintf("App '%s' not found: %v", appName, err))
 			render.Info("Hint: List available apps with: dvm get apps")
 			return errSilent
+		}
+
+		// Handle --export flag: print export statement and return
+		exportFlag, _ := cmd.Flags().GetBool("export")
+		if exportFlag {
+			fmt.Fprintf(cmd.OutOrStdout(), "export DVM_APP=%s\n", appName)
+			return nil
 		}
 
 		// Set app as active in context manager
@@ -196,6 +216,13 @@ Examples:
 			render.Error(fmt.Sprintf("Workspace '%s' not found in app '%s': %v", workspaceName, appName, err))
 			render.Info("Hint: List available workspaces with: dvm get workspaces")
 			return errSilent
+		}
+
+		// Handle --export flag: print export statement and return
+		exportFlag, _ := cmd.Flags().GetBool("export")
+		if exportFlag {
+			fmt.Fprintf(cmd.OutOrStdout(), "export DVM_WORKSPACE=%s\n", workspaceName)
+			return nil
 		}
 
 		// Set workspace as active in context manager (file-based write)
@@ -418,4 +445,10 @@ func init() {
 	// Register argument completions for subcommands
 	useAppCmd.ValidArgsFunction = completeApps
 	useWorkspaceCmd.ValidArgsFunction = completeWorkspaces
+
+	// Register --export flag on all 4 use subcommands
+	useEcosystemCmd.Flags().Bool("export", false, "Print 'export DVM_ECOSYSTEM=<name>' for shell eval")
+	useDomainCmd.Flags().Bool("export", false, "Print 'export DVM_DOMAIN=<name>' for shell eval")
+	useAppCmd.Flags().Bool("export", false, "Print 'export DVM_APP=<name>' for shell eval")
+	useWorkspaceCmd.Flags().Bool("export", false, "Print 'export DVM_WORKSPACE=<name>' for shell eval")
 }
