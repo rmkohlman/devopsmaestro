@@ -6,7 +6,7 @@ import (
 	"devopsmaestro/db"
 	"devopsmaestro/pkg/resource/handlers"
 	"devopsmaestro/pkg/source"
-	"github.com/rmkohlman/MaestroSDK/colors"
+	"devopsmaestro/pkg/terminalbridge/promptgen"
 	"github.com/rmkohlman/MaestroSDK/render"
 	"github.com/rmkohlman/MaestroSDK/resource"
 	"github.com/rmkohlman/MaestroTerminal/terminalops/prompt"
@@ -244,8 +244,8 @@ func promptResourceDelete(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// promptResourceGenerate generates config file for a prompt using Resource/Handler pattern
-// This function is intended to replace the existing promptGenerateCmd.RunE function
+// promptResourceGenerate generates config file for a prompt using Resource/Handler pattern.
+// Delegates to pkg/terminalbridge/promptgen for the actual generation logic.
 func promptResourceGenerate(cmd *cobra.Command, args []string) error {
 	name := args[0]
 
@@ -268,18 +268,9 @@ func promptResourceGenerate(cmd *cobra.Command, args []string) error {
 
 	p := promptRes.Prompt()
 
-	// Convert to PromptYAML for rendering
-	promptYAML := p.ToYAML()
-
-	// Create renderer
-	renderer := prompt.NewStarshipRenderer()
-
-	// Get ColorProvider from context and convert to palette
-	provider := colors.FromContextOrDefault(cmd.Context())
-	pal := colors.ToPalette(provider)
-
-	// Generate config
-	config, err := renderer.Render(promptYAML, pal)
+	// Delegate config generation to promptgen package
+	gen := promptgen.New()
+	config, err := gen.Generate(cmd.Context(), p)
 	if err != nil {
 		return fmt.Errorf("failed to generate config for prompt '%s': %w", name, err)
 	}
@@ -427,17 +418,9 @@ func promptResourceSet(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Generate config for the prompt
-	promptYAML := p.ToYAML()
-	renderer := prompt.NewStarshipRenderer()
-
-	// Get ColorProvider from context and convert to palette
-	provider := colors.FromContextOrDefault(cmd.Context())
-	pal := colors.ToPalette(provider)
-
-	// Generate config
-	_, err = renderer.Render(promptYAML, pal)
-	if err != nil {
+	// Validate config generation for the prompt (delegates to promptgen)
+	gen := promptgen.New()
+	if err := gen.Validate(cmd.Context(), p); err != nil {
 		return fmt.Errorf("failed to generate config for prompt '%s': %w", name, err)
 	}
 
