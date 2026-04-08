@@ -49,18 +49,7 @@ Examples:
   dvm set ca-cert proxy-ca --vault-secret proxy-cert --vault-env production --domain data-sci
   dvm set ca-cert internal --vault-secret internal-ca --vault-field cert --app ml-api
   dvm set ca-cert dev-ca --vault-secret dev-cert --workspace dev
-  dvm set ca-cert corp-root --vault-secret corp-root-ca --global
-
-Flags:
-  --vault-secret   MaestroVault secret name (required)
-  --vault-env      Optional vault environment override
-  --vault-field    Optional field within the secret
-  --ecosystem      Set at ecosystem level
-  --domain         Set at domain level
-  --app            Set at app level
-  --workspace      Set at workspace level
-  --global         Set as DVM-wide default (applies to all workspaces)
-  --dry-run        Preview changes without applying`,
+  dvm set ca-cert corp-root --vault-secret corp-root-ca --global`,
 	Args: cobra.ExactArgs(1),
 	RunE: runSetCACert,
 }

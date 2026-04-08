@@ -23,9 +23,9 @@ type HierarchyCACertsResolver struct {
 	store db.DataStore
 }
 
-// NewHierarchyCACertsResolver creates a new HierarchyCACertsResolver backed
+// NewHierarchyCACertsResolver creates a new CACertsResolver backed
 // by the provided DataStore.
-func NewHierarchyCACertsResolver(store db.DataStore) *HierarchyCACertsResolver {
+func NewHierarchyCACertsResolver(store db.DataStore) CACertsResolver {
 	return &HierarchyCACertsResolver{store: store}
 }
 

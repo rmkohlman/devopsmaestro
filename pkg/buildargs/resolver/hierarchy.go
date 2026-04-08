@@ -19,9 +19,9 @@ type HierarchyBuildArgsResolver struct {
 	store db.DataStore
 }
 
-// NewHierarchyBuildArgsResolver creates a new HierarchyBuildArgsResolver backed
+// NewHierarchyBuildArgsResolver creates a new BuildArgsResolver backed
 // by the provided DataStore.
-func NewHierarchyBuildArgsResolver(store db.DataStore) *HierarchyBuildArgsResolver {
+func NewHierarchyBuildArgsResolver(store db.DataStore) BuildArgsResolver {
 	return &HierarchyBuildArgsResolver{store: store}
 }
 

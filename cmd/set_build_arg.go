@@ -45,15 +45,7 @@ Examples:
   dvm set build-arg EXTRA_PACKAGES "numpy pandas" --domain data-sci
   dvm set build-arg CGO_ENABLED 0 --app ml-api
   dvm set build-arg DEBUG_BUILD true --workspace dev
-  dvm set build-arg PIP_INDEX_URL https://pypi.example.com --global
-
-Flags:
-  --ecosystem   Set at ecosystem level
-  --domain      Set at domain level
-  --app         Set at app level
-  --workspace   Set at workspace level
-  --global      Set as DVM-wide default (applies to all workspaces)
-  --dry-run     Preview changes without applying`,
+  dvm set build-arg PIP_INDEX_URL https://pypi.example.com --global`,
 	Args: cobra.ExactArgs(2),
 	RunE: runSetBuildArg,
 }
