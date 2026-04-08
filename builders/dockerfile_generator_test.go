@@ -1286,7 +1286,7 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 					HasTreesitter: true,
 				},
 			},
-			wantMason: "nvim --headless -c \"MasonInstall",
+			wantMason: "mason-registry",
 			noMason:   "Mason not installed - skipping LSP pre-install",
 			wantTS:    "nvim --headless -c \"lua require('nvim-treesitter').install",
 			noTS:      "Treesitter not installed - skipping parser pre-install",
@@ -1300,7 +1300,7 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 				},
 			},
 			wantMason: "Mason not installed - skipping LSP pre-install",
-			noMason:   "MasonInstall",
+			noMason:   "mason-registry",
 			wantTS:    "Treesitter not installed - skipping parser pre-install",
 			noTS:      "nvim-treesitter",
 		},
@@ -1312,7 +1312,7 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 					HasTreesitter: false,
 				},
 			},
-			wantMason: "nvim --headless -c \"MasonInstall",
+			wantMason: "mason-registry",
 			noMason:   "Mason not installed - skipping LSP pre-install",
 			wantTS:    "Treesitter not installed - skipping parser pre-install",
 			noTS:      "nvim-treesitter",
@@ -1326,14 +1326,14 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 				},
 			},
 			wantMason: "Mason not installed - skipping LSP pre-install",
-			noMason:   "MasonInstall",
+			noMason:   "mason-registry",
 			wantTS:    "nvim --headless -c \"lua require('nvim-treesitter').install",
 			noTS:      "Treesitter not installed - skipping parser pre-install",
 		},
 		{
 			name:      "nil manifest (backward compatibility)",
 			manifest:  nil,
-			wantMason: "nvim --headless -c \"MasonInstall",
+			wantMason: "mason-registry",
 			noMason:   "",
 			wantTS:    "nvim --headless -c \"lua require('nvim-treesitter').install",
 			noTS:      "",
@@ -1385,8 +1385,8 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 			// Check line-by-line to avoid false positives from user creation commands
 			lines := strings.Split(dockerfile, "\n")
 			for _, line := range lines {
-				if strings.Contains(line, "MasonInstall") && strings.Contains(line, "|| true") {
-					t.Errorf("MasonInstall should not use '|| true' fallback: %s", line)
+				if strings.Contains(line, "mason-install.lua") && strings.Contains(line, "|| true") {
+					t.Errorf("Mason install should not use '|| true' fallback: %s", line)
 				}
 				if strings.Contains(line, "nvim-treesitter") && strings.Contains(line, "|| true") {
 					t.Errorf("nvim-treesitter install should not use '|| true' fallback: %s", line)
@@ -2755,13 +2755,11 @@ func TestGetMasonToolsForLanguage_IncludesLinters(t *testing.T) {
 	}
 }
 
-// TestGetMasonToolsForLanguage_BaseToolsAlwaysPresent verifies that the MasonInstall
-// command in the generated Dockerfile always includes base Mason tools (lua_ls, stylua)
-// regardless of the workspace language. This tests the behavior of a future
-// getBaseMasonTools() method that installMasonTools() must call.
+// TestGetMasonToolsForLanguage_BaseToolsAlwaysPresent verifies that the Mason
+// install Lua script in the generated Dockerfile always includes base Mason tools
+// (lua-language-server, stylua) regardless of the workspace language.
 //
-// WI-4: MasonInstall must include lua_ls and stylua for all languages.
-// MUST FAIL against current code (lua_ls/stylua not included in MasonInstall output yet).
+// WI-4: Mason install must include lua-language-server and stylua for all languages.
 func TestGetMasonToolsForLanguage_BaseToolsAlwaysPresent(t *testing.T) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -2779,7 +2777,7 @@ func TestGetMasonToolsForLanguage_BaseToolsAlwaysPresent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create staging dir with nvim config so MasonInstall is generated
+			// Create staging dir with nvim config so Mason install is generated
 			repoName := "test-mason-base-" + tt.language
 			stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", repoName)
 			nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
@@ -2827,28 +2825,28 @@ func TestGetMasonToolsForLanguage_BaseToolsAlwaysPresent(t *testing.T) {
 				t.Fatalf("Generate() error = %v", err)
 			}
 
-			// Locate MasonInstall line
-			masonIdx := strings.Index(dockerfile, "MasonInstall")
-			if masonIdx < 0 {
-				t.Fatalf("[%s] Generate() missing MasonInstall command", tt.name)
+			// Locate the Lua tools list in the mason-install.lua heredoc
+			toolsIdx := strings.Index(dockerfile, "local tools = {")
+			if toolsIdx < 0 {
+				t.Fatalf("[%s] Generate() missing Mason Lua tools list", tt.name)
 			}
-			masonLineEnd := strings.Index(dockerfile[masonIdx:], "\n")
-			var masonLine string
-			if masonLineEnd > 0 {
-				masonLine = dockerfile[masonIdx : masonIdx+masonLineEnd]
+			toolsLineEnd := strings.Index(dockerfile[toolsIdx:], "\n")
+			var toolsLine string
+			if toolsLineEnd > 0 {
+				toolsLine = dockerfile[toolsIdx : toolsIdx+toolsLineEnd]
 			} else {
-				masonLine = dockerfile[masonIdx:]
+				toolsLine = dockerfile[toolsIdx:]
 			}
 
 			// MUST include base tools regardless of language
 			// WI-4: getBaseMasonTools() must be called by installMasonTools()
 			baseTools := []string{"lua-language-server", "stylua"}
 			for _, tool := range baseTools {
-				if !strings.Contains(masonLine, tool) {
-					t.Errorf("[%s] MasonInstall missing base tool %q.\n"+
-						"WI-4: Base tools (lua-language-server, stylua) must always be included in MasonInstall.\n"+
-						"MasonInstall line: %s",
-						tt.name, tool, masonLine)
+				if !strings.Contains(toolsLine, tool) {
+					t.Errorf("[%s] Mason install missing base tool %q.\n"+
+						"WI-4: Base tools (lua-language-server, stylua) must always be included.\n"+
+						"Tools line: %s",
+						tt.name, tool, toolsLine)
 				}
 			}
 		})
@@ -2856,11 +2854,10 @@ func TestGetMasonToolsForLanguage_BaseToolsAlwaysPresent(t *testing.T) {
 }
 
 // TestInstallMasonLSPs_IncludesBaseTools verifies that the installMasonTools() output
-// includes both language-specific LSPs AND base tools (lua_ls, stylua) in the
-// MasonInstall command for any language.
+// includes both language-specific LSPs AND base tools (lua-language-server, stylua) in the
+// Mason install Lua script for any language.
 //
-// WI-4: MasonInstall command must include base tools alongside language-specific tools.
-// MUST FAIL against current code (lua_ls/stylua not currently included in MasonInstall).
+// WI-4: Mason install must include base tools alongside language-specific tools.
 func TestInstallMasonLSPs_IncludesBaseTools(t *testing.T) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -2917,38 +2914,38 @@ func TestInstallMasonLSPs_IncludesBaseTools(t *testing.T) {
 		t.Fatalf("Generate() error = %v", err)
 	}
 
-	// Locate the MasonInstall command
-	masonIdx := strings.Index(dockerfile, "MasonInstall")
-	if masonIdx < 0 {
-		t.Fatalf("Generate() missing MasonInstall command — nvim section must be generated")
+	// Locate the Mason Lua tools list
+	toolsIdx := strings.Index(dockerfile, "local tools = {")
+	if toolsIdx < 0 {
+		t.Fatalf("Generate() missing Mason Lua tools list — nvim section must be generated")
 	}
 
-	// Extract just the MasonInstall line
-	masonLineEnd := strings.Index(dockerfile[masonIdx:], "\n")
-	var masonLine string
-	if masonLineEnd > 0 {
-		masonLine = dockerfile[masonIdx : masonIdx+masonLineEnd]
+	// Extract just the tools list line
+	toolsLineEnd := strings.Index(dockerfile[toolsIdx:], "\n")
+	var toolsLine string
+	if toolsLineEnd > 0 {
+		toolsLine = dockerfile[toolsIdx : toolsIdx+toolsLineEnd]
 	} else {
-		masonLine = dockerfile[masonIdx:]
+		toolsLine = dockerfile[toolsIdx:]
 	}
 
 	// MUST include language-specific tools for Python
 	pythonTools := []string{"pyright", "ruff-lsp", "black", "isort"}
 	for _, tool := range pythonTools {
-		if !strings.Contains(masonLine, tool) {
-			t.Errorf("MasonInstall command missing Python tool %q.\n"+
-				"WI-4: Language tools must be included in MasonInstall.\n"+
-				"MasonInstall line: %s", tool, masonLine)
+		if !strings.Contains(toolsLine, tool) {
+			t.Errorf("Mason install missing Python tool %q.\n"+
+				"WI-4: Language tools must be included in Mason install.\n"+
+				"Tools line: %s", tool, toolsLine)
 		}
 	}
 
 	// MUST include base tools (lua-language-server, stylua) alongside language-specific tools
 	baseTools := []string{"lua-language-server", "stylua"}
 	for _, tool := range baseTools {
-		if !strings.Contains(masonLine, tool) {
-			t.Errorf("MasonInstall command missing base tool %q.\n"+
-				"WI-4: Base tools (lua-language-server, stylua) must always be included in MasonInstall.\n"+
-				"MasonInstall line: %s", tool, masonLine)
+		if !strings.Contains(toolsLine, tool) {
+			t.Errorf("Mason install missing base tool %q.\n"+
+				"WI-4: Base tools (lua-language-server, stylua) must always be included.\n"+
+				"Tools line: %s", tool, toolsLine)
 		}
 	}
 }
@@ -4399,17 +4396,14 @@ func TestDockerfileGenerator_LazySyncStep_ProxyUnsetPrefix(t *testing.T) {
 }
 
 // TestDockerfileGenerator_MasonInstallStep_ProxyUnsetPrefix verifies that the
-// `nvim --headless -c "MasonInstall ..."` RUN command in installMasonTools() is
-// prefixed with `unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy
-// NPM_CONFIG_REGISTRY npm_config_registry &&` before the nvim invocation.
+// Mason install RUN command in installMasonTools() is prefixed with
+// `unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY
+// npm_config_registry &&` before the nvim invocation.
 //
 // Without the prefix, Mason internally spawns `npm install` for npm-based
 // packages (pyright, typescript-language-server, etc.) which inherit the
 // NPM_CONFIG_REGISTRY ARG pointing at an unreachable Verdaccio proxy, causing
 // 503 errors at build time.
-//
-// Phase 2 failing test for Issue #147 — fix NOT yet implemented.
-// MUST FAIL against current code (line 1254 has no unset prefix).
 func TestDockerfileGenerator_MasonInstallStep_ProxyUnsetPrefix(t *testing.T) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -4490,18 +4484,20 @@ func TestDockerfileGenerator_MasonInstallStep_ProxyUnsetPrefix(t *testing.T) {
 				t.Fatalf("Generate() error = %v", err)
 			}
 
-			// Verify the MasonInstall command is present at all
-			if !strings.Contains(dockerfile, "MasonInstall") {
-				t.Fatalf("Generate() missing 'MasonInstall' command — test requires it to be present for language=%s", tt.language)
+			// Verify the Mason install Lua script is present at all
+			if !strings.Contains(dockerfile, "mason-registry") {
+				t.Fatalf("Generate() missing 'mason-registry' Lua script — test requires it to be present for language=%s", tt.language)
 			}
 
-			// MUST have: unset prefix on the RUN containing "MasonInstall"
+			// MUST have: unset prefix on the RUN containing the Mason install
 			// Expected form:
 			//   RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \
-			//       nvim --headless -c "MasonInstall ..." -c "sleep 60" -c "qa" 2>&1
-			masonIdx := strings.Index(dockerfile, "MasonInstall")
+			//       cat > /tmp/mason-install.lua << 'LUAEOF'
+			//       ...
+			//       nvim --headless +"luafile /tmp/mason-install.lua" +qa 2>&1
+			masonIdx := strings.Index(dockerfile, "mason-registry")
 			if masonIdx < 0 {
-				t.Fatalf("cannot locate 'MasonInstall' in generated Dockerfile")
+				t.Fatalf("cannot locate 'mason-registry' in generated Dockerfile")
 			}
 
 			// Look back up to 300 characters before the command for the unset prefix
@@ -4509,12 +4505,12 @@ func TestDockerfileGenerator_MasonInstallStep_ProxyUnsetPrefix(t *testing.T) {
 			if lookbackStart < 0 {
 				lookbackStart = 0
 			}
-			context := dockerfile[lookbackStart : masonIdx+len("MasonInstall")]
+			context := dockerfile[lookbackStart : masonIdx+len("mason-registry")]
 
-			// Find the last RUN keyword before the MasonInstall command
+			// Find the last RUN keyword before the Mason install command
 			lastRunIdx := strings.LastIndex(context, "RUN ")
 			if lastRunIdx < 0 {
-				t.Fatalf("no RUN keyword found before 'MasonInstall' in context:\n%s", context)
+				t.Fatalf("no RUN keyword found before 'mason-registry' in context:\n%s", context)
 			}
 			runBlock := context[lastRunIdx:]
 
@@ -4523,7 +4519,7 @@ func TestDockerfileGenerator_MasonInstallStep_ProxyUnsetPrefix(t *testing.T) {
 			}
 			for _, want := range requiredUnsets {
 				if !strings.Contains(runBlock, want) {
-					t.Errorf("[%s] MasonInstall RUN command missing proxy-unset prefix: %q\n"+
+					t.Errorf("[%s] Mason install RUN command missing proxy-unset prefix: %q\n"+
 						"Mason spawns 'npm install' internally for npm-based packages (pyright, tsserver, etc.).\n"+
 						"Those subprocesses inherit NPM_CONFIG_REGISTRY/HTTP_PROXY ARG values that point at\n"+
 						"unreachable host.docker.internal registries, causing 503 failures at build time.\n"+
@@ -4671,5 +4667,759 @@ func TestDockerfileGenerator_TreesitterInstallStep_ProxyUnsetPrefix(t *testing.T
 				}
 			}
 		})
+	}
+}
+
+// =============================================================================
+// Issue #31: Mason install reliability + extensibility tests
+// =============================================================================
+
+// TestInstallMasonTools_SynchronousLuaScript verifies that installMasonTools()
+// generates a synchronous Lua-based install using mason-registry and vim.wait()
+// instead of the old unreliable `MasonInstall ... sleep 60` pattern.
+func TestInstallMasonTools_SynchronousLuaScript(t *testing.T) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("failed to get home dir: %v", err)
+	}
+
+	repoName := "test-mason-sync-lua"
+	stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", repoName)
+	nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
+	if err := os.MkdirAll(nvimConfigPath, 0755); err != nil {
+		t.Fatalf("failed to create nvim config dir: %v", err)
+	}
+	defer os.RemoveAll(stagingDir)
+
+	initLuaPath := filepath.Join(nvimConfigPath, "init.lua")
+	if err := os.WriteFile(initLuaPath, []byte("-- test"), 0644); err != nil {
+		t.Fatalf("failed to create init.lua: %v", err)
+	}
+
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{
+		Nvim: models.NvimConfig{
+			Structure: "custom",
+		},
+	}
+
+	manifest := &plugin.PluginManifest{
+		Features: plugin.PluginFeatures{
+			HasMason:      true,
+			HasTreesitter: false,
+		},
+	}
+
+	sourcePath := filepath.Join("/tmp", "dvm-clone-xyz", repoName)
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "python",
+		Version:       "3.11",
+		AppPath:       sourcePath,
+		PathConfig:    paths.New(homeDir),
+	})
+	gen.SetPluginManifest(manifest)
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// MUST contain synchronous Lua-based install markers
+	requiredStrings := []string{
+		"mason-registry",
+		"vim.wait(",
+		"registry.refresh()",
+		"pkg:install()",
+		"pkg:is_installed()",
+		"mason-install.lua",
+		"luafile /tmp/mason-install.lua",
+	}
+	for _, want := range requiredStrings {
+		if !strings.Contains(dockerfile, want) {
+			t.Errorf("Mason install missing required content %q.\n"+
+				"Issue #31: Must use synchronous Lua-based install with mason-registry and vim.wait().",
+				want)
+		}
+	}
+
+	// MUST NOT contain the old unreliable pattern
+	forbiddenStrings := []string{
+		"sleep 60",
+		"MasonInstall",
+	}
+	for _, bad := range forbiddenStrings {
+		if strings.Contains(dockerfile, bad) {
+			t.Errorf("Mason install still contains old unreliable pattern %q.\n"+
+				"Issue #31: Replace 'MasonInstall + sleep 60' with synchronous Lua-based install.",
+				bad)
+		}
+	}
+}
+
+// TestGetMasonToolsForLanguage_AllLanguages is a table-driven test verifying the
+// exact Mason tool list for every supported language, including the expanded
+// ruby (rubocop) and java (google-java-format) lists.
+func TestGetMasonToolsForLanguage_AllLanguages(t *testing.T) {
+	tests := []struct {
+		name      string
+		language  string
+		wantTools []string
+	}{
+		{
+			name:     "python",
+			language: "python",
+			wantTools: []string{
+				"pyright", "ruff-lsp", "black", "isort", "pylint",
+			},
+		},
+		{
+			name:     "golang",
+			language: "golang",
+			wantTools: []string{
+				"gopls", "golangci-lint-langserver", "goimports",
+			},
+		},
+		{
+			name:     "nodejs",
+			language: "nodejs",
+			wantTools: []string{
+				"typescript-language-server", "eslint-lsp", "prettier",
+			},
+		},
+		{
+			name:     "rust",
+			language: "rust",
+			wantTools: []string{
+				"rust-analyzer",
+			},
+		},
+		{
+			name:     "ruby includes rubocop",
+			language: "ruby",
+			wantTools: []string{
+				"solargraph", "rubocop",
+			},
+		},
+		{
+			name:     "java includes google-java-format",
+			language: "java",
+			wantTools: []string{
+				"jdtls", "google-java-format",
+			},
+		},
+		{
+			name:     "gleam",
+			language: "gleam",
+			wantTools: []string{
+				"gleam",
+			},
+		},
+		{
+			name:      "unknown language returns empty",
+			language:  "cobol",
+			wantTools: []string{},
+		},
+		{
+			name:      "empty language returns empty",
+			language:  "",
+			wantTools: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws := &models.Workspace{
+				ID:        1,
+				Name:      "test-ws",
+				ImageName: "test:latest",
+			}
+			wsYAML := models.WorkspaceSpec{}
+
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: wsYAML,
+				Language:      tt.language,
+				AppPath:       "/tmp/test",
+				PathConfig:    paths.New(t.TempDir()),
+			})
+
+			impl := gen.(*DefaultDockerfileGenerator)
+			tools := impl.getMasonToolsForLanguage()
+
+			// Verify exact length for non-empty expected lists
+			if len(tt.wantTools) > 0 && len(tools) != len(tt.wantTools) {
+				t.Errorf("[%s] getMasonToolsForLanguage() returned %d tools, want %d.\n"+
+					"Got: %v\nWant: %v",
+					tt.name, len(tools), len(tt.wantTools), tools, tt.wantTools)
+			}
+
+			// Verify all expected tools are present
+			toolSet := make(map[string]bool, len(tools))
+			for _, tool := range tools {
+				toolSet[tool] = true
+			}
+			for _, want := range tt.wantTools {
+				if !toolSet[want] {
+					t.Errorf("[%s] getMasonToolsForLanguage() missing %q.\n"+
+						"Got tools: %v", tt.name, want, tools)
+				}
+			}
+
+			// For unknown/empty language, verify empty result
+			if len(tt.wantTools) == 0 && len(tools) != 0 {
+				t.Errorf("[%s] getMasonToolsForLanguage() should return empty for unknown language.\n"+
+					"Got tools: %v", tt.name, tools)
+			}
+		})
+	}
+}
+
+// TestInstallMasonTools_ExtraToolsFromConfig verifies that user-configured
+// ExtraMasonTools from the workspace YAML are appended to the Mason install.
+func TestInstallMasonTools_ExtraToolsFromConfig(t *testing.T) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("failed to get home dir: %v", err)
+	}
+
+	repoName := "test-mason-extra-tools"
+	stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", repoName)
+	nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
+	if err := os.MkdirAll(nvimConfigPath, 0755); err != nil {
+		t.Fatalf("failed to create nvim config dir: %v", err)
+	}
+	defer os.RemoveAll(stagingDir)
+
+	initLuaPath := filepath.Join(nvimConfigPath, "init.lua")
+	if err := os.WriteFile(initLuaPath, []byte("-- test"), 0644); err != nil {
+		t.Fatalf("failed to create init.lua: %v", err)
+	}
+
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{
+		Nvim: models.NvimConfig{
+			Structure:       "custom",
+			ExtraMasonTools: []string{"shellcheck", "shfmt"},
+		},
+	}
+
+	manifest := &plugin.PluginManifest{
+		Features: plugin.PluginFeatures{
+			HasMason:      true,
+			HasTreesitter: false,
+		},
+	}
+
+	sourcePath := filepath.Join("/tmp", "dvm-clone-xyz", repoName)
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "python",
+		Version:       "3.11",
+		AppPath:       sourcePath,
+		PathConfig:    paths.New(homeDir),
+	})
+	gen.SetPluginManifest(manifest)
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// Locate the Lua tools list
+	toolsIdx := strings.Index(dockerfile, "local tools = {")
+	if toolsIdx < 0 {
+		t.Fatalf("Generate() missing Mason Lua tools list")
+	}
+	toolsLineEnd := strings.Index(dockerfile[toolsIdx:], "\n")
+	var toolsLine string
+	if toolsLineEnd > 0 {
+		toolsLine = dockerfile[toolsIdx : toolsIdx+toolsLineEnd]
+	} else {
+		toolsLine = dockerfile[toolsIdx:]
+	}
+
+	// Extra tools must appear in the Lua tools list
+	extraTools := []string{"shellcheck", "shfmt"}
+	for _, tool := range extraTools {
+		if !strings.Contains(toolsLine, tool) {
+			t.Errorf("Mason install missing extra tool %q from ExtraMasonTools config.\n"+
+				"Issue #31: ExtraMasonTools from workspace YAML must be appended to Mason install.\n"+
+				"Tools line: %s", tool, toolsLine)
+		}
+	}
+
+	// Base tools must still be present
+	baseTools := []string{"lua-language-server", "stylua"}
+	for _, tool := range baseTools {
+		if !strings.Contains(toolsLine, tool) {
+			t.Errorf("Mason install missing base tool %q when extra tools are configured.\n"+
+				"Tools line: %s", tool, toolsLine)
+		}
+	}
+
+	// Language tools must still be present
+	langTools := []string{"pyright", "ruff-lsp"}
+	for _, tool := range langTools {
+		if !strings.Contains(toolsLine, tool) {
+			t.Errorf("Mason install missing language tool %q when extra tools are configured.\n"+
+				"Tools line: %s", tool, toolsLine)
+		}
+	}
+}
+
+// TestInstallMasonTools_RubyIncludesRubocop verifies ruby language
+// tools include rubocop in the generated Dockerfile.
+func TestInstallMasonTools_RubyIncludesRubocop(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "ruby",
+		AppPath:       "/tmp/test",
+		PathConfig:    paths.New(t.TempDir()),
+	})
+
+	impl := gen.(*DefaultDockerfileGenerator)
+	tools := impl.getMasonToolsForLanguage()
+
+	toolSet := make(map[string]bool, len(tools))
+	for _, tool := range tools {
+		toolSet[tool] = true
+	}
+
+	if !toolSet["solargraph"] {
+		t.Errorf("Ruby tools missing 'solargraph'. Got: %v", tools)
+	}
+	if !toolSet["rubocop"] {
+		t.Errorf("Ruby tools missing 'rubocop'.\n"+
+			"Issue #31: Ruby language tools must include rubocop.\n"+
+			"Got: %v", tools)
+	}
+}
+
+// =============================================================================
+// Issue #32: Treesitter parsers — extensibility, error handling, format tests
+// =============================================================================
+
+// TestGetTreesitterParsersForLanguage_AllLanguages verifies that each supported
+// language returns the correct set of Treesitter parsers (base + language-specific),
+// and that an unknown/empty language returns only base parsers.
+func TestGetTreesitterParsersForLanguage_AllLanguages(t *testing.T) {
+	baseParsers := []string{"lua", "vim", "vimdoc", "query", "markdown", "markdown_inline", "bash", "json", "yaml"}
+
+	tests := []struct {
+		name             string
+		language         string
+		wantLangSpecific []string
+		wantNotPresent   []string
+	}{
+		{
+			name:             "python includes python and toml",
+			language:         "python",
+			wantLangSpecific: []string{"python", "toml", "dockerfile", "gitignore"},
+		},
+		{
+			name:             "golang includes go, gomod, gosum, gowork",
+			language:         "golang",
+			wantLangSpecific: []string{"go", "gomod", "gosum", "gowork", "dockerfile", "gitignore"},
+		},
+		{
+			name:             "nodejs includes javascript, typescript, tsx, html, css",
+			language:         "nodejs",
+			wantLangSpecific: []string{"javascript", "typescript", "tsx", "html", "css", "dockerfile", "gitignore"},
+		},
+		{
+			name:             "rust includes rust and toml",
+			language:         "rust",
+			wantLangSpecific: []string{"rust", "toml", "dockerfile", "gitignore"},
+		},
+		{
+			name:             "ruby includes ruby",
+			language:         "ruby",
+			wantLangSpecific: []string{"ruby", "dockerfile", "gitignore"},
+		},
+		{
+			name:             "java includes java and xml",
+			language:         "java",
+			wantLangSpecific: []string{"java", "xml", "dockerfile", "gitignore"},
+		},
+		{
+			name:             "gleam includes gleam, erlang, elixir, toml",
+			language:         "gleam",
+			wantLangSpecific: []string{"gleam", "erlang", "elixir", "toml", "dockerfile", "gitignore"},
+		},
+		{
+			name:             "unknown language returns only base parsers",
+			language:         "unknown",
+			wantLangSpecific: nil,
+			wantNotPresent:   []string{"python", "go", "javascript", "rust", "ruby", "java", "gleam"},
+		},
+		{
+			name:             "empty language returns only base parsers",
+			language:         "",
+			wantLangSpecific: nil,
+			wantNotPresent:   []string{"python", "go", "javascript", "rust", "ruby", "java", "gleam"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws := &models.Workspace{
+				ID:        1,
+				Name:      "test-ws",
+				ImageName: "test:latest",
+			}
+			wsYAML := models.WorkspaceSpec{}
+
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: wsYAML,
+				Language:      tt.language,
+				AppPath:       "/tmp/test",
+				PathConfig:    paths.New(t.TempDir()),
+			})
+
+			impl := gen.(*DefaultDockerfileGenerator)
+			parsers := impl.getTreesitterParsersForLanguage()
+
+			parserSet := make(map[string]bool, len(parsers))
+			for _, p := range parsers {
+				parserSet[p] = true
+			}
+
+			// Verify all base parsers are always present
+			for _, base := range baseParsers {
+				if !parserSet[base] {
+					t.Errorf("base parser %q missing for language=%q. Got: %v", base, tt.language, parsers)
+				}
+			}
+
+			// Verify language-specific parsers are present
+			for _, lang := range tt.wantLangSpecific {
+				if !parserSet[lang] {
+					t.Errorf("language-specific parser %q missing for language=%q. Got: %v", lang, tt.language, parsers)
+				}
+			}
+
+			// Verify unwanted parsers are NOT present
+			for _, notWant := range tt.wantNotPresent {
+				if parserSet[notWant] {
+					t.Errorf("parser %q should NOT be present for language=%q. Got: %v", notWant, tt.language, parsers)
+				}
+			}
+		})
+	}
+}
+
+// TestInstallTreesitterParsers_ExtraParsersFromConfig verifies that
+// ExtraTreesitterParsers from the workspace config are appended to the
+// parser list in the generated Dockerfile.
+func TestInstallTreesitterParsers_ExtraParsersFromConfig(t *testing.T) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("failed to get home dir: %v", err)
+	}
+
+	repoName := "test-ts-extra-parsers"
+	stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", repoName)
+	nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
+	if err := os.MkdirAll(nvimConfigPath, 0755); err != nil {
+		t.Fatalf("failed to create nvim config dir: %v", err)
+	}
+	defer os.RemoveAll(stagingDir)
+
+	initLuaPath := filepath.Join(nvimConfigPath, "init.lua")
+	if err := os.WriteFile(initLuaPath, []byte("-- test"), 0644); err != nil {
+		t.Fatalf("failed to create init.lua: %v", err)
+	}
+
+	sourcePath := filepath.Join("/tmp", "dvm-clone-xyz", repoName)
+
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{
+		Nvim: models.NvimConfig{
+			Structure:              "custom",
+			ExtraTreesitterParsers: []string{"hcl", "terraform"},
+		},
+	}
+
+	manifest := &plugin.PluginManifest{
+		Features: plugin.PluginFeatures{
+			HasMason:      false,
+			HasTreesitter: true,
+		},
+	}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "golang",
+		Version:       "1.22",
+		AppPath:       sourcePath,
+		PathConfig:    paths.New(homeDir),
+	})
+	gen.SetPluginManifest(manifest)
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// Verify extra parsers appear in the treesitter install command
+	for _, parser := range []string{"hcl", "terraform"} {
+		if !strings.Contains(dockerfile, "'"+parser+"'") {
+			t.Errorf("extra parser %q not found in generated Dockerfile treesitter install command", parser)
+		}
+	}
+
+	// Also verify language-specific parsers are still present
+	for _, parser := range []string{"go", "gomod"} {
+		if !strings.Contains(dockerfile, "'"+parser+"'") {
+			t.Errorf("language parser %q should still be present alongside extra parsers", parser)
+		}
+	}
+}
+
+// TestInstallTreesitterParsers_ErrorHandling verifies that the generated
+// treesitter install command includes error capture (tee + || exit 1) so
+// that parser compilation failures cause the Docker build to fail.
+func TestInstallTreesitterParsers_ErrorHandling(t *testing.T) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("failed to get home dir: %v", err)
+	}
+
+	repoName := "test-ts-error-handling"
+	stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", repoName)
+	nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
+	if err := os.MkdirAll(nvimConfigPath, 0755); err != nil {
+		t.Fatalf("failed to create nvim config dir: %v", err)
+	}
+	defer os.RemoveAll(stagingDir)
+
+	initLuaPath := filepath.Join(nvimConfigPath, "init.lua")
+	if err := os.WriteFile(initLuaPath, []byte("-- test"), 0644); err != nil {
+		t.Fatalf("failed to create init.lua: %v", err)
+	}
+
+	sourcePath := filepath.Join("/tmp", "dvm-clone-xyz", repoName)
+
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{
+		Nvim: models.NvimConfig{
+			Structure: "custom",
+		},
+	}
+
+	manifest := &plugin.PluginManifest{
+		Features: plugin.PluginFeatures{
+			HasMason:      false,
+			HasTreesitter: true,
+		},
+	}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "python",
+		Version:       "3.11",
+		AppPath:       sourcePath,
+		PathConfig:    paths.New(homeDir),
+	})
+	gen.SetPluginManifest(manifest)
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// Find the treesitter section
+	tsIdx := strings.Index(dockerfile, "nvim-treesitter")
+	if tsIdx < 0 {
+		t.Fatalf("treesitter install command not found in Dockerfile")
+	}
+
+	// Extract context around the treesitter install command
+	lookbackStart := tsIdx - 200
+	if lookbackStart < 0 {
+		lookbackStart = 0
+	}
+	lookForwardEnd := tsIdx + 500
+	if lookForwardEnd > len(dockerfile) {
+		lookForwardEnd = len(dockerfile)
+	}
+	context := dockerfile[lookbackStart:lookForwardEnd]
+
+	// Verify tee pattern for log capture
+	if !strings.Contains(context, "tee /tmp/treesitter-install.log") {
+		t.Errorf("treesitter install command missing 'tee /tmp/treesitter-install.log' for error capture.\n"+
+			"Context:\n%s", context)
+	}
+
+	// Verify exit 1 on failure
+	if !strings.Contains(context, "exit 1") {
+		t.Errorf("treesitter install command missing 'exit 1' failure handler.\n"+
+			"Context:\n%s", context)
+	}
+
+	// Verify cat of log on failure
+	if !strings.Contains(context, "cat /tmp/treesitter-install.log") {
+		t.Errorf("treesitter install command missing 'cat /tmp/treesitter-install.log' for error output.\n"+
+			"Context:\n%s", context)
+	}
+}
+
+// TestInstallTreesitterParsers_OutputFormat verifies the Lua command format
+// uses the correct nvim-treesitter API: require('nvim-treesitter').install({...}):wait()
+// and that parsers are properly quoted in Lua syntax.
+func TestInstallTreesitterParsers_OutputFormat(t *testing.T) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("failed to get home dir: %v", err)
+	}
+
+	repoName := "test-ts-output-format"
+	stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", repoName)
+	nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
+	if err := os.MkdirAll(nvimConfigPath, 0755); err != nil {
+		t.Fatalf("failed to create nvim config dir: %v", err)
+	}
+	defer os.RemoveAll(stagingDir)
+
+	initLuaPath := filepath.Join(nvimConfigPath, "init.lua")
+	if err := os.WriteFile(initLuaPath, []byte("-- test"), 0644); err != nil {
+		t.Fatalf("failed to create init.lua: %v", err)
+	}
+
+	sourcePath := filepath.Join("/tmp", "dvm-clone-xyz", repoName)
+
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{
+		Nvim: models.NvimConfig{
+			Structure: "custom",
+		},
+	}
+
+	manifest := &plugin.PluginManifest{
+		Features: plugin.PluginFeatures{
+			HasMason:      false,
+			HasTreesitter: true,
+		},
+	}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "python",
+		Version:       "3.11",
+		AppPath:       sourcePath,
+		PathConfig:    paths.New(homeDir),
+	})
+	gen.SetPluginManifest(manifest)
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// Verify the Lua API format: require('nvim-treesitter').install({...}):wait()
+	if !strings.Contains(dockerfile, "require('nvim-treesitter').install(") {
+		t.Error("treesitter command missing require('nvim-treesitter').install() API call")
+	}
+	if !strings.Contains(dockerfile, ":wait()") {
+		t.Error("treesitter command missing :wait() for synchronous installation")
+	}
+
+	// Verify parsers are properly single-quoted in Lua syntax
+	// For python, we expect at minimum: 'lua', 'python'
+	for _, parser := range []string{"lua", "python"} {
+		expected := "'" + parser + "'"
+		if !strings.Contains(dockerfile, expected) {
+			t.Errorf("parser %q not properly quoted in Lua syntax (expected %s)", parser, expected)
+		}
+	}
+
+	// Verify the parsers are inside curly braces for Lua table syntax
+	tsIdx := strings.Index(dockerfile, "nvim-treesitter")
+	if tsIdx < 0 {
+		t.Fatalf("treesitter install command not found")
+	}
+	lookForwardEnd := tsIdx + 500
+	if lookForwardEnd > len(dockerfile) {
+		lookForwardEnd = len(dockerfile)
+	}
+	context := dockerfile[tsIdx:lookForwardEnd]
+	if !strings.Contains(context, ".install({") {
+		t.Error("parsers not enclosed in Lua table syntax ({...})")
+	}
+	if !strings.Contains(context, "}):wait()") {
+		t.Error("Lua table not properly closed before :wait()")
+	}
+}
+
+// TestInstallMasonTools_JavaIncludesGoogleJavaFormat verifies java language
+// tools include google-java-format in the generated Dockerfile.
+func TestInstallMasonTools_JavaIncludesGoogleJavaFormat(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "java",
+		AppPath:       "/tmp/test",
+		PathConfig:    paths.New(t.TempDir()),
+	})
+
+	impl := gen.(*DefaultDockerfileGenerator)
+	tools := impl.getMasonToolsForLanguage()
+
+	toolSet := make(map[string]bool, len(tools))
+	for _, tool := range tools {
+		toolSet[tool] = true
+	}
+
+	if !toolSet["jdtls"] {
+		t.Errorf("Java tools missing 'jdtls'. Got: %v", tools)
+	}
+	if !toolSet["google-java-format"] {
+		t.Errorf("Java tools missing 'google-java-format'.\n"+
+			"Issue #31: Java language tools must include google-java-format.\n"+
+			"Got: %v", tools)
 	}
 }

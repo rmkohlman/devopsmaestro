@@ -173,12 +173,14 @@ type ShellConfig struct {
 
 // NvimConfig defines Neovim configuration
 type NvimConfig struct {
-	Structure     string   `yaml:"structure"`               // lazyvim, custom, nvchad, astronvim
-	Theme         string   `yaml:"theme,omitempty"`         // Theme name (e.g., "tokyonight-night", "catppuccin-mocha")
-	PluginPackage string   `yaml:"pluginPackage,omitempty"` // Reference to a plugin package by name (e.g., "go-dev")
-	Plugins       []string `yaml:"plugins,omitempty"`       // List of plugin names (references to DB)
-	MergeMode     string   `yaml:"mergeMode,omitempty"`     // How to merge package + plugins: "append" (default), "replace"
-	CustomConfig  string   `yaml:"customConfig,omitempty"`  // Raw Lua config
+	Structure              string   `yaml:"structure"`                        // lazyvim, custom, nvchad, astronvim
+	Theme                  string   `yaml:"theme,omitempty"`                  // Theme name (e.g., "tokyonight-night", "catppuccin-mocha")
+	PluginPackage          string   `yaml:"pluginPackage,omitempty"`          // Reference to a plugin package by name (e.g., "go-dev")
+	Plugins                []string `yaml:"plugins,omitempty"`                // List of plugin names (references to DB)
+	MergeMode              string   `yaml:"mergeMode,omitempty"`              // How to merge package + plugins: "append" (default), "replace"
+	CustomConfig           string   `yaml:"customConfig,omitempty"`           // Raw Lua config
+	ExtraMasonTools        []string `yaml:"extraMasonTools,omitempty"`        // Additional Mason tools to install at build time
+	ExtraTreesitterParsers []string `yaml:"extraTreesitterParsers,omitempty"` // Additional Treesitter parsers to install at build time
 }
 
 // MountConfig defines a container mount

@@ -1225,9 +1225,9 @@ func (g *DefaultDockerfileGenerator) getMasonToolsForLanguage() []string {
 	case "rust":
 		return []string{"rust-analyzer"}
 	case "ruby":
-		return []string{"solargraph"}
+		return []string{"solargraph", "rubocop"}
 	case "java":
-		return []string{"jdtls"}
+		return []string{"jdtls", "google-java-format"}
 	case "gleam":
 		return []string{"gleam"} // Gleam LSP is installed via Mason
 	default:
@@ -1241,7 +1241,9 @@ func (g *DefaultDockerfileGenerator) getBaseMasonTools() []string {
 	return []string{"lua-language-server", "stylua"}
 }
 
-// installMasonTools installs language servers, linters, and formatters via Mason at build time
+// installMasonTools installs language servers, linters, and formatters via Mason at build time.
+// Uses synchronous Lua-based install with mason-registry and vim.wait() to ensure
+// all tools are fully installed before the build layer completes.
 func (g *DefaultDockerfileGenerator) installMasonTools(dockerfile *strings.Builder) {
 	// Check if Mason is installed via manifest
 	if g.pluginManifest != nil && !g.pluginManifest.Features.HasMason {
@@ -1252,14 +1254,42 @@ func (g *DefaultDockerfileGenerator) installMasonTools(dockerfile *strings.Build
 	// Merge base tools (always installed) with language-specific tools
 	tools := g.getBaseMasonTools()
 	tools = append(tools, g.getMasonToolsForLanguage()...)
+
+	// Append user-configured extra tools
+	if g.workspaceYAML.Nvim.ExtraMasonTools != nil {
+		tools = append(tools, g.workspaceYAML.Nvim.ExtraMasonTools...)
+	}
+
 	if len(tools) == 0 {
 		return
 	}
 
+	// Build Lua tool list string: 'tool1','tool2',...
+	luaTools := "'" + strings.Join(tools, "','") + "'"
+
 	dockerfile.WriteString("# Install LSPs, linters, and formatters via Mason at build time\n")
-	toolList := strings.Join(tools, " ")
 	dockerfile.WriteString("RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \\\n")
-	dockerfile.WriteString(fmt.Sprintf("    nvim --headless -c \"MasonInstall %s\" -c \"sleep 60\" -c \"qa\" 2>&1\n\n", toolList))
+	dockerfile.WriteString("    cat > /tmp/mason-install.lua << 'LUAEOF'\n")
+	dockerfile.WriteString("local registry = require('mason-registry')\n")
+	dockerfile.WriteString("registry.refresh()\n")
+	dockerfile.WriteString(fmt.Sprintf("local tools = {%s}\n", luaTools))
+	dockerfile.WriteString("for _, name in ipairs(tools) do\n")
+	dockerfile.WriteString("  local ok, pkg = pcall(registry.get_package, name)\n")
+	dockerfile.WriteString("  if ok and not pkg:is_installed() then\n")
+	dockerfile.WriteString("    pkg:install()\n")
+	dockerfile.WriteString("  end\n")
+	dockerfile.WriteString("end\n")
+	dockerfile.WriteString("vim.wait(300000, function()\n")
+	dockerfile.WriteString("  local done = 0\n")
+	dockerfile.WriteString("  for _, name in ipairs(tools) do\n")
+	dockerfile.WriteString("    local ok, pkg = pcall(registry.get_package, name)\n")
+	dockerfile.WriteString("    if ok and pkg:is_installed() then done = done + 1 end\n")
+	dockerfile.WriteString("  end\n")
+	dockerfile.WriteString("  return done >= #tools\n")
+	dockerfile.WriteString("end, 1000)\n")
+	dockerfile.WriteString("LUAEOF\n")
+	dockerfile.WriteString("    nvim --headless +\"luafile /tmp/mason-install.lua\" +qa 2>&1 && \\\n")
+	dockerfile.WriteString("    rm -f /tmp/mason-install.lua\n\n")
 }
 
 // getTreesitterParsersForLanguage returns Treesitter parsers for the detected language
@@ -1296,6 +1326,12 @@ func (g *DefaultDockerfileGenerator) installTreesitterParsers(dockerfile *string
 	}
 
 	parsers := g.getTreesitterParsersForLanguage()
+
+	// Append user-configured extra parsers
+	if g.workspaceYAML.Nvim.ExtraTreesitterParsers != nil {
+		parsers = append(parsers, g.workspaceYAML.Nvim.ExtraTreesitterParsers...)
+	}
+
 	if len(parsers) == 0 {
 		return
 	}
@@ -1306,5 +1342,6 @@ func (g *DefaultDockerfileGenerator) installTreesitterParsers(dockerfile *string
 	// which blocks until parsers are fully compiled
 	luaParsers := "'" + strings.Join(parsers, "', '") + "'"
 	dockerfile.WriteString("RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \\\n")
-	dockerfile.WriteString(fmt.Sprintf("    nvim --headless -c \"lua require('nvim-treesitter').install({%s}):wait()\" -c \"qa\" 2>&1\n\n", luaParsers))
+	dockerfile.WriteString(fmt.Sprintf("    nvim --headless -c \"lua require('nvim-treesitter').install({%s}):wait()\" -c \"qa\" 2>&1 | tee /tmp/treesitter-install.log || \\\n", luaParsers))
+	dockerfile.WriteString("    (cat /tmp/treesitter-install.log && exit 1)\n\n")
 }
