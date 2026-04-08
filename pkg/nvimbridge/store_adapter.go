@@ -1,7 +1,12 @@
 // Package nvimbridge provides database adapters that bridge MaestroNvim types
 // with dvm's database layer (models, db packages).
-// This file implements a database adapter that bridges the store.PluginStore
+// This file implements a database adapter that bridges the NvimPluginStore
 // interface with the db.DataStore interface, enabling nvimops to use SQLite storage.
+//
+// The bridge defines its own interfaces and error types so it depends on
+// MaestroNvim only for data types (plugin.Plugin), not for store contracts.
+// This allows the nvim module's store layer to be swapped or updated without
+// breaking the bridge.
 package nvimbridge
 
 import (
@@ -11,8 +16,59 @@ import (
 	"devopsmaestro/models"
 
 	"github.com/rmkohlman/MaestroNvim/nvimops/plugin"
-	"github.com/rmkohlman/MaestroNvim/nvimops/store"
 )
+
+// ---------------------------------------------------------------------------
+// Bridge-local interfaces and error types
+// ---------------------------------------------------------------------------
+
+// NvimPluginStore defines the bridge-level interface for plugin storage
+// operations. It mirrors the method set of store.PluginStore from MaestroNvim
+// so that any type implementing NvimPluginStore also structurally satisfies
+// store.PluginStore, but the bridge does not import that package.
+type NvimPluginStore interface {
+	Create(p *plugin.Plugin) error
+	Update(p *plugin.Plugin) error
+	Upsert(p *plugin.Plugin) error
+	Delete(name string) error
+	Get(name string) (*plugin.Plugin, error)
+	List() ([]*plugin.Plugin, error)
+	ListByCategory(category string) ([]*plugin.Plugin, error)
+	ListByTag(tag string) ([]*plugin.Plugin, error)
+	Exists(name string) (bool, error)
+	Close() error
+}
+
+// ErrPluginNotFound is returned when a requested plugin does not exist.
+type ErrPluginNotFound struct {
+	Name string
+}
+
+func (e *ErrPluginNotFound) Error() string {
+	return "plugin not found: " + e.Name
+}
+
+// ErrPluginAlreadyExists is returned when attempting to create a plugin
+// that already exists.
+type ErrPluginAlreadyExists struct {
+	Name string
+}
+
+func (e *ErrPluginAlreadyExists) Error() string {
+	return "plugin already exists: " + e.Name
+}
+
+// IsPluginNotFound reports whether err is an ErrPluginNotFound.
+func IsPluginNotFound(err error) bool {
+	_, ok := err.(*ErrPluginNotFound)
+	return ok
+}
+
+// IsPluginAlreadyExists reports whether err is an ErrPluginAlreadyExists.
+func IsPluginAlreadyExists(err error) bool {
+	_, ok := err.(*ErrPluginAlreadyExists)
+	return ok
+}
 
 // PluginDataStore is a subset of db.DataStore containing only plugin operations.
 // This interface allows the adapter to work with any implementation that provides
@@ -40,7 +96,9 @@ type PluginDataStore interface {
 	ListPluginsByTags(tags []string) ([]*models.NvimPluginDB, error)
 }
 
-// PluginDBStoreAdapter adapts db.DataStore to implement store.PluginStore.
+// PluginDBStoreAdapter adapts db.DataStore to implement NvimPluginStore.
+// Because NvimPluginStore mirrors the upstream store.PluginStore method set,
+// the adapter also structurally satisfies store.PluginStore without importing it.
 // This enables nvimops.Manager to use SQLite storage via the DataStore interface,
 // providing a unified storage location for both nvp and dvm.
 type PluginDBStoreAdapter struct {
@@ -74,7 +132,7 @@ func (a *PluginDBStoreAdapter) Create(p *plugin.Plugin) error {
 	// Check if plugin already exists
 	_, err := a.store.GetPluginByName(p.Name)
 	if err == nil {
-		return &store.ErrAlreadyExists{Name: p.Name}
+		return &ErrPluginAlreadyExists{Name: p.Name}
 	}
 
 	dbPlugin := pluginToDBModel(p)
@@ -90,7 +148,7 @@ func (a *PluginDBStoreAdapter) Update(p *plugin.Plugin) error {
 	// Check if plugin exists
 	_, err := a.store.GetPluginByName(p.Name)
 	if err != nil {
-		return &store.ErrNotFound{Name: p.Name}
+		return &ErrPluginNotFound{Name: p.Name}
 	}
 
 	dbPlugin := pluginToDBModel(p)
@@ -122,7 +180,7 @@ func (a *PluginDBStoreAdapter) Delete(name string) error {
 	// Check if plugin exists first
 	_, err := a.store.GetPluginByName(name)
 	if err != nil {
-		return &store.ErrNotFound{Name: name}
+		return &ErrPluginNotFound{Name: name}
 	}
 
 	if err := a.store.DeletePlugin(name); err != nil {
@@ -140,7 +198,7 @@ func (a *PluginDBStoreAdapter) Get(name string) (*plugin.Plugin, error) {
 		// Cannot use db.IsNotFound() due to import cycle (nvimbridge cannot import db).
 		// All db methods now return *db.ErrNotFound whose Error() contains "not found".
 		if strings.Contains(err.Error(), "not found") {
-			return nil, &store.ErrNotFound{Name: name}
+			return nil, &ErrPluginNotFound{Name: name}
 		}
 		return nil, fmt.Errorf("failed to get plugin: %w", err)
 	}
@@ -214,5 +272,7 @@ func (a *PluginDBStoreAdapter) Close() error {
 	return nil
 }
 
-// Ensure PluginDBStoreAdapter implements store.PluginStore interface
-var _ store.PluginStore = (*PluginDBStoreAdapter)(nil)
+// Ensure PluginDBStoreAdapter implements NvimPluginStore at compile time.
+// Because NvimPluginStore has the same method set as store.PluginStore,
+// the adapter also structurally satisfies store.PluginStore without importing it.
+var _ NvimPluginStore = (*PluginDBStoreAdapter)(nil)

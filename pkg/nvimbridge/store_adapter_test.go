@@ -15,6 +15,11 @@ import (
 	_ "github.com/mattn/go-sqlite3" // SQLite driver for integration tests
 )
 
+// NOTE: The store import is retained only in tests to verify that the adapter
+// still structurally satisfies the upstream store.PluginStore interface and to
+// exercise cross-implementation swappability with store.NewMemoryStore.
+// Production code in this package no longer imports the store package.
+
 // =============================================================================
 // Mock Implementation of PluginDataStore
 // =============================================================================
@@ -129,9 +134,16 @@ func (m *MockPluginDataStore) Close() error {
 // Interface Compliance Tests
 // =============================================================================
 
-// TestPluginDBStoreAdapter_ImplementsPluginStore verifies that PluginDBStoreAdapter
-// satisfies the PluginStore interface at compile time.
-func TestPluginDBStoreAdapter_ImplementsPluginStore(t *testing.T) {
+// TestPluginDBStoreAdapter_ImplementsNvimPluginStore verifies that
+// PluginDBStoreAdapter satisfies the bridge-local NvimPluginStore interface.
+func TestPluginDBStoreAdapter_ImplementsNvimPluginStore(t *testing.T) {
+	var _ NvimPluginStore = (*PluginDBStoreAdapter)(nil)
+}
+
+// TestPluginDBStoreAdapter_StructurallySatisfiesUpstream verifies that the
+// adapter still structurally satisfies the upstream store.PluginStore without
+// the production code importing that package.
+func TestPluginDBStoreAdapter_StructurallySatisfiesUpstream(t *testing.T) {
 	var _ store.PluginStore = (*PluginDBStoreAdapter)(nil)
 }
 
@@ -178,8 +190,8 @@ func TestPluginDBStoreAdapter_Create(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error for duplicate create")
 	}
-	if !store.IsAlreadyExists(err) {
-		t.Errorf("Expected ErrAlreadyExists, got %T: %v", err, err)
+	if !IsPluginAlreadyExists(err) {
+		t.Errorf("Expected ErrPluginAlreadyExists, got %T: %v", err, err)
 	}
 }
 
@@ -214,8 +226,8 @@ func TestPluginDBStoreAdapter_Get(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error for non-existent plugin")
 	}
-	if !store.IsNotFound(err) {
-		t.Errorf("Expected ErrNotFound, got %T: %v", err, err)
+	if !IsPluginNotFound(err) {
+		t.Errorf("Expected ErrPluginNotFound, got %T: %v", err, err)
 	}
 }
 
@@ -254,8 +266,8 @@ func TestPluginDBStoreAdapter_Update(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error for non-existent plugin")
 	}
-	if !store.IsNotFound(err) {
-		t.Errorf("Expected ErrNotFound, got %T: %v", err, err)
+	if !IsPluginNotFound(err) {
+		t.Errorf("Expected ErrPluginNotFound, got %T: %v", err, err)
 	}
 }
 
@@ -314,8 +326,8 @@ func TestPluginDBStoreAdapter_Delete(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error for non-existent plugin")
 	}
-	if !store.IsNotFound(err) {
-		t.Errorf("Expected ErrNotFound, got %T: %v", err, err)
+	if !IsPluginNotFound(err) {
+		t.Errorf("Expected ErrPluginNotFound, got %T: %v", err, err)
 	}
 }
 
@@ -766,16 +778,16 @@ func TestConversion_Roundtrip(t *testing.T) {
 }
 
 // =============================================================================
-// Through Interface Tests (PluginStore interface)
+// Through Interface Tests (NvimPluginStore interface)
 // =============================================================================
 
-// TestPluginStore_ThroughInterface tests the PluginDBStoreAdapter through
-// the PluginStore interface to ensure polymorphism works correctly.
-func TestPluginStore_ThroughInterface(t *testing.T) {
+// TestNvimPluginStore_ThroughInterface tests the PluginDBStoreAdapter through
+// the bridge-local NvimPluginStore interface to ensure polymorphism works.
+func TestNvimPluginStore_ThroughInterface(t *testing.T) {
 	mock := NewMockPluginDataStore()
 
-	// Use through interface
-	var ps store.PluginStore = NewPluginDBStoreAdapter(mock)
+	// Use through bridge-local interface
+	var ps NvimPluginStore = NewPluginDBStoreAdapter(mock)
 
 	// Test Create through interface
 	p := &plugin.Plugin{
@@ -837,10 +849,11 @@ func TestPluginStore_ThroughInterface(t *testing.T) {
 }
 
 // TestPluginStore_Swappability verifies that the adapter can be swapped
-// with other PluginStore implementations (like MemoryStore).
+// with other NvimPluginStore implementations and also with upstream
+// store.PluginStore implementations like MemoryStore.
 func TestPluginStore_Swappability(t *testing.T) {
-	// Create a test function that works with any PluginStore
-	testStore := func(ps store.PluginStore, name string) {
+	// Create a test function that works with any NvimPluginStore
+	testLocalStore := func(ps NvimPluginStore, name string) {
 		p := &plugin.Plugin{
 			Name:    "test-plugin",
 			Repo:    "test/repo",
@@ -871,13 +884,69 @@ func TestPluginStore_Swappability(t *testing.T) {
 		ps.Close()
 	}
 
-	// Test with PluginDBStoreAdapter
+	// Test with PluginDBStoreAdapter through bridge-local interface
 	mock := NewMockPluginDataStore()
-	testStore(NewPluginDBStoreAdapter(mock), "PluginDBStoreAdapter")
+	testLocalStore(NewPluginDBStoreAdapter(mock), "PluginDBStoreAdapter")
 
-	// Test with MemoryStore (if available)
+	// Test upstream store.PluginStore compatibility: MemoryStore satisfies
+	// our NvimPluginStore because the method sets are identical.
 	memStore := store.NewMemoryStore()
-	testStore(memStore, "MemoryStore")
+	testLocalStore(memStore, "MemoryStore")
+}
+
+// =============================================================================
+// Bridge-Local Error Type Tests
+// =============================================================================
+
+func TestErrPluginNotFound_Message(t *testing.T) {
+	err := &ErrPluginNotFound{Name: "telescope"}
+	if err.Error() != "plugin not found: telescope" {
+		t.Errorf("unexpected error message: %s", err.Error())
+	}
+}
+
+func TestErrPluginAlreadyExists_Message(t *testing.T) {
+	err := &ErrPluginAlreadyExists{Name: "telescope"}
+	if err.Error() != "plugin already exists: telescope" {
+		t.Errorf("unexpected error message: %s", err.Error())
+	}
+}
+
+func TestIsPluginNotFound(t *testing.T) {
+	if !IsPluginNotFound(&ErrPluginNotFound{Name: "x"}) {
+		t.Error("IsPluginNotFound should return true for ErrPluginNotFound")
+	}
+	if IsPluginNotFound(fmt.Errorf("some error")) {
+		t.Error("IsPluginNotFound should return false for generic error")
+	}
+}
+
+func TestIsPluginAlreadyExists(t *testing.T) {
+	if !IsPluginAlreadyExists(&ErrPluginAlreadyExists{Name: "x"}) {
+		t.Error("IsPluginAlreadyExists should return true for ErrPluginAlreadyExists")
+	}
+	if IsPluginAlreadyExists(fmt.Errorf("some error")) {
+		t.Error("IsPluginAlreadyExists should return false for generic error")
+	}
+}
+
+// TestErrorCompatibility verifies that bridge-local error messages match the
+// upstream store error format so callers doing string-based error matching
+// (e.g., strings.Contains(err.Error(), "not found")) continue to work.
+func TestErrorCompatibility(t *testing.T) {
+	bridgeNotFound := &ErrPluginNotFound{Name: "telescope"}
+	upstreamNotFound := &store.ErrNotFound{Name: "telescope"}
+	if bridgeNotFound.Error() != upstreamNotFound.Error() {
+		t.Errorf("error message mismatch:\n  bridge:   %q\n  upstream: %q",
+			bridgeNotFound.Error(), upstreamNotFound.Error())
+	}
+
+	bridgeExists := &ErrPluginAlreadyExists{Name: "telescope"}
+	upstreamExists := &store.ErrAlreadyExists{Name: "telescope"}
+	if bridgeExists.Error() != upstreamExists.Error() {
+		t.Errorf("error message mismatch:\n  bridge:   %q\n  upstream: %q",
+			bridgeExists.Error(), upstreamExists.Error())
+	}
 }
 
 // =============================================================================
