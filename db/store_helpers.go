@@ -5,12 +5,12 @@ import (
 	"regexp"
 )
 
-// validLabelKeyPattern matches label keys that are safe for use in json_extract paths.
+// validLabelKeyPattern matches label keys that are safe for use in JSON extract paths.
 // Only allows alphanumeric characters, hyphens, underscores, and dots.
 var validLabelKeyPattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
 // validateLabelKey checks that a label key contains only safe characters for
-// use in SQL json_extract() paths. This prevents SQL injection via crafted keys.
+// use in SQL JSON extraction queries. This prevents SQL injection via crafted keys.
 func validateLabelKey(key string) error {
 	if key == "" {
 		return fmt.Errorf("label key must not be empty")
@@ -19,6 +19,17 @@ func validateLabelKey(key string) error {
 		return fmt.Errorf("label key %q contains invalid characters: only alphanumeric, hyphens, underscores, and dots are allowed", key)
 	}
 	return nil
+}
+
+// jsonExtractEqualsArgs builds the bind arguments for QueryBuilder.JSONExtractEquals.
+// SQLite needs (key, value, key, value); PostgreSQL needs (key, value).
+func jsonExtractEqualsArgs(qb QueryBuilder, key, value string) []interface{} {
+	n := qb.JSONExtractEqualsArgs()
+	if n == 2 {
+		return []interface{}{key, value}
+	}
+	// SQLite fallback: 4 args (key, value for json_extract; key, value for LIKE)
+	return []interface{}{key, value, key, value}
 }
 
 // deleteByName removes a row from the given table where name matches.

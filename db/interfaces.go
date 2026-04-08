@@ -269,6 +269,23 @@ type QueryBuilder interface {
 	// LimitOffset returns the SQL clause for pagination.
 	LimitOffset(limit, offset int) string
 
+	// JSONExtractEquals returns a SQL condition that checks whether a JSON field
+	// at the given path equals a value. The column is the JSON column name.
+	// The returned clause uses parameter placeholders for the key and value.
+	//
+	// SQLite:    (json_extract(column, '$.' || ?) = ? OR column LIKE '%"' || ? || '":"' || ? || '"%')
+	// PostgreSQL: column->>? = ?
+	//
+	// The caller must provide the appropriate number of bind args:
+	//   - SQLite: key, value, key, value (4 args)
+	//   - PostgreSQL: key, value (2 args)
+	// Use JSONExtractEqualsArgs() to determine how many args to provide.
+	JSONExtractEquals(column string) string
+
+	// JSONExtractEqualsArgs returns the number of bind arguments required
+	// by JSONExtractEquals for the current dialect.
+	JSONExtractEqualsArgs() int
+
 	// Dialect returns the SQL dialect name.
 	Dialect() string
 }

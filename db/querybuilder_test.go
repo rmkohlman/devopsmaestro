@@ -134,6 +134,44 @@ func TestSQLiteQueryBuilder_Dialect(t *testing.T) {
 	}
 }
 
+func TestSQLiteQueryBuilder_JSONExtractEquals(t *testing.T) {
+	builder := NewSQLiteQueryBuilder()
+
+	tests := []struct {
+		name     string
+		column   string
+		expected string
+	}{
+		{
+			name:     "labels column",
+			column:   "labels",
+			expected: `(json_extract(labels, '$.' || ?) = ? OR labels LIKE '%"' || ? || '":"' || ? || '"%')`,
+		},
+		{
+			name:     "metadata column",
+			column:   "metadata",
+			expected: `(json_extract(metadata, '$.' || ?) = ? OR metadata LIKE '%"' || ? || '":"' || ? || '"%')`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := builder.JSONExtractEquals(tt.column)
+			if result != tt.expected {
+				t.Errorf("JSONExtractEquals(%q) = %q, want %q", tt.column, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestSQLiteQueryBuilder_JSONExtractEqualsArgs(t *testing.T) {
+	builder := NewSQLiteQueryBuilder()
+	result := builder.JSONExtractEqualsArgs()
+	if result != 4 {
+		t.Errorf("JSONExtractEqualsArgs() = %d, want 4", result)
+	}
+}
+
 func TestPostgresQueryBuilder_Placeholder(t *testing.T) {
 	builder := NewPostgresQueryBuilder()
 
@@ -193,6 +231,44 @@ func TestPostgresQueryBuilder_Dialect(t *testing.T) {
 	}
 }
 
+func TestPostgresQueryBuilder_JSONExtractEquals(t *testing.T) {
+	builder := NewPostgresQueryBuilder()
+
+	tests := []struct {
+		name     string
+		column   string
+		expected string
+	}{
+		{
+			name:     "labels column",
+			column:   "labels",
+			expected: `labels->>? = ?`,
+		},
+		{
+			name:     "metadata column",
+			column:   "metadata",
+			expected: `metadata->>? = ?`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := builder.JSONExtractEquals(tt.column)
+			if result != tt.expected {
+				t.Errorf("JSONExtractEquals(%q) = %q, want %q", tt.column, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPostgresQueryBuilder_JSONExtractEqualsArgs(t *testing.T) {
+	builder := NewPostgresQueryBuilder()
+	result := builder.JSONExtractEqualsArgs()
+	if result != 2 {
+		t.Errorf("JSONExtractEqualsArgs() = %d, want 2", result)
+	}
+}
+
 func TestQueryBuilderFor(t *testing.T) {
 	tests := []struct {
 		driverType      DriverType
@@ -220,4 +296,49 @@ func TestQueryBuilderFor(t *testing.T) {
 func TestQueryBuilderInterface(t *testing.T) {
 	var _ QueryBuilder = (*SQLiteQueryBuilder)(nil)
 	var _ QueryBuilder = (*PostgresQueryBuilder)(nil)
+}
+
+func TestJsonExtractEqualsArgs(t *testing.T) {
+	tests := []struct {
+		name     string
+		builder  QueryBuilder
+		key      string
+		value    string
+		wantLen  int
+		wantArgs []interface{}
+	}{
+		{
+			name:     "sqlite 4 args",
+			builder:  NewSQLiteQueryBuilder(),
+			key:      "env",
+			value:    "prod",
+			wantLen:  4,
+			wantArgs: []interface{}{"env", "prod", "env", "prod"},
+		},
+		{
+			name:     "postgres 2 args",
+			builder:  NewPostgresQueryBuilder(),
+			key:      "env",
+			value:    "prod",
+			wantLen:  2,
+			wantArgs: []interface{}{"env", "prod"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args := jsonExtractEqualsArgs(tt.builder, tt.key, tt.value)
+			if len(args) != tt.wantLen {
+				t.Errorf("len(args) = %d, want %d", len(args), tt.wantLen)
+			}
+			for i, want := range tt.wantArgs {
+				if i >= len(args) {
+					break
+				}
+				if args[i] != want {
+					t.Errorf("args[%d] = %v, want %v", i, args[i], want)
+				}
+			}
+		})
+	}
 }

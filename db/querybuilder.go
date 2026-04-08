@@ -58,6 +58,20 @@ func (b *SQLiteQueryBuilder) LimitOffset(limit, offset int) string {
 	return fmt.Sprintf("LIMIT %d OFFSET %d", limit, offset)
 }
 
+// JSONExtractEquals returns a SQLite condition for matching a JSON field value.
+// Requires 4 bind args: key, value, key, value.
+func (b *SQLiteQueryBuilder) JSONExtractEquals(column string) string {
+	return fmt.Sprintf(
+		`(json_extract(%s, '$.' || ?) = ? OR %s LIKE '%%"' || ? || '":"' || ? || '"%%')`,
+		column, column,
+	)
+}
+
+// JSONExtractEqualsArgs returns 4 for SQLite (key, value, key, value).
+func (b *SQLiteQueryBuilder) JSONExtractEqualsArgs() int {
+	return 4
+}
+
 // Dialect returns "sqlite".
 func (b *SQLiteQueryBuilder) Dialect() string {
 	return "sqlite"
@@ -117,6 +131,17 @@ func (b *PostgresQueryBuilder) LimitOffset(limit, offset int) string {
 		return fmt.Sprintf("LIMIT %d", limit)
 	}
 	return fmt.Sprintf("LIMIT %d OFFSET %d", limit, offset)
+}
+
+// JSONExtractEquals returns a PostgreSQL condition for matching a JSON field value.
+// Requires 2 bind args: key, value.
+func (b *PostgresQueryBuilder) JSONExtractEquals(column string) string {
+	return fmt.Sprintf(`%s->>? = ?`, column)
+}
+
+// JSONExtractEqualsArgs returns 2 for PostgreSQL (key, value).
+func (b *PostgresQueryBuilder) JSONExtractEqualsArgs() int {
+	return 2
 }
 
 // Dialect returns "postgres".

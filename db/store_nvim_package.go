@@ -122,20 +122,20 @@ func (ds *SQLDataStore) ListPackages() ([]*models.NvimPackageDB, error) {
 
 // ListPackagesByLabel retrieves packages that have a specific label key-value pair.
 func (ds *SQLDataStore) ListPackagesByLabel(key, value string) ([]*models.NvimPackageDB, error) {
-	// Validate key to prevent SQL injection via json_extract path
+	// Validate key to prevent SQL injection via JSON path
 	if err := validateLabelKey(key); err != nil {
 		return nil, fmt.Errorf("invalid label key: %w", err)
 	}
 
-	// Use JSON_EXTRACT if available (SQLite 3.45+) or simple string matching as fallback
-	// key is validated above to contain only safe characters (alphanumeric, hyphens, underscores, dots)
-	query := `SELECT id, name, description, category, labels, plugins, extends, created_at, updated_at 
+	// Use the query builder's abstracted JSON extraction for dialect portability
+	query := fmt.Sprintf(`SELECT id, name, description, category, labels, plugins, extends, created_at, updated_at 
 		FROM nvim_packages 
 		WHERE labels IS NOT NULL 
-		AND (json_extract(labels, '$.' || ?) = ? OR labels LIKE '%"' || ? || '":"' || ? || '"%')
-		ORDER BY name`
+		AND %s
+		ORDER BY name`, ds.queryBuilder.JSONExtractEquals("labels"))
 
-	rows, err := ds.driver.Query(query, key, value, key, value)
+	args := jsonExtractEqualsArgs(ds.queryBuilder, key, value)
+	rows, err := ds.driver.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list packages by label: %w", err)
 	}
