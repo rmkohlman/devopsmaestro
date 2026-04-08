@@ -62,7 +62,7 @@ func (r *ContainerdRuntimeV2) getStatusDirectAPI(ctx context.Context, containerI
 
 	status, err := task.Status(ctx)
 	if err != nil {
-		return "unknown", err
+		return "unknown", fmt.Errorf("failed to get task status: %w", err)
 	}
 
 	return string(status.Status), nil
@@ -177,7 +177,7 @@ func (r *ContainerdRuntimeV2) StopAllWorkspaces(ctx context.Context) (int, error
 
 	workspaces, err := r.ListWorkspaces(ctx)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to list workspaces for stop-all: %w", err)
 	}
 
 	stopped := 0
@@ -197,7 +197,7 @@ func setupTerminal() error {
 	fd := os.Stdin.Fd()
 	state, err := term.SetRawTerminal(fd)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to set raw terminal mode: %w", err)
 	}
 	// Store state for restoration
 	terminalState = state

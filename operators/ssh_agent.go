@@ -62,7 +62,7 @@ func GetSSHAgentMountPath(runtimeType string) (string, error) {
 func GetSSHAgentMount(runtimeType string) (hostPath, containerPath string, err error) {
 	hostPath, err = GetSSHAgentSocketPath(runtimeType)
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("failed to get SSH agent socket path: %w", err)
 	}
 
 	// Standardize container path

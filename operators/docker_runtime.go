@@ -377,13 +377,16 @@ func (d *DockerRuntime) AttachToWorkspace(ctx context.Context, opts AttachOption
 func (d *DockerRuntime) resizeExecTTY(ctx context.Context, execID string) error {
 	ws, err := term.GetWinsize(os.Stdin.Fd())
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get terminal size: %w", err)
 	}
 
-	return d.client.ContainerExecResize(ctx, execID, container.ResizeOptions{
+	if err := d.client.ContainerExecResize(ctx, execID, container.ResizeOptions{
 		Height: uint(ws.Height),
 		Width:  uint(ws.Width),
-	})
+	}); err != nil {
+		return fmt.Errorf("failed to resize exec TTY: %w", err)
+	}
+	return nil
 }
 
 // StopWorkspace stops a running workspace

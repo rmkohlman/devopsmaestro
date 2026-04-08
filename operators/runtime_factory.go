@@ -27,7 +27,7 @@ type RuntimeConfig struct {
 func NewContainerRuntime() (ContainerRuntime, error) {
 	detector, err := NewPlatformDetector()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to initialize platform detector: %w", err)
 	}
 	return NewContainerRuntimeWith(detector)
 }
@@ -39,7 +39,7 @@ func NewContainerRuntime() (ContainerRuntime, error) {
 func NewContainerRuntimeWith(detector PlatformDetector) (ContainerRuntime, error) {
 	config, err := resolveRuntimeConfig(detector)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to resolve runtime configuration: %w", err)
 	}
 
 	switch config.Type {
@@ -66,7 +66,7 @@ func resolveRuntimeConfig(detector PlatformDetector) (*RuntimeConfig, error) {
 
 	platform, err := detector.Detect()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to detect container platform: %w", err)
 	}
 
 	// Determine runtime type
@@ -101,7 +101,7 @@ func resolveRuntimeConfig(detector PlatformDetector) (*RuntimeConfig, error) {
 func GetActiveRuntime() (string, error) {
 	runtime, err := NewContainerRuntime()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to get active runtime: %w", err)
 	}
 	return runtime.GetRuntimeType(), nil
 }
@@ -111,7 +111,7 @@ func GetActiveRuntime() (string, error) {
 func GetDetectedPlatformInfo() (string, error) {
 	detector, err := NewPlatformDetector()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to initialize platform detector: %w", err)
 	}
 	return GetDetectedPlatformInfoWith(detector)
 }
@@ -120,7 +120,7 @@ func GetDetectedPlatformInfo() (string, error) {
 func GetDetectedPlatformInfoWith(detector PlatformDetector) (string, error) {
 	platform, err := detector.Detect()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to detect platform: %w", err)
 	}
 	return platform.Name, nil
 }
@@ -130,7 +130,7 @@ func GetDetectedPlatformInfoWith(detector PlatformDetector) (string, error) {
 func ListAvailablePlatforms() ([]*Platform, error) {
 	detector, err := NewPlatformDetector()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to initialize platform detector: %w", err)
 	}
 	return ListAvailablePlatformsWith(detector)
 }

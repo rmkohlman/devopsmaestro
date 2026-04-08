@@ -22,12 +22,12 @@ func NewContainerdRuntimeV2() (*ContainerdRuntimeV2, error) {
 	// Detect platform
 	detector, err := NewPlatformDetector()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to initialize platform detector: %w", err)
 	}
 
 	platform, err := detector.Detect()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to detect container platform: %w", err)
 	}
 
 	return NewContainerdRuntimeV2WithPlatform(platform)

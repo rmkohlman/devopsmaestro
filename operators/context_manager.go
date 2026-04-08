@@ -150,7 +150,7 @@ func (cm *DefaultContextManager) ClearApp() error {
 func (cm *DefaultContextManager) ClearWorkspace() error {
 	ctx, err := cm.LoadContext()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to load context for clearing workspace: %w", err)
 	}
 
 	ctx.CurrentWorkspace = ""
@@ -180,7 +180,7 @@ func (cm *DefaultContextManager) LoadContext() (*ContextConfig, error) {
 func (cm *DefaultContextManager) SaveContext(ctx *ContextConfig) error {
 	// Ensure directory exists
 	dir := filepath.Dir(cm.contextFilePath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return fmt.Errorf("failed to create context directory: %w", err)
 	}
 
@@ -190,8 +190,8 @@ func (cm *DefaultContextManager) SaveContext(ctx *ContextConfig) error {
 		return fmt.Errorf("failed to marshal context: %w", err)
 	}
 
-	// Write to file
-	if err := os.WriteFile(cm.contextFilePath, data, 0644); err != nil {
+	// Write to file — 0600: context file contains workspace state and active context
+	if err := os.WriteFile(cm.contextFilePath, data, 0600); err != nil {
 		return fmt.Errorf("failed to write context file: %w", err)
 	}
 
@@ -202,7 +202,7 @@ func (cm *DefaultContextManager) SaveContext(ctx *ContextConfig) error {
 func (cm *DefaultContextManager) GetContextSummary() (string, error) {
 	ctx, err := cm.LoadContext()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to load context for summary: %w", err)
 	}
 
 	if ctx.CurrentApp == "" {
