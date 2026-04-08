@@ -22,9 +22,17 @@ func buildWorkspace(cmd *cobra.Command) error {
 		return err
 	}
 
+	// Create timeout context from flag
+	ctx := context.Background()
+	if buildTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, buildTimeout)
+		defer cancel()
+	}
+
 	bc := &buildContext{
 		ds:  sqlDS,
-		ctx: context.Background(),
+		ctx: ctx,
 	}
 
 	// Phase 1: Resolve target workspace

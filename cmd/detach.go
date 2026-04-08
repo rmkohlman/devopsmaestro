@@ -8,13 +8,15 @@ import (
 	"fmt"
 	"github.com/rmkohlman/MaestroSDK/render"
 	"log/slog"
+	"time"
 
 	"github.com/spf13/cobra"
 )
 
 var (
-	detachAll   bool
-	detachFlags HierarchyFlags
+	detachAll     bool
+	detachTimeout time.Duration
+	detachFlags   HierarchyFlags
 )
 
 // detachCmd stops the active workspace container
@@ -48,10 +50,19 @@ Examples:
 func init() {
 	rootCmd.AddCommand(detachCmd)
 	detachCmd.Flags().BoolVarP(&detachAll, "all", "A", false, "Stop all DVM workspace containers")
+	detachCmd.Flags().DurationVar(&detachTimeout, "timeout", 5*time.Minute, "Timeout for the detach operation (e.g., 5m, 30s)")
 	AddHierarchyFlags(detachCmd, &detachFlags)
 }
 
 func runDetach(cmd *cobra.Command) error {
+	// Create timeout context from flag
+	ctx := context.Background()
+	if detachTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, detachTimeout)
+		defer cancel()
+	}
+
 	// Create container runtime using factory
 	runtime, err := operators.NewContainerRuntime()
 	if err != nil {
@@ -61,13 +72,13 @@ func runDetach(cmd *cobra.Command) error {
 	slog.Debug("using runtime", "type", runtime.GetRuntimeType(), "platform", runtime.GetPlatformName())
 
 	if detachAll {
-		return detachAllWorkspaces(runtime)
+		return detachAllWorkspaces(ctx, runtime)
 	}
 
-	return detachActiveWorkspace(cmd, runtime)
+	return detachActiveWorkspace(cmd, ctx, runtime)
 }
 
-func detachActiveWorkspace(cmd *cobra.Command, runtime operators.ContainerRuntime) error {
+func detachActiveWorkspace(cmd *cobra.Command, ctx context.Context, runtime operators.ContainerRuntime) error {
 	// Get datastore from context
 	ds, err := getDataStore(cmd)
 	if err != nil {
@@ -150,13 +161,13 @@ func detachActiveWorkspace(cmd *cobra.Command, runtime operators.ContainerRuntim
 	// Stop the container using hierarchical naming strategy
 	namingStrategy := operators.NewHierarchicalNamingStrategy()
 	containerName := namingStrategy.GenerateName(ecosystemName, domainName, appName, workspaceName)
-	return stopWorkspace(runtime, containerName)
+	return stopWorkspace(ctx, runtime, containerName)
 }
 
-func detachAllWorkspaces(runtime operators.ContainerRuntime) error {
+func detachAllWorkspaces(ctx context.Context, runtime operators.ContainerRuntime) error {
 	render.Progress("Finding all DVM workspace containers...")
 
-	stopped, err := runtime.StopAllWorkspaces(context.Background())
+	stopped, err := runtime.StopAllWorkspaces(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to stop workspaces: %w", err)
 	}
@@ -171,11 +182,11 @@ func detachAllWorkspaces(runtime operators.ContainerRuntime) error {
 	return nil
 }
 
-func stopWorkspace(runtime operators.ContainerRuntime, containerName string) error {
+func stopWorkspace(ctx context.Context, runtime operators.ContainerRuntime, containerName string) error {
 	render.Progress(fmt.Sprintf("Stopping workspace '%s'...", containerName))
 
 	// Check if workspace exists and is running
-	workspace, err := runtime.FindWorkspace(context.Background(), containerName)
+	workspace, err := runtime.FindWorkspace(ctx, containerName)
 	if err != nil {
 		return fmt.Errorf("failed to find workspace: %w", err)
 	}
@@ -192,7 +203,7 @@ func stopWorkspace(runtime operators.ContainerRuntime, containerName string) err
 	}
 
 	// Stop the workspace
-	if err := runtime.StopWorkspace(context.Background(), containerName); err != nil {
+	if err := runtime.StopWorkspace(ctx, containerName); err != nil {
 		return fmt.Errorf("failed to stop container: %w", err)
 	}
 

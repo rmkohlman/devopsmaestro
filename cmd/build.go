@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"time"
+
 	"github.com/spf13/cobra"
 )
 
@@ -10,6 +12,7 @@ var (
 	buildTarget   string
 	buildPush     bool
 	buildRegistry string
+	buildTimeout  time.Duration
 	buildFlags    HierarchyFlags
 )
 
@@ -72,5 +75,6 @@ func init() {
 	buildCmd.Flags().StringVar(&buildTarget, "target", "dev", "Build target stage (default: dev)")
 	buildCmd.Flags().BoolVar(&buildPush, "push", false, "Push built image to local registry")
 	buildCmd.Flags().StringVar(&buildRegistry, "registry", "", "Override registry endpoint (default: from config)")
+	buildCmd.Flags().DurationVar(&buildTimeout, "timeout", 30*time.Minute, "Timeout for the build operation (e.g., 30m, 1h)")
 	AddHierarchyFlags(buildCmd, &buildFlags)
 }

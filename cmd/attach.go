@@ -17,12 +17,16 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 )
 
 // attachFlags holds the hierarchy flags for the attach command
 var attachFlags HierarchyFlags
+
+// attachTimeout holds the timeout duration for the attach operation
+var attachTimeout time.Duration
 
 // attachCmd attaches to the active workspace
 var attachCmd = &cobra.Command{
@@ -66,6 +70,14 @@ Examples:
 
 func runAttach(cmd *cobra.Command) error {
 	slog.Info("starting attach")
+
+	// Create timeout context from flag
+	ctx := context.Background()
+	if attachTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, attachTimeout)
+		defer cancel()
+	}
 
 	// Get datastore from context
 	ds, err := getDataStore(cmd)
@@ -206,7 +218,7 @@ func runAttach(cmd *cobra.Command) error {
 	containerUID := workspaceYAML.Spec.Container.UID
 	containerGID := workspaceYAML.Spec.Container.GID
 
-	containerID, err := runtime.StartWorkspace(context.Background(), operators.StartOptions{
+	containerID, err := runtime.StartWorkspace(ctx, operators.StartOptions{
 		ImageName:          imageName,
 		WorkspaceName:      workspaceName,
 		ContainerName:      containerName,
@@ -270,7 +282,7 @@ func runAttach(cmd *cobra.Command) error {
 	// the tab/window title automatically — no terminal-specific configuration needed.
 	fmt.Fprintf(os.Stderr, "\x1b]0;[dvm] %s/%s\x07", appName, workspaceName)
 
-	if err := runtime.AttachToWorkspace(context.Background(), attachOpts); err != nil {
+	if err := runtime.AttachToWorkspace(ctx, attachOpts); err != nil {
 		fmt.Fprintf(os.Stderr, "\x1b]0;\x07") // reset title on error
 		return fmt.Errorf("failed to attach: %w", err)
 	}
@@ -444,4 +456,5 @@ func init() {
 	rootCmd.AddCommand(attachCmd)
 	AddHierarchyFlags(attachCmd, &attachFlags)
 	attachCmd.Flags().Bool("no-sync", false, "Skip syncing git mirror before attach")
+	attachCmd.Flags().DurationVar(&attachTimeout, "timeout", 10*time.Minute, "Timeout for the attach operation (e.g., 10m, 30s)")
 }
