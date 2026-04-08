@@ -249,8 +249,8 @@ github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec h1:W09IVJc94
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec/go.mod h1:qqbHyh8v60DhA7CoWK5oRCqLrMHRGoxYCSS9EjAz6Eo=
 github.com/rivo/uniseg v0.4.7 h1:WUdvkW8uEhrYfLC4ZzdpI2ztxP1I582+49Oc5Mq64VQ=
 github.com/rivo/uniseg v0.4.7/go.mod h1:FN3SvrM+Zdj16jyLfmOkMNblXMcoc8DfTHruCPUcx88=
-github.com/rmkohlman/MaestroNvim v0.2.3 h1:eTJ40ILLT3Bi70wx61U7iyhdsIxFW1YBkgrLZbBdOYk=
-github.com/rmkohlman/MaestroNvim v0.2.3/go.mod h1:iJrnxlvGHrJQX+vUVQsscaVXqDL2/YqEG4+7g0ABgVY=
+github.com/rmkohlman/MaestroNvim v0.2.4 h1:NdsQmke5HzUYGBWjwUgCmMzGCjiq07ohmcPrhqo0/pE=
+github.com/rmkohlman/MaestroNvim v0.2.4/go.mod h1:iJrnxlvGHrJQX+vUVQsscaVXqDL2/YqEG4+7g0ABgVY=
 github.com/rmkohlman/MaestroPalette v0.1.0 h1:XxPR7fcPAvO1VpWTNB8Pc6qnLIRJMvlfpU5oK3CppW0=
 github.com/rmkohlman/MaestroPalette v0.1.0/go.mod h1:VB3Yn/RxVCkQBqQtACwRVYrAuitRiy9FsDNQpsfqinc=
 github.com/rmkohlman/MaestroSDK v0.1.6 h1:reYD+gf2EE33uuDUYe6/20wQvFUjrqiV3zBMshOjkVQ=

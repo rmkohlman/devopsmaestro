@@ -8,21 +8,22 @@ import (
 
 // NvimThemeDB represents a Neovim theme stored in the database.
 type NvimThemeDB struct {
-	ID           int            `db:"id" json:"id" yaml:"-"`
-	Name         string         `db:"name" json:"name" yaml:"name"`
-	Description  sql.NullString `db:"description" json:"description,omitempty" yaml:"description,omitempty"`
-	Author       sql.NullString `db:"author" json:"author,omitempty" yaml:"author,omitempty"`
-	Category     sql.NullString `db:"category" json:"category,omitempty" yaml:"category,omitempty"`
-	PluginRepo   string         `db:"plugin_repo" json:"plugin_repo" yaml:"plugin_repo"`
-	PluginBranch sql.NullString `db:"plugin_branch" json:"plugin_branch,omitempty" yaml:"plugin_branch,omitempty"`
-	PluginTag    sql.NullString `db:"plugin_tag" json:"plugin_tag,omitempty" yaml:"plugin_tag,omitempty"`
-	Style        sql.NullString `db:"style" json:"style,omitempty" yaml:"style,omitempty"`
-	Transparent  bool           `db:"transparent" json:"transparent" yaml:"transparent"`
-	Colors       sql.NullString `db:"colors" json:"colors,omitempty" yaml:"colors,omitempty"`    // JSON object
-	Options      sql.NullString `db:"options" json:"options,omitempty" yaml:"options,omitempty"` // JSON object
-	IsActive     bool           `db:"is_active" json:"is_active" yaml:"is_active"`
-	CreatedAt    time.Time      `db:"created_at" json:"created_at" yaml:"-"`
-	UpdatedAt    time.Time      `db:"updated_at" json:"updated_at" yaml:"-"`
+	ID               int            `db:"id" json:"id" yaml:"-"`
+	Name             string         `db:"name" json:"name" yaml:"name"`
+	Description      sql.NullString `db:"description" json:"description,omitempty" yaml:"description,omitempty"`
+	Author           sql.NullString `db:"author" json:"author,omitempty" yaml:"author,omitempty"`
+	Category         sql.NullString `db:"category" json:"category,omitempty" yaml:"category,omitempty"`
+	PluginRepo       string         `db:"plugin_repo" json:"plugin_repo" yaml:"plugin_repo"`
+	PluginBranch     sql.NullString `db:"plugin_branch" json:"plugin_branch,omitempty" yaml:"plugin_branch,omitempty"`
+	PluginTag        sql.NullString `db:"plugin_tag" json:"plugin_tag,omitempty" yaml:"plugin_tag,omitempty"`
+	Style            sql.NullString `db:"style" json:"style,omitempty" yaml:"style,omitempty"`
+	Transparent      bool           `db:"transparent" json:"transparent" yaml:"transparent"`
+	Colors           sql.NullString `db:"colors" json:"colors,omitempty" yaml:"colors,omitempty"`                                  // JSON object
+	Options          sql.NullString `db:"options" json:"options,omitempty" yaml:"options,omitempty"`                               // JSON object
+	CustomHighlights sql.NullString `db:"custom_highlights" json:"custom_highlights,omitempty" yaml:"custom_highlights,omitempty"` // JSON object
+	IsActive         bool           `db:"is_active" json:"is_active" yaml:"is_active"`
+	CreatedAt        time.Time      `db:"created_at" json:"created_at" yaml:"-"`
+	UpdatedAt        time.Time      `db:"updated_at" json:"updated_at" yaml:"-"`
 }
 
 // NvimThemeYAML represents the YAML format for theme definition files.
@@ -43,11 +44,27 @@ type ThemeMetadata struct {
 
 // ThemeSpec contains the theme specification.
 type ThemeSpec struct {
-	Plugin      ThemePluginSpec        `yaml:"plugin"`
-	Style       string                 `yaml:"style,omitempty"`
-	Transparent bool                   `yaml:"transparent,omitempty"`
-	Colors      map[string]string      `yaml:"colors,omitempty"`
-	Options     map[string]interface{} `yaml:"options,omitempty"`
+	Plugin           ThemePluginSpec           `yaml:"plugin"`
+	Style            string                    `yaml:"style,omitempty"`
+	Transparent      bool                      `yaml:"transparent,omitempty"`
+	Colors           map[string]string         `yaml:"colors,omitempty"`
+	Options          map[string]interface{}    `yaml:"options,omitempty"`
+	CustomHighlights map[string]ThemeHighlight `yaml:"customHighlights,omitempty"`
+}
+
+// ThemeHighlight represents a custom Neovim highlight group in theme YAML.
+// Either set explicit attributes (Fg, Bg, Bold, etc.) or Link to another group.
+type ThemeHighlight struct {
+	Fg            string `yaml:"fg,omitempty"`
+	Bg            string `yaml:"bg,omitempty"`
+	Sp            string `yaml:"sp,omitempty"`
+	Bold          bool   `yaml:"bold,omitempty"`
+	Italic        bool   `yaml:"italic,omitempty"`
+	Underline     bool   `yaml:"underline,omitempty"`
+	Undercurl     bool   `yaml:"undercurl,omitempty"`
+	Strikethrough bool   `yaml:"strikethrough,omitempty"`
+	Reverse       bool   `yaml:"reverse,omitempty"`
+	Link          string `yaml:"link,omitempty"`
 }
 
 // ThemePluginSpec defines the colorscheme plugin to use.
@@ -111,6 +128,13 @@ func (t *NvimThemeDB) ToYAML() (NvimThemeYAML, error) {
 		}
 	}
 
+	if t.CustomHighlights.Valid {
+		var highlights map[string]ThemeHighlight
+		if err := json.Unmarshal([]byte(t.CustomHighlights.String), &highlights); err == nil {
+			yaml.Spec.CustomHighlights = highlights
+		}
+	}
+
 	return yaml, nil
 }
 
@@ -153,6 +177,12 @@ func (t *NvimThemeDB) FromYAML(yaml NvimThemeYAML) error {
 	if len(yaml.Spec.Options) > 0 {
 		if optionsJSON, err := json.Marshal(yaml.Spec.Options); err == nil {
 			t.Options = sql.NullString{String: string(optionsJSON), Valid: true}
+		}
+	}
+
+	if len(yaml.Spec.CustomHighlights) > 0 {
+		if hlJSON, err := json.Marshal(yaml.Spec.CustomHighlights); err == nil {
+			t.CustomHighlights = sql.NullString{String: string(hlJSON), Valid: true}
 		}
 	}
 
