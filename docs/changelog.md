@@ -2,6 +2,12 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## Unreleased
+
+**New**
+
+- **Man page generation** — All three CLIs (`dvm`, `nvp`, `dvt`) now ship a hidden `generate-docs` developer command that generates section-1 man pages and markdown reference docs for every command and subcommand via `cobra/doc`. Run `dvm generate-docs --man-pages --output-dir ./docs/man/` (#35).
+
 ## v0.60.7 (2026-04-06)
 
 **Bug Fixes**

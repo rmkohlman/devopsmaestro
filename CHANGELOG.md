@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **Man page generation** — All three CLIs (`dvm`, `nvp`, `dvt`) now support `generate-docs`, a hidden developer command that generates section-1 man pages and markdown reference docs for all commands and subcommands. Uses `github.com/spf13/cobra/doc` and Cobra's built-in command tree traversal. Closes [#35](https://github.com/rmkohlman/devopsmaestro/issues/35)
+  - `dvm generate-docs --man-pages --output-dir ./docs/man/`
+  - `nvp generate-docs --man-pages --output-dir ./docs/man/`
+  - `dvt generate-docs --man-pages --output-dir ./docs/man/`
+  - `--markdown` flag also available for Markdown reference output
+  - Command is hidden from `--help` — intended for developer and release workflows only
+
+---
+
 ## [v0.60.7] - 2026-04-06
 
 ### Fixed

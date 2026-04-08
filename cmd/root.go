@@ -121,6 +121,7 @@ func shouldSkipAutoMigration(cmd *cobra.Command) bool {
 		"dvm completion",
 		"dvm version",
 		"dvm help",
+		"dvm generate-docs", // dev tool: no database needed
 		"dvm admin init",    // init handles its own migrations
 		"dvm admin migrate", // migrate command handles migrations explicitly
 	}

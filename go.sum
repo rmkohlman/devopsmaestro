@@ -75,6 +75,8 @@ github.com/containerd/ttrpc v1.2.7/go.mod h1:YCXHsb32f+Sq5/72xHubdiJRQY9inL4a4ZQ
 github.com/containerd/typeurl/v2 v2.2.3 h1:yNA/94zxWdvYACdYO8zofhrTVuQY73fFU1y++dYSw40=
 github.com/containerd/typeurl/v2 v2.2.3/go.mod h1:95ljDnPfD3bAbDJRugOiShd/DlAAsxGtUBhJxIn7SCk=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
+github.com/cpuguy83/go-md2man/v2 v2.0.7 h1:zbFlGlXEAKlwXpmvle3d8Oe3YnkKIK4xSRTd3sHPnBo=
+github.com/cpuguy83/go-md2man/v2 v2.0.7/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
 github.com/creack/pty v1.1.18 h1:n56/Zwd5o6whRC5PMGretI4IdRLlmBXYNjScPaBgsbY=
 github.com/creack/pty v1.1.18/go.mod h1:MOBLtS5ELjhRRrroQr9kyvTxUAFNvYEK993ew/Vr4O4=
 github.com/cyphar/filepath-securejoin v0.6.0 h1:BtGB77njd6SVO6VztOHfPxKitJvd/VPT+OFBFMOi1Is=
@@ -251,8 +253,6 @@ github.com/rmkohlman/MaestroNvim v0.2.3 h1:eTJ40ILLT3Bi70wx61U7iyhdsIxFW1YBkgrLZ
 github.com/rmkohlman/MaestroNvim v0.2.3/go.mod h1:iJrnxlvGHrJQX+vUVQsscaVXqDL2/YqEG4+7g0ABgVY=
 github.com/rmkohlman/MaestroPalette v0.1.0 h1:XxPR7fcPAvO1VpWTNB8Pc6qnLIRJMvlfpU5oK3CppW0=
 github.com/rmkohlman/MaestroPalette v0.1.0/go.mod h1:VB3Yn/RxVCkQBqQtACwRVYrAuitRiy9FsDNQpsfqinc=
-github.com/rmkohlman/MaestroSDK v0.1.4 h1:u4fkKZflJ190GHdH8fQL1JduleusrnFLJe6yJkxRSEI=
-github.com/rmkohlman/MaestroSDK v0.1.4/go.mod h1:O5Eg+uGXaJcXZBrpX9CsS2qZXS4DcjMWhjxT4FZUnhI=
 github.com/rmkohlman/MaestroTerminal v0.1.0 h1:lg7ETwWMQ+VJOoYPjkxnFNrtnP2d+seFeTdmcOiWKeU=
 github.com/rmkohlman/MaestroTerminal v0.1.0/go.mod h1:FkpcCLqNbYl7Nuqj9JxQJiHujF3x5lHYsvuOhB2Ra7M=
 github.com/rmkohlman/MaestroTheme v0.1.0 h1:unf5h0LWyNeLiro2GEdI97Xgn5YsPNtvFPjq9ET9Xy0=
@@ -261,6 +261,7 @@ github.com/rmkohlman/MaestroVault v0.7.0 h1:gbFWqcPTzDamed7fVOzVodS4r4K/aB6sso7B
 github.com/rmkohlman/MaestroVault v0.7.0/go.mod h1:IomLYHfAMB1ThW7GDK3eoT97D3txVZMOs7uuhHg7o4Y=
 github.com/rogpeppe/go-internal v1.14.1 h1:UQB4HGPB6osV0SQTLymcB4TgvyWu6ZyliaW0tI/otEQ=
 github.com/rogpeppe/go-internal v1.14.1/go.mod h1:MaRKkUm5W0goXpeCfT7UZI6fk/L7L7so1lCWt35ZSgc=
+github.com/russross/blackfriday/v2 v2.1.0 h1:JIOH55/0cWyOuilr9/qlrm0BSXldqnqwMsf35Ld67mk=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 github.com/sagikazarmark/locafero v0.6.0 h1:ON7AQg37yzcRPU69mt7gwhFEBwxI6P9T4Qu3N51bwOk=
 github.com/sagikazarmark/locafero v0.6.0/go.mod h1:77OmuIc6VTraTXKXIs/uvUxKGUXjE1GbemJYHqdNjX0=
@@ -347,6 +348,7 @@ go.uber.org/goleak v1.3.0 h1:2K3zAYmnTNqV73imy9J1T3WC+gmCePx2hEGkimedGto=
 go.uber.org/goleak v1.3.0/go.mod h1:CoHD4mav9JJNrW/WLlf7HGZPjdw8EucARQHekz1X6bE=
 go.uber.org/multierr v1.11.0 h1:blXXJkSxSSfBVBlC76pxqeO+LN3aDfLQo+309xJstO0=
 go.uber.org/multierr v1.11.0/go.mod h1:20+QtiLqy0Nd6FdQB9TLXag12DsQkrbs3htMFfDN80Y=
+go.yaml.in/yaml/v3 v3.0.4 h1:tfq32ie2Jv2UxXFdLJdh3jXuOzWiL1fo0bu/FbuKpbc=
 go.yaml.in/yaml/v3 v3.0.4/go.mod h1:DhzuOOF2ATzADvBadXxruRBLzYTpT36CKvDb3+aBEFg=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
 golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550/go.mod h1:yigFU9vqHzYiE8UmvKecakEJjdnWj3jj499lnFckfCI=

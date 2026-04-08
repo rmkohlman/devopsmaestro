@@ -66,7 +66,7 @@ func getMigrationsFS() fs.FS {
 func shouldSkipAutoMigration(cmd *cobra.Command) bool {
 	commandName := cmd.Name()
 	switch commandName {
-	case "completion", "version", "help":
+	case "completion", "version", "help", "generate-docs":
 		return true
 	}
 	return false
