@@ -1,9 +1,20 @@
 package crd
 
-// ScopeValidator validates that resources respect their scope constraints
+// ScopeValidator validates that a resource's metadata satisfies the constraints
+// imposed by its declared scope. Supported scopes are defined as constants in this
+// package: ScopeGlobal, ScopeEcosystem, ScopeDomain, ScopeApp, ScopeWorkspace.
+//
+// The default implementation is DefaultScopeValidator, created via NewScopeValidator.
+// Inject this interface when writing unit tests that need to override scope validation.
 type ScopeValidator interface {
-	// Validate checks if a resource is valid for the given scope and context
-	// Returns error if scope constraints are violated
+	// Validate checks whether the given metadata map satisfies the scope's required
+	// and prohibited fields.
+	//
+	// scope must be one of the ScopeGlobal, ScopeEcosystem, ScopeDomain, ScopeApp,
+	// or ScopeWorkspace constants. An unknown scope returns a ScopeValidationError.
+	//
+	// metadata must not be nil. Missing required keys or presence of prohibited keys
+	// both return a ScopeValidationError with a descriptive message.
 	Validate(scope string, metadata map[string]interface{}) error
 }
 

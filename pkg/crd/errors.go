@@ -2,9 +2,16 @@ package crd
 
 import "fmt"
 
-// CRDError is the base interface for all CRD errors
+// CRDError is the base interface for all errors originating from CRD operations.
+// Callers can use a type assertion to CRDError to distinguish CRD-specific errors
+// from other error types, or call IsCRDError() after asserting to errors.As.
+//
+// Concrete implementations include: UnknownKindError, SchemaValidationError,
+// ScopeValidationError, CRDNotFoundError, CRDAlreadyExistsError, InvalidSchemaError.
 type CRDError interface {
 	error
+	// IsCRDError returns true, allowing callers to distinguish CRD errors from
+	// general errors via type assertion.
 	IsCRDError() bool
 }
 

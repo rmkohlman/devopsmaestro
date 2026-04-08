@@ -22,8 +22,25 @@ func DefaultResolverConfig() ResolverConfig {
 	}
 }
 
-// ThemeResolverFactory creates theme resolvers
+// ThemeResolverFactory creates ThemeResolver instances with injected dependencies.
+// It follows the Interface → Implementation → Factory pattern from STANDARDS.md,
+// allowing callers to swap resolver implementations without changing construction code.
+//
+// The default implementation is DefaultThemeResolverFactory, returned by
+// NewThemeResolverFactory. For most callers, NewThemeResolver is sufficient.
+//
+// Example:
+//
+//	factory := resolver.NewThemeResolverFactory()
+//	r, err := factory.Create(dataStore, themeStore, resolver.DefaultResolverConfig())
 type ThemeResolverFactory interface {
+	// Create constructs a ThemeResolver backed by the given data and theme stores.
+	//
+	// dataStore provides hierarchy entity lookups (app, domain, ecosystem, workspace).
+	// themeStore provides theme loading by name (e.g., via MaestroTheme).
+	// config controls resolver behaviour such as default theme name and cache settings.
+	//
+	// Returns an error if the resolver cannot be initialized with the provided config.
 	Create(dataStore db.DataStore, themeStore theme.Store, config ResolverConfig) (ThemeResolver, error)
 }
 

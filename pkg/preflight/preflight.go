@@ -27,12 +27,35 @@ func (cr *CheckResult) IsSuccess() bool {
 	return cr.Status != StatusError
 }
 
-// Check represents a single pre-flight check
+// Check represents a single pre-flight validation step that can be run before
+// a command proceeds. Implementations test a specific system condition such as
+// container runtime availability, database connectivity, or binary presence.
+//
+// Checks are registered with a PreflightRunner, which executes them sequentially
+// or in parallel and aggregates results. Implementations should be safe for
+// concurrent use when registered in a parallel runner.
+//
+// Example implementation:
+//
+//	type RuntimeCheck struct{}
+//
+//	func (c *RuntimeCheck) Name() string { return "container-runtime" }
+//
+//	func (c *RuntimeCheck) Run(ctx context.Context) preflight.CheckResult {
+//	    _, err := operators.NewPlatformDetector()
+//	    if err != nil {
+//	        return preflight.CheckResult{Status: preflight.StatusError, Message: err.Error()}
+//	    }
+//	    return preflight.CheckResult{Status: preflight.StatusOK, Message: "runtime detected"}
+//	}
 type Check interface {
-	// Name returns the check name
+	// Name returns a short human-readable identifier for the check (e.g., "container-runtime").
+	// Used in output display and logging. Must be unique within a PreflightRunner.
 	Name() string
 
-	// Run executes the check and returns the result
+	// Run executes the check and returns its result.
+	// Implementations must respect ctx cancellation and timeouts.
+	// The result Status indicates OK, Warning, Error, or Skipped.
 	Run(ctx context.Context) CheckResult
 }
 

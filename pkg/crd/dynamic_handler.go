@@ -16,21 +16,35 @@ type DynamicHandler struct {
 	store           CustomResourceStore
 }
 
-// CustomResourceStore persists custom resource instances
+// CustomResourceStore persists custom resource instances (not CRD definitions).
+// It provides generic CRUD operations over arbitrary JSON/map payloads keyed
+// by kind and name.
+//
+// This interface is consumed by DynamicHandler to store and retrieve resource
+// instances created via `dvm apply` when the resource kind is defined by a CRD.
+//
+// Note: for persisting CRD definitions themselves (schemas), see CRDStore.
 type CustomResourceStore interface {
-	// CreateResource creates a new custom resource instance
+	// CreateResource inserts a new custom resource instance of the given kind.
+	// data must contain at least a "name" field for later retrieval.
+	// Returns an error if a resource with the same kind+name already exists.
 	CreateResource(kind string, data map[string]interface{}) error
 
-	// GetResource retrieves a custom resource by kind and name
+	// GetResource retrieves a custom resource instance by kind and name.
+	// Returns the raw map payload and a non-nil error if not found.
 	GetResource(kind, name string) (map[string]interface{}, error)
 
-	// ListResources returns all resources of a given kind
+	// ListResources returns all resource instances of a given kind.
+	// Returns an empty slice (not an error) if no resources of that kind exist.
 	ListResources(kind string) ([]map[string]interface{}, error)
 
-	// UpdateResource updates an existing custom resource
+	// UpdateResource replaces an existing custom resource instance.
+	// data must identify the resource (e.g., contain a "name" key).
+	// Returns an error if the resource does not exist.
 	UpdateResource(kind string, data map[string]interface{}) error
 
-	// DeleteResource removes a custom resource
+	// DeleteResource removes a custom resource instance by kind and name.
+	// Returns an error if the resource does not exist.
 	DeleteResource(kind, name string) error
 }
 

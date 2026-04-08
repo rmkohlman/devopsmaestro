@@ -8,14 +8,30 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v5"
 )
 
-// SchemaValidator validates resource specs against OpenAPI v3 schemas
+// SchemaValidator validates resource spec maps against an OpenAPI v3 JSON Schema.
+// The typical workflow is to call Compile once with the CRD's schema definition,
+// then call Validate for each resource instance that needs to be checked.
+//
+// The default implementation is DefaultSchemaValidator, backed by the
+// santhosh-tekuri/jsonschema library using JSON Schema Draft 2020-12.
+// Create one via NewSchemaValidator.
+//
+// Implementations are NOT safe for concurrent use with Compile; call Compile once
+// during setup and then call Validate concurrently if needed.
 type SchemaValidator interface {
-	// Compile prepares a schema for validation
-	// Returns error if schema is invalid
+	// Compile parses and compiles the provided JSON Schema map, preparing it for
+	// subsequent calls to Validate. Must be called before Validate.
+	//
+	// schema is a map representation of an OpenAPI v3 / JSON Schema object.
+	// Returns an InvalidSchemaError if the schema cannot be parsed or compiled.
 	Compile(schema map[string]interface{}) error
 
-	// Validate checks if data conforms to the compiled schema
-	// Returns error with validation details if invalid
+	// Validate checks whether data conforms to the previously compiled schema.
+	// Must be called after a successful Compile.
+	//
+	// Returns nil if data is valid.
+	// Returns a SchemaValidationError with field and message details if invalid.
+	// Returns an InvalidSchemaError if Compile has not been called yet.
 	Validate(data map[string]interface{}) error
 }
 

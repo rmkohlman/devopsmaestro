@@ -8,11 +8,24 @@ import (
 	"devopsmaestro/pkg/nvimbridge"
 )
 
-// HierarchyReader provides read access to the entity hierarchy needed for
-// slug generation during workspace creation.
+// HierarchyReader provides read-only access to the entity hierarchy needed for
+// workspace slug generation and default propagation during workspace creation.
+// It is a narrow sub-interface of db.DataStore that covers only the three
+// lookup methods required by PrepareDefaults.
+//
+// Implemented by db.SQLDataStore (and db.MockDataStore in tests).
+// Inject this interface in unit tests to avoid a full DataStore dependency.
 type HierarchyReader interface {
+	// GetAppByID retrieves an app by its primary key.
+	// Returns an error if the app does not exist.
 	GetAppByID(id int) (*models.App, error)
+
+	// GetDomainByID retrieves a domain by its primary key.
+	// Returns an error if the domain does not exist.
 	GetDomainByID(id int) (*models.Domain, error)
+
+	// GetEcosystemByID retrieves an ecosystem by its primary key.
+	// Returns an error if the ecosystem does not exist.
 	GetEcosystemByID(id int) (*models.Ecosystem, error)
 }
 
