@@ -14,6 +14,9 @@ type MockDriver struct {
 	// ConnectFunc is called when Connect() is invoked
 	ConnectFunc func() error
 
+	// ConfigureFunc is called when Configure() is invoked
+	ConfigureFunc func(opts DriverOptions) error
+
 	// CloseFunc is called when Close() is invoked
 	CloseFunc func() error
 
@@ -85,6 +88,14 @@ func (d *MockDriver) Connect() error {
 	d.recordCall("Connect")
 	if d.ConnectFunc != nil {
 		return d.ConnectFunc()
+	}
+	return nil
+}
+
+func (d *MockDriver) Configure(opts DriverOptions) error {
+	d.recordCall("Configure", opts)
+	if d.ConfigureFunc != nil {
+		return d.ConfigureFunc(opts)
 	}
 	return nil
 }

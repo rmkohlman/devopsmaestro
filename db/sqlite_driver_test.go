@@ -872,6 +872,267 @@ func TestSQLiteDriver_InMemory_WALFallback(t *testing.T) {
 }
 
 // =============================================================================
+// Configure() Abstraction Tests
+// =============================================================================
+
+// TestSQLiteDriver_Configure_DefaultOptions verifies that Configure with
+// DefaultDriverOptions produces the same state as a plain Connect() call.
+func TestSQLiteDriver_Configure_DefaultOptions(t *testing.T) {
+	cfg := DriverConfig{Type: DriverMemory}
+	driver, err := NewMemorySQLiteDriver(cfg)
+	if err != nil {
+		t.Fatalf("NewMemorySQLiteDriver() error = %v", err)
+	}
+	defer driver.Close()
+
+	// Ping to establish conn, then configure manually
+	sqlDriver := driver.(*SQLiteDriver)
+	if err := sqlDriver.conn.Ping(); err != nil {
+		t.Fatalf("Ping() error = %v", err)
+	}
+	if err := driver.Configure(DefaultDriverOptions()); err != nil {
+		t.Fatalf("Configure(DefaultDriverOptions()) error = %v", err)
+	}
+
+	// Verify foreign keys enabled
+	var fk int
+	row := driver.QueryRow("PRAGMA foreign_keys")
+	if err := row.Scan(&fk); err != nil {
+		t.Fatalf("failed to scan foreign_keys: %v", err)
+	}
+	if fk != 1 {
+		t.Errorf("foreign_keys = %d, want 1", fk)
+	}
+
+	// Verify busy_timeout
+	var timeout int
+	row = driver.QueryRow("PRAGMA busy_timeout")
+	if err := row.Scan(&timeout); err != nil {
+		t.Fatalf("failed to scan busy_timeout: %v", err)
+	}
+	if timeout != 5000 {
+		t.Errorf("busy_timeout = %d, want 5000", timeout)
+	}
+
+	// Verify synchronous = NORMAL (1)
+	var sync int
+	row = driver.QueryRow("PRAGMA synchronous")
+	if err := row.Scan(&sync); err != nil {
+		t.Fatalf("failed to scan synchronous: %v", err)
+	}
+	if sync != 1 {
+		t.Errorf("synchronous = %d, want 1 (NORMAL)", sync)
+	}
+}
+
+// TestSQLiteDriver_Configure_CustomBusyTimeout verifies that Configure
+// respects a custom busy_timeout value.
+func TestSQLiteDriver_Configure_CustomBusyTimeout(t *testing.T) {
+	driver := createTestDriver(t)
+	defer driver.Close()
+
+	opts := DriverOptions{
+		EnableForeignKeys: true,
+		BusyTimeoutMs:     10000,
+	}
+	if err := driver.Configure(opts); err != nil {
+		t.Fatalf("Configure() error = %v", err)
+	}
+
+	var timeout int
+	row := driver.QueryRow("PRAGMA busy_timeout")
+	if err := row.Scan(&timeout); err != nil {
+		t.Fatalf("failed to scan busy_timeout: %v", err)
+	}
+	if timeout != 10000 {
+		t.Errorf("busy_timeout = %d, want 10000", timeout)
+	}
+}
+
+// TestSQLiteDriver_Configure_ZeroBusyTimeout verifies that zero busy_timeout
+// is not applied (skipped), preserving the previous value.
+func TestSQLiteDriver_Configure_ZeroBusyTimeout(t *testing.T) {
+	driver := createTestDriver(t) // Connect sets busy_timeout=5000
+	defer driver.Close()
+
+	opts := DriverOptions{
+		EnableForeignKeys: true,
+		BusyTimeoutMs:     0, // zero means skip
+	}
+	if err := driver.Configure(opts); err != nil {
+		t.Fatalf("Configure() error = %v", err)
+	}
+
+	var timeout int
+	row := driver.QueryRow("PRAGMA busy_timeout")
+	if err := row.Scan(&timeout); err != nil {
+		t.Fatalf("failed to scan busy_timeout: %v", err)
+	}
+	// Previous value (5000 from Connect) should be preserved
+	if timeout != 5000 {
+		t.Errorf("busy_timeout = %d, want 5000 (unchanged)", timeout)
+	}
+}
+
+// TestSQLiteDriver_Configure_CustomSynchronous verifies that Configure
+// respects a custom synchronous mode.
+func TestSQLiteDriver_Configure_CustomSynchronous(t *testing.T) {
+	driver := createTestDriver(t)
+	defer driver.Close()
+
+	opts := DriverOptions{
+		EnableForeignKeys: true,
+		SynchronousMode:   "FULL",
+	}
+	if err := driver.Configure(opts); err != nil {
+		t.Fatalf("Configure() error = %v", err)
+	}
+
+	var sync int
+	row := driver.QueryRow("PRAGMA synchronous")
+	if err := row.Scan(&sync); err != nil {
+		t.Fatalf("failed to scan synchronous: %v", err)
+	}
+	// FULL = 2
+	if sync != 2 {
+		t.Errorf("synchronous = %d, want 2 (FULL)", sync)
+	}
+}
+
+// TestSQLiteDriver_Configure_EmptySynchronous verifies that empty synchronous
+// mode skips the PRAGMA, preserving whatever was previously set.
+func TestSQLiteDriver_Configure_EmptySynchronous(t *testing.T) {
+	driver := createTestDriver(t) // Connect sets synchronous=NORMAL (1)
+	defer driver.Close()
+
+	opts := DriverOptions{
+		EnableForeignKeys: true,
+		SynchronousMode:   "", // empty means skip
+	}
+	if err := driver.Configure(opts); err != nil {
+		t.Fatalf("Configure() error = %v", err)
+	}
+
+	var sync int
+	row := driver.QueryRow("PRAGMA synchronous")
+	if err := row.Scan(&sync); err != nil {
+		t.Fatalf("failed to scan synchronous: %v", err)
+	}
+	if sync != 1 {
+		t.Errorf("synchronous = %d, want 1 (NORMAL, unchanged)", sync)
+	}
+}
+
+// TestSQLiteDriver_Configure_WALMode_File verifies that Configure sets WAL
+// journal mode on file-based drivers.
+func TestSQLiteDriver_Configure_WALMode_File(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "configure_wal.db")
+
+	cfg := DriverConfig{Type: DriverSQLite, Path: dbPath}
+	driver, err := NewSQLiteDriver(cfg)
+	if err != nil {
+		t.Fatalf("NewSQLiteDriver() error = %v", err)
+	}
+	defer driver.Close()
+
+	// Ping first to open connection, then configure
+	if err := driver.Ping(); err != nil {
+		t.Fatalf("Ping() error = %v", err)
+	}
+	opts := DefaultDriverOptions()
+	if err := driver.Configure(opts); err != nil {
+		t.Fatalf("Configure() error = %v", err)
+	}
+
+	var journalMode string
+	row := driver.QueryRow("PRAGMA journal_mode")
+	if err := row.Scan(&journalMode); err != nil {
+		t.Fatalf("failed to scan journal_mode: %v", err)
+	}
+	if journalMode != "wal" {
+		t.Errorf("journal_mode = %q, want %q", journalMode, "wal")
+	}
+}
+
+// TestSQLiteDriver_Configure_WALSkipped_Memory verifies that WAL journal mode
+// is correctly skipped for in-memory drivers (they don't support WAL).
+func TestSQLiteDriver_Configure_WALSkipped_Memory(t *testing.T) {
+	driver := createTestDriver(t)
+	defer driver.Close()
+
+	// Re-configure with WAL explicitly — should be skipped for memory
+	opts := DefaultDriverOptions()
+	if err := driver.Configure(opts); err != nil {
+		t.Fatalf("Configure() error = %v", err)
+	}
+
+	var journalMode string
+	row := driver.QueryRow("PRAGMA journal_mode")
+	if err := row.Scan(&journalMode); err != nil {
+		t.Fatalf("failed to scan journal_mode: %v", err)
+	}
+	if journalMode == "wal" {
+		t.Errorf("journal_mode = %q, want anything except wal for in-memory", journalMode)
+	}
+}
+
+// TestSQLiteDriver_DefaultDriverOptions_Values verifies the default option values
+// match the previously hard-coded PRAGMA values.
+func TestSQLiteDriver_DefaultDriverOptions_Values(t *testing.T) {
+	opts := DefaultDriverOptions()
+
+	if !opts.EnableForeignKeys {
+		t.Error("EnableForeignKeys should default to true")
+	}
+	if opts.JournalMode != "wal" {
+		t.Errorf("JournalMode = %q, want %q", opts.JournalMode, "wal")
+	}
+	if opts.BusyTimeoutMs != 5000 {
+		t.Errorf("BusyTimeoutMs = %d, want 5000", opts.BusyTimeoutMs)
+	}
+	if opts.SynchronousMode != "NORMAL" {
+		t.Errorf("SynchronousMode = %q, want %q", opts.SynchronousMode, "NORMAL")
+	}
+}
+
+// TestMockDriver_Configure_Records verifies MockDriver records Configure calls.
+func TestMockDriver_Configure_Records(t *testing.T) {
+	mock := NewMockDriver()
+	opts := DefaultDriverOptions()
+
+	if err := mock.Configure(opts); err != nil {
+		t.Fatalf("MockDriver.Configure() error = %v", err)
+	}
+
+	calls := mock.GetCalls()
+	found := false
+	for _, c := range calls {
+		if c.Method == "Configure" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("MockDriver.Configure() call was not recorded")
+	}
+}
+
+// TestMockDriver_Configure_CustomFunc verifies MockDriver allows custom Configure behavior.
+func TestMockDriver_Configure_CustomFunc(t *testing.T) {
+	expectedErr := errors.New("configure failed")
+	mock := NewMockDriver()
+	mock.ConfigureFunc = func(opts DriverOptions) error {
+		return expectedErr
+	}
+
+	err := mock.Configure(DefaultDriverOptions())
+	if err != expectedErr {
+		t.Errorf("Configure() error = %v, want %v", err, expectedErr)
+	}
+}
+
+// =============================================================================
 // Helper Functions
 // =============================================================================
 

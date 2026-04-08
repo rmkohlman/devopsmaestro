@@ -156,39 +156,55 @@ func NewMemorySQLiteDriver(cfg DriverConfig) (Driver, error) {
 	}, nil
 }
 
-// Connect establishes the database connection.
+// Connect establishes the database connection and applies default configuration.
 func (d *SQLiteDriver) Connect() error {
 	if err := d.conn.Ping(); err != nil {
 		return err
 	}
 
-	// Verify foreign keys are enabled
-	var fkEnabled int
-	if err := d.conn.QueryRow("PRAGMA foreign_keys").Scan(&fkEnabled); err != nil {
-		return fmt.Errorf("failed to check foreign_keys pragma: %w", err)
-	}
-	if fkEnabled != 1 {
-		return fmt.Errorf("foreign_keys pragma is not enabled (got %d, want 1)", fkEnabled)
+	return d.Configure(DefaultDriverOptions())
+}
+
+// Configure applies driver-level options by executing the appropriate SQLite PRAGMAs.
+// This method abstracts backend-specific tuning so the database layer can be swapped.
+func (d *SQLiteDriver) Configure(opts DriverOptions) error {
+	// Verify foreign keys are enabled (set via DSN parameter _foreign_keys=on)
+	if opts.EnableForeignKeys {
+		var fkEnabled int
+		if err := d.conn.QueryRow("PRAGMA foreign_keys").Scan(&fkEnabled); err != nil {
+			return fmt.Errorf("failed to check foreign_keys pragma: %w", err)
+		}
+		if fkEnabled != 1 {
+			return fmt.Errorf("foreign_keys pragma is not enabled (got %d, want 1)", fkEnabled)
+		}
 	}
 
 	// Enable WAL mode for better concurrent read/write access.
 	// WAL mode is only meaningful for file-based databases; in-memory databases
 	// always report "memory" and cannot use WAL, so we skip it for them.
-	if d.cfg.Type != DriverMemory {
-		if _, err := d.conn.Exec("PRAGMA journal_mode=WAL"); err != nil {
-			return fmt.Errorf("failed to enable WAL mode: %w", err)
+	if opts.JournalMode != "" && d.cfg.Type != DriverMemory {
+		pragma := fmt.Sprintf("PRAGMA journal_mode=%s", opts.JournalMode)
+		if _, err := d.conn.Exec(pragma); err != nil {
+			return fmt.Errorf("failed to set journal_mode=%s: %w", opts.JournalMode, err)
 		}
 	}
 
 	// Set busy timeout so concurrent writers wait instead of returning SQLITE_BUSY immediately.
-	if _, err := d.conn.Exec("PRAGMA busy_timeout=5000"); err != nil {
-		return fmt.Errorf("failed to set busy_timeout: %w", err)
+	if opts.BusyTimeoutMs > 0 {
+		pragma := fmt.Sprintf("PRAGMA busy_timeout=%d", opts.BusyTimeoutMs)
+		if _, err := d.conn.Exec(pragma); err != nil {
+			return fmt.Errorf("failed to set busy_timeout: %w", err)
+		}
 	}
 
+	// Set synchronous mode for controlling fsync behavior.
 	// With WAL mode, synchronous=NORMAL is safe and provides better performance
 	// than the default FULL. For in-memory databases this is a no-op but harmless.
-	if _, err := d.conn.Exec("PRAGMA synchronous=NORMAL"); err != nil {
-		return fmt.Errorf("failed to set synchronous mode: %w", err)
+	if opts.SynchronousMode != "" {
+		pragma := fmt.Sprintf("PRAGMA synchronous=%s", opts.SynchronousMode)
+		if _, err := d.conn.Exec(pragma); err != nil {
+			return fmt.Errorf("failed to set synchronous mode: %w", err)
+		}
 	}
 
 	return nil

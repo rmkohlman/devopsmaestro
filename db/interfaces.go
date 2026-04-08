@@ -83,14 +83,54 @@ type Result interface {
 	RowsAffected() (int64, error)
 }
 
+// DriverOptions configures driver-level database behavior.
+// Each field maps to a backend-specific optimization (e.g., SQLite PRAGMAs).
+// Drivers ignore options that don't apply to their backend.
+type DriverOptions struct {
+	// EnableForeignKeys enables referential integrity enforcement.
+	// SQLite: PRAGMA foreign_keys = ON (verified, not set — set via DSN param).
+	EnableForeignKeys bool
+
+	// JournalMode controls the journaling strategy for crash recovery.
+	// SQLite: "wal" (Write-Ahead Logging) for better concurrency; "delete" is default.
+	// Ignored for in-memory databases.
+	JournalMode string
+
+	// BusyTimeoutMs sets how long the driver waits when the database is locked.
+	// SQLite: PRAGMA busy_timeout (milliseconds). 0 means return SQLITE_BUSY immediately.
+	BusyTimeoutMs int
+
+	// SynchronousMode controls fsync behavior after writes.
+	// SQLite: PRAGMA synchronous — "OFF"=0, "NORMAL"=1, "FULL"=2, "EXTRA"=3.
+	// Empty string means use the driver default.
+	SynchronousMode string
+}
+
+// DefaultDriverOptions returns the standard options applied during Connect().
+// These match the previous hard-coded PRAGMA values.
+func DefaultDriverOptions() DriverOptions {
+	return DriverOptions{
+		EnableForeignKeys: true,
+		JournalMode:       "wal",
+		BusyTimeoutMs:     5000,
+		SynchronousMode:   "NORMAL",
+	}
+}
+
 // Driver is the low-level interface for database operations.
 // Implementations handle connection management and query execution
 // for specific database systems.
 type Driver interface {
 	// Connection Lifecycle
 
-	// Connect establishes the database connection.
+	// Connect establishes the database connection and applies default configuration.
+	// It calls Configure(DefaultDriverOptions()) internally.
 	Connect() error
+
+	// Configure applies driver-level options (journal mode, timeouts, etc.).
+	// This abstracts backend-specific tuning (e.g., SQLite PRAGMAs) so the
+	// database layer can be swapped without changing callers.
+	Configure(opts DriverOptions) error
 
 	// Close closes the database connection.
 	Close() error
