@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"devopsmaestro/pkg/resource/handlers"
 	"devopsmaestro/pkg/source"
 	"fmt"
 	"github.com/rmkohlman/MaestroSDK/render"
@@ -10,10 +9,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func init() {
-	// Register resource handlers
-	handlers.RegisterAll()
-}
+// Note: Resource handler registration is done explicitly via
+// handlers.RegisterAll() called from Execute() in root.go,
+// not via init(). This makes the dependency order explicit.
 
 // applyCmd is the root 'apply' command for kubectl-style resource application
 // Usage: dvm apply -f <file> or dvm apply nvim plugin -f <file>

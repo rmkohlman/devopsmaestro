@@ -79,10 +79,9 @@ func refreshStyles() {
 	rebuildStyles()
 }
 
-func init() {
-	// Initialize theme and colors on package load
-	InitTheme()
-}
+// Note: Theme initialization is done explicitly via InitTheme() called from
+// main.go or root command setup, not via init(). This makes the dependency
+// order explicit and testing easier.
 
 // rebuildStyles recreates all style variables with current theme colors
 func rebuildStyles() {

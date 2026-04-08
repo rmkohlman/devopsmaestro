@@ -3,6 +3,8 @@ package main
 import (
 	"devopsmaestro/cmd"
 	"devopsmaestro/db"
+	"devopsmaestro/operators"
+	"devopsmaestro/ui"
 	"fmt"
 	"github.com/rmkohlman/MaestroSDK/paths"
 	"github.com/rmkohlman/MaestroSDK/render"
@@ -53,6 +55,10 @@ func loadConfig() error {
 }
 
 func main() {
+	// Explicit package initialization (replaces implicit init() functions)
+	ui.InitTheme()
+	operators.InitSensitivePaths()
+
 	// Set version information for the CLI
 	cmd.Version = Version
 	cmd.BuildTime = BuildTime

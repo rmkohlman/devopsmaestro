@@ -5,6 +5,7 @@ import (
 	"devopsmaestro/db"
 	"devopsmaestro/pkg/colorbridge"
 	"devopsmaestro/pkg/crd"
+	"devopsmaestro/pkg/resource/handlers"
 	"fmt"
 	"github.com/rmkohlman/MaestroSDK/colors"
 	"github.com/rmkohlman/MaestroSDK/render"
@@ -40,6 +41,9 @@ create, manage, and deploy workspaces, apps, dependencies, and more.`,
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute(dataStore *db.DataStore, executor *Executor, migrationsFS fs.FS) {
+	// Explicit initialization: register all resource handlers at startup
+	handlers.RegisterAll()
+
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
 		// Initialize logging
 		initLogging()

@@ -5,45 +5,54 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // sensitivePathPrefixes are host paths that must never be bind-mounted into a
 // container. Each entry is matched as a prefix against the cleaned, absolute
-// source path. Home-directory-relative paths (e.g. ~/.ssh) are expanded at
-// init time.
+// source path. Home-directory-relative paths (e.g. ~/.ssh) are expanded when
+// InitSensitivePaths is called.
 var sensitivePathPrefixes []string
 
-func init() {
-	// Absolute system paths — always blocked.
-	static := []string{
-		"/etc",
-		"/var",
-		"/proc",
-		"/sys",
-		"/dev",
-		"/boot",
-		"/sbin",
-		"/lib",
-	}
+// initSensitiveOnce ensures InitSensitivePaths runs exactly once.
+var initSensitiveOnce sync.Once
 
-	// Home-relative sensitive directories.
-	homeRelative := []string{
-		".ssh",
-		".gnupg",
-		".aws",
-		".azure",
-		".kube",
-		".docker",
-		".config/gcloud",
-	}
-
-	sensitivePathPrefixes = append(sensitivePathPrefixes, static...)
-
-	if home, err := os.UserHomeDir(); err == nil {
-		for _, rel := range homeRelative {
-			sensitivePathPrefixes = append(sensitivePathPrefixes, filepath.Join(home, rel))
+// InitSensitivePaths builds the list of sensitive path prefixes that must never
+// be bind-mounted. It resolves home-relative paths using os.UserHomeDir.
+// This function is idempotent — safe to call multiple times.
+func InitSensitivePaths() {
+	initSensitiveOnce.Do(func() {
+		// Absolute system paths — always blocked.
+		static := []string{
+			"/etc",
+			"/var",
+			"/proc",
+			"/sys",
+			"/dev",
+			"/boot",
+			"/sbin",
+			"/lib",
 		}
-	}
+
+		// Home-relative sensitive directories.
+		homeRelative := []string{
+			".ssh",
+			".gnupg",
+			".aws",
+			".azure",
+			".kube",
+			".docker",
+			".config/gcloud",
+		}
+
+		sensitivePathPrefixes = append(sensitivePathPrefixes, static...)
+
+		if home, err := os.UserHomeDir(); err == nil {
+			for _, rel := range homeRelative {
+				sensitivePathPrefixes = append(sensitivePathPrefixes, filepath.Join(home, rel))
+			}
+		}
+	})
 }
 
 // ValidateMountSource checks that a host source path is safe to bind-mount.
@@ -57,6 +66,9 @@ func init() {
 //
 // Returns nil if the path is acceptable, or a descriptive error otherwise.
 func ValidateMountSource(path string) error {
+	// Ensure sensitive paths are initialized (idempotent).
+	InitSensitivePaths()
+
 	if path == "" {
 		return fmt.Errorf("mount source path is empty")
 	}
