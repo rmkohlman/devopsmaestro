@@ -70,6 +70,7 @@ type MockDataStore struct {
 	UpdateEcosystemErr                  error
 	DeleteEcosystemErr                  error
 	ListEcosystemsErr                   error
+	CountEcosystemsErr                  error
 	CreateDomainErr                     error
 	GetDomainByNameErr                  error
 	GetDomainByIDErr                    error
@@ -77,6 +78,7 @@ type MockDataStore struct {
 	DeleteDomainErr                     error
 	ListDomainsByEcosystemErr           error
 	ListAllDomainsErr                   error
+	FindDomainsByNameErr                error
 	CreateAppErr                        error
 	GetAppByNameErr                     error
 	GetAppByIDErr                       error
@@ -84,6 +86,7 @@ type MockDataStore struct {
 	DeleteAppErr                        error
 	ListAppsByDomainErr                 error
 	ListAllAppsErr                      error
+	FindAppsByNameErr                   error
 	CreateWorkspaceErr                  error
 	GetWorkspaceByNameErr               error
 	GetWorkspaceByIDErr                 error
@@ -349,6 +352,16 @@ func (m *MockDataStore) ListEcosystems() ([]*models.Ecosystem, error) {
 	return ecosystems, nil
 }
 
+func (m *MockDataStore) CountEcosystems() (int, error) {
+	m.recordCall("CountEcosystems")
+	if m.CountEcosystemsErr != nil {
+		return 0, m.CountEcosystemsErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.Ecosystems), nil
+}
+
 // =============================================================================
 // Domain Operations
 // =============================================================================
@@ -444,6 +457,37 @@ func (m *MockDataStore) ListAllDomains() ([]*models.Domain, error) {
 		domains = append(domains, d)
 	}
 	return domains, nil
+}
+
+func (m *MockDataStore) FindDomainsByName(name string) ([]*models.DomainWithHierarchy, error) {
+	m.recordCall("FindDomainsByName", name)
+	if m.FindDomainsByNameErr != nil {
+		return nil, m.FindDomainsByNameErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var results []*models.DomainWithHierarchy
+	for _, d := range m.Domains {
+		if d.Name == name {
+			// Find the parent ecosystem
+			var ecosystem *models.Ecosystem
+			for _, e := range m.Ecosystems {
+				if e.ID == d.EcosystemID {
+					ecosystem = e
+					break
+				}
+			}
+			if ecosystem == nil {
+				continue
+			}
+			results = append(results, &models.DomainWithHierarchy{
+				Domain:    d,
+				Ecosystem: ecosystem,
+			})
+		}
+	}
+	return results, nil
 }
 
 // =============================================================================
@@ -556,6 +600,43 @@ func (m *MockDataStore) ListAllApps() ([]*models.App, error) {
 		apps = append(apps, a)
 	}
 	return apps, nil
+}
+
+func (m *MockDataStore) FindAppsByName(name string) ([]*models.AppWithHierarchy, error) {
+	m.recordCall("FindAppsByName", name)
+	if m.FindAppsByNameErr != nil {
+		return nil, m.FindAppsByNameErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var results []*models.AppWithHierarchy
+	for _, a := range m.Apps {
+		if a.Name == name {
+			// Find the parent domain
+			domain, ok := m.Domains[a.DomainID]
+			if !ok {
+				continue
+			}
+			// Find the parent ecosystem
+			var ecosystem *models.Ecosystem
+			for _, e := range m.Ecosystems {
+				if e.ID == domain.EcosystemID {
+					ecosystem = e
+					break
+				}
+			}
+			if ecosystem == nil {
+				continue
+			}
+			results = append(results, &models.AppWithHierarchy{
+				App:       a,
+				Domain:    domain,
+				Ecosystem: ecosystem,
+			})
+		}
+	}
+	return results, nil
 }
 
 // =============================================================================

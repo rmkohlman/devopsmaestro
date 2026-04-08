@@ -149,3 +149,16 @@ func (ds *SQLDataStore) ListEcosystems() ([]*models.Ecosystem, error) {
 
 	return ecosystems, nil
 }
+
+// CountEcosystems returns the total number of ecosystems.
+func (ds *SQLDataStore) CountEcosystems() (int, error) {
+	var count int
+	query := `SELECT COUNT(*) FROM ecosystems`
+
+	row := ds.driver.QueryRow(query)
+	if err := row.Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count ecosystems: %w", err)
+	}
+
+	return count, nil
+}

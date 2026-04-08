@@ -176,3 +176,54 @@ func (ds *SQLDataStore) ListAllApps() ([]*models.App, error) {
 
 	return apps, nil
 }
+
+// FindAppsByName retrieves all apps with the given name across all domains,
+// including their full hierarchy (domain and ecosystem).
+// Returns an empty slice (not an error) if no apps match.
+func (ds *SQLDataStore) FindAppsByName(name string) ([]*models.AppWithHierarchy, error) {
+	query := `SELECT 
+		a.id, a.domain_id, a.name, a.path, a.description, a.theme, a.language, a.build_config, a.git_repo_id, a.created_at, a.updated_at,
+		d.id, d.ecosystem_id, d.name, d.description, d.theme, d.build_args, d.ca_certs, d.created_at, d.updated_at,
+		e.id, e.name, e.description, e.theme, e.build_args, e.ca_certs, e.created_at, e.updated_at
+	FROM apps a
+	JOIN domains d ON a.domain_id = d.id
+	JOIN ecosystems e ON d.ecosystem_id = e.id
+	WHERE a.name = ?
+	ORDER BY e.name, d.name`
+
+	rows, err := ds.driver.Query(query, name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find apps by name: %w", err)
+	}
+	defer rows.Close()
+
+	var results []*models.AppWithHierarchy
+	for rows.Next() {
+		app := &models.App{}
+		domain := &models.Domain{}
+		ecosystem := &models.Ecosystem{}
+
+		if err := rows.Scan(
+			// App fields
+			&app.ID, &app.DomainID, &app.Name, &app.Path, &app.Description, &app.Theme, &app.Language, &app.BuildConfig, &app.GitRepoID, &app.CreatedAt, &app.UpdatedAt,
+			// Domain fields
+			&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description, &domain.Theme, &domain.BuildArgs, &domain.CACerts, &domain.CreatedAt, &domain.UpdatedAt,
+			// Ecosystem fields
+			&ecosystem.ID, &ecosystem.Name, &ecosystem.Description, &ecosystem.Theme, &ecosystem.BuildArgs, &ecosystem.CACerts, &ecosystem.CreatedAt, &ecosystem.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan app with hierarchy: %w", err)
+		}
+
+		results = append(results, &models.AppWithHierarchy{
+			App:       app,
+			Domain:    domain,
+			Ecosystem: ecosystem,
+		})
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over apps: %w", err)
+	}
+
+	return results, nil
+}

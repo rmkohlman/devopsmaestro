@@ -163,3 +163,48 @@ func (ds *SQLDataStore) ListAllDomains() ([]*models.Domain, error) {
 
 	return domains, nil
 }
+
+// FindDomainsByName retrieves all domains with the given name across all ecosystems,
+// including their parent ecosystem.
+// Returns an empty slice (not an error) if no domains match.
+func (ds *SQLDataStore) FindDomainsByName(name string) ([]*models.DomainWithHierarchy, error) {
+	query := `SELECT 
+		d.id, d.ecosystem_id, d.name, d.description, d.theme, d.build_args, d.ca_certs, d.created_at, d.updated_at,
+		e.id, e.name, e.description, e.theme, e.build_args, e.ca_certs, e.created_at, e.updated_at
+	FROM domains d
+	JOIN ecosystems e ON d.ecosystem_id = e.id
+	WHERE d.name = ?
+	ORDER BY e.name`
+
+	rows, err := ds.driver.Query(query, name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find domains by name: %w", err)
+	}
+	defer rows.Close()
+
+	var results []*models.DomainWithHierarchy
+	for rows.Next() {
+		domain := &models.Domain{}
+		ecosystem := &models.Ecosystem{}
+
+		if err := rows.Scan(
+			// Domain fields
+			&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description, &domain.Theme, &domain.BuildArgs, &domain.CACerts, &domain.CreatedAt, &domain.UpdatedAt,
+			// Ecosystem fields
+			&ecosystem.ID, &ecosystem.Name, &ecosystem.Description, &ecosystem.Theme, &ecosystem.BuildArgs, &ecosystem.CACerts, &ecosystem.CreatedAt, &ecosystem.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan domain with hierarchy: %w", err)
+		}
+
+		results = append(results, &models.DomainWithHierarchy{
+			Domain:    domain,
+			Ecosystem: ecosystem,
+		})
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over domains: %w", err)
+	}
+
+	return results, nil
+}

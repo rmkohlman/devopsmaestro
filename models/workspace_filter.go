@@ -24,6 +24,29 @@ func (f WorkspaceFilter) IsEmpty() bool {
 		f.WorkspaceName == ""
 }
 
+// AppWithHierarchy contains an app along with its full hierarchy information.
+// This is used for ambiguity detection when resolving apps by name.
+type AppWithHierarchy struct {
+	// App is the resolved app.
+	App *App
+
+	// Domain is the parent domain.
+	Domain *Domain
+
+	// Ecosystem is the parent ecosystem.
+	Ecosystem *Ecosystem
+}
+
+// DomainWithHierarchy contains a domain along with its parent ecosystem.
+// This is used for ambiguity detection when resolving domains by name.
+type DomainWithHierarchy struct {
+	// Domain is the resolved domain.
+	Domain *Domain
+
+	// Ecosystem is the parent ecosystem.
+	Ecosystem *Ecosystem
+}
+
 // WorkspaceWithHierarchy contains a workspace along with its full hierarchy information.
 // This is used for workspace resolution and display purposes.
 type WorkspaceWithHierarchy struct {

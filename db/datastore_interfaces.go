@@ -43,6 +43,9 @@ type EcosystemStore interface {
 
 	// ListEcosystems retrieves all ecosystems.
 	ListEcosystems() ([]*models.Ecosystem, error)
+
+	// CountEcosystems returns the total number of ecosystems.
+	CountEcosystems() (int, error)
 }
 
 // DomainStore defines operations for managing domains (bounded context within an ecosystem).
@@ -67,6 +70,11 @@ type DomainStore interface {
 
 	// ListAllDomains retrieves all domains across all ecosystems.
 	ListAllDomains() ([]*models.Domain, error)
+
+	// FindDomainsByName retrieves all domains with the given name across all ecosystems,
+	// including their parent ecosystem.
+	// Returns an empty slice (not an error) if no domains match.
+	FindDomainsByName(name string) ([]*models.DomainWithHierarchy, error)
 }
 
 // AppStore defines operations for managing apps (codebase/application within a domain).
@@ -96,6 +104,11 @@ type AppStore interface {
 
 	// ListAllApps retrieves all apps across all domains.
 	ListAllApps() ([]*models.App, error)
+
+	// FindAppsByName retrieves all apps with the given name across all domains,
+	// including their full hierarchy (domain and ecosystem).
+	// Returns an empty slice (not an error) if no apps match.
+	FindAppsByName(name string) ([]*models.AppWithHierarchy, error)
 }
 
 // WorkspaceStore defines operations for managing workspaces.

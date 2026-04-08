@@ -493,6 +493,15 @@ func (m *MockDataStore) ListCustomResourcesByNamespace(kind, namespace string) (
 	return nil, nil
 }
 
+// Inference query methods (added for #199 — CountEcosystems, FindAppsByName, FindDomainsByName)
+func (m *MockDataStore) CountEcosystems() (int, error) { return 0, nil }
+func (m *MockDataStore) FindAppsByName(name string) ([]*models.AppWithHierarchy, error) {
+	return nil, nil
+}
+func (m *MockDataStore) FindDomainsByName(name string) ([]*models.DomainWithHierarchy, error) {
+	return nil, nil
+}
+
 // MockThemeStore implements theme.Store for testing
 type MockThemeStore struct {
 	themes   map[string]*theme.Theme
