@@ -381,7 +381,7 @@ func (r *GlobalDefaultsResource) GetName() string {
 }
 
 func (r *GlobalDefaultsResource) Validate() error {
-	return nil
+	return models.ValidateCACerts(r.caCerts)
 }
 
 // Theme returns the underlying theme name.

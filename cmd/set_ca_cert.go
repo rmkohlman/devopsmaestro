@@ -104,6 +104,11 @@ func runSetCACert(cmd *cobra.Command, args []string) error {
 		VaultField:       setCACertVaultField,
 	}
 
+	// Validate cert config before persisting (catches invalid names, missing vault secrets)
+	if err := cert.Validate(); err != nil {
+		return err
+	}
+
 	ctx, err := buildResourceContext(cmd)
 	if err != nil {
 		return err

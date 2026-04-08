@@ -4,10 +4,7 @@
 package cmd
 
 import (
-	"bufio"
 	"fmt"
-	"os"
-	"strings"
 
 	"devopsmaestro/db"
 	"devopsmaestro/pkg/resource/handlers"
@@ -80,16 +77,14 @@ func runDeleteCACert(cmd *cobra.Command, args []string) error {
 	}
 
 	// Confirm deletion
-	if !deleteCACertForce {
-		levelDesc := resolveCACertLevelDesc()
-		fmt.Printf("Delete CA cert %q at %s? (y/N): ", certName, levelDesc)
-		reader := bufio.NewReader(os.Stdin)
-		response, _ := reader.ReadString('\n')
-		response = strings.TrimSpace(response)
-		if response != "y" && response != "Y" {
-			render.Info("Aborted")
-			return nil
-		}
+	levelDesc := resolveCACertLevelDesc()
+	msg := fmt.Sprintf("Delete CA cert %q at %s?", certName, levelDesc)
+	confirmed, err := confirmDelete(msg, deleteCACertForce)
+	if err != nil {
+		return err
+	}
+	if !confirmed {
+		return nil
 	}
 
 	switch {
