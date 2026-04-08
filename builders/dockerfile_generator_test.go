@@ -4489,28 +4489,33 @@ func TestDockerfileGenerator_MasonInstallStep_ProxyUnsetPrefix(t *testing.T) {
 				t.Fatalf("Generate() missing 'mason-registry' Lua script — test requires it to be present for language=%s", tt.language)
 			}
 
-			// MUST have: unset prefix on the RUN containing the Mason install
+			// MUST have: unset prefix on the RUN that executes nvim for Mason install.
+			// With issue #204 fix, the Lua script is written via COPY heredoc and
+			// the nvim execution is a separate RUN with the unset prefix.
 			// Expected form:
+			//   COPY <<'LUAEOF' /tmp/mason-install.lua
+			//       ... lua content with mason-registry ...
+			//   LUAEOF
+			//
 			//   RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \
-			//       cat > /tmp/mason-install.lua << 'LUAEOF'
-			//       ...
-			//       nvim --headless +"luafile /tmp/mason-install.lua" +qa 2>&1
-			masonIdx := strings.Index(dockerfile, "mason-registry")
-			if masonIdx < 0 {
-				t.Fatalf("cannot locate 'mason-registry' in generated Dockerfile")
+			//       nvim --headless +"luafile /tmp/mason-install.lua" +qa 2>&1 && \
+			//       rm -f /tmp/mason-install.lua
+			nvimMasonIdx := strings.Index(dockerfile, "luafile /tmp/mason-install.lua")
+			if nvimMasonIdx < 0 {
+				t.Fatalf("cannot locate 'luafile /tmp/mason-install.lua' in generated Dockerfile")
 			}
 
-			// Look back up to 300 characters before the command for the unset prefix
-			lookbackStart := masonIdx - 300
+			// Look back up to 300 characters before the nvim command for the unset prefix
+			lookbackStart := nvimMasonIdx - 300
 			if lookbackStart < 0 {
 				lookbackStart = 0
 			}
-			context := dockerfile[lookbackStart : masonIdx+len("mason-registry")]
+			context := dockerfile[lookbackStart : nvimMasonIdx+len("luafile /tmp/mason-install.lua")]
 
-			// Find the last RUN keyword before the Mason install command
+			// Find the last RUN keyword before the nvim mason install command
 			lastRunIdx := strings.LastIndex(context, "RUN ")
 			if lastRunIdx < 0 {
-				t.Fatalf("no RUN keyword found before 'mason-registry' in context:\n%s", context)
+				t.Fatalf("no RUN keyword found before 'luafile /tmp/mason-install.lua' in context:\n%s", context)
 			}
 			runBlock := context[lastRunIdx:]
 
@@ -5421,5 +5426,219 @@ func TestInstallMasonTools_JavaIncludesGoogleJavaFormat(t *testing.T) {
 		t.Errorf("Java tools missing 'google-java-format'.\n"+
 			"Issue #31: Java language tools must include google-java-format.\n"+
 			"Got: %v", tools)
+	}
+}
+
+// TestInstallMasonTools_NoUnknownDockerfileInstructions is a regression test for
+// Issue #204: Dockerfile syntax error "unknown instruction: nvim".
+//
+// The original bug: installMasonTools() embedded a shell heredoc inside a multi-line
+// RUN instruction. Docker line continuation (\) ended before the heredoc body, so
+// Docker parsed Lua code lines and `nvim` as Dockerfile instructions.
+//
+// This test verifies that every line in the generated Dockerfile is either:
+//   - A valid Dockerfile instruction (FROM, RUN, COPY, ENV, ARG, etc.)
+//   - A comment (starts with #)
+//   - A continuation line (previous line ended with \)
+//   - Inside a BuildKit heredoc block (between `<< 'DELIM'` and `DELIM`)
+//   - An empty line
+//
+// It specifically asserts that no line starts with bare `nvim`, `local`, `end`,
+// `vim.wait`, or other Lua keywords that would indicate a broken heredoc.
+func TestInstallMasonTools_NoUnknownDockerfileInstructions(t *testing.T) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("failed to get home dir: %v", err)
+	}
+
+	repoName := "test-mason-dockerfile-syntax"
+	stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", repoName)
+	nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
+	if err := os.MkdirAll(nvimConfigPath, 0755); err != nil {
+		t.Fatalf("failed to create nvim config dir: %v", err)
+	}
+	defer os.RemoveAll(stagingDir)
+
+	initLuaPath := filepath.Join(nvimConfigPath, "init.lua")
+	if err := os.WriteFile(initLuaPath, []byte("-- test"), 0644); err != nil {
+		t.Fatalf("failed to create init.lua: %v", err)
+	}
+
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{
+		Nvim: models.NvimConfig{
+			Structure: "custom",
+		},
+	}
+
+	manifest := &plugin.PluginManifest{
+		Features: plugin.PluginFeatures{
+			HasMason:      true,
+			HasTreesitter: true,
+		},
+	}
+
+	sourcePath := filepath.Join("/tmp", "dvm-clone-xyz", repoName)
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "python",
+		Version:       "3.11",
+		AppPath:       sourcePath,
+		PathConfig:    paths.New(homeDir),
+	})
+	gen.SetPluginManifest(manifest)
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// Validate every line is a legal Dockerfile construct
+	validInstructions := map[string]bool{
+		"FROM": true, "RUN": true, "COPY": true, "ENV": true,
+		"ARG": true, "WORKDIR": true, "USER": true, "LABEL": true,
+		"EXPOSE": true, "ENTRYPOINT": true, "CMD": true, "SHELL": true,
+		"ADD": true, "STOPSIGNAL": true, "HEALTHCHECK": true,
+		"ONBUILD": true, "VOLUME": true,
+	}
+
+	lines := strings.Split(dockerfile, "\n")
+	inContinuation := false // previous line ended with \
+	inHeredoc := false      // inside a BuildKit heredoc block
+	heredocDelimiter := ""  // the delimiter to close the heredoc
+
+	for i, line := range lines {
+		lineNum := i + 1
+		trimmed := strings.TrimSpace(line)
+
+		// Track heredoc state: if we're inside a heredoc, lines are content
+		// until we see the closing delimiter
+		if inHeredoc {
+			if trimmed == heredocDelimiter {
+				inHeredoc = false
+				heredocDelimiter = ""
+			}
+			continue
+		}
+
+		// Empty lines are always valid
+		if trimmed == "" {
+			inContinuation = false
+			continue
+		}
+
+		// Comments are always valid (including # syntax=docker/dockerfile:1)
+		if strings.HasPrefix(trimmed, "#") {
+			inContinuation = false
+			continue
+		}
+
+		// If previous line ended with \, this is a continuation
+		if inContinuation {
+			inContinuation = strings.HasSuffix(trimmed, "\\")
+			continue
+		}
+
+		// Check for heredoc start: look for << or <<- followed by a delimiter
+		// in the instruction line (e.g., COPY <<'LUAEOF' /path or RUN <<EOF)
+		if idx := strings.Index(trimmed, "<<"); idx >= 0 {
+			rest := trimmed[idx+2:]
+			// Skip <<- variant
+			rest = strings.TrimPrefix(rest, "-")
+			rest = strings.TrimSpace(rest)
+			// Extract delimiter (may be quoted with ' or ")
+			delim := rest
+			if spaceIdx := strings.IndexAny(delim, " \t"); spaceIdx >= 0 {
+				delim = delim[:spaceIdx]
+			}
+			delim = strings.Trim(delim, "'\"")
+			if delim != "" {
+				inHeredoc = true
+				heredocDelimiter = delim
+			}
+		}
+
+		// This should be a Dockerfile instruction — extract first word
+		firstWord := trimmed
+		if spaceIdx := strings.IndexAny(trimmed, " \t"); spaceIdx >= 0 {
+			firstWord = trimmed[:spaceIdx]
+		}
+		firstWord = strings.ToUpper(firstWord)
+
+		if !validInstructions[firstWord] {
+			t.Errorf("Issue #204 regression: line %d starts with unknown "+
+				"Dockerfile instruction %q.\nFull line: %s\n"+
+				"This likely means a heredoc or RUN continuation is broken.",
+				lineNum, firstWord, line)
+		}
+
+		inContinuation = strings.HasSuffix(trimmed, "\\")
+	}
+
+	// Explicit regression check: no bare `nvim` as a top-level Dockerfile instruction.
+	// Lines that are continuations (preceded by a line ending with \) or inside
+	// heredocs are valid — only flag `nvim` when Docker would parse it as an instruction.
+	inCont := false
+	inHDoc := false
+	hDocDelim := ""
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		if inHDoc {
+			if trimmed == hDocDelim {
+				inHDoc = false
+				hDocDelim = ""
+			}
+			continue
+		}
+
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			if !strings.HasSuffix(trimmed, "\\") {
+				inCont = false
+			}
+			continue
+		}
+
+		if inCont {
+			inCont = strings.HasSuffix(trimmed, "\\")
+			continue
+		}
+
+		// Detect heredoc start
+		if idx := strings.Index(trimmed, "<<"); idx >= 0 {
+			rest := strings.TrimSpace(strings.TrimPrefix(trimmed[idx+2:], "-"))
+			delim := rest
+			if sp := strings.IndexAny(delim, " \t"); sp >= 0 {
+				delim = delim[:sp]
+			}
+			delim = strings.Trim(delim, "'\"")
+			if delim != "" {
+				inHDoc = true
+				hDocDelim = delim
+			}
+		}
+
+		// At this point the line is a top-level Dockerfile instruction
+		if strings.HasPrefix(trimmed, "nvim ") || trimmed == "nvim" {
+			t.Errorf("Issue #204 regression: line %d starts with bare 'nvim' "+
+				"which Docker would interpret as an unknown instruction.\n"+
+				"Line: %s", i+1, line)
+		}
+
+		inCont = strings.HasSuffix(trimmed, "\\")
+	}
+
+	// Verify Mason content IS present (test is meaningful)
+	if !strings.Contains(dockerfile, "mason-registry") {
+		t.Error("Test setup issue: generated Dockerfile missing mason-registry content")
+	}
+	if !strings.Contains(dockerfile, "luafile /tmp/mason-install.lua") {
+		t.Error("Test setup issue: generated Dockerfile missing nvim mason-install execution")
 	}
 }

@@ -1268,8 +1268,12 @@ func (g *DefaultDockerfileGenerator) installMasonTools(dockerfile *strings.Build
 	luaTools := "'" + strings.Join(tools, "','") + "'"
 
 	dockerfile.WriteString("# Install LSPs, linters, and formatters via Mason at build time\n")
-	dockerfile.WriteString("RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \\\n")
-	dockerfile.WriteString("    cat > /tmp/mason-install.lua << 'LUAEOF'\n")
+	// Write the Lua install script using BuildKit COPY heredoc syntax.
+	// The generated Dockerfile has `# syntax=docker/dockerfile:1` which enables
+	// heredoc support. Using COPY <<EOF avoids the broken pattern of embedding
+	// shell heredocs inside RUN continuations (which caused Docker to see Lua
+	// code lines as unknown Dockerfile instructions — see issue #204).
+	dockerfile.WriteString("COPY <<'LUAEOF' /tmp/mason-install.lua\n")
 	dockerfile.WriteString("local registry = require('mason-registry')\n")
 	dockerfile.WriteString("registry.refresh()\n")
 	dockerfile.WriteString(fmt.Sprintf("local tools = {%s}\n", luaTools))
@@ -1287,7 +1291,10 @@ func (g *DefaultDockerfileGenerator) installMasonTools(dockerfile *strings.Build
 	dockerfile.WriteString("  end\n")
 	dockerfile.WriteString("  return done >= #tools\n")
 	dockerfile.WriteString("end, 1000)\n")
-	dockerfile.WriteString("LUAEOF\n")
+	dockerfile.WriteString("LUAEOF\n\n")
+	// Execute nvim with the Lua script and clean up.
+	// Proxy vars are unset to avoid interference with Mason's package downloads.
+	dockerfile.WriteString("RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \\\n")
 	dockerfile.WriteString("    nvim --headless +\"luafile /tmp/mason-install.lua\" +qa 2>&1 && \\\n")
 	dockerfile.WriteString("    rm -f /tmp/mason-install.lua\n\n")
 }
