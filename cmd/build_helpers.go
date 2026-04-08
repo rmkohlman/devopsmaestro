@@ -231,7 +231,7 @@ func copyFile(src, dst string, mode os.FileMode) error {
 		return err
 	}
 
-	dstFile, err := os.Create(dst)
+	dstFile, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
 	if err != nil {
 		return err
 	}

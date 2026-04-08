@@ -60,7 +60,7 @@ func (p *DefaultProcessManager) Start(ctx context.Context, binary string, args [
 	var err error
 	if config.LogFile != "" {
 		// Ensure directory exists
-		if err := os.MkdirAll(filepath.Dir(config.LogFile), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(config.LogFile), 0700); err != nil {
 			return fmt.Errorf("failed to create log directory: %w", err)
 		}
 
@@ -350,12 +350,12 @@ func (p *DefaultProcessManager) GetPID() int {
 func (p *DefaultProcessManager) writePIDFile(path string, pid int) error {
 	// Ensure directory exists
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
 
-	// Write PID
-	return os.WriteFile(path, []byte(strconv.Itoa(pid)), 0644)
+	// Write PID — 0600: PID files should be owner-only
+	return os.WriteFile(path, []byte(strconv.Itoa(pid)), 0600)
 }
 
 // cleanStalePIDFile removes a PID file if the process is no longer running.

@@ -155,7 +155,7 @@ func initLogging() {
 
 	if logFile != "" {
 		// JSON format for file output (machine-readable)
-		f, err := os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+		f, err := os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 		if err != nil {
 			render.WarningfToStderr("Could not open log file %s: %v", logFile, err)
 			handler = slog.NewTextHandler(os.Stderr, opts)

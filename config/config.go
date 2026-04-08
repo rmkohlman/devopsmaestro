@@ -100,7 +100,7 @@ func LoadOrCreateConfig(configPath string) {
 // CreateDefaultConfig creates a default configuration file
 func CreateDefaultConfig(configPath string) error {
 	// Ensure config directory exists
-	if err := os.MkdirAll(configPath, 0755); err != nil {
+	if err := os.MkdirAll(configPath, 0700); err != nil {
 		return err
 	}
 

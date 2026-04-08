@@ -217,7 +217,7 @@ func (m *AthensManager) GetGoEnv() map[string]string {
 // writeConfigFile writes the Athens config to a TOML file.
 func (m *AthensManager) writeConfigFile(path string, config string) error {
 	// Ensure directory exists
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
 

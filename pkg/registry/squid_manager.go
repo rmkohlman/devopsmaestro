@@ -107,10 +107,10 @@ func (m *SquidManager) Start(ctx context.Context) error {
 	}
 
 	// Ensure directories exist
-	if err := os.MkdirAll(m.config.CacheDir, 0755); err != nil {
+	if err := os.MkdirAll(m.config.CacheDir, 0700); err != nil {
 		return fmt.Errorf("failed to create cache directory: %w", err)
 	}
-	if err := os.MkdirAll(m.config.LogDir, 0755); err != nil {
+	if err := os.MkdirAll(m.config.LogDir, 0700); err != nil {
 		return fmt.Errorf("failed to create log directory: %w", err)
 	}
 
@@ -240,7 +240,7 @@ func (m *SquidManager) generateConfig(configPath string) error {
 	}
 
 	// Ensure directory exists
-	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(configPath), 0700); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 

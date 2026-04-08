@@ -129,7 +129,7 @@ func prepareCACerts(stagingDir string, caCerts []models.CACertConfig) error {
 func prepareCACertsWithBackend(stagingDir string, caCerts []models.CACertConfig, backend config.SecretBackend) error {
 	// Create certs directory in staging
 	certsDir := filepath.Join(stagingDir, "certs")
-	if err := os.MkdirAll(certsDir, 0755); err != nil {
+	if err := os.MkdirAll(certsDir, 0700); err != nil {
 		return fmt.Errorf("failed to create certs directory: %w", err)
 	}
 

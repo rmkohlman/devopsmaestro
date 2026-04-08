@@ -198,7 +198,7 @@ func (z *ZotManager) Prune(ctx context.Context, opts PruneOptions) (*PruneResult
 // writeConfigFile writes the Zot config to a file.
 func (z *ZotManager) writeConfigFile(path string, config map[string]interface{}) error {
 	// Ensure directory exists
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
 

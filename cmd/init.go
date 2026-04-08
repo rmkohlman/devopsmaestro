@@ -45,7 +45,7 @@ var initCmd = &cobra.Command{
 		render.Progress("Creating directory structure...")
 		for _, dir := range dirs {
 			slog.Debug("creating directory", "path", dir)
-			if err := os.MkdirAll(dir, 0755); err != nil {
+			if err := os.MkdirAll(dir, 0700); err != nil {
 				slog.Error("failed to create directory", "path", dir, "error", err)
 				render.Errorf("Failed to create directory %s: %v", dir, err)
 				return
@@ -72,7 +72,7 @@ templates:
   nvim: ~/%s/templates/nvim
   shell: ~/%s/templates/shell
 `, paths.DVMDirName, paths.DatabaseFile, paths.DVMDirName, paths.DVMDirName)
-			if err := os.WriteFile(configPath, []byte(defaultConfig), 0644); err != nil {
+			if err := os.WriteFile(configPath, []byte(defaultConfig), 0600); err != nil {
 				slog.Error("failed to create config.yaml", "path", configPath, "error", err)
 				render.Errorf("Failed to create config.yaml: %v", err)
 				return

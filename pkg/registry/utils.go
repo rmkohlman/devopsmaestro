@@ -174,7 +174,7 @@ func EnsureDir(path string) error {
 	}
 
 	// Path doesn't exist - create it with parents
-	err = os.MkdirAll(path, 0755)
+	err = os.MkdirAll(path, 0700)
 	if err != nil {
 		return fmt.Errorf("failed to create directory %s: %w", path, err)
 	}

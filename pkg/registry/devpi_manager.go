@@ -255,7 +255,7 @@ func (m *DevpiManager) initializeDevpiServer(ctx context.Context, serverDir stri
 	initBinary := strings.Replace(binaryPath, "devpi-server", "devpi-init", 1)
 
 	// Ensure directory exists
-	if err := os.MkdirAll(serverDir, 0755); err != nil {
+	if err := os.MkdirAll(serverDir, 0700); err != nil {
 		return fmt.Errorf("failed to create server directory: %w", err)
 	}
 
