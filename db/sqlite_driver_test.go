@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -243,7 +244,7 @@ func TestSQLiteDriver_QueryRow_NoRows(t *testing.T) {
 	row := driver.QueryRow("SELECT id FROM test_no_rows WHERE id = ?", 999)
 	err = row.Scan(&id)
 
-	if err != sql.ErrNoRows {
+	if !errors.Is(err, sql.ErrNoRows) {
 		t.Errorf("Expected sql.ErrNoRows, got %v", err)
 	}
 }

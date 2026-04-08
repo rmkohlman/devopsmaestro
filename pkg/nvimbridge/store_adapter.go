@@ -136,9 +136,9 @@ func (a *PluginDBStoreAdapter) Delete(name string) error {
 func (a *PluginDBStoreAdapter) Get(name string) (*plugin.Plugin, error) {
 	dbPlugin, err := a.store.GetPluginByName(name)
 	if err != nil {
-		// Check if it's a "not found" error
-		// NOTE: Cannot use db.IsNotFound() due to import cycle (db -> nvimops -> store -> db).
-		// strings.Contains handles both old fmt.Errorf and new *db.ErrNotFound (whose Error() contains "not found").
+		// Check if it's a "not found" error.
+		// Cannot use db.IsNotFound() due to import cycle (nvimbridge cannot import db).
+		// All db methods now return *db.ErrNotFound whose Error() contains "not found".
 		if strings.Contains(err.Error(), "not found") {
 			return nil, &store.ErrNotFound{Name: name}
 		}
@@ -193,8 +193,8 @@ func (a *PluginDBStoreAdapter) ListByTag(tag string) ([]*plugin.Plugin, error) {
 func (a *PluginDBStoreAdapter) Exists(name string) (bool, error) {
 	_, err := a.store.GetPluginByName(name)
 	if err != nil {
-		// NOTE: Cannot use db.IsNotFound() due to import cycle (db -> nvimops -> store -> db).
-		// strings.Contains handles both old fmt.Errorf and new *db.ErrNotFound.
+		// Cannot use db.IsNotFound() due to import cycle (nvimbridge cannot import db).
+		// All db methods now return *db.ErrNotFound whose Error() contains "not found".
 		if strings.Contains(err.Error(), "not found") {
 			return false, nil
 		}

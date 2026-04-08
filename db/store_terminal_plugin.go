@@ -2,8 +2,10 @@ package db
 
 import (
 	"database/sql"
-	"devopsmaestro/models"
+	"errors"
 	"fmt"
+
+	"devopsmaestro/models"
 )
 
 // =============================================================================
@@ -74,7 +76,7 @@ func (ds *SQLDataStore) GetTerminalPlugin(name string) (*models.TerminalPluginDB
 	row := ds.driver.QueryRow(query, name)
 	plugin, err := scanTerminalPlugin(row)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("terminal plugin", name)
 		}
 		return nil, fmt.Errorf("failed to scan terminal plugin: %w", err)

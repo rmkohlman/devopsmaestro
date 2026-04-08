@@ -298,7 +298,7 @@ func (m *MockDataStore) GetEcosystemByName(name string) (*models.Ecosystem, erro
 	if e, ok := m.Ecosystems[name]; ok {
 		return e, nil
 	}
-	return nil, fmt.Errorf("ecosystem not found: %s", name)
+	return nil, NewErrNotFound("ecosystem", name)
 }
 
 func (m *MockDataStore) GetEcosystemByID(id int) (*models.Ecosystem, error) {
@@ -313,7 +313,7 @@ func (m *MockDataStore) GetEcosystemByID(id int) (*models.Ecosystem, error) {
 			return e, nil
 		}
 	}
-	return nil, fmt.Errorf("ecosystem not found: %d", id)
+	return nil, NewErrNotFound("ecosystem", id)
 }
 
 func (m *MockDataStore) UpdateEcosystem(ecosystem *models.Ecosystem) error {
@@ -391,7 +391,7 @@ func (m *MockDataStore) GetDomainByName(ecosystemID int, name string) (*models.D
 			return d, nil
 		}
 	}
-	return nil, fmt.Errorf("domain not found: %s", name)
+	return nil, NewErrNotFound("domain", name)
 }
 
 func (m *MockDataStore) GetDomainByID(id int) (*models.Domain, error) {
@@ -404,7 +404,7 @@ func (m *MockDataStore) GetDomainByID(id int) (*models.Domain, error) {
 	if d, ok := m.Domains[id]; ok {
 		return d, nil
 	}
-	return nil, fmt.Errorf("domain not found: %d", id)
+	return nil, NewErrNotFound("domain", id)
 }
 
 func (m *MockDataStore) UpdateDomain(domain *models.Domain) error {
@@ -519,7 +519,7 @@ func (m *MockDataStore) GetAppByName(domainID int, name string) (*models.App, er
 			return a, nil
 		}
 	}
-	return nil, fmt.Errorf("app not found: %s", name)
+	return nil, NewErrNotFound("app", name)
 }
 
 func (m *MockDataStore) GetAppByNameGlobal(name string) (*models.App, error) {
@@ -534,7 +534,7 @@ func (m *MockDataStore) GetAppByNameGlobal(name string) (*models.App, error) {
 			return a, nil
 		}
 	}
-	return nil, fmt.Errorf("app not found: %s", name)
+	return nil, NewErrNotFound("app", name)
 }
 
 func (m *MockDataStore) GetAppByID(id int) (*models.App, error) {
@@ -547,7 +547,7 @@ func (m *MockDataStore) GetAppByID(id int) (*models.App, error) {
 	if a, ok := m.Apps[id]; ok {
 		return a, nil
 	}
-	return nil, fmt.Errorf("app not found: %d", id)
+	return nil, NewErrNotFound("app", id)
 }
 
 func (m *MockDataStore) UpdateApp(app *models.App) error {
@@ -668,7 +668,7 @@ func (m *MockDataStore) GetWorkspaceByName(appID int, name string) (*models.Work
 			return ws, nil
 		}
 	}
-	return nil, fmt.Errorf("workspace not found: %s", name)
+	return nil, NewErrNotFound("workspace", name)
 }
 
 func (m *MockDataStore) GetWorkspaceByID(id int) (*models.Workspace, error) {
@@ -681,7 +681,7 @@ func (m *MockDataStore) GetWorkspaceByID(id int) (*models.Workspace, error) {
 	if ws, ok := m.Workspaces[id]; ok {
 		return ws, nil
 	}
-	return nil, fmt.Errorf("workspace not found: %d", id)
+	return nil, NewErrNotFound("workspace", id)
 }
 
 func (m *MockDataStore) GetWorkspaceBySlug(slug string) (*models.Workspace, error) {
@@ -696,7 +696,7 @@ func (m *MockDataStore) GetWorkspaceBySlug(slug string) (*models.Workspace, erro
 			return ws, nil
 		}
 	}
-	return nil, fmt.Errorf("workspace not found: %s", slug)
+	return nil, NewErrNotFound("workspace", slug)
 }
 
 func (m *MockDataStore) UpdateWorkspace(workspace *models.Workspace) error {
@@ -819,7 +819,7 @@ func (m *MockDataStore) GetWorkspaceSlug(workspaceID int) (string, error) {
 
 	ws, ok := m.Workspaces[workspaceID]
 	if !ok {
-		return "", fmt.Errorf("workspace not found")
+		return "", NewErrNotFound("workspace", workspaceID)
 	}
 
 	return ws.Slug, nil
@@ -910,7 +910,7 @@ func (m *MockDataStore) GetPluginByName(name string) (*models.NvimPluginDB, erro
 	if p, ok := m.Plugins[name]; ok {
 		return p, nil
 	}
-	return nil, fmt.Errorf("plugin not found: %s", name)
+	return nil, NewErrNotFound("plugin", name)
 }
 
 func (m *MockDataStore) GetPluginByID(id int) (*models.NvimPluginDB, error) {
@@ -925,7 +925,7 @@ func (m *MockDataStore) GetPluginByID(id int) (*models.NvimPluginDB, error) {
 			return p, nil
 		}
 	}
-	return nil, fmt.Errorf("plugin not found: %d", id)
+	return nil, NewErrNotFound("plugin", id)
 }
 
 func (m *MockDataStore) UpdatePlugin(plugin *models.NvimPluginDB) error {
@@ -1113,7 +1113,7 @@ func (m *MockDataStore) GetThemeByName(name string) (*models.NvimThemeDB, error)
 	if t, ok := m.Themes[name]; ok {
 		return t, nil
 	}
-	return nil, fmt.Errorf("theme not found: %s", name)
+	return nil, NewErrNotFound("theme", name)
 }
 
 func (m *MockDataStore) GetThemeByID(id int) (*models.NvimThemeDB, error) {
@@ -1128,7 +1128,7 @@ func (m *MockDataStore) GetThemeByID(id int) (*models.NvimThemeDB, error) {
 			return t, nil
 		}
 	}
-	return nil, fmt.Errorf("theme not found: %d", id)
+	return nil, NewErrNotFound("theme", id)
 }
 
 func (m *MockDataStore) UpdateTheme(theme *models.NvimThemeDB) error {
@@ -1196,7 +1196,7 @@ func (m *MockDataStore) GetActiveTheme() (*models.NvimThemeDB, error) {
 	if t, ok := m.Themes[m.ActiveTheme]; ok {
 		return t, nil
 	}
-	return nil, fmt.Errorf("active theme not found: %s", m.ActiveTheme)
+	return nil, NewErrNotFound("theme", m.ActiveTheme)
 }
 
 func (m *MockDataStore) SetActiveTheme(name string) error {
@@ -1208,7 +1208,7 @@ func (m *MockDataStore) SetActiveTheme(name string) error {
 	defer m.mu.Unlock()
 	// Verify theme exists
 	if _, ok := m.Themes[name]; !ok {
-		return fmt.Errorf("theme not found: %s", name)
+		return NewErrNotFound("theme", name)
 	}
 	m.ActiveTheme = name
 	return nil
@@ -1253,13 +1253,13 @@ func (m *MockDataStore) GetCredential(scopeType models.CredentialScopeType, scop
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.Credentials == nil {
-		return nil, fmt.Errorf("credential not found: %s", name)
+		return nil, NewErrNotFound("credential", name)
 	}
 	key := m.credentialKey(scopeType, scopeID, name)
 	if cred, ok := m.Credentials[key]; ok {
 		return cred, nil
 	}
-	return nil, fmt.Errorf("credential not found: %s", name)
+	return nil, NewErrNotFound("credential", name)
 }
 
 // GetCredentialByName retrieves a credential by name across all scopes.
@@ -1269,14 +1269,14 @@ func (m *MockDataStore) GetCredentialByName(name string) (*models.CredentialDB, 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.Credentials == nil {
-		return nil, fmt.Errorf("credential not found: %s", name)
+		return nil, NewErrNotFound("credential", name)
 	}
 	for _, cred := range m.Credentials {
 		if cred.Name == name {
 			return cred, nil
 		}
 	}
-	return nil, fmt.Errorf("credential not found: %s", name)
+	return nil, NewErrNotFound("credential", name)
 }
 
 func (m *MockDataStore) UpdateCredential(credential *models.CredentialDB) error {
@@ -1284,11 +1284,11 @@ func (m *MockDataStore) UpdateCredential(credential *models.CredentialDB) error 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.Credentials == nil {
-		return fmt.Errorf("credential not found: %s", credential.Name)
+		return NewErrNotFound("credential", credential.Name)
 	}
 	key := m.credentialKey(credential.ScopeType, credential.ScopeID, credential.Name)
 	if _, exists := m.Credentials[key]; !exists {
-		return fmt.Errorf("credential not found: %s", credential.Name)
+		return NewErrNotFound("credential", credential.Name)
 	}
 	m.Credentials[key] = credential
 	return nil
@@ -1299,11 +1299,11 @@ func (m *MockDataStore) DeleteCredential(scopeType models.CredentialScopeType, s
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.Credentials == nil {
-		return fmt.Errorf("credential not found: %s", name)
+		return NewErrNotFound("credential", name)
 	}
 	key := m.credentialKey(scopeType, scopeID, name)
 	if _, exists := m.Credentials[key]; !exists {
-		return fmt.Errorf("credential not found: %s", name)
+		return NewErrNotFound("credential", name)
 	}
 	delete(m.Credentials, key)
 	return nil
@@ -1360,7 +1360,7 @@ func (m *MockDataStore) GetTerminalProfileByName(name string) (*models.TerminalP
 	defer m.mu.Unlock()
 	profile, exists := m.TerminalProfiles[name]
 	if !exists {
-		return nil, fmt.Errorf("terminal profile not found: %s", name)
+		return nil, NewErrNotFound("terminal profile", name)
 	}
 	return profile, nil
 }
@@ -1373,7 +1373,7 @@ func (m *MockDataStore) UpdateTerminalProfile(profile *models.TerminalProfileDB)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if _, exists := m.TerminalProfiles[profile.Name]; !exists {
-		return fmt.Errorf("terminal profile not found: %s", profile.Name)
+		return NewErrNotFound("terminal profile", profile.Name)
 	}
 	m.TerminalProfiles[profile.Name] = profile
 	return nil
@@ -1407,7 +1407,7 @@ func (m *MockDataStore) DeleteTerminalProfile(name string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if _, exists := m.TerminalProfiles[name]; !exists {
-		return fmt.Errorf("terminal profile not found: %s", name)
+		return NewErrNotFound("terminal profile", name)
 	}
 	delete(m.TerminalProfiles, name)
 	return nil
@@ -1469,7 +1469,7 @@ func (m *MockDataStore) GetTerminalPromptByName(name string) (*models.TerminalPr
 	defer m.mu.Unlock()
 	prompt, exists := m.TerminalPrompts[name]
 	if !exists {
-		return nil, fmt.Errorf("terminal prompt not found: %s", name)
+		return nil, NewErrNotFound("terminal prompt", name)
 	}
 	return prompt, nil
 }
@@ -1482,7 +1482,7 @@ func (m *MockDataStore) UpdateTerminalPrompt(prompt *models.TerminalPromptDB) er
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if _, exists := m.TerminalPrompts[prompt.Name]; !exists {
-		return fmt.Errorf("terminal prompt not found: %s", prompt.Name)
+		return NewErrNotFound("terminal prompt", prompt.Name)
 	}
 	m.TerminalPrompts[prompt.Name] = prompt
 	return nil
@@ -1516,7 +1516,7 @@ func (m *MockDataStore) DeleteTerminalPrompt(name string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if _, exists := m.TerminalPrompts[name]; !exists {
-		return fmt.Errorf("terminal prompt not found: %s", name)
+		return NewErrNotFound("terminal prompt", name)
 	}
 	delete(m.TerminalPrompts, name)
 	return nil
@@ -1672,7 +1672,7 @@ func (m *MockDataStore) UpdatePackage(pkg *models.NvimPackageDB) error {
 	// Check if package exists
 	existing, exists := m.Packages[pkg.Name]
 	if !exists {
-		return fmt.Errorf("package not found: %s", pkg.Name)
+		return NewErrNotFound("package", pkg.Name)
 	}
 
 	// Update with preserved ID
@@ -1721,7 +1721,7 @@ func (m *MockDataStore) DeletePackage(name string) error {
 	defer m.mu.Unlock()
 
 	if _, exists := m.Packages[name]; !exists {
-		return fmt.Errorf("package not found: %s", name)
+		return NewErrNotFound("package", name)
 	}
 
 	delete(m.Packages, name)
@@ -1739,7 +1739,7 @@ func (m *MockDataStore) GetPackage(name string) (*models.NvimPackageDB, error) {
 
 	pkg, exists := m.Packages[name]
 	if !exists {
-		return nil, fmt.Errorf("package not found: %s", name)
+		return nil, NewErrNotFound("package", name)
 	}
 
 	// Return a copy to avoid data races
@@ -1838,7 +1838,7 @@ func (m *MockDataStore) GetTerminalPlugin(name string) (*models.TerminalPluginDB
 
 	plugin, exists := m.TerminalPlugins[name]
 	if !exists {
-		return nil, fmt.Errorf("terminal plugin not found: %s", name)
+		return nil, NewErrNotFound("terminal plugin", name)
 	}
 
 	// Return copy
@@ -1857,12 +1857,12 @@ func (m *MockDataStore) UpdateTerminalPlugin(plugin *models.TerminalPluginDB) er
 	defer m.mu.Unlock()
 
 	if m.TerminalPlugins == nil {
-		return fmt.Errorf("terminal plugin not found: %s", plugin.Name)
+		return NewErrNotFound("terminal plugin", plugin.Name)
 	}
 
 	existing, exists := m.TerminalPlugins[plugin.Name]
 	if !exists {
-		return fmt.Errorf("terminal plugin not found: %s", plugin.Name)
+		return NewErrNotFound("terminal plugin", plugin.Name)
 	}
 
 	// Keep original ID and created time
@@ -2034,7 +2034,7 @@ func (m *MockDataStore) GetTerminalEmulator(name string) (*models.TerminalEmulat
 
 	emulator, exists := m.TerminalEmulators[name]
 	if !exists {
-		return nil, fmt.Errorf("terminal emulator not found: %s", name)
+		return nil, NewErrNotFound("terminal emulator", name)
 	}
 
 	// Return a copy to prevent external modifications
@@ -2053,7 +2053,7 @@ func (m *MockDataStore) UpdateTerminalEmulator(emulator *models.TerminalEmulator
 	defer m.mu.Unlock()
 
 	if _, exists := m.TerminalEmulators[emulator.Name]; !exists {
-		return fmt.Errorf("terminal emulator not found: %s", emulator.Name)
+		return NewErrNotFound("terminal emulator", emulator.Name)
 	}
 
 	// Update the stored emulator
@@ -2093,7 +2093,7 @@ func (m *MockDataStore) DeleteTerminalEmulator(name string) error {
 	defer m.mu.Unlock()
 
 	if _, exists := m.TerminalEmulators[name]; !exists {
-		return fmt.Errorf("terminal emulator not found: %s", name)
+		return NewErrNotFound("terminal emulator", name)
 	}
 
 	delete(m.TerminalEmulators, name)
@@ -2198,7 +2198,7 @@ func (m *MockDataStore) UpdateTerminalPackage(pkg *models.TerminalPackageDB) err
 	defer m.mu.Unlock()
 
 	if _, exists := m.TerminalPackages[pkg.Name]; !exists {
-		return fmt.Errorf("terminal package not found: %s", pkg.Name)
+		return NewErrNotFound("terminal package", pkg.Name)
 	}
 
 	// Store a copy to avoid data races
@@ -2244,7 +2244,7 @@ func (m *MockDataStore) DeleteTerminalPackage(name string) error {
 	defer m.mu.Unlock()
 
 	if _, exists := m.TerminalPackages[name]; !exists {
-		return fmt.Errorf("terminal package not found: %s", name)
+		return NewErrNotFound("terminal package", name)
 	}
 
 	delete(m.TerminalPackages, name)
@@ -2262,7 +2262,7 @@ func (m *MockDataStore) GetTerminalPackage(name string) (*models.TerminalPackage
 
 	pkg, exists := m.TerminalPackages[name]
 	if !exists {
-		return nil, fmt.Errorf("terminal package not found: %s", name)
+		return nil, NewErrNotFound("terminal package", name)
 	}
 
 	// Return a copy to avoid data races
@@ -2433,7 +2433,7 @@ func (m *MockDataStore) GetGitRepoByName(name string) (*models.GitRepoDB, error)
 
 	repo, exists := m.GitRepos[name]
 	if !exists {
-		return nil, fmt.Errorf("git repo not found: %s", name)
+		return nil, NewErrNotFound("git repo", name)
 	}
 
 	// Return a clone to avoid external modifications
@@ -2456,7 +2456,7 @@ func (m *MockDataStore) GetGitRepoByID(id int64) (*models.GitRepoDB, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("git repo not found with id: %d", id)
+	return nil, NewErrNotFound("git repo", id)
 }
 
 func (m *MockDataStore) GetGitRepoBySlug(slug string) (*models.GitRepoDB, error) {
@@ -2474,7 +2474,7 @@ func (m *MockDataStore) GetGitRepoBySlug(slug string) (*models.GitRepoDB, error)
 		}
 	}
 
-	return nil, fmt.Errorf("git repo not found with slug: %s", slug)
+	return nil, NewErrNotFound("git repo", slug)
 }
 
 func (m *MockDataStore) UpdateGitRepo(repo *models.GitRepoDB) error {
@@ -2497,7 +2497,7 @@ func (m *MockDataStore) UpdateGitRepo(repo *models.GitRepoDB) error {
 	}
 
 	if !found {
-		return fmt.Errorf("git repo not found with id: %d", repo.ID)
+		return NewErrNotFound("git repo", repo.ID)
 	}
 
 	// Remove old entry if name changed
@@ -2521,7 +2521,7 @@ func (m *MockDataStore) DeleteGitRepo(name string) error {
 	}
 
 	if _, exists := m.GitRepos[name]; !exists {
-		return fmt.Errorf("git repo not found: %s", name)
+		return NewErrNotFound("git repo", name)
 	}
 
 	delete(m.GitRepos, name)
@@ -2596,7 +2596,7 @@ func (m *MockDataStore) GetRegistryByName(name string) (*models.Registry, error)
 
 	registry, exists := m.Registries[name]
 	if !exists {
-		return nil, fmt.Errorf("registry '%s' not found", name)
+		return nil, NewErrNotFound("registry", name)
 	}
 
 	registryClone := *registry
@@ -2614,7 +2614,7 @@ func (m *MockDataStore) GetRegistryByID(id int) (*models.Registry, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("registry with ID %d not found", id)
+	return nil, NewErrNotFound("registry", id)
 }
 
 func (m *MockDataStore) GetRegistryByPort(port int) (*models.Registry, error) {
@@ -2652,7 +2652,7 @@ func (m *MockDataStore) UpdateRegistry(registry *models.Registry) error {
 	}
 
 	if !found {
-		return fmt.Errorf("registry with ID %d not found", registry.ID)
+		return NewErrNotFound("registry", registry.ID)
 	}
 
 	// Check for port conflicts (excluding this registry)
@@ -2681,7 +2681,7 @@ func (m *MockDataStore) DeleteRegistry(name string) error {
 	defer m.mu.Unlock()
 
 	if _, exists := m.Registries[name]; !exists {
-		return fmt.Errorf("registry '%s' not found", name)
+		return NewErrNotFound("registry", name)
 	}
 
 	delete(m.Registries, name)
@@ -2782,7 +2782,7 @@ func (m *MockDataStore) GetRegistryHistory(registryID int, revision int) (*model
 	key := fmt.Sprintf("%d:%d", registryID, revision)
 	history, exists := m.RegistryHistories[key]
 	if !exists {
-		return nil, fmt.Errorf("registry history not found: registry_id=%d, revision=%d", registryID, revision)
+		return nil, NewErrNotFound("registry history", fmt.Sprintf("registry_id=%d, revision=%d", registryID, revision))
 	}
 
 	historyClone := *history
@@ -2894,7 +2894,7 @@ func (m *MockDataStore) GetCRDByKind(kind string) (*models.CustomResourceDefinit
 
 	crd, exists := m.CRDs[kind]
 	if !exists {
-		return nil, fmt.Errorf("CRD not found: %s", kind)
+		return nil, NewErrNotFound("CRD", kind)
 	}
 
 	// Return a copy to avoid external mutations
@@ -2911,7 +2911,7 @@ func (m *MockDataStore) UpdateCRD(crd *models.CustomResourceDefinition) error {
 	defer m.mu.Unlock()
 
 	if _, exists := m.CRDs[crd.Kind]; !exists {
-		return fmt.Errorf("CRD not found: %s", crd.Kind)
+		return NewErrNotFound("CRD", crd.Kind)
 	}
 
 	crd.UpdatedAt = time.Now()
@@ -2999,7 +2999,7 @@ func (m *MockDataStore) GetCustomResource(kind, name, namespace string) (*models
 	key := fmt.Sprintf("%s:%s:%s", kind, name, namespace)
 	resource, exists := m.CustomResources[key]
 	if !exists {
-		return nil, fmt.Errorf("custom resource not found: %s/%s/%s", kind, namespace, name)
+		return nil, NewErrNotFound("custom resource", fmt.Sprintf("%s/%s/%s", kind, namespace, name))
 	}
 
 	// Return a copy to avoid external mutations
@@ -3022,7 +3022,7 @@ func (m *MockDataStore) UpdateCustomResource(resource *models.CustomResource) er
 
 	key := fmt.Sprintf("%s:%s:%s", resource.Kind, resource.Name, namespace)
 	if _, exists := m.CustomResources[key]; !exists {
-		return fmt.Errorf("custom resource not found: %s", key)
+		return NewErrNotFound("custom resource", key)
 	}
 
 	resource.UpdatedAt = time.Now()

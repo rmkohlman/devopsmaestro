@@ -45,15 +45,9 @@ type PluginDataStore interface {
 }
 
 // isNotFoundCompat checks if an error represents a "not found" condition.
-// It first checks for the typed *db.ErrNotFound (preferred), then falls back
-// to string matching for backward compatibility with old-style fmt.Errorf errors
-// that haven't been converted yet.
-// TODO: Remove the strings.Contains fallback once all DB methods return *db.ErrNotFound.
+// It checks for the typed *db.ErrNotFound using errors.As via db.IsNotFound.
 func isNotFoundCompat(err error) bool {
-	if dbpkg.IsNotFound(err) {
-		return true
-	}
-	return strings.Contains(err.Error(), "not found")
+	return dbpkg.IsNotFound(err)
 }
 
 // DBPluginStore adapts db.DataStore to implement plugin.PluginStore.

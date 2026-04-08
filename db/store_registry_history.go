@@ -2,9 +2,11 @@ package db
 
 import (
 	"database/sql"
-	"devopsmaestro/models"
+	"errors"
 	"fmt"
 	"strings"
+
+	"devopsmaestro/models"
 )
 
 // =============================================================================
@@ -91,7 +93,7 @@ func (ds *SQLDataStore) GetRegistryHistory(registryID int, revision int) (*model
 	)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("registry history", fmt.Sprintf("registry_id=%d, revision=%d", registryID, revision))
 		}
 		return nil, fmt.Errorf("failed to get registry history: %w", err)
@@ -133,7 +135,7 @@ func (ds *SQLDataStore) GetLatestRegistryHistory(registryID int) (*models.Regist
 	)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("registry history", fmt.Sprintf("registry_id=%d", registryID))
 		}
 		return nil, fmt.Errorf("failed to get latest registry history: %w", err)

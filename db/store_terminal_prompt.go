@@ -2,8 +2,10 @@ package db
 
 import (
 	"database/sql"
-	"devopsmaestro/models"
+	"errors"
 	"fmt"
+
+	"devopsmaestro/models"
 )
 
 // =============================================================================
@@ -57,7 +59,7 @@ func (ds *SQLDataStore) GetTerminalPromptByName(name string) (*models.TerminalPr
 	row := ds.driver.QueryRow(query, name)
 	prompt, err := scanTerminalPrompt(row)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("terminal prompt", name)
 		}
 		return nil, fmt.Errorf("failed to scan terminal prompt: %w", err)

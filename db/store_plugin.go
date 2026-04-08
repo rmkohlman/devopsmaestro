@@ -2,9 +2,11 @@ package db
 
 import (
 	"database/sql"
-	"devopsmaestro/models"
+	"errors"
 	"fmt"
 	"strings"
+
+	"devopsmaestro/models"
 )
 
 // =============================================================================
@@ -50,7 +52,7 @@ func (ds *SQLDataStore) GetPluginByName(name string) (*models.NvimPluginDB, erro
 		&plugin.Dependencies, &plugin.Build, &plugin.Config, &plugin.Init, &plugin.Opts, &plugin.Keymaps,
 		&plugin.Category, &plugin.Tags, &plugin.Enabled, &plugin.CreatedAt, &plugin.UpdatedAt,
 	); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("plugin", name)
 		}
 		return nil, fmt.Errorf("failed to scan plugin: %w", err)
@@ -73,7 +75,7 @@ func (ds *SQLDataStore) GetPluginByID(id int) (*models.NvimPluginDB, error) {
 		&plugin.Dependencies, &plugin.Build, &plugin.Config, &plugin.Init, &plugin.Opts, &plugin.Keymaps,
 		&plugin.Category, &plugin.Tags, &plugin.Enabled, &plugin.CreatedAt, &plugin.UpdatedAt,
 	); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("plugin", id)
 		}
 		return nil, fmt.Errorf("failed to scan plugin: %w", err)

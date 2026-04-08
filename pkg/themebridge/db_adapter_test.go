@@ -2,6 +2,7 @@ package themebridge
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -795,7 +796,7 @@ func (d *integrationTestDB) GetThemeByName(name string) (*models.NvimThemeDB, er
 		&t.PluginBranch, &t.PluginTag, &t.Style, &t.Colors, &t.Options,
 		&t.Transparent, &t.IsActive, &t.CreatedAt, &t.UpdatedAt,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("theme not found: %s", name)
 	}
 	return t, err
@@ -886,7 +887,7 @@ func (d *integrationTestDB) GetActiveTheme() (*models.NvimThemeDB, error) {
 		&t.PluginBranch, &t.PluginTag, &t.Style, &t.Colors, &t.Options,
 		&t.Transparent, &t.IsActive, &t.CreatedAt, &t.UpdatedAt,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	return t, err

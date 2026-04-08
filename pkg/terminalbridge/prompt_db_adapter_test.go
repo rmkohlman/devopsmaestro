@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	dbpkg "devopsmaestro/db"
 	"devopsmaestro/models"
 	"github.com/rmkohlman/MaestroTerminal/terminalops/prompt"
 )
@@ -48,7 +49,7 @@ func (m *MockPromptDataStore) GetTerminalPromptByName(name string) (*models.Term
 	}
 	p, exists := m.prompts[name]
 	if !exists {
-		return nil, fmt.Errorf("prompt not found: %s", name)
+		return nil, dbpkg.NewErrNotFound("prompt", name)
 	}
 	return p, nil
 }
@@ -59,7 +60,7 @@ func (m *MockPromptDataStore) UpdateTerminalPrompt(p *models.TerminalPromptDB) e
 		return m.err
 	}
 	if _, exists := m.prompts[p.Name]; !exists {
-		return fmt.Errorf("prompt not found: %s", p.Name)
+		return dbpkg.NewErrNotFound("prompt", p.Name)
 	}
 	p.UpdatedAt = time.Now()
 	m.prompts[p.Name] = p
@@ -88,7 +89,7 @@ func (m *MockPromptDataStore) DeleteTerminalPrompt(name string) error {
 		return m.err
 	}
 	if _, exists := m.prompts[name]; !exists {
-		return fmt.Errorf("prompt not found: %s", name)
+		return dbpkg.NewErrNotFound("prompt", name)
 	}
 	delete(m.prompts, name)
 	return nil

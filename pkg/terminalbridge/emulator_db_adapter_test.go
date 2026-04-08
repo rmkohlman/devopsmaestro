@@ -1,13 +1,13 @@
 package terminalbridge
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	dbpkg "devopsmaestro/db"
 	"devopsmaestro/models"
 	"github.com/rmkohlman/MaestroTerminal/terminalops/emulator"
 )
@@ -35,14 +35,14 @@ func (m *MockEmulatorDataStore) CreateTerminalEmulator(emulator *models.Terminal
 func (m *MockEmulatorDataStore) GetTerminalEmulator(name string) (*models.TerminalEmulatorDB, error) {
 	emulator, exists := m.emulators[name]
 	if !exists {
-		return nil, fmt.Errorf("terminal emulator not found: %s", name)
+		return nil, dbpkg.NewErrNotFound("terminal emulator", name)
 	}
 	return emulator, nil
 }
 
 func (m *MockEmulatorDataStore) UpdateTerminalEmulator(emulator *models.TerminalEmulatorDB) error {
 	if _, exists := m.emulators[emulator.Name]; !exists {
-		return fmt.Errorf("terminal emulator not found: %s", emulator.Name)
+		return dbpkg.NewErrNotFound("terminal emulator", emulator.Name)
 	}
 	m.emulators[emulator.Name] = emulator
 	return nil
@@ -55,7 +55,7 @@ func (m *MockEmulatorDataStore) UpsertTerminalEmulator(emulator *models.Terminal
 
 func (m *MockEmulatorDataStore) DeleteTerminalEmulator(name string) error {
 	if _, exists := m.emulators[name]; !exists {
-		return fmt.Errorf("terminal emulator not found: %s", name)
+		return dbpkg.NewErrNotFound("terminal emulator", name)
 	}
 	delete(m.emulators, name)
 	return nil

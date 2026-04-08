@@ -2,8 +2,10 @@ package db
 
 import (
 	"database/sql"
-	"devopsmaestro/models"
+	"errors"
 	"fmt"
+
+	"devopsmaestro/models"
 )
 
 // =============================================================================
@@ -47,7 +49,7 @@ func (ds *SQLDataStore) GetThemeByName(name string) (*models.NvimThemeDB, error)
 		&theme.PluginBranch, &theme.PluginTag, &theme.Style, &theme.Transparent,
 		&theme.Colors, &theme.Options, &theme.IsActive, &theme.CreatedAt, &theme.UpdatedAt,
 	); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("theme", name)
 		}
 		return nil, fmt.Errorf("failed to scan theme: %w", err)
@@ -69,7 +71,7 @@ func (ds *SQLDataStore) GetThemeByID(id int) (*models.NvimThemeDB, error) {
 		&theme.PluginBranch, &theme.PluginTag, &theme.Style, &theme.Transparent,
 		&theme.Colors, &theme.Options, &theme.IsActive, &theme.CreatedAt, &theme.UpdatedAt,
 	); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("theme", id)
 		}
 		return nil, fmt.Errorf("failed to scan theme: %w", err)
@@ -177,7 +179,7 @@ func (ds *SQLDataStore) GetActiveTheme() (*models.NvimThemeDB, error) {
 		&theme.PluginBranch, &theme.PluginTag, &theme.Style, &theme.Transparent,
 		&theme.Colors, &theme.Options, &theme.IsActive, &theme.CreatedAt, &theme.UpdatedAt,
 	); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil // No active theme
 		}
 		return nil, fmt.Errorf("failed to scan active theme: %w", err)

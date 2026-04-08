@@ -2,8 +2,10 @@ package db
 
 import (
 	"database/sql"
-	"devopsmaestro/models"
+	"errors"
 	"fmt"
+
+	"devopsmaestro/models"
 )
 
 // =============================================================================
@@ -83,7 +85,7 @@ func (ds *SQLDataStore) GetTerminalPackage(name string) (*models.TerminalPackage
 
 	row := ds.driver.QueryRow(query, name)
 	if err := row.Scan(&pkg.ID, &pkg.Name, &pkg.Description, &pkg.Category, &pkg.Labels, &pkg.Plugins, &pkg.Prompts, &pkg.Profiles, &pkg.WezTerm, &pkg.Extends, &pkg.CreatedAt, &pkg.UpdatedAt); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("terminal package", name)
 		}
 		return nil, fmt.Errorf("failed to scan terminal package: %w", err)

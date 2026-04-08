@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	dbpkg "devopsmaestro/db"
 	"devopsmaestro/models"
 	"github.com/rmkohlman/MaestroTerminal/terminalops/profile"
 )
@@ -48,7 +49,7 @@ func (m *MockProfileDataStore) GetTerminalProfileByName(name string) (*models.Te
 	}
 	p, exists := m.profiles[name]
 	if !exists {
-		return nil, fmt.Errorf("profile not found: %s", name)
+		return nil, dbpkg.NewErrNotFound("profile", name)
 	}
 	return p, nil
 }
@@ -59,7 +60,7 @@ func (m *MockProfileDataStore) UpdateTerminalProfile(p *models.TerminalProfileDB
 		return m.err
 	}
 	if _, exists := m.profiles[p.Name]; !exists {
-		return fmt.Errorf("profile not found: %s", p.Name)
+		return dbpkg.NewErrNotFound("profile", p.Name)
 	}
 	p.UpdatedAt = time.Now()
 	m.profiles[p.Name] = p
@@ -88,7 +89,7 @@ func (m *MockProfileDataStore) DeleteTerminalProfile(name string) error {
 		return m.err
 	}
 	if _, exists := m.profiles[name]; !exists {
-		return fmt.Errorf("profile not found: %s", name)
+		return dbpkg.NewErrNotFound("profile", name)
 	}
 	delete(m.profiles, name)
 	return nil

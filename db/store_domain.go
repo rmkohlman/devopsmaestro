@@ -2,8 +2,10 @@ package db
 
 import (
 	"database/sql"
-	"devopsmaestro/models"
+	"errors"
 	"fmt"
+
+	"devopsmaestro/models"
 )
 
 // =============================================================================
@@ -35,7 +37,7 @@ func (ds *SQLDataStore) GetDomainByName(ecosystemID int, name string) (*models.D
 
 	row := ds.driver.QueryRow(query, ecosystemID, name)
 	if err := row.Scan(&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description, &domain.Theme, &domain.BuildArgs, &domain.CACerts, &domain.CreatedAt, &domain.UpdatedAt); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("domain", name)
 		}
 		return nil, fmt.Errorf("failed to scan domain: %w", err)
@@ -51,7 +53,7 @@ func (ds *SQLDataStore) GetDomainByID(id int) (*models.Domain, error) {
 
 	row := ds.driver.QueryRow(query, id)
 	if err := row.Scan(&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description, &domain.Theme, &domain.BuildArgs, &domain.CACerts, &domain.CreatedAt, &domain.UpdatedAt); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("domain", id)
 		}
 		return nil, fmt.Errorf("failed to scan domain: %w", err)

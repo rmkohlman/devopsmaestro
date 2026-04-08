@@ -2,8 +2,10 @@ package db
 
 import (
 	"database/sql"
-	"devopsmaestro/models"
+	"errors"
 	"fmt"
+
+	"devopsmaestro/models"
 )
 
 // =============================================================================
@@ -35,7 +37,7 @@ func (ds *SQLDataStore) GetEcosystemByName(name string) (*models.Ecosystem, erro
 
 	row := ds.driver.QueryRow(query, name)
 	if err := row.Scan(&ecosystem.ID, &ecosystem.Name, &ecosystem.Description, &ecosystem.Theme, &ecosystem.BuildArgs, &ecosystem.CACerts, &ecosystem.CreatedAt, &ecosystem.UpdatedAt); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("ecosystem", name)
 		}
 		return nil, fmt.Errorf("failed to scan ecosystem: %w", err)
@@ -51,7 +53,7 @@ func (ds *SQLDataStore) GetEcosystemByID(id int) (*models.Ecosystem, error) {
 
 	row := ds.driver.QueryRow(query, id)
 	if err := row.Scan(&ecosystem.ID, &ecosystem.Name, &ecosystem.Description, &ecosystem.Theme, &ecosystem.BuildArgs, &ecosystem.CACerts, &ecosystem.CreatedAt, &ecosystem.UpdatedAt); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("ecosystem", id)
 		}
 		return nil, fmt.Errorf("failed to scan ecosystem: %w", err)

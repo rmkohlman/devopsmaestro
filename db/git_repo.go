@@ -2,8 +2,10 @@ package db
 
 import (
 	"database/sql"
-	"devopsmaestro/models"
+	"errors"
 	"fmt"
+
+	"devopsmaestro/models"
 )
 
 // =============================================================================
@@ -70,8 +72,8 @@ func (ds *SQLDataStore) GetGitRepoByName(name string) (*models.GitRepoDB, error)
 		&repo.UpdatedAt,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("git repo not found: %s", name)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, NewErrNotFound("git repo", name)
 		}
 		return nil, fmt.Errorf("failed to get git repo by name: %w", err)
 	}
@@ -107,8 +109,8 @@ func (ds *SQLDataStore) GetGitRepoByID(id int64) (*models.GitRepoDB, error) {
 		&repo.UpdatedAt,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("git repo not found with id: %d", id)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, NewErrNotFound("git repo", id)
 		}
 		return nil, fmt.Errorf("failed to get git repo by id: %w", err)
 	}
@@ -144,8 +146,8 @@ func (ds *SQLDataStore) GetGitRepoBySlug(slug string) (*models.GitRepoDB, error)
 		&repo.UpdatedAt,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("git repo not found with slug: %s", slug)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, NewErrNotFound("git repo", slug)
 		}
 		return nil, fmt.Errorf("failed to get git repo by slug: %w", err)
 	}

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	dbpkg "devopsmaestro/db"
 	"devopsmaestro/models"
 	"github.com/rmkohlman/MaestroTerminal/terminalops/plugin"
 
@@ -51,7 +52,7 @@ func (m *MockPluginDataStore) GetTerminalPlugin(name string) (*models.TerminalPl
 	}
 	p, ok := m.plugins[name]
 	if !ok {
-		return nil, fmt.Errorf("plugin not found: %s", name)
+		return nil, dbpkg.NewErrNotFound("plugin", name)
 	}
 	return p, nil
 }
@@ -62,7 +63,7 @@ func (m *MockPluginDataStore) UpdateTerminalPlugin(p *models.TerminalPluginDB) e
 		return m.err
 	}
 	if _, exists := m.plugins[p.Name]; !exists {
-		return fmt.Errorf("plugin not found: %s", p.Name)
+		return dbpkg.NewErrNotFound("plugin", p.Name)
 	}
 	p.UpdatedAt = time.Now()
 	m.plugins[p.Name] = p

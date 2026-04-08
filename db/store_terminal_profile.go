@@ -2,8 +2,10 @@ package db
 
 import (
 	"database/sql"
-	"devopsmaestro/models"
+	"errors"
 	"fmt"
+
+	"devopsmaestro/models"
 )
 
 // =============================================================================
@@ -47,7 +49,7 @@ func (ds *SQLDataStore) GetTerminalProfileByName(name string) (*models.TerminalP
 		&profile.PluginRefs, &profile.ShellRef, &profile.ThemeRef, &profile.Tags,
 		&profile.Labels, &profile.Enabled, &profile.CreatedAt, &profile.UpdatedAt,
 	); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("terminal profile", name)
 		}
 		return nil, fmt.Errorf("failed to scan terminal profile: %w", err)

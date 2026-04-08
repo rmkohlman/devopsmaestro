@@ -2,8 +2,10 @@ package db
 
 import (
 	"database/sql"
-	"devopsmaestro/models"
+	"errors"
 	"fmt"
+
+	"devopsmaestro/models"
 )
 
 // =============================================================================
@@ -86,7 +88,7 @@ func (ds *SQLDataStore) GetCredential(scopeType models.CredentialScopeType, scop
 	row := ds.driver.QueryRow(query, scopeType, scopeID, name)
 	credential, err := scanCredential(row)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("credential", fmt.Sprintf("%s (scope: %s, id: %d)", name, scopeType, scopeID))
 		}
 		return nil, fmt.Errorf("failed to scan credential: %w", err)
@@ -104,7 +106,7 @@ func (ds *SQLDataStore) GetCredentialByName(name string) (*models.CredentialDB, 
 	row := ds.driver.QueryRow(query, name)
 	credential, err := scanCredential(row)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("credential", name)
 		}
 		return nil, fmt.Errorf("failed to scan credential: %w", err)

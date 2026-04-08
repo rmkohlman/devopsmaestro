@@ -148,6 +148,22 @@ func TestSQLDataStore_GetGitRepoByName_NotFound(t *testing.T) {
 	if err == nil {
 		t.Errorf("GetGitRepoByName() expected error for nonexistent repo")
 	}
+	if !IsNotFound(err) {
+		t.Errorf("GetGitRepoByName() error should be ErrNotFound, got: %v", err)
+	}
+}
+
+func TestSQLDataStore_GetGitRepoByID_NotFound(t *testing.T) {
+	ds := createTestDataStore(t)
+	defer ds.Close()
+
+	_, err := ds.GetGitRepoByID(99999)
+	if err == nil {
+		t.Errorf("GetGitRepoByID() expected error for nonexistent ID")
+	}
+	if !IsNotFound(err) {
+		t.Errorf("GetGitRepoByID() error should be ErrNotFound, got: %v", err)
+	}
 }
 
 func TestSQLDataStore_GetGitRepoBySlug(t *testing.T) {
@@ -190,6 +206,9 @@ func TestSQLDataStore_GetGitRepoBySlug_NotFound(t *testing.T) {
 	_, err := ds.GetGitRepoBySlug("nonexistent_slug")
 	if err == nil {
 		t.Errorf("GetGitRepoBySlug() expected error for nonexistent slug")
+	}
+	if !IsNotFound(err) {
+		t.Errorf("GetGitRepoBySlug() error should be ErrNotFound, got: %v", err)
 	}
 }
 

@@ -2,8 +2,10 @@ package db
 
 import (
 	"database/sql"
-	"devopsmaestro/models"
+	"errors"
 	"fmt"
+
+	"devopsmaestro/models"
 )
 
 // =============================================================================
@@ -62,7 +64,7 @@ func (ds *SQLDataStore) GetTerminalEmulator(name string) (*models.TerminalEmulat
 	row := ds.driver.QueryRow(query, name)
 	emulator, err := scanTerminalEmulator(row)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("terminal emulator", name)
 		}
 		return nil, fmt.Errorf("failed to scan terminal emulator: %w", err)

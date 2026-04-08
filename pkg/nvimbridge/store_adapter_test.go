@@ -2,6 +2,7 @@ package nvimbridge
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -1067,7 +1068,7 @@ func (d *integrationTestDB) GetPluginByName(name string) (*models.NvimPluginDB, 
 		&p.Dependencies, &p.Build, &p.Config, &p.Init, &p.Opts,
 		&p.Keymaps, &p.Category, &p.Tags, &p.Enabled, &p.CreatedAt, &p.UpdatedAt,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("plugin not found: %s", name)
 	}
 	return p, err

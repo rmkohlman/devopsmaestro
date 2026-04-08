@@ -2,9 +2,11 @@ package db
 
 import (
 	"database/sql"
-	"devopsmaestro/models"
+	"errors"
 	"fmt"
 	"strings"
+
+	"devopsmaestro/models"
 )
 
 // =============================================================================
@@ -72,7 +74,7 @@ func (ds *SQLDataStore) GetRegistryByName(name string) (*models.Registry, error)
 		&registry.Storage, &registry.IdleTimeout, &registry.Description, &registry.Config, &registry.Status, &registry.CreatedAt, &registry.UpdatedAt)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("registry", name)
 		}
 		return nil, fmt.Errorf("failed to get registry: %w", err)
@@ -93,7 +95,7 @@ func (ds *SQLDataStore) GetRegistryByID(id int) (*models.Registry, error) {
 		&registry.Storage, &registry.IdleTimeout, &registry.Description, &registry.Config, &registry.Status, &registry.CreatedAt, &registry.UpdatedAt)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("registry", id)
 		}
 		return nil, fmt.Errorf("failed to get registry: %w", err)
@@ -114,7 +116,7 @@ func (ds *SQLDataStore) GetRegistryByPort(port int) (*models.Registry, error) {
 		&registry.Storage, &registry.IdleTimeout, &registry.Description, &registry.Config, &registry.Status, &registry.CreatedAt, &registry.UpdatedAt)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("registry", fmt.Sprintf("port:%d", port))
 		}
 		return nil, fmt.Errorf("failed to get registry: %w", err)

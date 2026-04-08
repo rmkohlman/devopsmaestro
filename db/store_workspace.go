@@ -2,8 +2,10 @@ package db
 
 import (
 	"database/sql"
-	"devopsmaestro/models"
+	"errors"
 	"fmt"
+
+	"devopsmaestro/models"
 )
 
 // =============================================================================
@@ -45,7 +47,7 @@ func (ds *SQLDataStore) GetWorkspaceByName(appID int, name string) (*models.Work
 	if err := row.Scan(&workspace.ID, &workspace.AppID, &workspace.Name, &workspace.Slug, &workspace.Description,
 		&workspace.ImageName, &workspace.ContainerID, &workspace.Status, &workspace.SSHAgentForwarding, &workspace.NvimStructure,
 		&workspace.NvimPlugins, &workspace.Theme, &workspace.TerminalPrompt, &workspace.TerminalPlugins, &workspace.TerminalPackage, &workspace.GitRepoID, &workspace.Env, &workspace.BuildConfig, &workspace.CreatedAt, &workspace.UpdatedAt); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("workspace", name)
 		}
 		return nil, fmt.Errorf("failed to scan workspace: %w", err)
@@ -64,7 +66,7 @@ func (ds *SQLDataStore) GetWorkspaceByID(id int) (*models.Workspace, error) {
 	if err := row.Scan(&workspace.ID, &workspace.AppID, &workspace.Name, &workspace.Slug, &workspace.Description,
 		&workspace.ImageName, &workspace.ContainerID, &workspace.Status, &workspace.SSHAgentForwarding, &workspace.NvimStructure,
 		&workspace.NvimPlugins, &workspace.Theme, &workspace.TerminalPrompt, &workspace.TerminalPlugins, &workspace.TerminalPackage, &workspace.GitRepoID, &workspace.Env, &workspace.BuildConfig, &workspace.CreatedAt, &workspace.UpdatedAt); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("workspace", id)
 		}
 		return nil, fmt.Errorf("failed to scan workspace: %w", err)
@@ -83,7 +85,7 @@ func (ds *SQLDataStore) GetWorkspaceBySlug(slug string) (*models.Workspace, erro
 	if err := row.Scan(&workspace.ID, &workspace.AppID, &workspace.Name, &workspace.Slug, &workspace.Description,
 		&workspace.ImageName, &workspace.ContainerID, &workspace.Status, &workspace.SSHAgentForwarding, &workspace.NvimStructure,
 		&workspace.NvimPlugins, &workspace.Theme, &workspace.TerminalPrompt, &workspace.TerminalPlugins, &workspace.TerminalPackage, &workspace.GitRepoID, &workspace.Env, &workspace.BuildConfig, &workspace.CreatedAt, &workspace.UpdatedAt); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("workspace", slug)
 		}
 		return nil, fmt.Errorf("failed to scan workspace: %w", err)
@@ -287,7 +289,7 @@ func (ds *SQLDataStore) GetWorkspaceSlug(workspaceID int) (string, error) {
 
 	row := ds.driver.QueryRow(query, workspaceID)
 	if err := row.Scan(&slug); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return "", NewErrNotFound("workspace", workspaceID)
 		}
 		return "", fmt.Errorf("failed to get workspace slug: %w", err)
