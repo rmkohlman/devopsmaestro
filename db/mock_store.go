@@ -207,6 +207,8 @@ type MockDataStore struct {
 	ListCustomResourcesErr              error
 	CloseErr                            error
 	PingErr                             error
+	MigrationVersionErr                 error
+	MigrationVersionValue               int
 
 	// Call tracking
 	Calls []MockDataStoreCall
@@ -2333,6 +2335,15 @@ func (m *MockDataStore) Ping() error {
 		return m.PingErr
 	}
 	return nil
+}
+
+// MigrationVersion returns the mock migration version.
+func (m *MockDataStore) MigrationVersion() (int, error) {
+	m.recordCall("MigrationVersion")
+	if m.MigrationVersionErr != nil {
+		return 0, m.MigrationVersionErr
+	}
+	return m.MigrationVersionValue, nil
 }
 
 // =============================================================================

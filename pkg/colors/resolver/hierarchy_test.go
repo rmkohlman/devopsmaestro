@@ -265,6 +265,9 @@ func (m *MockDataStore) Driver() db.Driver { return nil }
 // Connection methods
 func (m *MockDataStore) Ping() error { return nil }
 
+// Migration methods
+func (m *MockDataStore) MigrationVersion() (int, error) { return 0, nil }
+
 // Defaults methods
 func (m *MockDataStore) GetDefault(key string) (string, error) {
 	if val, ok := m.defaults[key]; ok {

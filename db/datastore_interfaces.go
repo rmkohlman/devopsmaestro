@@ -516,6 +516,15 @@ type RegistryHistoryStore interface {
 	GetNextRevisionNumber(registryID int) (int, error)
 }
 
+// MigrationStore defines operations for querying database migration state.
+// This abstracts the migration version tracking mechanism so consumers
+// do not need to know about the underlying migration table (e.g., schema_migrations).
+type MigrationStore interface {
+	// MigrationVersion returns the current database migration version.
+	// Returns 0 if no migrations have been applied yet.
+	MigrationVersion() (int, error)
+}
+
 // CustomResourceStore defines operations for managing Custom Resource Definitions (CRDs)
 // and their instances.
 type CustomResourceStore interface {

@@ -43,6 +43,7 @@ func TestSubInterfaceCompliance_SQLDataStore(t *testing.T) {
 	var _ RegistryStore = (*SQLDataStore)(nil)
 	var _ RegistryHistoryStore = (*SQLDataStore)(nil)
 	var _ CustomResourceStore = (*SQLDataStore)(nil)
+	var _ MigrationStore = (*SQLDataStore)(nil)
 }
 
 // TestSubInterfaceCompliance_MockDataStore verifies that MockDataStore satisfies
@@ -67,6 +68,7 @@ func TestSubInterfaceCompliance_MockDataStore(t *testing.T) {
 	var _ RegistryStore = (*MockDataStore)(nil)
 	var _ RegistryHistoryStore = (*MockDataStore)(nil)
 	var _ CustomResourceStore = (*MockDataStore)(nil)
+	var _ MigrationStore = (*MockDataStore)(nil)
 }
 
 // TestDriverInterfaceCompliance verifies that all driver implementations
