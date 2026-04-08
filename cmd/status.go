@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"devopsmaestro/models"
 	"devopsmaestro/operators"
 	"fmt"
 	"github.com/rmkohlman/MaestroSDK/render"
@@ -36,9 +37,18 @@ func init() {
 
 // StatusInfo holds all status information
 type StatusInfo struct {
-	Context    ContextInfo     `json:"context" yaml:"context"`
-	Containers []ContainerInfo `json:"containers" yaml:"containers"`
-	Runtime    RuntimeInfo     `json:"runtime" yaml:"runtime"`
+	Context            ContextInfo         `json:"context" yaml:"context"`
+	Containers         []ContainerInfo     `json:"containers" yaml:"containers"`
+	Runtime            RuntimeInfo         `json:"runtime" yaml:"runtime"`
+	CredentialWarnings []CredentialWarning `json:"credential_warnings,omitempty" yaml:"credential_warnings,omitempty"`
+}
+
+// CredentialWarning holds a credential expiration warning
+type CredentialWarning struct {
+	Name      string `json:"name" yaml:"name"`
+	Scope     string `json:"scope" yaml:"scope"`
+	Status    string `json:"status" yaml:"status"`
+	ExpiresAt string `json:"expires_at,omitempty" yaml:"expires_at,omitempty"`
 }
 
 // ContextInfo holds the current context
@@ -80,6 +90,9 @@ func runStatus(cmd *cobra.Command) error {
 			App:       app,
 			Workspace: workspace,
 		}
+
+		// Check for expired/expiring credentials
+		status.CredentialWarnings = collectCredentialWarnings(ds)
 	}
 
 	// Create container runtime using factory
@@ -183,6 +196,9 @@ func renderStatusColored(status StatusInfo) {
 			}
 		}
 	}
+
+	// Credential warnings section
+	renderCredentialWarnings(status.CredentialWarnings)
 }
 
 func truncateID(id string) string {
@@ -190,4 +206,51 @@ func truncateID(id string) string {
 		return id[:12]
 	}
 	return id
+}
+
+// collectCredentialWarnings checks all credentials for expiration issues.
+// Returns warnings for any credentials that are expired or expiring soon.
+func collectCredentialWarnings(ds interface {
+	ListAllCredentials() ([]*models.CredentialDB, error)
+}) []CredentialWarning {
+	creds, err := ds.ListAllCredentials()
+	if err != nil {
+		slog.Debug("failed to list credentials for expiration check", "error", err)
+		return nil
+	}
+
+	var warnings []CredentialWarning
+	for _, c := range creds {
+		status := c.ExpirationStatus()
+		if status == "expired" || status == "expiring soon" {
+			w := CredentialWarning{
+				Name:   c.Name,
+				Scope:  fmt.Sprintf("%s (ID: %d)", c.ScopeType, c.ScopeID),
+				Status: status,
+			}
+			if c.ExpiresAt != nil {
+				w.ExpiresAt = c.ExpiresAt.Format("2006-01-02 15:04:05")
+			}
+			warnings = append(warnings, w)
+		}
+	}
+	return warnings
+}
+
+// renderCredentialWarnings displays credential expiration warnings in the status output.
+func renderCredentialWarnings(warnings []CredentialWarning) {
+	if len(warnings) == 0 {
+		return
+	}
+
+	render.Blank()
+	render.Warning("Credential Warnings")
+	for _, w := range warnings {
+		switch w.Status {
+		case "expired":
+			render.Warning(fmt.Sprintf("  ⚠ %s — EXPIRED (was %s) [%s]", w.Name, w.ExpiresAt, w.Scope))
+		case "expiring soon":
+			render.Warning(fmt.Sprintf("  ⏰ %s — expiring soon (%s) [%s]", w.Name, w.ExpiresAt, w.Scope))
+		}
+	}
 }

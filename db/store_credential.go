@@ -14,7 +14,7 @@ import (
 
 // credentialColumns is the canonical SELECT column list for credentials.
 // Every SELECT and every Scan must use this exact order.
-const credentialColumns = `id, scope_type, scope_id, name, source, env_var, description, username_var, password_var, vault_secret, vault_env, vault_username_secret, vault_fields, created_at, updated_at`
+const credentialColumns = `id, scope_type, scope_id, name, source, env_var, description, username_var, password_var, vault_secret, vault_env, vault_username_secret, vault_fields, expires_at, created_at, updated_at`
 
 // scanCredential scans a database row into a CredentialDB model.
 // The scanner interface matches both *sql.Row and *sql.Rows.
@@ -24,7 +24,7 @@ func scanCredential(scanner interface{ Scan(...any) error }) (*models.Credential
 		&c.ID, &c.ScopeType, &c.ScopeID, &c.Name, &c.Source,
 		&c.EnvVar, &c.Description, &c.UsernameVar, &c.PasswordVar,
 		&c.VaultSecret, &c.VaultEnv, &c.VaultUsernameSecret, &c.VaultFields,
-		&c.CreatedAt, &c.UpdatedAt,
+		&c.ExpiresAt, &c.CreatedAt, &c.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -51,8 +51,8 @@ func (ds *SQLDataStore) CreateCredential(credential *models.CredentialDB) error 
 		return fmt.Errorf("env_var required for env credentials")
 	}
 
-	query := fmt.Sprintf(`INSERT INTO credentials (scope_type, scope_id, name, source, env_var, description, username_var, password_var, vault_secret, vault_env, vault_username_secret, vault_fields, created_at, updated_at) 
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
+	query := fmt.Sprintf(`INSERT INTO credentials (scope_type, scope_id, name, source, env_var, description, username_var, password_var, vault_secret, vault_env, vault_username_secret, vault_fields, expires_at, created_at, updated_at) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
 
 	result, err := ds.driver.Execute(query,
 		credential.ScopeType,
@@ -67,6 +67,7 @@ func (ds *SQLDataStore) CreateCredential(credential *models.CredentialDB) error 
 		credential.VaultEnv,
 		credential.VaultUsernameSecret,
 		credential.VaultFields,
+		credential.ExpiresAt,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create credential: %w", err)
@@ -134,7 +135,7 @@ func (ds *SQLDataStore) UpdateCredential(credential *models.CredentialDB) error 
 		return fmt.Errorf("env_var required for env credentials")
 	}
 
-	query := fmt.Sprintf(`UPDATE credentials SET source = ?, env_var = ?, description = ?, username_var = ?, password_var = ?, vault_secret = ?, vault_env = ?, vault_username_secret = ?, vault_fields = ?, updated_at = %s 
+	query := fmt.Sprintf(`UPDATE credentials SET source = ?, env_var = ?, description = ?, username_var = ?, password_var = ?, vault_secret = ?, vault_env = ?, vault_username_secret = ?, vault_fields = ?, expires_at = ?, updated_at = %s 
 		WHERE scope_type = ? AND scope_id = ? AND name = ?`, ds.queryBuilder.Now())
 
 	result, err := ds.driver.Execute(query,
@@ -147,6 +148,7 @@ func (ds *SQLDataStore) UpdateCredential(credential *models.CredentialDB) error 
 		credential.VaultEnv,
 		credential.VaultUsernameSecret,
 		credential.VaultFields,
+		credential.ExpiresAt,
 		credential.ScopeType,
 		credential.ScopeID,
 		credential.Name,

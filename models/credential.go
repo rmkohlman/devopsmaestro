@@ -31,8 +31,40 @@ type CredentialDB struct {
 	Description         *string             `db:"description" json:"description"`
 	UsernameVar         *string             `db:"username_var" json:"username_var,omitempty"`
 	PasswordVar         *string             `db:"password_var" json:"password_var,omitempty"`
+	ExpiresAt           *time.Time          `db:"expires_at" json:"expires_at,omitempty" yaml:"expiresAt,omitempty"`
 	CreatedAt           time.Time           `db:"created_at" json:"created_at"`
 	UpdatedAt           time.Time           `db:"updated_at" json:"updated_at"`
+}
+
+// ExpirationStatus returns the expiration status of a credential.
+// Returns "expired", "expiring soon" (≤7 days), "valid", or "" (no expiration set).
+func (c *CredentialDB) ExpirationStatus() string {
+	return CredentialExpirationStatusAt(c.ExpiresAt, time.Now())
+}
+
+// CredentialExpirationStatusAt computes expiration status relative to a given time.
+// This enables deterministic testing.
+func CredentialExpirationStatusAt(expiresAt *time.Time, now time.Time) string {
+	if expiresAt == nil {
+		return ""
+	}
+	if now.After(*expiresAt) {
+		return "expired"
+	}
+	if expiresAt.Sub(now) <= 7*24*time.Hour {
+		return "expiring soon"
+	}
+	return "valid"
+}
+
+// IsExpired returns true if the credential has expired.
+func (c *CredentialDB) IsExpired() bool {
+	return c.ExpirationStatus() == "expired"
+}
+
+// IsExpiringSoon returns true if the credential will expire within 7 days.
+func (c *CredentialDB) IsExpiringSoon() bool {
+	return c.ExpirationStatus() == "expiring soon"
 }
 
 // IsDualField returns true if the credential has explicit username or password var names.

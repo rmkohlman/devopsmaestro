@@ -57,10 +57,10 @@ Examples:
 				if c.Description != nil {
 					desc = *c.Description
 				}
-				rows = append(rows, []string{c.Name, scope, c.Source, target, desc})
+				rows = append(rows, []string{c.Name, scope, c.Source, target, desc, formatExpirationStatus(c)})
 			}
 			render.OutputWith(getOutputFormat, render.TableData{
-				Headers: []string{"NAME", "SCOPE", "SOURCE", "TARGET", "DESCRIPTION"},
+				Headers: []string{"NAME", "SCOPE", "SOURCE", "TARGET", "DESCRIPTION", "EXPIRES"},
 				Rows:    rows,
 			}, render.Options{Type: render.TypeTable})
 			return nil
@@ -90,10 +90,10 @@ Examples:
 			if c.Description != nil {
 				desc = *c.Description
 			}
-			rows = append(rows, []string{c.Name, scope, c.Source, target, desc})
+			rows = append(rows, []string{c.Name, scope, c.Source, target, desc, formatExpirationStatus(c)})
 		}
 		render.OutputWith(getOutputFormat, render.TableData{
-			Headers: []string{"NAME", "SCOPE", "SOURCE", "TARGET", "DESCRIPTION"},
+			Headers: []string{"NAME", "SCOPE", "SOURCE", "TARGET", "DESCRIPTION", "EXPIRES"},
 			Rows:    rows,
 		}, render.Options{Type: render.TypeTable})
 		return nil
@@ -165,6 +165,19 @@ Examples:
 		}
 		if cred.PasswordVar != nil {
 			render.Plainf("Password:  %s", *cred.PasswordVar)
+		}
+		// Show expiration status
+		if cred.ExpiresAt != nil {
+			render.Plainf("Expires:   %s", cred.ExpiresAt.Format("2006-01-02 15:04:05"))
+			status := cred.ExpirationStatus()
+			switch status {
+			case "expired":
+				render.Warning(fmt.Sprintf("Status:    %s", status))
+			case "expiring soon":
+				render.Warning(fmt.Sprintf("Status:    %s", status))
+			default:
+				render.Plainf("Status:    %s", status)
+			}
 		}
 		if cred.HasVaultFields() {
 			fields, err := cred.GetVaultFieldsMap()
@@ -286,4 +299,14 @@ func formatTargetVars(c *models.CredentialDB) string {
 	}
 	// Fallback: credential name is used as the env var name
 	return c.Name
+}
+
+// formatExpirationStatus returns a human-readable expiration string for table display.
+// Returns "-" for credentials with no expiration set.
+func formatExpirationStatus(c *models.CredentialDB) string {
+	status := c.ExpirationStatus()
+	if status == "" {
+		return "-"
+	}
+	return status
 }

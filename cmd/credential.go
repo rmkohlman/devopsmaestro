@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/envvalidation"
+	"devopsmaestro/utils"
 	"github.com/rmkohlman/MaestroSDK/render"
 
 	"github.com/spf13/cobra"
@@ -322,6 +324,17 @@ Examples:
 			cred.VaultFields = &vfStr
 		}
 
+		// Parse --expires flag for rotation reminders
+		expiresStr, _ := cmd.Flags().GetString("expires")
+		if expiresStr != "" && expiresStr != "0" {
+			dur, err := utils.ParseDuration(expiresStr)
+			if err != nil {
+				return fmt.Errorf("invalid --expires value: %w", err)
+			}
+			expiresAt := time.Now().Add(dur)
+			cred.ExpiresAt = &expiresAt
+		}
+
 		// Create credential
 		if err := ds.CreateCredential(cred); err != nil {
 			return fmt.Errorf("failed to create credential: %w", err)
@@ -346,6 +359,7 @@ func init() {
 	createCredentialCmd.Flags().String("password-var", "", "Environment variable name for the password (vault source only)")
 	createCredentialCmd.Flags().StringArray("vault-field", nil,
 		"Map vault field to env var (repeatable): ENV_VAR=field_name or FIELD_NAME for auto-map")
+	createCredentialCmd.Flags().String("expires", "", "Set expiration duration for rotation reminders (e.g., 90d, 24h, 8760h)")
 
 	// Scope flags
 	addCredentialScopeFlags(createCredentialCmd)

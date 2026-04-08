@@ -134,6 +134,7 @@ func createCascadeTestDataStore(t *testing.T) *SQLDataStore {
 			description TEXT,
 			username_var TEXT,
 			password_var TEXT,
+			expires_at DATETIME,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(scope_type, scope_id, name)

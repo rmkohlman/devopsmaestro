@@ -974,6 +974,7 @@ func createCredentialTestSchema(driver db.Driver) error {
 			vault_env            TEXT,
 			vault_username_secret TEXT,
 			vault_fields         TEXT,
+			expires_at           DATETIME,
 			created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(scope_type, scope_id, name)
