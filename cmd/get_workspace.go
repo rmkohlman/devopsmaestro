@@ -461,11 +461,12 @@ func getWorkspace(cmd *cobra.Command, name string) error {
 			if ambiguousErr, ok := resolver.IsAmbiguousError(err); ok {
 				render.Warning("Multiple workspaces match your criteria")
 				render.Plain(ambiguousErr.FormatDisambiguation())
+				render.Plain(FormatSuggestions(SuggestAmbiguousWorkspace()...))
 				return fmt.Errorf("ambiguous workspace selection")
 			}
 			if resolver.IsNoWorkspaceFoundError(err) {
 				render.Warning("No workspace found matching your criteria")
-				render.Info("Hint: Use 'dvm get workspaces' to see available workspaces")
+				render.Plain(FormatSuggestions(SuggestWorkspaceNotFound(filter.WorkspaceName)...))
 				return err
 			}
 			return fmt.Errorf("failed to resolve workspace: %w", err)
@@ -480,17 +481,27 @@ func getWorkspace(cmd *cobra.Command, name string) error {
 		var err error
 		appName, err = getActiveAppFromContext(sqlDS)
 		if err != nil {
-			return fmt.Errorf("no app specified. Use -a <name> or 'dvm use app <name>' first")
+			return ErrorWithSuggestion(
+				"no app specified",
+				SuggestNoActiveApp()...,
+			)
 		}
 
 		// Get app to get its ID (search globally across all domains)
 		app, err = sqlDS.GetAppByNameGlobal(appName)
 		if err != nil {
-			return fmt.Errorf("app '%s' not found: %w", appName, err)
+			return ErrorWithSuggestion(
+				fmt.Sprintf("app %q not found", appName),
+				SuggestAppNotFound(appName)...,
+			)
 		}
 
 		// Need workspace name when using context-based lookup
-		return fmt.Errorf("workspace name required. Use: dvm get workspace <name>")
+		return ErrorWithSuggestion(
+			"workspace name required",
+			"Specify a name: dvm get workspace <name>",
+			"List all workspaces: dvm get workspaces",
+		)
 	}
 
 	// For JSON/YAML, output the model data directly

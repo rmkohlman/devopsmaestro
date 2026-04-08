@@ -103,11 +103,12 @@ func runAttach(cmd *cobra.Command) error {
 			if ambiguousErr, ok := resolver.IsAmbiguousError(err); ok {
 				render.Warning("Multiple workspaces match your criteria")
 				render.Plain(ambiguousErr.FormatDisambiguation())
+				render.Plain(FormatSuggestions(SuggestAmbiguousWorkspace()...))
 				return fmt.Errorf("ambiguous workspace selection")
 			}
 			if resolver.IsNoWorkspaceFoundError(err) {
 				render.Warning("No workspace found matching your criteria")
-				render.Info("Hint: Use 'dvm get workspaces' to see available workspaces")
+				render.Plain(FormatSuggestions(SuggestWorkspaceNotFound("")...))
 				return err
 			}
 			return fmt.Errorf("failed to resolve workspace: %w", err)
@@ -127,28 +128,32 @@ func runAttach(cmd *cobra.Command) error {
 		var err error
 		appName, err = getActiveAppFromContext(ds)
 		if err != nil {
-			render.Info("Hint: Set active app with: dvm use app <name>")
-			render.Info("      Or use flags: dvm attach -a <app>")
+			render.Plain(FormatSuggestions(SuggestNoActiveApp()...))
 			return err
 		}
 
 		workspaceName, err = getActiveWorkspaceFromContext(ds)
 		if err != nil {
-			render.Info("Hint: Set active workspace with: dvm use workspace <name>")
-			render.Info("      Or use flags: dvm attach -w <workspace>")
+			render.Plain(FormatSuggestions(SuggestNoActiveWorkspace()...))
 			return err
 		}
 
 		// Get app (search globally across all domains)
 		app, err = ds.GetAppByNameGlobal(appName)
 		if err != nil {
-			return fmt.Errorf("failed to get app '%s': %w", appName, err)
+			return ErrorWithSuggestion(
+				fmt.Sprintf("app %q not found", appName),
+				SuggestAppNotFound(appName)...,
+			)
 		}
 
 		// Get workspace
 		workspace, err = ds.GetWorkspaceByName(app.ID, workspaceName)
 		if err != nil {
-			return fmt.Errorf("failed to get workspace '%s': %w", workspaceName, err)
+			return ErrorWithSuggestion(
+				fmt.Sprintf("workspace %q not found in app %q", workspaceName, appName),
+				SuggestWorkspaceNotFound(workspaceName)...,
+			)
 		}
 	}
 
@@ -180,7 +185,7 @@ func runAttach(cmd *cobra.Command) error {
 	// Create container runtime using factory
 	runtime, err := operators.NewContainerRuntime()
 	if err != nil {
-		render.Info("Hint: Install OrbStack, Docker Desktop, or Colima")
+		render.Plain(FormatSuggestions(SuggestNoContainerRuntime()...))
 		return fmt.Errorf("failed to create container runtime: %w", err)
 	}
 
@@ -194,7 +199,7 @@ func runAttach(cmd *cobra.Command) error {
 	if strings.HasSuffix(imageName, ":pending") || !strings.HasPrefix(imageName, "dvm-") {
 		slog.Warn("workspace image may not be built", "image", imageName)
 		render.Warning(fmt.Sprintf("Workspace image '%s' has not been built yet.", imageName))
-		render.Info("Run 'dvm build' first to build the development container.")
+		render.Plain(FormatSuggestions(SuggestWorkspaceNotBuilt()...))
 		render.Blank()
 		return fmt.Errorf("workspace not built: run 'dvm build' first")
 	}

@@ -135,7 +135,7 @@ Examples:
 			appName, err = getActiveAppFromContext(ds)
 			if err != nil {
 				render.Error("No app specified")
-				render.Info("Hint: Use --app <name> or 'dvm use app <name>' to select an app first")
+				render.Plain(FormatSuggestions(SuggestNoActiveApp()...))
 				return errSilent
 			}
 		}
@@ -144,7 +144,7 @@ Examples:
 		app, err := ds.GetAppByNameGlobal(appName)
 		if err != nil {
 			render.Error(fmt.Sprintf("App '%s' not found: %v", appName, err))
-			render.Info("Hint: List available apps with: dvm get apps --all")
+			render.Plain(FormatSuggestions(SuggestAppNotFound(appName)...))
 			return errSilent
 		}
 

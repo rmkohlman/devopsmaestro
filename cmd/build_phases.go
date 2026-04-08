@@ -44,11 +44,12 @@ func (bc *buildContext) resolveFromHierarchyFlags() error {
 		if ambiguousErr, ok := wsresolver.IsAmbiguousError(err); ok {
 			render.Warning("Multiple workspaces match your criteria")
 			render.Plain(ambiguousErr.FormatDisambiguation())
+			render.Plain(FormatSuggestions(SuggestAmbiguousWorkspace()...))
 			return fmt.Errorf("ambiguous workspace selection")
 		}
 		if wsresolver.IsNoWorkspaceFoundError(err) {
 			render.Warning("No workspace found matching your criteria")
-			render.Info("Hint: Use 'dvm get workspaces' to see available workspaces")
+			render.Plain(FormatSuggestions(SuggestWorkspaceNotFound("")...))
 			return err
 		}
 		return fmt.Errorf("failed to resolve workspace: %w", err)
@@ -69,16 +70,14 @@ func (bc *buildContext) resolveFromActiveContext() error {
 	bc.appName, err = getActiveAppFromContext(bc.ds)
 	if err != nil {
 		slog.Debug("no active app set")
-		render.Info("Hint: Set active app with: dvm use app <name>")
-		render.Info("      Or use flags: dvm build -a <app>")
+		render.Plain(FormatSuggestions(SuggestNoActiveApp()...))
 		return fmt.Errorf("no active app set. Use 'dvm use app <name>' first")
 	}
 
 	bc.workspaceName, err = getActiveWorkspaceFromContext(bc.ds)
 	if err != nil {
 		slog.Debug("no active workspace set")
-		render.Info("Hint: Set active workspace with: dvm use workspace <name>")
-		render.Info("      Or use flags: dvm build -w <workspace>")
+		render.Plain(FormatSuggestions(SuggestNoActiveWorkspace()...))
 		return fmt.Errorf("no active workspace set. Use 'dvm use workspace <name>' first")
 	}
 

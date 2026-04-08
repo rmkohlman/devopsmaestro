@@ -103,11 +103,12 @@ func detachActiveWorkspace(cmd *cobra.Command, ctx context.Context, runtime oper
 			if ambiguousErr, ok := resolver.IsAmbiguousError(err); ok {
 				render.Warning("Multiple workspaces match your criteria")
 				render.Plain(ambiguousErr.FormatDisambiguation())
+				render.Plain(FormatSuggestions(SuggestAmbiguousWorkspace()...))
 				return fmt.Errorf("ambiguous workspace selection")
 			}
 			if resolver.IsNoWorkspaceFoundError(err) {
 				render.Warning("No workspace found matching your criteria")
-				render.Info("Hint: Use 'dvm get workspaces' to see available workspaces")
+				render.Plain(FormatSuggestions(SuggestWorkspaceNotFound("")...))
 				return err
 			}
 			return fmt.Errorf("failed to resolve workspace: %w", err)
@@ -128,16 +129,14 @@ func detachActiveWorkspace(cmd *cobra.Command, ctx context.Context, runtime oper
 		appName, err = getActiveAppFromContext(ds)
 		if err != nil {
 			render.Warning("No active app set")
-			render.Info("Set active app with: dvm use app <name>")
-			render.Info("      Or use flags: dvm detach -a <app>")
+			render.Plain(FormatSuggestions(SuggestNoActiveApp()...))
 			return nil
 		}
 
 		workspaceName, err = getActiveWorkspaceFromContext(ds)
 		if err != nil {
 			render.Warning("No active workspace set")
-			render.Info("Set active workspace with: dvm use workspace <name>")
-			render.Info("      Or use flags: dvm detach -w <workspace>")
+			render.Plain(FormatSuggestions(SuggestNoActiveWorkspace()...))
 			return nil
 		}
 

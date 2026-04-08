@@ -201,7 +201,7 @@ Examples:
 		app, err := ds.GetAppByNameGlobal(appName)
 		if err != nil {
 			render.Error(fmt.Sprintf("App '%s' not found: %v", appName, err))
-			render.Info("Hint: List available apps with: dvm get apps")
+			render.Plain(FormatSuggestions(SuggestAppNotFound(appName)...))
 			return errSilent
 		}
 
@@ -274,7 +274,7 @@ Examples:
 		appName, err := getActiveAppFromContext(ds)
 		if err != nil {
 			render.Error("No active app set")
-			render.Info("Hint: Set active app first with: dvm use app <name>")
+			render.Plain(FormatSuggestions(SuggestNoActiveApp()...))
 			return errSilent
 		}
 
@@ -288,7 +288,7 @@ Examples:
 		workspace, err := ds.GetWorkspaceByName(app.ID, workspaceName)
 		if err != nil {
 			render.Error(fmt.Sprintf("Workspace '%s' not found in app '%s': %v", workspaceName, appName, err))
-			render.Info("Hint: List available workspaces with: dvm get workspaces")
+			render.Plain(FormatSuggestions(SuggestWorkspaceNotFound(workspaceName)...))
 			return errSilent
 		}
 

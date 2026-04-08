@@ -161,7 +161,7 @@ Examples:
 		ecosystem, err := ds.GetEcosystemByName(ecosystemName)
 		if err != nil {
 			render.Error(fmt.Sprintf("Ecosystem '%s' not found: %v", ecosystemName, err))
-			render.Info("Hint: List available ecosystems with: dvm get ecosystems")
+			render.Plain(FormatSuggestions(SuggestEcosystemNotFound(ecosystemName)...))
 			return errSilent
 		}
 
