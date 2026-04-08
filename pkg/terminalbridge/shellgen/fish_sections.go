@@ -8,8 +8,10 @@ import (
 	"github.com/rmkohlman/MaestroTerminal/terminalops/shell"
 )
 
-// writeShellConfigs includes any additional shell configurations (aliases, functions, etc.).
-func (g *ZshGenerator) writeShellConfigs(sb *strings.Builder, config ShellConfig) {
+// writeShellConfigs includes any additional shell configurations.
+// Fish uses different syntax for aliases and functions, but the shell.Generator
+// handles this based on the ShellType field.
+func (g *FishGenerator) writeShellConfigs(sb *strings.Builder, config ShellConfig) {
 	if len(config.ShellConfigs) == 0 {
 		return
 	}
@@ -28,13 +30,13 @@ func (g *ZshGenerator) writeShellConfigs(sb *strings.Builder, config ShellConfig
 	}
 }
 
-// writePlugins generates plugin source lines in correct load order.
-func (g *ZshGenerator) writePlugins(sb *strings.Builder, config ShellConfig) {
+// writePlugins generates plugin source lines for Fish.
+// Uses Fish conditional sourcing: if test -f file; source file; end
+func (g *FishGenerator) writePlugins(sb *strings.Builder, config ShellConfig) {
 	if len(config.Plugins) == 0 {
 		return
 	}
 
-	// Filter enabled plugins only
 	var enabled []*plugin.Plugin
 	for _, p := range config.Plugins {
 		if p != nil && p.Enabled {
@@ -47,21 +49,19 @@ func (g *ZshGenerator) writePlugins(sb *strings.Builder, config ShellConfig) {
 
 	pluginDir := config.PluginDir
 	if pluginDir == "" {
-		pluginDir = "${HOME}/.local/share/zsh/plugins"
+		pluginDir = "$HOME/.local/share/fish/plugins"
 	}
 
-	gen := plugin.NewZshGenerator(pluginDir)
-	output, err := gen.Generate(enabled)
-	if err != nil {
-		sb.WriteString(fmt.Sprintf("# Warning: failed to generate plugin config: %v\n", err))
-		return
+	sb.WriteString("# === Shell Plugins ===\n")
+	for _, p := range enabled {
+		pluginPath := fmt.Sprintf("%s/%s/%s.plugin.fish", pluginDir, p.Name, p.Name)
+		sb.WriteString(fmt.Sprintf("if test -f \"%s\"\n    source \"%s\"\nend\n", pluginPath, pluginPath))
 	}
-	sb.WriteString(output)
 	sb.WriteString("\n")
 }
 
-// writePromptConfig appends prompt initialization (e.g., starship init zsh).
-func (g *ZshGenerator) writePromptConfig(sb *strings.Builder, config ShellConfig) {
+// writePromptConfig appends prompt initialization for Fish.
+func (g *FishGenerator) writePromptConfig(sb *strings.Builder, config ShellConfig) {
 	if config.PromptConfig == "" {
 		return
 	}
@@ -72,6 +72,6 @@ func (g *ZshGenerator) writePromptConfig(sb *strings.Builder, config ShellConfig
 }
 
 // writeFooter writes the end-of-file marker.
-func (g *ZshGenerator) writeFooter(sb *strings.Builder) {
-	sb.WriteString("# End of .zshrc.workspace\n")
+func (g *FishGenerator) writeFooter(sb *strings.Builder) {
+	sb.WriteString("# End of config.fish.workspace\n")
 }

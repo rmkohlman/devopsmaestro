@@ -1,6 +1,7 @@
-// Package shellgen generates workspace-scoped .zshrc files by compositing
-// the host's shell config with workspace-specific environment variables,
-// prompt configuration, and plugin source lines.
+// Package shellgen generates workspace-scoped shell configuration files by
+// compositing the host's shell config with workspace-specific environment
+// variables, prompt configuration, and plugin source lines.
+// Supports Zsh, Bash, and Fish shells.
 package shellgen
 
 import (
@@ -8,10 +9,15 @@ import (
 	"github.com/rmkohlman/MaestroTerminal/terminalops/shell"
 )
 
-// ShellConfig holds all inputs needed to generate a .zshrc.workspace file.
+// ShellConfig holds all inputs needed to generate a workspace shell config file.
 type ShellConfig struct {
-	// HostZshrcPath is the path to the user's host ~/.zshrc.
-	// If empty, defaults to ~/.zshrc. If the file doesn't exist, it's skipped.
+	// HostShellConfigPath is the path to the user's host shell config file.
+	// For Zsh: ~/.zshrc, Bash: ~/.bashrc, Fish: ~/.config/fish/config.fish.
+	// If empty, defaults based on shell type. If the file doesn't exist, it's skipped.
+	HostShellConfigPath string
+
+	// HostZshrcPath is deprecated — use HostShellConfigPath instead.
+	// Kept for backward compatibility with existing callers.
 	HostZshrcPath string
 
 	// EnvVars are workspace-specific environment variables to inject.
@@ -32,15 +38,39 @@ type ShellConfig struct {
 	// WorkspaceName identifies the workspace (used in comments/headers).
 	WorkspaceName string
 
-	// IncludeHostZshrc controls whether to source the host's .zshrc.
+	// IncludeHostConfig controls whether to source the host's shell config.
 	// Defaults to true when not explicitly set.
+	IncludeHostConfig *bool
+
+	// IncludeHostZshrc is deprecated — use IncludeHostConfig instead.
+	// Kept for backward compatibility with existing callers.
 	IncludeHostZshrc *bool
 }
 
-// ShouldIncludeHostZshrc returns whether host .zshrc should be included.
-func (c *ShellConfig) ShouldIncludeHostZshrc() bool {
-	if c.IncludeHostZshrc == nil {
-		return true
+// ShouldIncludeHostConfig returns whether the host shell config should be included.
+func (c *ShellConfig) ShouldIncludeHostConfig() bool {
+	// Check the new field first
+	if c.IncludeHostConfig != nil {
+		return *c.IncludeHostConfig
 	}
-	return *c.IncludeHostZshrc
+	// Fall back to the deprecated field for backward compatibility
+	if c.IncludeHostZshrc != nil {
+		return *c.IncludeHostZshrc
+	}
+	return true
+}
+
+// ShouldIncludeHostZshrc returns whether host .zshrc should be included.
+// Deprecated: use ShouldIncludeHostConfig instead.
+func (c *ShellConfig) ShouldIncludeHostZshrc() bool {
+	return c.ShouldIncludeHostConfig()
+}
+
+// GetHostConfigPath returns the effective host config path, checking both
+// the new HostShellConfigPath and the deprecated HostZshrcPath fields.
+func (c *ShellConfig) GetHostConfigPath() string {
+	if c.HostShellConfigPath != "" {
+		return c.HostShellConfigPath
+	}
+	return c.HostZshrcPath
 }

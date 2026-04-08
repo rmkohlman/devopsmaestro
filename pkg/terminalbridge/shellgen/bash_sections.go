@@ -8,8 +8,8 @@ import (
 	"github.com/rmkohlman/MaestroTerminal/terminalops/shell"
 )
 
-// writeShellConfigs includes any additional shell configurations (aliases, functions, etc.).
-func (g *ZshGenerator) writeShellConfigs(sb *strings.Builder, config ShellConfig) {
+// writeShellConfigs includes any additional shell configurations.
+func (g *BashGenerator) writeShellConfigs(sb *strings.Builder, config ShellConfig) {
 	if len(config.ShellConfigs) == 0 {
 		return
 	}
@@ -28,13 +28,13 @@ func (g *ZshGenerator) writeShellConfigs(sb *strings.Builder, config ShellConfig
 	}
 }
 
-// writePlugins generates plugin source lines in correct load order.
-func (g *ZshGenerator) writePlugins(sb *strings.Builder, config ShellConfig) {
+// writePlugins generates plugin source lines for Bash.
+// Uses conditional sourcing: if [ -f file ]; then source file; fi
+func (g *BashGenerator) writePlugins(sb *strings.Builder, config ShellConfig) {
 	if len(config.Plugins) == 0 {
 		return
 	}
 
-	// Filter enabled plugins only
 	var enabled []*plugin.Plugin
 	for _, p := range config.Plugins {
 		if p != nil && p.Enabled {
@@ -47,21 +47,19 @@ func (g *ZshGenerator) writePlugins(sb *strings.Builder, config ShellConfig) {
 
 	pluginDir := config.PluginDir
 	if pluginDir == "" {
-		pluginDir = "${HOME}/.local/share/zsh/plugins"
+		pluginDir = "${HOME}/.local/share/bash/plugins"
 	}
 
-	gen := plugin.NewZshGenerator(pluginDir)
-	output, err := gen.Generate(enabled)
-	if err != nil {
-		sb.WriteString(fmt.Sprintf("# Warning: failed to generate plugin config: %v\n", err))
-		return
+	sb.WriteString("# === Shell Plugins ===\n")
+	for _, p := range enabled {
+		pluginPath := fmt.Sprintf("%s/%s/%s.plugin.bash", pluginDir, p.Name, p.Name)
+		sb.WriteString(fmt.Sprintf("if [ -f \"%s\" ]; then source \"%s\"; fi\n", pluginPath, pluginPath))
 	}
-	sb.WriteString(output)
 	sb.WriteString("\n")
 }
 
-// writePromptConfig appends prompt initialization (e.g., starship init zsh).
-func (g *ZshGenerator) writePromptConfig(sb *strings.Builder, config ShellConfig) {
+// writePromptConfig appends prompt initialization for Bash.
+func (g *BashGenerator) writePromptConfig(sb *strings.Builder, config ShellConfig) {
 	if config.PromptConfig == "" {
 		return
 	}
@@ -72,6 +70,6 @@ func (g *ZshGenerator) writePromptConfig(sb *strings.Builder, config ShellConfig
 }
 
 // writeFooter writes the end-of-file marker.
-func (g *ZshGenerator) writeFooter(sb *strings.Builder) {
-	sb.WriteString("# End of .zshrc.workspace\n")
+func (g *BashGenerator) writeFooter(sb *strings.Builder) {
+	sb.WriteString("# End of .bashrc.workspace\n")
 }
