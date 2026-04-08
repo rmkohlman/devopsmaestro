@@ -3,7 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"fmt"
-	"os"
+	"log/slog"
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
@@ -113,7 +113,7 @@ func (h *GitRepoHandler) Apply(ctx resource.Context, data []byte) (resource.Reso
 		mirrorMgr := mirror.NewGitMirrorManager(baseDir)
 		if !mirrorMgr.Exists(repo.Slug) {
 			if _, cloneErr := mirrorMgr.Clone(repo.URL, repo.Slug); cloneErr != nil {
-				fmt.Fprintf(os.Stderr, "⚠ Failed to clone mirror for %s: %v\n", repo.Name, cloneErr)
+				slog.Warn("failed to clone mirror", "repo", repo.Name, "error", cloneErr)
 			}
 		}
 	}

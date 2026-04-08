@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -223,7 +224,7 @@ func (h *WorkspaceHandler) Apply(ctx resource.Context, data []byte) (resource.Re
 		wsPath := filepath.Join(wsBaseDir, workspace.Slug)
 		if _, statErr := os.Stat(wsPath); os.IsNotExist(statErr) {
 			if dirErr := ws.CreateWorkspaceDirectories(wsPath); dirErr != nil {
-				fmt.Fprintf(os.Stderr, "⚠ Failed to create workspace directories for %s: %v\n", workspace.Name, dirErr)
+				slog.Warn("failed to create workspace directories", "workspace", workspace.Name, "error", dirErr)
 			}
 		}
 
@@ -246,7 +247,7 @@ func (h *WorkspaceHandler) Apply(ctx resource.Context, data []byte) (resource.Re
 								ref = "main"
 							}
 							if cloneErr := mirrorMgr.CloneToWorkspace(gitRepo.Slug, repoPath, ref); cloneErr != nil {
-								fmt.Fprintf(os.Stderr, "⚠ Failed to clone workspace repo for %s: %v\n", workspace.Name, cloneErr)
+								slog.Warn("failed to clone workspace repo", "workspace", workspace.Name, "error", cloneErr)
 							}
 						}
 					}

@@ -1,7 +1,7 @@
 package config
 
 import (
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -77,7 +77,7 @@ func LoadConfig(configPath string) {
 	if err != nil {
 		// It's okay if config file doesn't exist, we'll use defaults
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			log.Printf("Warning: Error loading config file: %v", err)
+			slog.Warn("error loading config file", "error", err)
 		}
 	}
 }
@@ -90,7 +90,7 @@ func LoadOrCreateConfig(configPath string) {
 	if _, err := os.Stat(configFile); os.IsNotExist(err) {
 		// Create default config
 		if err := CreateDefaultConfig(configPath); err != nil {
-			log.Printf("Warning: Could not create default config: %v", err)
+			slog.Warn("could not create default config", "error", err)
 		}
 	}
 

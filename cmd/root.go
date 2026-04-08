@@ -6,11 +6,11 @@ import (
 	"devopsmaestro/pkg/colorbridge"
 	"devopsmaestro/pkg/crd"
 	"devopsmaestro/pkg/resource/handlers"
+	"devopsmaestro/utils"
 	"fmt"
 	"github.com/rmkohlman/MaestroSDK/colors"
 	"github.com/rmkohlman/MaestroSDK/render"
 	theme "github.com/rmkohlman/MaestroTheme"
-	"io"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -19,9 +19,11 @@ import (
 )
 
 var (
-	verbose bool
-	logFile string
-	noColor bool
+	verbose   bool
+	logLevel  string
+	logFormat string
+	logFile   string
+	noColor   bool
 )
 
 // errSilent is returned by commands that have already displayed their error
@@ -137,43 +139,40 @@ func shouldSkipAutoMigration(cmd *cobra.Command) bool {
 
 func init() {
 	// Global flags available to all commands
-	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable debug logging")
+	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable debug logging (shortcut for --log-level=debug)")
+	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "warn", "Set log level (debug, info, warn, error)")
+	rootCmd.PersistentFlags().StringVar(&logFormat, "log-format", "text", "Set log format (text, json)")
 	rootCmd.PersistentFlags().StringVar(&logFile, "log-file", "", "Write logs to file (JSON format)")
 	rootCmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "Disable colored output")
 }
 
 // initLogging configures the global slog logger based on flags.
-// - Default: INFO level, text format to stderr (only shown with -v)
-// - With --verbose: DEBUG level
-// - With --log-file: JSON format to file
+// - Default: WARN level, text format (logs discarded unless level elevated)
+// - With --verbose / -v: DEBUG level to stderr
+// - With --log-level: sets the minimum log level
+// - With --log-format: sets output format (text or json)
+// - With --log-file: JSON format to file (overrides --log-format)
 func initLogging() {
-	level := slog.LevelInfo
+	// --verbose is a shortcut for --log-level=debug
+	effectiveLevel := logLevel
 	if verbose {
-		level = slog.LevelDebug
+		effectiveLevel = "debug"
 	}
 
-	opts := &slog.HandlerOptions{
-		Level: level,
-	}
-
-	var handler slog.Handler
-
+	// When writing to a log file, always use JSON format
 	if logFile != "" {
-		// JSON format for file output (machine-readable)
 		f, err := os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 		if err != nil {
 			render.WarningfToStderr("Could not open log file %s: %v", logFile, err)
-			handler = slog.NewTextHandler(os.Stderr, opts)
-		} else {
-			handler = slog.NewJSONHandler(f, opts)
+			utils.InitLogger(effectiveLevel, logFormat)
+			return
 		}
-	} else if verbose {
-		// Text format for terminal (human-readable), only when verbose
-		handler = slog.NewTextHandler(os.Stderr, opts)
-	} else {
-		// Silent by default - discard logs unless verbose or log-file specified
-		handler = slog.NewTextHandler(io.Discard, opts)
+		lvl := utils.ParseLogLevel(effectiveLevel)
+		opts := &slog.HandlerOptions{Level: lvl}
+		handler := slog.NewJSONHandler(f, opts)
+		slog.SetDefault(slog.New(handler))
+		return
 	}
 
-	slog.SetDefault(slog.New(handler))
+	utils.InitLogger(effectiveLevel, logFormat)
 }
