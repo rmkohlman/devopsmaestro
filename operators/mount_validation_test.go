@@ -12,9 +12,6 @@ import (
 // =============================================================================
 
 func TestValidateMountSource_AdversarialInputs(t *testing.T) {
-	// Create a real temporary directory so "valid path exists" cases can pass
-	tmpDir := t.TempDir()
-
 	tests := []struct {
 		name      string
 		path      string
@@ -161,19 +158,19 @@ func TestValidateMountSource_AdversarialInputs(t *testing.T) {
 		},
 
 		// ---------------------------------------------------------------
-		// Category: macOS temp dirs — under /var (correctly rejected)
-		// On macOS, t.TempDir() returns /var/folders/... which is under
-		// the sensitive /var prefix and is therefore rejected by design.
+		// Category: /var prefix — blocked on all platforms
+		// /var is in the sensitive blocklist; the sensitive-prefix check
+		// fires before the "path exists" check, so no real path is needed.
 		// ---------------------------------------------------------------
 		{
-			name:      "macOS temp directory — under /var, correctly rejected",
-			path:      tmpDir,
+			name:      "blocked — /var/log (sensitive /var prefix)",
+			path:      "/var/log",
 			wantError: true,
 			errorHint: "sensitive",
 		},
 		{
-			name:      "macOS temp subdirectory — under /var, correctly rejected",
-			path:      createSubdir(t, tmpDir, "project"),
+			name:      "blocked — subpath under /var (sensitive /var prefix)",
+			path:      "/var/lib/project",
 			wantError: true,
 			errorHint: "sensitive",
 		},
@@ -258,15 +255,4 @@ func TestValidateMountSource_SensitiveSubpaths(t *testing.T) {
 			}
 		})
 	}
-}
-
-// createSubdir creates a subdirectory under parent and returns its path.
-// Skips the test if creation fails.
-func createSubdir(t *testing.T, parent, name string) string {
-	t.Helper()
-	path := filepath.Join(parent, name)
-	if err := os.MkdirAll(path, 0o755); err != nil {
-		t.Skipf("could not create subdir %s: %v", path, err)
-	}
-	return path
 }

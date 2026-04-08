@@ -811,7 +811,7 @@ func TestCreateWorkspace_CreateBranchFlag_CreatesNewBranch(t *testing.T) {
 	_ = receivedCreateBranch
 	// TODO: Once MirrorManager interface is extended with CreateBranch support,
 	// update this test to assert receivedCreateBranch == true
-	t.Skip("FAILING: --create-branch behavior not yet implemented in MirrorManager interface")
+	t.Skip("TODO: --create-branch behavior not yet implemented in MirrorManager interface")
 }
 
 // =============================================================================
