@@ -29,11 +29,9 @@ Examples:
 	},
 }
 
-var statusOutputFormat string
-
 func init() {
 	rootCmd.AddCommand(statusCmd)
-	statusCmd.Flags().StringVarP(&statusOutputFormat, "output", "o", "", "Output format (json, yaml)")
+	AddOutputFlag(statusCmd, "")
 }
 
 // StatusInfo holds all status information
@@ -65,6 +63,8 @@ type RuntimeInfo struct {
 }
 
 func runStatus(cmd *cobra.Command) error {
+	outputFormat, _ := cmd.Flags().GetString("output")
+
 	status := StatusInfo{
 		Containers: []ContainerInfo{},
 	}
@@ -91,8 +91,8 @@ func runStatus(cmd *cobra.Command) error {
 			Status: "not found",
 		}
 		// Handle output format
-		if statusOutputFormat == "json" || statusOutputFormat == "yaml" {
-			return render.OutputWith(statusOutputFormat, status, render.Options{})
+		if outputFormat == "json" || outputFormat == "yaml" {
+			return render.OutputWith(outputFormat, status, render.Options{})
 		}
 		renderStatusColored(status)
 		return nil
@@ -124,8 +124,8 @@ func runStatus(cmd *cobra.Command) error {
 	}
 
 	// Handle output format
-	if statusOutputFormat == "json" || statusOutputFormat == "yaml" {
-		return render.OutputWith(statusOutputFormat, status, render.Options{})
+	if outputFormat == "json" || outputFormat == "yaml" {
+		return render.OutputWith(outputFormat, status, render.Options{})
 	}
 
 	// Default: colored output

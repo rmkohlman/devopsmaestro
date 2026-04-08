@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"runtime"
 
+	"github.com/rmkohlman/MaestroSDK/render"
 	"github.com/spf13/cobra"
 )
 
@@ -15,12 +16,28 @@ var (
 	Commit    = "unknown"
 )
 
+// VersionInfo holds structured version data for JSON/YAML output.
+type VersionInfo struct {
+	Version   string `json:"version" yaml:"version"`
+	Commit    string `json:"commit" yaml:"commit"`
+	BuildTime string `json:"buildTime" yaml:"buildTime"`
+	Go        string `json:"go" yaml:"go"`
+	Platform  string `json:"platform" yaml:"platform"`
+}
+
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
-	Long:  `Print the version, build time, and commit hash of dvm.`,
-	Run: func(cmd *cobra.Command, args []string) {
+	Long: `Print the version, build time, and commit hash of dvm.
+
+Examples:
+  dvm version
+  dvm version --short
+  dvm version -o json
+  dvm version -o yaml`,
+	RunE: func(cmd *cobra.Command, args []string) error {
 		short, _ := cmd.Flags().GetBool("short")
+		outputFormat, _ := cmd.Flags().GetString("output")
 
 		// Add 'v' prefix only if not already present
 		versionDisplay := Version
@@ -30,10 +47,22 @@ var versionCmd = &cobra.Command{
 
 		if short {
 			fmt.Println(versionDisplay)
-			return
+			return nil
 		}
 
-		// Beautiful version output using UI styles
+		// Structured output for JSON/YAML
+		if outputFormat == "json" || outputFormat == "yaml" {
+			info := VersionInfo{
+				Version:   versionDisplay,
+				Commit:    Commit,
+				BuildTime: BuildTime,
+				Go:        runtime.Version(),
+				Platform:  runtime.GOOS + "/" + runtime.GOARCH,
+			}
+			return render.OutputWith(outputFormat, info, render.Options{})
+		}
+
+		// Default: beautiful colored output using UI styles
 		fmt.Println()
 		fmt.Printf("%s %s\n",
 			ui.HeaderStyle.Render("🚀 DevOpsMaestro (dvm)"),
@@ -52,10 +81,12 @@ var versionCmd = &cobra.Command{
 			ui.MutedStyle.Render("Platform:  "),
 			ui.TextStyle.Render(runtime.GOOS+"/"+runtime.GOARCH))
 		fmt.Println()
+		return nil
 	},
 }
 
 func init() {
 	versionCmd.Flags().Bool("short", false, "Print only version number")
+	AddOutputFlag(versionCmd, "")
 	rootCmd.AddCommand(versionCmd)
 }

@@ -38,7 +38,7 @@ func init() {
 	registryCmd.AddCommand(registryGetDefaultsCmd)
 
 	// Add output flag to get-defaults (not inherited from getCmd since it's under registryCmd)
-	registryGetDefaultsCmd.Flags().StringVarP(&getOutputFormat, "output", "o", "", "Output format: json, yaml, wide")
+	AddOutputFlag(registryGetDefaultsCmd, "")
 }
 
 // runRegistrySetDefault implements the set-default command
@@ -86,6 +86,7 @@ func runRegistrySetDefault(cmd *cobra.Command, args []string) error {
 // runRegistryGetDefaults implements the get-defaults command
 func runRegistryGetDefaults(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
+	outputFormat, _ := cmd.Flags().GetString("output")
 
 	// Get dataStore from context
 	store, err := getDataStore(cmd)
@@ -166,7 +167,7 @@ func runRegistryGetDefaults(cmd *cobra.Command, args []string) error {
 		Rows:    rows,
 	}
 
-	return render.OutputWith(getOutputFormat, tableData, render.Options{
+	return render.OutputWith(outputFormat, tableData, render.Options{
 		Type: render.TypeTable,
 	})
 }
