@@ -30,7 +30,7 @@ import (
 // newCmdContextWithMock builds a context.Context carrying a MockDataStore,
 // matching the pattern consumed by getDataStore().
 func newCmdContextWithMock(ds *db.MockDataStore) context.Context {
-	return context.WithValue(context.Background(), "dataStore", ds)
+	return context.WithValue(context.Background(), CtxKeyDataStore, ds)
 }
 
 // wasMethodCalled checks the MockDataStore call log for a specific method name.

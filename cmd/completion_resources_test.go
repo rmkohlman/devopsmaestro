@@ -7,8 +7,8 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
-	"github.com/rmkohlman/MaestroSDK/resource"
 	"devopsmaestro/pkg/resource/handlers"
+	"github.com/rmkohlman/MaestroSDK/resource"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -188,7 +188,7 @@ func TestCompleteResources(t *testing.T) {
 
 	// Create a test command with datastore in context
 	cmd := &cobra.Command{Use: "test"}
-	ctx := context.WithValue(context.Background(), "dataStore", dataStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, dataStore)
 	cmd.SetContext(ctx)
 
 	tests := []struct {
@@ -262,7 +262,7 @@ func TestCompleteResourcesErrorHandling(t *testing.T) {
 			name: "wrong datastore type in context",
 			setupCmd: func() *cobra.Command {
 				cmd := &cobra.Command{Use: "test"}
-				ctx := context.WithValue(context.Background(), "dataStore", "not-a-datastore")
+				ctx := context.WithValue(context.Background(), CtxKeyDataStore, "not-a-datastore")
 				cmd.SetContext(ctx)
 				return cmd
 			},
@@ -273,7 +273,7 @@ func TestCompleteResourcesErrorHandling(t *testing.T) {
 			setupCmd: func() *cobra.Command {
 				dataStore := createTestDataStore(t)
 				cmd := &cobra.Command{Use: "test"}
-				ctx := context.WithValue(context.Background(), "dataStore", dataStore)
+				ctx := context.WithValue(context.Background(), CtxKeyDataStore, dataStore)
 				cmd.SetContext(ctx)
 				return cmd
 			},
@@ -330,7 +330,7 @@ func TestCompletionFunctions(t *testing.T) {
 
 	// Create a test command with datastore in context
 	cmd := &cobra.Command{Use: "test"}
-	ctx := context.WithValue(context.Background(), "dataStore", dataStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, dataStore)
 	cmd.SetContext(ctx)
 
 	tests := []struct {
@@ -397,7 +397,7 @@ func TestCompletionFunctions_NewHandlerBased(t *testing.T) {
 
 	// Create a test command with datastore in context
 	cmd := &cobra.Command{Use: "test"}
-	ctx := context.WithValue(context.Background(), "dataStore", dataStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, dataStore)
 	cmd.SetContext(ctx)
 
 	// Valid shell completion directives — functions must return one of these
@@ -488,7 +488,7 @@ func TestCompleteGitRepos(t *testing.T) {
 		}
 
 		cmd := &cobra.Command{Use: "test"}
-		ctx := context.WithValue(context.Background(), "dataStore", dataStore)
+		ctx := context.WithValue(context.Background(), CtxKeyDataStore, dataStore)
 		cmd.SetContext(ctx)
 
 		completions, directive := completeGitRepos(cmd, []string{}, "")
@@ -516,7 +516,7 @@ func TestCompleteGitRepos(t *testing.T) {
 		defer dataStore.Close()
 
 		cmd := &cobra.Command{Use: "test"}
-		ctx := context.WithValue(context.Background(), "dataStore", dataStore)
+		ctx := context.WithValue(context.Background(), CtxKeyDataStore, dataStore)
 		cmd.SetContext(ctx)
 
 		completions, directive := completeGitRepos(cmd, []string{}, "")
@@ -540,7 +540,7 @@ func TestCompleteGitRepos(t *testing.T) {
 
 	t.Run("wrong type in context returns empty with ShellCompDirectiveDefault", func(t *testing.T) {
 		cmd := &cobra.Command{Use: "test"}
-		ctx := context.WithValue(context.Background(), "dataStore", "not-a-datastore")
+		ctx := context.WithValue(context.Background(), CtxKeyDataStore, "not-a-datastore")
 		cmd.SetContext(ctx)
 
 		completions, directive := completeGitRepos(cmd, []string{}, "")
@@ -619,7 +619,7 @@ func TestCompleteRegistrySetDefault(t *testing.T) {
 		defer dataStore.Close()
 
 		cmd := &cobra.Command{Use: "test"}
-		ctx := context.WithValue(context.Background(), "dataStore", dataStore)
+		ctx := context.WithValue(context.Background(), CtxKeyDataStore, dataStore)
 		cmd.SetContext(ctx)
 
 		// With one arg provided, should delegate to completeRegistries.
@@ -672,7 +672,7 @@ func TestGetCompletionDataStore(t *testing.T) {
 		defer dataStore.Close()
 
 		cmd := &cobra.Command{Use: "test"}
-		ctx := context.WithValue(context.Background(), "dataStore", dataStore)
+		ctx := context.WithValue(context.Background(), CtxKeyDataStore, dataStore)
 		cmd.SetContext(ctx)
 
 		result, err := getCompletionDataStore(cmd)
@@ -694,7 +694,7 @@ func TestGetCompletionDataStore(t *testing.T) {
 
 	t.Run("wrong type in context falls through to createDefaultDataStore", func(t *testing.T) {
 		cmd := &cobra.Command{Use: "test"}
-		ctx := context.WithValue(context.Background(), "dataStore", 42) // wrong type
+		ctx := context.WithValue(context.Background(), CtxKeyDataStore, 42) // wrong type
 		cmd.SetContext(ctx)
 
 		// Should fall through since type assertion fails; createDefaultDataStore

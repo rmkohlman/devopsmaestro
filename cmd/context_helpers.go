@@ -16,7 +16,7 @@ import (
 //   - *db.MockDataStore / db.MockDataStore (tests with mock)
 func getDataStore(cmd *cobra.Command) (db.DataStore, error) {
 	ctx := cmd.Context()
-	val := ctx.Value("dataStore")
+	val := ctx.Value(CtxKeyDataStore)
 	if val == nil {
 		return nil, fmt.Errorf("dataStore not found in context")
 	}

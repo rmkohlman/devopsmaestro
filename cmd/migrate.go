@@ -3,7 +3,6 @@ package cmd
 import (
 	"devopsmaestro/db"
 	"github.com/rmkohlman/MaestroSDK/render"
-	"io/fs"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -28,8 +27,8 @@ var migrateCmd = &cobra.Command{
 
 		// Get migrations filesystem from context
 		ctx := cmd.Context()
-		migrationsFS := ctx.Value("migrationsFS").(fs.FS)
-		if migrationsFS == nil {
+		migrationsFS, fsErr := getMigrationsFSFromContext(ctx)
+		if fsErr != nil {
 			render.Error("Migrations filesystem not available")
 			os.Exit(1)
 		}

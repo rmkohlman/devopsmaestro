@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/rmkohlman/MaestroSDK/paths"
 	"github.com/rmkohlman/MaestroSDK/render"
-	"io/fs"
 	"log/slog"
 	"os"
 
@@ -101,8 +100,8 @@ templates:
 
 		// Get migrations filesystem from context
 		ctx := cmd.Context()
-		migrationsFS := ctx.Value("migrationsFS").(fs.FS)
-		if migrationsFS == nil {
+		migrationsFS, fsErr := getMigrationsFSFromContext(ctx)
+		if fsErr != nil {
 			slog.Error("migrations filesystem not available in context")
 			render.Error("Migrations filesystem not available")
 			return

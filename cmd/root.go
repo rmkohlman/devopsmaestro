@@ -61,9 +61,9 @@ func Execute(dataStore *db.DataStore, executor *Executor, migrationsFS fs.FS) {
 		}
 
 		// Set the dataStore and executor for all commands
-		ctx = context.WithValue(ctx, "dataStore", dataStore)
-		ctx = context.WithValue(ctx, "executor", executor)
-		ctx = context.WithValue(ctx, "migrationsFS", migrationsFS)
+		ctx = context.WithValue(ctx, CtxKeyDataStore, dataStore)
+		ctx = context.WithValue(ctx, ctxKeyExecutor, executor)
+		ctx = context.WithValue(ctx, ctxKeyMigrationsFS, migrationsFS)
 		cmd.SetContext(ctx)
 
 		// Auto-migrate database if needed (skip for commands that don't need DB)

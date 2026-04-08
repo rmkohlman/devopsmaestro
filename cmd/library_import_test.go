@@ -201,7 +201,7 @@ func newLibraryImportTestRoot(t *testing.T, ds *db.DataStore) *cobra.Command {
 	t.Helper()
 
 	// Inject the mock DataStore into a context
-	ctx := context.WithValue(context.Background(), "dataStore", ds) //nolint:staticcheck
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, ds)
 
 	root := &cobra.Command{
 		Use:           "dvm",

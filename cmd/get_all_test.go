@@ -25,7 +25,7 @@ import (
 func newGetAllTestCmd(t *testing.T, ds db.DataStore) *cobra.Command {
 	t.Helper()
 	cmd := &cobra.Command{Use: "test"}
-	ctx := context.WithValue(context.Background(), "dataStore", ds)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, ds)
 	cmd.SetContext(ctx)
 	return cmd
 }
@@ -1197,7 +1197,7 @@ func newScopedGetAllCmd(t *testing.T, ds db.DataStore) *cobra.Command {
 	cmd.Flags().BoolP("all", "A", false, "Show all resources (ignore active context)")
 	cmd.Flags().StringP("output", "o", "", "Output format")
 
-	ctx := context.WithValue(context.Background(), "dataStore", ds)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, ds)
 	cmd.SetContext(ctx)
 	return cmd
 }

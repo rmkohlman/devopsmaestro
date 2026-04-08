@@ -44,7 +44,7 @@ import (
 func newSingularGetCredentialTestCmd(t *testing.T, ds interface{}) *cobra.Command {
 	t.Helper()
 	cmd := &cobra.Command{Use: "test"}
-	ctx := context.WithValue(context.Background(), "dataStore", ds)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, ds)
 	cmd.SetContext(ctx)
 	cmd.Flags().StringP("ecosystem", "e", "", "Ecosystem scope")
 	cmd.Flags().StringP("domain", "d", "", "Domain scope")
@@ -58,7 +58,7 @@ func newSingularGetCredentialTestCmd(t *testing.T, ds interface{}) *cobra.Comman
 func newSingularGetGitRepoTestCmd(t *testing.T, ds interface{}) *cobra.Command {
 	t.Helper()
 	cmd := &cobra.Command{Use: "test"}
-	ctx := context.WithValue(context.Background(), "dataStore", ds)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, ds)
 	cmd.SetContext(ctx)
 	// runGetGitRepo reads "output" directly via cmd.Flags().GetString("output")
 	cmd.Flags().StringP("output", "o", "", "Output format")

@@ -54,7 +54,7 @@ func TestCreateApp_WithRepoURL_AutoCreatesGitRepo(t *testing.T) {
 
 	// Setup command context
 	cmd := &cobra.Command{}
-	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 	cmd.SetContext(ctx)
 
 	// Simulate: dvm create app myapp --repo https://github.com/rmkohlman/dvm-test-golang.git
@@ -181,7 +181,7 @@ func TestCreateApp_RepoAndPath_MutuallyExclusive(t *testing.T) {
 	cmd.Flags().String("repo", "", "GitRepo URL or name")
 	cmd.Flags().String("path", "", "App source path")
 
-	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 	cmd.SetContext(ctx)
 
 	// Set both flags
@@ -219,7 +219,7 @@ func TestCreateApp_RepoAndFromCwd_MutuallyExclusive(t *testing.T) {
 	cmd.Flags().String("repo", "", "GitRepo URL or name")
 	cmd.Flags().Bool("from-cwd", false, "Use current directory")
 
-	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 	cmd.SetContext(ctx)
 
 	// Set both flags
@@ -277,7 +277,7 @@ func TestCreateApp_NoSourceSpecified_Error(t *testing.T) {
 	cmd.Flags().String("path", "", "App source path")
 	cmd.Flags().Bool("from-cwd", false, "Use current directory")
 
-	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 	cmd.SetContext(ctx)
 
 	// Don't set any flags - all are empty/false

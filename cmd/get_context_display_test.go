@@ -37,7 +37,7 @@ import (
 func captureGetContext(t *testing.T, mock *db.MockDataStore) (string, error) {
 	t.Helper()
 
-	ctx := context.WithValue(context.Background(), "dataStore", mock)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mock)
 	getContextCmd.SetContext(ctx)
 
 	var buf bytes.Buffer

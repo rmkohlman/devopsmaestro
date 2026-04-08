@@ -121,7 +121,7 @@ func TestAttach_WithGitRepoID_NoSyncFlag_SkipsSync(t *testing.T) {
 
 	// Create test command with --no-sync flag
 	cmd := newTestAttachCmd()
-	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 	cmd.SetContext(ctx)
 
 	// Set --no-sync flag

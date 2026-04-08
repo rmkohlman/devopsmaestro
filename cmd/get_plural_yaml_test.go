@@ -33,7 +33,7 @@ import (
 func newPluralGetTestCmd(t *testing.T, ds db.DataStore) *cobra.Command {
 	t.Helper()
 	cmd := &cobra.Command{Use: "test"}
-	ctx := context.WithValue(context.Background(), "dataStore", ds)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, ds)
 	cmd.SetContext(ctx)
 	// Wire the --all and hierarchy flags expected by getWorkspaces / getEcosystems
 	cmd.Flags().Bool("all", false, "")

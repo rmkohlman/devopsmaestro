@@ -35,7 +35,7 @@ import (
 func newSingularGetAppTestCmd(t *testing.T, ds interface{}) *cobra.Command {
 	t.Helper()
 	cmd := &cobra.Command{Use: "test"}
-	ctx := context.WithValue(context.Background(), "dataStore", ds)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, ds)
 	cmd.SetContext(ctx)
 	cmd.Flags().StringP("domain", "d", "", "Domain name (defaults to active domain)")
 	cmd.Flags().Bool("show-theme", false, "")

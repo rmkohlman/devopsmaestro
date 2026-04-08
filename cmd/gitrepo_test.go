@@ -314,7 +314,7 @@ func TestCreateGitRepoCmd_ValidURL(t *testing.T) {
 	mockStore := db.NewMockDataStore()
 
 	cmd := newTestCreateGitRepoCmd()
-	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 	cmd.SetContext(ctx)
 
 	cmd.SetArgs([]string{"my-repo"})
@@ -349,7 +349,7 @@ func TestCreateGitRepoCmd_InvalidURL(t *testing.T) {
 			mockStore := db.NewMockDataStore()
 
 			cmd := newTestCreateGitRepoCmd()
-			ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+			ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 			cmd.SetContext(ctx)
 
 			cmd.SetArgs([]string{"test-repo"})
@@ -366,7 +366,7 @@ func TestCreateGitRepoCmd_MissingURL(t *testing.T) {
 	mockStore := db.NewMockDataStore()
 
 	cmd := newTestCreateGitRepoCmd()
-	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 	cmd.SetContext(ctx)
 
 	cmd.SetArgs([]string{"my-repo"})
@@ -391,7 +391,7 @@ func TestCreateGitRepoCmd_DuplicateName(t *testing.T) {
 
 	// Try to create duplicate
 	cmd := newTestCreateGitRepoCmd()
-	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 	cmd.SetContext(ctx)
 
 	cmd.SetArgs([]string{"my-repo"})
@@ -407,7 +407,7 @@ func TestCreateGitRepoCmd_WithAuthType(t *testing.T) {
 	mockStore := db.NewMockDataStore()
 
 	cmd := newTestCreateGitRepoCmd()
-	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 	cmd.SetContext(ctx)
 
 	cmd.SetArgs([]string{"ssh-repo"})
@@ -440,7 +440,7 @@ func TestCreateGitRepoCmd_WithCredential(t *testing.T) {
 	assert.NoError(t, err)
 
 	cmd := newTestCreateGitRepoCmd()
-	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 	cmd.SetContext(ctx)
 
 	cmd.SetArgs([]string{"private-repo"})
@@ -464,7 +464,7 @@ func TestCreateGitRepoCmd_NoSync(t *testing.T) {
 	mockStore := db.NewMockDataStore()
 
 	cmd := newTestCreateGitRepoCmd()
-	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 	cmd.SetContext(ctx)
 
 	cmd.SetArgs([]string{"no-sync-repo"})
@@ -500,7 +500,7 @@ func TestGetGitReposCmd_Table(t *testing.T) {
 	defer render.SetWriter(originalWriter)
 
 	cmd := newTestGetGitReposCmd()
-	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 	cmd.SetContext(ctx)
 
 	err := cmd.Execute()
@@ -529,7 +529,7 @@ func TestGetGitReposCmd_Wide(t *testing.T) {
 	defer render.SetWriter(originalWriter)
 
 	cmd := newTestGetGitReposCmd()
-	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 	cmd.SetContext(ctx)
 	cmd.Flags().Set("output", "wide")
 
@@ -555,7 +555,7 @@ func TestGetGitReposCmd_YAML(t *testing.T) {
 	defer render.SetWriter(originalWriter)
 
 	cmd := newTestGetGitReposCmd()
-	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 	cmd.SetContext(ctx)
 	cmd.Flags().Set("output", "yaml")
 
@@ -581,7 +581,7 @@ func TestGetGitReposCmd_JSON(t *testing.T) {
 	defer render.SetWriter(originalWriter)
 
 	cmd := newTestGetGitReposCmd()
-	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 	cmd.SetContext(ctx)
 	cmd.Flags().Set("output", "json")
 
@@ -598,7 +598,7 @@ func TestGetGitReposCmd_Empty(t *testing.T) {
 	mockStore := db.NewMockDataStore()
 
 	cmd := newTestGetGitReposCmd()
-	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 	cmd.SetContext(ctx)
 
 	// Capture render output (render.Info writes to render's default writer, not cobra's SetOut)
@@ -630,7 +630,7 @@ func TestGetGitRepoCmd_ByName(t *testing.T) {
 	defer render.SetWriter(originalWriter)
 
 	cmd := newTestGetGitRepoCmd()
-	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 	cmd.SetContext(ctx)
 
 	cmd.SetArgs([]string{"my-repo"})
@@ -648,7 +648,7 @@ func TestGetGitRepoCmd_NotFound(t *testing.T) {
 	mockStore := db.NewMockDataStore()
 
 	cmd := newTestGetGitRepoCmd()
-	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 	cmd.SetContext(ctx)
 
 	cmd.SetArgs([]string{"nonexistent"})
@@ -668,7 +668,7 @@ func TestDeleteGitRepoCmd_Success(t *testing.T) {
 	mockStore.CreateGitRepo(repo)
 
 	cmd := newTestDeleteGitRepoCmd()
-	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 	cmd.SetContext(ctx)
 
 	cmd.SetArgs([]string{"delete-me", "--force"})
@@ -686,7 +686,7 @@ func TestDeleteGitRepoCmd_NotFound(t *testing.T) {
 	mockStore := db.NewMockDataStore()
 
 	cmd := newTestDeleteGitRepoCmd()
-	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 	cmd.SetContext(ctx)
 
 	cmd.SetArgs([]string{"nonexistent"})
@@ -704,7 +704,7 @@ func TestDeleteGitRepoCmd_KeepMirror(t *testing.T) {
 	mockStore.CreateGitRepo(repo)
 
 	cmd := newTestDeleteGitRepoCmd()
-	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 	cmd.SetContext(ctx)
 
 	cmd.SetArgs([]string{"keep-mirror", "--keep-mirror", "--force"})
@@ -732,7 +732,7 @@ func TestSyncGitRepoCmd_NotFound(t *testing.T) {
 	mockStore := db.NewMockDataStore()
 
 	cmd := newTestSyncGitRepoCmd()
-	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 	cmd.SetContext(ctx)
 
 	cmd.SetArgs([]string{"nonexistent"})
@@ -753,7 +753,7 @@ func TestSyncGitReposCmd_Empty(t *testing.T) {
 	mockStore := db.NewMockDataStore()
 
 	cmd := newTestSyncGitReposCmd()
-	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 	cmd.SetContext(ctx)
 
 	err := cmd.Execute()
@@ -809,7 +809,7 @@ func TestRunGetGitRepo_HumanOutput(t *testing.T) {
 	defer render.SetWriter(os.Stdout)
 
 	cmd := newTestGetGitRepoCmd()
-	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 	cmd.SetContext(ctx)
 	cmd.SetArgs([]string{"test-repo"})
 
@@ -844,7 +844,7 @@ func TestRunCreateGitRepo_WithCredential(t *testing.T) {
 	require.NoError(t, mockStore.CreateCredential(cred))
 
 	cmd := newTestCreateGitRepoCmd()
-	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 	cmd.SetContext(ctx)
 	cmd.SetArgs([]string{
 		"cred-repo",
@@ -874,7 +874,7 @@ func TestRunCreateGitRepo_InvalidCredential(t *testing.T) {
 	mockStore := db.NewMockDataStore()
 
 	cmd := newTestCreateGitRepoCmd()
-	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 	cmd.SetContext(ctx)
 	cmd.SetArgs([]string{
 		"bad-cred-repo",
@@ -914,7 +914,7 @@ func TestCreateGitRepoCmd_DefaultRefFlagOverridesDetection(t *testing.T) {
 	mockStore := db.NewMockDataStore()
 
 	cmd := newTestCreateGitRepoCmd()
-	ctx := context.WithValue(context.Background(), "dataStore", mockStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mockStore)
 	cmd.SetContext(ctx)
 
 	cmd.SetArgs([]string{

@@ -19,7 +19,7 @@ func completeResources(cmd *cobra.Command, kind string) ([]string, cobra.ShellCo
 
 	// Try to get datastore from context first (normal command context)
 	ctx := cmd.Context()
-	if dataStore := ctx.Value("dataStore"); dataStore != nil {
+	if dataStore := ctx.Value(CtxKeyDataStore); dataStore != nil {
 		if ds, ok := dataStore.(db.DataStore); ok {
 			return getResourceCompletions(ds, kind)
 		}
@@ -233,7 +233,7 @@ func completeRegistrySetDefault(cmd *cobra.Command, args []string, toComplete st
 // Used by completion functions that query the DataStore directly (e.g. GitRepo).
 func getCompletionDataStore(cmd *cobra.Command) (db.DataStore, error) {
 	ctx := cmd.Context()
-	if dataStore := ctx.Value("dataStore"); dataStore != nil {
+	if dataStore := ctx.Value(CtxKeyDataStore); dataStore != nil {
 		if ds, ok := dataStore.(db.DataStore); ok {
 			return ds, nil
 		}

@@ -30,7 +30,7 @@ import (
 // newCmdContextWithDS returns a context.Context carrying a MockDataStore,
 // matching the pattern used by getDataStore().
 func newCmdContextWithDS(ds *db.MockDataStore) context.Context {
-	return context.WithValue(context.Background(), "dataStore", ds)
+	return context.WithValue(context.Background(), CtxKeyDataStore, ds)
 }
 
 // =============================================================================

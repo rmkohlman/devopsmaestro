@@ -154,7 +154,7 @@ func TestPositionalCompletion_ReturnValue_WorkspaceCommands(t *testing.T) {
 
 	// Create a command context with the test datastore
 	testCmd := &cobra.Command{Use: "test"}
-	ctx := context.WithValue(context.Background(), "dataStore", dataStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, dataStore)
 	testCmd.SetContext(ctx)
 
 	type testCase struct {
@@ -288,7 +288,7 @@ func TestPositionalCompletion_UseSubcommand_ReturnValues(t *testing.T) {
 	}
 	require.NoError(t, dataStore.CreateWorkspace(workspace))
 
-	ctx := context.WithValue(context.Background(), "dataStore", dataStore)
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, dataStore)
 
 	tests := []struct {
 		name         string
