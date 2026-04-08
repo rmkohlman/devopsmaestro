@@ -145,6 +145,9 @@ func completeApps(cmd *cobra.Command, args []string, toComplete string) ([]strin
 }
 
 func completeWorkspaces(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	if len(args) > 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
 	return completeResources(cmd, "Workspace")
 }
 
@@ -295,7 +298,7 @@ func registerAllResourceCompletions() {
 	}
 
 	// Workspace commands
-	for _, cmd := range []*cobra.Command{getWorkspaceCmd, useWorkspaceCmd, deleteWorkspaceCmd} {
+	for _, cmd := range []*cobra.Command{getWorkspaceCmd, useWorkspaceCmd, deleteWorkspaceCmd, attachCmd, buildCmd, detachCmd} {
 		if cmd != nil {
 			cmd.ValidArgsFunction = completeWorkspaces
 		}
