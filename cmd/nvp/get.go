@@ -88,6 +88,23 @@ Examples:
 			return fmt.Errorf("plugin not found: %s", name)
 		}
 
+		// Show dependency tree if requested
+		showDeps, _ := cmd.Flags().GetBool("show-deps")
+		if showDeps {
+			allPlugins, listErr := mgr.List()
+			if listErr != nil {
+				return fmt.Errorf("failed to list plugins for dependency resolution: %w", listErr)
+			}
+			resolver := plugin.NewDependencyResolver(allPlugins)
+			tree := resolver.BuildTree(p.Repo)
+			if tree != nil {
+				fmt.Print(plugin.FormatTree(tree))
+			} else {
+				render.Infof("%s has no resolvable dependencies", name)
+			}
+			return nil
+		}
+
 		format, _ := cmd.Flags().GetString("output")
 		return outputPlugin(p, format)
 	},
@@ -98,4 +115,5 @@ func init() {
 	getCmd.Flags().StringP("category", "c", "", "Filter by category")
 	getCmd.Flags().Bool("enabled", false, "Show only enabled plugins")
 	getCmd.Flags().Bool("disabled", false, "Show only disabled plugins")
+	getCmd.Flags().Bool("show-deps", false, "Show dependency tree for a plugin")
 }

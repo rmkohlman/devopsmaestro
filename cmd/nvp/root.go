@@ -291,6 +291,7 @@ func init() {
 	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(completionCmd)
 	rootCmd.AddCommand(healthCmd)
+	rootCmd.AddCommand(lockCmd)
 }
 
 // initLogging configures the global slog logger based on flags.
