@@ -13,6 +13,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Dry-run flags for gitrepo commands
+var (
+	createGitRepoDryRun bool
+	deleteGitRepoDryRun bool
+)
+
 // gitrepoCmd is a placeholder that is never used directly
 // It exists to support help text and organization
 var gitrepoCmd = &cobra.Command{
@@ -183,6 +189,7 @@ func init() {
 	createGitRepoCmd.Flags().Bool("no-sync", false, "Skip initial sync")
 	createGitRepoCmd.MarkFlagRequired("url")
 	createGitRepoCmd.Flags().String("default-ref", "", "Default branch name (auto-detected if not specified)")
+	AddDryRunFlag(createGitRepoCmd, &createGitRepoDryRun)
 
 	// Register get subcommands
 	getCmd.AddCommand(getGitReposCmd)
@@ -192,6 +199,7 @@ func init() {
 	deleteCmd.AddCommand(deleteGitRepoCmd)
 	deleteGitRepoCmd.Flags().Bool("keep-mirror", false, "Keep mirror directory on disk")
 	AddForceConfirmFlag(deleteGitRepoCmd)
+	AddDryRunFlag(deleteGitRepoCmd, &deleteGitRepoDryRun)
 
 	// Create or get sync command
 	idx := findCommandIndex(rootCmd, "sync")
@@ -263,6 +271,21 @@ func runCreateGitRepo(cmd *cobra.Command, args []string) error {
 
 	// Determine default branch
 	defaultRef, _ := cmd.Flags().GetString("default-ref")
+
+	// Dry-run: preview what would be created
+	if createGitRepoDryRun {
+		render.Plain(fmt.Sprintf("Would create gitrepo %q", name))
+		render.Plain(fmt.Sprintf("  url: %s", url))
+		render.Plain(fmt.Sprintf("  auth-type: %s", authType))
+		if credential != "" {
+			render.Plain(fmt.Sprintf("  credential: %s", credential))
+		}
+		if noSync {
+			render.Plain("  --no-sync: would skip initial sync")
+		}
+		return nil
+	}
+
 	if defaultRef == "" {
 		render.Progress("Detecting default branch...")
 		defaultRef = utils.DetectDefaultBranch(url)
@@ -490,6 +513,15 @@ func runDeleteGitRepo(cmd *cobra.Command, args []string) error {
 		msg += " and its mirror directory?"
 	} else {
 		msg += " (keeping mirror directory)?"
+	}
+
+	// Dry-run: preview what would be deleted
+	if deleteGitRepoDryRun {
+		render.Plain(fmt.Sprintf("Would delete gitrepo %q (URL: %s)", name, repo.URL))
+		if !keepMirror {
+			render.Plain("  Would also delete mirror directory")
+		}
+		return nil
 	}
 
 	confirmed, err := confirmDelete(msg, force)

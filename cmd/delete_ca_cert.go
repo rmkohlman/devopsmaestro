@@ -23,6 +23,7 @@ var (
 	deleteCACertWorkspace string
 	deleteCACertGlobal    bool
 	deleteCACertForce     bool
+	deleteCACertDryRun    bool
 )
 
 // deleteCACertCmd removes a CA certificate at a specific hierarchy level
@@ -54,6 +55,7 @@ func init() {
 	deleteCACertCmd.Flags().StringVar(&deleteCACertWorkspace, "workspace", "", "Delete at workspace level")
 	deleteCACertCmd.Flags().BoolVar(&deleteCACertGlobal, "global", false, "Delete from DVM-wide defaults")
 	deleteCACertCmd.Flags().BoolVar(&deleteCACertForce, "force", false, "Skip confirmation prompt")
+	AddDryRunFlag(deleteCACertCmd, &deleteCACertDryRun)
 }
 
 func runDeleteCACert(cmd *cobra.Command, args []string) error {
@@ -76,8 +78,14 @@ func runDeleteCACert(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Confirm deletion
+	// Dry-run: preview what would be deleted
 	levelDesc := resolveCACertLevelDesc()
+	if deleteCACertDryRun {
+		render.Plain(fmt.Sprintf("Would delete CA cert %q at %s", certName, levelDesc))
+		return nil
+	}
+
+	// Confirm deletion
 	msg := fmt.Sprintf("Delete CA cert %q at %s?", certName, levelDesc)
 	confirmed, err := confirmDelete(msg, deleteCACertForce)
 	if err != nil {

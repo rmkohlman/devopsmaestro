@@ -18,6 +18,13 @@ var (
 	domainEcosystem   string
 )
 
+// Dry-run flags for domain commands
+var (
+	createDomainDryRun bool
+	useDomainDryRun    bool
+	deleteDomainDryRun bool
+)
+
 // createDomainCmd creates a new domain
 var createDomainCmd = &cobra.Command{
 	Use:     "domain <name>",
@@ -69,6 +76,15 @@ Examples:
 		}
 
 		render.Progress(fmt.Sprintf("Creating domain '%s' in ecosystem '%s'...", domainName, ecosystem.Name))
+
+		// Dry-run: preview what would be created
+		if createDomainDryRun {
+			render.Plain(fmt.Sprintf("Would create domain %q in ecosystem %q", domainName, ecosystem.Name))
+			if domainDescription != "" {
+				render.Plain(fmt.Sprintf("  description: %s", domainDescription))
+			}
+			return nil
+		}
 
 		// Check if domain already exists
 		existing, _ := ds.GetDomainByName(ecosystem.ID, domainName)
@@ -194,6 +210,12 @@ Examples:
 		exportFlag, _ := cmd.Flags().GetBool("export")
 		if exportFlag {
 			fmt.Fprintf(cmd.OutOrStdout(), "export DVM_DOMAIN=%s\n", domainName)
+			return nil
+		}
+
+		// Dry-run: preview what would happen
+		if useDomainDryRun {
+			render.Plain(fmt.Sprintf("Would switch active domain to %q in ecosystem %q", domainName, ecosystem.Name))
 			return nil
 		}
 
@@ -548,6 +570,13 @@ Examples:
 			msg += "?"
 		}
 
+		// Dry-run: preview what would be deleted
+		if deleteDomainDryRun {
+			render.Plain(fmt.Sprintf("Would delete domain %q from ecosystem %q (%d app(s), %d workspace(s))",
+				domainName, ecosystem.Name, len(apps), wsCount))
+			return nil
+		}
+
 		force, _ := cmd.Flags().GetBool("force")
 		confirmed, err := confirmDelete(msg, force)
 		if err != nil {
@@ -589,6 +618,10 @@ func init() {
 	// Domain creation flags
 	createDomainCmd.Flags().StringVar(&domainDescription, "description", "", "Domain description")
 	createDomainCmd.Flags().StringVar(&domainEcosystem, "ecosystem", "", "Ecosystem name (defaults to active ecosystem)")
+	AddDryRunFlag(createDomainCmd, &createDomainDryRun)
+
+	// Use domain dry-run
+	AddDryRunFlag(useDomainCmd, &useDomainDryRun)
 
 	// Domain get/delete flags
 	getDomainsCmd.Flags().StringP("ecosystem", "e", "", "Ecosystem name (defaults to active ecosystem)")
@@ -598,6 +631,7 @@ func init() {
 	getDomainCmd.Flags().BoolVar(&showTheme, "show-theme", false, "Show theme resolution information")
 	deleteDomainCmd.Flags().StringP("ecosystem", "e", "", "Ecosystem name (defaults to active ecosystem)")
 	AddForceConfirmFlag(deleteDomainCmd)
+	AddDryRunFlag(deleteDomainCmd, &deleteDomainDryRun)
 }
 
 // getActiveDomain returns the active domain from the context

@@ -43,6 +43,11 @@ var (
 	workspaceCreateBranch string
 )
 
+// Dry-run flags for create commands
+var (
+	createWorkspaceDryRun bool
+)
+
 // createWorkspaceCmd creates a new workspace in the current app
 var createWorkspaceCmd = &cobra.Command{
 	Use:     "workspace <name>",
@@ -186,6 +191,18 @@ Examples:
 		}
 
 		render.Progress(fmt.Sprintf("Creating workspace '%s' in app '%s'...", workspaceName, appName))
+
+		// Dry-run: preview what would be created
+		if createWorkspaceDryRun {
+			render.Plain(fmt.Sprintf("Would create workspace %q in app %q", workspaceName, appName))
+			if gitRepo != nil {
+				render.Plain(fmt.Sprintf("  gitrepo: %s (branch: %s)", gitRepo.Name, branchToCheckout))
+			}
+			if workspaceDescription != "" {
+				render.Plain(fmt.Sprintf("  description: %s", workspaceDescription))
+			}
+			return nil
+		}
 
 		// Create workspace
 		workspace := &models.Workspace{
@@ -572,6 +589,7 @@ func init() {
 	createWorkspaceCmd.Flags().StringVar(&workspaceBranch, "branch", "", "Git branch to checkout (default: repo's DefaultRef)")
 	createWorkspaceCmd.Flags().StringVar(&workspaceCreateBranch, "create-branch", "", "Create a new local branch in the workspace repo")
 	createWorkspaceCmd.Flags().StringArrayP("env", "e", []string{}, "Set environment variable (KEY=VALUE, repeatable)")
+	AddDryRunFlag(createWorkspaceCmd, &createWorkspaceDryRun)
 
 	// --branch and --create-branch are mutually exclusive
 	createWorkspaceCmd.MarkFlagsMutuallyExclusive("branch", "create-branch")

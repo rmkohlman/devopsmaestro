@@ -28,6 +28,9 @@ var attachFlags HierarchyFlags
 // attachTimeout holds the timeout duration for the attach operation
 var attachTimeout time.Duration
 
+// attachDryRun holds the dry-run flag for the attach command
+var attachDryRun bool
+
 // attachNetworkMode holds the network isolation mode for the container
 var attachNetworkMode string
 
@@ -84,6 +87,22 @@ Examples:
 
 func runAttach(cmd *cobra.Command) error {
 	slog.Info("starting attach")
+
+	// Dry-run: preview what would happen
+	if attachDryRun {
+		details := []string{"Would attach to workspace container"}
+		if attachNetworkMode != "" {
+			details = append(details, fmt.Sprintf("network=%s", attachNetworkMode))
+		}
+		if attachCPUs > 0 {
+			details = append(details, fmt.Sprintf("cpus=%.1f", attachCPUs))
+		}
+		if attachMemory != "" {
+			details = append(details, fmt.Sprintf("memory=%s", attachMemory))
+		}
+		render.Plain(strings.Join(details, ", "))
+		return nil
+	}
 
 	// Create timeout context from flag
 	ctx := context.Background()
@@ -495,4 +514,5 @@ func init() {
 	attachCmd.Flags().StringVar(&attachNetworkMode, "network", "", "Network mode: bridge (default), none, host, or custom network name")
 	attachCmd.Flags().Float64Var(&attachCPUs, "cpus", 0, "CPU limit (e.g., 1.5 for 1.5 cores; 0 = no limit)")
 	attachCmd.Flags().StringVar(&attachMemory, "memory", "", "Memory limit (e.g., 512m, 2g; empty = no limit)")
+	AddDryRunFlag(attachCmd, &attachDryRun)
 }

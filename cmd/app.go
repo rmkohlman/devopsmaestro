@@ -28,6 +28,12 @@ var (
 	appRepo        string
 )
 
+// Dry-run flags for app commands
+var (
+	createAppDryRun bool
+	deleteAppDryRun bool
+)
+
 // createAppCmd creates a new app
 var createAppCmd = &cobra.Command{
 	Use:     "app <name>",
@@ -163,6 +169,16 @@ Next Steps:
 		}
 
 		render.Progress(fmt.Sprintf("Creating app '%s' in domain '%s'...", appName, domain.Name))
+
+		// Dry-run: preview what would be created
+		if createAppDryRun {
+			render.Plain(fmt.Sprintf("Would create app %q in domain %q (ecosystem %q)", appName, domain.Name, ecosystemName))
+			render.Plain(fmt.Sprintf("  path: %s", path))
+			if gitRepoName != "" {
+				render.Plain(fmt.Sprintf("  gitrepo: %s", gitRepoName))
+			}
+			return nil
+		}
 
 		// Check if app already exists
 		existing, _ := ds.GetAppByName(domain.ID, appName)
@@ -624,6 +640,13 @@ Examples:
 			msg += "?"
 		}
 
+		// Dry-run: preview what would be deleted
+		if deleteAppDryRun {
+			render.Plain(fmt.Sprintf("Would delete app %q from domain %q (%d workspace(s))",
+				appName, domain.Name, len(workspaces)))
+			return nil
+		}
+
 		force, _ := cmd.Flags().GetBool("force")
 		confirmed, err := confirmDelete(msg, force)
 		if err != nil {
@@ -668,6 +691,7 @@ func init() {
 	createAppCmd.Flags().StringVar(&appPath, "path", "", "Path to the app source code")
 	createAppCmd.Flags().BoolVar(&appFromCwd, "from-cwd", false, "Use current working directory as app path")
 	createAppCmd.Flags().StringVar(&appRepo, "repo", "", "Git repository (URL or existing GitRepo name)")
+	AddDryRunFlag(createAppCmd, &createAppDryRun)
 
 	// App get/delete flags
 	getAppsCmd.Flags().StringP("domain", "d", "", "Domain name (defaults to active domain)")
@@ -677,6 +701,7 @@ func init() {
 	getAppCmd.Flags().BoolVar(&showTheme, "show-theme", false, "Show theme resolution information")
 	deleteAppCmd.Flags().StringP("domain", "d", "", "Domain name (defaults to active domain)")
 	AddForceConfirmFlag(deleteAppCmd)
+	AddDryRunFlag(deleteAppCmd, &deleteAppDryRun)
 }
 
 // getActiveApp returns the active app from the context

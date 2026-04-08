@@ -53,6 +53,12 @@ var (
 	deleteNvimAppFlag       string
 )
 
+// Dry-run flags for delete commands
+var (
+	deleteWorkspaceDryRun  bool
+	deleteCredentialDryRun bool
+)
+
 // deleteNvimPluginCmd deletes a nvim plugin (from global library or workspace)
 // Usage: dvm delete nvim plugin <name>           # Delete from global library
 // Usage: dvm delete nvim plugin -w <ws> <name>   # Remove from workspace config
@@ -249,6 +255,12 @@ Examples:
 			return fmt.Errorf("workspace '%s' not found in app '%s'", workspaceName, appName)
 		}
 
+		// Dry-run: preview what would be deleted
+		if deleteWorkspaceDryRun {
+			render.Plain(fmt.Sprintf("Would delete workspace %q from app %q", workspaceName, appName))
+			return nil
+		}
+
 		// Confirm deletion
 		force, _ := cmd.Flags().GetBool("force")
 		if !force {
@@ -323,6 +335,12 @@ Examples:
 		cred, err := ds.GetCredential(scopeType, scopeID, credName)
 		if err != nil {
 			return fmt.Errorf("credential '%s' not found in %s scope: %w", credName, scopeType, err)
+		}
+
+		// Dry-run: preview what would be deleted
+		if deleteCredentialDryRun {
+			render.Plain(fmt.Sprintf("Would delete credential %q (scope: %s, source: %s)", credName, scopeType, cred.Source))
+			return nil
 		}
 
 		// Confirm deletion
@@ -461,6 +479,7 @@ func init() {
 
 	// Add flags for workspace
 	AddForceConfirmFlag(deleteWorkspaceCmd)
+	AddDryRunFlag(deleteWorkspaceCmd, &deleteWorkspaceDryRun)
 	deleteWorkspaceCmd.Flags().StringP("app", "a", "", "App name (defaults to active app)")
 
 	// Registry command
@@ -474,5 +493,6 @@ func init() {
 
 	// Credential deletion flags
 	AddForceConfirmFlag(deleteCredentialCmd)
+	AddDryRunFlag(deleteCredentialCmd, &deleteCredentialDryRun)
 	addCredentialScopeFlags(deleteCredentialCmd)
 }

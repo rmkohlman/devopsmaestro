@@ -14,6 +14,7 @@ var (
 	buildRegistry string
 	buildTimeout  time.Duration
 	buildFlags    HierarchyFlags
+	buildDryRun   bool
 )
 
 // buildCmd represents the build command
@@ -77,4 +78,5 @@ func init() {
 	buildCmd.Flags().StringVar(&buildRegistry, "registry", "", "Override registry endpoint (default: from config)")
 	buildCmd.Flags().DurationVar(&buildTimeout, "timeout", 30*time.Minute, "Timeout for the build operation (e.g., 30m, 1h)")
 	AddHierarchyFlags(buildCmd, &buildFlags)
+	AddDryRunFlag(buildCmd, &buildDryRun)
 }

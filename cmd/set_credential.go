@@ -10,6 +10,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// setCredentialDryRun holds the dry-run flag for the set credential command
+var setCredentialDryRun bool
+
 // setCredentialCmd updates properties on an existing credential
 var setCredentialCmd = &cobra.Command{
 	Use:   "credential <name>",
@@ -34,6 +37,7 @@ func init() {
 
 	setCredentialCmd.Flags().String("expires", "", "Set expiration duration (e.g., 90d, 24h, 8760h; 0 to clear)")
 	addCredentialScopeFlags(setCredentialCmd)
+	AddDryRunFlag(setCredentialCmd, &setCredentialDryRun)
 }
 
 func runSetCredential(cmd *cobra.Command, args []string) error {
@@ -60,6 +64,16 @@ func runSetCredential(cmd *cobra.Command, args []string) error {
 	expiresStr, _ := cmd.Flags().GetString("expires")
 	if expiresStr == "" {
 		return fmt.Errorf("at least one property flag is required (e.g., --expires)")
+	}
+
+	// Dry-run: preview what would be changed
+	if setCredentialDryRun {
+		if expiresStr == "0" {
+			render.Plain(fmt.Sprintf("Would clear expiration on credential %q (scope: %s)", credName, scopeType))
+		} else {
+			render.Plain(fmt.Sprintf("Would set expiration %q on credential %q (scope: %s)", expiresStr, credName, scopeType))
+		}
+		return nil
 	}
 
 	if expiresStr == "0" {

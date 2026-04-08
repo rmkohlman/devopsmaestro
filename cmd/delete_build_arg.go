@@ -28,6 +28,7 @@ var (
 	deleteBuildArgWorkspace string
 	deleteBuildArgGlobal    bool
 	deleteBuildArgForce     bool
+	deleteBuildArgDryRun    bool
 )
 
 // deleteBuildArgCmd removes a build arg key at a specific hierarchy level
@@ -59,6 +60,7 @@ func init() {
 	deleteBuildArgCmd.Flags().StringVar(&deleteBuildArgWorkspace, "workspace", "", "Delete at workspace level")
 	deleteBuildArgCmd.Flags().BoolVar(&deleteBuildArgGlobal, "global", false, "Delete from DVM-wide defaults")
 	deleteBuildArgCmd.Flags().BoolVar(&deleteBuildArgForce, "force", false, "Skip confirmation prompt")
+	AddDryRunFlag(deleteBuildArgCmd, &deleteBuildArgDryRun)
 }
 
 func runDeleteBuildArg(cmd *cobra.Command, args []string) error {
@@ -79,6 +81,13 @@ func runDeleteBuildArg(cmd *cobra.Command, args []string) error {
 	ctx, err := buildResourceContext(cmd)
 	if err != nil {
 		return err
+	}
+
+	// Dry-run: preview what would be deleted
+	if deleteBuildArgDryRun {
+		levelDesc := resolveBuildArgLevelDesc()
+		render.Plain(fmt.Sprintf("Would delete build arg %q at %s", key, levelDesc))
+		return nil
 	}
 
 	// Confirm deletion

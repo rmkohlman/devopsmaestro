@@ -40,6 +40,21 @@ func buildWorkspace(cmd *cobra.Command) error {
 		return err
 	}
 
+	// Dry-run: preview what would be built
+	if buildDryRun {
+		render.Plain(fmt.Sprintf("Would build image for workspace %q in app %q", bc.workspaceName, bc.appName))
+		if buildNocache {
+			render.Plain("  --no-cache: would skip registry cache")
+		}
+		if buildPush {
+			render.Plain("  --push: would push image to local registry")
+		}
+		if buildTarget != "dev" {
+			render.Plain(fmt.Sprintf("  --target: %s", buildTarget))
+		}
+		return nil
+	}
+
 	render.Info(fmt.Sprintf("Building workspace: %s/%s", bc.appName, bc.workspaceName))
 	render.Info(fmt.Sprintf("App path: %s", bc.app.Path))
 	render.Blank()

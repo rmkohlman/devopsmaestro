@@ -122,6 +122,9 @@ func resolveCredentialScopeFromFlags(cmd *cobra.Command, ds db.DataStore) (model
 	return "", 0, fmt.Errorf("exactly one scope (--ecosystem, --domain, --app, or --workspace) is required, got 0")
 }
 
+// createCredentialDryRun controls dry-run mode for create credential.
+var createCredentialDryRun bool
+
 // createCredentialCmd creates a new credential
 var createCredentialCmd = &cobra.Command{
 	Use:     "credential <name>",
@@ -229,6 +232,11 @@ Examples:
 		scopeType, scopeID, err := resolveCredentialScopeFromFlags(cmd, ds)
 		if err != nil {
 			return err
+		}
+
+		if createCredentialDryRun {
+			render.Plain(fmt.Sprintf("Would create credential %q (source: %s, scope: %s)", credName, source, scopeType))
+			return nil
 		}
 
 		// Build credential
@@ -363,4 +371,6 @@ func init() {
 
 	// Scope flags
 	addCredentialScopeFlags(createCredentialCmd)
+
+	AddDryRunFlag(createCredentialCmd, &createCredentialDryRun)
 }

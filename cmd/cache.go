@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/rmkohlman/MaestroSDK/render"
 	"github.com/spf13/cobra"
 )
 
@@ -24,6 +26,8 @@ var cacheClearCmd = &cobra.Command{
 	RunE:  runCacheClear,
 }
 
+var cacheClearDryRun bool
+
 func runCacheClear(cmd *cobra.Command, args []string) error {
 	all, _ := cmd.Flags().GetBool("all")
 	buildkit, _ := cmd.Flags().GetBool("buildkit")
@@ -35,6 +39,25 @@ func runCacheClear(cmd *cobra.Command, args []string) error {
 	// Default to all if no specific flag is set
 	if !buildkit && !npm && !pip && !staging {
 		all = true
+	}
+
+	// Dry-run: preview what would be cleared
+	if cacheClearDryRun {
+		targets := []string{}
+		if all || buildkit {
+			targets = append(targets, "BuildKit cache")
+		}
+		if all || npm {
+			targets = append(targets, "npm cache")
+		}
+		if all || pip {
+			targets = append(targets, "pip cache")
+		}
+		if all || staging {
+			targets = append(targets, "build staging directory")
+		}
+		render.Plain(fmt.Sprintf("Would clear: %s", strings.Join(targets, ", ")))
+		return nil
 	}
 
 	if !force && !all {
@@ -66,6 +89,7 @@ func init() {
 	cacheClearCmd.Flags().Bool("pip", false, "Clear pip cache mount")
 	cacheClearCmd.Flags().Bool("staging", false, "Clear build staging directory")
 	AddForceConfirmFlag(cacheClearCmd)
+	AddDryRunFlag(cacheClearCmd, &cacheClearDryRun)
 
 	cacheCmd.AddCommand(cacheClearCmd)
 	rootCmd.AddCommand(cacheCmd)

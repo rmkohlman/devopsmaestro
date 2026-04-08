@@ -13,11 +13,27 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var initDryRun bool
+
 var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize DevOpsMaestro",
 	Long:  `Initialize DevOpsMaestro by setting up the database, configuration, and template directories.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		// Dry-run: preview what would be initialized
+		if initDryRun {
+			pc, err := paths.Default()
+			if err != nil {
+				render.Errorf("Failed to get home directory: %v", err)
+				return
+			}
+			render.Plain(fmt.Sprintf("Would create directory structure under %s", pc.Root()))
+			render.Plain(fmt.Sprintf("Would create config file at %s", pc.ConfigFile()))
+			render.Plain("Would initialize SQLite database and run migrations")
+			render.Plain("Would bootstrap default registries (oci, pypi, npm, go, http)")
+			return
+		}
+
 		render.Progress("Initializing DevOpsMaestro...")
 		slog.Info("starting initialization")
 
@@ -133,6 +149,7 @@ templates:
 
 func init() {
 	adminCmd.AddCommand(initCmd)
+	AddDryRunFlag(initCmd, &initDryRun)
 }
 
 // bootstrapAllDefaultRegistries creates default registries for all supported

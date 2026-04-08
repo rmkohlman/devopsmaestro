@@ -11,6 +11,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Dry-run flags for use subcommands
+var (
+	useAppDryRun       bool
+	useWorkspaceDryRun bool
+)
+
 // previousContext is the JSON structure stored in defaults under "context.previous".
 // Fields are pointers so absent context levels can be represented as null/absent.
 type previousContext struct {
@@ -212,6 +218,12 @@ Examples:
 			return nil
 		}
 
+		// Dry-run: preview what would happen
+		if useAppDryRun {
+			render.Plain(fmt.Sprintf("Would switch active app to %q", appName))
+			return nil
+		}
+
 		// Save current context before switching
 		if err := saveCurrentContext(ds); err != nil {
 			return fmt.Errorf("failed to save previous context: %w", err)
@@ -296,6 +308,12 @@ Examples:
 		exportFlag, _ := cmd.Flags().GetBool("export")
 		if exportFlag {
 			fmt.Fprintf(cmd.OutOrStdout(), "export DVM_WORKSPACE=%s\n", workspaceName)
+			return nil
+		}
+
+		// Dry-run: preview what would happen
+		if useWorkspaceDryRun {
+			render.Plain(fmt.Sprintf("Would switch active workspace to %q in app %q", workspaceName, appName))
 			return nil
 		}
 
@@ -521,4 +539,8 @@ func init() {
 	useDomainCmd.Flags().Bool("export", false, "Print 'export DVM_DOMAIN=<name>' for shell eval")
 	useAppCmd.Flags().Bool("export", false, "Print 'export DVM_APP=<name>' for shell eval")
 	useWorkspaceCmd.Flags().Bool("export", false, "Print 'export DVM_WORKSPACE=<name>' for shell eval")
+
+	// Register --dry-run flag on all 4 use subcommands
+	AddDryRunFlag(useAppCmd, &useAppDryRun)
+	AddDryRunFlag(useWorkspaceCmd, &useWorkspaceDryRun)
 }

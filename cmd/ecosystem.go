@@ -15,6 +15,13 @@ import (
 
 var ecosystemDescription string
 
+// Dry-run flags for ecosystem commands
+var (
+	createEcosystemDryRun bool
+	useEcosystemDryRun    bool
+	deleteEcosystemDryRun bool
+)
+
 // createEcosystemCmd creates a new ecosystem
 var createEcosystemCmd = &cobra.Command{
 	Use:     "ecosystem <name>",
@@ -39,6 +46,15 @@ Examples:
 		// Validate name is not empty
 		if err := ValidateResourceName(ecosystemName, "ecosystem"); err != nil {
 			return err
+		}
+
+		// Dry-run: preview what would be created
+		if createEcosystemDryRun {
+			render.Plain(fmt.Sprintf("Would create ecosystem %q", ecosystemName))
+			if ecosystemDescription != "" {
+				render.Plain(fmt.Sprintf("  description: %s", ecosystemDescription))
+			}
+			return nil
 		}
 
 		render.Progress(fmt.Sprintf("Creating ecosystem '%s'...", ecosystemName))
@@ -169,6 +185,12 @@ Examples:
 		exportFlag, _ := cmd.Flags().GetBool("export")
 		if exportFlag {
 			fmt.Fprintf(cmd.OutOrStdout(), "export DVM_ECOSYSTEM=%s\n", ecosystemName)
+			return nil
+		}
+
+		// Dry-run: preview what would happen
+		if useEcosystemDryRun {
+			render.Plain(fmt.Sprintf("Would switch active ecosystem to %q", ecosystemName))
 			return nil
 		}
 
@@ -447,6 +469,13 @@ Examples:
 			msg += "?"
 		}
 
+		// Dry-run: preview what would be deleted
+		if deleteEcosystemDryRun {
+			render.Plain(fmt.Sprintf("Would delete ecosystem %q (%d domain(s), %d app(s), %d workspace(s))",
+				ecosystemName, len(domains), appCount, wsCount))
+			return nil
+		}
+
 		force, _ := cmd.Flags().GetBool("force")
 		confirmed, err := confirmDelete(msg, force)
 		if err != nil {
@@ -487,9 +516,14 @@ func init() {
 
 	// Ecosystem deletion flags
 	AddForceConfirmFlag(deleteEcosystemCmd)
+	AddDryRunFlag(deleteEcosystemCmd, &deleteEcosystemDryRun)
 
 	// Ecosystem creation flags
 	createEcosystemCmd.Flags().StringVar(&ecosystemDescription, "description", "", "Ecosystem description")
+	AddDryRunFlag(createEcosystemCmd, &createEcosystemDryRun)
+
+	// Use ecosystem dry-run
+	AddDryRunFlag(useEcosystemCmd, &useEcosystemDryRun)
 
 	// Ecosystem get flags
 	getEcosystemCmd.Flags().BoolVar(&showTheme, "show-theme", false, "Show theme resolution information")

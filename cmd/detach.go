@@ -17,6 +17,7 @@ var (
 	detachAll     bool
 	detachTimeout time.Duration
 	detachFlags   HierarchyFlags
+	detachDryRun  bool
 )
 
 // detachCmd stops the active workspace container
@@ -52,9 +53,20 @@ func init() {
 	detachCmd.Flags().BoolVarP(&detachAll, "all", "A", false, "Stop all DVM workspace containers")
 	detachCmd.Flags().DurationVar(&detachTimeout, "timeout", 5*time.Minute, "Timeout for the detach operation (e.g., 5m, 30s)")
 	AddHierarchyFlags(detachCmd, &detachFlags)
+	AddDryRunFlag(detachCmd, &detachDryRun)
 }
 
 func runDetach(cmd *cobra.Command) error {
+	// Dry-run: preview what would be stopped
+	if detachDryRun {
+		if detachAll {
+			render.Plain("Would stop all DVM workspace containers")
+			return nil
+		}
+		render.Plain("Would stop the active workspace container")
+		return nil
+	}
+
 	// Create timeout context from flag
 	ctx := context.Background()
 	if detachTimeout > 0 {
