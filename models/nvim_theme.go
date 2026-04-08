@@ -13,6 +13,7 @@ type NvimThemeDB struct {
 	Description      sql.NullString `db:"description" json:"description,omitempty" yaml:"description,omitempty"`
 	Author           sql.NullString `db:"author" json:"author,omitempty" yaml:"author,omitempty"`
 	Category         sql.NullString `db:"category" json:"category,omitempty" yaml:"category,omitempty"`
+	Inherits         sql.NullString `db:"inherits" json:"inherits,omitempty" yaml:"inherits,omitempty"`
 	PluginRepo       string         `db:"plugin_repo" json:"plugin_repo" yaml:"plugin_repo"`
 	PluginBranch     sql.NullString `db:"plugin_branch" json:"plugin_branch,omitempty" yaml:"plugin_branch,omitempty"`
 	PluginTag        sql.NullString `db:"plugin_tag" json:"plugin_tag,omitempty" yaml:"plugin_tag,omitempty"`
@@ -44,6 +45,7 @@ type ThemeMetadata struct {
 
 // ThemeSpec contains the theme specification.
 type ThemeSpec struct {
+	Inherits         string                    `yaml:"inherits,omitempty" json:"inherits,omitempty"`
 	Plugin           ThemePluginSpec           `yaml:"plugin"`
 	Style            string                    `yaml:"style,omitempty"`
 	Transparent      bool                      `yaml:"transparent,omitempty"`
@@ -102,6 +104,10 @@ func (t *NvimThemeDB) ToYAML() (NvimThemeYAML, error) {
 		yaml.Metadata.Category = t.Category.String
 	}
 
+	if t.Inherits.Valid {
+		yaml.Spec.Inherits = t.Inherits.String
+	}
+
 	if t.PluginBranch.Valid {
 		yaml.Spec.Plugin.Branch = t.PluginBranch.String
 	}
@@ -154,6 +160,10 @@ func (t *NvimThemeDB) FromYAML(yaml NvimThemeYAML) error {
 
 	if yaml.Metadata.Category != "" {
 		t.Category = sql.NullString{String: yaml.Metadata.Category, Valid: true}
+	}
+
+	if yaml.Spec.Inherits != "" {
+		t.Inherits = sql.NullString{String: yaml.Spec.Inherits, Valid: true}
 	}
 
 	if yaml.Spec.Plugin.Branch != "" {

@@ -739,6 +739,7 @@ func createIntegrationTestDataStore(t *testing.T) *integrationTestDB {
 			description TEXT,
 			author TEXT,
 			category TEXT,
+			inherits TEXT,
 			plugin_repo TEXT NOT NULL,
 			plugin_branch TEXT,
 			plugin_tag TEXT,
@@ -768,11 +769,11 @@ type integrationTestDB struct {
 func (d *integrationTestDB) CreateTheme(t *models.NvimThemeDB) error {
 	result, err := d.db.Exec(`
 		INSERT INTO nvim_themes (
-			name, description, author, category, plugin_repo, plugin_branch,
+			name, description, author, category, inherits, plugin_repo, plugin_branch,
 			plugin_tag, style, colors, options, transparent
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
-		t.Name, t.Description, t.Author, t.Category, t.PluginRepo,
+		t.Name, t.Description, t.Author, t.Category, t.Inherits, t.PluginRepo,
 		t.PluginBranch, t.PluginTag, t.Style, t.Colors, t.Options, t.Transparent,
 	)
 	if err != nil {
@@ -788,11 +789,11 @@ func (d *integrationTestDB) CreateTheme(t *models.NvimThemeDB) error {
 func (d *integrationTestDB) GetThemeByName(name string) (*models.NvimThemeDB, error) {
 	t := &models.NvimThemeDB{}
 	err := d.db.QueryRow(`
-		SELECT id, name, description, author, category, plugin_repo, plugin_branch,
+		SELECT id, name, description, author, category, inherits, plugin_repo, plugin_branch,
 			   plugin_tag, style, colors, options, transparent, is_active, created_at, updated_at
 		FROM nvim_themes WHERE name = ?
 	`, name).Scan(
-		&t.ID, &t.Name, &t.Description, &t.Author, &t.Category, &t.PluginRepo,
+		&t.ID, &t.Name, &t.Description, &t.Author, &t.Category, &t.Inherits, &t.PluginRepo,
 		&t.PluginBranch, &t.PluginTag, &t.Style, &t.Colors, &t.Options,
 		&t.Transparent, &t.IsActive, &t.CreatedAt, &t.UpdatedAt,
 	)
@@ -805,12 +806,12 @@ func (d *integrationTestDB) GetThemeByName(name string) (*models.NvimThemeDB, er
 func (d *integrationTestDB) UpdateTheme(t *models.NvimThemeDB) error {
 	_, err := d.db.Exec(`
 		UPDATE nvim_themes SET
-			description = ?, author = ?, category = ?, plugin_repo = ?,
+			description = ?, author = ?, category = ?, inherits = ?, plugin_repo = ?,
 			plugin_branch = ?, plugin_tag = ?, style = ?, colors = ?,
 			options = ?, transparent = ?, updated_at = CURRENT_TIMESTAMP
 		WHERE name = ?
 	`,
-		t.Description, t.Author, t.Category, t.PluginRepo,
+		t.Description, t.Author, t.Category, t.Inherits, t.PluginRepo,
 		t.PluginBranch, t.PluginTag, t.Style, t.Colors,
 		t.Options, t.Transparent, t.Name,
 	)
@@ -824,7 +825,7 @@ func (d *integrationTestDB) DeleteTheme(name string) error {
 
 func (d *integrationTestDB) ListThemes() ([]*models.NvimThemeDB, error) {
 	rows, err := d.db.Query(`
-		SELECT id, name, description, author, category, plugin_repo, plugin_branch,
+		SELECT id, name, description, author, category, inherits, plugin_repo, plugin_branch,
 			   plugin_tag, style, colors, options, transparent, is_active, created_at, updated_at
 		FROM nvim_themes ORDER BY name
 	`)
@@ -837,7 +838,7 @@ func (d *integrationTestDB) ListThemes() ([]*models.NvimThemeDB, error) {
 	for rows.Next() {
 		t := &models.NvimThemeDB{}
 		err := rows.Scan(
-			&t.ID, &t.Name, &t.Description, &t.Author, &t.Category, &t.PluginRepo,
+			&t.ID, &t.Name, &t.Description, &t.Author, &t.Category, &t.Inherits, &t.PluginRepo,
 			&t.PluginBranch, &t.PluginTag, &t.Style, &t.Colors, &t.Options,
 			&t.Transparent, &t.IsActive, &t.CreatedAt, &t.UpdatedAt,
 		)
@@ -851,7 +852,7 @@ func (d *integrationTestDB) ListThemes() ([]*models.NvimThemeDB, error) {
 
 func (d *integrationTestDB) ListThemesByCategory(category string) ([]*models.NvimThemeDB, error) {
 	rows, err := d.db.Query(`
-		SELECT id, name, description, author, category, plugin_repo, plugin_branch,
+		SELECT id, name, description, author, category, inherits, plugin_repo, plugin_branch,
 			   plugin_tag, style, colors, options, transparent, is_active, created_at, updated_at
 		FROM nvim_themes WHERE category = ? ORDER BY name
 	`, category)
@@ -864,7 +865,7 @@ func (d *integrationTestDB) ListThemesByCategory(category string) ([]*models.Nvi
 	for rows.Next() {
 		t := &models.NvimThemeDB{}
 		err := rows.Scan(
-			&t.ID, &t.Name, &t.Description, &t.Author, &t.Category, &t.PluginRepo,
+			&t.ID, &t.Name, &t.Description, &t.Author, &t.Category, &t.Inherits, &t.PluginRepo,
 			&t.PluginBranch, &t.PluginTag, &t.Style, &t.Colors, &t.Options,
 			&t.Transparent, &t.IsActive, &t.CreatedAt, &t.UpdatedAt,
 		)
@@ -879,11 +880,11 @@ func (d *integrationTestDB) ListThemesByCategory(category string) ([]*models.Nvi
 func (d *integrationTestDB) GetActiveTheme() (*models.NvimThemeDB, error) {
 	t := &models.NvimThemeDB{}
 	err := d.db.QueryRow(`
-		SELECT id, name, description, author, category, plugin_repo, plugin_branch,
+		SELECT id, name, description, author, category, inherits, plugin_repo, plugin_branch,
 			   plugin_tag, style, colors, options, transparent, is_active, created_at, updated_at
 		FROM nvim_themes WHERE is_active = 1
 	`).Scan(
-		&t.ID, &t.Name, &t.Description, &t.Author, &t.Category, &t.PluginRepo,
+		&t.ID, &t.Name, &t.Description, &t.Author, &t.Category, &t.Inherits, &t.PluginRepo,
 		&t.PluginBranch, &t.PluginTag, &t.Style, &t.Colors, &t.Options,
 		&t.Transparent, &t.IsActive, &t.CreatedAt, &t.UpdatedAt,
 	)

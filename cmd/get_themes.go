@@ -152,6 +152,11 @@ func getTheme(cmd *cobra.Command, name string) error {
 		{Key: "Transparent", Value: transparent},
 	}
 
+	// Show inherits field if set (from DB model)
+	if inherits := getThemeInherits(ctx, t.Name); inherits != "" {
+		pairs = append(pairs, render.KeyValue{Key: "Inherits", Value: inherits})
+	}
+
 	if t.Description != "" {
 		pairs = append(pairs, render.KeyValue{Key: "Description", Value: t.Description})
 	}
@@ -215,4 +220,24 @@ func showThemeResolution(cmd *cobra.Command, ds db.DataStore, level themeresolve
 	render.Info("Legend: ● theme set, ○ no theme (inherits from parent)")
 
 	return nil
+}
+
+// getThemeInherits looks up the inherits field for a theme from the DB model.
+// Returns empty string if not found or no inheritance.
+func getThemeInherits(ctx resource.Context, themeName string) string {
+	if ctx.DataStore == nil {
+		return ""
+	}
+	ds, ok := ctx.DataStore.(db.DataStore)
+	if !ok {
+		return ""
+	}
+	dbTheme, err := ds.GetThemeByName(themeName)
+	if err != nil {
+		return ""
+	}
+	if dbTheme.Inherits.Valid {
+		return dbTheme.Inherits.String
+	}
+	return ""
 }

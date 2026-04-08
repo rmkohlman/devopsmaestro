@@ -115,6 +115,7 @@ func createFullTestDataStore(t *testing.T) db.DataStore {
 			description TEXT,
 			author TEXT,
 			category TEXT,
+			inherits TEXT,
 			plugin_repo TEXT NOT NULL,
 			plugin_branch TEXT,
 			plugin_tag TEXT,

@@ -14,13 +14,13 @@ import (
 
 // CreateTheme inserts a new nvim theme.
 func (ds *SQLDataStore) CreateTheme(theme *models.NvimThemeDB) error {
-	query := fmt.Sprintf(`INSERT INTO nvim_themes (name, description, author, category, plugin_repo, 
+	query := fmt.Sprintf(`INSERT INTO nvim_themes (name, description, author, category, inherits, plugin_repo, 
 		plugin_branch, plugin_tag, style, transparent, colors, options, is_active, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, %s, %s)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, %s, %s)`,
 		ds.queryBuilder.Now(), ds.queryBuilder.Now())
 
 	result, err := ds.driver.Execute(query,
-		theme.Name, theme.Description, theme.Author, theme.Category, theme.PluginRepo,
+		theme.Name, theme.Description, theme.Author, theme.Category, theme.Inherits, theme.PluginRepo,
 		theme.PluginBranch, theme.PluginTag, theme.Style, theme.Transparent,
 		theme.Colors, theme.Options, theme.IsActive)
 
@@ -39,14 +39,14 @@ func (ds *SQLDataStore) CreateTheme(theme *models.NvimThemeDB) error {
 // GetThemeByName retrieves a theme by its name.
 func (ds *SQLDataStore) GetThemeByName(name string) (*models.NvimThemeDB, error) {
 	theme := &models.NvimThemeDB{}
-	query := `SELECT id, name, description, author, category, plugin_repo, plugin_branch, plugin_tag,
+	query := `SELECT id, name, description, author, category, inherits, plugin_repo, plugin_branch, plugin_tag,
 		style, transparent, colors, options, is_active, created_at, updated_at
 		FROM nvim_themes WHERE name = ?`
 
 	row := ds.driver.QueryRow(query, name)
 	if err := row.Scan(
-		&theme.ID, &theme.Name, &theme.Description, &theme.Author, &theme.Category, &theme.PluginRepo,
-		&theme.PluginBranch, &theme.PluginTag, &theme.Style, &theme.Transparent,
+		&theme.ID, &theme.Name, &theme.Description, &theme.Author, &theme.Category, &theme.Inherits,
+		&theme.PluginRepo, &theme.PluginBranch, &theme.PluginTag, &theme.Style, &theme.Transparent,
 		&theme.Colors, &theme.Options, &theme.IsActive, &theme.CreatedAt, &theme.UpdatedAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -61,14 +61,14 @@ func (ds *SQLDataStore) GetThemeByName(name string) (*models.NvimThemeDB, error)
 // GetThemeByID retrieves a theme by its ID.
 func (ds *SQLDataStore) GetThemeByID(id int) (*models.NvimThemeDB, error) {
 	theme := &models.NvimThemeDB{}
-	query := `SELECT id, name, description, author, category, plugin_repo, plugin_branch, plugin_tag,
+	query := `SELECT id, name, description, author, category, inherits, plugin_repo, plugin_branch, plugin_tag,
 		style, transparent, colors, options, is_active, created_at, updated_at
 		FROM nvim_themes WHERE id = ?`
 
 	row := ds.driver.QueryRow(query, id)
 	if err := row.Scan(
-		&theme.ID, &theme.Name, &theme.Description, &theme.Author, &theme.Category, &theme.PluginRepo,
-		&theme.PluginBranch, &theme.PluginTag, &theme.Style, &theme.Transparent,
+		&theme.ID, &theme.Name, &theme.Description, &theme.Author, &theme.Category, &theme.Inherits,
+		&theme.PluginRepo, &theme.PluginBranch, &theme.PluginTag, &theme.Style, &theme.Transparent,
 		&theme.Colors, &theme.Options, &theme.IsActive, &theme.CreatedAt, &theme.UpdatedAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -82,13 +82,13 @@ func (ds *SQLDataStore) GetThemeByID(id int) (*models.NvimThemeDB, error) {
 
 // UpdateTheme updates an existing theme.
 func (ds *SQLDataStore) UpdateTheme(theme *models.NvimThemeDB) error {
-	query := fmt.Sprintf(`UPDATE nvim_themes SET description = ?, author = ?, category = ?, plugin_repo = ?,
-		plugin_branch = ?, plugin_tag = ?, style = ?, transparent = ?, colors = ?, options = ?,
-		is_active = ?, updated_at = %s WHERE name = ?`, ds.queryBuilder.Now())
+	query := fmt.Sprintf(`UPDATE nvim_themes SET description = ?, author = ?, category = ?, inherits = ?,
+		plugin_repo = ?, plugin_branch = ?, plugin_tag = ?, style = ?, transparent = ?, colors = ?,
+		options = ?, is_active = ?, updated_at = %s WHERE name = ?`, ds.queryBuilder.Now())
 
 	_, err := ds.driver.Execute(query,
-		theme.Description, theme.Author, theme.Category, theme.PluginRepo,
-		theme.PluginBranch, theme.PluginTag, theme.Style, theme.Transparent,
+		theme.Description, theme.Author, theme.Category, theme.Inherits,
+		theme.PluginRepo, theme.PluginBranch, theme.PluginTag, theme.Style, theme.Transparent,
 		theme.Colors, theme.Options, theme.IsActive, theme.Name)
 
 	if err != nil {
@@ -104,7 +104,7 @@ func (ds *SQLDataStore) DeleteTheme(name string) error {
 
 // ListThemes retrieves all themes.
 func (ds *SQLDataStore) ListThemes() ([]*models.NvimThemeDB, error) {
-	query := `SELECT id, name, description, author, category, plugin_repo, plugin_branch, plugin_tag,
+	query := `SELECT id, name, description, author, category, inherits, plugin_repo, plugin_branch, plugin_tag,
 		style, transparent, colors, options, is_active, created_at, updated_at
 		FROM nvim_themes ORDER BY name`
 
@@ -118,8 +118,8 @@ func (ds *SQLDataStore) ListThemes() ([]*models.NvimThemeDB, error) {
 	for rows.Next() {
 		theme := &models.NvimThemeDB{}
 		if err := rows.Scan(
-			&theme.ID, &theme.Name, &theme.Description, &theme.Author, &theme.Category, &theme.PluginRepo,
-			&theme.PluginBranch, &theme.PluginTag, &theme.Style, &theme.Transparent,
+			&theme.ID, &theme.Name, &theme.Description, &theme.Author, &theme.Category, &theme.Inherits,
+			&theme.PluginRepo, &theme.PluginBranch, &theme.PluginTag, &theme.Style, &theme.Transparent,
 			&theme.Colors, &theme.Options, &theme.IsActive, &theme.CreatedAt, &theme.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan theme: %w", err)
@@ -136,7 +136,7 @@ func (ds *SQLDataStore) ListThemes() ([]*models.NvimThemeDB, error) {
 
 // ListThemesByCategory retrieves themes filtered by category.
 func (ds *SQLDataStore) ListThemesByCategory(category string) ([]*models.NvimThemeDB, error) {
-	query := `SELECT id, name, description, author, category, plugin_repo, plugin_branch, plugin_tag,
+	query := `SELECT id, name, description, author, category, inherits, plugin_repo, plugin_branch, plugin_tag,
 		style, transparent, colors, options, is_active, created_at, updated_at
 		FROM nvim_themes WHERE category = ? ORDER BY name`
 
@@ -150,8 +150,8 @@ func (ds *SQLDataStore) ListThemesByCategory(category string) ([]*models.NvimThe
 	for rows.Next() {
 		theme := &models.NvimThemeDB{}
 		if err := rows.Scan(
-			&theme.ID, &theme.Name, &theme.Description, &theme.Author, &theme.Category, &theme.PluginRepo,
-			&theme.PluginBranch, &theme.PluginTag, &theme.Style, &theme.Transparent,
+			&theme.ID, &theme.Name, &theme.Description, &theme.Author, &theme.Category, &theme.Inherits,
+			&theme.PluginRepo, &theme.PluginBranch, &theme.PluginTag, &theme.Style, &theme.Transparent,
 			&theme.Colors, &theme.Options, &theme.IsActive, &theme.CreatedAt, &theme.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan theme: %w", err)
@@ -169,14 +169,14 @@ func (ds *SQLDataStore) ListThemesByCategory(category string) ([]*models.NvimThe
 // GetActiveTheme retrieves the currently active theme.
 func (ds *SQLDataStore) GetActiveTheme() (*models.NvimThemeDB, error) {
 	theme := &models.NvimThemeDB{}
-	query := `SELECT id, name, description, author, category, plugin_repo, plugin_branch, plugin_tag,
+	query := `SELECT id, name, description, author, category, inherits, plugin_repo, plugin_branch, plugin_tag,
 		style, transparent, colors, options, is_active, created_at, updated_at
 		FROM nvim_themes WHERE is_active = 1 LIMIT 1`
 
 	row := ds.driver.QueryRow(query)
 	if err := row.Scan(
-		&theme.ID, &theme.Name, &theme.Description, &theme.Author, &theme.Category, &theme.PluginRepo,
-		&theme.PluginBranch, &theme.PluginTag, &theme.Style, &theme.Transparent,
+		&theme.ID, &theme.Name, &theme.Description, &theme.Author, &theme.Category, &theme.Inherits,
+		&theme.PluginRepo, &theme.PluginBranch, &theme.PluginTag, &theme.Style, &theme.Transparent,
 		&theme.Colors, &theme.Options, &theme.IsActive, &theme.CreatedAt, &theme.UpdatedAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
