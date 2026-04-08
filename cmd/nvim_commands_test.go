@@ -160,11 +160,28 @@ func TestEditNvimPluginRequiresName(t *testing.T) {
 	assert.NotNil(t, editNvimPluginCmd.Args, "should have Args validator")
 }
 
-// TestDeleteNvimPluginHasForceFlag verifies the --force flag exists
+// TestDeleteNvimPluginHasForceFlag verifies the --force flag shape on the
+// 'delete nvim plugin' command matches the standard pattern used across all
+// delete commands (no -f shorthand, bool type, defaults to false).
+//
+// This mirrors the assertions in TestDeleteCredentialCmd_HasForceFlag.
 func TestDeleteNvimPluginHasForceFlag(t *testing.T) {
-	forceFlag := deleteNvimPluginCmd.Flags().Lookup("force")
-	assert.NotNil(t, forceFlag, "should have 'force' flag")
-	assert.Equal(t, "", forceFlag.Shorthand, "force flag should have no shorthand (-f is reserved for --filename)")
+	flag := deleteNvimPluginCmd.Flags().Lookup("force")
+	assert.NotNil(t, flag, "delete nvim plugin should have --force flag")
+	if flag != nil {
+		assert.Equal(t, "bool", flag.Value.Type(), "--force should be a bool flag")
+		assert.Equal(t, "", flag.Shorthand, "--force should have no shorthand (-f is reserved for --filename)")
+		assert.Equal(t, "false", flag.DefValue, "--force should default to false")
+	}
+}
+
+// TestDeleteNvimThemeCmd_NoForceFlag verifies that 'delete nvim theme' does not
+// register a --force flag. The theme subcommand is a redirect placeholder that
+// sends users to 'nvp theme delete'; it performs no destructive action itself
+// and therefore requires no confirmation guard.
+func TestDeleteNvimThemeCmd_NoForceFlag(t *testing.T) {
+	flag := deleteNvimThemeCmd.Flags().Lookup("force")
+	assert.Nil(t, flag, "delete nvim theme is a redirect placeholder and should not register --force")
 }
 
 // TestNoDeprecatedPluginCommandsInGet verifies deprecated commands were removed

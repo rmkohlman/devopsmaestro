@@ -360,3 +360,28 @@ func TestCommandRequiresDatabase(t *testing.T) {
 		})
 	}
 }
+
+// =============================================================================
+// Delete Command Flag Tests
+// =============================================================================
+
+// TestNvpDeleteCmd_HasForceFlag verifies the --force flag shape on 'nvp delete'.
+//
+// Tier 4 changes removed the -f shorthand from all --force flags to reserve -f
+// for --filename. This test asserts the canonical shape: long name only, bool
+// type, and a default of false.
+func TestNvpDeleteCmd_HasForceFlag(t *testing.T) {
+	flag := deleteCmd.Flags().Lookup("force")
+	if flag == nil {
+		t.Fatal("nvp delete should have --force flag")
+	}
+	if flag.Value.Type() != "bool" {
+		t.Errorf("--force should be a bool flag, got %s", flag.Value.Type())
+	}
+	if flag.Shorthand != "" {
+		t.Errorf("--force should have no shorthand (-f is reserved for --filename), got %q", flag.Shorthand)
+	}
+	if flag.DefValue != "false" {
+		t.Errorf("--force should default to false, got %q", flag.DefValue)
+	}
+}
