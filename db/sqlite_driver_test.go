@@ -822,6 +822,54 @@ func TestSQLiteDriver_SynchronousNormal(t *testing.T) {
 	}
 }
 
+// TestSQLiteDriver_InMemory_WALFallback verifies that an in-memory database:
+//   - Does not error when WAL pragma is intentionally skipped
+//   - Stays in journal_mode=memory (not wal — in-memory doesn't support WAL)
+//   - Still applies busy_timeout and synchronous pragmas
+func TestSQLiteDriver_InMemory_WALFallback(t *testing.T) {
+	cfg := DriverConfig{Type: DriverMemory}
+	driver, err := NewMemorySQLiteDriver(cfg)
+	if err != nil {
+		t.Fatalf("NewMemorySQLiteDriver() error = %v", err)
+	}
+	defer driver.Close()
+
+	// Connect must not error — WAL pragma is intentionally skipped for in-memory
+	if err := driver.Connect(); err != nil {
+		t.Fatalf("Connect() error = %v; WAL fallback should not cause a connection error", err)
+	}
+
+	// journal_mode must NOT be "wal" — in-memory databases don't support WAL
+	var journalMode string
+	row := driver.QueryRow("PRAGMA journal_mode")
+	if err := row.Scan(&journalMode); err != nil {
+		t.Fatalf("failed to scan PRAGMA journal_mode: %v", err)
+	}
+	if journalMode == "wal" {
+		t.Errorf("PRAGMA journal_mode = %q, want anything except \"wal\" (in-memory databases do not support WAL)", journalMode)
+	}
+
+	// busy_timeout must be set (driver applies it to all database types)
+	var busyTimeout int
+	row = driver.QueryRow("PRAGMA busy_timeout")
+	if err := row.Scan(&busyTimeout); err != nil {
+		t.Fatalf("failed to scan PRAGMA busy_timeout: %v", err)
+	}
+	if busyTimeout <= 0 {
+		t.Errorf("PRAGMA busy_timeout = %d, want > 0 (should be set even for in-memory databases)", busyTimeout)
+	}
+
+	// synchronous must be set — driver applies NORMAL (1) to all database types
+	var syncMode int
+	row = driver.QueryRow("PRAGMA synchronous")
+	if err := row.Scan(&syncMode); err != nil {
+		t.Fatalf("failed to scan PRAGMA synchronous: %v", err)
+	}
+	if syncMode < 0 || syncMode > 3 {
+		t.Errorf("PRAGMA synchronous = %d, want a valid mode (0=OFF, 1=NORMAL, 2=FULL, 3=EXTRA)", syncMode)
+	}
+}
+
 // =============================================================================
 // Helper Functions
 // =============================================================================
