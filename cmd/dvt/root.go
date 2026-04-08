@@ -207,6 +207,7 @@ func init() {
 	rootCmd.AddCommand(emulatorCmd)
 	rootCmd.AddCommand(weztermCmd)
 	rootCmd.AddCommand(completionCmd)
+	rootCmd.AddCommand(toolConfigCmd)
 }
 
 // initLogging configures the global slog logger based on flags.
