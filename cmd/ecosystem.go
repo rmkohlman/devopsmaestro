@@ -172,6 +172,11 @@ Examples:
 			return nil
 		}
 
+		// Save current context before switching
+		if err := saveCurrentContext(ds); err != nil {
+			return fmt.Errorf("failed to save previous context: %w", err)
+		}
+
 		// Set ecosystem as active
 		if err := ds.SetActiveEcosystem(&ecosystem.ID); err != nil {
 			return fmt.Errorf("failed to set active ecosystem: %w", err)

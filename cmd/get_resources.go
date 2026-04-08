@@ -34,28 +34,33 @@ func getContext(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to load context: %w", err)
 	}
 
-	// Resolve IDs to names
+	// Resolve IDs to names, tracking source
 	var ecosystemName, domainName, appName, workspaceName string
+	var ecosystemSource, domainSource, appSource, workspaceSource string
 
 	if dbCtx != nil {
 		if dbCtx.ActiveEcosystemID != nil {
 			if eco, err := ds.GetEcosystemByID(*dbCtx.ActiveEcosystemID); err == nil {
 				ecosystemName = eco.Name
+				ecosystemSource = "global"
 			}
 		}
 		if dbCtx.ActiveDomainID != nil {
 			if dom, err := ds.GetDomainByID(*dbCtx.ActiveDomainID); err == nil {
 				domainName = dom.Name
+				domainSource = "global"
 			}
 		}
 		if dbCtx.ActiveAppID != nil {
 			if app, err := ds.GetAppByID(*dbCtx.ActiveAppID); err == nil {
 				appName = app.Name
+				appSource = "global"
 			}
 		}
 		if dbCtx.ActiveWorkspaceID != nil {
 			if ws, err := ds.GetWorkspaceByID(*dbCtx.ActiveWorkspaceID); err == nil {
 				workspaceName = ws.Name
+				workspaceSource = "global"
 			}
 		}
 	}
@@ -63,15 +68,19 @@ func getContext(cmd *cobra.Command) error {
 	// Check env var overrides (DVM_ECOSYSTEM, DVM_DOMAIN, DVM_APP, DVM_WORKSPACE)
 	if envEco := os.Getenv("DVM_ECOSYSTEM"); envEco != "" {
 		ecosystemName = envEco
+		ecosystemSource = "env: DVM_ECOSYSTEM"
 	}
 	if envDom := os.Getenv("DVM_DOMAIN"); envDom != "" {
 		domainName = envDom
+		domainSource = "env: DVM_DOMAIN"
 	}
 	if envApp := os.Getenv("DVM_APP"); envApp != "" {
 		appName = envApp
+		appSource = "env: DVM_APP"
 	}
 	if envWorkspace := os.Getenv("DVM_WORKSPACE"); envWorkspace != "" {
 		workspaceName = envWorkspace
+		workspaceSource = "env: DVM_WORKSPACE"
 	}
 
 	// Build structured data
@@ -106,18 +115,21 @@ func getContext(cmd *cobra.Command) error {
 	}
 
 	// Build key-value pairs, showing "(none)" for unset levels
-	displayOrNone := func(s string) string {
-		if s == "" {
+	displayWithSource := func(name, source string) string {
+		if name == "" {
 			return "(none)"
 		}
-		return s
+		if source != "" {
+			return fmt.Sprintf("%s (%s)", name, source)
+		}
+		return name
 	}
 
 	kvData := render.NewOrderedKeyValueData(
-		render.KeyValue{Key: "Ecosystem", Value: displayOrNone(ecosystemName)},
-		render.KeyValue{Key: "Domain", Value: displayOrNone(domainName)},
-		render.KeyValue{Key: "App", Value: displayOrNone(appName)},
-		render.KeyValue{Key: "Workspace", Value: displayOrNone(workspaceName)},
+		render.KeyValue{Key: "Ecosystem", Value: displayWithSource(ecosystemName, ecosystemSource)},
+		render.KeyValue{Key: "Domain", Value: displayWithSource(domainName, domainSource)},
+		render.KeyValue{Key: "App", Value: displayWithSource(appName, appSource)},
+		render.KeyValue{Key: "Workspace", Value: displayWithSource(workspaceName, workspaceSource)},
 	)
 
 	return render.OutputWith(getOutputFormat, kvData, render.Options{

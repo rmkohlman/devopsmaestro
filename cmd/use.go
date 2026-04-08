@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"devopsmaestro/db"
+	"encoding/json"
 	"fmt"
 	"github.com/rmkohlman/MaestroNvim/nvimops/package/library"
 	"github.com/rmkohlman/MaestroSDK/render"
@@ -9,6 +10,76 @@ import (
 
 	"github.com/spf13/cobra"
 )
+
+// previousContext is the JSON structure stored in defaults under "context.previous".
+// Fields are pointers so absent context levels can be represented as null/absent.
+type previousContext struct {
+	EcosystemID *int `json:"ecosystem_id,omitempty"`
+	DomainID    *int `json:"domain_id,omitempty"`
+	AppID       *int `json:"app_id,omitempty"`
+	WorkspaceID *int `json:"workspace_id,omitempty"`
+}
+
+// saveCurrentContext captures the current DB context and stores it as JSON
+// in the defaults table under key "context.previous".
+func saveCurrentContext(ds db.DataStore) error {
+	ctx, err := ds.GetContext()
+	if err != nil {
+		return fmt.Errorf("failed to read current context: %w", err)
+	}
+
+	prev := previousContext{}
+	if ctx != nil {
+		prev.EcosystemID = ctx.ActiveEcosystemID
+		prev.DomainID = ctx.ActiveDomainID
+		prev.AppID = ctx.ActiveAppID
+		prev.WorkspaceID = ctx.ActiveWorkspaceID
+	}
+
+	data, err := json.Marshal(prev)
+	if err != nil {
+		return fmt.Errorf("failed to serialize context: %w", err)
+	}
+
+	return ds.SetDefault("context.previous", string(data))
+}
+
+// restorePreviousContext reads "context.previous" from defaults, restores it
+// as the active context, and saves the old active context as the new previous.
+func restorePreviousContext(ds db.DataStore) error {
+	// Read previous context
+	prevJSON, err := ds.GetDefault("context.previous")
+	if err != nil || prevJSON == "" {
+		return fmt.Errorf("no previous context to switch to")
+	}
+
+	var prev previousContext
+	if err := json.Unmarshal([]byte(prevJSON), &prev); err != nil {
+		return fmt.Errorf("failed to parse previous context: %w", err)
+	}
+
+	// Save current context as new previous before restoring
+	if err := saveCurrentContext(ds); err != nil {
+		return fmt.Errorf("failed to save current context: %w", err)
+	}
+
+	// Restore all 4 context fields from previous
+	if err := ds.SetActiveEcosystem(prev.EcosystemID); err != nil {
+		return fmt.Errorf("failed to restore ecosystem: %w", err)
+	}
+	if err := ds.SetActiveDomain(prev.DomainID); err != nil {
+		return fmt.Errorf("failed to restore domain: %w", err)
+	}
+	if err := ds.SetActiveApp(prev.AppID); err != nil {
+		return fmt.Errorf("failed to restore app: %w", err)
+	}
+	if err := ds.SetActiveWorkspace(prev.WorkspaceID); err != nil {
+		return fmt.Errorf("failed to restore workspace: %w", err)
+	}
+
+	render.Success("Switched to previous context")
+	return nil
+}
 
 // useCmd represents the base 'use' command (kubectl-style context switching)
 var useCmd = &cobra.Command{
@@ -44,6 +115,15 @@ Examples:
   dvm use --clear                # Clear all context
   dvm use app myapi --export     # Print 'export DVM_APP=myapi' for shell eval`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Handle "dvm use -" to toggle to previous context
+		if len(args) == 1 && args[0] == "-" {
+			ds, err := getDataStore(cmd)
+			if err != nil {
+				return fmt.Errorf("dataStore not initialized: %w", err)
+			}
+			return restorePreviousContext(ds)
+		}
+
 		// Check if --clear flag was passed
 		clearAll, _ := cmd.Flags().GetBool("clear")
 		if clearAll {
@@ -132,6 +212,11 @@ Examples:
 			return nil
 		}
 
+		// Save current context before switching
+		if err := saveCurrentContext(ds); err != nil {
+			return fmt.Errorf("failed to save previous context: %w", err)
+		}
+
 		// Set app as active in database context
 		if err := ds.SetActiveApp(&app.ID); err != nil {
 			return fmt.Errorf("failed to set active app: %v", err)
@@ -212,6 +297,11 @@ Examples:
 		if exportFlag {
 			fmt.Fprintf(cmd.OutOrStdout(), "export DVM_WORKSPACE=%s\n", workspaceName)
 			return nil
+		}
+
+		// Save current context before switching
+		if err := saveCurrentContext(ds); err != nil {
+			return fmt.Errorf("failed to save previous context: %w", err)
 		}
 
 		// Update database context

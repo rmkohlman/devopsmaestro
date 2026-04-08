@@ -197,6 +197,11 @@ Examples:
 			return nil
 		}
 
+		// Save current context before switching
+		if err := saveCurrentContext(ds); err != nil {
+			return fmt.Errorf("failed to save previous context: %w", err)
+		}
+
 		// Set domain as active
 		if err := ds.SetActiveDomain(&domain.ID); err != nil {
 			return fmt.Errorf("failed to set active domain: %w", err)
