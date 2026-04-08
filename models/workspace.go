@@ -208,6 +208,7 @@ type ContainerConfig struct {
 	Entrypoint         []string       `yaml:"entrypoint,omitempty"`
 	Resources          ResourceLimits `yaml:"resources,omitempty"`
 	SSHAgentForwarding bool           `yaml:"sshAgentForwarding,omitempty"`
+	NetworkMode        string         `yaml:"networkMode,omitempty"`
 }
 
 // ResourceLimits defines container resource limits

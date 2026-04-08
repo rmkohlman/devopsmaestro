@@ -25,6 +25,9 @@ func newTestAttachCmd() *cobra.Command {
 	}
 	AddHierarchyFlags(cmd, &attachFlags)
 	cmd.Flags().Bool("no-sync", false, "Skip syncing git mirror before attach")
+	cmd.Flags().String("network", "", "Network mode: bridge (default), none, host, or custom network name")
+	cmd.Flags().Float64("cpus", 0, "CPU limit (e.g., 1.5 for 1.5 cores; 0 = no limit)")
+	cmd.Flags().String("memory", "", "Memory limit (e.g., 512m, 2g; empty = no limit)")
 	return cmd
 }
 
@@ -901,4 +904,154 @@ func TestLoadRegistryEnv_NoRegistries(t *testing.T) {
 	if len(result) != 0 {
 		t.Errorf("expected empty env map when no registries; got %v", result)
 	}
+}
+
+// =============================================================================
+// Issue #91: Network Isolation Flag Tests
+// =============================================================================
+
+func TestAttachCmd_HasNetworkFlag(t *testing.T) {
+	networkFlag := attachCmd.Flags().Lookup("network")
+	assert.NotNil(t, networkFlag, "attachCmd should have 'network' flag")
+	if networkFlag != nil {
+		assert.Equal(t, "", networkFlag.DefValue, "network flag should default to empty")
+		assert.Equal(t, "string", networkFlag.Value.Type(), "network flag should be string type")
+	}
+}
+
+func TestAttachCmd_NetworkFlag_Parsing(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   string
+		wantErr bool
+	}{
+		{"bridge", "bridge", false},
+		{"none", "none", false},
+		{"host", "host", false},
+		{"custom network", "my-custom-net", false},
+		{"empty (default)", "", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := newTestAttachCmd()
+			if tt.value != "" {
+				err := cmd.Flags().Set("network", tt.value)
+				if tt.wantErr {
+					assert.Error(t, err)
+					return
+				}
+				assert.NoError(t, err)
+			}
+
+			got, err := cmd.Flags().GetString("network")
+			assert.NoError(t, err)
+			assert.Equal(t, tt.value, got)
+		})
+	}
+}
+
+// =============================================================================
+// Issue #92: Resource Limit Flag Tests
+// =============================================================================
+
+func TestAttachCmd_HasCPUsFlag(t *testing.T) {
+	cpusFlag := attachCmd.Flags().Lookup("cpus")
+	assert.NotNil(t, cpusFlag, "attachCmd should have 'cpus' flag")
+	if cpusFlag != nil {
+		assert.Equal(t, "0", cpusFlag.DefValue, "cpus flag should default to 0")
+		assert.Equal(t, "float64", cpusFlag.Value.Type(), "cpus flag should be float64 type")
+	}
+}
+
+func TestAttachCmd_HasMemoryFlag(t *testing.T) {
+	memoryFlag := attachCmd.Flags().Lookup("memory")
+	assert.NotNil(t, memoryFlag, "attachCmd should have 'memory' flag")
+	if memoryFlag != nil {
+		assert.Equal(t, "", memoryFlag.DefValue, "memory flag should default to empty")
+		assert.Equal(t, "string", memoryFlag.Value.Type(), "memory flag should be string type")
+	}
+}
+
+func TestAttachCmd_CPUsFlag_Parsing(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   string
+		want    float64
+		wantErr bool
+	}{
+		{"no limit", "0", 0, false},
+		{"one core", "1", 1.0, false},
+		{"half core", "0.5", 0.5, false},
+		{"one and a half", "1.5", 1.5, false},
+		{"four cores", "4", 4.0, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := newTestAttachCmd()
+			err := cmd.Flags().Set("cpus", tt.value)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+
+			got, err := cmd.Flags().GetFloat64("cpus")
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestAttachCmd_MemoryFlag_Parsing(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+	}{
+		{"megabytes", "512m"},
+		{"gigabytes", "2g"},
+		{"kilobytes", "8192k"},
+		{"empty (no limit)", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := newTestAttachCmd()
+			if tt.value != "" {
+				err := cmd.Flags().Set("memory", tt.value)
+				assert.NoError(t, err)
+			}
+
+			got, err := cmd.Flags().GetString("memory")
+			assert.NoError(t, err)
+			assert.Equal(t, tt.value, got)
+		})
+	}
+}
+
+// TestAttachCmd_AllNewFlags_Coexist verifies that network, cpus, and memory
+// flags can all be set simultaneously without conflicts.
+func TestAttachCmd_AllNewFlags_Coexist(t *testing.T) {
+	cmd := newTestAttachCmd()
+
+	// Set all three new flags
+	assert.NoError(t, cmd.Flags().Set("network", "none"))
+	assert.NoError(t, cmd.Flags().Set("cpus", "2"))
+	assert.NoError(t, cmd.Flags().Set("memory", "4g"))
+
+	// Verify all values are set correctly
+	network, _ := cmd.Flags().GetString("network")
+	assert.Equal(t, "none", network)
+
+	cpus, _ := cmd.Flags().GetFloat64("cpus")
+	assert.Equal(t, 2.0, cpus)
+
+	memory, _ := cmd.Flags().GetString("memory")
+	assert.Equal(t, "4g", memory)
+
+	// Ensure existing flags still work
+	assert.NoError(t, cmd.Flags().Set("no-sync", "true"))
+	noSync, _ := cmd.Flags().GetBool("no-sync")
+	assert.True(t, noSync)
 }

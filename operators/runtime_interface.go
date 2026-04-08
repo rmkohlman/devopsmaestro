@@ -107,6 +107,9 @@ type StartOptions struct {
 	Mounts             []MountConfig     // Additional volume mounts (v0.19.0)
 	UID                int               // Container user ID (default: 1000)
 	GID                int               // Container group ID (default: 1000)
+	NetworkMode        string            // Network mode: "bridge" (default), "none", "host", or custom name
+	CPUs               float64           // CPU limit (e.g., 1.5 for 1.5 cores; 0 = no limit)
+	Memory             string            // Memory limit (e.g., "512m", "2g"; "" = no limit)
 }
 
 // ContainerNamingStrategy defines the interface for generating and parsing container names

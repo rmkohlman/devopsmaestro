@@ -28,6 +28,15 @@ var attachFlags HierarchyFlags
 // attachTimeout holds the timeout duration for the attach operation
 var attachTimeout time.Duration
 
+// attachNetworkMode holds the network isolation mode for the container
+var attachNetworkMode string
+
+// attachCPUs holds the CPU limit for the container
+var attachCPUs float64
+
+// attachMemory holds the memory limit for the container
+var attachMemory string
+
 // attachCmd attaches to the active workspace
 var attachCmd = &cobra.Command{
 	Use:   "attach",
@@ -52,13 +61,18 @@ Flags:
   -a, --app         Filter by app name
   -w, --workspace   Filter by workspace name
       --no-sync     Skip syncing git mirror before attach
+      --network     Network mode: bridge (default), none, host, or custom name
+      --cpus        CPU limit (e.g., 1.5 for 1.5 cores)
+      --memory      Memory limit (e.g., 512m, 2g)
 
 Examples:
   dvm attach                           # Use current context, sync mirror
   dvm attach --no-sync                 # Use current context, skip sync
   dvm attach -a portal                 # Attach to workspace in 'portal' app
   dvm attach -e healthcare -a portal   # Specify ecosystem and app
-  dvm attach -a portal -w staging      # Specify app and workspace name`,
+  dvm attach -a portal -w staging      # Specify app and workspace name
+  dvm attach --network=none            # Isolate container from network
+  dvm attach --cpus=2 --memory=4g      # Limit to 2 CPUs and 4GB RAM`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := runAttach(cmd); err != nil {
 			render.Error(err.Error())
@@ -223,6 +237,19 @@ func runAttach(cmd *cobra.Command) error {
 	containerUID := workspaceYAML.Spec.Container.UID
 	containerGID := workspaceYAML.Spec.Container.GID
 
+	// Validate container options (network mode and resource limits)
+	if err := operators.ValidateNetworkMode(attachNetworkMode); err != nil {
+		return err
+	}
+	if err := operators.ValidateCPUs(attachCPUs); err != nil {
+		return err
+	}
+	if attachMemory != "" {
+		if _, err := operators.ParseMemoryString(attachMemory); err != nil {
+			return err
+		}
+	}
+
 	containerID, err := runtime.StartWorkspace(ctx, operators.StartOptions{
 		ImageName:          imageName,
 		WorkspaceName:      workspaceName,
@@ -234,6 +261,9 @@ func runAttach(cmd *cobra.Command) error {
 		UID:                containerUID,
 		GID:                containerGID,
 		SSHAgentForwarding: workspace.SSHAgentForwarding,
+		NetworkMode:        attachNetworkMode,
+		CPUs:               attachCPUs,
+		Memory:             attachMemory,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to start workspace: %w", err)
@@ -462,4 +492,7 @@ func init() {
 	AddHierarchyFlags(attachCmd, &attachFlags)
 	attachCmd.Flags().Bool("no-sync", false, "Skip syncing git mirror before attach")
 	attachCmd.Flags().DurationVar(&attachTimeout, "timeout", 10*time.Minute, "Timeout for the attach operation (e.g., 10m, 30s)")
+	attachCmd.Flags().StringVar(&attachNetworkMode, "network", "", "Network mode: bridge (default), none, host, or custom network name")
+	attachCmd.Flags().Float64Var(&attachCPUs, "cpus", 0, "CPU limit (e.g., 1.5 for 1.5 cores; 0 = no limit)")
+	attachCmd.Flags().StringVar(&attachMemory, "memory", "", "Memory limit (e.g., 512m, 2g; empty = no limit)")
 }

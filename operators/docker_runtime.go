@@ -246,6 +246,24 @@ func (d *DockerRuntime) StartWorkspace(ctx context.Context, opts StartOptions) (
 		Binds: binds,
 	}
 
+	// Network isolation (issue #91)
+	if opts.NetworkMode != "" {
+		hostConfig.NetworkMode = container.NetworkMode(opts.NetworkMode)
+	}
+
+	// Resource limits (issue #92)
+	if opts.CPUs > 0 {
+		// Docker uses NanoCPUs (1 CPU = 1e9 NanoCPUs)
+		hostConfig.Resources.NanoCPUs = int64(opts.CPUs * 1e9)
+	}
+	if opts.Memory != "" {
+		memBytes, err := ParseMemoryString(opts.Memory)
+		if err != nil {
+			return "", fmt.Errorf("invalid memory limit: %w", err)
+		}
+		hostConfig.Resources.Memory = memBytes
+	}
+
 	// Create container
 	resp, err := d.client.ContainerCreate(
 		ctx,

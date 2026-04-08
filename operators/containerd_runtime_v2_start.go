@@ -200,6 +200,19 @@ func (r *ContainerdRuntimeV2) startWorkspaceViaColima(ctx context.Context, opts 
 		nerdctlArgs = append(nerdctlArgs, "--label", fmt.Sprintf("io.devopsmaestro.domain=%s", opts.DomainName))
 	}
 
+	// Network isolation (issue #91)
+	if opts.NetworkMode != "" {
+		nerdctlArgs = append(nerdctlArgs, "--network", opts.NetworkMode)
+	}
+
+	// Resource limits (issue #92)
+	if opts.CPUs > 0 {
+		nerdctlArgs = append(nerdctlArgs, "--cpus", fmt.Sprintf("%g", opts.CPUs))
+	}
+	if opts.Memory != "" {
+		nerdctlArgs = append(nerdctlArgs, "--memory", opts.Memory)
+	}
+
 	// Add image and command
 	nerdctlArgs = append(nerdctlArgs, opts.ImageName)
 	nerdctlArgs = append(nerdctlArgs, command...)
@@ -348,6 +361,42 @@ func (r *ContainerdRuntimeV2) startWorkspaceDirectAPI(ctx context.Context, opts 
 		gid = 1000
 	}
 
+	// Build OCI spec options
+	ociOpts := []oci.SpecOpts{
+		oci.WithDefaultSpec(),
+		oci.WithDefaultUnixDevices,
+		oci.WithImageConfig(image),
+		oci.WithProcessArgs(command...),
+		oci.WithProcessCwd(workingDir),
+		oci.WithEnv(envSlice),
+		oci.WithMounts(mounts),
+		oci.WithUserID(uint32(uid)), // Run as non-root dev user (security: least privilege)
+		oci.WithUsername("dev"),
+		// Don't set TTY here - nerdctl exec will handle TTY allocation
+	}
+
+	// Resource limits (issue #92): add Linux cgroup resource constraints
+	if opts.CPUs > 0 {
+		period := uint64(100000) // 100ms period
+		quota := int64(opts.CPUs * float64(period))
+		ociOpts = append(ociOpts, oci.WithCPUCFS(quota, period))
+	}
+
+	if opts.Memory != "" {
+		memBytes, parseErr := ParseMemoryString(opts.Memory)
+		if parseErr != nil {
+			return "", fmt.Errorf("invalid memory limit: %w", parseErr)
+		}
+		ociOpts = append(ociOpts, oci.WithMemoryLimit(uint64(memBytes)))
+	}
+
+	// Network isolation (issue #91): set network namespace for "none" mode
+	if opts.NetworkMode == "none" {
+		ociOpts = append(ociOpts, oci.WithLinuxNamespace(specs.LinuxNamespace{
+			Type: specs.NetworkNamespace,
+		}))
+	}
+
 	// Create container with proper OCI spec
 	// Use Compose to combine base spec with customizations
 	container, err := r.client.NewContainer(
@@ -358,18 +407,7 @@ func (r *ContainerdRuntimeV2) startWorkspaceDirectAPI(ctx context.Context, opts 
 		client.WithNewSnapshot(containerName+"-snapshot", image),
 		client.WithRuntime("io.containerd.runc.v2", nil), // Explicitly use runc runtime
 		client.WithNewSpec(
-			oci.Compose(
-				oci.WithDefaultSpec(),
-				oci.WithDefaultUnixDevices,
-				oci.WithImageConfig(image),
-				oci.WithProcessArgs(command...),
-				oci.WithProcessCwd(workingDir),
-				oci.WithEnv(envSlice),
-				oci.WithMounts(mounts),
-				oci.WithUserID(uint32(uid)), // Run as non-root dev user (security: least privilege)
-				oci.WithUsername("dev"),
-				// Don't set TTY here - nerdctl exec will handle TTY allocation
-			),
+			oci.Compose(ociOpts...),
 		),
 	)
 	if err != nil {
