@@ -5,6 +5,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
@@ -38,6 +39,10 @@ type ThemeSetResult struct {
 	PreviousTheme  string            `yaml:"previousTheme,omitempty" json:"previousTheme,omitempty"`
 	EffectiveTheme string            `yaml:"effectiveTheme" json:"effectiveTheme"`
 	CascadeInfo    *ThemeCascadeInfo `yaml:"cascadeInfo,omitempty" json:"cascadeInfo,omitempty"`
+
+	// Internal fields for cascade resolution (not serialized)
+	resolverLevel resolver.HierarchyLevel `yaml:"-" json:"-"`
+	objectID      int                     `yaml:"-" json:"-"`
 }
 
 // ThemeCascadeInfo contains information about theme cascade effects
@@ -194,7 +199,23 @@ func runSetTheme(cmd *cobra.Command, args []string) error {
 	}
 	kvData.Pairs = append(kvData.Pairs, render.KeyValue{Key: "Effective Theme", Value: result.EffectiveTheme})
 
-	return render.OutputWith(setThemeOutput, kvData, opts)
+	if err := render.OutputWith(setThemeOutput, kvData, opts); err != nil {
+		return err
+	}
+
+	// Render cascade visualization if requested and available
+	if setThemeShowCascade && result.CascadeInfo != nil {
+		cascadeText := formatCascadeTree(result)
+		cascadeOpts := render.Options{
+			Type:  render.TypeRaw,
+			Title: "Theme Cascade",
+		}
+		if err := render.OutputWith(setThemeOutput, cascadeText, cascadeOpts); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // getEffectiveTheme determines what theme will be active after the change
@@ -256,21 +277,127 @@ func getParentLevelAndID(ds db.DataStore, level resolver.HierarchyLevel, objectI
 	}
 }
 
-// buildCascadeInfo builds cascade information for the result
+// buildCascadeInfo builds cascade information by using the hierarchy resolver
+// to trace the full resolution path from the target level up to global.
 func buildCascadeInfo(cmd *cobra.Command, ctx resource.Context, result *ThemeSetResult) (*ThemeCascadeInfo, error) {
-	// For now, return basic cascade info
-	// This could be enhanced to show actual resolution path
-	return &ThemeCascadeInfo{
-		AffectedLevels: []string{result.Level},
-		ResolutionPath: []CascadeStep{
-			{
-				Level:    result.Level,
-				Name:     result.ObjectName,
-				Theme:    result.Theme,
-				HasTheme: result.Theme != "",
+	// Get datastore for the resolver
+	sqlDS, err := resource.DataStoreAs[db.DataStore](ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DataStore: %w", err)
+	}
+
+	// For global level, return a single-step cascade
+	if result.resolverLevel == resolver.LevelGlobal {
+		return &ThemeCascadeInfo{
+			AffectedLevels: []string{"global"},
+			ResolutionPath: []CascadeStep{
+				{
+					Level:    "global",
+					Name:     "global-defaults",
+					Theme:    result.EffectiveTheme,
+					HasTheme: true,
+				},
 			},
-		},
+		}, nil
+	}
+
+	// Create resolver and get full resolution path
+	themeResolver := resolver.NewHierarchyThemeResolver(sqlDS, nil)
+	resolution, err := themeResolver.GetResolutionPath(
+		context.Background(), result.resolverLevel, result.objectID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get resolution path: %w", err)
+	}
+
+	// Convert resolver steps to CascadeSteps
+	cascadeSteps := make([]CascadeStep, 0, len(resolution.Path))
+	affectedLevels := make([]string, 0, len(resolution.Path))
+	for _, step := range resolution.Path {
+		cs := CascadeStep{
+			Level:    step.Level.String(),
+			Name:     step.Name,
+			Theme:    step.ThemeName,
+			HasTheme: step.Found,
+			Error:    step.Error,
+		}
+		cascadeSteps = append(cascadeSteps, cs)
+		affectedLevels = append(affectedLevels, step.Level.String())
+	}
+
+	return &ThemeCascadeInfo{
+		AffectedLevels: affectedLevels,
+		ResolutionPath: cascadeSteps,
 	}, nil
+}
+
+// formatCascadeTree builds a tree visualization of the theme cascade hierarchy.
+// The resolution path from the resolver walks from the target level UP to the
+// effective theme source. We reverse it for display so the tree goes from
+// global/ecosystem down to the target level, matching the natural hierarchy.
+//
+// Example output:
+//
+//	global          → coolnight-ocean
+//	└─ sandbox      → coolnight-synthwave (ecosystem override)
+//	   └─ python-apps → (inherit from ecosystem)
+//	      └─ fastapi-test → (inherit from domain)
+//	         └─ dev → coolnight-ocean ← SET HERE
+func formatCascadeTree(result *ThemeSetResult) string {
+	if result.CascadeInfo == nil || len(result.CascadeInfo.ResolutionPath) == 0 {
+		return ""
+	}
+
+	// The resolution path is ordered from the target level upward.
+	// Reverse it for display: top of hierarchy first.
+	steps := result.CascadeInfo.ResolutionPath
+	reversed := make([]CascadeStep, len(steps))
+	for i, step := range steps {
+		reversed[len(steps)-1-i] = step
+	}
+
+	var b strings.Builder
+	for i, step := range reversed {
+		// Build indentation with tree connectors
+		indent := ""
+		for j := 0; j < i; j++ {
+			indent += "   "
+		}
+		if i > 0 {
+			indent += "└─ "
+		}
+
+		// Format the step description
+		desc := formatCascadeStep(step, result)
+		b.WriteString(fmt.Sprintf("%s%s\n", indent, desc))
+	}
+
+	return b.String()
+}
+
+// formatCascadeStep formats a single step in the cascade tree
+func formatCascadeStep(step CascadeStep, result *ThemeSetResult) string {
+	label := step.Name
+	if label == "" {
+		label = step.Level
+	}
+
+	// Determine the annotation for this step
+	if step.HasTheme && step.Theme != "" {
+		annotation := step.Theme
+		// Mark the level where we just set the theme
+		if step.Level == result.Level && step.Name == result.ObjectName {
+			annotation += " ← SET HERE"
+		}
+		return fmt.Sprintf("%-14s → %s", label, annotation)
+	}
+
+	// No theme at this level — inheriting from parent
+	if step.Error != "" {
+		return fmt.Sprintf("%-14s → (error: %s)", label, step.Error)
+	}
+
+	return fmt.Sprintf("%-14s → (inherit from parent)", label)
 }
 
 // validateThemeExists checks if theme exists in library or store
@@ -310,6 +437,8 @@ func setEcosystemTheme(cmd *cobra.Command, ctx resource.Context, ecosystemName, 
 			Theme:          themeName,
 			PreviousTheme:  previousTheme,
 			EffectiveTheme: getEffectiveTheme(ctx, resolver.LevelEcosystem, ecosystem.ID, themeName),
+			resolverLevel:  resolver.LevelEcosystem,
+			objectID:       ecosystem.ID,
 		}, nil
 	}
 
@@ -340,6 +469,8 @@ func setEcosystemTheme(cmd *cobra.Command, ctx resource.Context, ecosystemName, 
 		Theme:          themeName,
 		PreviousTheme:  previousTheme,
 		EffectiveTheme: getEffectiveTheme(ctx, resolver.LevelEcosystem, ecosystem.ID, themeName),
+		resolverLevel:  resolver.LevelEcosystem,
+		objectID:       ecosystem.ID,
 	}, nil
 }
 
@@ -368,6 +499,8 @@ func setDomainTheme(cmd *cobra.Command, ctx resource.Context, domainName, themeN
 			Theme:          themeName,
 			PreviousTheme:  previousTheme,
 			EffectiveTheme: getEffectiveTheme(ctx, resolver.LevelDomain, domain.ID, themeName),
+			resolverLevel:  resolver.LevelDomain,
+			objectID:       domain.ID,
 		}, nil
 	}
 
@@ -408,6 +541,8 @@ func setDomainTheme(cmd *cobra.Command, ctx resource.Context, domainName, themeN
 		Theme:          themeName,
 		PreviousTheme:  previousTheme,
 		EffectiveTheme: getEffectiveTheme(ctx, resolver.LevelDomain, domain.ID, themeName),
+		resolverLevel:  resolver.LevelDomain,
+		objectID:       domain.ID,
 	}, nil
 }
 
@@ -436,6 +571,8 @@ func setAppTheme(cmd *cobra.Command, ctx resource.Context, appName, themeName st
 			Theme:          themeName,
 			PreviousTheme:  previousTheme,
 			EffectiveTheme: getEffectiveTheme(ctx, resolver.LevelApp, app.ID, themeName),
+			resolverLevel:  resolver.LevelApp,
+			objectID:       app.ID,
 		}, nil
 	}
 
@@ -476,6 +613,8 @@ func setAppTheme(cmd *cobra.Command, ctx resource.Context, appName, themeName st
 		Theme:          themeName,
 		PreviousTheme:  previousTheme,
 		EffectiveTheme: getEffectiveTheme(ctx, resolver.LevelApp, app.ID, themeName),
+		resolverLevel:  resolver.LevelApp,
+		objectID:       app.ID,
 	}, nil
 }
 
@@ -529,6 +668,8 @@ func setWorkspaceTheme(cmd *cobra.Command, ctx resource.Context, workspaceName, 
 			Theme:          themeName,
 			PreviousTheme:  previousTheme,
 			EffectiveTheme: getEffectiveTheme(ctx, resolver.LevelWorkspace, workspace.ID, themeName),
+			resolverLevel:  resolver.LevelWorkspace,
+			objectID:       workspace.ID,
 		}, nil
 	}
 
@@ -563,6 +704,8 @@ func setWorkspaceTheme(cmd *cobra.Command, ctx resource.Context, workspaceName, 
 		Theme:          themeName,
 		PreviousTheme:  previousTheme,
 		EffectiveTheme: getEffectiveTheme(ctx, resolver.LevelWorkspace, workspace.ID, themeName),
+		resolverLevel:  resolver.LevelWorkspace,
+		objectID:       workspace.ID,
 	}, nil
 }
 
@@ -592,6 +735,8 @@ func setGlobalDefaultTheme(cmd *cobra.Command, ctx resource.Context, themeName s
 			Theme:          themeName,
 			PreviousTheme:  previousTheme,
 			EffectiveTheme: effectiveTheme,
+			resolverLevel:  resolver.LevelGlobal,
+			objectID:       0,
 		}, nil
 	}
 
@@ -620,5 +765,7 @@ func setGlobalDefaultTheme(cmd *cobra.Command, ctx resource.Context, themeName s
 		Theme:          themeName,
 		PreviousTheme:  previousTheme,
 		EffectiveTheme: effectiveTheme,
+		resolverLevel:  resolver.LevelGlobal,
+		objectID:       0,
 	}, nil
 }

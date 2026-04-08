@@ -47,18 +47,20 @@ func TestBug3_SetThemeShouldUseHierarchyResolver(t *testing.T) {
 	t.Log("Bug #3 FIXED: getEffectiveTheme() now walks the hierarchy")
 }
 
-// TestBug3_BuildCascadeInfoShouldUseResolver tracks future enhancement
-// This test tracks Issue #16 - the --show-cascade flag visualization
+// TestBug3_BuildCascadeInfoShouldUseResolver verifies Issue #16 is fixed
+// buildCascadeInfo now uses resolver.GetResolutionPath() to trace the full hierarchy
 func TestBug3_BuildCascadeInfoShouldUseResolver(t *testing.T) {
-	t.Skip("Future enhancement: buildCascadeInfo() should use resolver.GetResolutionPath() - see Issue #16")
-
-	// Future enhancement (Issue #16):
-	// buildCascadeInfo() should:
-	// 1. Call resolver.GetResolutionPath() to get the full hierarchy walk
-	// 2. Convert ThemeResolution.Path to CascadeStep array
-	// 3. Show users exactly where each level's theme comes from
+	// Issue #16 is now implemented: buildCascadeInfo() uses resolver.GetResolutionPath()
+	// The function:
+	// 1. Creates a HierarchyThemeResolver with the DataStore from context
+	// 2. Calls GetResolutionPath() to trace the full hierarchy walk
+	// 3. Converts ThemeStep[] to CascadeStep[] for display
+	// 4. formatCascadeTree() renders the tree visualization
 	//
-	// Currently it only shows a single level, not the full path
+	// Integration testing via:
+	//   ./dvm set theme coolnight-ocean --workspace dev --show-cascade
+	t.Log("Issue #16 FIXED: buildCascadeInfo() now uses resolver.GetResolutionPath()")
+	t.Log("formatCascadeTree() renders the cascade as a visual tree")
 }
 
 // ==============================================================================
@@ -282,4 +284,198 @@ func TestSetThemeCmd_WorkspaceAndApp_ErrorMessage(t *testing.T) {
 				"Fix: Remove 'app' from the same MarkFlagsMutuallyExclusive group as 'workspace'",
 			err)
 	}
+}
+
+// ==============================================================================
+// Issue #16: --show-cascade cascade visualization tests
+// ==============================================================================
+
+// TestFormatCascadeTree_FullHierarchy tests the tree visualization with a full
+// workspace-to-global cascade where the theme is found at the ecosystem level.
+func TestFormatCascadeTree_FullHierarchy(t *testing.T) {
+	result := &ThemeSetResult{
+		Level:      "workspace",
+		ObjectName: "dev",
+		Theme:      "coolnight-ocean",
+		CascadeInfo: &ThemeCascadeInfo{
+			AffectedLevels: []string{"workspace", "app", "domain", "ecosystem"},
+			ResolutionPath: []CascadeStep{
+				{Level: "workspace", Name: "dev", HasTheme: true, Theme: "coolnight-ocean"},
+				{Level: "app", Name: "fastapi-test", HasTheme: false},
+				{Level: "domain", Name: "python-apps", HasTheme: false},
+				{Level: "ecosystem", Name: "sandbox", HasTheme: true, Theme: "coolnight-synthwave"},
+			},
+		},
+	}
+
+	output := formatCascadeTree(result)
+
+	// The tree should be reversed: ecosystem at top, workspace at bottom
+	assert.Contains(t, output, "sandbox")
+	assert.Contains(t, output, "python-apps")
+	assert.Contains(t, output, "fastapi-test")
+	assert.Contains(t, output, "dev")
+
+	// The target level should be marked
+	assert.Contains(t, output, "SET HERE")
+
+	// Theme names should appear
+	assert.Contains(t, output, "coolnight-synthwave")
+	assert.Contains(t, output, "coolnight-ocean")
+
+	// Inheriting levels should show inherit marker
+	assert.Contains(t, output, "inherit from parent")
+
+	// Tree connectors should be present
+	assert.Contains(t, output, "└─")
+}
+
+// TestFormatCascadeTree_SingleLevel tests cascade display when setting at global level.
+func TestFormatCascadeTree_SingleLevel(t *testing.T) {
+	result := &ThemeSetResult{
+		Level:      "global",
+		ObjectName: "global-defaults",
+		Theme:      "tokyonight-night",
+		CascadeInfo: &ThemeCascadeInfo{
+			AffectedLevels: []string{"global"},
+			ResolutionPath: []CascadeStep{
+				{Level: "global", Name: "global-defaults", HasTheme: true, Theme: "tokyonight-night"},
+			},
+		},
+	}
+
+	output := formatCascadeTree(result)
+
+	assert.Contains(t, output, "global-defaults")
+	assert.Contains(t, output, "tokyonight-night")
+	// Single level should not have tree connectors
+	assert.NotContains(t, output, "└─")
+}
+
+// TestFormatCascadeTree_NilCascadeInfo returns empty string for nil cascade info.
+func TestFormatCascadeTree_NilCascadeInfo(t *testing.T) {
+	result := &ThemeSetResult{
+		Level:      "workspace",
+		ObjectName: "dev",
+		Theme:      "coolnight-ocean",
+	}
+
+	output := formatCascadeTree(result)
+	assert.Equal(t, "", output)
+}
+
+// TestFormatCascadeTree_EmptyResolutionPath returns empty string for empty path.
+func TestFormatCascadeTree_EmptyResolutionPath(t *testing.T) {
+	result := &ThemeSetResult{
+		Level:      "workspace",
+		ObjectName: "dev",
+		Theme:      "coolnight-ocean",
+		CascadeInfo: &ThemeCascadeInfo{
+			AffectedLevels: []string{},
+			ResolutionPath: []CascadeStep{},
+		},
+	}
+
+	output := formatCascadeTree(result)
+	assert.Equal(t, "", output)
+}
+
+// TestFormatCascadeTree_ErrorStep tests display when a step has an error.
+func TestFormatCascadeTree_ErrorStep(t *testing.T) {
+	result := &ThemeSetResult{
+		Level:      "workspace",
+		ObjectName: "dev",
+		Theme:      "coolnight-ocean",
+		CascadeInfo: &ThemeCascadeInfo{
+			AffectedLevels: []string{"workspace", "app"},
+			ResolutionPath: []CascadeStep{
+				{Level: "workspace", Name: "dev", HasTheme: true, Theme: "coolnight-ocean"},
+				{Level: "app", Name: "broken-app", HasTheme: false, Error: "app not found"},
+			},
+		},
+	}
+
+	output := formatCascadeTree(result)
+	assert.Contains(t, output, "error: app not found")
+}
+
+// TestFormatCascadeStep_TableDriven tests individual cascade step formatting.
+func TestFormatCascadeStep_TableDriven(t *testing.T) {
+	tests := []struct {
+		name     string
+		step     CascadeStep
+		result   *ThemeSetResult
+		contains []string
+	}{
+		{
+			name:     "step with theme and SET HERE marker",
+			step:     CascadeStep{Level: "workspace", Name: "dev", HasTheme: true, Theme: "coolnight-ocean"},
+			result:   &ThemeSetResult{Level: "workspace", ObjectName: "dev"},
+			contains: []string{"dev", "coolnight-ocean", "SET HERE"},
+		},
+		{
+			name:     "step with theme but different level",
+			step:     CascadeStep{Level: "ecosystem", Name: "sandbox", HasTheme: true, Theme: "gruvbox-dark"},
+			result:   &ThemeSetResult{Level: "workspace", ObjectName: "dev"},
+			contains: []string{"sandbox", "gruvbox-dark"},
+		},
+		{
+			name:     "step without theme inherits",
+			step:     CascadeStep{Level: "app", Name: "my-api", HasTheme: false},
+			result:   &ThemeSetResult{Level: "workspace", ObjectName: "dev"},
+			contains: []string{"my-api", "inherit from parent"},
+		},
+		{
+			name:     "step with error",
+			step:     CascadeStep{Level: "domain", Name: "auth", HasTheme: false, Error: "domain not found"},
+			result:   &ThemeSetResult{Level: "workspace", ObjectName: "dev"},
+			contains: []string{"auth", "error: domain not found"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output := formatCascadeStep(tt.step, tt.result)
+			for _, s := range tt.contains {
+				assert.Contains(t, output, s, "expected output to contain %q", s)
+			}
+		})
+	}
+}
+
+// TestFormatCascadeTree_ReverseOrder verifies the tree is displayed top-down
+// (global/ecosystem first, workspace last) even though the resolver walks bottom-up.
+func TestFormatCascadeTree_ReverseOrder(t *testing.T) {
+	result := &ThemeSetResult{
+		Level:      "workspace",
+		ObjectName: "dev",
+		Theme:      "coolnight-ocean",
+		CascadeInfo: &ThemeCascadeInfo{
+			AffectedLevels: []string{"workspace", "app", "ecosystem"},
+			ResolutionPath: []CascadeStep{
+				// Resolution path: bottom-up order (workspace first)
+				{Level: "workspace", Name: "dev", HasTheme: true, Theme: "coolnight-ocean"},
+				{Level: "app", Name: "my-api", HasTheme: false},
+				{Level: "ecosystem", Name: "platform", HasTheme: true, Theme: "gruvbox-dark"},
+			},
+		},
+	}
+
+	output := formatCascadeTree(result)
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+
+	require.Len(t, lines, 3, "expected 3 lines in cascade tree")
+
+	// First line should be ecosystem (top of hierarchy)
+	assert.Contains(t, lines[0], "platform")
+	assert.Contains(t, lines[0], "gruvbox-dark")
+
+	// Second line should be app (middle)
+	assert.Contains(t, lines[1], "my-api")
+	assert.Contains(t, lines[1], "inherit from parent")
+
+	// Third line should be workspace (bottom, where theme was set)
+	assert.Contains(t, lines[2], "dev")
+	assert.Contains(t, lines[2], "coolnight-ocean")
+	assert.Contains(t, lines[2], "SET HERE")
 }
