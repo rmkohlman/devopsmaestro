@@ -8,8 +8,8 @@ import (
 	"devopsmaestro/operators"
 	themeresolver "devopsmaestro/pkg/colors/resolver"
 	"devopsmaestro/pkg/nvimbridge"
-	"github.com/rmkohlman/MaestroTerminal/terminalops/shell"
 	"github.com/rmkohlman/MaestroSDK/render"
+	"github.com/rmkohlman/MaestroTerminal/terminalops/shell"
 
 	"github.com/spf13/cobra"
 )
@@ -60,7 +60,13 @@ func getContext(cmd *cobra.Command) error {
 		}
 	}
 
-	// Check env var overrides (DVM_APP, DVM_WORKSPACE)
+	// Check env var overrides (DVM_ECOSYSTEM, DVM_DOMAIN, DVM_APP, DVM_WORKSPACE)
+	if envEco := os.Getenv("DVM_ECOSYSTEM"); envEco != "" {
+		ecosystemName = envEco
+	}
+	if envDom := os.Getenv("DVM_DOMAIN"); envDom != "" {
+		domainName = envDom
+	}
 	if envApp := os.Getenv("DVM_APP"); envApp != "" {
 		appName = envApp
 	}

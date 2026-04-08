@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"devopsmaestro/db"
-	"devopsmaestro/operators"
 	"fmt"
 	"github.com/rmkohlman/MaestroNvim/nvimops/package/library"
 	"github.com/rmkohlman/MaestroSDK/render"
@@ -48,16 +47,26 @@ Examples:
 		// Check if --clear flag was passed
 		clearAll, _ := cmd.Flags().GetBool("clear")
 		if clearAll {
-			contextMgr, err := operators.NewContextManager()
+			ds, err := getDataStore(cmd)
 			if err != nil {
-				return fmt.Errorf("failed to initialize context manager: %v", err)
+				return fmt.Errorf("dataStore not initialized: %w", err)
 			}
 
-			if err := contextMgr.ClearApp(); err != nil {
-				return fmt.Errorf("failed to clear context: %v", err)
+			// Clear all 4 DB context fields
+			if err := ds.SetActiveEcosystem(nil); err != nil {
+				return fmt.Errorf("failed to clear ecosystem context: %v", err)
+			}
+			if err := ds.SetActiveDomain(nil); err != nil {
+				return fmt.Errorf("failed to clear domain context: %v", err)
+			}
+			if err := ds.SetActiveApp(nil); err != nil {
+				return fmt.Errorf("failed to clear app context: %v", err)
+			}
+			if err := ds.SetActiveWorkspace(nil); err != nil {
+				return fmt.Errorf("failed to clear workspace context: %v", err)
 			}
 
-			render.Success("Cleared all context (app and workspace)")
+			render.Success("Cleared all context (ecosystem, domain, app, and workspace)")
 			return nil
 		}
 
@@ -86,20 +95,16 @@ Examples:
 
 		// Handle "none" to clear context
 		if appName == "none" {
-			contextMgr, err := operators.NewContextManager()
+			ds, err := getDataStore(cmd)
 			if err != nil {
-				return fmt.Errorf("failed to initialize context manager: %v", err)
+				return fmt.Errorf("dataStore not initialized: %w", err)
 			}
 
-			if err := contextMgr.ClearApp(); err != nil {
+			if err := ds.SetActiveApp(nil); err != nil {
 				return fmt.Errorf("failed to clear app context: %v", err)
 			}
-
-			// Also clear database context
-			ds, err := getDataStore(cmd)
-			if err == nil {
-				ds.SetActiveApp(nil)
-				ds.SetActiveWorkspace(nil)
+			if err := ds.SetActiveWorkspace(nil); err != nil {
+				return fmt.Errorf("failed to clear workspace context: %v", err)
 			}
 
 			render.Success("Cleared app context (workspace also cleared)")
@@ -127,19 +132,9 @@ Examples:
 			return nil
 		}
 
-		// Set app as active in context manager
-		contextMgr, err := operators.NewContextManager()
-		if err != nil {
-			return fmt.Errorf("failed to initialize context manager: %v", err)
-		}
-
-		if err := contextMgr.SetApp(appName); err != nil {
-			return fmt.Errorf("failed to set active app: %v", err)
-		}
-
-		// Also update database context
+		// Set app as active in database context
 		if err := ds.SetActiveApp(&app.ID); err != nil {
-			render.Warning(fmt.Sprintf("Failed to update database context: %v", err))
+			return fmt.Errorf("failed to set active app: %v", err)
 		}
 
 		render.Success(fmt.Sprintf("Switched to app '%s'", appName))
@@ -171,19 +166,13 @@ Examples:
 
 		// Handle "none" to clear context
 		if workspaceName == "none" {
-			contextMgr, err := operators.NewContextManager()
-			if err != nil {
-				return fmt.Errorf("failed to initialize context manager: %v", err)
-			}
-
-			if err := contextMgr.ClearWorkspace(); err != nil {
-				return fmt.Errorf("failed to clear workspace context: %v", err)
-			}
-
-			// Also clear database context
 			ds, err := getDataStore(cmd)
-			if err == nil {
-				ds.SetActiveWorkspace(nil)
+			if err != nil {
+				return fmt.Errorf("dataStore not initialized: %w", err)
+			}
+
+			if err := ds.SetActiveWorkspace(nil); err != nil {
+				return fmt.Errorf("failed to clear workspace context: %v", err)
 			}
 
 			render.Success("Cleared workspace context")
@@ -225,18 +214,9 @@ Examples:
 			return nil
 		}
 
-		// Set workspace as active in context manager (file-based write)
-		contextMgr, err := operators.NewContextManager()
-		if err != nil {
-			return fmt.Errorf("failed to initialize context manager: %v", err)
-		}
-		if err := contextMgr.SetWorkspace(workspaceName); err != nil {
-			return fmt.Errorf("failed to set active workspace: %v", err)
-		}
-
-		// Also update database context
+		// Update database context
 		if err := ds.SetActiveWorkspace(&workspace.ID); err != nil {
-			render.Warning(fmt.Sprintf("Failed to update database context: %v", err))
+			return fmt.Errorf("failed to set active workspace: %v", err)
 		}
 
 		render.Success(fmt.Sprintf("Switched to workspace '%s' in app '%s'", workspaceName, appName))

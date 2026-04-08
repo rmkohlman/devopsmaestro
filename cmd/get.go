@@ -120,12 +120,15 @@ var getContextCmd = &cobra.Command{
 	Use:     "context",
 	Aliases: []string{"ctx"},
 	Short:   "Display the current context",
-	Long: `Display the current active app and workspace context.
+	Long: `Display the current active context (ecosystem, domain, app, workspace).
 
-The context determines which app and workspace commands operate on by default.
-Set context with 'dvm use app <name>' and 'dvm use workspace <name>'.
+The context determines which resources commands operate on by default.
+Set context with 'dvm use ecosystem <name>', 'dvm use domain <name>',
+'dvm use app <name>', and 'dvm use workspace <name>'.
 
 Context can also be set via environment variables:
+  DVM_ECOSYSTEM  - Override active ecosystem
+  DVM_DOMAIN     - Override active domain
   DVM_APP        - Override active app
   DVM_WORKSPACE  - Override active workspace
 
