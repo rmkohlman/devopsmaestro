@@ -214,8 +214,9 @@ func init() {
 	getCmd.AddCommand(getRegistriesCmd)
 	getCmd.AddCommand(getRegistryCmd)
 
-	// Add output format flag to all get commands
-	// Maps to render package: json, yaml, plain, table, colored (default)
+	// Output format flag for get subcommands — shadows the root persistent flag
+	// so getCmd children read from getOutputFormat. When not explicitly set by
+	// user (empty string), render.OutputWith("") falls back to the global default.
 	getCmd.PersistentFlags().StringVarP(&getOutputFormat, "output", "o", "", "Output format (json, yaml, plain, table, colored)")
 
 	// Add hierarchy flags for workspace commands

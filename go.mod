@@ -161,3 +161,5 @@ require (
 	github.com/stretchr/testify v1.11.1
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 )
+
+replace github.com/rmkohlman/MaestroSDK => ../MaestroSDK

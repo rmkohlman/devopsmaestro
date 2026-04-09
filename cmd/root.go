@@ -19,11 +19,13 @@ import (
 )
 
 var (
-	verbose   bool
-	logLevel  string
-	logFormat string
-	logFile   string
-	noColor   bool
+	verbose      bool
+	logLevel     string
+	logFormat    string
+	logFile      string
+	noColor      bool
+	outputFormat string
+	themeFlag    string
 )
 
 // errSilent is returned by commands that have already displayed their error
@@ -144,6 +146,14 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&logFormat, "log-format", "text", "Set log format (text, json)")
 	rootCmd.PersistentFlags().StringVar(&logFile, "log-file", "", "Write logs to file (JSON format)")
 	rootCmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "Disable colored output")
+
+	// Output format flag — persistent so all subcommands inherit it
+	rootCmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "table",
+		"Output format: table, json, yaml, plain, compact, wide")
+
+	// Theme flag — persistent so all subcommands inherit it
+	rootCmd.PersistentFlags().StringVar(&themeFlag, "theme", "",
+		"Color theme for output (overrides DVM_THEME and config)")
 }
 
 // initLogging configures the global slog logger based on flags.
