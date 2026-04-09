@@ -29,6 +29,7 @@ type Workspace struct {
 	TerminalPrompt     sql.NullString `db:"terminal_prompt" json:"terminal_prompt,omitempty" yaml:"-"`
 	TerminalPlugins    sql.NullString `db:"terminal_plugins" json:"terminal_plugins,omitempty" yaml:"-"` // JSON array
 	TerminalPackage    sql.NullString `db:"terminal_package" json:"terminal_package,omitempty" yaml:"-"`
+	NvimPackage        sql.NullString `db:"nvim_package" json:"nvim_package,omitempty" yaml:"-"`
 	BuildConfig        sql.NullString `db:"build_config" json:"build_config,omitempty" yaml:"-"` // JSON: DevBuildConfig
 	GitRepoID          sql.NullInt64  `db:"git_repo_id" json:"git_repo_id,omitempty" yaml:"-"`
 	Env                sql.NullString `db:"env" json:"env,omitempty" yaml:"-"`
@@ -243,6 +244,10 @@ func (w *Workspace) ToYAML(appName string, gitRepoName string) WorkspaceYAML {
 	if w.Theme.Valid && w.Theme.String != "" {
 		nvimConfig.Theme = w.Theme.String
 	}
+	// Include nvim package if set at workspace level
+	if w.NvimPackage.Valid && w.NvimPackage.String != "" {
+		nvimConfig.PluginPackage = w.NvimPackage.String
+	}
 
 	// Parse terminal config from database
 	terminalConfig := TerminalConfig{}
@@ -339,7 +344,10 @@ func (w *Workspace) FromYAML(yaml WorkspaceYAML) {
 	if len(yaml.Spec.Nvim.Plugins) > 0 {
 		w.NvimPlugins = sql.NullString{String: strings.Join(yaml.Spec.Nvim.Plugins, ","), Valid: true}
 	}
-	// Note: PluginPackage is stored in YAML but needs separate handling (package lookup or store as name)
+	// Note: PluginPackage is stored in YAML and now maps to workspace NvimPackage column
+	if yaml.Spec.Nvim.PluginPackage != "" {
+		w.NvimPackage = sql.NullString{String: yaml.Spec.Nvim.PluginPackage, Valid: true}
+	}
 
 	// Terminal configuration
 	if yaml.Spec.Terminal.Prompt != "" {

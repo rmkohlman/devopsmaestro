@@ -73,8 +73,8 @@ Examples:
 	RunE: runSetTerminalPlugin,
 }
 
-// setTerminalPackageCmd sets a terminal package for a workspace
-var setTerminalPackageCmd = &cobra.Command{
+// setTerminalPackageWorkspaceCmd sets a terminal package for a workspace (dvm set terminal package)
+var setTerminalPackageWorkspaceCmd = &cobra.Command{
 	Use:   "package [name]",
 	Short: "Set terminal package for workspace",
 	Long: `Set a terminal package (bundle of plugins + prompts) for a workspace.
@@ -96,7 +96,7 @@ func init() {
 	// Add subcommands
 	setTerminalCmd.AddCommand(setTerminalPromptCmd)
 	setTerminalCmd.AddCommand(setTerminalPluginCmd)
-	setTerminalCmd.AddCommand(setTerminalPackageCmd)
+	setTerminalCmd.AddCommand(setTerminalPackageWorkspaceCmd)
 
 	// Flags for prompt command
 	setTerminalPromptCmd.Flags().StringVarP(&setTerminalWorkspaceFlag, "workspace", "w", "", "Workspace to configure (required)")
@@ -116,12 +116,12 @@ func init() {
 	setTerminalPluginCmd.MarkFlagRequired("workspace")
 
 	// Flags for package command
-	setTerminalPackageCmd.Flags().StringVarP(&setTerminalWorkspaceFlag, "workspace", "w", "", "Workspace to configure (required)")
-	setTerminalPackageCmd.Flags().StringVarP(&setTerminalAppFlag, "app", "a", "", "App for workspace (defaults to active)")
-	setTerminalPackageCmd.Flags().BoolVar(&setTerminalClearFlag, "clear", false, "Remove package from workspace")
-	AddDryRunFlag(setTerminalPackageCmd, &setTerminalDryRun)
-	setTerminalPackageCmd.Flags().StringVarP(&setTerminalOutput, "output", "o", "", "Output format (json, yaml, plain, table, colored)")
-	setTerminalPackageCmd.MarkFlagRequired("workspace")
+	setTerminalPackageWorkspaceCmd.Flags().StringVarP(&setTerminalWorkspaceFlag, "workspace", "w", "", "Workspace to configure (required)")
+	setTerminalPackageWorkspaceCmd.Flags().StringVarP(&setTerminalAppFlag, "app", "a", "", "App for workspace (defaults to active)")
+	setTerminalPackageWorkspaceCmd.Flags().BoolVar(&setTerminalClearFlag, "clear", false, "Remove package from workspace")
+	AddDryRunFlag(setTerminalPackageWorkspaceCmd, &setTerminalDryRun)
+	setTerminalPackageWorkspaceCmd.Flags().StringVarP(&setTerminalOutput, "output", "o", "", "Output format (json, yaml, plain, table, colored)")
+	setTerminalPackageWorkspaceCmd.MarkFlagRequired("workspace")
 }
 
 func runSetTerminalPrompt(cmd *cobra.Command, args []string) error {

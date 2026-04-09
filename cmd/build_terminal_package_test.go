@@ -6,13 +6,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rmkohlman/MaestroPalette"
 	terminalpkg "github.com/rmkohlman/MaestroTerminal/terminalops/package"
 	"github.com/rmkohlman/MaestroTerminal/terminalops/prompt"
 	promptextension "github.com/rmkohlman/MaestroTerminal/terminalops/prompt/extension"
 	promptextensionlibrary "github.com/rmkohlman/MaestroTerminal/terminalops/prompt/extension/library"
 	promptstyle "github.com/rmkohlman/MaestroTerminal/terminalops/prompt/style"
 	promptstylelibrary "github.com/rmkohlman/MaestroTerminal/terminalops/prompt/style/library"
-	"github.com/rmkohlman/MaestroPalette"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -141,9 +141,8 @@ func TestGetPromptFromPackage_WithPackageSet(t *testing.T) {
 	appName := "test-app"
 	workspaceName := "dev"
 
-	// THIS FUNCTION DOESN'T EXIST YET - Test should fail
-	// Expected signature: getPromptFromPackageOrDefault(ctx context.Context, ds db.DataStore, pkgStore, styleStore, extStore, appName, workspaceName string) (*prompt.PromptYAML, error)
-	promptYAML, err := getPromptFromPackageOrDefault(ctx, ds, pkgStore, styleStore, extStore, appName, workspaceName)
+	// Passing nil workspace: hierarchy resolver falls through to global default (ds.GetDefault)
+	promptYAML, err := getPromptFromPackageOrDefault(ctx, ds, pkgStore, styleStore, extStore, appName, workspaceName, nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, promptYAML)
@@ -197,7 +196,7 @@ func TestGetPromptFromPackage_NoPackageSet(t *testing.T) {
 	workspaceName := "dev"
 
 	// Should fall back to default prompt
-	promptYAML, err := getPromptFromPackageOrDefault(ctx, ds, pkgStore, styleStore, extStore, appName, workspaceName)
+	promptYAML, err := getPromptFromPackageOrDefault(ctx, ds, pkgStore, styleStore, extStore, appName, workspaceName, nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, promptYAML)
@@ -242,7 +241,7 @@ func TestGetPromptFromPackage_PackageNotFound(t *testing.T) {
 	workspaceName := "dev"
 
 	// Should fall back to default prompt
-	promptYAML, err := getPromptFromPackageOrDefault(ctx, ds, pkgStore, styleStore, extStore, appName, workspaceName)
+	promptYAML, err := getPromptFromPackageOrDefault(ctx, ds, pkgStore, styleStore, extStore, appName, workspaceName, nil)
 
 	require.NoError(t, err, "Should not error, but fall back gracefully")
 	require.NotNil(t, promptYAML)
@@ -297,7 +296,7 @@ func TestGetPromptFromPackage_PackageWithoutModularPrompt(t *testing.T) {
 	workspaceName := "dev"
 
 	// Should fall back to default prompt
-	promptYAML, err := getPromptFromPackageOrDefault(ctx, ds, pkgStore, styleStore, extStore, appName, workspaceName)
+	promptYAML, err := getPromptFromPackageOrDefault(ctx, ds, pkgStore, styleStore, extStore, appName, workspaceName, nil)
 
 	require.NoError(t, err, "Should not error, but fall back gracefully")
 	require.NotNil(t, promptYAML)
@@ -347,7 +346,7 @@ func TestGetPromptFromPackage_StyleNotFound(t *testing.T) {
 	workspaceName := "dev"
 
 	// Should fall back to default prompt
-	promptYAML, err := getPromptFromPackageOrDefault(ctx, ds, pkgStore, styleStore, extStore, appName, workspaceName)
+	promptYAML, err := getPromptFromPackageOrDefault(ctx, ds, pkgStore, styleStore, extStore, appName, workspaceName, nil)
 
 	require.NoError(t, err, "Should not error, but fall back gracefully")
 	require.NotNil(t, promptYAML)
@@ -405,7 +404,7 @@ func TestGetPromptFromPackage_ExtensionNotFound(t *testing.T) {
 	workspaceName := "dev"
 
 	// Should compose with available extensions
-	promptYAML, err := getPromptFromPackageOrDefault(ctx, ds, pkgStore, styleStore, extStore, appName, workspaceName)
+	promptYAML, err := getPromptFromPackageOrDefault(ctx, ds, pkgStore, styleStore, extStore, appName, workspaceName, nil)
 
 	require.NoError(t, err, "Should not error, but compose with available extensions")
 	require.NotNil(t, promptYAML)
@@ -464,7 +463,7 @@ func TestGetPromptFromPackage_WithThemePalette(t *testing.T) {
 	workspaceName := "dev"
 
 	// Get composed prompt
-	promptYAML, err := getPromptFromPackageOrDefault(ctx, ds, pkgStore, styleStore, extStore, appName, workspaceName)
+	promptYAML, err := getPromptFromPackageOrDefault(ctx, ds, pkgStore, styleStore, extStore, appName, workspaceName, nil)
 	require.NoError(t, err)
 	require.NotNil(t, promptYAML)
 
@@ -547,7 +546,7 @@ func TestGetPromptFromPackage_PromptNamingConvention(t *testing.T) {
 			ctx := context.Background()
 
 			// Execute
-			promptYAML, err := getPromptFromPackageOrDefault(ctx, ds, pkgStore, styleStore, extStore, tt.appName, tt.workspaceName)
+			promptYAML, err := getPromptFromPackageOrDefault(ctx, ds, pkgStore, styleStore, extStore, tt.appName, tt.workspaceName, nil)
 
 			// Assert
 			require.NoError(t, err)

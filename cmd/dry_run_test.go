@@ -54,7 +54,7 @@ func TestDryRunFlagRegistered(t *testing.T) {
 		{"set nvim plugin", setNvimPluginCmd},
 		{"set terminal prompt", setTerminalPromptCmd},
 		{"set terminal plugin", setTerminalPluginCmd},
-		{"set terminal package", setTerminalPackageCmd},
+		{"set terminal package", setTerminalPackageWorkspaceCmd},
 	}
 
 	for _, tt := range tests {

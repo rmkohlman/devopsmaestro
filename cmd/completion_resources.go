@@ -351,8 +351,8 @@ func registerAllResourceCompletions() {
 	if terminalGetPackageCmd != nil {
 		terminalGetPackageCmd.ValidArgsFunction = completeTerminalPackages
 	}
-	if setTerminalPackageCmd != nil {
-		setTerminalPackageCmd.ValidArgsFunction = completeTerminalPackages
+	if setTerminalPackageWorkspaceCmd != nil {
+		setTerminalPackageWorkspaceCmd.ValidArgsFunction = completeTerminalPackages
 	}
 	if useTerminalPackageCmd != nil {
 		useTerminalPackageCmd.ValidArgsFunction = completeTerminalPackages
@@ -460,7 +460,7 @@ func registerAllFlagCompletions() {
 	}
 
 	// === Terminal commands with --workspace and --app flags ===
-	for _, cmd := range []*cobra.Command{setTerminalPromptCmd, setTerminalPluginCmd, setTerminalPackageCmd} {
+	for _, cmd := range []*cobra.Command{setTerminalPromptCmd, setTerminalPluginCmd, setTerminalPackageWorkspaceCmd} {
 		if cmd != nil {
 			registerWorkspaceAppFlagCompletions(cmd)
 		}

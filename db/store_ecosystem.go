@@ -14,10 +14,10 @@ import (
 
 // CreateEcosystem inserts a new ecosystem into the database.
 func (ds *SQLDataStore) CreateEcosystem(ecosystem *models.Ecosystem) error {
-	query := fmt.Sprintf(`INSERT INTO ecosystems (name, description, theme, build_args, ca_certs, created_at, updated_at) 
-		VALUES (?, ?, ?, ?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
+	query := fmt.Sprintf(`INSERT INTO ecosystems (name, description, theme, nvim_package, terminal_package, build_args, ca_certs, created_at, updated_at) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
 
-	result, err := ds.driver.Execute(query, ecosystem.Name, ecosystem.Description, ecosystem.Theme, ecosystem.BuildArgs, ecosystem.CACerts)
+	result, err := ds.driver.Execute(query, ecosystem.Name, ecosystem.Description, ecosystem.Theme, ecosystem.NvimPackage, ecosystem.TerminalPackage, ecosystem.BuildArgs, ecosystem.CACerts)
 	if err != nil {
 		return fmt.Errorf("failed to create ecosystem: %w", err)
 	}
@@ -33,10 +33,10 @@ func (ds *SQLDataStore) CreateEcosystem(ecosystem *models.Ecosystem) error {
 // GetEcosystemByName retrieves an ecosystem by its name.
 func (ds *SQLDataStore) GetEcosystemByName(name string) (*models.Ecosystem, error) {
 	ecosystem := &models.Ecosystem{}
-	query := `SELECT id, name, description, theme, build_args, ca_certs, created_at, updated_at FROM ecosystems WHERE name = ?`
+	query := `SELECT id, name, description, theme, nvim_package, terminal_package, build_args, ca_certs, created_at, updated_at FROM ecosystems WHERE name = ?`
 
 	row := ds.driver.QueryRow(query, name)
-	if err := row.Scan(&ecosystem.ID, &ecosystem.Name, &ecosystem.Description, &ecosystem.Theme, &ecosystem.BuildArgs, &ecosystem.CACerts, &ecosystem.CreatedAt, &ecosystem.UpdatedAt); err != nil {
+	if err := row.Scan(&ecosystem.ID, &ecosystem.Name, &ecosystem.Description, &ecosystem.Theme, &ecosystem.NvimPackage, &ecosystem.TerminalPackage, &ecosystem.BuildArgs, &ecosystem.CACerts, &ecosystem.CreatedAt, &ecosystem.UpdatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("ecosystem", name)
 		}
@@ -49,10 +49,10 @@ func (ds *SQLDataStore) GetEcosystemByName(name string) (*models.Ecosystem, erro
 // GetEcosystemByID retrieves an ecosystem by its ID.
 func (ds *SQLDataStore) GetEcosystemByID(id int) (*models.Ecosystem, error) {
 	ecosystem := &models.Ecosystem{}
-	query := `SELECT id, name, description, theme, build_args, ca_certs, created_at, updated_at FROM ecosystems WHERE id = ?`
+	query := `SELECT id, name, description, theme, nvim_package, terminal_package, build_args, ca_certs, created_at, updated_at FROM ecosystems WHERE id = ?`
 
 	row := ds.driver.QueryRow(query, id)
-	if err := row.Scan(&ecosystem.ID, &ecosystem.Name, &ecosystem.Description, &ecosystem.Theme, &ecosystem.BuildArgs, &ecosystem.CACerts, &ecosystem.CreatedAt, &ecosystem.UpdatedAt); err != nil {
+	if err := row.Scan(&ecosystem.ID, &ecosystem.Name, &ecosystem.Description, &ecosystem.Theme, &ecosystem.NvimPackage, &ecosystem.TerminalPackage, &ecosystem.BuildArgs, &ecosystem.CACerts, &ecosystem.CreatedAt, &ecosystem.UpdatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("ecosystem", id)
 		}
@@ -64,10 +64,10 @@ func (ds *SQLDataStore) GetEcosystemByID(id int) (*models.Ecosystem, error) {
 
 // UpdateEcosystem updates an existing ecosystem.
 func (ds *SQLDataStore) UpdateEcosystem(ecosystem *models.Ecosystem) error {
-	query := fmt.Sprintf(`UPDATE ecosystems SET name = ?, description = ?, theme = ?, build_args = ?, ca_certs = ?, updated_at = %s WHERE id = ?`,
+	query := fmt.Sprintf(`UPDATE ecosystems SET name = ?, description = ?, theme = ?, nvim_package = ?, terminal_package = ?, build_args = ?, ca_certs = ?, updated_at = %s WHERE id = ?`,
 		ds.queryBuilder.Now())
 
-	_, err := ds.driver.Execute(query, ecosystem.Name, ecosystem.Description, ecosystem.Theme, ecosystem.BuildArgs, ecosystem.CACerts, ecosystem.ID)
+	_, err := ds.driver.Execute(query, ecosystem.Name, ecosystem.Description, ecosystem.Theme, ecosystem.NvimPackage, ecosystem.TerminalPackage, ecosystem.BuildArgs, ecosystem.CACerts, ecosystem.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update ecosystem: %w", err)
 	}
@@ -128,7 +128,7 @@ func (ds *SQLDataStore) DeleteEcosystem(name string) error {
 
 // ListEcosystems retrieves all ecosystems.
 func (ds *SQLDataStore) ListEcosystems() ([]*models.Ecosystem, error) {
-	query := `SELECT id, name, description, theme, build_args, ca_certs, created_at, updated_at FROM ecosystems ORDER BY name`
+	query := `SELECT id, name, description, theme, nvim_package, terminal_package, build_args, ca_certs, created_at, updated_at FROM ecosystems ORDER BY name`
 
 	rows, err := ds.driver.Query(query)
 	if err != nil {
@@ -139,7 +139,7 @@ func (ds *SQLDataStore) ListEcosystems() ([]*models.Ecosystem, error) {
 	var ecosystems []*models.Ecosystem
 	for rows.Next() {
 		ecosystem := &models.Ecosystem{}
-		if err := rows.Scan(&ecosystem.ID, &ecosystem.Name, &ecosystem.Description, &ecosystem.Theme, &ecosystem.BuildArgs, &ecosystem.CACerts, &ecosystem.CreatedAt, &ecosystem.UpdatedAt); err != nil {
+		if err := rows.Scan(&ecosystem.ID, &ecosystem.Name, &ecosystem.Description, &ecosystem.Theme, &ecosystem.NvimPackage, &ecosystem.TerminalPackage, &ecosystem.BuildArgs, &ecosystem.CACerts, &ecosystem.CreatedAt, &ecosystem.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan ecosystem: %w", err)
 		}
 		ecosystems = append(ecosystems, ecosystem)

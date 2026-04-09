@@ -42,9 +42,9 @@ type PromptExtensionStore interface {
 // or falls back to createDefaultTerminalPrompt().
 //
 // Logic:
-// 1. Check ds.GetDefault("terminal-package")
-// 2. If not set -> fall back to createDefaultTerminalPrompt()
-// 3. If set -> load package from pkgStore
+// 1. Resolve terminal package from hierarchy (workspace → app → domain → ecosystem → global)
+// 2. If not resolved -> fall back to createDefaultTerminalPrompt()
+// 3. If resolved -> load package from pkgStore
 // 4. Check UsesModularPrompt() - if false, fall back
 // 5. Load style from styleStore
 // 6. Load extensions from extStore
@@ -59,12 +59,13 @@ func getPromptFromPackageOrDefault(
 	styleStore PromptStyleStore,
 	extStore PromptExtensionStore,
 	appName, workspaceName string,
+	workspace *models.Workspace,
 ) (*prompt.PromptYAML, error) {
-	// Step 1: Check for terminal-package default
-	packageName, err := ds.GetDefault("terminal-package")
-	if err != nil || packageName == "" {
-		// No terminal package set, use default
-		slog.Debug("no terminal-package default set, using hardcoded default")
+	// Step 1: Resolve terminal package from hierarchy
+	packageName := resolveTerminalPackageFromHierarchy(ds, workspace)
+	if packageName == "" {
+		// No terminal package resolved at any level, use default
+		slog.Debug("no terminal package resolved from hierarchy, using hardcoded default")
 		return createDefaultTerminalPrompt(appName, workspaceName), nil
 	}
 
@@ -218,7 +219,7 @@ compinit
 
 	// Get prompt from package or default
 	ctx := context.Background()
-	promptYAML, err := getPromptFromPackageOrDefault(ctx, ds, pkgLib, styleLibrary, extLibrary, appName, workspaceName)
+	promptYAML, err := getPromptFromPackageOrDefault(ctx, ds, pkgLib, styleLibrary, extLibrary, appName, workspaceName, workspace)
 	if err != nil {
 		slog.Warn("failed to get prompt from package, using hardcoded default", "error", err)
 		promptYAML = createDefaultTerminalPrompt(appName, workspaceName)

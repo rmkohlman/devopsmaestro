@@ -12,12 +12,14 @@ import (
 //
 // Hierarchy: Ecosystem -> Domain -> App -> Workspace
 type App struct {
-	ID          int            `db:"id" json:"id" yaml:"-"`
-	DomainID    int            `db:"domain_id" json:"domain_id" yaml:"-"`
-	Name        string         `db:"name" json:"name" yaml:"name"`
-	Path        string         `db:"path" json:"path" yaml:"path"`
-	Description sql.NullString `db:"description" json:"description,omitempty" yaml:"description,omitempty"`
-	Theme       sql.NullString `db:"theme" json:"theme,omitempty" yaml:"theme,omitempty"`
+	ID              int            `db:"id" json:"id" yaml:"-"`
+	DomainID        int            `db:"domain_id" json:"domain_id" yaml:"-"`
+	Name            string         `db:"name" json:"name" yaml:"name"`
+	Path            string         `db:"path" json:"path" yaml:"path"`
+	Description     sql.NullString `db:"description" json:"description,omitempty" yaml:"description,omitempty"`
+	Theme           sql.NullString `db:"theme" json:"theme,omitempty" yaml:"theme,omitempty"`
+	NvimPackage     sql.NullString `db:"nvim_package" json:"nvim_package,omitempty" yaml:"nvim_package,omitempty"`
+	TerminalPackage sql.NullString `db:"terminal_package" json:"terminal_package,omitempty" yaml:"terminal_package,omitempty"`
 	// Language and build config stored as JSON in database
 	Language    sql.NullString `db:"language" json:"language,omitempty" yaml:"-"`
 	BuildConfig sql.NullString `db:"build_config" json:"build_config,omitempty" yaml:"-"`
@@ -45,16 +47,18 @@ type AppMetadata struct {
 
 // AppSpec contains app specification - everything about the codebase
 type AppSpec struct {
-	Path         string             `yaml:"path"`
-	Theme        string             `yaml:"theme,omitempty"`
-	GitRepo      string             `yaml:"gitRepo,omitempty"`
-	Language     AppLanguageConfig  `yaml:"language,omitempty"`
-	Build        AppBuildConfig     `yaml:"build,omitempty"`
-	Dependencies AppDependencies    `yaml:"dependencies,omitempty"`
-	Services     []AppServiceConfig `yaml:"services,omitempty"`
-	Env          map[string]string  `yaml:"env,omitempty"`
-	Ports        []string           `yaml:"ports,omitempty"`
-	Workspaces   []string           `yaml:"workspaces,omitempty"`
+	Path            string             `yaml:"path"`
+	Theme           string             `yaml:"theme,omitempty"`
+	NvimPackage     string             `yaml:"nvimPackage,omitempty"`
+	TerminalPackage string             `yaml:"terminalPackage,omitempty"`
+	GitRepo         string             `yaml:"gitRepo,omitempty"`
+	Language        AppLanguageConfig  `yaml:"language,omitempty"`
+	Build           AppBuildConfig     `yaml:"build,omitempty"`
+	Dependencies    AppDependencies    `yaml:"dependencies,omitempty"`
+	Services        []AppServiceConfig `yaml:"services,omitempty"`
+	Env             map[string]string  `yaml:"env,omitempty"`
+	Ports           []string           `yaml:"ports,omitempty"`
+	Workspaces      []string           `yaml:"workspaces,omitempty"`
 }
 
 // AppLanguageConfig defines the primary language/runtime for the app
@@ -130,6 +134,16 @@ func (a *App) ToYAML(domainName string, workspaceNames []string, gitRepoName str
 		theme = a.Theme.String
 	}
 
+	nvimPackage := ""
+	if a.NvimPackage.Valid {
+		nvimPackage = a.NvimPackage.String
+	}
+
+	terminalPackage := ""
+	if a.TerminalPackage.Valid {
+		terminalPackage = a.TerminalPackage.String
+	}
+
 	return AppYAML{
 		APIVersion: "devopsmaestro.io/v1",
 		Kind:       "App",
@@ -140,12 +154,14 @@ func (a *App) ToYAML(domainName string, workspaceNames []string, gitRepoName str
 			Annotations: annotations,
 		},
 		Spec: AppSpec{
-			Path:       a.Path,
-			Theme:      theme,
-			GitRepo:    gitRepoName,
-			Language:   langConfig,
-			Build:      buildConfig,
-			Workspaces: workspaceNames,
+			Path:            a.Path,
+			Theme:           theme,
+			NvimPackage:     nvimPackage,
+			TerminalPackage: terminalPackage,
+			GitRepo:         gitRepoName,
+			Language:        langConfig,
+			Build:           buildConfig,
+			Workspaces:      workspaceNames,
 		},
 	}
 }
@@ -161,6 +177,14 @@ func (a *App) FromYAML(yaml AppYAML) {
 
 	if yaml.Spec.Theme != "" {
 		a.Theme = sql.NullString{String: yaml.Spec.Theme, Valid: true}
+	}
+
+	if yaml.Spec.NvimPackage != "" {
+		a.NvimPackage = sql.NullString{String: yaml.Spec.NvimPackage, Valid: true}
+	}
+
+	if yaml.Spec.TerminalPackage != "" {
+		a.TerminalPackage = sql.NullString{String: yaml.Spec.TerminalPackage, Valid: true}
 	}
 
 	// Store language config as JSON

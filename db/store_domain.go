@@ -14,10 +14,10 @@ import (
 
 // CreateDomain inserts a new domain into the database.
 func (ds *SQLDataStore) CreateDomain(domain *models.Domain) error {
-	query := fmt.Sprintf(`INSERT INTO domains (ecosystem_id, name, description, theme, build_args, ca_certs, created_at, updated_at) 
-		VALUES (?, ?, ?, ?, ?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
+	query := fmt.Sprintf(`INSERT INTO domains (ecosystem_id, name, description, theme, nvim_package, terminal_package, build_args, ca_certs, created_at, updated_at) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, %s, %s)`, ds.queryBuilder.Now(), ds.queryBuilder.Now())
 
-	result, err := ds.driver.Execute(query, domain.EcosystemID, domain.Name, domain.Description, domain.Theme, domain.BuildArgs, domain.CACerts)
+	result, err := ds.driver.Execute(query, domain.EcosystemID, domain.Name, domain.Description, domain.Theme, domain.NvimPackage, domain.TerminalPackage, domain.BuildArgs, domain.CACerts)
 	if err != nil {
 		return fmt.Errorf("failed to create domain: %w", err)
 	}
@@ -33,10 +33,10 @@ func (ds *SQLDataStore) CreateDomain(domain *models.Domain) error {
 // GetDomainByName retrieves a domain by ecosystem ID and name.
 func (ds *SQLDataStore) GetDomainByName(ecosystemID int, name string) (*models.Domain, error) {
 	domain := &models.Domain{}
-	query := `SELECT id, ecosystem_id, name, description, theme, build_args, ca_certs, created_at, updated_at FROM domains WHERE ecosystem_id = ? AND name = ?`
+	query := `SELECT id, ecosystem_id, name, description, theme, nvim_package, terminal_package, build_args, ca_certs, created_at, updated_at FROM domains WHERE ecosystem_id = ? AND name = ?`
 
 	row := ds.driver.QueryRow(query, ecosystemID, name)
-	if err := row.Scan(&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description, &domain.Theme, &domain.BuildArgs, &domain.CACerts, &domain.CreatedAt, &domain.UpdatedAt); err != nil {
+	if err := row.Scan(&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description, &domain.Theme, &domain.NvimPackage, &domain.TerminalPackage, &domain.BuildArgs, &domain.CACerts, &domain.CreatedAt, &domain.UpdatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("domain", name)
 		}
@@ -49,10 +49,10 @@ func (ds *SQLDataStore) GetDomainByName(ecosystemID int, name string) (*models.D
 // GetDomainByID retrieves a domain by its ID.
 func (ds *SQLDataStore) GetDomainByID(id int) (*models.Domain, error) {
 	domain := &models.Domain{}
-	query := `SELECT id, ecosystem_id, name, description, theme, build_args, ca_certs, created_at, updated_at FROM domains WHERE id = ?`
+	query := `SELECT id, ecosystem_id, name, description, theme, nvim_package, terminal_package, build_args, ca_certs, created_at, updated_at FROM domains WHERE id = ?`
 
 	row := ds.driver.QueryRow(query, id)
-	if err := row.Scan(&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description, &domain.Theme, &domain.BuildArgs, &domain.CACerts, &domain.CreatedAt, &domain.UpdatedAt); err != nil {
+	if err := row.Scan(&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description, &domain.Theme, &domain.NvimPackage, &domain.TerminalPackage, &domain.BuildArgs, &domain.CACerts, &domain.CreatedAt, &domain.UpdatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("domain", id)
 		}
@@ -64,10 +64,10 @@ func (ds *SQLDataStore) GetDomainByID(id int) (*models.Domain, error) {
 
 // UpdateDomain updates an existing domain.
 func (ds *SQLDataStore) UpdateDomain(domain *models.Domain) error {
-	query := fmt.Sprintf(`UPDATE domains SET ecosystem_id = ?, name = ?, description = ?, theme = ?, build_args = ?, ca_certs = ?, updated_at = %s WHERE id = ?`,
+	query := fmt.Sprintf(`UPDATE domains SET ecosystem_id = ?, name = ?, description = ?, theme = ?, nvim_package = ?, terminal_package = ?, build_args = ?, ca_certs = ?, updated_at = %s WHERE id = ?`,
 		ds.queryBuilder.Now())
 
-	_, err := ds.driver.Execute(query, domain.EcosystemID, domain.Name, domain.Description, domain.Theme, domain.BuildArgs, domain.CACerts, domain.ID)
+	_, err := ds.driver.Execute(query, domain.EcosystemID, domain.Name, domain.Description, domain.Theme, domain.NvimPackage, domain.TerminalPackage, domain.BuildArgs, domain.CACerts, domain.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update domain: %w", err)
 	}
@@ -116,7 +116,7 @@ func (ds *SQLDataStore) DeleteDomain(id int) error {
 
 // ListDomainsByEcosystem retrieves all domains for an ecosystem.
 func (ds *SQLDataStore) ListDomainsByEcosystem(ecosystemID int) ([]*models.Domain, error) {
-	query := `SELECT id, ecosystem_id, name, description, theme, build_args, ca_certs, created_at, updated_at FROM domains WHERE ecosystem_id = ? ORDER BY name`
+	query := `SELECT id, ecosystem_id, name, description, theme, nvim_package, terminal_package, build_args, ca_certs, created_at, updated_at FROM domains WHERE ecosystem_id = ? ORDER BY name`
 
 	rows, err := ds.driver.Query(query, ecosystemID)
 	if err != nil {
@@ -127,7 +127,7 @@ func (ds *SQLDataStore) ListDomainsByEcosystem(ecosystemID int) ([]*models.Domai
 	var domains []*models.Domain
 	for rows.Next() {
 		domain := &models.Domain{}
-		if err := rows.Scan(&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description, &domain.Theme, &domain.BuildArgs, &domain.CACerts, &domain.CreatedAt, &domain.UpdatedAt); err != nil {
+		if err := rows.Scan(&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description, &domain.Theme, &domain.NvimPackage, &domain.TerminalPackage, &domain.BuildArgs, &domain.CACerts, &domain.CreatedAt, &domain.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan domain: %w", err)
 		}
 		domains = append(domains, domain)
@@ -142,7 +142,7 @@ func (ds *SQLDataStore) ListDomainsByEcosystem(ecosystemID int) ([]*models.Domai
 
 // ListAllDomains retrieves all domains across all ecosystems.
 func (ds *SQLDataStore) ListAllDomains() ([]*models.Domain, error) {
-	query := `SELECT id, ecosystem_id, name, description, theme, build_args, ca_certs, created_at, updated_at FROM domains ORDER BY ecosystem_id, name`
+	query := `SELECT id, ecosystem_id, name, description, theme, nvim_package, terminal_package, build_args, ca_certs, created_at, updated_at FROM domains ORDER BY ecosystem_id, name`
 
 	rows, err := ds.driver.Query(query)
 	if err != nil {
@@ -153,7 +153,7 @@ func (ds *SQLDataStore) ListAllDomains() ([]*models.Domain, error) {
 	var domains []*models.Domain
 	for rows.Next() {
 		domain := &models.Domain{}
-		if err := rows.Scan(&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description, &domain.Theme, &domain.BuildArgs, &domain.CACerts, &domain.CreatedAt, &domain.UpdatedAt); err != nil {
+		if err := rows.Scan(&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description, &domain.Theme, &domain.NvimPackage, &domain.TerminalPackage, &domain.BuildArgs, &domain.CACerts, &domain.CreatedAt, &domain.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan domain: %w", err)
 		}
 		domains = append(domains, domain)
@@ -171,8 +171,8 @@ func (ds *SQLDataStore) ListAllDomains() ([]*models.Domain, error) {
 // Returns an empty slice (not an error) if no domains match.
 func (ds *SQLDataStore) FindDomainsByName(name string) ([]*models.DomainWithHierarchy, error) {
 	query := `SELECT 
-		d.id, d.ecosystem_id, d.name, d.description, d.theme, d.build_args, d.ca_certs, d.created_at, d.updated_at,
-		e.id, e.name, e.description, e.theme, e.build_args, e.ca_certs, e.created_at, e.updated_at
+		d.id, d.ecosystem_id, d.name, d.description, d.theme, d.nvim_package, d.terminal_package, d.build_args, d.ca_certs, d.created_at, d.updated_at,
+		e.id, e.name, e.description, e.theme, e.nvim_package, e.terminal_package, e.build_args, e.ca_certs, e.created_at, e.updated_at
 	FROM domains d
 	JOIN ecosystems e ON d.ecosystem_id = e.id
 	WHERE d.name = ?
@@ -191,9 +191,9 @@ func (ds *SQLDataStore) FindDomainsByName(name string) ([]*models.DomainWithHier
 
 		if err := rows.Scan(
 			// Domain fields
-			&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description, &domain.Theme, &domain.BuildArgs, &domain.CACerts, &domain.CreatedAt, &domain.UpdatedAt,
+			&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description, &domain.Theme, &domain.NvimPackage, &domain.TerminalPackage, &domain.BuildArgs, &domain.CACerts, &domain.CreatedAt, &domain.UpdatedAt,
 			// Ecosystem fields
-			&ecosystem.ID, &ecosystem.Name, &ecosystem.Description, &ecosystem.Theme, &ecosystem.BuildArgs, &ecosystem.CACerts, &ecosystem.CreatedAt, &ecosystem.UpdatedAt,
+			&ecosystem.ID, &ecosystem.Name, &ecosystem.Description, &ecosystem.Theme, &ecosystem.NvimPackage, &ecosystem.TerminalPackage, &ecosystem.BuildArgs, &ecosystem.CACerts, &ecosystem.CreatedAt, &ecosystem.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan domain with hierarchy: %w", err)
 		}

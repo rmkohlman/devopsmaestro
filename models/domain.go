@@ -11,15 +11,17 @@ import (
 //
 // Hierarchy: Ecosystem -> Domain -> App -> Workspace
 type Domain struct {
-	ID          int            `db:"id" json:"id" yaml:"-"`
-	EcosystemID int            `db:"ecosystem_id" json:"ecosystem_id" yaml:"-"`
-	Name        string         `db:"name" json:"name" yaml:"name"`
-	Description sql.NullString `db:"description" json:"description,omitempty" yaml:"description,omitempty"`
-	Theme       sql.NullString `db:"theme" json:"theme,omitempty" yaml:"theme,omitempty"`
-	BuildArgs   sql.NullString `db:"build_args" json:"build_args,omitempty" yaml:"-"`
-	CACerts     sql.NullString `db:"ca_certs" json:"ca_certs,omitempty" yaml:"-"`
-	CreatedAt   time.Time      `db:"created_at" json:"created_at" yaml:"-"`
-	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at" yaml:"-"`
+	ID              int            `db:"id" json:"id" yaml:"-"`
+	EcosystemID     int            `db:"ecosystem_id" json:"ecosystem_id" yaml:"-"`
+	Name            string         `db:"name" json:"name" yaml:"name"`
+	Description     sql.NullString `db:"description" json:"description,omitempty" yaml:"description,omitempty"`
+	Theme           sql.NullString `db:"theme" json:"theme,omitempty" yaml:"theme,omitempty"`
+	NvimPackage     sql.NullString `db:"nvim_package" json:"nvim_package,omitempty" yaml:"nvim_package,omitempty"`
+	TerminalPackage sql.NullString `db:"terminal_package" json:"terminal_package,omitempty" yaml:"terminal_package,omitempty"`
+	BuildArgs       sql.NullString `db:"build_args" json:"build_args,omitempty" yaml:"-"`
+	CACerts         sql.NullString `db:"ca_certs" json:"ca_certs,omitempty" yaml:"-"`
+	CreatedAt       time.Time      `db:"created_at" json:"created_at" yaml:"-"`
+	UpdatedAt       time.Time      `db:"updated_at" json:"updated_at" yaml:"-"`
 }
 
 // DomainYAML represents the YAML serialization format for a domain
@@ -40,10 +42,12 @@ type DomainMetadata struct {
 
 // DomainSpec contains domain specification
 type DomainSpec struct {
-	Theme   string          `yaml:"theme,omitempty"`
-	Apps    []string        `yaml:"apps,omitempty"`
-	Build   BuildArgsConfig `yaml:"build,omitempty"`
-	CACerts []CACertConfig  `yaml:"caCerts,omitempty"`
+	Theme           string          `yaml:"theme,omitempty"`
+	NvimPackage     string          `yaml:"nvimPackage,omitempty"`
+	TerminalPackage string          `yaml:"terminalPackage,omitempty"`
+	Apps            []string        `yaml:"apps,omitempty"`
+	Build           BuildArgsConfig `yaml:"build,omitempty"`
+	CACerts         []CACertConfig  `yaml:"caCerts,omitempty"`
 }
 
 // ToYAML converts a Domain to YAML format.
@@ -62,6 +66,16 @@ func (d *Domain) ToYAML(ecosystemName string, appNames []string) DomainYAML {
 	theme := ""
 	if d.Theme.Valid {
 		theme = d.Theme.String
+	}
+
+	nvimPackage := ""
+	if d.NvimPackage.Valid {
+		nvimPackage = d.NvimPackage.String
+	}
+
+	terminalPackage := ""
+	if d.TerminalPackage.Valid {
+		terminalPackage = d.TerminalPackage.String
 	}
 
 	// Restore build args from DB JSON blob if present
@@ -92,10 +106,12 @@ func (d *Domain) ToYAML(ecosystemName string, appNames []string) DomainYAML {
 			Annotations: annotations,
 		},
 		Spec: DomainSpec{
-			Theme:   theme,
-			Apps:    appNames,
-			Build:   buildConfig,
-			CACerts: caCerts,
+			Theme:           theme,
+			NvimPackage:     nvimPackage,
+			TerminalPackage: terminalPackage,
+			Apps:            appNames,
+			Build:           buildConfig,
+			CACerts:         caCerts,
 		},
 	}
 }
@@ -110,6 +126,14 @@ func (d *Domain) FromYAML(yaml DomainYAML) {
 
 	if yaml.Spec.Theme != "" {
 		d.Theme = sql.NullString{String: yaml.Spec.Theme, Valid: true}
+	}
+
+	if yaml.Spec.NvimPackage != "" {
+		d.NvimPackage = sql.NullString{String: yaml.Spec.NvimPackage, Valid: true}
+	}
+
+	if yaml.Spec.TerminalPackage != "" {
+		d.TerminalPackage = sql.NullString{String: yaml.Spec.TerminalPackage, Valid: true}
 	}
 
 	// Persist build args as JSON

@@ -99,14 +99,16 @@ func generateNvimConfig(workspacePlugins []string, stagingDir, homeDir string, d
 		}
 		slog.Debug("using workspace-specific plugins", "count", len(enabledPlugins), "requested", len(workspacePlugins))
 	} else {
-		// No plugins configured for workspace - check for default package
-		defaultPkg, err := ds.GetDefault("nvim-package")
-		if err == nil && defaultPkg != "" {
-			// Try to resolve the default package
-			packagePlugins, err := resolveDefaultPackagePlugins(defaultPkg, ds)
+		// No plugins configured for workspace - resolve package from hierarchy
+		// Walk: workspace → app → domain → ecosystem → global default
+		resolvedPkg := resolveNvimPackageFromHierarchy(ds, workspace)
+
+		if resolvedPkg != "" {
+			// Try to resolve the package's plugins
+			packagePlugins, err := resolveDefaultPackagePlugins(resolvedPkg, ds)
 			if err != nil {
-				slog.Warn("failed to resolve default package, falling back to all enabled plugins", "package", defaultPkg, "error", err)
-				render.Warning(fmt.Sprintf("Failed to resolve default package '%s', using all enabled plugins", defaultPkg))
+				slog.Warn("failed to resolve nvim package, falling back to all enabled plugins", "package", resolvedPkg, "error", err)
+				render.Warning(fmt.Sprintf("Failed to resolve nvim package '%s', using all enabled plugins", resolvedPkg))
 			} else {
 				// Use plugins from the resolved package
 				for _, pluginName := range packagePlugins {
@@ -117,18 +119,18 @@ func generateNvimConfig(workspacePlugins []string, stagingDir, homeDir string, d
 						if pluginLibrary != nil {
 							if libPlugin, found := pluginLibrary.Get(pluginName); found {
 								enabledPlugins = append(enabledPlugins, libPlugin)
-								slog.Debug("loaded package plugin from library", "plugin", pluginName, "package", defaultPkg)
+								slog.Debug("loaded package plugin from library", "plugin", pluginName, "package", resolvedPkg)
 							} else {
-								slog.Warn("default package references unknown plugin", "plugin", pluginName, "package", defaultPkg)
-								render.Warning(fmt.Sprintf("Plugin '%s' from package '%s' not found in database or library (skipping)", pluginName, defaultPkg))
+								slog.Warn("hierarchy package references unknown plugin", "plugin", pluginName, "package", resolvedPkg)
+								render.Warning(fmt.Sprintf("Plugin '%s' from package '%s' not found in database or library (skipping)", pluginName, resolvedPkg))
 							}
 						} else {
-							slog.Warn("default package references unknown plugin", "plugin", pluginName, "package", defaultPkg)
-							render.Warning(fmt.Sprintf("Plugin '%s' from package '%s' not found in database (skipping)", pluginName, defaultPkg))
+							slog.Warn("hierarchy package references unknown plugin", "plugin", pluginName, "package", resolvedPkg)
+							render.Warning(fmt.Sprintf("Plugin '%s' from package '%s' not found in database (skipping)", pluginName, resolvedPkg))
 						}
 					}
 				}
-				slog.Debug("using plugins from default package", "package", defaultPkg, "count", len(enabledPlugins), "resolved_plugins", len(packagePlugins))
+				slog.Debug("using plugins from hierarchy-resolved package", "package", resolvedPkg, "count", len(enabledPlugins), "resolved_plugins", len(packagePlugins))
 			}
 		}
 

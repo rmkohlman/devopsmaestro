@@ -24,14 +24,16 @@ func (b BuildArgsConfig) IsZero() bool {
 //
 // Hierarchy: Ecosystem -> Domain -> App -> Workspace
 type Ecosystem struct {
-	ID          int            `db:"id" json:"id" yaml:"-"`
-	Name        string         `db:"name" json:"name" yaml:"name"`
-	Description sql.NullString `db:"description" json:"description,omitempty" yaml:"description,omitempty"`
-	Theme       sql.NullString `db:"theme" json:"theme,omitempty" yaml:"theme,omitempty"`
-	BuildArgs   sql.NullString `db:"build_args" json:"build_args,omitempty" yaml:"-"`
-	CACerts     sql.NullString `db:"ca_certs" json:"ca_certs,omitempty" yaml:"-"`
-	CreatedAt   time.Time      `db:"created_at" json:"created_at" yaml:"-"`
-	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at" yaml:"-"`
+	ID              int            `db:"id" json:"id" yaml:"-"`
+	Name            string         `db:"name" json:"name" yaml:"name"`
+	Description     sql.NullString `db:"description" json:"description,omitempty" yaml:"description,omitempty"`
+	Theme           sql.NullString `db:"theme" json:"theme,omitempty" yaml:"theme,omitempty"`
+	NvimPackage     sql.NullString `db:"nvim_package" json:"nvim_package,omitempty" yaml:"nvim_package,omitempty"`
+	TerminalPackage sql.NullString `db:"terminal_package" json:"terminal_package,omitempty" yaml:"terminal_package,omitempty"`
+	BuildArgs       sql.NullString `db:"build_args" json:"build_args,omitempty" yaml:"-"`
+	CACerts         sql.NullString `db:"ca_certs" json:"ca_certs,omitempty" yaml:"-"`
+	CreatedAt       time.Time      `db:"created_at" json:"created_at" yaml:"-"`
+	UpdatedAt       time.Time      `db:"updated_at" json:"updated_at" yaml:"-"`
 }
 
 // EcosystemYAML represents the YAML serialization format for an ecosystem
@@ -51,11 +53,13 @@ type EcosystemMetadata struct {
 
 // EcosystemSpec contains ecosystem specification
 type EcosystemSpec struct {
-	Description string          `yaml:"description,omitempty" json:"description,omitempty"`
-	Theme       string          `yaml:"theme,omitempty" json:"theme,omitempty"`
-	Domains     []string        `yaml:"domains,omitempty" json:"domains,omitempty"`
-	Build       BuildArgsConfig `yaml:"build,omitempty" json:"build,omitempty"`
-	CACerts     []CACertConfig  `yaml:"caCerts,omitempty" json:"caCerts,omitempty"`
+	Description     string          `yaml:"description,omitempty" json:"description,omitempty"`
+	Theme           string          `yaml:"theme,omitempty" json:"theme,omitempty"`
+	NvimPackage     string          `yaml:"nvimPackage,omitempty" json:"nvimPackage,omitempty"`
+	TerminalPackage string          `yaml:"terminalPackage,omitempty" json:"terminalPackage,omitempty"`
+	Domains         []string        `yaml:"domains,omitempty" json:"domains,omitempty"`
+	Build           BuildArgsConfig `yaml:"build,omitempty" json:"build,omitempty"`
+	CACerts         []CACertConfig  `yaml:"caCerts,omitempty" json:"caCerts,omitempty"`
 }
 
 // ToYAML converts an Ecosystem to YAML format.
@@ -74,6 +78,16 @@ func (e *Ecosystem) ToYAML(domainNames []string) EcosystemYAML {
 	theme := ""
 	if e.Theme.Valid {
 		theme = e.Theme.String
+	}
+
+	nvimPackage := ""
+	if e.NvimPackage.Valid {
+		nvimPackage = e.NvimPackage.String
+	}
+
+	terminalPackage := ""
+	if e.TerminalPackage.Valid {
+		terminalPackage = e.TerminalPackage.String
 	}
 
 	// Restore build args from DB JSON blob if present
@@ -103,11 +117,13 @@ func (e *Ecosystem) ToYAML(domainNames []string) EcosystemYAML {
 			Annotations: annotations,
 		},
 		Spec: EcosystemSpec{
-			Description: description,
-			Theme:       theme,
-			Domains:     domainNames,
-			Build:       buildConfig,
-			CACerts:     caCerts,
+			Description:     description,
+			Theme:           theme,
+			NvimPackage:     nvimPackage,
+			TerminalPackage: terminalPackage,
+			Domains:         domainNames,
+			Build:           buildConfig,
+			CACerts:         caCerts,
 		},
 	}
 }
@@ -125,6 +141,14 @@ func (e *Ecosystem) FromYAML(yaml EcosystemYAML) {
 
 	if yaml.Spec.Theme != "" {
 		e.Theme = sql.NullString{String: yaml.Spec.Theme, Valid: true}
+	}
+
+	if yaml.Spec.NvimPackage != "" {
+		e.NvimPackage = sql.NullString{String: yaml.Spec.NvimPackage, Valid: true}
+	}
+
+	if yaml.Spec.TerminalPackage != "" {
+		e.TerminalPackage = sql.NullString{String: yaml.Spec.TerminalPackage, Valid: true}
 	}
 
 	// Persist build args as JSON
