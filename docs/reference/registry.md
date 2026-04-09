@@ -89,8 +89,11 @@ spec:
 | `metadata.description` | string | No | Human-readable description |
 | `spec.type` | string | Yes | Registry type: `zot`, `athens`, `devpi`, `verdaccio`, `squid` |
 | `spec.version` | string | No | Desired binary version (e.g., `2.1.15`, `1.0.0-rc1`) — empty means use strategy default |
+| `spec.enabled` | bool | No | Whether the registry is enabled (default: `true`) |
 | `spec.port` | int | No | Port to listen on (0 means auto-assign from type default; must be 1024–65535 if set) |
 | `spec.lifecycle` | string | No | How the process is managed: `persistent`, `on-demand`, `manual` (default: `manual`) |
+| `spec.storage` | string | No | Storage path for registry data (default: type-specific path, e.g., `/var/lib/zot`) |
+| `spec.idleTimeout` | int | No | Seconds before auto-stopping an `on-demand` registry (default: `1800`; min: `60` if set) |
 | `spec.config` | map | No | Registry-type-specific configuration as key-value pairs |
 | `status.state` | string | Read-only | Live process state: `stopped`, `starting`, `running`, `error` |
 | `status.endpoint` | string | Read-only | Registry endpoint URL (e.g., `http://localhost:5001`) |
@@ -135,6 +138,15 @@ spec:
   version: "2.1.15"
 ```
 
+### spec.enabled (optional)
+
+Whether the registry is enabled. Defaults to `true` when omitted. Set to `false` to disable the registry without deleting it.
+
+```yaml
+spec:
+  enabled: false
+```
+
 ### spec.port (optional)
 
 The port the registry process will listen on. When omitted or set to `0`, the type-specific default port is applied automatically. If set, must be in the range 1024–65535.
@@ -172,6 +184,25 @@ spec:
       level: warn
     storage:
       dedupe: true
+```
+
+### spec.storage (optional)
+
+The filesystem path where the registry stores its data. When omitted, the type-specific default storage path is applied automatically (see [Registry Types](#registry-types)). The resolved path is stored in the database and cannot be empty.
+
+```yaml
+spec:
+  storage: "/data/my-zot-registry"
+```
+
+### spec.idleTimeout (optional)
+
+Only applies to `on-demand` registries. The number of seconds after the last request before the registry process is automatically stopped. Defaults to `1800` seconds (30 minutes) when not set. Must be at least `60` if specified explicitly. A value of `0` means "use the default".
+
+```yaml
+spec:
+  lifecycle: on-demand
+  idleTimeout: 3600   # Auto-stop after 60 minutes of inactivity
 ```
 
 ### status (read-only)

@@ -86,6 +86,8 @@ nav:
     - CoolNight Collection: nvp/coolnight.md
     - opencode.nvim Plugin: nvp/opencode.md
     - Commands Reference: nvp/commands.md
+  - dvt (Terminal):
+    - Commands Reference: dvt/commands.md
   - Configuration:
     - YAML Schema: configuration/yaml-schema.md
     - Plugin System: configuration/plugin-system.md
@@ -101,11 +103,15 @@ nav:
     - Workspace: reference/workspace.md
     - Credential: reference/credential.md
     - Registry: reference/registry.md
+    - GitRepo: reference/gitrepo.md
     - NvimTheme: reference/nvim-theme.md
     - NvimPlugin: reference/nvim-plugin.md
     - NvimPackage: reference/nvim-package.md
+    - TerminalPlugin: reference/terminal-plugin.md
+    - TerminalPackage: reference/terminal-package.md
     - TerminalPrompt: reference/terminal-prompt.md
     - WeztermConfig: reference/wezterm-config.md
+    - GlobalDefaults: reference/global-defaults.md
     - CustomResourceDefinition: reference/custom-resource-definition.md
   - Vision & Roadmap:
     - Architecture Vision: vision/architecture.md

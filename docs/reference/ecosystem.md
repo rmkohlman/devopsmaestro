@@ -21,15 +21,17 @@ metadata:
 spec:
   description: "Production platform for Acme Corp"
   theme: coolnight-ocean
+  nvimPackage: go-dev
+  terminalPackage: devops-shell
   build:
     args:
       PIP_INDEX_URL: "https://pypi.corp.com/root/prod"
-    caCerts:
-      - name: corp-root-ca
-        vaultSecret: corp-root-ca-pem
-      - name: internal-ca
-        vaultSecret: internal-ca-pem
-        vaultField: certificate
+  caCerts:
+    - name: corp-root-ca
+      vaultSecret: corp-root-ca-pem
+    - name: internal-ca
+      vaultSecret: internal-ca-pem
+      vaultField: certificate
   domains:
     - backend
     - frontend
@@ -46,8 +48,9 @@ spec:
 | `metadata.labels` | object | ❌ | Key-value labels for organization |
 | `metadata.annotations` | object | ❌ | Key-value annotations for metadata |
 | `spec.description` | string | ❌ | Human-readable description of the ecosystem |
-| `spec.domains` | array | ❌ | List of domain names in this ecosystem |
 | `spec.theme` | string | ❌ | Default theme for all domains/apps/workspaces |
+| `spec.nvimPackage` | string | ❌ | Default Neovim plugin package cascaded to all workspaces |
+| `spec.terminalPackage` | string | ❌ | Default terminal package cascaded to all workspaces |
 | `spec.build` | object | ❌ | Build configuration inherited by all workspaces in this ecosystem |
 | `spec.build.args` | map[string]string | ❌ | Build arguments passed as Docker `--build-arg` to all workspace builds |
 | `spec.caCerts` | array | ❌ | CA certificates cascaded to all workspace builds in this ecosystem |
@@ -55,6 +58,7 @@ spec:
 | `spec.caCerts[].vaultSecret` | string | ✅ | MaestroVault secret name containing the PEM certificate |
 | `spec.caCerts[].vaultEnvironment` | string | ❌ | Vault environment override |
 | `spec.caCerts[].vaultField` | string | ❌ | Field within the secret (default: `cert`) |
+| `spec.domains` | array | ❌ | List of domain names in this ecosystem |
 
 ## Field Details
 
@@ -67,7 +71,7 @@ The unique identifier for the ecosystem. Must be a valid DNS subdomain name.
 - `prod-env`
 
 ### spec.domains (optional)
-List of domain names that belong to this ecosystem. These are references to Domain resources.
+List of domain names that belong to this ecosystem. These are references to Domain resources. Populated automatically on `dvm get ecosystem -o yaml`.
 
 ```yaml
 spec:
@@ -88,6 +92,22 @@ Default theme name that cascades down to all domains, apps, and workspaces in th
 - `gruvbox-dark`
 
 See [Theme Hierarchy](../advanced/theme-hierarchy.md) for complete list.
+
+### spec.nvimPackage (optional)
+Default Neovim plugin package that cascades to all workspaces in this ecosystem. References a `NvimPackage` resource by name. Overridden at Domain, App, or Workspace level.
+
+```yaml
+spec:
+  nvimPackage: go-dev   # References NvimPackage/go-dev
+```
+
+### spec.terminalPackage (optional)
+Default terminal package that cascades to all workspaces in this ecosystem. References a `TerminalPackage` resource by name. Overridden at Domain, App, or Workspace level.
+
+```yaml
+spec:
+  terminalPackage: devops-shell   # References TerminalPackage/devops-shell
+```
 
 ### spec.build.args (optional)
 
@@ -119,6 +139,8 @@ dvm delete build-arg PIP_INDEX_URL --ecosystem my-platform
 ### spec.caCerts (optional)
 
 CA certificates that cascade down to all domains, apps, and workspaces in this ecosystem. Each entry references a PEM certificate stored in MaestroVault. Certificates are fetched at build time and injected into the container image via `COPY certs/ /usr/local/share/ca-certificates/custom/` + `RUN update-ca-certificates`. Missing or invalid certificates are a fatal build error.
+
+Note: `spec.caCerts` is a **top-level spec field**, not nested under `spec.build`.
 
 ```yaml
 spec:
@@ -180,6 +202,7 @@ dvm get ecosystem my-platform --include-children -o yaml
 - [App](app.md) - Applications within domains
 - [Workspace](workspace.md) - Development environments
 - [Credential](credential.md) - Secrets scoped to this ecosystem
+- [NvimPackage](nvim-package.md) - Plugin package definitions
 - [NvimTheme](nvim-theme.md) - Theme definitions
 
 ## Validation Rules
@@ -188,3 +211,5 @@ dvm get ecosystem my-platform --include-children -o yaml
 - `metadata.name` must be a valid DNS subdomain (lowercase, alphanumeric, hyphens)
 - `spec.domains` references must exist as Domain resources
 - `spec.theme` must reference an existing theme (built-in or custom)
+- `spec.nvimPackage` must reference an existing NvimPackage resource
+- `spec.terminalPackage` must reference an existing TerminalPackage resource

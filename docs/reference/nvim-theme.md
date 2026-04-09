@@ -15,13 +15,6 @@ metadata:
   description: "CoolNight Synthwave - Retro neon vibes with deep purples and electric blues"
   author: "devopsmaestro"
   category: "dark"
-  labels:
-    collection: coolnight
-    style: synthwave
-    brightness: dark
-  annotations:
-    version: "1.0.0"
-    last-updated: "2026-02-19"
 spec:
   plugin:
     repo: "rmkohlman/coolnight.nvim"
@@ -53,16 +46,6 @@ spec:
     bold_keywords: false
     underline_errors: true
     transparent_background: false
-    custom_highlights:
-      - group: "Keyword"
-        style: "bold"
-        fg: "#bd93f9"
-      - group: "String"
-        style: "italic"
-        fg: "#f1fa8c"
-      - group: "Function"
-        style: "bold"
-        fg: "#50fa7b"
 ```
 
 ## Field Reference
@@ -75,13 +58,15 @@ spec:
 | `metadata.description` | string | ❌ | Theme description |
 | `metadata.author` | string | ❌ | Theme author |
 | `metadata.category` | string | ❌ | Theme category (dark/light/both) |
-| `metadata.labels` | object | ❌ | Key-value labels for organization |
-| `metadata.annotations` | object | ❌ | Key-value annotations for metadata |
-| `spec.plugin` | object | ✅ | Plugin repository information |
-| `spec.style` | string | ❌ | Theme style/variant |
+| `spec.plugin` | object | ❌ | Plugin repository information (omit for standalone themes) |
+| `spec.plugin.repo` | string | ❌ | GitHub repository (required for plugin-based themes) |
+| `spec.plugin.branch` | string | ❌ | Git branch |
+| `spec.plugin.tag` | string | ❌ | Git tag/version |
+| `spec.style` | string | ❌ | Theme style/variant (plugin-specific) |
 | `spec.transparent` | boolean | ❌ | Enable transparent background |
-| `spec.colors` | object | ❌ | Color overrides |
-| `spec.options` | object | ❌ | Plugin-specific options |
+| `spec.colors` | object | ❌ | Semantic color overrides (hex values) |
+| `spec.promptColors` | object | ❌ | Starship prompt segment color overrides (hex values) |
+| `spec.options` | object | ❌ | Plugin-specific key-value options |
 
 ## Field Details
 
@@ -102,13 +87,13 @@ Theme category for organization and filtering.
 - `both` - Theme with both variants
 - `monochrome` - Black and white theme
 
-### spec.plugin (required)
-Plugin repository that provides the colorscheme.
+### spec.plugin (optional)
+Plugin repository that provides the colorscheme. Omit entirely for standalone themes — themes without a plugin repo apply colors directly via `vim.api.nvim_set_hl()`.
 
 ```yaml
 spec:
   plugin:
-    repo: "folke/tokyonight.nvim"      # GitHub repository (required)
+    repo: "folke/tokyonight.nvim"      # GitHub repository (required for plugin-based themes)
     branch: "main"                     # Git branch (optional)
     tag: "v1.0.0"                     # Git tag/version (optional)
 ```
@@ -189,36 +174,37 @@ spec:
 ```
 
 ### spec.options (optional)
-Plugin-specific options and customizations.
+Plugin-specific key-value options passed to the theme's `setup()` call. Keys and valid values are entirely plugin-defined.
 
 ```yaml
 spec:
   options:
-    # Typography options
-    italic_comments: true           # Italicize comments
-    bold_keywords: false           # Bold keywords  
-    underline_errors: true         # Underline errors
+    # Typography options (plugin-specific — these are examples for common themes)
+    italic_comments: true
+    bold_keywords: false
+    underline_errors: true
     
     # Background options
-    transparent_background: false   # Transparent background
-    dim_inactive: false            # Dim inactive windows
+    transparent_background: false
+    dim_inactive: false
     
-    # Custom highlight groups
-    custom_highlights:
-      - group: "Keyword"           # Highlight group name
-        style: "bold"              # Style: bold, italic, underline
-        fg: "#bd93f9"             # Foreground color
-        bg: "#282a36"             # Background color (optional)
-      - group: "String"
-        style: "italic"
-        fg: "#f1fa8c"
-    
-    # Plugin integrations
+    # Plugin integrations (Catppuccin example)
     integrations:
-      telescope: true              # Telescope integration
-      nvim_tree: true             # Nvim-tree integration  
-      gitsigns: true              # Gitsigns integration
-      lualine: true               # Lualine integration
+      telescope: true
+      nvim_tree: true
+      gitsigns: true
+      lualine: true
+```
+
+### spec.promptColors (optional)
+Color overrides for Starship prompt segment colors. These are separate from the Neovim editor colors in `spec.colors` and are applied when the theme is used with a Starship-based terminal prompt.
+
+```yaml
+spec:
+  promptColors:
+    directory: "#7aa2f7"    # Prompt directory segment color
+    git_branch: "#9ece6a"   # Git branch segment color
+    username: "#bb9af7"     # Username segment color
 ```
 
 ## Theme Collections
@@ -388,8 +374,8 @@ colors:
 
 - `metadata.name` must be unique across all themes
 - `metadata.name` must be a valid DNS subdomain
-- `metadata.category` must be `dark`, `light`, `both`, or `monochrome`
 - `spec.plugin.repo` must be a valid GitHub repository format
-- `spec.colors.*` must be valid hex colors (`#rrggbb` or `#rrggbbaa`)
-- `spec.options.custom_highlights[].group` must be valid highlight group names
+- `spec.colors.*` must be valid hex colors (`#rrggbb` or `#rgb`)
+- `spec.promptColors.*` must be valid hex colors (`#rrggbb` or `#rgb`)
+- Standalone themes (no `spec.plugin.repo`) must define `spec.colors`
 - Theme names must not conflict with built-in themes

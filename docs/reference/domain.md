@@ -21,12 +21,17 @@ metadata:
     slack-channel: "#backend-team"
 spec:
   theme: gruvbox-dark
+  nvimPackage: go-dev
+  terminalPackage: devops-shell
   build:
     args:
       NPM_REGISTRY: "https://npm.corp.com/registry"
-    caCerts:
-      - name: corp-root-ca
-        vaultSecret: corp-root-ca-pem
+  caCerts:
+    - name: corp-root-ca
+      vaultSecret: corp-root-ca-pem
+    - name: internal-ca
+      vaultSecret: internal-ca-pem
+      vaultField: certificate
   apps:
     - api-service
     - user-service
@@ -43,8 +48,9 @@ spec:
 | `metadata.ecosystem` | string | ✅ | Parent ecosystem name |
 | `metadata.labels` | object | ❌ | Key-value labels for organization |
 | `metadata.annotations` | object | ❌ | Key-value annotations for metadata |
-| `spec.apps` | array | ❌ | List of app names in this domain |
 | `spec.theme` | string | ❌ | Default theme for apps/workspaces in this domain |
+| `spec.nvimPackage` | string | ❌ | Default Neovim plugin package cascaded to all workspaces in this domain |
+| `spec.terminalPackage` | string | ❌ | Default terminal package cascaded to all workspaces in this domain |
 | `spec.build` | object | ❌ | Build configuration inherited by all workspaces in this domain |
 | `spec.build.args` | map[string]string | ❌ | Build arguments passed as Docker `--build-arg` to all workspace builds |
 | `spec.caCerts` | array | ❌ | CA certificates cascaded to all workspace builds in this domain |
@@ -52,6 +58,7 @@ spec:
 | `spec.caCerts[].vaultSecret` | string | ✅ | MaestroVault secret name containing the PEM certificate |
 | `spec.caCerts[].vaultEnvironment` | string | ❌ | Vault environment override |
 | `spec.caCerts[].vaultField` | string | ❌ | Field within the secret (default: `cert`) |
+| `spec.apps` | array | ❌ | List of app names in this domain |
 
 ## Field Details
 
@@ -74,7 +81,7 @@ metadata:
 ```
 
 ### spec.apps (optional)
-List of application names that belong to this domain. These are references to App resources.
+List of application names that belong to this domain. These are references to App resources. Populated automatically on `dvm get domain -o yaml`.
 
 ```yaml
 spec:
@@ -92,6 +99,22 @@ Theme hierarchy: `Workspace → App → Domain → Ecosystem → System Default`
 ```yaml
 spec:
   theme: gruvbox-dark  # Overrides ecosystem theme for this domain
+```
+
+### spec.nvimPackage (optional)
+Default Neovim plugin package that cascades to all workspaces in this domain. References a `NvimPackage` resource by name. Overrides the ecosystem-level `nvimPackage`; overridden at App or Workspace level.
+
+```yaml
+spec:
+  nvimPackage: go-dev   # References NvimPackage/go-dev
+```
+
+### spec.terminalPackage (optional)
+Default terminal package that cascades to all workspaces in this domain. References a `TerminalPackage` resource by name. Overrides the ecosystem-level `terminalPackage`; overridden at App or Workspace level.
+
+```yaml
+spec:
+  terminalPackage: devops-shell   # References TerminalPackage/devops-shell
 ```
 
 ### spec.build.args (optional)
@@ -124,6 +147,8 @@ dvm delete build-arg NPM_REGISTRY --domain backend
 ### spec.caCerts (optional)
 
 CA certificates that cascade down to all apps and workspaces in this domain. Each entry references a PEM certificate stored in MaestroVault. Certificates are fetched at build time and injected into the container image via `COPY certs/ /usr/local/share/ca-certificates/custom/` + `RUN update-ca-certificates`. Missing or invalid certificates are a fatal build error.
+
+Note: `spec.caCerts` is a **top-level spec field**, not nested under `spec.build`.
 
 ```yaml
 spec:
@@ -243,6 +268,7 @@ spec:
 - [App](app.md) - Applications within this domain
 - [Workspace](workspace.md) - Development environments
 - [Credential](credential.md) - Secrets scoped to this domain
+- [NvimPackage](nvim-package.md) - Plugin package definitions
 - [NvimTheme](nvim-theme.md) - Theme definitions
 
 ## Validation Rules
@@ -252,3 +278,5 @@ spec:
 - `metadata.ecosystem` must reference an existing Ecosystem resource
 - `spec.apps` references must exist as App resources within this domain
 - `spec.theme` must reference an existing theme (built-in or custom)
+- `spec.nvimPackage` must reference an existing NvimPackage resource
+- `spec.terminalPackage` must reference an existing TerminalPackage resource

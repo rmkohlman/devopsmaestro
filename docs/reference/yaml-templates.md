@@ -23,23 +23,34 @@ Required fields are marked with `# REQUIRED` in the templates below.
 
 ### Ecosystem
 
-The top-level organizational grouping (e.g., a company or platform).
+The top-level organizational grouping (e.g., a company or platform).  
+Full reference: [ecosystem.md](ecosystem.md)
 
 ```yaml
-apiVersion: devopsmaestro.io/v1
-kind: Ecosystem
+# Full reference: https://devopsmaestro.io/reference/ecosystem
+apiVersion: devopsmaestro.io/v1   # REQUIRED
+kind: Ecosystem                   # REQUIRED
 metadata:
-  name: ""                        # REQUIRED - Unique ecosystem name
-  labels:                         # Optional - Key-value labels for filtering
+  name: ""                        # REQUIRED - Unique ecosystem name (DNS subdomain)
+  labels:                         # Optional - Key-value labels for filtering/organization
     team: ""
   annotations:                    # Optional - Non-identifying metadata
     description: ""
 spec:
-  theme: ""                       # Optional - Theme name applied to this ecosystem
-  build:                          # Optional - Build configuration
-    args:                         # Build arguments cascaded to all child resources
-      KEY: "value"
-  domains:                        # Optional - List of child domain names
+  description: ""                 # Optional - Human-readable description
+  theme: ""                       # Optional - Default theme cascaded to all workspaces
+                                  #   e.g. coolnight-ocean, tokyonight-night, gruvbox-dark
+  nvimPackage: ""                 # Optional - Default NvimPackage cascaded to all workspaces
+  terminalPackage: ""             # Optional - Default TerminalPackage cascaded to all workspaces
+  build:                          # Optional - Build configuration inherited by all workspaces
+    args:                         # Optional - Build args passed as --build-arg; cascades down
+      KEY: "value"                #   global < ecosystem < domain < app < workspace
+  caCerts:                        # Optional - CA certs cascaded to all workspace builds
+    - name: ""                    # REQUIRED per cert - alphanumeric/_/- only; max 64 chars
+      vaultSecret: ""             # REQUIRED per cert - MaestroVault secret name (PEM)
+      vaultEnvironment: ""        # Optional - Vault environment override
+      vaultField: ""              # Optional - Field within secret (default: "cert")
+  domains:                        # Optional - Child domain names (populated by dvm get -o yaml)
     - ""
 ```
 
@@ -48,32 +59,49 @@ spec:
 | `metadata.name` | string | Yes | Unique ecosystem name | [Ecosystem](ecosystem.md) |
 | `metadata.labels` | map[string]string | No | Key-value labels for filtering | [Ecosystem](ecosystem.md) |
 | `metadata.annotations` | map[string]string | No | Non-identifying metadata | [Ecosystem](ecosystem.md) |
-| `spec.theme` | string | No | Theme name applied to this ecosystem | [Ecosystem](ecosystem.md) |
+| `spec.description` | string | No | Human-readable description | [Ecosystem](ecosystem.md) |
+| `spec.theme` | string | No | Default theme cascaded to all workspaces | [Ecosystem](ecosystem.md) |
+| `spec.nvimPackage` | string | No | Default NvimPackage cascaded to all workspaces | [Ecosystem](ecosystem.md) |
+| `spec.terminalPackage` | string | No | Default TerminalPackage cascaded to all workspaces | [Ecosystem](ecosystem.md) |
 | `spec.build.args` | map[string]string | No | Build args cascaded down the hierarchy; overridden by Domain, App, or Workspace | [Ecosystem](ecosystem.md) |
+| `spec.caCerts[].name` | string | Yes (per cert) | Cert name; must match `^[a-zA-Z0-9][a-zA-Z0-9_-]*$` | [Ecosystem](ecosystem.md) |
+| `spec.caCerts[].vaultSecret` | string | Yes (per cert) | MaestroVault secret name containing PEM | [Ecosystem](ecosystem.md) |
+| `spec.caCerts[].vaultEnvironment` | string | No | Vault environment override | [Ecosystem](ecosystem.md) |
+| `spec.caCerts[].vaultField` | string | No | Field within secret (default: `"cert"`) | [Ecosystem](ecosystem.md) |
 | `spec.domains` | []string | No | List of child domain names | [Ecosystem](ecosystem.md) |
 
 ---
 
 ### Domain
 
-A bounded context within an ecosystem (e.g., "backend", "frontend", "infra").
+A bounded context within an ecosystem (e.g., "backend", "frontend", "infra").  
+Full reference: [domain.md](domain.md)
 
 ```yaml
-apiVersion: devopsmaestro.io/v1
-kind: Domain
+# Full reference: https://devopsmaestro.io/reference/domain
+apiVersion: devopsmaestro.io/v1   # REQUIRED
+kind: Domain                      # REQUIRED
 metadata:
-  name: ""                        # REQUIRED - Unique domain name
+  name: ""                        # REQUIRED - Unique domain name (DNS subdomain)
   ecosystem: ""                   # REQUIRED - Parent ecosystem name
-  labels:                         # Optional - Key-value labels for filtering
+  labels:                         # Optional - Key-value labels for filtering/organization
     team: ""
   annotations:                    # Optional - Non-identifying metadata
     description: ""
 spec:
-  theme: ""                       # Optional - Theme name applied to this domain
-  build:                          # Optional - Build configuration
-    args:                         # Build arguments cascaded to all child resources
-      KEY: "value"
-  apps:                           # Optional - List of child app names
+  theme: ""                       # Optional - Default theme; overrides ecosystem theme
+                                  #   Theme hierarchy: Workspace > App > Domain > Ecosystem
+  nvimPackage: ""                 # Optional - Default NvimPackage; overrides ecosystem nvimPackage
+  terminalPackage: ""             # Optional - Default TerminalPackage; overrides ecosystem terminalPackage
+  build:                          # Optional - Build configuration inherited by all workspaces
+    args:                         # Optional - Build args; overrides ecosystem-level args
+      KEY: "value"                #   global < ecosystem < domain < app < workspace
+  caCerts:                        # Optional - CA certs cascaded to all workspace builds
+    - name: ""                    # REQUIRED per cert - alphanumeric/_/- only; max 64 chars
+      vaultSecret: ""             # REQUIRED per cert - MaestroVault secret name (PEM)
+      vaultEnvironment: ""        # Optional - Vault environment override
+      vaultField: ""              # Optional - Field within secret (default: "cert")
+  apps:                           # Optional - Child app names (populated by dvm get -o yaml)
     - ""
 ```
 
@@ -83,56 +111,74 @@ spec:
 | `metadata.ecosystem` | string | Yes | Parent ecosystem name | [Domain](domain.md) |
 | `metadata.labels` | map[string]string | No | Key-value labels for filtering | [Domain](domain.md) |
 | `metadata.annotations` | map[string]string | No | Non-identifying metadata | [Domain](domain.md) |
-| `spec.theme` | string | No | Theme name applied to this domain | [Domain](domain.md) |
+| `spec.theme` | string | No | Default theme; overrides ecosystem theme | [Domain](domain.md) |
+| `spec.nvimPackage` | string | No | Default NvimPackage; overrides ecosystem nvimPackage | [Domain](domain.md) |
+| `spec.terminalPackage` | string | No | Default TerminalPackage; overrides ecosystem terminalPackage | [Domain](domain.md) |
 | `spec.build.args` | map[string]string | No | Build args cascaded down the hierarchy; overridden by App or Workspace | [Domain](domain.md) |
+| `spec.caCerts[].name` | string | Yes (per cert) | Cert name; must match `^[a-zA-Z0-9][a-zA-Z0-9_-]*$` | [Domain](domain.md) |
+| `spec.caCerts[].vaultSecret` | string | Yes (per cert) | MaestroVault secret name containing PEM | [Domain](domain.md) |
+| `spec.caCerts[].vaultEnvironment` | string | No | Vault environment override | [Domain](domain.md) |
+| `spec.caCerts[].vaultField` | string | No | Field within secret (default: `"cert"`) | [Domain](domain.md) |
 | `spec.apps` | []string | No | List of child app names | [Domain](domain.md) |
 
 ---
 
 ### App
 
-An application or codebase within a domain.
+An application or codebase within a domain.  
+Full reference: [app.md](app.md)
 
 ```yaml
-apiVersion: devopsmaestro.io/v1
-kind: App
+# Full reference: https://devopsmaestro.io/reference/app
+apiVersion: devopsmaestro.io/v1   # REQUIRED
+kind: App                         # REQUIRED
 metadata:
-  name: ""                        # REQUIRED - Unique app name
+  name: ""                        # REQUIRED - Unique app name (DNS subdomain)
   domain: ""                      # REQUIRED - Parent domain name
-  labels:                         # Optional - Key-value labels for filtering
+  ecosystem: ""                   # Optional - Parent ecosystem; enables context-free apply
+  labels:                         # Optional - Key-value labels for filtering/organization
     language: ""
   annotations:                    # Optional - Non-identifying metadata
     description: ""
 spec:
-  path: ""                        # Optional - Path to the application source code
-  theme: ""                       # Optional - Theme name applied to this app
-  language:                       # Optional - Language configuration
-    name: ""                      # Language name (golang, python, nodejs, rust, java, etc.)
-    version: ""                   # Language version (e.g., "1.25", "3.12")
-  build:                          # Optional - Build configuration
-    dockerfile: ""                # Path to an existing Dockerfile
-    buildpack: ""                 # Buildpack to use
-    args:                         # Build arguments (key-value pairs)
+  path: ""                        # REQUIRED - Absolute path to source code on local filesystem
+                                  #   Variable substitution supported: ${HOME}/projects/my-app
+  theme: ""                       # Optional - Default theme for workspaces; overrides domain theme
+  nvimPackage: ""                 # Optional - Default NvimPackage for workspaces in this app
+  terminalPackage: ""             # Optional - Default TerminalPackage for workspaces in this app
+  gitRepo: ""                     # Optional - GitRepo resource name to associate with this app
+  language:                       # Optional - Language/runtime configuration
+    name: ""                      # Language: go, python, node, rust, java, dotnet
+    version: ""                   # Version string e.g. "1.22", "3.11", "20"
+  build:                          # Optional - Build/containerization configuration
+    dockerfile: ""                # Optional - Path to existing Dockerfile
+    buildpack: ""                 # Optional - Buildpack: auto, go, python, node, rust, java
+    target: ""                    # Optional - Multi-stage Dockerfile build target
+    context: ""                   # Optional - Build context path (default: app path)
+    args:                         # Optional - Build args emitted as ARG (not ENV)
       KEY: "value"
-    target: ""                    # Multi-stage build target stage
-    context: ""                   # Build context path (defaults to app path)
-  dependencies:                   # Optional - Dependency configuration
-    file: ""                      # Dependencies file (e.g., go.mod, requirements.txt)
-    install: ""                   # Install command (e.g., "pip install -r requirements.txt")
-    extra:                        # Extra dependency files to include
+    caCerts:                      # Optional - CA certs fetched from MaestroVault at build time
+      - name: ""                  # REQUIRED per cert - alphanumeric/_/- only; max 64 chars
+        vaultSecret: ""           # REQUIRED per cert - MaestroVault secret name (PEM)
+        vaultEnvironment: ""      # Optional - Vault environment override
+        vaultField: ""            # Optional - Field within secret (default: "cert")
+  dependencies:                   # Optional - Dependency management
+    file: ""                      # Dependency manifest: go.mod, requirements.txt, package.json
+    install: ""                   # Install command: "go mod download", "pip install -r ..."
+    extra:                        # Optional - Additional packages/modules to install
       - ""
-  services:                       # Optional - Sidecar services
-    - name: ""                    # Service name
-      image: ""                   # Docker image
-      version: ""                 # Image version/tag
-      port: 0                     # Port number
-      env:                        # Service environment variables
+  services:                       # Optional - Sidecar services (databases, caches, etc.)
+    - name: ""                    # REQUIRED per service - e.g. postgres, redis, mongodb
+      image: ""                   # Optional - Custom Docker image (default: official image)
+      version: ""                 # Optional - Image version/tag e.g. "15", "7"
+      port: 0                     # Optional - Port to expose
+      env:                        # Optional - Service environment variables
         KEY: "value"
+  ports:                          # Optional - Port mappings the app exposes
+    - "8080:8080"                 #   Format: "host:container"
   env:                            # Optional - App-level environment variables
     KEY: "value"
-  ports:                          # Optional - Port mappings
-    - "8080:8080"
-  workspaces:                     # Optional - Associated workspace names
+  workspaces:                     # Optional - Child workspace names (populated by dvm get -o yaml)
     - ""
 ```
 
@@ -140,120 +186,205 @@ spec:
 |-------|------|----------|-------------|-----------|
 | `metadata.name` | string | Yes | Unique app name | [App](app.md) |
 | `metadata.domain` | string | Yes | Parent domain name | [App](app.md) |
-| `spec.path` | string | No | Path to application source code | [App](app.md) |
-| `spec.theme` | string | No | Theme name applied to this app | [App](app.md) |
+| `metadata.ecosystem` | string | No | Parent ecosystem; enables context-free apply | [App](app.md) |
+| `spec.path` | string | Yes | Absolute path to source code | [App](app.md) |
+| `spec.theme` | string | No | Default theme for workspaces in this app | [App](app.md) |
+| `spec.nvimPackage` | string | No | Default NvimPackage for workspaces | [App](app.md) |
+| `spec.terminalPackage` | string | No | Default TerminalPackage for workspaces | [App](app.md) |
+| `spec.gitRepo` | string | No | GitRepo resource name to associate | [App](app.md) |
 | `spec.language` | object | No | Language name and version | [App](app.md) |
-| `spec.build` | object | No | Dockerfile, buildpack, args, target, context | [App](app.md) |
+| `spec.build` | object | No | Dockerfile, buildpack, args, target, context, caCerts | [App](app.md) |
 | `spec.dependencies` | object | No | Dependency file, install command, extras | [App](app.md) |
 | `spec.services` | []object | No | Sidecar services with name, image, version, port, env | [App](app.md) |
+| `spec.ports` | []string | No | Port mappings (host:container) | [App](app.md) |
 | `spec.env` | map[string]string | No | App-level environment variables | [App](app.md) |
-| `spec.ports` | []string | No | Port mappings | [App](app.md) |
-| `spec.workspaces` | []string | No | Associated workspace names | [App](app.md) |
+| `spec.workspaces` | []string | No | Child workspace names | [App](app.md) |
 
 ---
 
 ### Workspace
 
-A development environment configuration for an app. This is the most detailed resource type.
+A development environment configuration for an app. This is the most detailed resource type.  
+Full reference: [workspace.md](workspace.md)
 
 ```yaml
-apiVersion: devopsmaestro.io/v1
-kind: Workspace
+# Full reference: https://devopsmaestro.io/reference/workspace
+apiVersion: devopsmaestro.io/v1   # REQUIRED
+kind: Workspace                   # REQUIRED
 metadata:
-  name: ""                        # REQUIRED - Unique workspace name
+  name: ""                        # REQUIRED - Unique workspace name (DNS subdomain)
   app: ""                         # REQUIRED - Parent app name
-  labels:                         # Optional - Key-value labels for filtering
+  domain: ""                      # Optional - Parent domain; enables context-free apply
+  ecosystem: ""                   # Optional - Parent ecosystem; used with domain to fully disambiguate
+  labels:                         # Optional - Key-value labels for filtering/organization
     environment: ""
   annotations:                    # Optional - Non-identifying metadata
     description: ""
 spec:
+
+  # ---------------------------------------------------------------------------
+  # IMAGE — container image to build or use
+  # ---------------------------------------------------------------------------
   image:                          # Optional - Container image configuration
-    name: ""                      # Custom image name
-    buildFrom: ""                 # Build from source reference
-    baseImage: ""                 # Base Docker image to use
-  build:                          # Optional - Build-time configuration
-    args:                         # Build arguments (emitted as ARG declarations — not ENV)
+    name: ""                      # Optional - Image name (auto-generated if omitted)
+    buildFrom: ""                 # Optional - Dockerfile path to build from (e.g. ./Dockerfile)
+    baseImage: ""                 # Optional - Pre-built base image (skips build stage)
+
+  # ---------------------------------------------------------------------------
+  # BUILD — what goes into the image at build time
+  # ---------------------------------------------------------------------------
+  build:                          # Optional - Build configuration
+    args:                         # Optional - Build args emitted as ARG (not ENV); not persisted in layers
       KEY: "value"
-    caCerts:                      # CA certificates to inject from MaestroVault
-      - name: ""                  # REQUIRED - Certificate identifier (alphanumeric, _ -)
-        vaultSecret: ""           # REQUIRED - MaestroVault secret name
+    caCerts:                      # Optional - CA certs injected from MaestroVault at build time
+      - name: ""                  # REQUIRED per cert - alphanumeric/_/- only; max 64 chars
+        vaultSecret: ""           # REQUIRED per cert - MaestroVault secret name (PEM)
         vaultEnvironment: ""      # Optional - Vault environment override
-        vaultField: ""            # Optional - Field within vault secret (default: "cert")
-    devStage:                     # Development stage customizations
-      packages:                   # System packages to install (apt-get)
+        vaultField: ""            # Optional - Field within secret (default: "cert")
+    baseStage:                    # Optional - Packages installed in the base (app) build stage
+      packages:                   # System packages for the app runtime (e.g. libpq-dev)
         - ""
-      devTools:                   # Development tools to install
+    devStage:                     # Optional - Developer tooling added on top of the base stage
+      packages:                   # System packages for the dev layer (e.g. ripgrep, fd-find)
         - ""
-      customCommands:             # Custom commands to run during build
+      devTools:                   # Language dev tools (e.g. gopls, delve, pylsp, typescript-language-server)
         - ""
+      customCommands:             # Arbitrary shell commands run during the dev stage build
+        - ""
+
+  # ---------------------------------------------------------------------------
+  # SHELL — login shell inside the container
+  # ---------------------------------------------------------------------------
   shell:                          # Optional - Shell configuration
-    type: ""                      # Shell type: zsh, bash, fish
-    framework: ""                 # Shell framework (e.g., oh-my-zsh)
-    theme: ""                     # Shell theme name
+    type: ""                      # Shell type: zsh, bash
+    framework: ""                 # Shell framework: oh-my-zsh, prezto
+    theme: ""                     # Prompt theme: starship, powerlevel10k, agnoster
     plugins:                      # Shell plugins to install
       - ""
-    customRc: ""                  # Custom shell rc content (appended to .zshrc/.bashrc)
-  terminal:                       # Optional - Terminal configuration
-    type: ""                      # Terminal emulator type
-    configPath: ""                # Path to terminal config file
-    autostart: false              # Auto-start terminal on attach
-    prompt: ""                    # Prompt name reference (links to TerminalPrompt)
-    plugins:                      # Terminal plugins
+    customRc: ""                  # Raw RC content appended to .zshrc / .bashrc
+
+  # ---------------------------------------------------------------------------
+  # TERMINAL — multiplexer configuration
+  # ---------------------------------------------------------------------------
+  terminal:                       # Optional - Terminal multiplexer configuration
+    type: ""                      # Multiplexer: tmux, zellij, screen
+    configPath: ""                # Host path to config file to mount (e.g. ~/.tmux.conf)
+    autostart: false              # Start multiplexer automatically on container attach
+    prompt: ""                    # TerminalPrompt resource name
+    plugins:                      # Terminal plugin names to install
       - ""
-    package: ""                   # Terminal package name reference (links to TerminalPackage)
+    package: ""                   # TerminalPackage resource name
+
+  # ---------------------------------------------------------------------------
+  # NVIM — Neovim editor configuration
+  # ---------------------------------------------------------------------------
   nvim:                           # Optional - Neovim configuration
-    structure: ""                 # Nvim structure (e.g., lazyvim)
-    theme: ""                     # Nvim theme name (links to NvimTheme)
-    pluginPackage: ""             # Nvim package name reference (links to NvimPackage)
-    plugins:                      # Individual plugin names to include
+    structure: ""                 # Distribution: lazyvim, custom, nvchad, astronvim
+    theme: ""                     # Theme name (overrides app/domain/ecosystem theme for nvim)
+    pluginPackage: ""             # NvimPackage resource name (pre-configured plugin collection)
+    plugins:                      # Individual NvimPlugin names to include
       - ""
-    mergeMode: ""                 # How to merge plugins: append, replace
-    customConfig: ""              # Custom nvim Lua configuration
-  mounts:                         # Optional - Volume mounts
-    - type: ""                    # Mount type: bind, volume, tmpfs
-      source: ""                  # Source path or volume name
-      destination: ""             # Container destination path
-      readOnly: false             # Whether mount is read-only
+    mergeMode: ""                 # Plugin merge strategy: append (default), replace
+    customConfig: ""              # Raw Lua config injected into the nvim setup
+    extraMasonTools:              # Additional Mason tools installed at image build time
+      - ""                        #   e.g. lua-language-server, stylua, prettier
+    extraTreesitterParsers:       # Additional Treesitter parsers compiled at image build time
+      - ""                        #   e.g. go, python, typescript, lua
+
+  # ---------------------------------------------------------------------------
+  # TOOLS — optional binary tools installed at build time
+  # ---------------------------------------------------------------------------
+  tools:                          # Optional - Workspace-level tool binaries (all default false)
+    opencode: false               # Install opencode AI assistant CLI (linux/amd64, linux/arm64)
+
+  # ---------------------------------------------------------------------------
+  # MOUNTS — filesystem mounts into the container
+  # ---------------------------------------------------------------------------
+  mounts:                         # Optional - Container mount points
+    - type: ""                    # REQUIRED per mount - bind, volume, tmpfs
+      source: ""                  # REQUIRED per mount - host path or volume name
+      destination: ""             # REQUIRED per mount - container destination path
+      readOnly: false             # Optional - Mount as read-only (default: false)
+
+  # ---------------------------------------------------------------------------
+  # SSH KEY — how SSH keys reach the container
+  # ---------------------------------------------------------------------------
   sshKey:                         # Optional - SSH key configuration
-    mode: ""                      # SSH key mode
-    path: ""                      # Path to SSH key file
-  env:                            # Optional - Environment variables for the workspace
+    mode: ""                      # REQUIRED if present - mount_host, global_dvm, per_project, generate
+    path: ""                      # Optional - Host path; used when mode=mount_host
+
+  # ---------------------------------------------------------------------------
+  # ENV — environment variables injected at container start
+  # ---------------------------------------------------------------------------
+  env:                            # Optional - Workspace environment variables
     KEY: "value"
+
+  # ---------------------------------------------------------------------------
+  # CONTAINER — runtime settings
+  # ---------------------------------------------------------------------------
   container:                      # Optional - Container runtime configuration
-    user: ""                      # Container user name
-    uid: 0                        # User ID
-    gid: 0                        # Group ID
-    workingDir: ""                # Working directory inside container
-    command:                       # Container command (list of strings)
+    user: ""                      # Container username (sets USER in Dockerfile; default: dev)
+    uid: 0                        # User ID (default: 1000)
+    gid: 0                        # Group ID (default: 1000)
+    workingDir: ""                # Working directory inside container (default: /workspace)
+    command:                      # Container command override (default: ["/bin/zsh", "-l"])
       - ""
-    entrypoint:                    # Container entrypoint (list of strings)
+    entrypoint:                   # Container entrypoint override
       - ""
-    resources:                    # Resource limits
-      cpus: ""                    # CPU limit (e.g., "2")
-      memory: ""                  # Memory limit (e.g., "4096m")
-  gitrepo: ""                     # Optional - Git repository URL to clone
+    sshAgentForwarding: false     # Forward SSH agent socket (SSH_AUTH_SOCK) into container
+    networkMode: ""               # Docker network mode: bridge (default), host, none
+    resources:                    # Optional - Resource limits
+      cpus: ""                    # CPU limit e.g. "2.0"
+      memory: ""                  # Memory limit e.g. "4G", "512m"
+
+  # ---------------------------------------------------------------------------
+  # GITREPO — repository to clone into the workspace on creation
+  # ---------------------------------------------------------------------------
+  gitrepo: ""                     # Optional - GitRepo resource name to clone on first create
 ```
 
 | Field | Type | Required | Description | Reference |
 |-------|------|----------|-------------|-----------|
 | `metadata.name` | string | Yes | Unique workspace name | [Workspace](workspace.md) |
 | `metadata.app` | string | Yes | Parent app name | [Workspace](workspace.md) |
+| `metadata.domain` | string | No | Parent domain; enables context-free apply | [Workspace](workspace.md) |
+| `metadata.ecosystem` | string | No | Parent ecosystem; used with domain to fully disambiguate | [Workspace](workspace.md) |
 | `spec.image` | object | No | Container image: name, buildFrom, baseImage | [Workspace](workspace.md) |
-| `spec.build` | object | No | Build args and dev stage customizations | [Workspace](workspace.md) |
-| `spec.build.args` | map[string]string | No | Build arguments; emitted as `ARG` declarations (not `ENV`) — values with credentials are not persisted in the image | [Workspace](workspace.md) |
-| `spec.build.caCerts` | []object | No | CA certificates to inject from MaestroVault | [Workspace](workspace.md) |
-| `spec.build.caCerts[].name` | string | Yes | Certificate identifier; must match `^[a-zA-Z0-9][a-zA-Z0-9_-]*$`; max 10 certs | [Workspace](workspace.md) |
-| `spec.build.caCerts[].vaultSecret` | string | Yes | MaestroVault secret name containing the PEM certificate | [Workspace](workspace.md) |
-| `spec.build.caCerts[].vaultEnvironment` | string | No | Vault environment override (optional) | [Workspace](workspace.md) |
-| `spec.build.caCerts[].vaultField` | string | No | Field within the vault secret (default: `"cert"`) | [Workspace](workspace.md) |
-| `spec.shell` | object | No | Shell type, framework, theme, plugins, customRc | [Workspace](workspace.md) |
-| `spec.terminal` | object | No | Terminal type, prompt, plugins, package | [Workspace](workspace.md) |
-| `spec.nvim` | object | No | Neovim structure, theme, plugins, package | [Workspace](workspace.md) |
-| `spec.mounts` | []object | No | Volume mounts with type, source, destination | [Workspace](workspace.md) |
-| `spec.sshKey` | object | No | SSH key mode and path | [Workspace](workspace.md) |
-| `spec.env` | map[string]string | No | Environment variables | [Workspace](workspace.md) |
-| `spec.container` | object | No | User, UID/GID, workingDir, command, entrypoint, resources | [Workspace](workspace.md) |
-| `spec.gitrepo` | string | No | Git repository URL to clone | [Workspace](workspace.md) |
+| `spec.build.args` | map[string]string | No | Build args emitted as `ARG` (not `ENV`) | [Workspace](workspace.md) |
+| `spec.build.caCerts` | []object | No | CA certs injected from MaestroVault at build time | [Workspace](workspace.md) |
+| `spec.build.caCerts[].name` | string | Yes (per cert) | Cert name; `^[a-zA-Z0-9][a-zA-Z0-9_-]*$`; max 64 chars; max 10 certs | [Workspace](workspace.md) |
+| `spec.build.caCerts[].vaultSecret` | string | Yes (per cert) | MaestroVault secret containing PEM | [Workspace](workspace.md) |
+| `spec.build.caCerts[].vaultEnvironment` | string | No | Vault environment override | [Workspace](workspace.md) |
+| `spec.build.caCerts[].vaultField` | string | No | Field within secret (default: `"cert"`) | [Workspace](workspace.md) |
+| `spec.build.baseStage.packages` | []string | No | System packages installed in the base (app) build stage | [Workspace](workspace.md) |
+| `spec.build.devStage.packages` | []string | No | System packages installed in the dev layer | [Workspace](workspace.md) |
+| `spec.build.devStage.devTools` | []string | No | Language-specific dev tools (gopls, delve, pylsp…) | [Workspace](workspace.md) |
+| `spec.build.devStage.customCommands` | []string | No | Arbitrary shell commands run during dev stage build | [Workspace](workspace.md) |
+| `spec.shell` | object | No | type, framework, theme, plugins, customRc | [Workspace](workspace.md) |
+| `spec.terminal` | object | No | type, configPath, autostart, prompt, plugins, package | [Workspace](workspace.md) |
+| `spec.nvim.structure` | string | No | `lazyvim`, `custom`, `nvchad`, `astronvim` | [Workspace](workspace.md) |
+| `spec.nvim.theme` | string | No | Theme name for nvim | [Workspace](workspace.md) |
+| `spec.nvim.pluginPackage` | string | No | NvimPackage resource name | [Workspace](workspace.md) |
+| `spec.nvim.plugins` | []string | No | Individual NvimPlugin names | [Workspace](workspace.md) |
+| `spec.nvim.mergeMode` | string | No | `append` (default) or `replace` | [Workspace](workspace.md) |
+| `spec.nvim.customConfig` | string | No | Raw Lua configuration | [Workspace](workspace.md) |
+| `spec.nvim.extraMasonTools` | []string | No | Additional Mason tools installed at image build time | [Workspace](workspace.md) |
+| `spec.nvim.extraTreesitterParsers` | []string | No | Additional Treesitter parsers compiled at image build time | [Workspace](workspace.md) |
+| `spec.tools.opencode` | bool | No | Install opencode AI assistant CLI (default: `false`) | [Workspace](workspace.md) |
+| `spec.mounts` | []object | No | Volume mounts with type, source, destination, readOnly | [Workspace](workspace.md) |
+| `spec.sshKey` | object | No | mode and path | [Workspace](workspace.md) |
+| `spec.env` | map[string]string | No | Environment variables injected at container start | [Workspace](workspace.md) |
+| `spec.container.user` | string | No | Container username (default: `dev`) | [Workspace](workspace.md) |
+| `spec.container.uid` | int | No | User ID (default: `1000`) | [Workspace](workspace.md) |
+| `spec.container.gid` | int | No | Group ID (default: `1000`) | [Workspace](workspace.md) |
+| `spec.container.workingDir` | string | No | Working directory (default: `/workspace`) | [Workspace](workspace.md) |
+| `spec.container.command` | []string | No | Container command (default: `["/bin/zsh", "-l"]`) | [Workspace](workspace.md) |
+| `spec.container.entrypoint` | []string | No | Container entrypoint override | [Workspace](workspace.md) |
+| `spec.container.sshAgentForwarding` | bool | No | Forward SSH agent socket into container | [Workspace](workspace.md) |
+| `spec.container.networkMode` | string | No | Docker network mode: `bridge`, `host`, `none` | [Workspace](workspace.md) |
+| `spec.container.resources.cpus` | string | No | CPU limit (e.g., `"2.0"`) | [Workspace](workspace.md) |
+| `spec.container.resources.memory` | string | No | Memory limit (e.g., `"4G"`) | [Workspace](workspace.md) |
+| `spec.gitrepo` | string | No | GitRepo resource name to clone on first create | [Workspace](workspace.md) |
 
 ---
 
@@ -327,14 +458,17 @@ metadata:
   description: ""                 # Optional - Human-readable description
 spec:
   type: ""                        # REQUIRED - zot, athens, devpi, verdaccio, or squid
-  version: ""                     # Optional - Registry software version
-  port: 0                         # Optional - Port number (defaults per type, see below)
-  lifecycle: ""                   # Optional - persistent, on-demand, or manual
+  version: ""                     # Optional - Registry software version (semver, e.g., "2.1.15")
+  enabled: true                   # Optional - Whether registry is enabled (default: true)
+  port: 0                         # Optional - Port number (0 = use type default; must be 1024-65535)
+  lifecycle: ""                   # Optional - persistent, on-demand, or manual (default: manual)
+  storage: ""                     # Optional - Storage path (default: type-specific, e.g., /var/lib/zot)
+  idleTimeout: 0                  # Optional - Seconds before auto-stop (on-demand only; default: 1800; min: 60)
   config:                         # Optional - Registry-specific configuration
     key: "value"
 
 # status:                         # READ-ONLY - Set by the system, not user-configurable
-#   state: ""                     # Running state (running, stopped, etc.)
+#   state: ""                     # Running state (running, stopped, starting, error)
 #   endpoint: ""                  # Access endpoint (e.g., http://localhost:5001)
 ```
 
@@ -344,8 +478,11 @@ spec:
 | `metadata.description` | string | No | Human-readable description | [Registry](registry.md) |
 | `spec.type` | string | Yes | Registry type: `zot`, `athens`, `devpi`, `verdaccio`, `squid` | [Registry](registry.md) |
 | `spec.version` | string | No | Registry software version | [Registry](registry.md) |
-| `spec.port` | int | No | Port number | [Registry](registry.md) |
-| `spec.lifecycle` | string | No | `persistent`, `on-demand`, or `manual` | [Registry](registry.md) |
+| `spec.enabled` | bool | No | Whether registry is enabled (default: `true`) | [Registry](registry.md) |
+| `spec.port` | int | No | Port number (0 = type default; range 1024–65535) | [Registry](registry.md) |
+| `spec.lifecycle` | string | No | `persistent`, `on-demand`, or `manual` (default: `manual`) | [Registry](registry.md) |
+| `spec.storage` | string | No | Storage path (default: type-specific) | [Registry](registry.md) |
+| `spec.idleTimeout` | int | No | Seconds before auto-stop for `on-demand` (default: `1800`; min: `60`) | [Registry](registry.md) |
 | `spec.config` | map[string]any | No | Registry-specific key-value configuration | [Registry](registry.md) |
 
 **Default ports by type:**
@@ -357,6 +494,43 @@ spec:
 | `devpi` | 3141 | Python package index |
 | `verdaccio` | 4873 | npm registry |
 | `squid` | 3128 | HTTP caching proxy |
+
+---
+
+### GitRepo
+
+A remote git repository mirrored locally for fast, offline-capable workspace builds.
+
+```yaml
+apiVersion: devopsmaestro.io/v1
+kind: GitRepo
+metadata:
+  name: ""                        # REQUIRED - Unique repository name
+  labels:                         # Optional - Key-value labels for filtering
+    team: ""
+    language: ""
+  annotations:                    # Optional - Non-identifying metadata
+    description: ""
+spec:
+  url: ""                         # REQUIRED - Remote repository URL (HTTPS or SSH)
+  defaultRef: ""                  # Optional - Default branch/tag to check out (default: "main")
+  authType: ""                    # Optional - none, ssh, or basic (default: "none")
+  credential: ""                  # Optional - Credential name for private repo authentication
+  autoSync: false                 # Optional - Automatically sync mirror on a schedule (default: false)
+  syncIntervalMinutes: 0          # Optional - Sync interval in minutes when autoSync is true
+```
+
+| Field | Type | Required | Description | Reference |
+|-------|------|----------|-------------|-----------|
+| `metadata.name` | string | Yes | Unique repository name | [GitRepo](gitrepo.md) |
+| `metadata.labels` | map[string]string | No | Key-value labels for filtering | [GitRepo](gitrepo.md) |
+| `metadata.annotations` | map[string]string | No | Non-identifying metadata | [GitRepo](gitrepo.md) |
+| `spec.url` | string | Yes | Remote repository URL (HTTPS or SSH) | [GitRepo](gitrepo.md) |
+| `spec.defaultRef` | string | No | Default branch or tag (default: `main`) | [GitRepo](gitrepo.md) |
+| `spec.authType` | string | No | `none`, `ssh`, or `basic` (default: `none`) | [GitRepo](gitrepo.md) |
+| `spec.credential` | string | No | Credential resource name for authentication | [GitRepo](gitrepo.md) |
+| `spec.autoSync` | bool | No | Periodically sync the local mirror (default: `false`) | [GitRepo](gitrepo.md) |
+| `spec.syncIntervalMinutes` | int | No | Sync frequency in minutes (requires `autoSync: true`) | [GitRepo](gitrepo.md) |
 
 ---
 
@@ -375,16 +549,19 @@ metadata:
   author: ""                      # Optional - Theme author
   category: ""                    # Optional - Category (e.g., "dark", "light")
 spec:
-  plugin:                         # Optional - Plugin that provides this theme
+  plugin:                         # Optional - Plugin that provides this theme (omit for standalone)
     repo: ""                      # GitHub repository (e.g., "folke/tokyonight.nvim")
     branch: ""                    # Git branch
     tag: ""                       # Git tag
   style: ""                       # Optional - Theme style variant (e.g., "storm", "night")
   transparent: false              # Optional - Enable transparent background
-  colors:                         # Optional - Color overrides (hex values)
+  colors:                         # Optional - Color overrides (hex values); REQUIRED for standalone themes
     bg: ""
     fg: ""
-  options:                        # Optional - Theme-specific options
+  promptColors:                   # Optional - Starship prompt segment color overrides (hex values)
+    directory: ""
+    git_branch: ""
+  options:                        # Optional - Theme-specific key-value options (plugin-defined)
     key: "value"
 ```
 
@@ -394,11 +571,12 @@ spec:
 | `metadata.description` | string | No | Human-readable description | [NvimTheme](nvim-theme.md) |
 | `metadata.author` | string | No | Theme author | [NvimTheme](nvim-theme.md) |
 | `metadata.category` | string | No | Category (dark, light, etc.) | [NvimTheme](nvim-theme.md) |
-| `spec.plugin` | object | No | Plugin repo, branch, and tag | [NvimTheme](nvim-theme.md) |
+| `spec.plugin` | object | No | Plugin repo, branch, and tag (omit for standalone) | [NvimTheme](nvim-theme.md) |
 | `spec.style` | string | No | Theme style variant | [NvimTheme](nvim-theme.md) |
 | `spec.transparent` | bool | No | Enable transparent background | [NvimTheme](nvim-theme.md) |
-| `spec.colors` | map[string]string | No | Color overrides (hex values) | [NvimTheme](nvim-theme.md) |
-| `spec.options` | map[string]any | No | Theme-specific options | [NvimTheme](nvim-theme.md) |
+| `spec.colors` | map[string]string | No | Color overrides (hex values); required for standalone | [NvimTheme](nvim-theme.md) |
+| `spec.promptColors` | map[string]string | No | Starship prompt segment color overrides | [NvimTheme](nvim-theme.md) |
+| `spec.options` | map[string]any | No | Theme-specific key-value options | [NvimTheme](nvim-theme.md) |
 
 ---
 
@@ -422,36 +600,41 @@ metadata:
 spec:
   repo: ""                        # REQUIRED - GitHub repository (e.g., "nvim-telescope/telescope.nvim")
   branch: ""                      # Optional - Git branch
-  version: ""                     # Optional - Version constraint
-  priority: 0                     # Optional - Load priority (lower = earlier)
+  version: ""                     # Optional - Version constraint (git tag)
+  priority: 0                     # Optional - Load priority (higher = earlier)
   lazy: false                     # Optional - Lazy-load the plugin
+  enabled: true                   # Optional - Disable with false; omit when enabled (default: true)
   event:                          # Optional - Events that trigger loading (string or list)
     - ""
   ft:                             # Optional - Filetypes that trigger loading (string or list)
     - ""
   keys:                           # Optional - Key mappings that trigger loading
     - key: ""                     # Key sequence (e.g., "<leader>ff")
-      mode: ""                    # Vim mode (e.g., "n", "v", "i")
+      mode: ""                    # Vim mode (e.g., "n", "v", "i") — string or list
       action: ""                  # Action to perform
       desc: ""                    # Description shown in which-key
   cmd:                            # Optional - Commands that trigger loading (string or list)
     - ""
   dependencies:                   # Optional - Plugin dependencies (strings or objects)
-    - ""                          # Simple: just a plugin name
+    - ""                          # Simple: just a repo path (e.g., "nvim-lua/plenary.nvim")
     # - repo: ""                  # Detailed: object with repo, build, version, branch, config
     #   build: ""
     #   version: ""
     #   branch: ""
     #   config: false
   build: ""                       # Optional - Build command to run after install
-  config: ""                      # Optional - Lua configuration code
+  config: ""                      # Optional - Lua configuration code (runs after plugin loads)
   init: ""                        # Optional - Lua init code (runs before plugin loads)
   opts: {}                        # Optional - Plugin options passed to setup()
-  keymaps:                        # Optional - Additional key mappings
+  keymaps:                        # Optional - Additional key mappings (not lazy-load triggers)
     - key: ""                     # Key sequence
-      mode: ""                    # Vim mode
+      mode: ""                    # Vim mode — string or list
       action: ""                  # Action to perform
       desc: ""                    # Description
+  health_checks:                  # Optional - Health checks to verify plugin installation
+    - type: ""                    # lua_module, command, treesitter, or lsp
+      value: ""                   # Module name, command name, parser, or LSP server
+      description: ""             # Human-readable description of what is checked
 ```
 
 | Field | Type | Required | Description | Reference |
@@ -462,19 +645,21 @@ spec:
 | `metadata.tags` | []string | No | Tags for searching and filtering | [NvimPlugin](nvim-plugin.md) |
 | `spec.repo` | string | Yes | GitHub repository path | [NvimPlugin](nvim-plugin.md) |
 | `spec.branch` | string | No | Git branch | [NvimPlugin](nvim-plugin.md) |
-| `spec.version` | string | No | Version constraint | [NvimPlugin](nvim-plugin.md) |
-| `spec.priority` | int | No | Load priority (lower = earlier) | [NvimPlugin](nvim-plugin.md) |
+| `spec.version` | string | No | Version constraint (git tag) | [NvimPlugin](nvim-plugin.md) |
+| `spec.priority` | int | No | Load priority (higher = earlier) | [NvimPlugin](nvim-plugin.md) |
 | `spec.lazy` | bool | No | Lazy-load the plugin | [NvimPlugin](nvim-plugin.md) |
+| `spec.enabled` | bool | No | Disable with `false`; omit when enabled (default: `true`) | [NvimPlugin](nvim-plugin.md) |
 | `spec.event` | string or []string | No | Events that trigger loading | [NvimPlugin](nvim-plugin.md) |
 | `spec.ft` | string or []string | No | Filetypes that trigger loading | [NvimPlugin](nvim-plugin.md) |
 | `spec.keys` | []object | No | Key mappings that trigger loading | [NvimPlugin](nvim-plugin.md) |
 | `spec.cmd` | string or []string | No | Commands that trigger loading | [NvimPlugin](nvim-plugin.md) |
 | `spec.dependencies` | []string or []object | No | Plugin dependencies | [NvimPlugin](nvim-plugin.md) |
 | `spec.build` | string | No | Build command after install | [NvimPlugin](nvim-plugin.md) |
-| `spec.config` | string | No | Lua configuration code | [NvimPlugin](nvim-plugin.md) |
+| `spec.config` | string | No | Lua configuration code (post-load) | [NvimPlugin](nvim-plugin.md) |
 | `spec.init` | string | No | Lua init code (pre-load) | [NvimPlugin](nvim-plugin.md) |
 | `spec.opts` | any | No | Options passed to setup() | [NvimPlugin](nvim-plugin.md) |
-| `spec.keymaps` | []object | No | Additional key mappings | [NvimPlugin](nvim-plugin.md) |
+| `spec.keymaps` | []object | No | Additional key mappings (not lazy triggers) | [NvimPlugin](nvim-plugin.md) |
+| `spec.health_checks` | []object | No | Health checks: type, value, description | [NvimPlugin](nvim-plugin.md) |
 
 ---
 
@@ -676,6 +861,62 @@ spec:
 
 ---
 
+## Meta Resources
+
+### GlobalDefaults
+
+System-wide fallback values for theme, packages, build args, CA certs, and registry routing. Singleton — exactly one per installation.  
+Full reference: [global-defaults.md](global-defaults.md)
+
+```yaml
+# Full reference: https://devopsmaestro.io/reference/global-defaults
+apiVersion: devopsmaestro.io/v1   # REQUIRED — always "devopsmaestro.io/v1"
+kind: GlobalDefaults              # REQUIRED
+metadata:
+  name: global-defaults           # REQUIRED — always "global-defaults"; value is informational
+spec:
+  theme: ""                       # Optional - Global fallback theme name (lowest priority in cascade)
+                                  #   e.g. coolnight-ocean, tokyonight-night, gruvbox-dark
+  nvimPackage: ""                 # Optional - Global fallback NvimPackage name
+  terminalPackage: ""             # Optional - Global fallback TerminalPackage name
+  plugins:                        # Optional - Global default plugin names
+    - ""
+  buildArgs:                      # Optional - Global build args passed as --build-arg (lowest priority)
+    KEY: "value"                  #   global < ecosystem < domain < app < workspace
+  caCerts:                        # Optional - CA certs injected globally into all workspace builds
+    - name: ""                    # REQUIRED per cert - alphanumeric/_/- only; max 64 chars
+      vaultSecret: ""             # REQUIRED per cert - MaestroVault secret name (PEM)
+      vaultEnvironment: ""        # Optional - Vault environment override
+      vaultField: ""              # Optional - Field within secret (default: "cert")
+  registryOci: ""                 # Optional - Default OCI registry resource name (type: zot)
+  registryPypi: ""                # Optional - Default PyPI registry resource name (type: devpi)
+  registryNpm: ""                 # Optional - Default npm registry resource name (type: verdaccio)
+  registryGo: ""                  # Optional - Default Go module proxy resource name (type: athens)
+  registryHttp: ""                # Optional - Default HTTP caching proxy resource name (type: squid)
+  registryIdleTimeout: ""         # Optional - Global idle timeout for on-demand registries (e.g. "30m", "1h")
+```
+
+| Field | Type | Required | Description | Reference |
+|-------|------|----------|-------------|-----------|
+| `metadata.name` | string | Yes | Always `global-defaults`; informational only | [GlobalDefaults](global-defaults.md) |
+| `spec.theme` | string | No | Global fallback theme; lowest priority in cascade | [GlobalDefaults](global-defaults.md) |
+| `spec.nvimPackage` | string | No | Global fallback NvimPackage name | [GlobalDefaults](global-defaults.md) |
+| `spec.terminalPackage` | string | No | Global fallback TerminalPackage name | [GlobalDefaults](global-defaults.md) |
+| `spec.plugins` | []string | No | Global default plugin names | [GlobalDefaults](global-defaults.md) |
+| `spec.buildArgs` | map[string]string | No | Global build args; lowest priority in cascade | [GlobalDefaults](global-defaults.md) |
+| `spec.caCerts[].name` | string | Yes (per cert) | Cert name; must match `^[a-zA-Z0-9][a-zA-Z0-9_-]*$`; max 64 chars | [GlobalDefaults](global-defaults.md) |
+| `spec.caCerts[].vaultSecret` | string | Yes (per cert) | MaestroVault secret name containing PEM | [GlobalDefaults](global-defaults.md) |
+| `spec.caCerts[].vaultEnvironment` | string | No | Vault environment override | [GlobalDefaults](global-defaults.md) |
+| `spec.caCerts[].vaultField` | string | No | Field within secret (default: `"cert"`) | [GlobalDefaults](global-defaults.md) |
+| `spec.registryOci` | string | No | Default OCI registry resource name | [GlobalDefaults](global-defaults.md) |
+| `spec.registryPypi` | string | No | Default PyPI registry resource name | [GlobalDefaults](global-defaults.md) |
+| `spec.registryNpm` | string | No | Default npm registry resource name | [GlobalDefaults](global-defaults.md) |
+| `spec.registryGo` | string | No | Default Go module proxy resource name | [GlobalDefaults](global-defaults.md) |
+| `spec.registryHttp` | string | No | Default HTTP caching proxy resource name | [GlobalDefaults](global-defaults.md) |
+| `spec.registryIdleTimeout` | string | No | Global idle timeout for `on-demand` registries (e.g., `"30m"`, `"1h"`) | [GlobalDefaults](global-defaults.md) |
+
+---
+
 ## Extensibility Resources
 
 ### CustomResourceDefinition
@@ -688,7 +929,7 @@ kind: CustomResourceDefinition
 metadata:
   name: ""                        # REQUIRED - CRD name (typically plural form)
 spec:
-  group: ""                       # REQUIRED - API group (e.g., "mycompany.io")
+  group: ""                       # Optional - API group (e.g., "mycompany.io")
   names:                          # REQUIRED - Resource naming
     kind: ""                      # REQUIRED - Resource kind (e.g., "DatabaseConfig")
     singular: ""                  # REQUIRED - Singular name (e.g., "databaseconfig")
@@ -706,7 +947,7 @@ spec:
 | Field | Type | Required | Description | Reference |
 |-------|------|----------|-------------|-----------|
 | `metadata.name` | string | Yes | CRD name | [CRD](custom-resource-definition.md) |
-| `spec.group` | string | Yes | API group for the custom resource | [CRD](custom-resource-definition.md) |
+| `spec.group` | string | No | API group for the custom resource (e.g., `mycompany.io`) | [CRD](custom-resource-definition.md) |
 | `spec.names.kind` | string | Yes | Resource kind name | [CRD](custom-resource-definition.md) |
 | `spec.names.singular` | string | Yes | Singular name | [CRD](custom-resource-definition.md) |
 | `spec.names.plural` | string | Yes | Plural name | [CRD](custom-resource-definition.md) |
@@ -723,8 +964,700 @@ spec:
 
 ---
 
+---
+
+## Nvim Annotated Blank Templates
+
+Complete blank templates for nvim resources with every possible field, inline comments, and required/optional markers. Copy and fill in only the fields you need — remove commented-out optional fields you won't use.
+
+---
+
+### NvimPlugin — Complete Annotated Template
+
+```yaml
+# ============================================================
+# NvimPlugin — Full annotated blank template
+# Apply with: dvm apply -f my-plugin.yaml
+# ============================================================
+apiVersion: devopsmaestro.io/v1    # REQUIRED — always "devopsmaestro.io/v1"
+kind: NvimPlugin                   # REQUIRED — always "NvimPlugin"
+
+metadata:
+  # ── Identity ──────────────────────────────────────────────
+  name: ""                         # REQUIRED — unique name (e.g., "telescope", "lspconfig")
+  description: ""                  # optional — human-readable description
+  category: ""                     # optional — e.g., "lsp", "navigation", "completion",
+                                   #   "ui", "editing", "git", "syntax", "debugging"
+  tags:                            # optional — list of strings for searching/filtering
+    - ""
+  labels:                          # optional — arbitrary key-value labels
+    key: "value"
+  annotations:                     # optional — non-identifying metadata (e.g., docs URLs)
+    key: "value"
+
+spec:
+  # ── Source ────────────────────────────────────────────────
+  repo: ""                         # REQUIRED — GitHub repo path, e.g., "nvim-telescope/telescope.nvim"
+  branch: ""                       # optional — pin to a git branch (mutually exclusive with version)
+  version: ""                      # optional — pin to a git tag/version (e.g., "0.1.4")
+
+  # ── Load order ────────────────────────────────────────────
+  priority: 0                      # optional — higher number loads earlier; useful for colorschemes
+                                   #   (e.g., priority: 1000 loads before priority: 100)
+
+  # ── Lazy loading ──────────────────────────────────────────
+  lazy: false                      # optional — true = defer load until a trigger fires
+  event:                           # optional — load on Neovim events; string or list
+    - "BufReadPre"                 #   common: BufReadPre, BufNewFile, VeryLazy,
+    - "BufNewFile"                 #           InsertEnter, CmdlineEnter
+  ft:                              # optional — load only for these filetypes; string or list
+    - "go"
+    - "lua"
+  cmd:                             # optional — load when these ex-commands are first called; string or list
+    - "Telescope"
+  keys:                            # optional — load on keypress AND register the mapping
+    - key: "<leader>ff"            #   key: key sequence (e.g., "<leader>ff", "<C-p>")
+      mode: "n"                    #   mode: vim mode — "n", "i", "v", "x", "o", "c", or list
+      action: "<cmd>Telescope find_files<cr>"  # action: Lua code or ex-command
+      desc: "Find files"           #   desc: shown in which-key popup
+
+  # ── Dependencies ──────────────────────────────────────────
+  dependencies:                    # optional — plugins that must be loaded first
+    - "nvim-lua/plenary.nvim"      #   simple format: just the repo path
+    - repo: "nvim-tree/nvim-web-devicons"  # detailed format: full spec
+      build: ""                    #     build: build command for this dep
+      version: ""                  #     version: pin to git tag
+      branch: ""                   #     branch: pin to git branch
+      config: false                #     config: true = run this dep's config too
+
+  # ── Build ─────────────────────────────────────────────────
+  build: ""                        # optional — shell/neovim command after install/update
+                                   #   e.g., "make", ":TSUpdate", "npm install"
+
+  # ── Configuration ─────────────────────────────────────────
+  init: |                          # optional — Lua code that runs BEFORE the plugin loads
+    -- Set globals/options that the plugin reads at startup
+    vim.g.example_setting = true
+  config: |                        # optional — Lua code that runs AFTER the plugin loads
+    require("example").setup({
+      -- your config here
+    })
+  opts: {}                         # optional — table passed directly to setup(); alternative to config
+                                   #   when you only need to pass options, not run arbitrary Lua
+
+  # ── Additional keymaps ────────────────────────────────────
+  keymaps:                         # optional — mappings registered after plugin loads
+    - key: "<leader>tt"            #   unlike spec.keys, these do NOT trigger lazy loading
+      mode: "n"
+      action: "<cmd>SomeCommand<cr>"
+      desc: "Description"
+
+  # ── State ─────────────────────────────────────────────────
+  enabled: true                    # optional — set to false to disable; omit when enabled (default: true)
+
+  # ── Health checks ─────────────────────────────────────────
+  health_checks:                   # optional — verified with: nvp health
+    - type: "lua_module"           #   type options:
+      value: "example"             #     lua_module  — checks require("value") succeeds
+      description: "Core module"   #     command     — checks ex-command exists
+    - type: "command"              #     treesitter  — checks parser is installed
+      value: "ExampleCmd"          #     lsp         — checks LSP server is configured
+      description: "Main command"
+```
+
+---
+
+### NvimTheme — Complete Annotated Template
+
+```yaml
+# ============================================================
+# NvimTheme — Full annotated blank template
+# Apply with: dvm apply -f my-theme.yaml
+# Two modes:
+#   Plugin-based: spec.plugin.repo points to a colorscheme plugin
+#   Standalone:   omit spec.plugin entirely; spec.colors is REQUIRED
+# ============================================================
+apiVersion: devopsmaestro.io/v1    # REQUIRED — always "devopsmaestro.io/v1"
+kind: NvimTheme                    # REQUIRED — always "NvimTheme"
+
+metadata:
+  # ── Identity ──────────────────────────────────────────────
+  name: ""                         # REQUIRED — unique name, e.g., "tokyonight-night", "gruvbox-dark"
+  description: ""                  # optional — human-readable description
+  author: ""                       # optional — theme author
+  category: ""                     # optional — "dark", "light", or "both"
+
+spec:
+  # ── Plugin source ─────────────────────────────────────────
+  # For plugin-based themes: fill in spec.plugin.repo
+  # For standalone themes:   remove the entire plugin block and add spec.colors
+  plugin:                          # optional — omit entirely for standalone themes
+    repo: ""                       # GitHub repository, e.g., "folke/tokyonight.nvim"
+    branch: ""                     # optional — pin to git branch
+    tag: ""                        # optional — pin to git tag/version
+
+  # ── Variant ───────────────────────────────────────────────
+  style: ""                        # optional — plugin-specific variant, e.g.:
+                                   #   tokyonight: "night", "storm", "day", "moon"
+                                   #   catppuccin:  "mocha", "macchiato", "frappe", "latte"
+                                   #   gruvbox:     "dark", "light"
+                                   #   kanagawa:    "wave", "dragon", "lotus"
+
+  # ── Background ────────────────────────────────────────────
+  transparent: false               # optional — enable transparent background for terminal integration
+
+  # ── Color overrides ───────────────────────────────────────
+  # Semantic color names understood by DevOpsMaestro's color system.
+  # Plugin-based themes: override individual colors; standalone: all required.
+  colors:                          # optional for plugin-based; REQUIRED for standalone themes
+    # Background palette
+    bg: ""                         # main background
+    bg_dark: ""                    # darker background (splits, inactive windows)
+    bg_highlight: ""               # highlighted background (current line)
+    bg_search: ""                  # search highlight background
+    bg_visual: ""                  # visual selection background
+    bg_float: ""                   # floating window background
+    bg_popup: ""                   # popup/completion menu background
+    bg_sidebar: ""                 # sidebar background (NvimTree, etc.)
+    bg_statusline: ""              # statusline background
+
+    # Foreground palette
+    fg: ""                         # main foreground
+    fg_dark: ""                    # muted foreground
+    fg_gutter: ""                  # line numbers, gutter signs
+    fg_sidebar: ""                 # sidebar foreground
+
+    # Semantic/diagnostic colors
+    error: ""                      # error highlight (DiagnosticError)
+    warning: ""                    # warning highlight (DiagnosticWarn)
+    info: ""                       # info highlight (DiagnosticInfo)
+    hint: ""                       # hint highlight (DiagnosticHint)
+
+    # UI colors
+    border: ""                     # window/popup borders
+    comment: ""                    # comment text
+
+  # ── Prompt color overrides ────────────────────────────────
+  # Applied when this theme is used with a Starship-based terminal prompt.
+  # Keys are Starship module names; values are hex colors.
+  promptColors:                    # optional — Starship prompt segment colors
+    directory: ""                  # directory/path segment
+    git_branch: ""                 # git branch segment
+    username: ""                   # username segment
+    hostname: ""                   # hostname segment
+
+  # ── Plugin-specific options ───────────────────────────────
+  # Passed directly to the colorscheme plugin's setup() call.
+  # Keys and valid values are entirely plugin-defined.
+  options:                         # optional — plugin-specific key-value options
+    # Examples (actual keys depend on the plugin):
+    italic_comments: true
+    bold_keywords: false
+    transparent_background: false
+    dim_inactive: false
+    terminal_colors: true
+```
+
+---
+
+### NvimPackage — Complete Annotated Template
+
+```yaml
+# ============================================================
+# NvimPackage — Full annotated blank template
+# Apply with: dvm apply -f my-package.yaml
+#
+# A package is a named, reusable list of plugin references.
+# Use spec.extends for single inheritance (one parent only).
+# Packages are resolved at workspace build time; circular
+# dependencies are rejected.
+# ============================================================
+apiVersion: devopsmaestro.io/v1    # REQUIRED — always "devopsmaestro.io/v1"
+kind: NvimPackage                  # REQUIRED — always "NvimPackage"
+
+metadata:
+  # ── Identity ──────────────────────────────────────────────
+  name: ""                         # REQUIRED — unique name, e.g., "golang-dev", "core", "typescript-full"
+  description: ""                  # optional — human-readable description
+  category: ""                     # optional — e.g., "language", "framework", "core", "purpose"
+  tags:                            # optional — list of strings for searching/filtering
+    - ""
+  labels:                          # optional — arbitrary key-value labels
+    key: "value"
+  annotations:                     # optional — non-identifying metadata
+    key: "value"
+
+spec:
+  # ── Inheritance ───────────────────────────────────────────
+  extends: ""                      # optional — parent package name (single inheritance only)
+                                   #   the parent's plugins are prepended before this package's plugins
+                                   #   inheritance chain: core → lang-dev → framework-dev
+
+  # ── Plugins ───────────────────────────────────────────────
+  plugins:                         # REQUIRED — list of plugin names to include (at least one)
+    - ""                           #   use the plugin's metadata.name as defined in its NvimPlugin resource
+                                   #   e.g., "telescope", "lspconfig", "nvim-cmp"
+                                   #   strings only — no inline plugin definitions
+
+  # ── State ─────────────────────────────────────────────────
+  enabled: true                    # optional — set to false to disable; omit when enabled (default: true)
+                                   #   disabled packages are stored but not applied to workspaces
+```
+
+---
+
 ## See Also
 
 - [YAML Reference Overview](index.md) -- Resource type descriptions and hierarchy
 - [YAML Schema](../configuration/yaml-schema.md) -- Schema validation rules
 - [Commands Reference](../dvm/commands.md) -- CLI commands including `dvm apply`
+
+---
+
+## Complete Setup Template
+
+A production-ready multi-document YAML file that bootstraps an entire DevOpsMaestro environment from scratch. Save this as `complete-setup.yaml` and customize for your team.
+
+This template sets up the **Acme Platform** — a realistic microservices development environment with Go/Python backends, Neovim IDE configuration, and WezTerm terminal setup.
+
+```yaml
+# Complete DevOpsMaestro Setup — Acme Platform
+# Apply with: dvm apply -f complete-setup.yaml
+# Resources are processed in document order.
+
+# ─── 1. Workspace ─────────────────────────────────────────────
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: acme-platform
+spec:
+  image: acme/dev-workspace:latest
+  build:
+    dockerfile: .devcontainer/Dockerfile
+    context: .
+  shell: zsh
+  terminal: wezterm
+  nvim: true
+  tools:
+    - go
+    - python3
+    - node
+    - docker
+    - kubectl
+  mounts:
+    - source: ~/.ssh
+      target: /home/dev/.ssh
+      readOnly: true
+    - source: ~/.aws
+      target: /home/dev/.aws
+      readOnly: true
+  env:
+    GOPATH: /home/dev/go
+    EDITOR: nvim
+---
+# ─── 2. Global Defaults ───────────────────────────────────────
+apiVersion: devopsmaestro.io/v1
+kind: GlobalDefaults
+metadata:
+  name: acme-defaults
+spec:
+  theme: catppuccin-mocha
+  nvimPackage: acme-ide
+  terminalPackage: acme-terminal
+  buildArgs:
+    GO_VERSION: "1.22"
+    PYTHON_VERSION: "3.12"
+  caCerts:
+    - /etc/ssl/certs/acme-root-ca.pem
+  registryOci: registry.acme.io
+  registryGo: https://goproxy.acme.io
+  registryNpm: https://npm.acme.io
+  registryPypi: https://pypi.acme.io
+  registryIdleTimeout: 30m
+---
+# ─── 3. Ecosystem ─────────────────────────────────────────────
+apiVersion: devopsmaestro.io/v1
+kind: Ecosystem
+metadata:
+  name: backend
+spec:
+  description: "Backend services ecosystem — Go and Python microservices"
+  theme: catppuccin-mocha
+  nvimPackage: acme-ide
+  terminalPackage: acme-terminal
+  build:
+    parallel: true
+    timeout: 10m
+  caCerts:
+    - /etc/ssl/certs/acme-root-ca.pem
+  domains:
+    - payments
+    - identity
+    - notifications
+---
+# ─── 4. Domain ─────────────────────────────────────────────────
+apiVersion: devopsmaestro.io/v1
+kind: Domain
+metadata:
+  name: payments
+spec:
+  theme: catppuccin-mocha
+  nvimPackage: acme-ide
+  terminalPackage: acme-terminal
+  build:
+    parallel: true
+    timeout: 5m
+  apps:
+    - payment-service
+    - payment-gateway
+    - billing-worker
+---
+# ─── 5. App ───────────────────────────────────────────────────
+apiVersion: devopsmaestro.io/v1
+kind: App
+metadata:
+  name: payment-service
+  ecosystem: backend
+spec:
+  path: ./services/payment-service
+  theme: catppuccin-mocha
+  nvimPackage: acme-ide
+  terminalPackage: acme-terminal
+  gitRepo: payment-service-repo
+  language: go
+  build:
+    command: make build
+    testCommand: make test
+    lintCommand: golangci-lint run
+  dependencies:
+    - billing-worker
+  services:
+    - name: postgres
+      image: postgres:16
+      ports: ["5432:5432"]
+      env:
+        POSTGRES_DB: payments
+        POSTGRES_USER: dev
+        POSTGRES_PASSWORD: dev
+    - name: redis
+      image: redis:7-alpine
+      ports: ["6379:6379"]
+  ports:
+    - "8080:8080"
+    - "9090:9090"
+  env:
+    SERVICE_NAME: payment-service
+    LOG_LEVEL: debug
+    DB_HOST: localhost
+    DB_PORT: "5432"
+---
+# ─── 6. Credential ────────────────────────────────────────────
+apiVersion: devopsmaestro.io/v1
+kind: Credential
+metadata:
+  name: acme-dockerhub
+spec:
+  source: vault
+  vaultSecret: secret/ci/dockerhub
+  vaultEnvironment: production
+  vaultFields:
+    username: docker_user
+    password: docker_token
+  description: "Acme DockerHub service account for pulling base images"
+---
+# ─── 7. Registry ──────────────────────────────────────────────
+apiVersion: devopsmaestro.io/v1
+kind: Registry
+metadata:
+  name: acme-registry
+spec:
+  type: oci
+  version: "2"
+  enabled: true
+  port: 5000
+  lifecycle:
+    deleteUntagged: true
+    keepLastN: 10
+  storage:
+    driver: filesystem
+    rootDirectory: /var/lib/registry
+  idleTimeout: 30m
+  config:
+    proxy:
+      remoteurl: https://registry.acme.io
+    auth:
+      credential: acme-dockerhub
+---
+# ─── 8. Git Repo ──────────────────────────────────────────────
+apiVersion: devopsmaestro.io/v1
+kind: GitRepo
+metadata:
+  name: payment-service-repo
+spec:
+  url: https://github.com/acme-corp/payment-service.git
+  defaultRef: main
+  authType: ssh
+  credential: acme-github-ssh
+  autoSync: true
+  syncIntervalMinutes: 15
+---
+# ─── 9. Nvim Plugin ───────────────────────────────────────────
+# Telescope — fuzzy finder for files, grep, and more
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: telescope
+spec:
+  repo: nvim-telescope/telescope.nvim
+  branch: master
+  priority: 100
+  lazy: true
+  enabled: true
+  event:
+    - VimEnter
+  cmd:
+    - Telescope
+  dependencies:
+    - nvim-lua/plenary.nvim
+    - nvim-tree/nvim-web-devicons
+  build: make
+  keymaps:
+    - key: "<leader>ff"
+      action: "<cmd>Telescope find_files<cr>"
+      desc: "Find files"
+    - key: "<leader>fg"
+      action: "<cmd>Telescope live_grep<cr>"
+      desc: "Live grep"
+    - key: "<leader>fb"
+      action: "<cmd>Telescope buffers<cr>"
+      desc: "Find buffers"
+  health_checks:
+    - command: "Telescope"
+      expected: "telescope"
+---
+# ─── 10. Nvim Theme ───────────────────────────────────────────
+apiVersion: devopsmaestro.io/v1
+kind: NvimTheme
+metadata:
+  name: catppuccin-mocha
+spec:
+  plugin:
+    repo: catppuccin/nvim
+    branch: main
+    priority: 1000
+  style: mocha
+  transparent: false
+  colors:
+    background: "#1e1e2e"
+    foreground: "#cdd6f4"
+    cursor: "#f5e0dc"
+    selection: "#585b70"
+  promptColors:
+    primary: "#89b4fa"
+    secondary: "#a6e3a1"
+    accent: "#f5c2e7"
+  options:
+    integrations:
+      treesitter: true
+      telescope: true
+      cmp: true
+      gitsigns: true
+      nvimtree: true
+---
+# ─── 11. Nvim Package ─────────────────────────────────────────
+# Combines plugins + theme into a distributable IDE configuration
+apiVersion: devopsmaestro.io/v1
+kind: NvimPackage
+metadata:
+  name: acme-ide
+spec:
+  extends: base-ide
+  plugins:
+    - telescope
+    - nvim-treesitter
+    - nvim-lspconfig
+    - nvim-cmp
+    - gitsigns
+    - lualine
+    - neo-tree
+    - which-key
+  enabled: true
+---
+# ─── 12. Terminal Prompt ───────────────────────────────────────
+apiVersion: devopsmaestro.io/v1
+kind: TerminalPrompt
+metadata:
+  name: acme-starship
+spec:
+  type: starship
+  addNewline: true
+  palette: acme-colors
+  format: "$directory$git_branch$git_status$golang$python$kubernetes$line_break$character"
+  modules:
+    directory:
+      truncation_length: 3
+      style: "bold cyan"
+    git_branch:
+      format: "[$symbol$branch]($style) "
+      style: "bold purple"
+    git_status:
+      format: "[$all_status$ahead_behind]($style) "
+    golang:
+      format: "[$symbol($version)]($style) "
+      symbol: " "
+    python:
+      format: "[$symbol($version)]($style) "
+      symbol: " "
+    kubernetes:
+      disabled: false
+      format: "[$symbol$context(/$namespace)]($style) "
+  character:
+    success_symbol: "[❯](bold green)"
+    error_symbol: "[❯](bold red)"
+  colors:
+    primary: "#89b4fa"
+    secondary: "#a6e3a1"
+  enabled: true
+---
+# ─── 13. Terminal Plugin ──────────────────────────────────────
+# Note: TerminalPlugin is a built-in kind but uses TerminalPackage
+# to bundle plugins. Individual plugins are referenced by name.
+---
+# ─── 14. Terminal Package ──────────────────────────────────────
+apiVersion: devopsmaestro.io/v1
+kind: TerminalPackage
+metadata:
+  name: acme-terminal
+spec:
+  extends: base-terminal
+  plugins:
+    - zoxide
+    - fzf
+    - bat
+    - eza
+    - ripgrep
+    - fd
+    - lazygit
+    - delta
+  prompts:
+    - acme-starship
+  wezterm: acme-wezterm
+  promptStyle: starship
+  enabled: true
+---
+# ─── 15. Terminal Emulator (WezTerm Config) ────────────────────
+apiVersion: devopsmaestro.io/v1
+kind: TerminalEmulator
+metadata:
+  name: acme-wezterm
+spec:
+  type: wezterm
+  config:
+    font_size: 13.0
+    font:
+      family: "JetBrains Mono"
+      harfbuzz_features:
+        - calt
+        - liga
+    window_padding:
+      left: 8
+      right: 8
+      top: 8
+      bottom: 8
+    enable_tab_bar: true
+    hide_tab_bar_if_only_one_tab: true
+    window_decorations: RESIZE
+    window_background_opacity: 0.95
+    scrollback_lines: 10000
+  themeRef: catppuccin-mocha
+  workspace: acme-platform
+---
+# ─── 16. Custom Resource Definition ───────────────────────────
+# Extend DevOpsMaestro with custom resource types
+apiVersion: devopsmaestro.io/v1alpha1
+kind: CustomResourceDefinition
+metadata:
+  name: monitors
+spec:
+  group: observability.acme.io
+  names:
+    kind: Monitor
+    plural: monitors
+    singular: monitor
+    shortNames:
+      - mon
+  scope: Domain
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        properties:
+          type:
+            type: string
+            enum: [datadog, prometheus, grafana]
+          endpoint:
+            type: string
+          alerts:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                query:
+                  type: string
+                threshold:
+                  type: number
+```
+
+### Usage
+
+1. **Save** the template to a file:
+   ```bash
+   # Copy and customize the template above
+   vim complete-setup.yaml
+   ```
+
+2. **Customize** values for your environment:
+   - Replace `acme-*` names with your organization
+   - Update image references, registry URLs, and Git repo URLs
+   - Adjust tool lists, plugins, and theme preferences
+   - Set credential sources to match your secrets backend
+
+3. **Apply** the complete setup:
+   ```bash
+   dvm apply -f complete-setup.yaml
+   ```
+   Resources are created in document order. Parent resources (Workspace, Ecosystem) are processed before children (Domain, App) that reference them.
+
+4. **Verify** the setup:
+   ```bash
+   dvm get workspaces
+   dvm get ecosystems
+   dvm get apps
+   dvm get nvim-packages
+   dvm get terminal-packages
+   ```
+
+### Resource Reference
+
+Each resource type in this template has a dedicated reference page with full field documentation:
+
+| Resource | Reference |
+|----------|-----------|
+| Workspace | [workspace.md](workspace.md) |
+| GlobalDefaults | [global-defaults.md](global-defaults.md) |
+| Ecosystem | [ecosystem.md](ecosystem.md) |
+| Domain | [domain.md](domain.md) |
+| App | [app.md](app.md) |
+| Credential | [credential.md](credential.md) |
+| Registry | [registry.md](registry.md) |
+| GitRepo | [gitrepo.md](gitrepo.md) |
+| NvimPlugin | [nvim-plugin.md](nvim-plugin.md) |
+| NvimTheme | [nvim-theme.md](nvim-theme.md) |
+| NvimPackage | [nvim-package.md](nvim-package.md) |
+| TerminalPrompt | [terminal-prompt.md](terminal-prompt.md) |
+| TerminalPackage | [terminal-package.md](terminal-package.md) |
+| TerminalEmulator | [wezterm-config.md](wezterm-config.md) |
+| CustomResourceDefinition | [custom-resource-definition.md](custom-resource-definition.md) |

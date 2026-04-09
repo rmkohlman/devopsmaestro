@@ -131,15 +131,18 @@ spec:
 | `spec.version` | string | ❌ | Git tag/version |
 | `spec.priority` | integer | ❌ | Load priority (higher = earlier) |
 | `spec.lazy` | boolean | ❌ | Enable lazy loading |
-| `spec.event` | array | ❌ | Load on events |
-| `spec.ft` | array | ❌ | Load on filetypes |
-| `spec.cmd` | array | ❌ | Load on commands |
-| `spec.keys` | array | ❌ | Load on key mappings |
-| `spec.dependencies` | array | ❌ | Plugin dependencies |
+| `spec.enabled` | boolean | ❌ | Enable or disable the plugin (default: `true`; omit unless disabling) |
+| `spec.event` | string or array | ❌ | Load on events |
+| `spec.ft` | string or array | ❌ | Load on filetypes |
+| `spec.cmd` | string or array | ❌ | Load on commands |
+| `spec.keys` | array | ❌ | Load on key mappings (also triggers lazy load) |
+| `spec.dependencies` | array | ❌ | Plugin dependencies (strings or objects) |
 | `spec.build` | string | ❌ | Build command |
-| `spec.config` | string | ❌ | Configuration Lua code |
-| `spec.init` | string | ❌ | Initialization Lua code |
-| `spec.opts` | object | ❌ | Options for plugin setup |
+| `spec.config` | string | ❌ | Configuration Lua code (runs after load) |
+| `spec.init` | string | ❌ | Initialization Lua code (runs before load) |
+| `spec.opts` | object | ❌ | Options passed directly to the plugin's `setup()` |
+| `spec.keymaps` | array | ❌ | Additional key mappings (not lazy-load triggers) |
+| `spec.health_checks` | array | ❌ | Health checks to verify plugin is working |
 
 ## Field Details
 
@@ -324,6 +327,59 @@ spec:
       find_files:
         theme: "dropdown"
 ```
+
+### spec.keymaps (optional)
+Additional key mappings registered after the plugin loads. Unlike `spec.keys`, entries here do **not** trigger lazy loading — the plugin must already be loaded.
+
+```yaml
+spec:
+  keymaps:
+    - key: "<leader>tt"
+      mode: "n"
+      action: "<cmd>ToggleTerm<cr>"
+      desc: "Toggle terminal"
+    - key: "<C-\\>"
+      mode: ["n", "t"]
+      action: "<cmd>ToggleTerm<cr>"
+      desc: "Toggle terminal (normal/terminal mode)"
+```
+
+### spec.enabled (optional)
+Enable or disable the plugin. Defaults to `true`. Only include this field when explicitly disabling a plugin — omitting it is equivalent to `true`.
+
+```yaml
+spec:
+  enabled: false   # Disable this plugin
+```
+
+### spec.health_checks (optional)
+Health checks to verify the plugin is correctly installed and functional. Run with `nvp health`.
+
+```yaml
+spec:
+  health_checks:
+    - type: lua_module     # Check a Lua module loads via require()
+      value: "telescope"
+      description: "Telescope core module"
+    - type: command        # Check a Neovim command exists
+      value: "Telescope"
+      description: "Telescope command available"
+    - type: treesitter     # Check a treesitter parser is installed
+      value: "lua"
+      description: "Lua treesitter parser"
+    - type: lsp            # Check an LSP server is configured
+      value: "gopls"
+      description: "Go LSP server"
+```
+
+**Health check types:**
+
+| Type | Checks |
+|------|--------|
+| `lua_module` | Lua module is loadable via `require()` |
+| `command` | Neovim command exists |
+| `treesitter` | Treesitter parser is installed |
+| `lsp` | LSP server is configured |
 
 ## Plugin Categories and Examples
 

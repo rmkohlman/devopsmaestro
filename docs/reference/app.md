@@ -13,6 +13,7 @@ kind: App
 metadata:
   name: api-service
   domain: backend
+  ecosystem: my-platform
   labels:
     team: backend-team
     type: api
@@ -22,6 +23,10 @@ metadata:
     repository: "https://github.com/company/api-service"
 spec:
   path: /Users/dev/projects/api-service
+  theme: coolnight-synthwave
+  nvimPackage: go-dev
+  terminalPackage: devops-shell
+  gitRepo: api-service-repo
   language:
     name: go
     version: "1.22"
@@ -29,6 +34,7 @@ spec:
     dockerfile: ./Dockerfile
     target: production
     context: .
+    buildpack: go
     args:
       GITHUB_TOKEN: ${GITHUB_TOKEN}
     caCerts:
@@ -62,7 +68,6 @@ spec:
     REDIS_URL: redis://localhost:6379
     LOG_LEVEL: debug
     GO111MODULE: "on"
-  theme: coolnight-synthwave
   workspaces:
     - main
     - debug
@@ -77,18 +82,41 @@ spec:
 | `kind` | string | ✅ | Must be `App` |
 | `metadata.name` | string | ✅ | Unique name for the app |
 | `metadata.domain` | string | ✅ | Parent domain name |
+| `metadata.ecosystem` | string | ❌ | Parent ecosystem name — enables context-free apply without `dvm use ecosystem` |
 | `metadata.labels` | object | ❌ | Key-value labels for organization |
 | `metadata.annotations` | object | ❌ | Key-value annotations for metadata |
-| `spec.path` | string | ✅ | Absolute path to source code |
+| `spec.path` | string | ✅ | Absolute path to source code on the local filesystem |
+| `spec.theme` | string | ❌ | Default theme for workspaces in this app |
+| `spec.nvimPackage` | string | ❌ | Default Neovim plugin package for workspaces in this app |
+| `spec.terminalPackage` | string | ❌ | Default terminal package for workspaces in this app |
+| `spec.gitRepo` | string | ❌ | Name of a GitRepo resource to associate with this app |
 | `spec.language` | object | ❌ | Programming language configuration |
+| `spec.language.name` | string | ❌ | Language name: `go`, `python`, `node`, `rust`, `java`, `dotnet` |
+| `spec.language.version` | string | ❌ | Language version (e.g., `"1.22"`, `"3.11"`, `"20"`) |
 | `spec.build` | object | ❌ | Build configuration |
-| `spec.build.caCerts` | array | ❌ | CA certificates cascaded from hierarchy levels; fetched from MaestroVault at build time |
-| `spec.dependencies` | object | ❌ | Dependency management |
-| `spec.services` | array | ❌ | External services (databases, etc.) |
-| `spec.ports` | array | ❌ | Ports the app exposes |
-| `spec.env` | object | ❌ | Application environment variables |
-| `spec.theme` | string | ❌ | Default theme for workspaces |
-| `spec.workspaces` | array | ❌ | List of workspace names |
+| `spec.build.dockerfile` | string | ❌ | Path to an existing Dockerfile |
+| `spec.build.buildpack` | string | ❌ | Buildpack to use (`auto`, `go`, `python`, `node`, etc.) |
+| `spec.build.target` | string | ❌ | Multi-stage Dockerfile build target |
+| `spec.build.context` | string | ❌ | Build context path (defaults to app path) |
+| `spec.build.args` | map[string]string | ❌ | Build arguments emitted as `ARG` declarations (not `ENV`) |
+| `spec.build.caCerts` | array | ❌ | CA certificates fetched from MaestroVault at build time |
+| `spec.build.caCerts[].name` | string | ✅ | Certificate name (must match `^[a-zA-Z0-9][a-zA-Z0-9_-]*$`; max 64 chars) |
+| `spec.build.caCerts[].vaultSecret` | string | ✅ | MaestroVault secret name containing the PEM certificate |
+| `spec.build.caCerts[].vaultEnvironment` | string | ❌ | Vault environment override |
+| `spec.build.caCerts[].vaultField` | string | ❌ | Field within the secret (default: `cert`) |
+| `spec.dependencies` | object | ❌ | Dependency management configuration |
+| `spec.dependencies.file` | string | ❌ | Dependency file: `go.mod`, `requirements.txt`, `package.json` |
+| `spec.dependencies.install` | string | ❌ | Command to install dependencies |
+| `spec.dependencies.extra` | array | ❌ | Additional dependencies to install |
+| `spec.services` | array | ❌ | Sidecar services the app depends on |
+| `spec.services[].name` | string | ✅ | Service name (e.g., `postgres`, `redis`, `mongodb`) |
+| `spec.services[].image` | string | ❌ | Custom Docker image (defaults to official image) |
+| `spec.services[].version` | string | ❌ | Service version/tag |
+| `spec.services[].port` | int | ❌ | Port to expose |
+| `spec.services[].env` | map[string]string | ❌ | Service environment variables |
+| `spec.ports` | array | ❌ | Port mappings the app exposes (format: `"host:container"`) |
+| `spec.env` | map[string]string | ❌ | Application-level environment variables |
+| `spec.workspaces` | array | ❌ | List of workspace names belonging to this app |
 
 ## Field Details
 
@@ -109,6 +137,16 @@ metadata:
   domain: backend  # References Domain/backend
 ```
 
+### metadata.ecosystem (optional)
+The name of the parent ecosystem. Optional but recommended — when present, `dvm apply` can resolve the app without requiring `dvm use ecosystem` to be set first.
+
+```yaml
+metadata:
+  name: api-service
+  domain: backend
+  ecosystem: my-platform  # Enables context-free apply
+```
+
 ### spec.path (required)
 Absolute path to the source code directory on the local filesystem.
 
@@ -123,13 +161,21 @@ spec:
   path: ${HOME}/projects/api-service
 ```
 
+### spec.gitRepo (optional)
+Name of a GitRepo resource to associate with this app. When set, `dvm apply` links the app to the named GitRepo by ID.
+
+```yaml
+spec:
+  gitRepo: api-service-repo  # References GitRepo/api-service-repo
+```
+
 ### spec.language (optional)
 Programming language and version information.
 
 ```yaml
 spec:
   language:
-    name: go          # go, python, node, rust, java, etc.
+    name: go          # go, python, node, rust, java, dotnet
     version: "1.22"   # Language version
 ```
 
@@ -151,7 +197,7 @@ spec:
     buildpack: auto               # Or: go, python, node, etc.
     target: production            # Multi-stage build target
     context: .                    # Build context path
-    args:                         # Build arguments
+    args:                         # Build arguments (ARG, not ENV)
       GITHUB_TOKEN: ${GITHUB_TOKEN}
       BUILD_ENV: production
     caCerts:                      # CA certificates from MaestroVault
@@ -180,13 +226,6 @@ global < ecosystem < domain < app < workspace
 ```
 
 An app-level cert overrides any matching cert from higher levels (domain, ecosystem, global). Individual workspaces can further override by defining a cert with the same name. Use `dvm get ca-certs --effective --workspace <name>` to see the fully merged result with provenance.
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | ✅ | Certificate name; must match `^[a-zA-Z0-9][a-zA-Z0-9_-]*$`; max 64 chars |
-| `vaultSecret` | string | ✅ | MaestroVault secret name containing the PEM certificate |
-| `vaultEnvironment` | string | ❌ | Vault environment override |
-| `vaultField` | string | ❌ | Field within the secret (default: `cert`) |
 
 Manage app-level CA certs with:
 
@@ -260,7 +299,7 @@ spec:
 ```
 
 ### spec.workspaces (optional)
-List of workspace names that belong to this app.
+List of workspace names that belong to this app. Populated automatically on `dvm get app -o yaml`.
 
 ```yaml
 spec:
@@ -280,6 +319,7 @@ kind: App
 metadata:
   name: go-api
   domain: backend
+  ecosystem: my-platform
 spec:
   path: /Users/dev/projects/go-api
   language:
@@ -305,6 +345,7 @@ kind: App
 metadata:
   name: fastapi-service
   domain: backend
+  ecosystem: my-platform
 spec:
   path: /Users/dev/projects/fastapi-service
   language:
@@ -333,6 +374,7 @@ kind: App
 metadata:
   name: node-api
   domain: frontend
+  ecosystem: my-platform
 spec:
   path: /Users/dev/projects/node-api
   language:
@@ -355,10 +397,6 @@ spec:
 ```bash
 # From YAML file
 dvm apply -f app.yaml
-
-# From current directory
-cd ~/projects/my-app
-dvm create app my-app --from-cwd
 
 # Imperative command
 dvm create app backend/my-api
@@ -386,6 +424,7 @@ dvm get app my-api --include-workspaces -o yaml
 - [Domain](domain.md) - Parent bounded context
 - [Workspace](workspace.md) - Development environments for this app
 - [Credential](credential.md) - Secrets scoped to this app
+- [NvimPackage](nvim-package.md) - Plugin package definitions
 - [NvimTheme](nvim-theme.md) - Theme definitions
 
 ## Validation Rules
@@ -393,7 +432,9 @@ dvm get app my-api --include-workspaces -o yaml
 - `metadata.name` must be unique within the parent domain
 - `metadata.name` must be a valid DNS subdomain
 - `metadata.domain` must reference an existing Domain resource
+- `metadata.ecosystem`, if provided, must reference an existing Ecosystem resource
 - `spec.path` must be an existing directory path
+- `spec.gitRepo`, if provided, must reference an existing GitRepo resource
 - `spec.language.name` must be a supported language
 - `spec.ports` must be valid port mappings (1-65535)
 - `spec.theme` must reference an existing theme
