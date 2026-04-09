@@ -188,58 +188,61 @@ Examples:
 	},
 }
 
-// emulatorInstallCmd installs an emulator from the library
-var emulatorInstallCmd = &cobra.Command{
-	Use:   "install <name>",
-	Short: "Install a terminal emulator from the library",
-	Long: `Install a terminal emulator configuration from the built-in library.
+// emulatorLibraryImportCmd imports an emulator from the library
+var emulatorLibraryImportCmd = &cobra.Command{
+	Use:   "import <name>",
+	Short: "Import a terminal emulator from the library",
+	Long: `Import a terminal emulator configuration from the built-in library.
 
 Examples:
-  dvt emulator install maestro          # Install maestro emulator
-  dvt emulator install minimal --force    # Overwrite if exists
-  dvt emulator install developer --dry-run # Preview installation`,
+  dvt emulator library import maestro            # Import maestro emulator
+  dvt emulator library import minimal --force    # Overwrite if exists
+  dvt emulator library import developer --dry-run # Preview import`,
 	Args: cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		name := args[0]
+	RunE: runEmulatorLibraryImport,
+}
 
-		force, _ := cmd.Flags().GetBool("force")
-		dryRun, _ := cmd.Flags().GetBool("dry-run")
+// runEmulatorLibraryImport is the shared implementation for emulator library import
+func runEmulatorLibraryImport(cmd *cobra.Command, args []string) error {
+	name := args[0]
 
-		// Get emulator from library
-		lib := library.Default()
-		libEmulator, err := lib.Get(name)
-		if err != nil {
-			return fmt.Errorf("emulator not found in library: %s", name)
-		}
+	force, _ := cmd.Flags().GetBool("force")
+	dryRun, _ := cmd.Flags().GetBool("dry-run")
 
-		if dryRun {
-			render.Infof("Would install emulator: %s", name)
-			render.Plainf("Type: %s", libEmulator.Type)
-			render.Plainf("Description: %s", libEmulator.Description)
-			render.Plainf("Category: %s", libEmulator.Category)
-			return nil
-		}
+	// Get emulator from library
+	lib := library.Default()
+	libEmulator, err := lib.Get(name)
+	if err != nil {
+		return fmt.Errorf("emulator not found in library: %s", name)
+	}
 
-		store, err := getEmulatorStore(cmd)
-		if err != nil {
-			return err
-		}
-		defer store.Close()
-
-		// Check if emulator already exists
-		_, err = store.Get(name)
-		if err == nil && !force {
-			return fmt.Errorf("emulator '%s' already exists (use --force to overwrite)", name)
-		}
-
-		// Install emulator
-		if err := store.Upsert(libEmulator); err != nil {
-			return fmt.Errorf("failed to install emulator: %w", err)
-		}
-
-		render.Successf("Emulator '%s' installed successfully", name)
+	if dryRun {
+		render.Infof("Would install emulator: %s", name)
+		render.Plainf("Type: %s", libEmulator.Type)
+		render.Plainf("Description: %s", libEmulator.Description)
+		render.Plainf("Category: %s", libEmulator.Category)
 		return nil
-	},
+	}
+
+	store, err := getEmulatorStore(cmd)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+
+	// Check if emulator already exists
+	_, err = store.Get(name)
+	if err == nil && !force {
+		return fmt.Errorf("emulator '%s' already exists (use --force to overwrite)", name)
+	}
+
+	// Install emulator
+	if err := store.Upsert(libEmulator); err != nil {
+		return fmt.Errorf("failed to install emulator: %w", err)
+	}
+
+	render.Successf("Emulator '%s' installed successfully", name)
+	return nil
 }
 
 // emulatorApplyCmd applies an emulator configuration from a YAML file
@@ -337,6 +340,18 @@ Examples:
 			emulators = lib.ListByType(emulatorType)
 		} else {
 			emulators = lib.All()
+		}
+
+		// Filter by category if specified
+		category, _ := cmd.Flags().GetString("category")
+		if category != "" {
+			var filtered []*emulator.Emulator
+			for _, emu := range emulators {
+				if emu.Category == category {
+					filtered = append(filtered, emu)
+				}
+			}
+			emulators = filtered
 		}
 
 		if len(emulators) == 0 {
@@ -461,22 +476,22 @@ func init() {
 	emulatorCmd.AddCommand(emulatorGetCmd)
 	emulatorCmd.AddCommand(emulatorEnableCmd)
 	emulatorCmd.AddCommand(emulatorDisableCmd)
-	emulatorCmd.AddCommand(emulatorInstallCmd)
 	emulatorCmd.AddCommand(emulatorApplyCmd)
 	emulatorCmd.AddCommand(emulatorLibraryCmd)
 
 	// Library subcommands
 	emulatorLibraryCmd.AddCommand(emulatorLibraryListCmd)
 	emulatorLibraryCmd.AddCommand(emulatorLibraryShowCmd)
+	emulatorLibraryCmd.AddCommand(emulatorLibraryImportCmd)
 
 	// Emulator get flags (merged from list + get)
 	emulatorGetCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")
 	emulatorGetCmd.Flags().String("type", "", "Filter by emulator type (wezterm, alacritty, kitty, iterm2)")
 	emulatorGetCmd.Flags().String("category", "", "Filter by category")
 
-	// Emulator install flags
-	emulatorInstallCmd.Flags().Bool("force", false, "Overwrite if emulator already exists")
-	emulatorInstallCmd.Flags().Bool("dry-run", false, "Show what would be installed without installing")
+	// Emulator library import flags
+	emulatorLibraryImportCmd.Flags().Bool("force", false, "Overwrite if emulator already exists")
+	emulatorLibraryImportCmd.Flags().Bool("dry-run", false, "Show what would be installed without installing")
 
 	// Emulator apply flags
 	emulatorApplyCmd.Flags().StringP("filename", "f", "", "YAML file to apply (required)")
@@ -486,12 +501,14 @@ func init() {
 	// Library list flags
 	emulatorLibraryListCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")
 	emulatorLibraryListCmd.Flags().String("type", "", "Filter by emulator type (wezterm, alacritty, kitty, iterm2)")
+	emulatorLibraryListCmd.Flags().String("category", "", "Filter by category")
 
 	// Library show flags
 	emulatorLibraryShowCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json")
 
 	// Hidden backward-compat aliases for deprecated verbs in emulator (after flags)
 	emulatorCmd.AddCommand(hiddenAlias("list", emulatorGetCmd))
+	emulatorCmd.AddCommand(hiddenAlias("install", emulatorLibraryImportCmd))
 	emulatorLibraryCmd.AddCommand(hiddenAlias("list", emulatorLibraryListCmd))
 	emulatorLibraryCmd.AddCommand(hiddenAlias("show", emulatorLibraryShowCmd))
 }

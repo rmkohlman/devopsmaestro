@@ -48,6 +48,21 @@ var promptLibraryListCmd = &cobra.Command{
 			prompts = lib.ListByCategory(category)
 		}
 
+		// Filter by tag if specified
+		tag, _ := cmd.Flags().GetString("tag")
+		if tag != "" {
+			var filtered []*prompt.Prompt
+			for _, p := range prompts {
+				for _, t := range p.Tags {
+					if t == tag {
+						filtered = append(filtered, p)
+						break
+					}
+				}
+			}
+			prompts = filtered
+		}
+
 		if len(prompts) == 0 {
 			render.Info("No prompts found")
 			return nil
@@ -263,6 +278,7 @@ func init() {
 	// Flags
 	promptLibraryListCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")
 	promptLibraryListCmd.Flags().StringP("category", "c", "", "Filter by category")
+	promptLibraryListCmd.Flags().StringP("tag", "t", "", "Filter by tag")
 	promptLibraryShowCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json")
 	promptLibraryInstallCmd.Flags().Bool("all", false, "Import all prompts from library")
 	promptGetCmd.Flags().StringP("output", "o", "yaml", "Output format: table, yaml, json")

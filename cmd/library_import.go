@@ -7,11 +7,12 @@ import (
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
+	nvimpluginlib "github.com/rmkohlman/MaestroNvim/nvimops/library"
+	nvimpkglib "github.com/rmkohlman/MaestroNvim/nvimops/package/library"
+	terminalemulatorlib "github.com/rmkohlman/MaestroTerminal/terminalops/emulator/library"
 	terminalpkglib "github.com/rmkohlman/MaestroTerminal/terminalops/package/library"
 	terminalpluginlib "github.com/rmkohlman/MaestroTerminal/terminalops/plugin/library"
 	terminalpromptlib "github.com/rmkohlman/MaestroTerminal/terminalops/prompt/library"
-	nvimpluginlib "github.com/rmkohlman/MaestroNvim/nvimops/library"
-	nvimpkglib "github.com/rmkohlman/MaestroNvim/nvimops/package/library"
 	nvimthemelib "github.com/rmkohlman/MaestroTheme/library"
 
 	"github.com/spf13/cobra"
@@ -40,6 +41,7 @@ func runLibraryImport(cmd *cobra.Command, args []string) error {
 			"terminal-prompts",
 			"terminal-plugins",
 			"terminal-packages",
+			"terminal-emulators",
 		}
 	} else {
 		types = args
@@ -71,8 +73,63 @@ func runLibraryImport(cmd *cobra.Command, args []string) error {
 			if err := importTerminalPackages(ds); err != nil {
 				return fmt.Errorf("failed to import terminal-packages: %w", err)
 			}
+		case "terminal-emulators":
+			if err := importTerminalEmulators(ds); err != nil {
+				return fmt.Errorf("failed to import terminal-emulators: %w", err)
+			}
 		default:
-			return fmt.Errorf("unknown resource type: %s (valid: nvim-plugins, nvim-themes, nvim-packages, terminal-prompts, terminal-plugins, terminal-packages)", t)
+			return fmt.Errorf("unknown resource type: %s (valid: nvim-plugins, nvim-themes, nvim-packages, terminal-prompts, terminal-plugins, terminal-packages, terminal-emulators)", t)
+		}
+	}
+
+	return nil
+}
+
+// importTerminalEmulators loads terminal emulators from the library and upserts them into the DB.
+func importTerminalEmulators(ds db.TerminalEmulatorStore) error {
+	lib, err := terminalemulatorlib.NewEmulatorLibrary()
+	if err != nil {
+		return fmt.Errorf("failed to load emulator library: %w", err)
+	}
+
+	for _, e := range lib.All() {
+		emulatorDB := &models.TerminalEmulatorDB{
+			Name:    e.Name,
+			Type:    string(e.Type),
+			Enabled: e.Enabled,
+			Labels:  "{}",
+			Config:  "{}",
+		}
+
+		if e.Description != "" {
+			emulatorDB.Description = sql.NullString{String: e.Description, Valid: true}
+		}
+		if e.Category != "" {
+			emulatorDB.Category = sql.NullString{String: e.Category, Valid: true}
+		}
+		if e.ThemeRef != "" {
+			emulatorDB.ThemeRef = sql.NullString{String: e.ThemeRef, Valid: true}
+		}
+		if e.Workspace != "" {
+			emulatorDB.Workspace = sql.NullString{String: e.Workspace, Valid: true}
+		}
+
+		// Config as JSON
+		if len(e.Config) > 0 {
+			if configJSON, err := json.Marshal(e.Config); err == nil {
+				emulatorDB.Config = string(configJSON)
+			}
+		}
+
+		// Labels as JSON
+		if len(e.Labels) > 0 {
+			if labelsJSON, err := json.Marshal(e.Labels); err == nil {
+				emulatorDB.Labels = string(labelsJSON)
+			}
+		}
+
+		if err := ds.UpsertTerminalEmulator(emulatorDB); err != nil {
+			return fmt.Errorf("failed to upsert terminal emulator %s: %w", e.Name, err)
 		}
 	}
 

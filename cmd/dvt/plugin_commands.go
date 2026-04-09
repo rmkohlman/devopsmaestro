@@ -46,6 +46,21 @@ var pluginLibraryListCmd = &cobra.Command{
 			plugins = lib.ListByCategory(category)
 		}
 
+		// Filter by tag if specified
+		tag, _ := cmd.Flags().GetString("tag")
+		if tag != "" {
+			var filtered []*plugin.Plugin
+			for _, p := range plugins {
+				for _, t := range p.Tags {
+					if t == tag {
+						filtered = append(filtered, p)
+						break
+					}
+				}
+			}
+			plugins = filtered
+		}
+
 		if len(plugins) == 0 {
 			render.Info("No plugins found")
 			return nil
@@ -275,6 +290,7 @@ func init() {
 	// Flags
 	pluginLibraryListCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")
 	pluginLibraryListCmd.Flags().StringP("category", "c", "", "Filter by category")
+	pluginLibraryListCmd.Flags().StringP("tag", "t", "", "Filter by tag")
 	pluginLibraryShowCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json")
 	pluginLibraryInstallCmd.Flags().Bool("all", false, "Import all plugins from library")
 	pluginGetCmd.Flags().StringP("output", "o", "yaml", "Output format: table, yaml, json")

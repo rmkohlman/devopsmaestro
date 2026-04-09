@@ -6,11 +6,12 @@ import (
 
 	"github.com/rmkohlman/MaestroSDK/render"
 
+	nvimpluginlib "github.com/rmkohlman/MaestroNvim/nvimops/library"
+	nvimpkglib "github.com/rmkohlman/MaestroNvim/nvimops/package/library"
+	terminalemulatorlib "github.com/rmkohlman/MaestroTerminal/terminalops/emulator/library"
 	terminalpkglib "github.com/rmkohlman/MaestroTerminal/terminalops/package/library"
 	terminalpluginlib "github.com/rmkohlman/MaestroTerminal/terminalops/plugin/library"
 	terminalpromptlib "github.com/rmkohlman/MaestroTerminal/terminalops/prompt/library"
-	nvimpluginlib "github.com/rmkohlman/MaestroNvim/nvimops/library"
-	nvimpkglib "github.com/rmkohlman/MaestroNvim/nvimops/package/library"
 	nvimthemelib "github.com/rmkohlman/MaestroTheme/library"
 
 	"github.com/spf13/cobra"
@@ -36,8 +37,10 @@ func runLibraryList(cmd *cobra.Command, args []string) error {
 		return listTerminalPlugins(cmd, outputFormat)
 	case "terminal-packages":
 		return listTerminalPackages(cmd, outputFormat)
+	case "terminal-emulators":
+		return listTerminalEmulators(cmd, outputFormat)
 	default:
-		return fmt.Errorf("unknown resource type: %s (valid: plugins, themes, nvim packages, terminal prompts, terminal plugins, terminal packages)", strings.Join(args, " "))
+		return fmt.Errorf("unknown resource type: %s (valid: plugins, themes, nvim packages, terminal prompts, terminal plugins, terminal packages, terminal emulators)", strings.Join(args, " "))
 	}
 }
 
@@ -62,8 +65,10 @@ func runLibraryShow(cmd *cobra.Command, args []string) error {
 		return showTerminalPlugin(cmd, name, outputFormat)
 	case "terminal-package":
 		return showTerminalPackage(cmd, name, outputFormat)
+	case "terminal-emulator":
+		return showTerminalEmulator(cmd, name, outputFormat)
 	default:
-		return fmt.Errorf("unknown resource type: %s (valid: plugin, theme, nvim-package, terminal prompt, terminal plugin, terminal-package)", strings.Join(args[:len(args)-1], " "))
+		return fmt.Errorf("unknown resource type: %s (valid: plugin, theme, nvim-package, terminal prompt, terminal plugin, terminal-package, terminal-emulator)", strings.Join(args[:len(args)-1], " "))
 	}
 }
 
@@ -462,6 +467,64 @@ func showTerminalPackage(cmd *cobra.Command, name string, outputFormat string) e
 		"Prompts":     strings.Join(p.Prompts, ", "),
 		"Tags":        strings.Join(p.Tags, ", "),
 		"Enabled":     fmt.Sprintf("%t", p.Enabled),
+	}
+
+	return render.OutputTo(w, outputFormat, kvData, render.Options{})
+}
+
+// listTerminalEmulators lists terminal emulators from the library
+func listTerminalEmulators(cmd *cobra.Command, outputFormat string) error {
+	lib, err := terminalemulatorlib.NewEmulatorLibrary()
+	if err != nil {
+		return fmt.Errorf("failed to load emulator library: %w", err)
+	}
+
+	emulators := lib.All()
+	w := cmd.OutOrStdout()
+
+	// Convert to output format
+	if outputFormat == "yaml" || outputFormat == "json" {
+		return render.OutputTo(w, outputFormat, emulators, render.Options{})
+	}
+
+	// Table format
+	headers := []string{"NAME", "TYPE", "DESCRIPTION"}
+	rows := make([][]string, 0, len(emulators))
+	for _, e := range emulators {
+		rows = append(rows, []string{e.Name, string(e.Type), e.Description})
+	}
+
+	return render.OutputTo(w, outputFormat, render.TableData{
+		Headers: headers,
+		Rows:    rows,
+	}, render.Options{})
+}
+
+// showTerminalEmulator shows details of a specific terminal emulator
+func showTerminalEmulator(cmd *cobra.Command, name string, outputFormat string) error {
+	lib, err := terminalemulatorlib.NewEmulatorLibrary()
+	if err != nil {
+		return fmt.Errorf("failed to load emulator library: %w", err)
+	}
+
+	emu, err := lib.Get(name)
+	if err != nil {
+		return fmt.Errorf("emulator not found: %s", name)
+	}
+
+	w := cmd.OutOrStdout()
+
+	// For structured formats (yaml/json), pass the raw struct
+	if outputFormat == "yaml" || outputFormat == "json" {
+		return render.OutputTo(w, outputFormat, emu, render.Options{})
+	}
+
+	// For table format, convert to key-value display
+	kvData := map[string]string{
+		"Name":        emu.Name,
+		"Description": emu.Description,
+		"Type":        string(emu.Type),
+		"Category":    emu.Category,
 	}
 
 	return render.OutputTo(w, outputFormat, kvData, render.Options{})

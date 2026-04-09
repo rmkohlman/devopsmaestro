@@ -601,10 +601,117 @@ func createResolvedPackageYAML(pkg *terminalpackage.Package, lib *packagelibrary
 	return yml, nil
 }
 
+// =============================================================================
+// PACKAGE LIBRARY COMMANDS
+// =============================================================================
+
+// packageLibraryCmd manages library operations for packages
+var packageLibraryCmd = &cobra.Command{
+	Use:     "library",
+	Aliases: []string{"lib"},
+	Short:   "Browse and import packages from the library",
+	Long: `Access the built-in library of curated terminal packages.
+
+Examples:
+  dvt package library get                          # List all packages
+  dvt package library get --category development   # Filter by category
+  dvt package library describe core                # Show package details
+  dvt package library import developer             # Import package`,
+}
+
+// packageLibraryGetCmd lists library packages
+var packageLibraryGetCmd = &cobra.Command{
+	Use:   "get",
+	Short: "List available packages in the library",
+	Long: `List terminal packages from the built-in library.
+
+Examples:
+  dvt package library get                          # List all packages
+  dvt package library get --category development   # Filter by category
+  dvt package library get -o yaml                  # YAML output
+  dvt package library get -w                       # Wide format`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		lib, err := packagelibrary.NewLibrary()
+		if err != nil {
+			return fmt.Errorf("failed to load package library: %w", err)
+		}
+
+		packages := lib.List()
+
+		// Filter by category if specified
+		category, _ := cmd.Flags().GetString("category")
+		if category != "" {
+			packages = lib.ListByCategory(category)
+		}
+
+		if len(packages) == 0 {
+			render.Info("No packages found")
+			return nil
+		}
+
+		format, _ := cmd.Flags().GetString("output")
+		wide, _ := cmd.Flags().GetBool("wide")
+		return outputPackages(packages, format, wide, lib)
+	},
+}
+
+// packageLibraryDescribeCmd shows details of a library package
+var packageLibraryDescribeCmd = &cobra.Command{
+	Use:   "describe <name>",
+	Short: "Show details of a library package",
+	Long: `Show details of a specific package from the built-in library.
+
+Examples:
+  dvt package library describe core
+  dvt package library describe developer -o yaml`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		name := args[0]
+
+		lib, err := packagelibrary.NewLibrary()
+		if err != nil {
+			return fmt.Errorf("failed to load package library: %w", err)
+		}
+
+		pkg, ok := lib.Get(name)
+		if !ok {
+			return fmt.Errorf("package not found: %s", name)
+		}
+
+		format, _ := cmd.Flags().GetString("output")
+		return outputPackageDetails(pkg, format, lib)
+	},
+}
+
+// packageLibraryImportCmd imports a package from the library
+var packageLibraryImportCmd = &cobra.Command{
+	Use:   "import <name>",
+	Short: "Import a package and its components from the library",
+	Long: `Import a package by resolving inheritance and storing components in the database.
+This resolves inheritance, so importing 'developer' will also import all 'core' components.
+
+Examples:
+  dvt package library import core
+  dvt package library import developer --dry-run`,
+	Args: cobra.ExactArgs(1),
+	RunE: runPackageLibraryImport,
+}
+
+// runPackageLibraryImport is the shared implementation for package library import
+func runPackageLibraryImport(cmd *cobra.Command, args []string) error {
+	return packageInstallCmd.RunE(cmd, args)
+}
+
 func init() {
 	// Add subcommands
 	packageCmd.AddCommand(packageGetCmd)
 	packageCmd.AddCommand(packageInstallCmd)
+	packageCmd.AddCommand(packageLibraryCmd)
+
+	// Package library subcommands
+	packageLibraryCmd.AddCommand(packageLibraryGetCmd)
+	packageLibraryCmd.AddCommand(packageLibraryDescribeCmd)
+	packageLibraryCmd.AddCommand(packageLibraryImportCmd)
 
 	// Package get flags (merged from list + get)
 	packageGetCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")
@@ -615,7 +722,23 @@ func init() {
 
 	// Package install flags
 	packageInstallCmd.Flags().Bool("dry-run", false, "Show what would be installed without installing")
+	packageInstallCmd.Hidden = true
+	packageInstallCmd.Deprecated = "use 'library import' instead"
 
-	// Hidden backward-compat alias for deprecated verb in package (after flags)
+	// Package library get flags
+	packageLibraryGetCmd.Flags().StringP("output", "o", "table", "Output format: table, yaml, json")
+	packageLibraryGetCmd.Flags().StringP("category", "c", "", "Filter by category")
+	packageLibraryGetCmd.Flags().BoolP("wide", "w", false, "Show extended output")
+
+	// Package library describe flags
+	packageLibraryDescribeCmd.Flags().StringP("output", "o", "yaml", "Output format: yaml, json")
+
+	// Package library import flags
+	packageLibraryImportCmd.Flags().Bool("dry-run", false, "Show what would be installed without installing")
+
+	// Hidden backward-compat aliases for deprecated verbs in package (after flags)
 	packageCmd.AddCommand(hiddenAlias("list", packageGetCmd))
+	packageLibraryCmd.AddCommand(hiddenAlias("list", packageLibraryGetCmd))
+	packageLibraryCmd.AddCommand(hiddenAlias("show", packageLibraryDescribeCmd))
+	packageLibraryCmd.AddCommand(hiddenAlias("install", packageLibraryImportCmd))
 }
