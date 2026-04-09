@@ -15,6 +15,7 @@ var (
 	buildTimeout  time.Duration
 	buildFlags    HierarchyFlags
 	buildDryRun   bool
+	buildAll      bool
 )
 
 // buildCmd represents the build command
@@ -65,6 +66,11 @@ Examples:
   DVM_PLATFORM=colima dvm build
 `,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Validate --all mutual exclusion with hierarchy flags
+		allSet, _ := cmd.Flags().GetBool("all")
+		if err := validateBuildAllMutualExclusion(allSet, buildFlags); err != nil {
+			return err
+		}
 		return buildWorkspace(cmd)
 	},
 }
@@ -79,4 +85,6 @@ func init() {
 	buildCmd.Flags().DurationVar(&buildTimeout, "timeout", 30*time.Minute, "Timeout for the build operation (e.g., 30m, 1h)")
 	AddHierarchyFlags(buildCmd, &buildFlags)
 	AddDryRunFlag(buildCmd, &buildDryRun)
+	AddAllFlag(buildCmd, "Build all workspaces across all apps, domains, and ecosystems")
+	buildCmd.AddCommand(buildStatusCmd)
 }
