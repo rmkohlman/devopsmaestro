@@ -410,22 +410,31 @@ func (bc *buildContext) buildImage() (skipped bool, err error) {
 
 	slog.Debug("starting image build", "target", buildTarget, "no_cache", buildNocache)
 
-	// Registry-based build cache (--cache-from / --cache-to) is deferred to Phase 2.
-	// The Zot OCI registry is HTTP-only, but Docker BuildKit (inside the Colima VM)
-	// defaults to HTTPS for non-localhost hosts (host.docker.internal).  This causes:
-	//   "http: server gave HTTP response to HTTPS client"
-	// Both --cache-to (export) and --cache-from (import) trigger this error, and
-	// buildx returns exit code 1 even when the image itself was built successfully.
-	// Fixing this requires configuring insecure-registries in the Docker daemon,
-	// which we cannot guarantee on all developer machines.
-	//
-	// Docker's built-in layer cache already provides the primary caching benefit —
-	// every step shows CACHED on warm rebuilds.  CacheReadiness reporting is still
-	// active for visibility into registry health.
+	// Local directory build cache (type=local) for BuildKit.
+	// Uses ~/.devopsmaestro/build-cache/<app>-<workspace>/ to persist layers
+	// across builds, surviving docker system prune. This sidesteps the HTTP/HTTPS
+	// mismatch that blocked registry-based caching via Zot (see #225).
 	buildOpts := builders.BuildOptions{
 		BuildArgs: buildArgs,
 		Target:    buildTarget,
 		NoCache:   buildNocache,
+	}
+
+	if !buildNocache {
+		pc := paths.New(bc.homeDir)
+		cacheKey := fmt.Sprintf("%s-%s", bc.appName, bc.workspaceName)
+		cacheDir := filepath.Join(pc.Root(), "build-cache", cacheKey)
+
+		if err := os.MkdirAll(cacheDir, 0755); err != nil {
+			slog.Warn("failed to create build cache directory, building without cache",
+				"path", cacheDir, "error", err)
+		} else {
+			buildOpts.CacheFrom = fmt.Sprintf("type=local,src=%s", cacheDir)
+			buildOpts.CacheTo = fmt.Sprintf("type=local,dest=%s,mode=max", cacheDir)
+			slog.Info("build cache enabled", "cache_dir", cacheDir)
+		}
+	} else {
+		slog.Info("build cache disabled (--no-cache)")
 	}
 
 	if err := bc.builder.Build(bc.ctx, buildOpts); err != nil {

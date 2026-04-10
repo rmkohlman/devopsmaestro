@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Local directory Docker layer cache (`type=local`)** — `dvm build` now populates `BuildOptions.CacheFrom`/`CacheTo` with a `type=local` cache source scoped to `~/.devopsmaestro/build-cache/<app>-<workspace>/`. Docker build layers are persisted to disk and survive `docker system prune`, speeding up rebuilds even after Docker's internal cache is cleared. Disabled automatically when `--no-cache` is set. ([#225](https://github.com/rmkohlman/devopsmaestro/issues/225))
+
+- **`dvm cache clear` command** — Fully implemented (was previously a stub). Clears build caches by type with reported space freed. Supports `--all` (clear everything), `--buildkit` (build cache + Docker BuildKit cache), `--staging` (build staging directories), and `--dry-run` (preview without deleting). ([#225](https://github.com/rmkohlman/devopsmaestro/issues/225))
+
 ### Fixed
 
 - **Build status incorrectly reports failure for successful builds** — A race condition in the watchdog loop (`builders/watchdog.go`) caused the `cmdDone` channel to be processed before the next ticker poll fired. Because `killedByWatchdog` was never set, the non-zero exit code Docker buildx emits on Colima after a successful export was treated as a build failure. Fixed with two layers of defense: (1) the watchdog now performs a final success-condition check before declaring failure when the process exits with an error and was not killed by the watchdog; (2) `buildImage()` in `cmd/build_phases.go` verifies that the image actually exists if the builder returns an error, and treats the build as successful when it does. ([#224](https://github.com/rmkohlman/devopsmaestro/issues/224))

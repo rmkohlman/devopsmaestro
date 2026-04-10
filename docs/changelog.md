@@ -4,6 +4,12 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Unreleased
 
+**New**
+
+- **Local directory Docker layer cache (`type=local`)** — `dvm build` now persists Docker build layers to disk at `~/.devopsmaestro/build-cache/<app>-<workspace>/` using BuildKit's `type=local` cache. Layers survive `docker system prune` and speed up rebuilds even after Docker's internal cache is cleared. Disabled automatically when `--no-cache` is set (#225).
+
+- **`dvm cache clear` command** — Fully implemented (was previously a stub). Clears persistent build caches by type and reports space freed. Flags: `--all` (clear everything), `--buildkit` (build cache + Docker BuildKit cache), `--staging` (build staging directories), `--dry-run` (preview without deleting) (#225).
+
 **Bug Fixes**
 
 - **Build status incorrectly reports failure for successful builds** — A race condition in the watchdog loop caused `cmdDone` to be processed before the next ticker poll. Because `killedByWatchdog` was never set, the non-zero exit code Docker buildx emits on Colima after a successful export was treated as a failure. Fixed with two layers of defense: the watchdog now performs a final success-condition check before declaring failure when the process exits with error and was not killed by the watchdog; and `buildImage()` adds a fallback that verifies the image exists if the builder returns an error, treating the build as successful when it does (#224).

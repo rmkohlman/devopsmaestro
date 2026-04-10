@@ -148,9 +148,34 @@ Cache: 3/5 registries active (zot-layer-cache: connection refused, devpi: not st
 
 This output appears in the build log so you can see whether caches are warm before the Docker build begins.
 
-### Registry-Based Layer Cache (Phase 2 — Planned)
+### Local Directory Layer Cache
 
-`--cache-from`/`--cache-to` with a Zot OCI registry is planned but not yet enabled. Docker BuildKit defaults to HTTPS for non-localhost registries, which requires adding the registry to Docker's `insecure-registries` daemon config. Phase 1 (builder stage cache mounts + `docker buildx`) already provides excellent warm rebuild performance (~2s for a fully cached build). Phase 2 will add cross-machine layer cache sharing via the local Zot registry.
+`dvm build` uses BuildKit's `type=local` cache to persist Docker build layers to disk, scoped per app and workspace:
+
+```
+~/.devopsmaestro/build-cache/<app>-<workspace>/
+```
+
+This cache survives `docker system prune` and Docker restarts, so warm rebuilds remain fast even after Docker's internal layer cache is cleared. The cache is populated automatically on every build and disabled when `--no-cache` is passed.
+
+To manage the build cache:
+
+```bash
+# Preview what would be cleared (dry run)
+dvm cache clear --dry-run
+
+# Clear only the local layer cache and BuildKit cache
+dvm cache clear --buildkit
+
+# Clear all caches (layer cache + BuildKit + staging directories)
+dvm cache clear --all
+```
+
+See [`dvm cache clear`](../dvm/commands.md#dvm-cache-clear) for the full flag reference.
+
+### Registry-Based Layer Cache (Future)
+
+`--cache-from`/`--cache-to` with a Zot OCI registry for cross-machine layer cache sharing is not yet enabled. Docker BuildKit defaults to HTTPS for non-localhost registries, which requires adding the registry to Docker's `insecure-registries` daemon config. The current `type=local` disk cache already provides excellent warm rebuild performance for single-machine workflows.
 
 ---
 

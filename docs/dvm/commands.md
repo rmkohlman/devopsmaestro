@@ -3189,42 +3189,42 @@ dvm cache
 
 ### `dvm cache clear`
 
-Clear build caches. Supports BuildKit, npm, pip, and build staging caches.
+Clear persistent build caches. Reports the amount of disk space freed.
 
 ```bash
 dvm cache clear [flags]
 ```
 
-If no specific cache type flag is given, all caches are cleared (equivalent to `--all`).
+DevOpsMaestro stores Docker build layers at `~/.devopsmaestro/build-cache/<app>-<workspace>/` using BuildKit's `type=local` cache. These layers survive `docker system prune` and Docker restarts. Use `dvm cache clear` to reclaim disk space or force a fully clean rebuild.
+
+If no type flag is given, all caches are cleared (equivalent to `--all`).
 
 **Flags:**
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--all` | | Clear all caches |
-| `--buildkit` | | Clear BuildKit build cache |
-| `--npm` | | Clear npm cache mount |
-| `--pip` | | Clear pip cache mount |
-| `--staging` | | Clear build staging directory |
+| `--all` | | Clear all caches (local layer cache, BuildKit cache, and staging directories) |
+| `--buildkit` | | Clear the local layer cache (`~/.devopsmaestro/build-cache/`) and Docker BuildKit's internal cache |
+| `--staging` | | Clear build staging directories (`~/.devopsmaestro/staging/`) |
+| `--dry-run` | | Preview what would be cleared and estimated space freed, without deleting anything |
 | `--force` | `-f` | Skip confirmation prompt |
-| `--dry-run` | | Preview what would be cleared without making changes |
 
 **Examples:**
 
 ```bash
-# Clear all caches (no flags = same as --all)
-dvm cache clear
-
-# Clear only BuildKit cache
-dvm cache clear --buildkit
-
-# Clear npm and pip caches
-dvm cache clear --npm --pip
-
-# Preview what would be cleared
+# Preview what would be cleared (no changes made)
 dvm cache clear --dry-run
 
-# Clear all without confirmation
+# Clear only the local layer cache and BuildKit cache
+dvm cache clear --buildkit
+
+# Clear only build staging directories
+dvm cache clear --staging
+
+# Clear everything (no flags = same as --all)
+dvm cache clear
+
+# Clear all caches without confirmation
 dvm cache clear --all --force
 ```
 
