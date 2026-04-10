@@ -6,6 +6,24 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ---
 
+## v0.83.0 (2026-04-10)
+
+**New**
+
+- **Unified theme management with cascading resolution** — `dvm get themes` now merges library and user themes, displays the effective theme with resolution path (global → local → default), and supports YAML/JSON output via `--output`. Theme discovery walks `~/.devopsmaestro/themes/` and the bundled library (#231).
+
+- **WezTerm theme integration** — `dvm build` now resolves the active theme and injects it as environment variables into the WezTerm configuration. A new `themeToWeztermColors()` mapping function translates MaestroTheme color roles to WezTerm's color palette format (#231).
+
+- **THEME column in all table builders** — `dvm get apps`, `dvm get workspaces`, and related table views now include a THEME column showing the effective theme for each resource (#231).
+
+**Changed**
+
+- **`dvm set theme` defaults to `--global`** — The `set theme` command now defaults to global scope with shorthand flag `-g`. Explicit `--local` / `-l` targets workspace-scoped theme overrides (#231).
+
+- **`dvm nvim get` uses `MaximumNArgs(1)`** — The effective theme query now accepts an optional argument for filtering, replacing the previous positional requirement (#231).
+
+---
+
 ## v0.82.2 (2026-04-10)
 
 **Bug Fixes**
