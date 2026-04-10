@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.83.1] - 2026-04-10
+
+### Added
+
+- **`dvm get themes` and `dvm get theme` as top-level commands** — Both commands are now available directly at the top level (in addition to `dvm nvim get themes` / `dvm nvim get theme`). The `get` command also gains a `t` alias. ([#231](https://github.com/rmkohlman/devopsmaestro/issues/231))
+
+### Fixed
+
+- **Data race in `TestBuildSessionPersistence_FailedBuildTracked`** — Replaced direct struct-field reads/writes across goroutines with atomic operations (`sync/atomic`) to eliminate the race condition detected by `-race`. ([#236](https://github.com/rmkohlman/devopsmaestro/issues/236))
+
+---
+
 ## [v0.83.0] - 2026-04-10
 
 ### Added
