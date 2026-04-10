@@ -19,6 +19,7 @@ var getCmd = &cobra.Command{
 
 Resource aliases (kubectl-style):
   apps       → a, application, applications
+  themes     → t
   workspaces → ws
   workspace  → ws
   ecosystems → eco, ecosystem
@@ -28,16 +29,20 @@ Resource aliases (kubectl-style):
   nvim themes  → nt
 
 Examples:
+  dvm get themes                        # List all DVM themes (library + user)
+  dvm get t                             # Short alias for themes
+  dvm get theme                         # Show effective theme for current context
+  dvm get theme coolnight-ocean         # Show theme details
   dvm get apps
-  dvm get a                       # Same as 'get apps'
+  dvm get a                             # Same as 'get apps'
   dvm get workspaces
-  dvm get ws                      # Same as 'get workspaces'
+  dvm get ws                            # Same as 'get workspaces'
   dvm get workspace main
-  dvm get ws main                 # Same as 'get workspace main'
+  dvm get ws main                       # Same as 'get workspace main'
   dvm get context
-  dvm get ctx                     # Same as 'get context'
-  dvm get np                      # Same as 'get nvim plugins'
-  dvm get nt                      # Same as 'get nvim themes' (34+ library themes)
+  dvm get ctx                           # Same as 'get context'
+  dvm get np                            # Same as 'get nvim plugins'
+  dvm get nt                            # Same as 'get nvim themes'
   dvm get nvim theme coolnight-ocean    # Library theme (no install needed)
   dvm get workspace main -o yaml
   dvm get app my-api -o json
@@ -179,6 +184,56 @@ Examples:
 	},
 }
 
+// getTopLevelThemesCmd lists all DVM themes (library + user) at the top level
+// Usage: dvm get themes, dvm get t
+var getTopLevelThemesCmd = &cobra.Command{
+	Use:     "themes",
+	Aliases: []string{"t"},
+	Short:   "List all DVM themes (library + user)",
+	Long: `List all DVM themes from the embedded library and user store.
+
+Themes are a global DVM concept — they cascade to nvim, WezTerm, starship,
+and environment variables. Shows 34+ built-in themes plus any user themes.
+User themes override library themes with the same name.
+
+A SOURCE column indicates whether each theme comes from the built-in library
+or was added by the user.
+
+Examples:
+  dvm get themes              # List all themes (library + user)
+  dvm get t                   # Short alias
+  dvm get themes -o yaml      # YAML output
+  dvm get themes -o json      # JSON output`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return getThemes(cmd)
+	},
+}
+
+// getTopLevelThemeCmd shows effective theme or theme details at the top level
+// Usage: dvm get theme, dvm get theme <name>
+var getTopLevelThemeCmd = &cobra.Command{
+	Use:   "theme [name]",
+	Short: "Get effective theme or theme details",
+	Long: `Get the effective theme for the current context, or show details for a specific theme.
+
+Without arguments: Shows the effective theme resolved from the hierarchy
+  (workspace → app → domain → ecosystem → global default).
+
+With a name argument: Shows theme definition details (plugin, category, style, etc.).
+
+Examples:
+  dvm get theme                         # Show effective theme for active context
+  dvm get theme coolnight-ocean         # Show theme details
+  dvm get theme catppuccin-mocha -o yaml  # Theme details as YAML`,
+	Args: cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return getEffectiveThemeDisplay(cmd)
+		}
+		return getTheme(cmd, args[0])
+	},
+}
+
 // getDefaultsCmd displays default configuration values
 var getDefaultsCmd = &cobra.Command{
 	Use:   "defaults",
@@ -209,6 +264,10 @@ func init() {
 	// Add top-level shortcuts for nvim resources
 	getCmd.AddCommand(getNvimPluginsShortCmd)
 	getCmd.AddCommand(getNvimThemesShortCmd)
+
+	// Add top-level theme commands (themes are a global DVM concept)
+	getCmd.AddCommand(getTopLevelThemesCmd)
+	getCmd.AddCommand(getTopLevelThemeCmd)
 
 	// Registry resource commands
 	getCmd.AddCommand(getRegistriesCmd)

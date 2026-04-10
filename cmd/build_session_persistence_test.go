@@ -29,6 +29,7 @@ package cmd
 
 import (
 	"database/sql"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -203,11 +204,10 @@ func TestBuildSessionPersistence_FailedBuildTracked(t *testing.T) {
 	workspaces, err := resolveWorkspacesForParallelBuild(store, flags, true)
 	require.NoError(t, err)
 
-	callCount := 0
+	callCount := int32(0)
 	// First workspace fails, rest succeed
 	failingBuildFn := func(ws *models.WorkspaceWithHierarchy) error {
-		callCount++
-		if callCount == 1 {
+		if atomic.AddInt32(&callCount, 1) == 1 {
 			return assert.AnError // simulate build failure
 		}
 		return nil
