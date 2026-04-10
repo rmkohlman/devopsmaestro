@@ -1288,7 +1288,7 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 			},
 			wantMason: "mason-registry",
 			noMason:   "Mason not installed - skipping LSP pre-install",
-			wantTS:    "nvim --headless -c \"lua require('nvim-treesitter').install",
+			wantTS:    "TSInstallSync",
 			noTS:      "Treesitter not installed - skipping parser pre-install",
 		},
 		{
@@ -1302,7 +1302,7 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 			wantMason: "Mason not installed - skipping LSP pre-install",
 			noMason:   "mason-registry",
 			wantTS:    "Treesitter not installed - skipping parser pre-install",
-			noTS:      "nvim-treesitter",
+			noTS:      "TSInstallSync",
 		},
 		{
 			name: "with Mason only",
@@ -1315,7 +1315,7 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 			wantMason: "mason-registry",
 			noMason:   "Mason not installed - skipping LSP pre-install",
 			wantTS:    "Treesitter not installed - skipping parser pre-install",
-			noTS:      "nvim-treesitter",
+			noTS:      "TSInstallSync",
 		},
 		{
 			name: "with Treesitter only",
@@ -1327,7 +1327,7 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 			},
 			wantMason: "Mason not installed - skipping LSP pre-install",
 			noMason:   "mason-registry",
-			wantTS:    "nvim --headless -c \"lua require('nvim-treesitter').install",
+			wantTS:    "TSInstallSync",
 			noTS:      "Treesitter not installed - skipping parser pre-install",
 		},
 		{
@@ -1335,7 +1335,7 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 			manifest:  nil,
 			wantMason: "mason-registry",
 			noMason:   "",
-			wantTS:    "nvim --headless -c \"lua require('nvim-treesitter').install",
+			wantTS:    "TSInstallSync",
 			noTS:      "",
 		},
 	}
@@ -1388,8 +1388,8 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 				if strings.Contains(line, "mason-install.lua") && strings.Contains(line, "|| true") {
 					t.Errorf("Mason install should not use '|| true' fallback: %s", line)
 				}
-				if strings.Contains(line, "nvim-treesitter") && strings.Contains(line, "|| true") {
-					t.Errorf("nvim-treesitter install should not use '|| true' fallback: %s", line)
+				if strings.Contains(line, "TSInstallSync") && strings.Contains(line, "|| true") {
+					t.Errorf("TSInstallSync should not use '|| true' fallback: %s", line)
 				}
 			}
 		})
@@ -4538,7 +4538,7 @@ func TestDockerfileGenerator_MasonInstallStep_ProxyUnsetPrefix(t *testing.T) {
 }
 
 // TestDockerfileGenerator_TreesitterInstallStep_ProxyUnsetPrefix verifies that the
-// `nvim --headless -c "lua require('nvim-treesitter').install(...)"` RUN command in
+// `nvim --headless +"TSInstallSync ..."` RUN command in
 // installTreesitterParsers() is prefixed with `unset HTTP_PROXY HTTPS_PROXY
 // http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry &&` before the
 // nvim invocation.
@@ -4629,18 +4629,18 @@ func TestDockerfileGenerator_TreesitterInstallStep_ProxyUnsetPrefix(t *testing.T
 				t.Fatalf("Generate() error = %v", err)
 			}
 
-			// Verify the nvim-treesitter install command is present at all
-			if !strings.Contains(dockerfile, "nvim-treesitter") {
-				t.Fatalf("Generate() missing 'nvim-treesitter' install command — test requires it to be present for language=%s", tt.language)
+			// Verify the TSInstallSync command is present at all
+			if !strings.Contains(dockerfile, "TSInstallSync") {
+				t.Fatalf("Generate() missing 'TSInstallSync' install command — test requires it to be present for language=%s", tt.language)
 			}
 
 			// MUST have: unset prefix on the RUN containing the treesitter install
 			// Expected form:
 			//   RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \
-			//       nvim --headless -c "lua require('nvim-treesitter').install({...}):wait()" -c "qa" 2>&1
-			tsIdx := strings.Index(dockerfile, "nvim-treesitter")
+			//       nvim --headless +"TSInstallSync lua vim ..." +qa 2>&1
+			tsIdx := strings.Index(dockerfile, "TSInstallSync")
 			if tsIdx < 0 {
-				t.Fatalf("cannot locate 'nvim-treesitter' in generated Dockerfile")
+				t.Fatalf("cannot locate 'TSInstallSync' in generated Dockerfile")
 			}
 
 			// Look back up to 300 characters before the command for the unset prefix
@@ -4648,12 +4648,12 @@ func TestDockerfileGenerator_TreesitterInstallStep_ProxyUnsetPrefix(t *testing.T
 			if lookbackStart < 0 {
 				lookbackStart = 0
 			}
-			context := dockerfile[lookbackStart : tsIdx+len("nvim-treesitter")]
+			context := dockerfile[lookbackStart : tsIdx+len("TSInstallSync")]
 
 			// Find the last RUN keyword before the treesitter install command
 			lastRunIdx := strings.LastIndex(context, "RUN ")
 			if lastRunIdx < 0 {
-				t.Fatalf("no RUN keyword found before 'nvim-treesitter' install in context:\n%s", context)
+				t.Fatalf("no RUN keyword found before 'TSInstallSync' install in context:\n%s", context)
 			}
 			runBlock := context[lastRunIdx:]
 
@@ -4662,7 +4662,7 @@ func TestDockerfileGenerator_TreesitterInstallStep_ProxyUnsetPrefix(t *testing.T
 			}
 			for _, want := range requiredUnsets {
 				if !strings.Contains(runBlock, want) {
-					t.Errorf("[%s] nvim-treesitter install RUN command missing proxy-unset prefix: %q\n"+
+					t.Errorf("[%s] TSInstallSync RUN command missing proxy-unset prefix: %q\n"+
 						"nvim-treesitter compiles parsers from source by fetching grammar repos via 'git clone'.\n"+
 						"With HTTP_PROXY/HTTPS_PROXY inherited from the dev stage ARG declarations, these\n"+
 						"git clones route through an unreachable Squid proxy and fail.\n"+
@@ -5195,14 +5195,14 @@ func TestInstallTreesitterParsers_ExtraParsersFromConfig(t *testing.T) {
 
 	// Verify extra parsers appear in the treesitter install command
 	for _, parser := range []string{"hcl", "terraform"} {
-		if !strings.Contains(dockerfile, "'"+parser+"'") {
+		if !strings.Contains(dockerfile, parser) {
 			t.Errorf("extra parser %q not found in generated Dockerfile treesitter install command", parser)
 		}
 	}
 
 	// Also verify language-specific parsers are still present
 	for _, parser := range []string{"go", "gomod"} {
-		if !strings.Contains(dockerfile, "'"+parser+"'") {
+		if !strings.Contains(dockerfile, parser) {
 			t.Errorf("language parser %q should still be present alongside extra parsers", parser)
 		}
 	}
@@ -5266,7 +5266,7 @@ func TestInstallTreesitterParsers_ErrorHandling(t *testing.T) {
 	}
 
 	// Find the treesitter section
-	tsIdx := strings.Index(dockerfile, "nvim-treesitter")
+	tsIdx := strings.Index(dockerfile, "TSInstallSync")
 	if tsIdx < 0 {
 		t.Fatalf("treesitter install command not found in Dockerfile")
 	}
@@ -5301,9 +5301,8 @@ func TestInstallTreesitterParsers_ErrorHandling(t *testing.T) {
 	}
 }
 
-// TestInstallTreesitterParsers_OutputFormat verifies the Lua command format
-// uses the correct nvim-treesitter API: require('nvim-treesitter').install({...}):wait()
-// and that parsers are properly quoted in Lua syntax.
+// TestInstallTreesitterParsers_OutputFormat verifies the command format
+// uses the TSInstallSync ex command with space-separated parser names.
 func TestInstallTreesitterParsers_OutputFormat(t *testing.T) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -5358,25 +5357,24 @@ func TestInstallTreesitterParsers_OutputFormat(t *testing.T) {
 		t.Fatalf("Generate() error = %v", err)
 	}
 
-	// Verify the Lua API format: require('nvim-treesitter').install({...}):wait()
-	if !strings.Contains(dockerfile, "require('nvim-treesitter').install(") {
-		t.Error("treesitter command missing require('nvim-treesitter').install() API call")
+	// Verify TSInstallSync ex command format
+	if !strings.Contains(dockerfile, "TSInstallSync") {
+		t.Error("treesitter command missing TSInstallSync ex command")
 	}
-	if !strings.Contains(dockerfile, ":wait()") {
-		t.Error("treesitter command missing :wait() for synchronous installation")
+	if !strings.Contains(dockerfile, "+qa") {
+		t.Error("treesitter command missing +qa to quit after installation")
 	}
 
-	// Verify parsers are properly single-quoted in Lua syntax
-	// For python, we expect at minimum: 'lua', 'python'
+	// Verify parsers are space-separated (not Lua-quoted)
+	// For python, we expect at minimum: lua, python
 	for _, parser := range []string{"lua", "python"} {
-		expected := "'" + parser + "'"
-		if !strings.Contains(dockerfile, expected) {
-			t.Errorf("parser %q not properly quoted in Lua syntax (expected %s)", parser, expected)
+		if !strings.Contains(dockerfile, parser) {
+			t.Errorf("parser %q not found in generated Dockerfile", parser)
 		}
 	}
 
-	// Verify the parsers are inside curly braces for Lua table syntax
-	tsIdx := strings.Index(dockerfile, "nvim-treesitter")
+	// Verify the TSInstallSync line contains parsers in a space-separated list
+	tsIdx := strings.Index(dockerfile, "TSInstallSync")
 	if tsIdx < 0 {
 		t.Fatalf("treesitter install command not found")
 	}
@@ -5385,11 +5383,9 @@ func TestInstallTreesitterParsers_OutputFormat(t *testing.T) {
 		lookForwardEnd = len(dockerfile)
 	}
 	context := dockerfile[tsIdx:lookForwardEnd]
-	if !strings.Contains(context, ".install({") {
-		t.Error("parsers not enclosed in Lua table syntax ({...})")
-	}
-	if !strings.Contains(context, "}):wait()") {
-		t.Error("Lua table not properly closed before :wait()")
+	// The format should be: TSInstallSync lua vim vimdoc ... +qa
+	if !strings.Contains(context, "TSInstallSync lua") {
+		t.Error("TSInstallSync command not followed by space-separated parser names")
 	}
 }
 

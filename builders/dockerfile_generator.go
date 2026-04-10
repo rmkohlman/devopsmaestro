@@ -1281,7 +1281,10 @@ func (g *DefaultDockerfileGenerator) installMasonTools(dockerfile *strings.Build
 	// heredoc support. Using COPY <<EOF avoids the broken pattern of embedding
 	// shell heredocs inside RUN continuations (which caused Docker to see Lua
 	// code lines as unknown Dockerfile instructions — see issue #204).
-	dockerfile.WriteString("COPY <<'LUAEOF' /tmp/mason-install.lua\n")
+	// Use --chown so the file is owned by the container user, allowing cleanup
+	// in subsequent RUN steps that execute as non-root (see issue #222).
+	user := g.effectiveUser()
+	dockerfile.WriteString(fmt.Sprintf("COPY --chown=%s:%s <<'LUAEOF' /tmp/mason-install.lua\n", user, user))
 	dockerfile.WriteString("local registry = require('mason-registry')\n")
 	dockerfile.WriteString("registry.refresh()\n")
 	dockerfile.WriteString(fmt.Sprintf("local tools = {%s}\n", luaTools))
@@ -1300,11 +1303,12 @@ func (g *DefaultDockerfileGenerator) installMasonTools(dockerfile *strings.Build
 	dockerfile.WriteString("  return done >= #tools\n")
 	dockerfile.WriteString("end, 1000)\n")
 	dockerfile.WriteString("LUAEOF\n\n")
-	// Execute nvim with the Lua script and clean up.
+	// Execute nvim with the Lua script.
 	// Proxy vars are unset to avoid interference with Mason's package downloads.
+	// Note: we don't rm the temp file — it's in /tmp and gets cleaned up anyway,
+	// and removing it caused permission errors when COPY ran as root (issue #222).
 	dockerfile.WriteString("RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \\\n")
-	dockerfile.WriteString("    nvim --headless +\"luafile /tmp/mason-install.lua\" +qa 2>&1 && \\\n")
-	dockerfile.WriteString("    rm -f /tmp/mason-install.lua\n\n")
+	dockerfile.WriteString("    nvim --headless +\"luafile /tmp/mason-install.lua\" +qa 2>&1\n\n")
 }
 
 // getTreesitterParsersForLanguage returns Treesitter parsers for the detected language
@@ -1352,11 +1356,11 @@ func (g *DefaultDockerfileGenerator) installTreesitterParsers(dockerfile *string
 	}
 
 	dockerfile.WriteString("# Install Treesitter parsers at build time\n")
-	// Use Lua API with :wait() for synchronous installation
-	// The new nvim-treesitter API has require('nvim-treesitter').install():wait()
-	// which blocks until parsers are fully compiled
-	luaParsers := "'" + strings.Join(parsers, "', '") + "'"
+	// Use :TSInstallSync ex command for reliable synchronous installation.
+	// The Lua API (require('nvim-treesitter').install()) has breaking changes
+	// across versions, while the ex command remains stable (see issue #222).
+	parserList := strings.Join(parsers, " ")
 	dockerfile.WriteString("RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \\\n")
-	dockerfile.WriteString(fmt.Sprintf("    nvim --headless -c \"lua require('nvim-treesitter').install({%s}):wait()\" -c \"qa\" 2>&1 | tee /tmp/treesitter-install.log || \\\n", luaParsers))
+	dockerfile.WriteString(fmt.Sprintf("    nvim --headless +\"TSInstallSync %s\" +qa 2>&1 | tee /tmp/treesitter-install.log || \\\n", parserList))
 	dockerfile.WriteString("    (cat /tmp/treesitter-install.log && exit 1)\n\n")
 }

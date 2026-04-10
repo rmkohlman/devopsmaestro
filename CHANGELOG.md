@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Treesitter parser installation fails with "attempt to index field 'list'"** — The generated Dockerfile called `require('nvim-treesitter').install({...}):wait()`, which broke when nvim-treesitter updated its Lua API. Switched to the stable `TSInstallSync` ex command: `nvim --headless +"TSInstallSync lua vim vimdoc ..." +qa`. ([#222](https://github.com/rmkohlman/devopsmaestro/issues/222))
+
+- **Mason install cleanup fails with "Operation not permitted"** — The `mason-install.lua` temp file was `COPY`'d as root but the `rm -f` ran as the non-root `dev` user, causing a permission error. Fixed by adding `--chown=dev:dev` to the `COPY` heredoc so the file is owned by the container user. The now-unnecessary `rm -f` step was also removed. ([#222](https://github.com/rmkohlman/devopsmaestro/issues/222))
+
 ---
 
 ## [v0.81.0] - 2026-04-10

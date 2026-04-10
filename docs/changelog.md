@@ -4,6 +4,12 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Unreleased
 
+**Bug Fixes**
+
+- **Treesitter parser installation fails with "attempt to index field 'list'"** — The generated Dockerfile called `require('nvim-treesitter').install({...}):wait()`, which broke when nvim-treesitter updated its Lua API. Switched to the stable `TSInstallSync` ex command: `nvim --headless +"TSInstallSync lua vim vimdoc ..." +qa` (#222).
+
+- **Mason install cleanup fails with "Operation not permitted"** — The `mason-install.lua` temp file was `COPY`'d as root but the `rm -f` ran as the non-root `dev` user, causing a permission error. Fixed by adding `--chown=dev:dev` to the `COPY` heredoc so the file is owned by the container user. The unnecessary `rm -f` step was also removed (#222).
+
 ---
 
 ## v0.81.0 (2026-04-10)
