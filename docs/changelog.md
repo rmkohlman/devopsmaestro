@@ -6,6 +6,8 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 **Bug Fixes**
 
+- **Build status incorrectly reports failure for successful builds** — A race condition in the watchdog loop caused `cmdDone` to be processed before the next ticker poll. Because `killedByWatchdog` was never set, the non-zero exit code Docker buildx emits on Colima after a successful export was treated as a failure. Fixed with two layers of defense: the watchdog now performs a final success-condition check before declaring failure when the process exits with error and was not killed by the watchdog; and `buildImage()` adds a fallback that verifies the image exists if the builder returns an error, treating the build as successful when it does (#224).
+
 - **Treesitter parser installation fails with "attempt to index field 'list'"** — The generated Dockerfile called `require('nvim-treesitter').install({...}):wait()`, which broke when nvim-treesitter updated its Lua API. Switched to the stable `TSInstallSync` ex command: `nvim --headless +"TSInstallSync lua vim vimdoc ..." +qa` (#222).
 
 - **Mason install cleanup fails with "Operation not permitted"** — The `mason-install.lua` temp file was `COPY`'d as root but the `rm -f` ran as the non-root `dev` user, causing a permission error. Fixed by adding `--chown=dev:dev` to the `COPY` heredoc so the file is owned by the container user. The unnecessary `rm -f` step was also removed (#222).

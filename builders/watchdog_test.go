@@ -303,6 +303,61 @@ func TestRunWithWatchdog_CommandFailsBeforeCondition(t *testing.T) {
 	}
 }
 
+// TestRunWithWatchdog_CommandFailsButConditionMet verifies the fix for #224:
+// when a command exits with a non-zero exit code but the success condition is
+// satisfied (e.g., Docker buildx exits non-zero after image export on Colima),
+// the watchdog should treat it as success (WatchdogDetected) instead of failure.
+func TestRunWithWatchdog_CommandFailsButConditionMet(t *testing.T) {
+	tests := []struct {
+		name       string
+		command    []string
+		wantResult WatchdogResult
+		wantErr    bool
+	}{
+		{
+			name:       "exit code 1 but condition satisfied",
+			command:    []string{"sh", "-c", "exit 1"},
+			wantResult: WatchdogDetected,
+			wantErr:    false,
+		},
+		{
+			name:       "exit code 137 (killed) but condition satisfied",
+			command:    []string{"sh", "-c", "exit 137"},
+			wantResult: WatchdogDetected,
+			wantErr:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			cmd := exec.Command(tt.command[0], tt.command[1:]...)
+
+			cfg := WatchdogConfig{
+				PollInterval: 50 * time.Millisecond,
+				Timeout:      5 * time.Second,
+				CleanupWait:  100 * time.Millisecond,
+			}
+
+			// Condition is always true — simulates image already exists
+			checkCondition := func(ctx context.Context) bool {
+				return true
+			}
+
+			result, err := RunWithWatchdog(ctx, cmd, checkCondition, cfg)
+
+			assert.Equal(t, tt.wantResult, result,
+				"Should be WatchdogDetected when condition is met despite process error")
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err,
+					"Error should be nil when condition is satisfied (image exists)")
+			}
+		})
+	}
+}
+
 func TestRunWithWatchdog_ZeroConfigUsesDefaults(t *testing.T) {
 	ctx := context.Background()
 	cmd := exec.Command("echo", "hello")

@@ -116,6 +116,16 @@ func RunWithWatchdog(
 				if killedByWatchdog {
 					return WatchdogDetected, nil
 				}
+				// Final condition check: the process exited with error, but the
+				// work may have completed (e.g., Docker buildx built the image
+				// then exited non-zero due to a post-export hang or cleanup
+				// issue on Colima). If the condition is satisfied, the build
+				// actually succeeded — treat it as a watchdog detection.
+				if checkCondition(ctx) {
+					slog.Info("watchdog: process exited with error but condition is satisfied, treating as success",
+						"error", err)
+					return WatchdogDetected, nil
+				}
 				return WatchdogCompleted, err
 			}
 			return WatchdogCompleted, nil

@@ -429,10 +429,22 @@ func (bc *buildContext) buildImage() (skipped bool, err error) {
 	}
 
 	if err := bc.builder.Build(bc.ctx, buildOpts); err != nil {
-		slog.Error("build failed", "image", bc.imageName, "error", err)
-		return false, err
+		// Defense-in-depth: the builder reported failure, but the image may
+		// have been built successfully (e.g., Docker buildx on Colima exits
+		// non-zero after completing image export). Verify the image exists
+		// before propagating the error.
+		if exists, existsErr := bc.builder.ImageExists(bc.ctx); existsErr == nil && exists {
+			slog.Warn("builder returned error but image exists, treating as success",
+				"image", bc.imageName, "original_error", err)
+			render.Blank()
+			render.Successf("Image built successfully (recovered): %s", bc.imageName)
+		} else {
+			slog.Error("build failed", "image", bc.imageName, "error", err)
+			return false, err
+		}
+	} else {
+		slog.Info("build completed", "image", bc.imageName)
 	}
-	slog.Info("build completed", "image", bc.imageName)
 
 	// For Colima/BuildKit, copy image to devopsmaestro namespace
 	if bc.platform.IsContainerd() {
