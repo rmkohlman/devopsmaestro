@@ -1,7 +1,10 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
+	"os"
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
@@ -79,11 +82,10 @@ func runParallelBuild(cmd *cobra.Command) error {
 	scopeLabel, scopeValue := parallelBuildScopeLabel(buildFlags)
 	render.Plain(FormatParallelBuildHeader(len(workspaces), scopeLabel, scopeValue, buildConcurrency))
 
-	// Build function wraps the single-workspace build orchestrator
+	// Build function wraps the single-workspace build phases for each workspace
 	buildFn := func(ws *models.WorkspaceWithHierarchy) error {
 		render.Info(fmt.Sprintf("Building: %s/%s", ws.App.Name, ws.Workspace.Name))
-		// TODO: wire into actual single-workspace build phases
-		return nil
+		return buildSingleWorkspaceForParallel(ds, ws)
 	}
 
 	// Detach mode: launch in background, return session ID
@@ -100,14 +102,10 @@ func runParallelBuild(cmd *cobra.Command) error {
 	// Foreground mode: wait for all builds to complete
 	buildErr := buildWorkspacesInParallel(workspaces, buildConcurrency, buildFn, ds)
 
-	succeeded := len(workspaces)
-	failed := 0
-	if buildErr != nil {
-		// Count failures from the error message (rough — detailed tracking
-		// will come with BuildSession from #205)
-		failed = countFailedFromWorkspaces(workspaces, buildFn)
-		succeeded = len(workspaces) - failed
-	}
+	// Read accurate succeeded/failed counts from the persisted build session.
+	// The engine writes per-workspace results to the DB; querying here avoids
+	// the broken placeholder counter that always returned 0 failures.
+	succeeded, failed := getBuildSessionCounts(ds, len(workspaces), buildErr)
 	render.Plain(FormatBuildSummaryLine(succeeded, failed, len(workspaces)))
 
 	return buildErr
@@ -127,8 +125,107 @@ func parallelBuildScopeLabel(flags HierarchyFlags) (string, string) {
 	return "", ""
 }
 
-// countFailedFromWorkspaces is a placeholder for failure counting until
-// BuildSession (#205) provides proper tracking. Returns 0 as a fallback.
-func countFailedFromWorkspaces(_ []*models.WorkspaceWithHierarchy, _ func(*models.WorkspaceWithHierarchy) error) int {
-	return 0
+// getBuildSessionCounts retrieves succeeded/failed counts from the most
+// recent persisted build session. Falls back to inferring from the total
+// workspace count and whether an error was returned when the DB query fails.
+func getBuildSessionCounts(ds db.DataStore, total int, buildErr error) (succeeded, failed int) {
+	session, err := ds.GetLatestBuildSession()
+	if err == nil && session != nil {
+		return session.Succeeded, session.Failed
+	}
+	// Fallback: if no session available, use error presence as signal
+	if buildErr != nil {
+		return 0, total
+	}
+	return total, 0
+}
+
+// buildSingleWorkspaceForParallel executes the full build pipeline for a
+// single workspace within the parallel build path. It mirrors the phase
+// sequence from buildWorkspace() (build_orchestrator.go) but accepts a
+// pre-resolved WorkspaceWithHierarchy instead of resolving from flags.
+//
+// On success, ws.Workspace.ImageName is updated to the built image tag
+// (e.g., "dvm-dev-myapp:20260410-123456") so the engine can persist it.
+func buildSingleWorkspaceForParallel(ds db.DataStore, ws *models.WorkspaceWithHierarchy) error {
+	ctx := context.Background()
+	if buildTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, buildTimeout)
+		defer cancel()
+	}
+
+	bc := &buildContext{
+		ds:            ds,
+		ctx:           ctx,
+		app:           ws.App,
+		workspace:     ws.Workspace,
+		appName:       ws.App.Name,
+		workspaceName: ws.Workspace.Name,
+	}
+
+	// Phase 1: Validate app path
+	if err := bc.validateAppPath(); err != nil {
+		return fmt.Errorf("%s/%s: %w", ws.App.Name, ws.Workspace.Name, err)
+	}
+
+	// Phase 2: Platform & registry
+	if err := bc.detectBuildPlatform(); err != nil {
+		return fmt.Errorf("%s/%s: %w", ws.App.Name, ws.Workspace.Name, err)
+	}
+	if err := bc.prepareRegistry(); err != nil {
+		return fmt.Errorf("%s/%s: %w", ws.App.Name, ws.Workspace.Name, err)
+	}
+
+	// Phase 3: Dockerfile detection & workspace spec
+	bc.checkDockerfile()
+	if err := bc.prepareWorkspaceSpec(); err != nil {
+		return fmt.Errorf("%s/%s: %w", ws.App.Name, ws.Workspace.Name, err)
+	}
+
+	// Phase 4: Source, staging, language detection
+	if err := bc.prepareSourceAndStaging(); err != nil {
+		return fmt.Errorf("%s/%s: %w", ws.App.Name, ws.Workspace.Name, err)
+	}
+	defer func() {
+		if err := os.RemoveAll(bc.stagingDir); err != nil {
+			slog.Warn("failed to clean up staging directory",
+				"path", bc.stagingDir, "error", err)
+		}
+	}()
+
+	// Phase 5: CA certs & nvim config
+	if err := bc.resolveCACerts(); err != nil {
+		return fmt.Errorf("%s/%s: %w", ws.App.Name, ws.Workspace.Name, err)
+	}
+	if err := bc.generateNvimConfiguration(); err != nil {
+		return fmt.Errorf("%s/%s: %w", ws.App.Name, ws.Workspace.Name, err)
+	}
+
+	// Phase 6: Dockerfile generation & build
+	if err := bc.generateDockerfileAndResolveArgs(); err != nil {
+		return fmt.Errorf("%s/%s: %w", ws.App.Name, ws.Workspace.Name, err)
+	}
+
+	skipped, err := bc.buildImage()
+	if bc.builder != nil {
+		defer bc.builder.Close()
+	}
+	if err != nil {
+		return fmt.Errorf("%s/%s: %w", ws.App.Name, ws.Workspace.Name, err)
+	}
+	if skipped {
+		// Image already existed — still update the workspace record
+		ws.Workspace.ImageName = bc.imageName
+		return nil
+	}
+
+	// Phase 7: Post-build (DB update, registry push, summary)
+	bc.postBuild()
+
+	// Propagate built image tag back to the hierarchy struct so the
+	// engine can persist it in the build session workspace entry.
+	ws.Workspace.ImageName = bc.imageName
+
+	return nil
 }

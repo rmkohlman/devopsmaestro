@@ -33,6 +33,22 @@ dvm build --registry <url>
 
 ---
 
+## Parallel Builds
+
+`dvm build --all` (or any scoped parallel build) runs the full 7-phase pipeline for each workspace:
+
+1. **Validate app path** — confirms the source directory exists
+2. **Detect platform & registry** — identifies the active container runtime and registry
+3. **Prepare workspace spec** — loads YAML config and resolves workspace settings
+4. **Source & staging** — copies source into an isolated staging directory
+5. **CA certs & nvim config** — resolves certificates and generates Neovim configuration
+6. **Dockerfile generation & build** — generates the Dockerfile and executes the Docker build
+7. **Post-build** — updates the workspace image field in the database and (optionally) pushes to registry
+
+Each workspace gets its own isolated staging directory, keyed by `appName-workspaceName`. This prevents `Dockerfile.dvm` collisions when multiple workspaces from the same app are built in parallel.
+
+---
+
 ## Build Session Tracking
 
 Every `dvm build` run creates a **build session** in the database. A session records:
@@ -43,6 +59,8 @@ Every `dvm build` run creates a **build session** in the database. A session rec
 - **Per-workspace results** — status, duration, built image tag, and any error message for each workspace in the build
 
 After a successful build, the workspace record's image field is updated with the actual built image tag (e.g., `dvm-dev-my-api:20260409-153012`). Build sessions older than 30 days are automatically cleaned up.
+
+Succeeded and failed workspace counts displayed at the end of a build are sourced from the persisted build session in the database — not from in-memory counters — to ensure accuracy across parallel builds.
 
 ```bash
 # Show the most recent build session

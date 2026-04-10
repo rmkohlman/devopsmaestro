@@ -214,7 +214,10 @@ func (bc *buildContext) prepareSourceAndStaging() error {
 	render.Progress("Detecting app language...")
 	bc.languageName, bc.version, _ = bc.detectLanguageAndReport()
 
-	bc.stagingDir = paths.New(bc.homeDir).BuildStagingDir(filepath.Base(bc.sourcePath))
+	// Use appName-workspaceName to ensure each parallel workspace build gets
+	// its own isolated staging directory (prevents Dockerfile.dvm collisions).
+	stagingKey := filepath.Base(bc.sourcePath) + "-" + bc.workspaceName
+	bc.stagingDir = paths.New(bc.homeDir).BuildStagingDir(stagingKey)
 	if err := prepareStagingDirectory(bc.stagingDir, bc.sourcePath, bc.appName, bc.workspaceName, bc.ds, bc.workspace); err != nil {
 		return err
 	}

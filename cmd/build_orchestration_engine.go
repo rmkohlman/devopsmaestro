@@ -170,12 +170,14 @@ func buildWorkspacesInParallel(
 				}
 
 				// Fix the :pending bug: update workspace image after successful build
+				// Use the actual image tag set by buildFn (via postBuild), not a placeholder
 				if buildErr == nil {
-					imageTag := fmt.Sprintf("dvm-%s-%s:latest",
-						w.App.Name, w.Workspace.Name)
-					if err := store.UpdateWorkspaceImage(w.Workspace.ID, imageTag); err != nil {
-						slog.Warn("failed to update workspace image",
-							"workspace", w.Workspace.Name, "error", err)
+					imageTag := w.Workspace.ImageName
+					if imageTag != "" {
+						if err := store.UpdateWorkspaceImage(w.Workspace.ID, imageTag); err != nil {
+							slog.Warn("failed to update workspace image",
+								"workspace", w.Workspace.Name, "error", err)
+						}
 					}
 				}
 			}

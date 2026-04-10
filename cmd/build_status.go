@@ -174,10 +174,26 @@ func renderBuildSession(ds db.DataStore, session *models.BuildSession) error {
 			if e.ErrorMessage.Valid && e.ErrorMessage.String != "" {
 				errMsg = fmt.Sprintf("  error: %s", e.ErrorMessage.String)
 			}
-			render.Plain(fmt.Sprintf("    [%s] workspace:%d  %s  %s%s",
-				e.Status, e.WorkspaceID, imageTag, wsDuration, errMsg))
+			// Resolve workspace and app names from DB instead of showing raw ID
+			wsLabel := resolveWorkspaceLabel(ds, e.WorkspaceID)
+			render.Plain(fmt.Sprintf("    [%s] %s  %s  %s%s",
+				e.Status, wsLabel, imageTag, wsDuration, errMsg))
 		}
 	}
 
 	return nil
+}
+
+// resolveWorkspaceLabel looks up a workspace by ID and returns a human-readable
+// "app/workspace" label. Falls back to "workspace:<id>" if lookup fails.
+func resolveWorkspaceLabel(ds db.DataStore, wsID int) string {
+	ws, err := ds.GetWorkspaceByID(wsID)
+	if err != nil || ws == nil {
+		return fmt.Sprintf("workspace:%d", wsID)
+	}
+	app, err := ds.GetAppByID(ws.AppID)
+	if err != nil || app == nil {
+		return ws.Name
+	}
+	return fmt.Sprintf("%s/%s", app.Name, ws.Name)
 }
