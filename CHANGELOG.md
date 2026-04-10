@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.79.1] - 2026-04-10
+
+### Fixed
+
+- **`dvm build` parallel path executed a no-op placeholder (0s duration)** — The `buildFn` passed to the parallel worker pool was a stub that logged a message and returned `nil` without performing any actual Docker build. Replaced with `buildSingleWorkspaceForParallel()`, which runs the complete 7-phase build pipeline (validate app path → detect platform & registry → prepare workspace spec → source & staging → CA certs & nvim config → Dockerfile generation & build → post-build DB update). Builds now produce real images with accurate durations. Fixes [#218](https://github.com/rmkohlman/devopsmaestro/issues/218)
+
+- **Parallel builds sharing a staging directory caused `Dockerfile.dvm: no such file or directory`** — When multiple workspaces within the same app were built in parallel, all workers used the same staging directory (keyed by app name only). The first worker to write `Dockerfile.dvm` would clean it up before other workers could use it, causing them to fail. Fixed by including the workspace name in the staging directory key (`appName-workspaceName`), so each workspace gets its own isolated staging directory. Fixes [#218](https://github.com/rmkohlman/devopsmaestro/issues/218)
+
+- **Build success/failure counter always reported 0 failures** — `countFailedFromWorkspaces()` always returned 0 regardless of actual build results, so the final summary line always showed `N succeeded, 0 failed`. Replaced with `getBuildSessionCounts()`, which queries the most recently persisted build session from the database for accurate succeeded/failed counts. Falls back to inferring counts from the aggregate error when no session is available. Fixes [#218](https://github.com/rmkohlman/devopsmaestro/issues/218)
+
+---
+
 ## [v0.79.0] - 2026-04-09
 
 ### Added

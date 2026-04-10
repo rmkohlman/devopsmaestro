@@ -2,6 +2,18 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## Unreleased
+
+## v0.79.1 (2026-04-10)
+
+**Bug Fixes**
+
+- **`dvm build` parallel path executed a no-op placeholder (0s duration)** — The `buildFn` in the parallel worker pool was a stub that returned immediately without running any Docker build. Replaced with `buildSingleWorkspaceForParallel()`, which executes the full 7-phase build pipeline per workspace. Builds now produce real images with accurate durations (#218).
+
+- **Parallel builds sharing a staging directory caused `Dockerfile.dvm: no such file or directory`** — Multiple workspaces within the same app used the same staging directory (keyed by app name only), causing all but one to fail when run in parallel. Fixed by including the workspace name in the staging directory key (`appName-workspaceName`) so each parallel build gets an isolated staging directory (#218).
+
+- **Build success/failure counter always reported 0 failures** — The final summary line always showed `N succeeded, 0 failed` because the counter never reflected actual results. Replaced with `getBuildSessionCounts()`, which reads succeeded/failed counts from the most recently persisted build session in the database (#218).
+
 ## v0.79.0 (2026-04-09)
 
 **Bug Fixes**
