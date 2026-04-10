@@ -253,6 +253,8 @@ github.com/rmkohlman/MaestroNvim v0.2.5 h1:AXfAw1f6BG2/kdw7KzLnR2TxP6FyhZJrevkDX
 github.com/rmkohlman/MaestroNvim v0.2.5/go.mod h1:iJrnxlvGHrJQX+vUVQsscaVXqDL2/YqEG4+7g0ABgVY=
 github.com/rmkohlman/MaestroPalette v0.1.0 h1:XxPR7fcPAvO1VpWTNB8Pc6qnLIRJMvlfpU5oK3CppW0=
 github.com/rmkohlman/MaestroPalette v0.1.0/go.mod h1:VB3Yn/RxVCkQBqQtACwRVYrAuitRiy9FsDNQpsfqinc=
+github.com/rmkohlman/MaestroSDK v0.1.6 h1:reYD+gf2EE33uuDUYe6/20wQvFUjrqiV3zBMshOjkVQ=
+github.com/rmkohlman/MaestroSDK v0.1.6/go.mod h1:O5Eg+uGXaJcXZBrpX9CsS2qZXS4DcjMWhjxT4FZUnhI=
 github.com/rmkohlman/MaestroTerminal v0.1.0 h1:lg7ETwWMQ+VJOoYPjkxnFNrtnP2d+seFeTdmcOiWKeU=
 github.com/rmkohlman/MaestroTerminal v0.1.0/go.mod h1:FkpcCLqNbYl7Nuqj9JxQJiHujF3x5lHYsvuOhB2Ra7M=
 github.com/rmkohlman/MaestroTheme v0.1.0 h1:unf5h0LWyNeLiro2GEdI97Xgn5YsPNtvFPjq9ET9Xy0=

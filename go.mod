@@ -156,10 +156,8 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.18.1
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
-	github.com/spf13/pflag v1.0.9 // indirect
+	github.com/spf13/pflag v1.0.9
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.11.1
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 )
-
-replace github.com/rmkohlman/MaestroSDK => ../MaestroSDK
