@@ -2,10 +2,12 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"devopsmaestro/db"
 	themeresolver "devopsmaestro/pkg/colors/resolver"
 	"devopsmaestro/pkg/resource/handlers"
+	"github.com/rmkohlman/MaestroSDK/colors"
 	"github.com/rmkohlman/MaestroSDK/render"
 	"github.com/rmkohlman/MaestroSDK/resource"
 	theme "github.com/rmkohlman/MaestroTheme"
@@ -46,30 +48,9 @@ func getThemes(cmd *cobra.Command) error {
 		return getThemesStructured(entries)
 	}
 
-	// For human output, build table with SOURCE column
-	tableData := render.TableData{
-		Headers: []string{"NAME", "SOURCE", "CATEGORY", "PLUGIN", "STYLE"},
-		Rows:    make([][]string, len(entries)),
-	}
-
-	for i, e := range entries {
-		category := e.theme.Category
-		if category == "" {
-			category = "-"
-		}
-		style := e.theme.Style
-		if style == "" {
-			style = "default"
-		}
-
-		tableData.Rows[i] = []string{
-			e.theme.Name,
-			e.source,
-			category,
-			e.theme.Plugin.Repo,
-			style,
-		}
-	}
+	// For human output, build table with SOURCE and COLORS columns
+	colorEnabled := !colors.IsNoColorRequested(noColor)
+	tableData := buildThemeTableData(entries, colorEnabled)
 
 	return render.OutputWith(getOutputFormat, tableData, render.Options{
 		Type: render.TypeTable,
@@ -135,7 +116,8 @@ func mergeLibraryAndUserThemes(ctx resource.Context) ([]themeEntry, error) {
 func getThemesStructured(entries []themeEntry) error {
 	type themeWithSource struct {
 		theme.ThemeYAML `yaml:",inline" json:",inline"`
-		Source          string `yaml:"source" json:"source"`
+		Source          string   `yaml:"source" json:"source"`
+		PreviewColors   []string `yaml:"previewColors,omitempty" json:"previewColors,omitempty"`
 	}
 
 	output := make([]themeWithSource, len(entries))
@@ -158,7 +140,8 @@ func getThemesStructured(entries []themeEntry) error {
 					Options:     e.theme.Options,
 				},
 			},
-			Source: e.source,
+			Source:        e.source,
+			PreviewColors: themePreviewColors(e.theme.Colors),
 		}
 	}
 	return render.OutputWith(getOutputFormat, output, render.Options{})
@@ -422,4 +405,122 @@ func getThemeInherits(ctx resource.Context, themeName string) string {
 		return dbTheme.Inherits.String
 	}
 	return ""
+}
+
+// =============================================================================
+// Color swatch helpers for theme table output
+// =============================================================================
+
+// swatchColorKeys defines the color keys to display as swatches, in order.
+// Each entry is a list of fallback keys: the first match wins.
+var swatchColorKeys = [][]string{
+	{"bg"},
+	{"fg"},
+	{"accent", "purple", "magenta"},
+	{"ansi_blue", "blue"},
+	{"ansi_green", "green"},
+	{"ansi_red", "red"},
+}
+
+// buildThemeTableData constructs the table with an optional COLORS column.
+func buildThemeTableData(entries []themeEntry, colorEnabled bool) render.TableData {
+	headers := []string{"NAME", "SOURCE", "COLORS", "CATEGORY", "PLUGIN", "STYLE"}
+
+	rows := make([][]string, len(entries))
+	for i, e := range entries {
+		category := e.theme.Category
+		if category == "" {
+			category = "-"
+		}
+		style := e.theme.Style
+		if style == "" {
+			style = "default"
+		}
+
+		colorsCell := buildColorSwatches(e.theme.Colors, colorEnabled)
+
+		rows[i] = []string{
+			e.theme.Name,
+			e.source,
+			colorsCell,
+			category,
+			e.theme.Plugin.Repo,
+			style,
+		}
+	}
+
+	return render.TableData{
+		Headers: headers,
+		Rows:    rows,
+	}
+}
+
+// buildColorSwatches creates a string of colored dot characters from theme colors.
+// When colorEnabled is true, uses ANSI 24-bit true-color escape codes.
+// When colorEnabled is false, shows hex values instead.
+func buildColorSwatches(themeColors map[string]string, colorEnabled bool) string {
+	if len(themeColors) == 0 {
+		return "-"
+	}
+
+	var parts []string
+	for _, fallbacks := range swatchColorKeys {
+		hex := lookupColor(themeColors, fallbacks)
+		if hex == "" {
+			continue
+		}
+		if colorEnabled {
+			r, g, b, err := parseThemeHexColor(hex)
+			if err != nil {
+				continue
+			}
+			parts = append(parts, fmt.Sprintf("\033[38;2;%d;%d;%dm●\033[0m", r, g, b))
+		} else {
+			parts = append(parts, hex)
+		}
+	}
+
+	if len(parts) == 0 {
+		return "-"
+	}
+	return strings.Join(parts, " ")
+}
+
+// lookupColor tries each key in fallbacks against the color map, returning
+// the first match. Returns "" if none found.
+func lookupColor(colors map[string]string, fallbacks []string) string {
+	for _, key := range fallbacks {
+		if v, ok := colors[key]; ok && v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// parseThemeHexColor converts a hex color string like "#7aa2f7" to RGB values.
+func parseThemeHexColor(hex string) (r, g, b int, err error) {
+	hex = strings.TrimPrefix(hex, "#")
+	if len(hex) == 3 {
+		hex = string([]byte{hex[0], hex[0], hex[1], hex[1], hex[2], hex[2]})
+	}
+	if len(hex) != 6 {
+		return 0, 0, 0, fmt.Errorf("invalid hex color: %s", hex)
+	}
+	_, err = fmt.Sscanf(hex, "%02x%02x%02x", &r, &g, &b)
+	return
+}
+
+// themePreviewColors returns the hex color values for structured output (JSON/YAML).
+func themePreviewColors(themeColors map[string]string) []string {
+	if len(themeColors) == 0 {
+		return nil
+	}
+	var hexColors []string
+	for _, fallbacks := range swatchColorKeys {
+		hex := lookupColor(themeColors, fallbacks)
+		if hex != "" {
+			hexColors = append(hexColors, hex)
+		}
+	}
+	return hexColors
 }
