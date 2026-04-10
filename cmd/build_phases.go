@@ -216,8 +216,10 @@ func (bc *buildContext) prepareSourceAndStaging() error {
 	bc.languageName, bc.version, _ = bc.detectLanguageAndReport()
 
 	// Use appName-workspaceName to ensure each parallel workspace build gets
-	// its own isolated staging directory (prevents Dockerfile.dvm collisions).
-	stagingKey := filepath.Base(bc.sourcePath) + "-" + bc.workspaceName
+	// its own isolated staging directory (prevents collisions when multiple
+	// apps share the same git repo — filepath.Base(sourcePath) would be
+	// identical for both, so we include the app name for uniqueness).
+	stagingKey := bc.appName + "-" + bc.workspaceName
 	bc.stagingDir = paths.New(bc.homeDir).BuildStagingDir(stagingKey)
 	if err := prepareStagingDirectory(bc.stagingDir, bc.sourcePath, bc.appName, bc.workspaceName, bc.ds, bc.workspace); err != nil {
 		return err
@@ -326,6 +328,7 @@ func (bc *buildContext) generateDockerfileAndResolveArgs() error {
 		Language:            bc.languageName,
 		Version:             bc.version,
 		AppPath:             bc.sourcePath,
+		StagingDir:          bc.stagingDir,
 		BaseDockerfile:      bc.dockerfilePath,
 		PathConfig:          paths.New(bc.homeDir),
 		PrivateRepoInfo:     privateRepoInfo,
@@ -378,6 +381,75 @@ func (bc *buildContext) resolveBuildArgNames() []string {
 		}
 	}
 	return names
+}
+
+// validateStagingDirectory parses the generated Dockerfile for COPY commands and
+// verifies that every referenced source file/directory exists in the staging directory.
+// This catches mismatches between Dockerfile generation and staging preparation
+// before Docker even starts building (see #228).
+func (bc *buildContext) validateStagingDirectory() error {
+	if bc.dvmDockerfile == "" || bc.stagingDir == "" {
+		return nil
+	}
+
+	content, err := os.ReadFile(bc.dvmDockerfile)
+	if err != nil {
+		slog.Warn("cannot read generated Dockerfile for validation", "error", err)
+		return nil // Non-fatal: validation is best-effort
+	}
+
+	var missing []string
+	for _, line := range strings.Split(string(content), "\n") {
+		trimmed := strings.TrimSpace(line)
+		// Skip comments and non-COPY lines
+		if strings.HasPrefix(trimmed, "#") || !strings.HasPrefix(trimmed, "COPY") {
+			continue
+		}
+		// Skip COPY --from= (multi-stage copies from builder stages)
+		if strings.Contains(trimmed, "--from=") {
+			continue
+		}
+		// Skip COPY heredocs (e.g., COPY <<'EOF' /path)
+		if strings.Contains(trimmed, "<<") {
+			continue
+		}
+		// Skip COPY --chown with heredoc
+		if strings.Contains(trimmed, "--chown=") && strings.Contains(trimmed, "<<") {
+			continue
+		}
+
+		// Parse: COPY [--chown=...] <src> <dst>
+		parts := strings.Fields(trimmed)
+		if len(parts) < 3 {
+			continue
+		}
+		// Skip the COPY keyword and any flags (--chown, etc.)
+		srcIdx := 1
+		for srcIdx < len(parts)-1 && strings.HasPrefix(parts[srcIdx], "--") {
+			srcIdx++
+		}
+		if srcIdx >= len(parts)-1 {
+			continue
+		}
+		src := parts[srcIdx]
+
+		// Check if the source exists in the staging directory
+		fullPath := filepath.Join(bc.stagingDir, src)
+		if _, statErr := os.Stat(fullPath); os.IsNotExist(statErr) {
+			missing = append(missing, src)
+		}
+	}
+
+	if len(missing) > 0 {
+		slog.Warn("staging directory validation: missing files referenced by COPY",
+			"staging_dir", bc.stagingDir,
+			"missing", missing)
+		render.Warning(fmt.Sprintf("Staging directory is missing %d file(s) referenced by Dockerfile COPY commands: %s",
+			len(missing), strings.Join(missing, ", ")))
+		render.Info("This may cause Docker build failures. Check that all required files are generated.")
+	}
+
+	return nil
 }
 
 // buildImage creates the image builder, checks for existing images, assembles

@@ -207,6 +207,11 @@ func buildSingleWorkspaceForParallel(ds db.DataStore, ws *models.WorkspaceWithHi
 		return fmt.Errorf("%s/%s: %w", ws.App.Name, ws.Workspace.Name, err)
 	}
 
+	// Phase 6b: Validate staging directory (warn on missing COPY sources)
+	if err := bc.validateStagingDirectory(); err != nil {
+		return fmt.Errorf("%s/%s: %w", ws.App.Name, ws.Workspace.Name, err)
+	}
+
 	skipped, err := bc.buildImage()
 	if bc.builder != nil {
 		defer bc.builder.Close()

@@ -3764,12 +3764,19 @@ func TestGenerate_CACerts_EmitsCOPYAndUpdateCACertificates(t *testing.T) {
 		},
 	}
 
+	// Create a staging dir with certs/ so the generator finds it (#228)
+	stagingDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(stagingDir, "certs"), 0755); err != nil {
+		t.Fatalf("failed to create certs dir: %v", err)
+	}
+
 	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
 		Workspace:       ws,
 		WorkspaceSpec:   wsYAML,
 		Language:        "python",
 		AppPath:         "/tmp/test",
 		PathConfig:      paths.New(t.TempDir()),
+		StagingDir:      stagingDir,
 		PrivateRepoInfo: &utils.PrivateRepoInfo{},
 	})
 
@@ -3809,12 +3816,22 @@ func TestGenerate_CACerts_BeforePipInstall(t *testing.T) {
 		},
 	}
 
+	// Create staging dir with certs/ and requirements.txt (#228)
+	stagingDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(stagingDir, "certs"), 0755); err != nil {
+		t.Fatalf("failed to create certs dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(stagingDir, "requirements.txt"), []byte("flask\n"), 0644); err != nil {
+		t.Fatalf("failed to create requirements.txt: %v", err)
+	}
+
 	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
 		Workspace:       ws,
 		WorkspaceSpec:   wsYAML,
 		Language:        "python",
 		AppPath:         "/tmp/test",
 		PathConfig:      paths.New(t.TempDir()),
+		StagingDir:      stagingDir,
 		PrivateRepoInfo: &utils.PrivateRepoInfo{},
 	})
 
@@ -3854,12 +3871,19 @@ func TestGenerate_CACerts_Alpine_SamePathsAndCommands(t *testing.T) {
 		},
 	}
 
+	// Create staging dir with certs/ (#228)
+	stagingDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(stagingDir, "certs"), 0755); err != nil {
+		t.Fatalf("failed to create certs dir: %v", err)
+	}
+
 	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
 		Workspace:       ws,
 		WorkspaceSpec:   wsYAML,
 		Language:        "golang",
 		AppPath:         "/tmp/test",
 		PathConfig:      paths.New(t.TempDir()),
+		StagingDir:      stagingDir,
 		PrivateRepoInfo: &utils.PrivateRepoInfo{},
 	})
 

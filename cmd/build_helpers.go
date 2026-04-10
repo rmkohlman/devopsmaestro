@@ -89,9 +89,12 @@ func getPlatformInstallHint() string {
 func prepareStagingDirectory(stagingDir, appPath, appName, workspaceName string, ds db.DataStore, workspace *models.Workspace) error {
 	render.Progress("Preparing build staging directory...")
 
-	// Clean and recreate staging directory
+	// Clean and recreate staging directory.
+	// Cleanup failure is non-fatal: a leftover directory from a previous build
+	// should not prevent the current build from proceeding.
 	if err := os.RemoveAll(stagingDir); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to clean staging directory: %w", err)
+		slog.Warn("failed to clean staging directory (non-fatal, proceeding with build)",
+			"path", stagingDir, "error", err)
 	}
 
 	if err := os.MkdirAll(stagingDir, 0755); err != nil {
@@ -201,7 +204,7 @@ func isPathWithinDir(path, dir string) bool {
 // shouldSkipPath determines if a path should be skipped during app source copy
 func shouldSkipPath(path string) bool {
 	skipDirs := []string{".git", paths.DVMDirName, "node_modules", "vendor", "__pycache__", ".venv", "venv"}
-	skipFiles := []string{".DS_Store", "Thumbs.db", "*.log", "Dockerfile.dvm"}
+	skipFiles := []string{".DS_Store", "Thumbs.db", "*.log", "Dockerfile.dvm", ".dockerignore"}
 
 	for _, skip := range skipDirs {
 		if strings.HasPrefix(path, skip+"/") || path == skip {

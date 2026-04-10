@@ -103,6 +103,11 @@ func buildWorkspace(cmd *cobra.Command) error {
 		return err
 	}
 
+	// Phase 6b: Validate staging directory (warn on missing COPY sources)
+	if err := bc.validateStagingDirectory(); err != nil {
+		return err
+	}
+
 	skipped, err := bc.buildImage()
 	if bc.builder != nil {
 		defer bc.builder.Close()

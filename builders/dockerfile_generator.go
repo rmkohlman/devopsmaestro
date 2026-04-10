@@ -94,6 +94,7 @@ type DefaultDockerfileGenerator struct {
 	language            string
 	version             string
 	appPath             string
+	stagingDir          string // Explicit staging directory path (used for file existence checks)
 	baseDockerfile      string
 	pluginManifest      *plugin.PluginManifest
 	pathConfig          *paths.PathConfig
@@ -109,6 +110,7 @@ type DockerfileGeneratorOptions struct {
 	Language            string
 	Version             string
 	AppPath             string
+	StagingDir          string // Explicit staging directory path (build context); if empty, falls back to PathConfig-based lookup
 	BaseDockerfile      string
 	PathConfig          *paths.PathConfig      // Injected for filesystem operations (nil = fallback to os.UserHomeDir)
 	PrivateRepoInfo     *utils.PrivateRepoInfo // Injected for system dep detection (nil = auto-detect at build time)
@@ -124,6 +126,7 @@ func NewDockerfileGenerator(opts DockerfileGeneratorOptions) DockerfileGenerator
 		language:            opts.Language,
 		version:             opts.Version,
 		appPath:             opts.AppPath,
+		stagingDir:          opts.StagingDir,
 		baseDockerfile:      opts.BaseDockerfile,
 		pathConfig:          opts.PathConfig,
 		privateRepoInfo:     opts.PrivateRepoInfo,
@@ -315,7 +318,15 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 		//   "ssh"   → pip install with --mount=type=ssh
 		//   "mixed" → pip install with SSH mount + ARG-based env vars
 		//   default → plain pip install (no private repos)
-		requirementsPath := filepath.Join(g.appPath, "requirements.txt")
+		//
+		// Check the staging directory (build context) for requirements.txt, not the
+		// source path, to ensure the COPY command only appears when the file is
+		// actually present in the Docker build context (fixes #228).
+		reqCheckDir := g.appPath
+		if sd := g.effectiveStagingDir(); sd != "" {
+			reqCheckDir = sd
+		}
+		requirementsPath := filepath.Join(reqCheckDir, "requirements.txt")
 		if _, err := os.Stat(requirementsPath); err == nil {
 			switch privateRepoInfo.GitURLType {
 			case "https":
@@ -1017,11 +1028,26 @@ func (g *DefaultDockerfileGenerator) generateDevUser(dockerfile *strings.Builder
 		dockerfile.WriteString(fmt.Sprintf("RUN useradd -m -u %d -g %s -s /bin/zsh %s 2>/dev/null || true\n\n", uid, user, user))
 	}
 
-	// Copy shell configuration files from staging area
-	dockerfile.WriteString("# Copy shell configuration\n")
-	dockerfile.WriteString(fmt.Sprintf("COPY .zshrc /home/%s/.zshrc\n", user))
-	dockerfile.WriteString(fmt.Sprintf("COPY .config/starship.toml /home/%s/.config/starship.toml\n", user))
-	dockerfile.WriteString(fmt.Sprintf("RUN chown -R %s:%s /home/%s/.zshrc /home/%s/.config\n\n", user, user, user, user))
+	// Copy shell configuration files from staging area (only if they exist)
+	stagingDir := g.effectiveStagingDir()
+	hasZshrc := stagingDir != "" && fileExistsInDir(stagingDir, ".zshrc")
+	hasStarship := stagingDir != "" && fileExistsInDir(stagingDir, filepath.Join(".config", "starship.toml"))
+
+	if hasZshrc || hasStarship {
+		dockerfile.WriteString("# Copy shell configuration\n")
+		var chownPaths []string
+		if hasZshrc {
+			dockerfile.WriteString(fmt.Sprintf("COPY .zshrc /home/%s/.zshrc\n", user))
+			chownPaths = append(chownPaths, fmt.Sprintf("/home/%s/.zshrc", user))
+		}
+		if hasStarship {
+			dockerfile.WriteString(fmt.Sprintf("COPY .config/starship.toml /home/%s/.config/starship.toml\n", user))
+			chownPaths = append(chownPaths, fmt.Sprintf("/home/%s/.config", user))
+		}
+		dockerfile.WriteString(fmt.Sprintf("RUN chown -R %s:%s %s\n\n", user, user, strings.Join(chownPaths, " ")))
+	} else {
+		dockerfile.WriteString("# Shell configuration files not found in staging — skipped\n\n")
+	}
 }
 
 func (g *DefaultDockerfileGenerator) getDefaultPackages() []string {
@@ -1052,6 +1078,34 @@ func (g *DefaultDockerfileGenerator) getDefaultPackages() []string {
 // package manager selection, and binary compatibility.
 func (g *DefaultDockerfileGenerator) isAlpineImage() bool {
 	return g.isAlpine
+}
+
+// effectiveStagingDir returns the staging directory to use for file existence checks.
+// Prefers the explicitly-set stagingDir; falls back to the legacy PathConfig-based lookup
+// using filepath.Base(appPath) for backward compatibility.
+func (g *DefaultDockerfileGenerator) effectiveStagingDir() string {
+	if g.stagingDir != "" {
+		return g.stagingDir
+	}
+	// Legacy fallback: compute from pathConfig + appPath basename.
+	// Only return the computed path if it actually exists on disk —
+	// in unit tests the staging directory is never created, so we
+	// must fall back to "" (which lets callers use appPath instead).
+	pc := g.pathConfig
+	if pc == nil {
+		return ""
+	}
+	dir := pc.BuildStagingDir(filepath.Base(g.appPath))
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		return ""
+	}
+	return dir
+}
+
+// fileExistsInDir checks whether a relative path exists within the given directory.
+func fileExistsInDir(dir, relPath string) bool {
+	_, err := os.Stat(filepath.Join(dir, relPath))
+	return err == nil
 }
 
 func (g *DefaultDockerfileGenerator) getDefaultLanguageTools() []string {
@@ -1148,8 +1202,17 @@ func (g *DefaultDockerfileGenerator) emitAdditionalBuildArgs(dockerfile *strings
 
 // emitCACertSection writes the CA certificate injection block to the Dockerfile.
 // This installs corporate/custom CA certificates so tools (pip, curl, node) trust them.
+// Only emits the COPY command if the certs directory actually exists in the staging directory.
 func (g *DefaultDockerfileGenerator) emitCACertSection(dockerfile *strings.Builder) {
 	if len(g.workspaceYAML.Build.CACerts) == 0 {
+		return
+	}
+
+	// Verify certs/ exists in staging before emitting COPY (fixes #228)
+	stagingDir := g.effectiveStagingDir()
+	if stagingDir == "" || !fileExistsInDir(stagingDir, "certs") {
+		dockerfile.WriteString("# CA certificates configured but certs/ not found in staging — skipped\n")
+		dockerfile.WriteString("# Ensure vault is accessible and CA certs are resolved before build\n\n")
 		return
 	}
 
@@ -1170,18 +1233,17 @@ func (g *DefaultDockerfileGenerator) generateNvimSection(dockerfile *strings.Bui
 		return nil
 	}
 
-	// Check if staging nvim config directory exists
-	// The copyNvimConfig function now creates config in staging directory
-	pc := g.pathConfig
-	if pc == nil {
-		// Fallback for backward compatibility
-		var err error
-		pc, err = paths.Default()
-		if err != nil {
-			return fmt.Errorf("cannot determine home directory: %w", err)
-		}
+	// Check if staging nvim config directory exists.
+	// Use the explicit staging directory when available (fixes path mismatch
+	// when appPath basename differs from the staging key — see issue #228).
+	stagingDir := g.effectiveStagingDir()
+	if stagingDir == "" {
+		// No staging directory available — nvim config cannot be found.
+		// This is normal for fresh workspaces or unit tests.
+		dockerfile.WriteString("# Skipping Neovim configuration (no config generated)\n")
+		dockerfile.WriteString("# Run 'dvm build' after setting up nvim plugins to enable nvim config\n\n")
+		return nil
 	}
-	stagingDir := pc.BuildStagingDir(filepath.Base(g.appPath))
 	nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
 	if _, err := os.Stat(nvimConfigPath); err != nil {
 		if os.IsNotExist(err) {
