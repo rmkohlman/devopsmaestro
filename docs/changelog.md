@@ -6,6 +6,28 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ---
 
+## v0.81.0 (2026-04-10)
+
+**New**
+
+- **`dvm describe gitrepo <name>`** — Rich status view for a bare git mirror. Displays mirror health, disk usage, branch and tag counts, last sync time, credential status, and the apps and workspaces linked to the mirror (#223).
+
+- **`dvm get branches --repo <name>`** — Lists all branches in a bare git mirror using `git for-each-ref refs/heads/` (#223).
+
+- **`dvm get tags --repo <name>`** — Lists all tags in a bare git mirror using `git for-each-ref refs/tags/` (#223).
+
+- **`MirrorInspector` interface** — New read-only interface in `pkg/mirror/interfaces.go` with `ListBranches`, `ListTags`, `DiskUsage`, and `Verify` methods. Separates read-only inspection from the mutable `MirrorManager` interface (#223).
+
+- **`ListAppsByGitRepoID` / `ListWorkspacesByGitRepoID`** — New `DataStore` methods for querying all apps and workspaces associated with a given git repo by ID. Used by `dvm describe gitrepo` to report relationship visibility (#223).
+
+**Changed**
+
+- **`NewGitMirrorManager` returns interface** — Factory now returns `MirrorManager` (interface) instead of `*GitMirrorManager` (concrete type), consistent with the project's interface-first factory pattern (#223).
+
+- **`getMirrorManager(cmd)` DI helper** — New context helper in `cmd/gitrepo.go` that constructs the `MirrorManager` from a Cobra command context, replacing inline instantiation across gitrepo commands (#223).
+
+---
+
 ## v0.80.0 (2026-04-10)
 
 **New**

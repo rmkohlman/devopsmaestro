@@ -16,7 +16,9 @@ type GitMirrorManager struct {
 }
 
 // NewGitMirrorManager creates a new GitMirrorManager with the specified base directory.
-func NewGitMirrorManager(baseDir string) *GitMirrorManager {
+// Returns MirrorManager interface per ARCHITECTURE.md factory pattern.
+// The returned value also implements MirrorInspector (type-assert to access inspection methods).
+func NewGitMirrorManager(baseDir string) MirrorManager {
 	return &GitMirrorManager{
 		baseDir: baseDir,
 	}

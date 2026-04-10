@@ -11,6 +11,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.81.0] - 2026-04-10
+
+### Added
+
+- **`dvm describe gitrepo <name>`** — Rich status view for a bare git mirror showing mirror health, disk usage, branch/tag counts, last sync time, credential status, and linked apps and workspaces. Closes [#223](https://github.com/rmkohlman/devopsmaestro/issues/223)
+
+- **`dvm get branches --repo <name>`** — List all branches in a bare git mirror (`git for-each-ref refs/heads/`). Closes [#223](https://github.com/rmkohlman/devopsmaestro/issues/223)
+
+- **`dvm get tags --repo <name>`** — List all tags in a bare git mirror (`git for-each-ref refs/tags/`). Closes [#223](https://github.com/rmkohlman/devopsmaestro/issues/223)
+
+- **`MirrorInspector` interface** — New read-only interface in `pkg/mirror/interfaces.go` with `ListBranches`, `ListTags`, `DiskUsage`, and `Verify` methods, separating read operations from the mutable `MirrorManager`. Closes [#223](https://github.com/rmkohlman/devopsmaestro/issues/223)
+
+- **`ListAppsByGitRepoID` / `ListWorkspacesByGitRepoID`** — New `DataStore` methods that return all apps and workspaces linked to a given git repo, used by `dvm describe gitrepo` to show relationship visibility. Closes [#223](https://github.com/rmkohlman/devopsmaestro/issues/223)
+
+### Changed
+
+- **`NewGitMirrorManager` returns interface** — Factory function now returns `MirrorManager` (interface) instead of `*GitMirrorManager` (concrete type), following the project's interface-first pattern. Closes [#223](https://github.com/rmkohlman/devopsmaestro/issues/223)
+
+- **`getMirrorManager(cmd)` DI helper** — New context helper in `cmd/gitrepo.go` that constructs and returns the `MirrorManager` interface from Cobra command context, replacing ad-hoc inline instantiation across gitrepo commands. Closes [#223](https://github.com/rmkohlman/devopsmaestro/issues/223)
+
+---
+
 ## [v0.80.0] - 2026-04-10
 
 ### Added

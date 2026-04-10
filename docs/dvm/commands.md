@@ -1282,6 +1282,87 @@ dvm sync gitrepos
 dvm sync repos                       # Short form
 ```
 
+### `dvm describe gitrepo`
+
+Show a rich status view for a single bare git mirror. Includes mirror health, disk usage, branch and tag counts, last sync time, credential status, and all apps and workspaces currently linked to the mirror.
+
+```bash
+dvm describe gitrepo <name> [flags]
+dvm describe repo <name> [flags]     # Alias
+dvm describe gr <name> [flags]       # Alias
+```
+
+**Flags:**
+
+| Flag | Short | Type | Default | Description |
+|------|-------|------|---------|-------------|
+| `-o, --output <format>` | — | string | table | Output format: `table`, `json`, `yaml` |
+
+**Fields shown (table output):** Name, URL, Default Ref, Auth Type, Credential, Disk Usage, Branch Count, Tag Count, Mirror Status, Last Synced, Linked Apps, Linked Workspaces.
+
+**Examples:**
+
+```bash
+# Show rich status for a git mirror
+dvm describe gitrepo my-repo
+
+# Output as YAML (useful for scripting)
+dvm describe gitrepo my-repo -o yaml
+
+# Using short alias
+dvm describe gr my-repo
+```
+
+### `dvm get branches`
+
+List all branches in a bare git mirror.
+
+```bash
+dvm get branches --repo <name> [flags]
+```
+
+**Flags:**
+
+| Flag | Short | Type | Default | Description |
+|------|-------|------|---------|-------------|
+| `--repo <name>` | — | string | — | **Required.** Name of the git repo mirror |
+| `-o, --output <format>` | — | string | table | Output format: `table`, `json`, `yaml` |
+
+**Examples:**
+
+```bash
+# List branches in a mirror
+dvm get branches --repo my-repo
+
+# Output as YAML
+dvm get branches --repo my-repo -o yaml
+```
+
+### `dvm get tags`
+
+List all tags in a bare git mirror.
+
+```bash
+dvm get tags --repo <name> [flags]
+```
+
+**Flags:**
+
+| Flag | Short | Type | Default | Description |
+|------|-------|------|---------|-------------|
+| `--repo <name>` | — | string | — | **Required.** Name of the git repo mirror |
+| `-o, --output <format>` | — | string | table | Output format: `table`, `json`, `yaml` |
+
+**Examples:**
+
+```bash
+# List tags in a mirror
+dvm get tags --repo my-repo
+
+# Output as JSON
+dvm get tags --repo my-repo -o json
+```
+
 ### `dvm create branch`
 
 Create a new git branch in a workspace's repository checkout.

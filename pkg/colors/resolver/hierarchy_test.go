@@ -528,6 +528,12 @@ func (m *MockDataStore) GetBuildSessionWorkspaces(sessionID string) ([]*models.B
 }
 func (m *MockDataStore) GetBuildSessionStats(sessionID string) (int, int, error)     { return 0, 0, nil }
 func (m *MockDataStore) UpdateWorkspaceImage(workspaceID int, imageTag string) error { return nil }
+func (m *MockDataStore) ListAppsByGitRepoID(gitRepoID int64) ([]*models.App, error) {
+	return []*models.App{}, nil
+}
+func (m *MockDataStore) ListWorkspacesByGitRepoID(gitRepoID int64) ([]*models.Workspace, error) {
+	return []*models.Workspace{}, nil
+}
 
 // MockThemeStore implements theme.Store for testing
 type MockThemeStore struct {

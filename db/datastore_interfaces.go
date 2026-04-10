@@ -400,6 +400,14 @@ type GitRepoStore interface {
 
 	// ListGitRepos retrieves all git repositories.
 	ListGitRepos() ([]models.GitRepoDB, error)
+
+	// ListAppsByGitRepoID retrieves all apps linked to a git repository.
+	// Returns an empty slice (not nil) when no apps are linked.
+	ListAppsByGitRepoID(gitRepoID int64) ([]*models.App, error)
+
+	// ListWorkspacesByGitRepoID retrieves all workspaces linked to a git repository.
+	// Returns an empty slice (not nil) when no workspaces are linked.
+	ListWorkspacesByGitRepoID(gitRepoID int64) ([]*models.Workspace, error)
 }
 
 // DefaultsStore defines operations for managing default configuration values.

@@ -15,10 +15,11 @@ import (
 // =============================================================================
 
 // setupTestMirrorManager creates a GitMirrorManager with a temporary base directory.
+// Uses direct struct construction since this is an internal (same-package) test.
 func setupTestMirrorManager(t *testing.T) *GitMirrorManager {
 	t.Helper()
 	baseDir := t.TempDir()
-	return NewGitMirrorManager(baseDir)
+	return &GitMirrorManager{baseDir: baseDir}
 }
 
 // createTestMirror creates a minimal bare git repository for testing.

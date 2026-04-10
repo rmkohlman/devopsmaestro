@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"devopsmaestro/db"
+	"devopsmaestro/pkg/mirror"
 
 	"github.com/spf13/cobra"
 )
@@ -138,4 +139,17 @@ func getActiveDomainFromContext(ds db.DataStore) (string, error) {
 	}
 
 	return dom.Name, nil
+}
+
+// getMirrorManager extracts the MirrorManager from the cobra command context.
+// It checks the context first (for testing), then falls back to creating a real manager.
+func getMirrorManager(cmd *cobra.Command) mirror.MirrorManager {
+	ctx := cmd.Context()
+	if val := ctx.Value(CtxKeyMirrorManager); val != nil {
+		if mm, ok := val.(mirror.MirrorManager); ok {
+			return mm
+		}
+	}
+	// Fall back to real manager using default git repo base directory
+	return mirror.NewGitMirrorManager(getGitRepoBaseDir())
 }

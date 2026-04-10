@@ -183,6 +183,8 @@ type MockDataStore struct {
 	UpdateGitRepoErr                    error
 	DeleteGitRepoErr                    error
 	ListGitReposErr                     error
+	ListAppsByGitRepoIDErr              error
+	ListWorkspacesByGitRepoIDErr        error
 	CreateRegistryErr                   error
 	GetRegistryByNameErr                error
 	GetRegistryByIDErr                  error
@@ -2569,6 +2571,46 @@ func (m *MockDataStore) ListGitRepos() ([]models.GitRepoDB, error) {
 	}
 
 	return repos, nil
+}
+
+func (m *MockDataStore) ListAppsByGitRepoID(gitRepoID int64) ([]*models.App, error) {
+	m.recordCall("ListAppsByGitRepoID", gitRepoID)
+	if m.ListAppsByGitRepoIDErr != nil {
+		return nil, m.ListAppsByGitRepoIDErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var apps []*models.App
+	for _, a := range m.Apps {
+		if a.GitRepoID.Valid && a.GitRepoID.Int64 == gitRepoID {
+			appCopy := *a
+			apps = append(apps, &appCopy)
+		}
+	}
+	if apps == nil {
+		apps = []*models.App{}
+	}
+	return apps, nil
+}
+
+func (m *MockDataStore) ListWorkspacesByGitRepoID(gitRepoID int64) ([]*models.Workspace, error) {
+	m.recordCall("ListWorkspacesByGitRepoID", gitRepoID)
+	if m.ListWorkspacesByGitRepoIDErr != nil {
+		return nil, m.ListWorkspacesByGitRepoIDErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var workspaces []*models.Workspace
+	for _, ws := range m.Workspaces {
+		if ws.GitRepoID.Valid && ws.GitRepoID.Int64 == gitRepoID {
+			wsCopy := *ws
+			workspaces = append(workspaces, &wsCopy)
+		}
+	}
+	if workspaces == nil {
+		workspaces = []*models.Workspace{}
+	}
+	return workspaces, nil
 }
 
 // =============================================================================

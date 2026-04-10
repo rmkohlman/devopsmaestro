@@ -14,6 +14,10 @@ const (
 	// Exported so cmd/dvt and cmd/nvp can share the same key.
 	CtxKeyDataStore contextKey = "dataStore"
 
+	// CtxKeyMirrorManager is the context key for the MirrorManager (mirror.MirrorManager).
+	// Exported so tests can inject mock implementations.
+	CtxKeyMirrorManager contextKey = "mirrorManager"
+
 	// ctxKeyExecutor is the context key for the Executor interface.
 	ctxKeyExecutor contextKey = "executor"
 

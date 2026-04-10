@@ -56,8 +56,8 @@ func mustGit(t *testing.T, dir string, args ...string) {
 	}
 }
 
-// newTestMirrorManager returns a GitMirrorManager rooted in a fresh temp dir.
-func newTestMirrorManager(t *testing.T) (*mirror.GitMirrorManager, string) {
+// newTestMirrorManager returns a MirrorManager rooted in a fresh temp dir.
+func newTestMirrorManager(t *testing.T) (mirror.MirrorManager, string) {
 	t.Helper()
 	baseDir := t.TempDir()
 	return mirror.NewGitMirrorManager(baseDir), baseDir

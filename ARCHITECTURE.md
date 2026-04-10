@@ -270,6 +270,8 @@ Build sessions older than 30 days are cleaned up automatically. Query the most r
 | `pkg/secrets/` | `SecretProvider` | `NewSecretProviderFactory()` | `MockSecretProvider` |
 | `pkg/resource/` | `Handler` | `resource.Register()` | - |
 | `pkg/registry/` | `RegistryService` | `NewServiceFactory()` | - |
+| `pkg/mirror/` | `MirrorManager` | `NewGitMirrorManager()` | - |
+| `pkg/mirror/` | `MirrorInspector` | (subset of `MirrorManager`) | - |
 
 ---
 
@@ -323,6 +325,14 @@ pkg/resource/
 
 pkg/crd/
 └── crd.go                # CRD fallback handler for custom resources
+
+pkg/mirror/
+├── interfaces.go         # MirrorManager interface (mutable ops: Clone, Sync, Delete, CloneToWorkspace)
+│                         # MirrorInspector interface (read-only: ListBranches, ListTags, DiskUsage, Verify)
+├── git_manager.go        # GitMirrorManager impl — factory returns MirrorManager interface
+├── validation.go         # URL/slug/ref/path validation
+├── slug.go               # Slug generation from URLs
+└── errors.go             # Typed errors (ClonePhaseError)
 ```
 
 ---
