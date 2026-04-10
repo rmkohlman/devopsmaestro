@@ -34,7 +34,7 @@ func ptrString(s string) *string { return &s }
 func TestEcosystemTableBuilder_Headers_Default(t *testing.T) {
 	b := &ecosystemTableBuilder{}
 	headers := b.Headers(false)
-	want := []string{"NAME", "DESCRIPTION", "CREATED"}
+	want := []string{"NAME", "DESCRIPTION", "THEME", "CREATED"}
 	if len(headers) != len(want) {
 		t.Fatalf("want %d headers, got %d: %v", len(want), len(headers), headers)
 	}
@@ -48,7 +48,7 @@ func TestEcosystemTableBuilder_Headers_Default(t *testing.T) {
 func TestEcosystemTableBuilder_Headers_Wide(t *testing.T) {
 	b := &ecosystemTableBuilder{}
 	headers := b.Headers(true)
-	want := []string{"NAME", "DESCRIPTION", "CREATED", "ID"}
+	want := []string{"NAME", "DESCRIPTION", "THEME", "CREATED", "ID"}
 	if len(headers) != len(want) {
 		t.Fatalf("want %d headers, got %d: %v", len(want), len(headers), headers)
 	}
@@ -68,8 +68,8 @@ func TestEcosystemTableBuilder_Row_Default(t *testing.T) {
 		CreatedAt:   mustTime("2024-01-15 09:30"),
 	}
 	row := b.Row(eco, false)
-	if len(row) != 3 {
-		t.Fatalf("want 3 columns, got %d: %v", len(row), row)
+	if len(row) != 4 {
+		t.Fatalf("want 4 columns, got %d: %v", len(row), row)
 	}
 	if row[0] != "prod" {
 		t.Errorf("row[0] (name) = %q, want %q", row[0], "prod")
@@ -77,8 +77,11 @@ func TestEcosystemTableBuilder_Row_Default(t *testing.T) {
 	if row[1] != "Production" {
 		t.Errorf("row[1] (description) = %q, want %q", row[1], "Production")
 	}
-	if row[2] != "2024-01-15 09:30" {
-		t.Errorf("row[2] (created) = %q, want %q", row[2], "2024-01-15 09:30")
+	if row[2] != "" {
+		t.Errorf("row[2] (theme) = %q, want empty (no theme set)", row[2])
+	}
+	if row[3] != "2024-01-15 09:30" {
+		t.Errorf("row[3] (created) = %q, want %q", row[3], "2024-01-15 09:30")
 	}
 }
 
@@ -91,11 +94,11 @@ func TestEcosystemTableBuilder_Row_Wide(t *testing.T) {
 		CreatedAt:   mustTime("2024-01-15 09:30"),
 	}
 	row := b.Row(eco, true)
-	if len(row) != 4 {
-		t.Fatalf("want 4 columns, got %d: %v", len(row), row)
+	if len(row) != 5 {
+		t.Fatalf("want 5 columns, got %d: %v", len(row), row)
 	}
-	if row[3] != "42" {
-		t.Errorf("row[3] (id) = %q, want %q", row[3], "42")
+	if row[4] != "42" {
+		t.Errorf("row[4] (id) = %q, want %q", row[4], "42")
 	}
 }
 
@@ -170,6 +173,34 @@ func TestEcosystemTableBuilder_Row_NullDescription(t *testing.T) {
 	}
 }
 
+func TestEcosystemTableBuilder_Row_ThemeSet(t *testing.T) {
+	b := &ecosystemTableBuilder{}
+	eco := &models.Ecosystem{
+		ID:        1,
+		Name:      "test",
+		Theme:     sql.NullString{String: "catppuccin-mocha", Valid: true},
+		CreatedAt: mustTime("2024-01-15 09:30"),
+	}
+	row := b.Row(eco, false)
+	if row[2] != "catppuccin-mocha" {
+		t.Errorf("row[2] (theme) = %q, want %q", row[2], "catppuccin-mocha")
+	}
+}
+
+func TestEcosystemTableBuilder_Row_ThemeNull(t *testing.T) {
+	b := &ecosystemTableBuilder{}
+	eco := &models.Ecosystem{
+		ID:        1,
+		Name:      "test",
+		Theme:     sql.NullString{Valid: false},
+		CreatedAt: mustTime("2024-01-15 09:30"),
+	}
+	row := b.Row(eco, false)
+	if row[2] != "" {
+		t.Errorf("row[2] (theme) = %q, want empty string for null theme", row[2])
+	}
+}
+
 // =============================================================================
 // domainTableBuilder
 // =============================================================================
@@ -177,7 +208,7 @@ func TestEcosystemTableBuilder_Row_NullDescription(t *testing.T) {
 func TestDomainTableBuilder_Headers_Default(t *testing.T) {
 	b := &domainTableBuilder{}
 	headers := b.Headers(false)
-	want := []string{"NAME", "ECOSYSTEM", "DESCRIPTION", "CREATED"}
+	want := []string{"NAME", "ECOSYSTEM", "DESCRIPTION", "THEME", "CREATED"}
 	if len(headers) != len(want) {
 		t.Fatalf("want %d headers, got %d: %v", len(want), len(headers), headers)
 	}
@@ -191,7 +222,7 @@ func TestDomainTableBuilder_Headers_Default(t *testing.T) {
 func TestDomainTableBuilder_Headers_Wide(t *testing.T) {
 	b := &domainTableBuilder{}
 	headers := b.Headers(true)
-	want := []string{"NAME", "ECOSYSTEM", "DESCRIPTION", "CREATED", "ID"}
+	want := []string{"NAME", "ECOSYSTEM", "DESCRIPTION", "THEME", "CREATED", "ID"}
 	if len(headers) != len(want) {
 		t.Fatalf("want %d headers, got %d: %v", len(want), len(headers), headers)
 	}
@@ -217,8 +248,8 @@ func TestDomainTableBuilder_Row_Default(t *testing.T) {
 		CreatedAt:   mustTime("2024-02-20 10:00"),
 	}
 	row := b.Row(domain, false)
-	if len(row) != 4 {
-		t.Fatalf("want 4 columns, got %d: %v", len(row), row)
+	if len(row) != 5 {
+		t.Fatalf("want 5 columns, got %d: %v", len(row), row)
 	}
 	if row[0] != "backend" {
 		t.Errorf("row[0] (name) = %q, want %q", row[0], "backend")
@@ -244,11 +275,11 @@ func TestDomainTableBuilder_Row_Wide(t *testing.T) {
 		CreatedAt:   mustTime("2024-02-20 10:00"),
 	}
 	row := b.Row(domain, true)
-	if len(row) != 5 {
-		t.Fatalf("want 5 columns, got %d: %v", len(row), row)
+	if len(row) != 6 {
+		t.Fatalf("want 6 columns, got %d: %v", len(row), row)
 	}
-	if row[4] != "10" {
-		t.Errorf("row[4] (id) = %q, want %q", row[4], "10")
+	if row[5] != "10" {
+		t.Errorf("row[5] (id) = %q, want %q", row[5], "10")
 	}
 }
 
@@ -321,7 +352,7 @@ func TestDomainTableBuilder_Row_DescriptionTruncation(t *testing.T) {
 func TestAppTableBuilder_Headers_Default(t *testing.T) {
 	b := &appTableBuilder{}
 	headers := b.Headers(false)
-	want := []string{"NAME", "DOMAIN", "PATH", "CREATED"}
+	want := []string{"NAME", "DOMAIN", "PATH", "THEME", "CREATED"}
 	if len(headers) != len(want) {
 		t.Fatalf("want %d headers, got %d: %v", len(want), len(headers), headers)
 	}
@@ -335,7 +366,7 @@ func TestAppTableBuilder_Headers_Default(t *testing.T) {
 func TestAppTableBuilder_Headers_Wide(t *testing.T) {
 	b := &appTableBuilder{}
 	headers := b.Headers(true)
-	want := []string{"NAME", "DOMAIN", "PATH", "CREATED", "ID", "GITREPO"}
+	want := []string{"NAME", "DOMAIN", "PATH", "THEME", "CREATED", "ID", "GITREPO"}
 	if len(headers) != len(want) {
 		t.Fatalf("want %d headers, got %d: %v", len(want), len(headers), headers)
 	}
@@ -360,8 +391,8 @@ func TestAppTableBuilder_Row_Default(t *testing.T) {
 		CreatedAt: mustTime("2024-03-01 12:00"),
 	}
 	row := b.Row(app, false)
-	if len(row) != 4 {
-		t.Fatalf("want 4 columns, got %d: %v", len(row), row)
+	if len(row) != 5 {
+		t.Fatalf("want 5 columns, got %d: %v", len(row), row)
 	}
 	if row[0] != "api" {
 		t.Errorf("row[0] (name) = %q, want %q", row[0], "api")
@@ -388,14 +419,14 @@ func TestAppTableBuilder_Row_Wide_ShowsGitRepoNone(t *testing.T) {
 		CreatedAt: mustTime("2024-03-01 12:00"),
 	}
 	row := b.Row(app, true)
-	if len(row) != 6 {
-		t.Fatalf("want 6 columns, got %d: %v", len(row), row)
+	if len(row) != 7 {
+		t.Fatalf("want 7 columns, got %d: %v", len(row), row)
 	}
-	if row[4] != "5" {
-		t.Errorf("row[4] (id) = %q, want %q", row[4], "5")
+	if row[5] != "5" {
+		t.Errorf("row[5] (id) = %q, want %q", row[5], "5")
 	}
-	if row[5] != "<none>" {
-		t.Errorf("row[5] (gitrepo) = %q, want %q", row[5], "<none>")
+	if row[6] != "<none>" {
+		t.Errorf("row[6] (gitrepo) = %q, want %q", row[6], "<none>")
 	}
 }
 
@@ -495,7 +526,7 @@ func TestAppTableBuilder_Row_PathNotTruncated(t *testing.T) {
 func TestWorkspaceTableBuilder_Headers_Default(t *testing.T) {
 	b := &workspaceTableBuilder{}
 	headers := b.Headers(false)
-	want := []string{"NAME", "APP", "IMAGE", "STATUS"}
+	want := []string{"NAME", "APP", "IMAGE", "STATUS", "THEME"}
 	if len(headers) != len(want) {
 		t.Fatalf("want %d headers, got %d: %v", len(want), len(headers), headers)
 	}
@@ -509,7 +540,7 @@ func TestWorkspaceTableBuilder_Headers_Default(t *testing.T) {
 func TestWorkspaceTableBuilder_Headers_Wide(t *testing.T) {
 	b := &workspaceTableBuilder{}
 	headers := b.Headers(true)
-	want := []string{"NAME", "APP", "IMAGE", "STATUS", "CREATED", "CONTAINER-ID"}
+	want := []string{"NAME", "APP", "IMAGE", "STATUS", "THEME", "CREATED", "CONTAINER-ID"}
 	if len(headers) != len(want) {
 		t.Fatalf("want %d headers, got %d: %v", len(want), len(headers), headers)
 	}
@@ -535,8 +566,8 @@ func TestWorkspaceTableBuilder_Row_Default(t *testing.T) {
 		CreatedAt: mustTime("2024-04-10 08:00"),
 	}
 	row := b.Row(ws, false)
-	if len(row) != 4 {
-		t.Fatalf("want 4 columns, got %d: %v", len(row), row)
+	if len(row) != 5 {
+		t.Fatalf("want 5 columns, got %d: %v", len(row), row)
 	}
 	if row[0] != "dev" {
 		t.Errorf("row[0] (name) = %q, want %q", row[0], "dev")
@@ -549,6 +580,9 @@ func TestWorkspaceTableBuilder_Row_Default(t *testing.T) {
 	}
 	if row[3] != "running" {
 		t.Errorf("row[3] (status) = %q, want %q", row[3], "running")
+	}
+	if row[4] != "" {
+		t.Errorf("row[4] (theme) = %q, want empty (no theme set)", row[4])
 	}
 }
 
@@ -568,12 +602,12 @@ func TestWorkspaceTableBuilder_Row_Wide_WithContainerID(t *testing.T) {
 		CreatedAt:   mustTime("2024-04-10 08:00"),
 	}
 	row := b.Row(ws, true)
-	if len(row) != 6 {
-		t.Fatalf("want 6 columns, got %d: %v", len(row), row)
+	if len(row) != 7 {
+		t.Fatalf("want 7 columns, got %d: %v", len(row), row)
 	}
 	// Container-ID truncated to 12 chars
-	if row[5] != "abc123def456" {
-		t.Errorf("row[5] (container-id) = %q, want %q", row[5], "abc123def456")
+	if row[6] != "abc123def456" {
+		t.Errorf("row[6] (container-id) = %q, want %q", row[6], "abc123def456")
 	}
 }
 
@@ -593,11 +627,11 @@ func TestWorkspaceTableBuilder_Row_Wide_NullContainerID(t *testing.T) {
 		CreatedAt:   mustTime("2024-04-10 08:00"),
 	}
 	row := b.Row(ws, true)
-	if len(row) != 6 {
-		t.Fatalf("want 6 columns, got %d: %v", len(row), row)
+	if len(row) != 7 {
+		t.Fatalf("want 7 columns, got %d: %v", len(row), row)
 	}
-	if row[5] != "<none>" {
-		t.Errorf("row[5] (container-id) = %q, want %q", row[5], "<none>")
+	if row[6] != "<none>" {
+		t.Errorf("row[6] (container-id) = %q, want %q", row[6], "<none>")
 	}
 }
 
@@ -618,8 +652,8 @@ func TestWorkspaceTableBuilder_Row_Wide_ShortContainerID(t *testing.T) {
 	}
 	row := b.Row(ws, true)
 	// Short container IDs should not be truncated
-	if row[5] != "abc123" {
-		t.Errorf("row[5] (container-id) = %q, want %q (no truncation)", row[5], "abc123")
+	if row[6] != "abc123" {
+		t.Errorf("row[6] (container-id) = %q, want %q (no truncation)", row[6], "abc123")
 	}
 }
 
@@ -1262,5 +1296,133 @@ func TestBuildTable_EcosystemBuilder(t *testing.T) {
 	// Second ecosystem (ID=2) is not active
 	if strings.HasPrefix(tableData.Rows[1][0], "●") {
 		t.Errorf("row[1][0] = %q should NOT have '●' prefix (inactive)", tableData.Rows[1][0])
+	}
+}
+
+// =============================================================================
+// THEME column tests — domain, app, workspace
+// These verify THEME column (added as part of hierarchy theme resolution work)
+// =============================================================================
+
+func TestDomainTableBuilder_Row_ThemeSet(t *testing.T) {
+	mockDS := db.NewMockDataStore()
+	eco := &models.Ecosystem{Name: "prod"}
+	_ = mockDS.CreateEcosystem(eco)
+
+	b := &domainTableBuilder{DataStore: mockDS}
+	domain := &models.Domain{
+		ID:          10,
+		EcosystemID: eco.ID,
+		Name:        "backend",
+		Theme:       sql.NullString{String: "tokyonight-night", Valid: true},
+		CreatedAt:   mustTime("2024-02-20 10:00"),
+	}
+	row := b.Row(domain, false)
+	// THEME is column index 3 (NAME, ECOSYSTEM, DESCRIPTION, THEME, CREATED)
+	if row[3] != "tokyonight-night" {
+		t.Errorf("row[3] (theme) = %q, want %q", row[3], "tokyonight-night")
+	}
+}
+
+func TestDomainTableBuilder_Row_ThemeNull(t *testing.T) {
+	mockDS := db.NewMockDataStore()
+	eco := &models.Ecosystem{Name: "prod"}
+	_ = mockDS.CreateEcosystem(eco)
+
+	b := &domainTableBuilder{DataStore: mockDS}
+	domain := &models.Domain{
+		ID:          10,
+		EcosystemID: eco.ID,
+		Name:        "backend",
+		Theme:       sql.NullString{Valid: false},
+		CreatedAt:   mustTime("2024-02-20 10:00"),
+	}
+	row := b.Row(domain, false)
+	if row[3] != "" {
+		t.Errorf("row[3] (theme) = %q, want empty string for null theme", row[3])
+	}
+}
+
+func TestAppTableBuilder_Row_ThemeSet(t *testing.T) {
+	mockDS := db.NewMockDataStore()
+	domain := &models.Domain{EcosystemID: 1, Name: "backend"}
+	_ = mockDS.CreateDomain(domain)
+
+	b := &appTableBuilder{DataStore: mockDS}
+	app := &models.App{
+		ID:        5,
+		DomainID:  domain.ID,
+		Name:      "api",
+		Path:      "/code/api",
+		Theme:     sql.NullString{String: "catppuccin-mocha", Valid: true},
+		CreatedAt: mustTime("2024-03-01 12:00"),
+	}
+	row := b.Row(app, false)
+	// THEME is column index 3 (NAME, DOMAIN, PATH, THEME, CREATED)
+	if row[3] != "catppuccin-mocha" {
+		t.Errorf("row[3] (theme) = %q, want %q", row[3], "catppuccin-mocha")
+	}
+}
+
+func TestAppTableBuilder_Row_ThemeNull(t *testing.T) {
+	mockDS := db.NewMockDataStore()
+	domain := &models.Domain{EcosystemID: 1, Name: "backend"}
+	_ = mockDS.CreateDomain(domain)
+
+	b := &appTableBuilder{DataStore: mockDS}
+	app := &models.App{
+		ID:        5,
+		DomainID:  domain.ID,
+		Name:      "api",
+		Path:      "/code/api",
+		Theme:     sql.NullString{Valid: false},
+		CreatedAt: mustTime("2024-03-01 12:00"),
+	}
+	row := b.Row(app, false)
+	if row[3] != "" {
+		t.Errorf("row[3] (theme) = %q, want empty string for null theme", row[3])
+	}
+}
+
+func TestWorkspaceTableBuilder_Row_ThemeSet(t *testing.T) {
+	mockDS := db.NewMockDataStore()
+	app := &models.App{DomainID: 1, Name: "api", Path: "/code"}
+	_ = mockDS.CreateApp(app)
+
+	b := &workspaceTableBuilder{DataStore: mockDS}
+	ws := &models.Workspace{
+		ID:        7,
+		AppID:     app.ID,
+		Name:      "dev",
+		ImageName: "ubuntu:22.04",
+		Status:    "running",
+		Theme:     sql.NullString{String: "gruvbox-dark", Valid: true},
+		CreatedAt: mustTime("2024-04-10 08:00"),
+	}
+	row := b.Row(ws, false)
+	// THEME is column index 4 (NAME, APP, IMAGE, STATUS, THEME)
+	if row[4] != "gruvbox-dark" {
+		t.Errorf("row[4] (theme) = %q, want %q", row[4], "gruvbox-dark")
+	}
+}
+
+func TestWorkspaceTableBuilder_Row_ThemeNull(t *testing.T) {
+	mockDS := db.NewMockDataStore()
+	app := &models.App{DomainID: 1, Name: "api", Path: "/code"}
+	_ = mockDS.CreateApp(app)
+
+	b := &workspaceTableBuilder{DataStore: mockDS}
+	ws := &models.Workspace{
+		ID:        7,
+		AppID:     app.ID,
+		Name:      "dev",
+		ImageName: "ubuntu:22.04",
+		Status:    "running",
+		Theme:     sql.NullString{Valid: false},
+		CreatedAt: mustTime("2024-04-10 08:00"),
+	}
+	row := b.Row(ws, false)
+	if row[4] != "" {
+		t.Errorf("row[4] (theme) = %q, want empty string for null theme", row[4])
 	}
 }

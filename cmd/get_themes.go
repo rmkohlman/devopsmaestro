@@ -9,9 +9,16 @@ import (
 	"github.com/rmkohlman/MaestroSDK/render"
 	"github.com/rmkohlman/MaestroSDK/resource"
 	theme "github.com/rmkohlman/MaestroTheme"
+	"github.com/rmkohlman/MaestroTheme/library"
 
 	"github.com/spf13/cobra"
 )
+
+// themeEntry combines a theme with its source (library vs user) for unified listing.
+type themeEntry struct {
+	theme  *theme.Theme
+	source string // "library" or "user"
+}
 
 func getThemes(cmd *cobra.Command) error {
 	// Build resource context and use unified handler
@@ -20,71 +27,46 @@ func getThemes(cmd *cobra.Command) error {
 		return err
 	}
 
-	resources, err := resource.List(ctx, handlers.KindNvimTheme)
+	// Collect all themes: library first, then user (user overrides library by name)
+	entries, err := mergeLibraryAndUserThemes(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list themes: %w", err)
 	}
 
-	if len(resources) == 0 {
+	if len(entries) == 0 {
 		return render.OutputWith(getOutputFormat, nil, render.Options{
 			Empty:        true,
-			EmptyMessage: "No user themes found (34+ library themes available automatically)",
-			EmptyHints:   []string{"dvm get nvim theme coolnight-ocean", "dvm apply -f theme.yaml"},
+			EmptyMessage: "No themes found",
+			EmptyHints:   []string{"dvm apply -f theme.yaml"},
 		})
 	}
 
-	// Extract underlying themes from resources
-	themes := make([]*theme.Theme, len(resources))
-	for i, res := range resources {
-		tr := res.(*handlers.NvimThemeResource)
-		themes[i] = tr.Theme()
-	}
-
-	// For JSON/YAML, output the model data directly
+	// For JSON/YAML, output the model data with source annotation
 	if getOutputFormat == "json" || getOutputFormat == "yaml" {
-		themesYAML := make([]*theme.ThemeYAML, len(themes))
-		for i, t := range themes {
-			themesYAML[i] = &theme.ThemeYAML{
-				APIVersion: "devopsmaestro.io/v1",
-				Kind:       "NvimTheme",
-				Metadata: theme.ThemeMetadata{
-					Name:        t.Name,
-					Description: t.Description,
-					Author:      t.Author,
-					Category:    t.Category,
-				},
-				Spec: theme.ThemeSpec{
-					Plugin:      t.Plugin,
-					Style:       t.Style,
-					Transparent: t.Transparent,
-					Colors:      t.Colors,
-					Options:     t.Options,
-				},
-			}
-		}
-		return render.OutputWith(getOutputFormat, themesYAML, render.Options{})
+		return getThemesStructured(entries)
 	}
 
-	// For human output, build table data
+	// For human output, build table with SOURCE column
 	tableData := render.TableData{
-		Headers: []string{"NAME", "CATEGORY", "PLUGIN", "STYLE"},
-		Rows:    make([][]string, len(themes)),
+		Headers: []string{"NAME", "SOURCE", "CATEGORY", "PLUGIN", "STYLE"},
+		Rows:    make([][]string, len(entries)),
 	}
 
-	for i, t := range themes {
-		category := t.Category
+	for i, e := range entries {
+		category := e.theme.Category
 		if category == "" {
 			category = "-"
 		}
-		style := t.Style
+		style := e.theme.Style
 		if style == "" {
 			style = "default"
 		}
 
 		tableData.Rows[i] = []string{
-			t.Name,
+			e.theme.Name,
+			e.source,
 			category,
-			t.Plugin.Repo,
+			e.theme.Plugin.Repo,
 			style,
 		}
 	}
@@ -92,6 +74,94 @@ func getThemes(cmd *cobra.Command) error {
 	return render.OutputWith(getOutputFormat, tableData, render.Options{
 		Type: render.TypeTable,
 	})
+}
+
+// mergeLibraryAndUserThemes combines library and user themes into a single list.
+// User themes override library themes with the same name.
+func mergeLibraryAndUserThemes(ctx resource.Context) ([]themeEntry, error) {
+	// Start with library themes
+	libraryInfos, err := library.List()
+	if err != nil {
+		// Non-fatal: continue with user themes only if library fails
+		libraryInfos = nil
+	}
+
+	// Build a map for dedup: name → entry
+	byName := make(map[string]themeEntry, len(libraryInfos))
+	var order []string
+
+	for _, info := range libraryInfos {
+		t, err := library.Get(info.Name)
+		if err != nil {
+			continue
+		}
+		byName[info.Name] = themeEntry{theme: t, source: "library"}
+		order = append(order, info.Name)
+	}
+
+	// Get user themes from DB store
+	userResources, err := resource.List(ctx, handlers.KindNvimTheme)
+	if err != nil {
+		// If user store fails but we have library themes, return those
+		if len(byName) > 0 {
+			entries := make([]themeEntry, 0, len(order))
+			for _, name := range order {
+				entries = append(entries, byName[name])
+			}
+			return entries, nil
+		}
+		return nil, err
+	}
+
+	// Merge user themes — override library themes with same name
+	for _, res := range userResources {
+		tr := res.(*handlers.NvimThemeResource)
+		t := tr.Theme()
+		if _, exists := byName[t.Name]; !exists {
+			order = append(order, t.Name)
+		}
+		byName[t.Name] = themeEntry{theme: t, source: "user"}
+	}
+
+	// Build final ordered list
+	entries := make([]themeEntry, 0, len(order))
+	for _, name := range order {
+		entries = append(entries, byName[name])
+	}
+	return entries, nil
+}
+
+// getThemesStructured outputs themes in JSON/YAML with source annotation.
+func getThemesStructured(entries []themeEntry) error {
+	type themeWithSource struct {
+		theme.ThemeYAML `yaml:",inline" json:",inline"`
+		Source          string `yaml:"source" json:"source"`
+	}
+
+	output := make([]themeWithSource, len(entries))
+	for i, e := range entries {
+		output[i] = themeWithSource{
+			ThemeYAML: theme.ThemeYAML{
+				APIVersion: "devopsmaestro.io/v1",
+				Kind:       "NvimTheme",
+				Metadata: theme.ThemeMetadata{
+					Name:        e.theme.Name,
+					Description: e.theme.Description,
+					Author:      e.theme.Author,
+					Category:    e.theme.Category,
+				},
+				Spec: theme.ThemeSpec{
+					Plugin:      e.theme.Plugin,
+					Style:       e.theme.Style,
+					Transparent: e.theme.Transparent,
+					Colors:      e.theme.Colors,
+					Options:     e.theme.Options,
+				},
+			},
+			Source: e.source,
+		}
+	}
+	return render.OutputWith(getOutputFormat, output, render.Options{})
 }
 
 func getTheme(cmd *cobra.Command, name string) error {
@@ -170,6 +240,118 @@ func getTheme(cmd *cobra.Command, name string) error {
 		Type:  render.TypeKeyValue,
 		Title: "Theme Details",
 	})
+}
+
+// getEffectiveThemeDisplay shows the effective theme for the current context by resolving
+// the hierarchy: workspace → app → domain → ecosystem → global default.
+func getEffectiveThemeDisplay(cmd *cobra.Command) error {
+	ds, err := getDataStore(cmd)
+	if err != nil {
+		return err
+	}
+
+	// Determine the deepest active context level and object ID
+	level, objectID, err := resolveActiveHierarchyLevel(ds)
+	if err != nil {
+		return err
+	}
+
+	// Create resolver and resolve the effective theme
+	themeResolver := themeresolver.NewHierarchyThemeResolver(ds, nil)
+	resolution, err := themeResolver.GetResolutionPath(cmd.Context(), level, objectID)
+	if err != nil {
+		return fmt.Errorf("failed to resolve effective theme: %w", err)
+	}
+
+	effectiveTheme := resolution.GetEffectiveThemeName()
+	sourceDesc := resolution.GetSourceDescription()
+
+	// For structured output (JSON/YAML)
+	if getOutputFormat == "json" || getOutputFormat == "yaml" {
+		type resolutionStep struct {
+			Level    string `json:"level" yaml:"level"`
+			Name     string `json:"name" yaml:"name"`
+			Theme    string `json:"theme,omitempty" yaml:"theme,omitempty"`
+			HasTheme bool   `json:"hasTheme" yaml:"hasTheme"`
+		}
+
+		steps := make([]resolutionStep, 0, len(resolution.Path))
+		for _, step := range resolution.Path {
+			steps = append(steps, resolutionStep{
+				Level:    step.Level.String(),
+				Name:     step.Name,
+				Theme:    step.ThemeName,
+				HasTheme: step.Found && step.ThemeName != "",
+			})
+		}
+
+		data := struct {
+			EffectiveTheme string           `json:"effectiveTheme" yaml:"effectiveTheme"`
+			Source         string           `json:"source" yaml:"source"`
+			SourceLevel    string           `json:"sourceLevel" yaml:"sourceLevel"`
+			ResolutionPath []resolutionStep `json:"resolutionPath,omitempty" yaml:"resolutionPath,omitempty"`
+		}{
+			EffectiveTheme: effectiveTheme,
+			Source:         sourceDesc,
+			SourceLevel:    resolution.Source.String(),
+			ResolutionPath: steps,
+		}
+		return render.OutputWith(getOutputFormat, data, render.Options{})
+	}
+
+	// Build human-readable key-value display
+	pairs := []render.KeyValue{
+		{Key: "Effective Theme", Value: effectiveTheme},
+		{Key: "Source", Value: sourceDesc},
+	}
+
+	// Show resolution path
+	if len(resolution.Path) > 0 {
+		for _, step := range resolution.Path {
+			label := fmt.Sprintf("  %s '%s'", step.Level.String(), step.Name)
+			if step.Found && step.ThemeName != "" {
+				pairs = append(pairs, render.KeyValue{Key: label, Value: step.ThemeName})
+			} else {
+				pairs = append(pairs, render.KeyValue{Key: label, Value: "(inherits)"})
+			}
+		}
+	}
+
+	kvData := render.NewOrderedKeyValueData(pairs...)
+	if err := render.OutputWith(getOutputFormat, kvData, render.Options{
+		Type:  render.TypeKeyValue,
+		Title: "Effective Theme",
+	}); err != nil {
+		return err
+	}
+
+	render.Blank()
+	render.Info(fmt.Sprintf("Tip: Override with 'dvm set theme <name>' or 'dvm set theme <name> --workspace <ws>'"))
+
+	return nil
+}
+
+// resolveActiveHierarchyLevel determines the deepest active context level from the DB.
+// Returns the hierarchy level and object ID to start resolution from.
+func resolveActiveHierarchyLevel(ds db.DataStore) (themeresolver.HierarchyLevel, int, error) {
+	dbCtx, err := ds.GetContext()
+	if err != nil || dbCtx == nil {
+		// No context at all — resolve from global
+		return themeresolver.LevelGlobal, 0, nil
+	}
+
+	// Try deepest first: workspace → app → ecosystem → global
+	if dbCtx.ActiveWorkspaceID != nil {
+		return themeresolver.LevelWorkspace, *dbCtx.ActiveWorkspaceID, nil
+	}
+	if dbCtx.ActiveAppID != nil {
+		return themeresolver.LevelApp, *dbCtx.ActiveAppID, nil
+	}
+	if dbCtx.ActiveEcosystemID != nil {
+		return themeresolver.LevelEcosystem, *dbCtx.ActiveEcosystemID, nil
+	}
+
+	return themeresolver.LevelGlobal, 0, nil
 }
 
 // showThemeResolution displays theme resolution information for a given hierarchy level and object ID

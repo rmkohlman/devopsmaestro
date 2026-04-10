@@ -69,14 +69,16 @@ var setThemeCmd = &cobra.Command{
 Themes cascade down the hierarchy unless overridden:
   Ecosystem → Domain → App → Workspace
 
+Without scope flags, the theme is set as the global (DVM-level) default.
 Use empty string "" to clear override and inherit from parent level.
 
 Examples:
+  dvm set theme coolnight-synthwave                     # Set global default (no flags = --global)
   dvm set theme coolnight-synthwave --workspace dev
   dvm set theme tokyonight-night --app my-api  
   dvm set theme "" --workspace dev  # clear, inherit from app
   dvm set theme gruvbox-dark --domain auth --ecosystem platform
-  dvm set theme tokyonight-night --global              # Set global default
+  dvm set theme tokyonight-night --global              # Explicit global
   dvm set theme "" --global                            # Clear global default
 
 Available themes:
@@ -89,11 +91,11 @@ Available themes:
 func init() {
 	setCmd.AddCommand(setThemeCmd)
 
-	// Add hierarchy level flags (mutually exclusive)
-	setThemeCmd.Flags().StringVar(&setThemeEcosystem, "ecosystem", "", "Set theme at ecosystem level")
-	setThemeCmd.Flags().StringVar(&setThemeDomain, "domain", "", "Set theme at domain level")
-	setThemeCmd.Flags().StringVar(&setThemeApp, "app", "", "Set theme at app level")
-	setThemeCmd.Flags().StringVar(&setThemeWorkspace, "workspace", "", "Set theme at workspace level")
+	// Add hierarchy level flags with shorthand aliases for consistency with AddHierarchyFlags
+	setThemeCmd.Flags().StringVarP(&setThemeEcosystem, "ecosystem", "e", "", "Set theme at ecosystem level")
+	setThemeCmd.Flags().StringVarP(&setThemeDomain, "domain", "d", "", "Set theme at domain level")
+	setThemeCmd.Flags().StringVarP(&setThemeApp, "app", "a", "", "Set theme at app level")
+	setThemeCmd.Flags().StringVarP(&setThemeWorkspace, "workspace", "w", "", "Set theme at workspace level")
 	setThemeCmd.Flags().BoolVar(&setThemeGlobal, "global", false, "Set as global default theme")
 
 	// Add kubectl-style flags
@@ -124,14 +126,14 @@ func init() {
 func runSetTheme(cmd *cobra.Command, args []string) error {
 	themeName := args[0]
 
-	// Manual validation: at least one target flag must be provided
-	if setThemeEcosystem == "" && setThemeDomain == "" && setThemeApp == "" && setThemeWorkspace == "" && !setThemeGlobal {
-		return fmt.Errorf("at least one of --ecosystem, --domain, --app, --workspace, or --global must be specified")
-	}
-
 	// Manual validation: --global is exclusive with everything else
 	if setThemeGlobal && (setThemeEcosystem != "" || setThemeDomain != "" || setThemeApp != "" || setThemeWorkspace != "") {
 		return fmt.Errorf("--global cannot be used with --ecosystem, --domain, --app, or --workspace")
+	}
+
+	// No flags provided → default to global for ergonomics
+	if setThemeEcosystem == "" && setThemeDomain == "" && setThemeApp == "" && setThemeWorkspace == "" && !setThemeGlobal {
+		setThemeGlobal = true
 	}
 
 	// Validate theme exists (unless clearing with empty string)
@@ -183,6 +185,14 @@ func runSetTheme(cmd *cobra.Command, args []string) error {
 	}
 
 	// Output result using structured rendering
+	//
+	// For JSON/YAML: serialize the ThemeSetResult struct directly to preserve
+	// proper field names and nested structures (cascadeInfo).
+	// For human-readable formats: convert to KeyValueData for table/plain display.
+	if setThemeOutput == "json" || setThemeOutput == "yaml" {
+		return render.OutputWith(setThemeOutput, result, render.Options{})
+	}
+
 	opts := render.Options{
 		Type:  render.TypeKeyValue,
 		Title: fmt.Sprintf("Theme Set: %s", result.Level),

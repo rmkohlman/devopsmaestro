@@ -102,7 +102,7 @@ type ecosystemTableBuilder struct {
 }
 
 func (b *ecosystemTableBuilder) Headers(wide bool) []string {
-	headers := []string{"NAME", "DESCRIPTION", "CREATED"}
+	headers := []string{"NAME", "DESCRIPTION", "THEME", "CREATED"}
 	if wide {
 		headers = append(headers, "ID")
 	}
@@ -119,9 +119,14 @@ func (b *ecosystemTableBuilder) Row(model any, wide bool) []string {
 		desc = truncateLeft(eco.Description.String, 40)
 	}
 
+	theme := ""
+	if eco.Theme.Valid {
+		theme = eco.Theme.String
+	}
+
 	created := eco.CreatedAt.Format("2006-01-02 15:04")
 
-	row := []string{name, desc, created}
+	row := []string{name, desc, theme, created}
 	if wide {
 		row = append(row, fmt.Sprintf("%d", eco.ID))
 	}
@@ -139,7 +144,7 @@ type domainTableBuilder struct {
 }
 
 func (b *domainTableBuilder) Headers(wide bool) []string {
-	headers := []string{"NAME", "ECOSYSTEM", "DESCRIPTION", "CREATED"}
+	headers := []string{"NAME", "ECOSYSTEM", "DESCRIPTION", "THEME", "CREATED"}
 	if wide {
 		headers = append(headers, "ID")
 	}
@@ -163,9 +168,14 @@ func (b *domainTableBuilder) Row(model any, wide bool) []string {
 		desc = truncateLeft(domain.Description.String, 30)
 	}
 
+	theme := ""
+	if domain.Theme.Valid {
+		theme = domain.Theme.String
+	}
+
 	created := domain.CreatedAt.Format("2006-01-02 15:04")
 
-	row := []string{name, ecoName, desc, created}
+	row := []string{name, ecoName, desc, theme, created}
 	if wide {
 		row = append(row, fmt.Sprintf("%d", domain.ID))
 	}
@@ -183,7 +193,7 @@ type appTableBuilder struct {
 }
 
 func (b *appTableBuilder) Headers(wide bool) []string {
-	headers := []string{"NAME", "DOMAIN", "PATH", "CREATED"}
+	headers := []string{"NAME", "DOMAIN", "PATH", "THEME", "CREATED"}
 	if wide {
 		headers = append(headers, "ID", "GITREPO")
 	}
@@ -203,9 +213,15 @@ func (b *appTableBuilder) Row(model any, wide bool) []string {
 	}
 
 	path := truncateRight(app.Path, 40)
+
+	theme := ""
+	if app.Theme.Valid {
+		theme = app.Theme.String
+	}
+
 	created := app.CreatedAt.Format("2006-01-02 15:04")
 
-	row := []string{name, domainName, path, created}
+	row := []string{name, domainName, path, theme, created}
 	if wide {
 		gitRepo := "<none>"
 		if app.GitRepoID.Valid {
@@ -228,7 +244,7 @@ type workspaceTableBuilder struct {
 }
 
 func (b *workspaceTableBuilder) Headers(wide bool) []string {
-	headers := []string{"NAME", "APP", "IMAGE", "STATUS"}
+	headers := []string{"NAME", "APP", "IMAGE", "STATUS", "THEME"}
 	if wide {
 		headers = append(headers, "CREATED", "CONTAINER-ID")
 	}
@@ -247,7 +263,12 @@ func (b *workspaceTableBuilder) Row(model any, wide bool) []string {
 		}
 	}
 
-	row := []string{name, appName, ws.ImageName, ws.Status}
+	row := []string{name, appName, ws.ImageName, ws.Status, func() string {
+		if ws.Theme.Valid {
+			return ws.Theme.String
+		}
+		return ""
+	}()}
 	if wide {
 		created := ws.CreatedAt.Format("2006-01-02 15:04")
 		containerID := "<none>"

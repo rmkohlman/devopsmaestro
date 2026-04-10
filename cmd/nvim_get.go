@@ -97,21 +97,30 @@ Examples:
 }
 
 // nvimGetThemeCmd gets a specific nvim theme (namespaced version)
-// Usage: dvm get nvim theme <name>
+// Usage: dvm get nvim theme [name]
 var nvimGetThemeCmd = &cobra.Command{
 	Use:   "theme [name]",
-	Short: "Get a specific nvim theme",
-	Long: `Get a specific nvim theme by name from user store or library.
+	Short: "Get a specific nvim theme or show effective theme",
+	Long: `Get a specific nvim theme by name, or show the effective theme for the current context.
+
+Without arguments: Shows the effective theme resolved from the hierarchy
+  (workspace → app → domain → ecosystem → global default).
+
+With a name argument: Shows theme definition details.
 
 Library themes are automatically available without installation.
 User themes with same name override library themes.
 
 Examples:
+  dvm get nvim theme                      # Show effective theme for active context
   dvm get nvim theme tokyonight-night     # Library theme (works instantly)
   dvm get nvim theme coolnight-ocean      # CoolNight library theme
   dvm get nvim theme my-custom -o yaml    # User theme`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return getEffectiveThemeDisplay(cmd)
+		}
 		return getTheme(cmd, args[0])
 	},
 }

@@ -21,6 +21,8 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 )
 
 // TerminalPackageStore provides access to terminal packages.
@@ -259,9 +261,32 @@ compinit
 	}
 
 	// Generate WezTerm config if terminal emulator exists in database
-	if err := generateWezTermConfig(stagingDir, appName, workspaceName, ds); err != nil {
+	if err := generateWezTermConfig(stagingDir, appName, workspaceName, ds, resolvedTheme); err != nil {
 		slog.Warn("failed to generate wezterm config", "error", err)
 		// Non-fatal - continue with build
+	}
+
+	// Inject theme env vars into .zshrc so downstream tools can read theme colors
+	if resolvedTheme != nil {
+		envVars := resolvedTheme.TerminalEnvVars()
+		if len(envVars) > 0 {
+			var envBlock strings.Builder
+			envBlock.WriteString("\n# Theme colors (from resolved theme)\n")
+			keys := make([]string, 0, len(envVars))
+			for k := range envVars {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			for _, k := range keys {
+				envBlock.WriteString(fmt.Sprintf("export %s=%q\n", k, envVars[k]))
+			}
+			f, err := os.OpenFile(zshrcPath, os.O_APPEND|os.O_WRONLY, 0644)
+			if err == nil {
+				f.WriteString(envBlock.String())
+				f.Close()
+				slog.Debug("appended theme env vars to .zshrc", "count", len(envVars))
+			}
+		}
 	}
 
 	return nil

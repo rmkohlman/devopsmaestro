@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"devopsmaestro/db"
-	"github.com/rmkohlman/MaestroTerminal/terminalops/wezterm"
 	"fmt"
+	palette "github.com/rmkohlman/MaestroPalette"
+	"github.com/rmkohlman/MaestroTerminal/terminalops/wezterm"
+	theme "github.com/rmkohlman/MaestroTheme"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -15,8 +17,9 @@ type weztermConfigStore interface {
 	db.DefaultsStore
 }
 
-// generateWezTermConfig creates a WezTerm configuration file if a terminal emulator config exists in database
-func generateWezTermConfig(stagingDir, appName, workspaceName string, ds weztermConfigStore) error {
+// generateWezTermConfig creates a WezTerm configuration file if a terminal emulator config exists in database.
+// If resolvedTheme is provided and the emulator config has no explicit colors, theme colors are applied.
+func generateWezTermConfig(stagingDir, appName, workspaceName string, ds weztermConfigStore, resolvedTheme *theme.Theme) error {
 	// 1. Look for workspace-specific emulator first
 	//    Pattern: "{app}-{workspace}" or "{workspace}"
 	workspaceEmulatorName := fmt.Sprintf("%s-%s", appName, workspaceName)
@@ -67,6 +70,14 @@ func generateWezTermConfig(stagingDir, appName, workspaceName string, ds wezterm
 		return fmt.Errorf("failed to map config to WezTerm struct: %w", err)
 	}
 
+	// If no explicit colors from emulator config, apply theme colors as fallback
+	if weztermConfig.Colors == nil && resolvedTheme != nil {
+		weztermConfig.Colors = themeToWeztermColors(resolvedTheme)
+		if weztermConfig.Colors != nil {
+			slog.Debug("applied theme colors to wezterm config", "theme", resolvedTheme.Name)
+		}
+	}
+
 	// 5. Use wezterm.LuaGenerator to generate config
 	generator := wezterm.NewLuaGenerator()
 	luaConfig, err := generator.GenerateFromConfig(weztermConfig)
@@ -82,6 +93,57 @@ func generateWezTermConfig(stagingDir, appName, workspaceName string, ds wezterm
 
 	slog.Debug("generated wezterm config", "name", emulatorDB.Name, "path", weztermPath)
 	return nil
+}
+
+// themeToWeztermColors converts a resolved theme's terminal colors to a WezTerm ColorConfig.
+// Returns nil if the theme is nil or has no terminal colors.
+func themeToWeztermColors(t *theme.Theme) *wezterm.ColorConfig {
+	if t == nil {
+		return nil
+	}
+
+	termColors := t.ToTerminalColors()
+	if len(termColors) == 0 {
+		return nil
+	}
+
+	// Helper to get color with fallback
+	getColor := func(key, fallback string) string {
+		if color, ok := termColors[key]; ok && color != "" {
+			return color
+		}
+		return fallback
+	}
+
+	return &wezterm.ColorConfig{
+		Foreground:   getColor(palette.ColorFg, "#c0caf5"),
+		Background:   getColor(palette.ColorBg, "#1a1b26"),
+		CursorBg:     getColor(palette.TermCursor, termColors[palette.ColorFg]),
+		CursorFg:     getColor(palette.TermCursorText, termColors[palette.ColorBg]),
+		CursorBorder: getColor(palette.TermCursor, termColors[palette.ColorFg]),
+		SelectionBg:  getColor(palette.TermSelection, "#283457"),
+		SelectionFg:  getColor(palette.TermSelectionText, termColors[palette.ColorFg]),
+		ANSI: []string{
+			getColor(palette.TermBlack, "#15161e"),
+			getColor(palette.TermRed, "#f7768e"),
+			getColor(palette.TermGreen, "#9ece6a"),
+			getColor(palette.TermYellow, "#e0af68"),
+			getColor(palette.TermBlue, "#7aa2f7"),
+			getColor(palette.TermMagenta, "#bb9af7"),
+			getColor(palette.TermCyan, "#7dcfff"),
+			getColor(palette.TermWhite, "#a9b1d6"),
+		},
+		Brights: []string{
+			getColor(palette.TermBrightBlack, "#414868"),
+			getColor(palette.TermBrightRed, "#f7768e"),
+			getColor(palette.TermBrightGreen, "#9ece6a"),
+			getColor(palette.TermBrightYellow, "#e0af68"),
+			getColor(palette.TermBrightBlue, "#7aa2f7"),
+			getColor(palette.TermBrightMagenta, "#bb9af7"),
+			getColor(palette.TermBrightCyan, "#7dcfff"),
+			getColor(palette.TermBrightWhite, "#c0caf5"),
+		},
+	}
 }
 
 // mapConfigToWezTerm maps a generic config map to WezTerm struct fields
