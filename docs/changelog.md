@@ -4,6 +4,10 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Unreleased
 
+---
+
+## v0.80.0 (2026-04-10)
+
 **New**
 
 - **Cache mounts on all builder stages** — `neovim-builder`, `lazygit-builder`, `starship-builder`, and `treesitter-builder` now use `--mount=type=cache` for `apt`/`apk` package caches. The lock contention concern that previously blocked adding these mounts was incorrect for BuildKit (each mount target is isolated per stage). Package caches are preserved across builds even when layers change, preventing re-downloads of apt/apk packages (#221).

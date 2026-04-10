@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [v0.80.0] - 2026-04-10
+
 ### Added
 
 - **Cache mounts on all builder stages** — `neovim-builder`, `lazygit-builder`, `starship-builder`, and `treesitter-builder` now use `--mount=type=cache` for `apt`/`apk` package caches. Previously only `go-tools-builder` had cache mounts; the lock contention concern that blocked the others was incorrect for BuildKit (each mount target is isolated per stage). Package caches are preserved across builds even when layers change, preventing unnecessary re-downloads. Closes [#221](https://github.com/rmkohlman/devopsmaestro/issues/221)
