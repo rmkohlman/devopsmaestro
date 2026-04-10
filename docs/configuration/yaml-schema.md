@@ -381,15 +381,6 @@ spec:
 
 Used in `spec.build.caCerts` on a Workspace. Describes a CA certificate to fetch from MaestroVault and inject into the container image at build time.
 
-```go
-type CACertConfig struct {
-    Name             string `yaml:"name"`
-    VaultSecret      string `yaml:"vaultSecret"`
-    VaultEnvironment string `yaml:"vaultEnvironment,omitempty"`
-    VaultField       string `yaml:"vaultField,omitempty"`
-}
-```
-
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `name` | string | Yes | Certificate identifier. Must match `^[a-zA-Z0-9][a-zA-Z0-9_-]*$`. Used as the certificate filename. |

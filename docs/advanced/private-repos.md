@@ -149,8 +149,10 @@ RUN --mount=type=ssh \
   - Non-standard repo URLs
 
 **SSH Example:**
-```go
-// go.mod
+
+Add the private module to your `go.mod` as usual:
+
+```text
 require github.com/company/private-lib v1.2.3
 ```
 
@@ -372,33 +374,14 @@ Host git.company.com
 
 ---
 
-## How It Works Internally
+## How It Works
 
-### 1. Detection Phase (`utils/private_repo_detector.go`)
+DevOpsMaestro automatically handles private repository authentication during `dvm build`:
 
-```go
-privateRepoInfo := utils.DetectPrivateRepos(projectPath, language)
-// Returns:
-// - NeedsGit: bool
-// - NeedsSSH: bool
-// - RequiredBuildArgs: []string
-// - GitURLType: "ssh", "https", or "mixed"
-```
-
-### 2. Generation Phase (`builders/dockerfile_generator.go`)
-
-- Adds ARG declarations if needed
-- Installs git + openssh-client
-- Configures SSH known_hosts
-- Adds `--mount=type=ssh` to RUN commands
-- Configures git credential helpers
-
-### 3. Build Phase (`builders/api_image_builder.go`)
-
-- Creates BuildKit session
-- Attaches SSH agent provider
-- Forwards `SSH_AUTH_SOCK`
-- Passes build args from environment
+1. **Detection** — scans dependency files (`requirements.txt`, `go.mod`, `package.json`, `Cargo.toml`, `pom.xml`) for private repository URLs and `${VARIABLE}` patterns
+2. **Authentication setup** — determines whether SSH or HTTPS token authentication is needed
+3. **Dockerfile generation** — injects the appropriate `ARG` declarations, git/SSH tooling, credential helpers, and `--mount=type=ssh` flags
+4. **Build execution** — passes build args from the environment and forwards the SSH agent socket into the BuildKit session
 
 ---
 

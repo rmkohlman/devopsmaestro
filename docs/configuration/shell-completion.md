@@ -459,41 +459,6 @@ exec zsh
 
 ---
 
-## Advanced: Custom Completions
-
-If you're a developer extending DevOpsMaestro, you can add custom completions:
-
-### In Go code (cmd/*.go)
-
-```go
-// Add dynamic completion function
-myCommand.ValidArgsFunction = func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-    // Query database or API
-    items := []string{
-        "option1\tDescription of option 1",
-        "option2\tDescription of option 2",
-    }
-    return items, cobra.ShellCompDirectiveNoFileComp
-}
-```
-
-### Register flag completions
-
-```go
-// Complete file paths
-cmd.MarkFlagFilename("config", "yaml", "yml")
-
-// Complete directory paths
-cmd.MarkFlagDirname("output-dir")
-
-// Custom flag values
-cmd.RegisterFlagCompletionFunc("theme", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-    return []string{"catppuccin-mocha", "tokyo-night", "nord"}, cobra.ShellCompDirectiveDefault
-})
-```
-
----
-
 ## References
 
 - Cobra Shell Completion: https://github.com/spf13/cobra/blob/main/shell_completions.md

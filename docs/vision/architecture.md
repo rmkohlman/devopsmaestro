@@ -1600,45 +1600,11 @@ dvm operator logs
 
 **Migration Steps:**
 
-1. **Create default Ecosystem:**
-   ```sql
-   INSERT INTO ecosystems (name, description) 
-   VALUES ('default', 'Default ecosystem for migrated data');
-   ```
-
-2. **Create default Domain:**
-   ```sql
-   INSERT INTO domains (name, ecosystem_id, description)
-   VALUES ('default', 1, 'Default domain for migrated projects');
-   ```
-
-3. **Migrate Projects to Apps:**
-   ```sql
-   -- For each Project, create an App
-   INSERT INTO apps (name, domain_id, path, description)
-   SELECT name, 1, path, description FROM projects;
-   ```
-
-4. **Update Workspaces to reference Apps:**
-   ```sql
-   ALTER TABLE workspaces ADD COLUMN app_id INTEGER;
-   UPDATE workspaces SET app_id = (
-     SELECT apps.id FROM apps 
-     JOIN projects ON apps.name = projects.name 
-     WHERE projects.id = workspaces.project_id
-   );
-   ALTER TABLE workspaces DROP COLUMN project_id;
-   ```
-
-5. **Update Context to include new fields:**
-   ```sql
-   ALTER TABLE context ADD COLUMN active_ecosystem_id INTEGER;
-   ALTER TABLE context ADD COLUMN active_domain_id INTEGER;
-   ALTER TABLE context ADD COLUMN active_app_id INTEGER;
-   -- Migrate active_project_id to active_app_id
-   ```
-
-6. **Update CLI commands:**
+1. **Create default Ecosystem and Domain** for migrated data
+2. **Migrate existing Projects to Apps** — each project becomes an App in the default Domain
+3. **Update Workspaces** to reference Apps instead of Projects
+4. **Update Context** to include the new ecosystem, domain, and app fields
+5. **Update CLI commands:**
    - Add `dvm get ecosystems`, `dvm get domains`, `dvm get apps`
    - Add deprecation warnings to `dvm create project`, `dvm get projects`
 

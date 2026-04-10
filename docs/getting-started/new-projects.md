@@ -31,36 +31,8 @@ cd ~/Developer/go-user-api
 # 2. Initialize Go module
 go mod init github.com/yourorg/go-user-api
 
-# 3. Create initial API code
-cat > main.go << 'EOF'
-package main
-
-import (
-    "encoding/json"
-    "fmt"
-    "log"
-    "net/http"
-)
-
-type User struct {
-    ID   int    `json:"id"`
-    Name string `json:"name"`
-}
-
-func main() {
-    http.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
-        users := []User{
-            {ID: 1, Name: "Alice"},
-            {ID: 2, Name: "Bob"},
-        }
-        w.Header().Set("Content-Type", "application/json")
-        json.NewEncoder(w).Encode(users)
-    })
-
-    fmt.Println("Server starting on :8080")
-    log.Fatal(http.ListenAndServe(":8080", nil))
-}
-EOF
+# 3. Create your application source files
+# (add your own main.go here)
 
 # 4. Add to DevOpsMaestro
 dvm admin init  # Only needed once per machine
@@ -107,40 +79,8 @@ uvicorn[standard]>=0.23.0
 pydantic>=2.0.0
 EOF
 
-cat > main.py << 'EOF'
-from fastapi import FastAPI
-from pydantic import BaseModel
-
-app = FastAPI(title="User API", version="1.0.0")
-
-class User(BaseModel):
-    id: int
-    name: str
-    email: str
-
-# In-memory storage for demo
-users = [
-    User(id=1, name="Alice", email="alice@example.com"),
-    User(id=2, name="Bob", email="bob@example.com"),
-]
-
-@app.get("/")
-def read_root():
-    return {"message": "Welcome to User API"}
-
-@app.get("/users", response_model=list[User])
-def get_users():
-    return users
-
-@app.post("/users", response_model=User)
-def create_user(user: User):
-    users.append(user)
-    return user
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
-EOF
+# 3. Create your application source files
+# (add your own main.py here)
 
 # 3. Add to DevOpsMaestro
 dvm admin init  # Only needed once
@@ -205,44 +145,7 @@ EOF
 
 # 4. Create source structure
 mkdir src
-cat > src/app.ts << 'EOF'
-import express from 'express';
-
-interface User {
-  id: number;
-  name: string;
-  email: string;
-}
-
-const app = express();
-const port = 3000;
-
-app.use(express.json());
-
-// In-memory storage for demo
-const users: User[] = [
-  { id: 1, name: 'Alice', email: 'alice@example.com' },
-  { id: 2, name: 'Bob', email: 'bob@example.com' },
-];
-
-app.get('/', (req, res) => {
-  res.json({ message: 'Welcome to TypeScript API' });
-});
-
-app.get('/users', (req, res) => {
-  res.json(users);
-});
-
-app.post('/users', (req, res) => {
-  const user: User = req.body;
-  users.push(user);
-  res.status(201).json(user);
-});
-
-app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
-});
-EOF
+# (add your own src/app.ts here)
 
 # 5. Update package.json scripts
 npm pkg set scripts.start="node dist/app.js"
@@ -296,66 +199,8 @@ serde_json = "1.0"
 tokio = { version = "1.0", features = ["full"] }
 EOF
 
-# 3. Create CLI application
-cat > src/main.rs << 'EOF'
-use clap::{Arg, Command};
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-
-#[derive(Serialize, Deserialize, Debug)]
-struct Config {
-    name: String,
-    version: String,
-    features: Vec<String>,
-}
-
-#[tokio::main]
-async fn main() {
-    let matches = Command::new("rust-cli-tool")
-        .version("1.0.0")
-        .author("Your Name")
-        .about("A sample Rust CLI tool")
-        .subcommand(
-            Command::new("info")
-                .about("Show application info")
-        )
-        .subcommand(
-            Command::new("config")
-                .about("Show configuration")
-                .arg(Arg::new("format")
-                    .short('f')
-                    .long("format")
-                    .value_name("FORMAT")
-                    .help("Output format (json|yaml)")
-                )
-        )
-        .get_matches();
-
-    match matches.subcommand() {
-        Some(("info", _)) => {
-            println!("Rust CLI Tool v1.0.0");
-            println!("Built with DevOpsMaestro!");
-        }
-        Some(("config", sub_matches)) => {
-            let config = Config {
-                name: "rust-cli-tool".to_string(),
-                version: "1.0.0".to_string(),
-                features: vec!["async".to_string(), "json".to_string()],
-            };
-
-            let format = sub_matches.get_one::<String>("format").unwrap_or(&"json".to_string());
-            
-            match format.as_str() {
-                "json" => println!("{}", serde_json::to_string_pretty(&config).unwrap()),
-                _ => println!("{:#?}", config),
-            }
-        }
-        _ => {
-            println!("Use --help for usage information");
-        }
-    }
-}
-EOF
+# 3. Create your application source files
+# (add your own src/main.rs here — cargo new already created a starter)
 
 # 4. Add to DevOpsMaestro
 dvm admin init

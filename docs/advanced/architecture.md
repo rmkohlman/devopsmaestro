@@ -1,267 +1,134 @@
-# Architecture
+# Architecture Overview
 
-Internal architecture of DevOpsMaestro.
-
----
-
-## Overview
-
-```
-dvm/nvp/dvt CLI
-    |
-    ├── cmd/              # CLI commands (dvm, nvp, dvt entry points)
-    ├── models/           # Data models (all resource types)
-    ├── db/               # SQLite database layer
-    │   └── migrations/   # Database migrations (001-017)
-    ├── config/           # Configuration, vault integration, credentials
-    ├── pkg/
-    │   ├── resource/     # Unified resource interface & handlers
-    │   │   └── handlers/ # 12 resource type handlers
-    │   ├── colorbridge/  # Bridge: MaestroTheme → dvm color system
-    │   ├── nvimbridge/   # Bridge: MaestroNvim → dvm DataStore
-    │   ├── themebridge/  # Bridge: MaestroTheme → dvm DataStore
-    │   ├── terminalbridge/ # Bridge: MaestroTerminal → dvm DataStore
-    │   ├── source/       # Source resolution (file, URL, stdin, GitHub)
-    │   ├── registry/     # OCI registry management (Zot)
-    │   ├── mirror/       # Git bare repo mirror management
-    │   ├── secrets/      # Secret provider abstraction
-    │   ├── crd/          # Custom Resource Definition support
-    │   ├── resolver/     # Theme/config resolution
-    │   ├── preflight/    # Pre-build validation
-    │   ├── workspace/    # Workspace operations
-    │   └── client/       # External API clients
-    ├── operators/        # Container runtime abstraction
-    ├── builders/         # Image building (Docker, BuildKit, nerdctl)
-    └── utils/            # Shared utilities
-```
+How DevOpsMaestro is structured from a user's perspective.
 
 ---
 
-## External Modules
+## Three Tools, One Database
 
-DevOpsMaestro consumes several extracted modules as Go dependencies:
+DevOpsMaestro provides three CLI tools that share a single SQLite database at `~/.devopsmaestro/devopsmaestro.db`:
 
-| Module | Package | Purpose |
-|--------|---------|---------|
-| `github.com/rmkohlman/MaestroPalette` v0.1.0 | Color palette primitives | Generic color palette types |
-| `github.com/rmkohlman/MaestroSDK` v0.1.0 | paths/, resource/, colors/, render/ | Shared foundation packages |
-| `github.com/rmkohlman/MaestroNvim` v0.2.0 | nvimops/ | Neovim plugin/theme management |
-| `github.com/rmkohlman/MaestroTheme` v0.1.0 | theme/ | Theme system |
-| `github.com/rmkohlman/MaestroTerminal` v0.1.0 | terminalops/ | Terminal prompt/package management |
+| Tool | Binary | What It Manages |
+|------|--------|-----------------|
+| **DevOpsMaestro** | `dvm` | Apps, workspaces, registries, git repos, credentials, CRDs |
+| **NvimOps** | `nvp` | Neovim plugins and themes |
+| **Terminal Operations** | `dvt` | Terminal prompts, plugins, and configurations |
 
-### Bridge Pattern
+All three tools share the same object hierarchy and context.
 
-Each extracted module has a bridge package in dvm (`pkg/*bridge/`) that adapts the module's interfaces to dvm's DataStore. This allows modules to be independently testable while sharing dvm's SQLite database at runtime.
+---
+
+## Object Hierarchy
+
+Resources are organized in a four-level hierarchy:
 
 ```
-MaestroNvim (nvimops/)  ──▶  pkg/nvimbridge/  ──▶  DataStore (SQLite)
-MaestroTheme (theme/)   ──▶  pkg/themebridge/  ──▶  DataStore (SQLite)
-MaestroTerminal         ──▶  pkg/terminalbridge/ ──▶  DataStore (SQLite)
+Ecosystem → Domain → App → Workspace
+```
+
+| Object | Purpose |
+|--------|---------|
+| **Ecosystem** | Top-level platform grouping (e.g., your company or product area) |
+| **Domain** | Bounded context within an ecosystem (e.g., a team or service area) |
+| **App** | Your codebase — the thing you build and maintain |
+| **Workspace** | A development environment for an App (runs in a container) |
+
+### Context
+
+Your active context determines which ecosystem, domain, app, and workspace commands operate on by default. Check it at any time:
+
+```bash
+dvm get context     # Show active context
+dvm get ctx         # Short alias
 ```
 
 ---
 
 ## Resource Types
 
-12 registered resource handlers:
+DevOpsMaestro manages 12 built-in resource types:
 
-| Handler | Kind |
-|---------|------|
-| Ecosystem | Top-level organizational unit |
-| Domain | Bounded context within an ecosystem |
-| App | Application (maps to a code repository) |
-| Workspace | Development environment for an app |
-| Credential | Stored credentials for registries or repos |
-| Registry | OCI registry configuration (Zot) |
-| GitRepo | Git bare repo mirror |
-| NvimPlugin | Neovim plugin definition |
-| NvimTheme | Neovim color theme |
-| NvimPackage | Curated plugin package |
-| TerminalPrompt | Terminal prompt configuration |
-| TerminalPackage | Terminal extension package |
+| Resource | Kind | Purpose |
+|----------|------|---------|
+| Ecosystem | `Ecosystem` | Organizational grouping |
+| Domain | `Domain` | Bounded context |
+| App | `App` | Application registration |
+| Workspace | `Workspace` | Dev environment container |
+| Credential | `Credential` | Stored credentials for auth |
+| Registry | `Registry` | OCI/package registry config |
+| Git Repository | `GitRepo` | Bare git mirror |
+| Neovim Plugin | `NvimPlugin` | Neovim plugin definition |
+| Neovim Theme | `NvimTheme` | Neovim color theme |
+| Neovim Package | `NvimPackage` | Curated plugin bundle |
+| Terminal Prompt | `TerminalPrompt` | Prompt configuration |
+| Terminal Package | `TerminalPackage` | Terminal extension bundle |
 
-CRD support via `CustomResourceDefinition` allows user-extensible resource types.
-
----
-
-## Core Packages
-
-### db/
-
-Database layer:
-
-- `DataStore` interface
-- SQLite implementation at `~/.devopsmaestro/devopsmaestro.db`
-- 17 migrations (001-017)
-
-### pkg/source/
-
-Source resolution for the `-f` flag:
-
-- `Source` interface
-- FileSource, URLSource, StdinSource, GitHubSource
-- Automatic type detection
-
-### pkg/resource/
-
-Unified resource handling:
-
-- `Resource` interface (GetKind, GetName, Validate)
-- `Handler` interface (Apply, Get, List, Delete, ToYAML)
-- Registry pattern for handler lookup
-
-### operators/
-
-Container runtime abstraction:
-
-- `ContainerRuntime` interface
-- Platform detection (OrbStack, Docker, Podman, Colima, containerd/nerdctl)
-- Container lifecycle management
-
-### builders/
-
-Image building:
-
-- `ImageBuilder` interface
-- DockerBuilder, BuildKitBuilder, NerdctlBuilder
-- Dockerfile generation
+You can also define your own resource types using [Custom Resource Definitions](../reference/custom-resource-definition.md).
 
 ---
 
-## Design Principles
+## How `apply` Works
 
-### 1. Decoupling
+The `-f` flag accepts files, URLs, GitHub shorthands, and stdin. When you run `dvm apply -f something.yaml`, DevOpsMaestro:
 
-Interface → Implementation → Factory pattern:
-
-```go
-// Interface
-type DataStore interface {
-    CreateApp(app *models.App) error
-    GetAppByName(name string) (*models.App, error)
-    // ...
-}
-
-// Implementation
-type SQLDataStore struct {
-    db *sql.DB
-}
-
-// Factory
-func NewSQLDataStore(path string) (*SQLDataStore, error) {
-    // ...
-}
-```
-
-### 2. kubectl Patterns
-
-Familiar command structure:
+1. **Resolves the source** — reads from a file, URL, GitHub path, or stdin
+2. **Parses the YAML** — detects the resource `kind`
+3. **Validates and saves** — validates the resource and stores it in the database
 
 ```
-dvm get apps
-dvm create app <name>
-dvm delete workspace <name>
-dvm apply -f config.yaml
+Source (file/URL/GitHub/stdin) → Parse YAML → Validate → Save
 ```
-
-### 3. Separation of Concerns
-
-- Commands handle CLI interaction
-- Render packages handle output formatting
-- Stores handle persistence
-- Handlers handle resource operations
-- Bridge packages adapt external modules to dvm's DataStore
-
-### 4. Testability
-
-Mock implementations for all interfaces:
-
-```go
-type MockDataStore struct {
-    apps map[string]*models.App
-}
-
-func (m *MockDataStore) CreateApp(a *models.App) error {
-    m.apps[a.Name] = a
-    return nil
-}
-```
-
----
-
-## Resource Pipeline
-
-How `apply` works:
-
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Source    │────▶│   Parse     │────▶│   Handler   │
-│  (resolve)  │     │   (YAML)    │     │   (apply)   │
-└─────────────┘     └─────────────┘     └─────────────┘
-     │                    │                    │
-     ▼                    ▼                    ▼
- File/URL/            Detect             Save to
- Stdin/GitHub         Kind               store
-```
-
-1. **Source** resolves the input (file, URL, stdin, GitHub shorthand)
-2. **Parse** reads YAML and detects the resource Kind
-3. **Handler** applies the resource (validates, saves to store)
 
 ---
 
 ## Database
 
-SQLite at `~/.devopsmaestro/devopsmaestro.db` with 17 migrations.
+All state is stored in a single SQLite database:
 
-Tables:
+```
+~/.devopsmaestro/devopsmaestro.db
+```
 
-| Table | Purpose |
-|-------|---------|
-| ecosystems | Top-level organizational units |
-| domains | Bounded contexts |
-| apps | Application registrations |
-| workspaces | Development environments |
-| nvim_plugins | Neovim plugin definitions |
-| nvim_themes | Neovim color themes |
-| nvim_packages | Curated plugin packages |
-| terminal_prompts | Terminal prompt configurations |
-| terminal_packages | Terminal extension packages |
-| terminal_emulators | Terminal emulator settings |
-| terminal_profiles | Terminal profile configurations |
-| credentials | Stored credentials |
-| registries | OCI registry configurations |
-| git_repos | Git bare repo mirrors |
-| crds | Custom Resource Definitions |
-| crd_instances | CRD resource instances |
-| context | Active context (current app/workspace) |
+The database is automatically migrated to the latest schema on every startup. No manual migration steps are needed.
 
 ---
 
 ## Container Runtime Detection
 
-Priority order:
+`dvm` automatically detects your container platform in this order:
 
-1. `DVM_PLATFORM` environment variable
-2. OrbStack (if installed)
+1. `DVM_PLATFORM` environment variable (override)
+2. OrbStack
 3. Docker Desktop
 4. Colima
 5. Podman
 6. containerd (nerdctl)
 
-Detection checks socket paths:
+Check what was detected:
 
-```go
-var orbstackSockets = []string{
-    "~/.orbstack/run/docker.sock",
-    "/var/run/docker.sock",
-}
+```bash
+dvm get platforms
 ```
 
 ---
 
-## Next Steps
+## External Modules
 
-- [Source Types](source-types.md) - Source resolution details
-- [Build Architecture](../build-architecture.md) - Build pipeline internals
-- [Contributing](../development/contributing.md) - Contribute to development
+DevOpsMaestro is built on a set of focused libraries that can also be used independently:
+
+| Module | Purpose |
+|--------|---------|
+| [MaestroNvim](https://github.com/rmkohlman/MaestroNvim) | Neovim plugin and theme management (`nvp`) |
+| [MaestroTheme](https://github.com/rmkohlman/MaestroTheme) | Theme and color palette system |
+| [MaestroTerminal](https://github.com/rmkohlman/MaestroTerminal) | Terminal prompt and plugin management (`dvt`) |
+| [MaestroSDK](https://github.com/rmkohlman/MaestroSDK) | Shared foundation (paths, rendering, resource handling) |
+| [MaestroPalette](https://github.com/rmkohlman/MaestroPalette) | Color palette primitives |
+
+---
+
+## See Also
+
+- [Source Types](source-types.md) — How the `-f` flag resolves sources
+- [Theme Hierarchy](theme-hierarchy.md) — How themes cascade through the object hierarchy
+- [Custom Resource Definitions](../reference/custom-resource-definition.md) — Extending DevOpsMaestro with custom types
+- [Contributing](../development/contributing.md) — Contribute to development

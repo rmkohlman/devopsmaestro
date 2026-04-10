@@ -6,8 +6,8 @@ This document tracks major technical decisions made during DevOpsMaestro's devel
 
 ## ADR-001: Theme System with Pre-defined Themes
 
-**Date:** 2026-01-24  
-**Status:** ✅ Accepted  
+**Date:** 2026-01-24
+**Status:** ✅ Accepted
 **Version:** v0.2.0
 
 ### Context
@@ -28,22 +28,21 @@ Configuration via `DVM_THEME` environment variable or `~/.devopsmaestro/config.y
 
 ### Rationale
 
-1. **Reliability** - Works consistently across all terminal emulators
-2. **Industry Standard** - Used by popular tools (bat, gh, kubectl)
-3. **Coverage** - 8 themes cover 95%+ of user preferences
-4. **Simplicity** - Easy to implement, test, and maintain
-5. **Extensibility** - Easy to add more themes in future releases
+1. **Reliability** — Works consistently across all terminal emulators
+2. **Industry Standard** — Used by popular tools (bat, gh, kubectl)
+3. **Coverage** — 8 themes cover 95%+ of user preferences
+4. **Simplicity** — Easy to configure, test, and maintain
+5. **Extensibility** — Easy to add more themes in future releases
 
 ### Consequences
 
 **Positive:**
 - Consistent, beautiful output across all terminals
 - Fast theme switching (< 1ms)
-- Deterministic testing
 - Professional appearance out-of-the-box
 
 **Negative:**
-- No custom theme creation (planned for v0.3.0+)
+- No custom theme creation (planned for future releases)
 - Limited to 8 themes initially
 
 ### Alternatives Considered
@@ -56,8 +55,8 @@ Configuration via `DVM_THEME` environment variable or `~/.devopsmaestro/config.y
 
 ## ADR-002: Keep a Changelog Format
 
-**Date:** 2026-01-24  
-**Status:** ✅ Accepted  
+**Date:** 2026-01-24
+**Status:** ✅ Accepted
 **Version:** v0.2.0
 
 ### Context
@@ -66,15 +65,14 @@ Needed a consistent format for CHANGELOG.md and GitHub Release notes.
 
 ### Decision
 
-Use "Keep a Changelog" format with standard categories: Added, Changed, Fixed, Deprecated, Removed, Security.
+Use [Keep a Changelog](https://keepachangelog.com/) format with standard categories: Added, Changed, Fixed, Deprecated, Removed, Security.
 
 ### Rationale
 
-1. **Industry Standard** - Used by Docker, Terraform, many Go projects
-2. **Scannable** - Easy to quickly find relevant changes
-3. **Semantic Versioning** - Maps naturally to semver
-4. **Maintainable** - Fast to write and update
-5. **Parseable** - Can be automated in future
+1. **Industry Standard** — Used by Docker, Terraform, many CLI tools
+2. **Scannable** — Easy to quickly find relevant changes
+3. **Semantic Versioning** — Maps naturally to semver
+4. **Maintainable** — Fast to write and update
 
 ### Consequences
 
@@ -84,14 +82,14 @@ Use "Keep a Changelog" format with standard categories: Added, Changed, Fixed, D
 - Works well with semantic versioning
 
 **Negative:**
-- Less narrative than Kubernetes-style releases
+- Less narrative than Kubernetes-style release notes
 
 ---
 
 ## ADR-003: Dual-License Model (GPL-3.0 + Commercial)
 
-**Date:** 2026-01-24  
-**Status:** ✅ Accepted  
+**Date:** 2026-01-24
+**Status:** ✅ Accepted
 **Version:** v0.2.0
 
 ### Context
@@ -102,71 +100,32 @@ Wanted to make DevOpsMaestro free for individuals while creating a sustainabilit
 
 Implement dual-licensing:
 - **GPL-3.0:** Free for personal use, open source projects, educational use
-- **Commercial License:** Paid for corporate/proprietary use
+- **Commercial License:** Required for corporate/proprietary use
 
 ### Rationale
 
-1. **Sustainability** - Revenue model for continued development
-2. **Open Source Values** - Keeps tool free for individuals and OSS community
-3. **Fair Use** - Those profiting from it contribute back
-4. **Proven Model** - Successfully used by MySQL, Qt, GitLab
+1. **Sustainability** — Revenue model for continued development
+2. **Open Source Values** — Keeps tool free for individuals and the OSS community
+3. **Fair Use** — Those profiting from it contribute back
+4. **Proven Model** — Successfully used by MySQL, Qt, GitLab
 
 ### Consequences
 
 **Positive:**
-- Free for 95% of users
+- Free for the vast majority of users
 - Revenue potential from enterprise users
 - Protects against proprietary forks
-- Aligns incentives
 
 **Negative:**
+- Some companies avoid GPL-licensed tools
 - Requires license enforcement
-- More complex than single license
-- Some companies avoid GPL
 
 ---
 
-## ADR-004: Hybrid Session State Documentation
+## ADR-004: Cross-Platform Binary Distribution
 
-**Date:** 2026-01-24  
-**Status:** ✅ Accepted  
-**Version:** v0.2.0
-
-### Context
-
-Needed a way for AI assistants to resume work with full context while maintaining professional public documentation.
-
-### Decision
-
-Implement hybrid approach:
-- **Local `.ai-session/`** (gitignored) - Raw, verbose session notes
-- **Public `docs/development/`** (committed) - Polished ADRs and processes
-
-### Rationale
-
-1. **Fast Workflow** - Local notes updated without git overhead
-2. **Privacy** - Verbose context stays local
-3. **Transparency** - Public docs show professional development process
-4. **Flexibility** - Can migrate to private repo later if needed
-
-### Consequences
-
-**Positive:**
-- Fast iteration on session notes
-- Professional transparency
-- No premature complexity
-- Easy future migration
-
-**Negative:**
-- Local files not backed up to GitHub
-- Requires discipline to keep both updated
-
----
-
-## ADR-005: Cross-Platform Binary Distribution
-
-**Date:** 2026-01-24  
-**Status:** ✅ Accepted  
+**Date:** 2026-01-24
+**Status:** ✅ Accepted
 **Version:** v0.2.0
 
 ### Context
@@ -185,34 +144,27 @@ Include SHA256 checksums for verification.
 
 ### Rationale
 
-1. **User Experience** - Download and run immediately
-2. **Coverage** - Covers 99% of developer machines
-3. **Professional Standard** - Expected for CLI tools
-4. **Security** - Checksums allow verification
+1. **User Experience** — Download and run immediately, no toolchain required
+2. **Coverage** — Covers 99%+ of developer machines
+3. **Professional Standard** — Expected for CLI tools
+4. **Security** — Checksums allow download verification
 
 ### Consequences
 
 **Positive:**
 - No Go installation required
 - Fast, simple installation
-- Verified downloads
+- Verified downloads via checksums
 
 **Negative:**
-- Must build for each release (can automate later)
-- Larger GitHub release assets
-
-### Future Plans
-
-- v0.3.0: Automate with GoReleaser
-- v0.3.0: Add Homebrew tap
-- v0.4.0: Windows support if demand exists
+- Must build for each release (automated via GoReleaser)
 
 ---
 
-## ADR-006: YAML Syntax Highlighting
+## ADR-005: YAML Syntax Highlighting
 
-**Date:** 2026-01-24  
-**Status:** ✅ Accepted  
+**Date:** 2026-01-24
+**Status:** ✅ Accepted
 **Version:** v0.2.0
 
 ### Context
@@ -221,71 +173,46 @@ Users found YAML output difficult to scan. Wanted color distinction between keys
 
 ### Decision
 
-Implement `ColorizeYAML()` function with:
+Apply syntax highlighting to all `-o yaml` output:
 - Keys: Cyan + Bold
 - Values: Yellow
 - Comments: Gray
 
 ### Rationale
 
-1. **Readability** - Easy to distinguish keys from values
-2. **Standard Practice** - Matches editor behavior (VSCode, Vim)
-3. **Performance** - Simple regex parsing, O(n) complexity
-4. **Theme Integration** - Uses current theme colors
+1. **Readability** — Easy to distinguish keys from values at a glance
+2. **Standard Practice** — Matches behavior of editors like VS Code and Vim
+3. **Theme Integration** — Uses the active theme's color palette
 
 ### Consequences
 
 **Positive:**
 - Much easier to scan YAML output
 - Consistent with editor experience
-- Works with all themes
+- Works with all 8 themes
 
 **Negative:**
-- Adds ~10-20ms for large files (acceptable trade-off)
+- Small rendering overhead for large outputs (acceptable trade-off)
 
 ---
 
-## ADR-007: Local Neovim Management Integration
+## ADR-006: `nvp` as a Standalone Binary
 
-**Date:** 2026-01-24  
-**Status:** ✅ Superseded — See ADR-008  
-**Version:** v0.3.0 (planned)
-
-### Context
-
-DevOpsMaestro manages Neovim plugins for containerized workspaces, but users also need to:
-- Setup local Neovim config that matches workspace environments
-- Sync configuration between local machine and containers
-- Test configurations locally before deploying
-- Ensure consistent development experience across machines
-
-### Decision (Original Proposal)
-
-Integrate local Neovim management into DevOpsMaestro via `dvm nvim` commands rather than creating a separate standalone tool.
-
-### Outcome
-
-This approach was superseded. A dedicated standalone binary (`nvp`) was built instead. See ADR-008.
-
----
-
-## ADR-008: nvp as a Standalone Binary
-
-**Date:** 2026-02-04  
-**Status:** ✅ Accepted and Implemented  
+**Date:** 2026-02-04
+**Status:** ✅ Accepted and Implemented
 **Version:** v0.7.0+
 
 ### Context
 
-ADR-007 proposed integrating Neovim management into `dvm` via `dvm nvim` commands. During implementation, it became clear that:
+An earlier proposal suggested integrating Neovim management into `dvm` via `dvm nvim` subcommands. During planning it became clear that:
 - Neovim plugin/theme management is a distinct domain with its own release cadence
-- Users who don't use Docker/containers still need Neovim management
-- A standalone binary allows Homebrew distribution without requiring CGO/SQLite
+- Users who don't use Docker/containers still benefit from Neovim management
+- A standalone binary enables Homebrew distribution without CGO/SQLite requirements
 - Separation reduces binary size for Neovim-only users
 
 ### Decision
 
-Build `nvp` as a separate standalone binary in the same repository, built from `cmd/nvp/`.
+Ship `nvp` as a separate standalone binary alongside `dvm`, released from the same repository and version tag.
 
 **Key commands:**
 ```bash
@@ -301,52 +228,21 @@ nvp config init/show/edit       # Manage nvp configuration
 
 ### Rationale
 
-1. **Separation of Concerns** - Neovim management is distinct from workspace/container management
-2. **No CGO Required** - `nvp` has no SQLite dependency, enabling pure cross-compilation
-3. **Smaller Install** - Users get only what they need
-4. **Independent Releases** - `nvp` and `dvm` ship from the same repo/tag but with independent feature sets
-5. **Homebrew-Friendly** - CGO-free binary works seamlessly with GoReleaser cross-compilation
+1. **Separation of Concerns** — Neovim management is distinct from workspace/container management
+2. **Smaller Install** — Users get only what they need
+3. **Independent Feature Sets** — `nvp` and `dvm` ship from the same tag but evolve independently
+4. **Homebrew-Friendly** — No CGO dependency enables seamless cross-compilation
 
 ### Consequences
 
 **Positive:**
-- Both binaries ship from a single `git tag` and GoReleaser build
-- `nvp` is fully cross-compiled; `dvm` still requires macOS for CGO
-- Clean separation: `dvm` owns workspace/app/container management; `nvp` owns Neovim plugin/theme management
+- Both binaries ship from a single release tag
+- Clean separation: `dvm` owns workspace/container management; `nvp` owns Neovim plugin/theme management
+- `nvp` is available via Homebrew tap
 
 **Negative:**
-- Two binaries to install (mitigated by Homebrew tap)
-- Some duplication in shared library code
+- Two binaries to install (mitigated by the Homebrew tap installing both)
 
 ---
 
-## Template for Future ADRs
-
-When adding new ADRs, use this structure:
-
-```markdown
-## ADR-XXX: Title
-
-**Date:** YYYY-MM-DD  
-**Status:** [Proposed | Accepted | Deprecated | Superseded]  
-**Version:** vX.Y.Z
-
-### Context
-What is the issue we're facing?
-
-### Decision
-What are we doing about it?
-
-### Rationale
-Why this approach?
-
-### Consequences
-What are the results (positive and negative)?
-
-### Alternatives Considered
-What other options did we evaluate?
-```
-
----
-
-**Last Updated:** 2026-03-12 (v0.39.1)
+**Last Updated:** 2026-04-09 (v0.57.1)

@@ -4,30 +4,11 @@ The plugin system is designed like Kubernetes - plugins are **first-class object
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────┐
-│  Database (Source of Truth)             │
-│                                          │
-│  ┌────────────────────────────────┐     │
-│  │  nvim_plugins table            │     │
-│  │  - telescope                   │     │
-│  │  - mason                       │     │
-│  │  - treesitter                  │     │
-│  │  - copilot                     │     │
-│  └────────────────────────────────┘     │
-│                                          │
-│  ┌────────────────────────────────┐     │
-│  │  workspace_plugins junction    │     │
-│  │  workspace_id | plugin_id      │     │
-│  └────────────────────────────────┘     │
-└─────────────────────────────────────────┘
-            ↑                    ↑
-            │                    │
-    ┌───────┴────────┐   ┌──────┴────────┐
-    │  Plugin YAML   │   │ Workspace YAML│
-    │  (view/input)  │   │ (references)  │
-    └────────────────┘   └───────────────┘
-```
+Plugins are stored as named resources and referenced by workspaces. This separation means you can define a plugin once and reuse it across many workspaces. When `nvp generate` runs, it resolves all referenced plugins and produces a complete Neovim configuration.
+
+- **Plugin YAML** — defines a plugin with its repo, config, keymaps, and dependencies
+- **Workspace YAML** — references plugins by name
+- **`nvp generate`** — resolves references and produces the final Neovim config
 
 ## Three Ways to Build Configs
 

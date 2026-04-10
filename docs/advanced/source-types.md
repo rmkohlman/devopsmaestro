@@ -97,22 +97,14 @@ Use `-` as the filename to read from stdin.
 
 ## Auto-Detection
 
-The source type is automatically detected:
+The source type is automatically detected from the path prefix:
 
-```go
-func DetectSourceType(path string) SourceType {
-    if path == "-" {
-        return SourceTypeStdin
-    }
-    if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
-        return SourceTypeURL
-    }
-    if strings.HasPrefix(path, "github:") {
-        return SourceTypeGitHub
-    }
-    return SourceTypeFile
-}
-```
+| Prefix | Source Type |
+|--------|-------------|
+| `-` (literal dash) | Stdin |
+| `http://` or `https://` | URL |
+| `github:` | GitHub shorthand |
+| *(anything else)* | Local file |
 
 ---
 

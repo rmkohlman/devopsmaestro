@@ -1419,53 +1419,6 @@ echo '...' | dvm apply -f -
 
 ---
 
-## Architecture
-
-```
-dvm/nvp CLI
-    │
-    ├── render/          # Decoupled output formatting (Renderer interface)
-    ├── db/              # SQLite database layer (DataStore interface)
-    ├── operators/       # Container runtime abstraction (ContainerRuntime interface)
-    ├── builders/        # Image building (ImageBuilder interface)
-    ├── pkg/source/      # Source resolution (file, URL, stdin, GitHub)
-    ├── pkg/resource/    # Unified resource interface & handlers
-    │   └── handlers/    # Ecosystem, Domain, App, Workspace, Credential, Registry, CRD...
-    ├── pkg/nvimops/     # Plugin/theme management (nvp)
-    │   ├── plugin/      # Plugin types, parser, generator
-    │   ├── theme/       # Theme types, parser, generator
-    │   ├── store/       # Storage interfaces
-    │   └── library/     # Embedded plugin/theme library
-    ├── pkg/terminalops/ # Terminal prompt/plugin management (dvt)
-    ├── pkg/registry/    # Registry type implementations (Zot, devpi, Verdaccio, Athens, Squid)
-    ├── pkg/secrets/     # Secret provider system (MaestroVault, env)
-    ├── pkg/crd/         # Custom Resource Definition support
-    ├── pkg/colors/      # Color/theme provider system
-    ├── pkg/mirror/      # Git repository mirror management
-    ├── pkg/resolver/    # Workspace/hierarchy resolution helpers
-    ├── pkg/preflight/   # Pre-flight health checks (registry validation)
-    └── pkg/workspace/   # Workspace path and directory helpers
-```
-
----
-
-## Development
-
-```bash
-# Build
-go build -o dvm .
-go build -o nvp ./cmd/nvp/
-
-# Test
-go test ./...
-go test ./... -race
-
-# Lint (requires golangci-lint)
-golangci-lint run
-```
-
----
-
 ## Contributing
 
 Contributions welcome! Please:

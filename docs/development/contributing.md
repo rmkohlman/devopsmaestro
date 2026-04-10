@@ -1,33 +1,29 @@
 # Contributing to DevOpsMaestro
 
-Thank you for your interest in contributing to DevOpsMaestro! This guide will help you get started.
+Thank you for your interest in contributing to DevOpsMaestro!
 
 ## Getting Started
 
 ### Prerequisites
 
-- **Go 1.25+** - DevOpsMaestro is written in Go
-- **Git** - For version control
-- **Docker or Colima** - For testing container features
-- **golangci-lint** (optional) - For linting
+- **Go 1.25+**
+- **Git**
+- **Docker or Colima** — for testing container features
+- **golangci-lint** (optional) — for linting
 
-### Clone the Repository
+### Clone and Build
 
 ```bash
 git clone https://github.com/rmkohlman/devopsmaestro.git
 cd devopsmaestro
-```
 
-### Build the Project
-
-```bash
-# Build dvm (DevOpsMaestro)
+# Build dvm
 go build -o dvm .
 
-# Build nvp (NvimOps)
+# Build nvp
 go build -o nvp ./cmd/nvp/
 
-# Verify builds
+# Verify
 ./dvm version
 ./nvp version
 ```
@@ -35,49 +31,14 @@ go build -o nvp ./cmd/nvp/
 ### Run Tests
 
 ```bash
-# Run all tests
 go test ./...
-
-# Run tests with race detector (as CI does)
-go test ./... -race
-
-# Run specific package tests
-go test ./pkg/nvimops/... -v
-go test ./db/... -v
-```
-
----
-
-## Development Standards
-
-Before writing code, please read our standards documents:
-
-1. **[CLAUDE.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CLAUDE.md)** - Architecture overview
-2. **[STANDARDS.md](https://github.com/rmkohlman/devopsmaestro/blob/main/STANDARDS.md)** - Design patterns and coding standards
-
-### Core Principles
-
-1. **Decoupling** - Interface → Implementation → Factory pattern
-2. **Single Responsibility** - Each component has one job
-3. **Dependency Injection** - Dependencies injected, not created internally
-4. **Testability** - Every interface has a mock
-
-### Code Organization
-
-```
-package/
-├── interfaces.go      # Interface definitions
-├── implementation.go  # Concrete implementations
-├── factory.go         # Factory functions
-├── mock_*.go          # Mock implementations
-├── *_test.go          # Tests
 ```
 
 ---
 
 ## Making Changes
 
-### 1. Create a Branch
+### Branch
 
 ```bash
 git checkout -b feature/your-feature-name
@@ -85,170 +46,57 @@ git checkout -b feature/your-feature-name
 git checkout -b fix/your-bug-fix
 ```
 
-### 2. Make Your Changes
+### Commit Style
 
-- Follow existing code patterns
-- Add tests for new functionality
-- Update documentation if needed
-
-### 3. Test Your Changes
+We use [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```bash
-# Run tests
-go test ./...
-
-# Format code
-go fmt ./...
-
-# Vet code
-go vet ./...
-```
-
-### 4. Commit Your Changes
-
-We use conventional commits:
-
-```bash
-# Features
 git commit -m "feat: add new workspace command"
-
-# Bug fixes
 git commit -m "fix: correct plugin deletion error"
-
-# Documentation
 git commit -m "docs: update installation guide"
-
-# Refactoring
-git commit -m "refactor: extract builder interface"
-
-# Tests
 git commit -m "test: add plugin store tests"
-
-# Chores
 git commit -m "chore: update dependencies"
 ```
 
-### 5. Push and Create PR
+### Submit a Pull Request
 
 ```bash
 git push origin feature/your-feature-name
 ```
 
-Then create a Pull Request on GitHub.
+Then open a Pull Request on GitHub.
 
 ---
 
-## Code Review Checklist
+## Code Standards
 
-Before submitting, ensure:
+Before writing code, read:
 
-- [ ] Code follows decoupling principles
-- [ ] Interface defined (if adding new component)
-- [ ] Mock exists for testing
-- [ ] Factory function exists (if applicable)
-- [ ] Tests written and passing
-- [ ] Error handling is proper
-- [ ] Documentation updated
+- **[STANDARDS.md](https://github.com/rmkohlman/devopsmaestro/blob/main/STANDARDS.md)** — Design patterns and coding standards
 
----
-
-## Adding New Features
-
-### Adding a New Command
-
-1. Create command file in `cmd/`
-2. Register with parent command
-3. Add tests in `cmd/*_test.go`
-4. Update MANUAL_TEST_PLAN.md
-
-### Adding a New Interface
-
-1. Define interface in `interfaces.go`
-2. Create implementation
-3. Create mock for testing
-4. Add factory function
-5. Write interface compliance tests
-
-### Adding a New Resource Type
-
-1. Define types in `models/` or relevant package
-2. Implement `resource.Handler` interface
-3. Register handler in `pkg/resource/registry.go`
-4. Add YAML parsing support
-5. Write tests
-
----
-
-## Testing
-
-### Running Tests
-
-```bash
-# All tests
-go test ./...
-
-# With verbose output
-go test ./... -v
-
-# With race detection
-go test ./... -race
-
-# With coverage
-go test ./... -coverprofile=coverage.out
-go tool cover -html=coverage.out
-```
-
-### Writing Tests
-
-```go
-func TestMyFeature(t *testing.T) {
-    // Arrange
-    store := NewMockDataStore()
-    store.Apps["test"] = &models.App{Name: "test"}
-    
-    // Act
-    result, err := store.GetAppByName("test")
-    
-    // Assert
-    if err != nil {
-        t.Fatalf("unexpected error: %v", err)
-    }
-    if result.Name != "test" {
-        t.Errorf("expected 'test', got '%s'", result.Name)
-    }
-}
-```
-
-### Interface Compliance Tests
-
-```go
-func TestMyStore_ImplementsDataStore(t *testing.T) {
-    var _ DataStore = (*MyStore)(nil)
-}
-```
+Key principles:
+- **Decoupling** — Interface → Implementation → Factory pattern
+- **Single Responsibility** — Each component has one job
+- **Testability** — Every interface has a mock
 
 ---
 
 ## Documentation
 
-### When to Update Docs
+When making changes, update documentation as appropriate:
 
 | Change Type | Update |
 |-------------|--------|
 | New command | README.md, command docs |
 | New feature | Feature docs, examples |
-| Bug fix | Add test (regression) |
-| API change | CHANGELOG.md |
+| Bug fix | Add regression test |
+| Any change | CHANGELOG.md |
 
-### Building Docs Locally
+Build and preview docs locally:
 
 ```bash
-# Install MkDocs
 pip install mkdocs-material
-
-# Serve locally
 mkdocs serve
-
 # Visit http://127.0.0.1:8000
 ```
 
@@ -258,26 +106,18 @@ mkdocs serve
 
 Releases are handled by maintainers. See [Release Process](./release-process.md) for details.
 
-### Version Numbering
-
-We follow [Semantic Versioning](https://semver.org/):
-
-- **MAJOR** (X.0.0) - Breaking changes
-- **MINOR** (0.X.0) - New features (backward compatible)
-- **PATCH** (0.0.X) - Bug fixes (backward compatible)
-
 ---
 
 ## Getting Help
 
-- **Issues**: [GitHub Issues](https://github.com/rmkohlman/devopsmaestro/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/rmkohlman/devopsmaestro/discussions)
+- **Issues:** [GitHub Issues](https://github.com/rmkohlman/devopsmaestro/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/rmkohlman/devopsmaestro/discussions)
 
 ---
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the GPL-3.0 License.
+By contributing, you agree that your contributions will be licensed under GPL-3.0.
 
 ---
 

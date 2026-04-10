@@ -187,7 +187,7 @@ The following fields are validated when a CRD is applied:
 
 `Workspace`, `App`, `Domain`, `Ecosystem`, `NvimPlugin`, `NvimTheme`, `NvimPackage`, `TerminalPrompt`, `TerminalPackage`, `TerminalPlugin`, `TerminalEmulator`, `Registry`, `GitRepo`, `Credential`, `CustomResourceDefinition`
 
-**Note:** The `Validate()` method on the `CustomResourceDefinition` model is stubbed and always returns `nil`. All meaningful validation is performed by `CRDHandler.Apply()` and the OpenAPI v3 schema compiler in `pkg/crd`. This is an intentional extensibility point for future validation logic.
+**Note:** The `Validate()` call on a CRD is a no-op by default. All meaningful validation is performed by `dvm apply` and the OpenAPI v3 schema compiler when a schema is present. This is an intentional extensibility point.
 
 ## Notes
 

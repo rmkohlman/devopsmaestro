@@ -249,49 +249,7 @@ local lualine_theme = require("theme").lualine_theme()
 
 ## Generated Files
 
-When you run `nvp generate`, theme files are created:
-
-```
-~/.config/nvim/lua/
-├── theme/
-│   ├── init.lua        # Theme setup and helpers
-│   └── palette.lua     # Color palette module
-└── plugins/nvp/
-    └── colorscheme.lua # Lazy.nvim plugin spec
-```
-
-### palette.lua
-
-```lua
-return {
-  colors = {
-    bg = "#1a1b26",
-    fg = "#c0caf5",
-    accent = "#7aa2f7",
-    -- ... all colors
-  },
-  name = "my-custom-theme",
-  style = "night",
-}
-```
-
-### init.lua
-
-```lua
-local M = {}
-
-M.palette = require("theme.palette")
-
-function M.lualine_theme()
-  -- Returns lualine theme config
-end
-
-function M.highlight(group, opts)
-  -- Apply highlights using palette
-end
-
-return M
-```
+When you run `nvp generate`, theme files are created at `~/.config/nvim/lua/theme/`. The generated configuration includes the color palette module and theme setup helpers that integrate with lualine, highlight groups, and other plugins automatically.
 
 ---
 

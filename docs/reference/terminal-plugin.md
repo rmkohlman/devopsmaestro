@@ -275,13 +275,6 @@ dvm delete terminal plugin zsh-autosuggestions
 - `spec.shell` defaults to `zsh` when not specified
 - `spec.manager` defaults to `manual` when not specified
 
-## Storage
-
-TerminalPlugins are stored in the database and referenced by TerminalPackages:
-
-- **Database table**: `terminal_plugins`
-- **Package relationship**: Referenced by name in `TerminalPackage.spec.plugins[]`
-
 ## Related Resources
 
 - [TerminalPackage](terminal-package.md) — References plugins via `spec.plugins[]`

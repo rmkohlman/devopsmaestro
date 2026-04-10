@@ -4,81 +4,45 @@ This folder contains documentation about DevOpsMaestro's development process, ar
 
 ---
 
-## 📚 Contents
+## Contents
 
 ### [decisions.md](./decisions.md)
-**Architecture Decision Records (ADRs)** - Major technical decisions and their rationale.
+**Architecture Decision Records (ADRs)** — Major technical decisions and their rationale.
 
 Documents why we chose specific approaches:
 - Theme system design
 - Release notes format
 - Licensing model
-- Session state documentation
 - YAML syntax highlighting
 - Binary distribution
+- `nvp` as a standalone binary
 
 ### [release-process.md](./release-process.md)
-**Release Workflow** - Step-by-step guide for creating releases.
+**Release Workflow** — Step-by-step guide for creating releases.
 
 Covers:
 - Version numbering (semantic versioning)
-- Building cross-platform binaries
-- Creating GitHub releases
-- Updating documentation
+- Automated release via GitHub Actions
+- Updating Homebrew tap
 - Verification steps
 
+### [contributing.md](./contributing.md)
+**Contributor Guide** — How to contribute code or documentation.
+
 ### [v0.2.0-theme-system.md](./v0.2.0-theme-system.md)
-**Theme System Development Notes** - Detailed implementation notes for v0.2.0.
-
-Includes:
-- Implementation details
-- Design decisions
-- Testing strategy
-- Performance considerations
-- Future enhancements
+**Theme System — v0.2.0 History** — Historical record of the theme system introduced in v0.2.0.
 
 ---
 
-## 🎯 Purpose
+## Related Documentation
 
-This documentation serves multiple purposes:
-
-1. **Transparency** - Shows our development process publicly
-2. **Education** - Helps contributors understand decisions
-3. **Continuity** - Maintains project knowledge over time
-4. **Quality** - Encourages thoughtful decision-making
-5. **Collaboration** - Makes it easier for others to contribute
+- **[README.md](../../README.md)** — Project overview and quick start
+- **[CHANGELOG.md](../../CHANGELOG.md)** — Version history
+- **[LICENSING.md](../../LICENSING.md)** — License information
 
 ---
 
-## 🤝 Contributing to Development Docs
-
-When making significant technical decisions:
-
-1. Document the decision in `decisions.md` as an ADR
-2. Include context, alternatives considered, and rationale
-3. Note consequences (pros and cons)
-4. Reference related issues or pull requests
-
-When implementing major features:
-
-1. Create a feature-specific markdown file (e.g., `v0.X.0-feature-name.md`)
-2. Document implementation details
-3. Include testing notes
-4. Note future enhancement ideas
-
----
-
-## 📖 Related Documentation
-
-- **[README.md](../../README.md)** - Project overview and quick start
-- **[CHANGELOG.md](../../CHANGELOG.md)** - Version history
-- **[LICENSING.md](../../LICENSING.md)** - License information
-- **[.ai-session/](../../.ai-session/)** - AI session context (local only, not in repo)
-
----
-
-## 🔍 For More Information
+## Links
 
 - **GitHub Repository:** https://github.com/rmkohlman/devopsmaestro
 - **Issue Tracker:** https://github.com/rmkohlman/devopsmaestro/issues
@@ -86,4 +50,4 @@ When implementing major features:
 
 ---
 
-**Last Updated:** 2026-03-12 (v0.39.1)
+**Last Updated:** 2026-04-09 (v0.57.1)
