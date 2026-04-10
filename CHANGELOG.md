@@ -24,11 +24,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `--markdown` flag also available for Markdown reference output
   - Command is hidden from `--help` — intended for developer and release workflows only
 
-- **Parallel batch builds for `dvm build`** — `dvm build --all` now builds every workspace across all apps without requiring an active workspace to be set. Scope flags (`-e/--ecosystem`, `-d/--domain`, `-a/--app`, `-w/--workspace`) compose additively with `--all` to narrow the build scope. Parallel execution with configurable concurrency replaces the previous serial, single-workspace-only behavior. Closes [#213](https://github.com/rmkohlman/devopsmaestro/issues/213)
-  - **`--detach` flag** — run the parallel build session in the background and return immediately; monitor progress with `dvm build status`
-  - **`--concurrency` flag** — maximum number of parallel builds (default: `4`)
+- **Parallel batch builds for `dvm build`** — Full parallel build orchestration engine. `dvm build --all` discovers and builds every workspace across all apps without requiring an active workspace to be set. Scope flags (`-e/--ecosystem`, `-d/--domain`, `-a/--app`, `-w/--workspace`) compose additively to narrow the build scope. A semaphore-based worker pool executes builds in parallel with configurable concurrency. Closes [#213](https://github.com/rmkohlman/devopsmaestro/issues/213)
+  - **Workspace auto-discovery** — `resolveWorkspacesForParallelBuild` queries the DataStore to find all matching workspaces; when no scope is set, all workspaces are returned; scoped builds filter by ecosystem, domain, app, or workspace name
+  - **`--detach` flag** — launches the worker pool in a background goroutine, prints a session ID, and returns immediately; monitor progress with `dvm build status`
+  - **`--concurrency` flag** — maximum number of parallel builds running at once (default: `4`); controls the semaphore slot count
+  - **Failure isolation** — each workspace build runs independently; a failed build does not cancel others in the pool; all workspaces are attempted regardless of intermediate failures
+  - **Aggregate exit code** — exits non-zero if any workspace fails; exits 0 only when all succeed
   - **`dvm build status` hint** — when no active build session exists, the output now includes a hint suggesting `dvm build --all` to start one
-  - Build failures in one workspace do not block others from completing; exit code is non-zero if any workspace fails
 
 ### Changed
 

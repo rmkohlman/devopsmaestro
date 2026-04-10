@@ -10,7 +10,7 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 - **Man page generation** — All three CLIs (`dvm`, `nvp`, `dvt`) now ship a hidden `generate-docs` developer command that generates section-1 man pages and markdown reference docs for every command and subcommand via `cobra/doc`. Run `dvm generate-docs --man-pages --output-dir ./docs/man/` (#35).
 
-- **Parallel batch builds** — `dvm build --all` now builds every workspace across all apps without requiring an active workspace. Scope flags (`-e`, `-d`, `-a`, `-w`) compose additively with `--all` to narrow the build scope (e.g., `dvm build --all --ecosystem beans-modules`). New `--detach` flag runs the session in the background; `--concurrency` (default: `4`) controls parallelism. `dvm build status` now shows a hint suggesting `dvm build --all` when no active session exists. Build failures in one workspace do not block others; exit code is non-zero if any workspace fails (#213).
+- **Parallel batch builds** — Full parallel build orchestration engine. `dvm build --all` discovers and builds every workspace across all apps without requiring an active workspace. Scope flags (`-e`, `-d`, `-a`, `-w`) compose additively with `--all` to narrow the build scope (e.g., `dvm build --all --ecosystem beans-modules`). A semaphore-based worker pool runs builds in parallel with configurable concurrency (`--concurrency`, default: `4`). `--detach` launches the pool in the background and returns a session ID immediately; monitor with `dvm build status`. Failure isolation: one workspace failing does not block others; exit code is non-zero if any workspace fails. `dvm build status` now shows a hint to `dvm build --all` when no active session exists (#213).
 
 **Changed**
 
