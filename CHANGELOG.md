@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [v0.82.0] - 2026-04-10
+
 ### Added
 
 - **Local directory Docker layer cache (`type=local`)** — `dvm build` now populates `BuildOptions.CacheFrom`/`CacheTo` with a `type=local` cache source scoped to `~/.devopsmaestro/build-cache/<app>-<workspace>/`. Docker build layers are persisted to disk and survive `docker system prune`, speeding up rebuilds even after Docker's internal cache is cleared. Disabled automatically when `--no-cache` is set. ([#225](https://github.com/rmkohlman/devopsmaestro/issues/225))

@@ -4,6 +4,10 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Unreleased
 
+---
+
+## v0.82.0 (2026-04-10)
+
 **New**
 
 - **Local directory Docker layer cache (`type=local`)** — `dvm build` now persists Docker build layers to disk at `~/.devopsmaestro/build-cache/<app>-<workspace>/` using BuildKit's `type=local` cache. Layers survive `docker system prune` and speed up rebuilds even after Docker's internal cache is cleared. Disabled automatically when `--no-cache` is set (#225).
