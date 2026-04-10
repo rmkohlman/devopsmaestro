@@ -6,6 +6,14 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ---
 
+## v0.83.2 (2026-04-10)
+
+**New**
+
+- **Color preview swatches (●) in `dvm get themes`** — Theme list now renders ANSI true-color dot swatches showing primary palette colors inline with each theme entry (#237).
+
+---
+
 ## v0.83.1 (2026-04-10)
 
 **New**

@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.83.2] - 2026-04-10
+
+### Added
+
+- **Color preview swatches (●) in `dvm get themes`** — Theme list now renders ANSI true-color dot swatches showing primary palette colors inline with each theme entry. ([#237](https://github.com/rmkohlman/devopsmaestro/issues/237))
+
+---
+
 ## [v0.83.1] - 2026-04-10
 
 ### Added
