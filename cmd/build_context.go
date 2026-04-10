@@ -7,6 +7,7 @@ import (
 	"devopsmaestro/models"
 	"devopsmaestro/operators"
 	"devopsmaestro/pkg/buildargs/resolver"
+	"devopsmaestro/pkg/registry"
 	"github.com/rmkohlman/MaestroNvim/nvimops/plugin"
 )
 
@@ -28,6 +29,7 @@ type buildContext struct {
 	platform         *operators.Platform
 	registryEndpoint string
 	registryEnvVars  map[string]string
+	cacheReadiness   *registry.CacheReadiness
 
 	// Dockerfile detection
 	hasDockerfile  bool

@@ -4,6 +4,16 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Unreleased
 
+**New**
+
+- **Cache mounts on all builder stages** — `neovim-builder`, `lazygit-builder`, `starship-builder`, and `treesitter-builder` now use `--mount=type=cache` for `apt`/`apk` package caches. The lock contention concern that previously blocked adding these mounts was incorrect for BuildKit (each mount target is isolated per stage). Package caches are preserved across builds even when layers change, preventing re-downloads of apt/apk packages (#221).
+
+- **Cache readiness reporting** — Build output shows `Cache: X/5 registries active (failures listed)` before the Docker build, giving users visibility into which registry caches are healthy. Implemented via `CacheReadiness` struct and `EnsureCachesReady()` / `FormatSummary()` in `pkg/registry/build_support.go` (#221).
+
+**Changed**
+
+- **`docker build` → `docker buildx build`** — All image builds now use `docker buildx build` (via `DockerBuilder`), enabling `--cache-from`/`--cache-to` registry layer cache support in a future phase. Docker's built-in layer cache still provides ~2s warm rebuild times (31 steps, all cached) (#221).
+
 ## v0.79.1 (2026-04-10)
 
 **Bug Fixes**

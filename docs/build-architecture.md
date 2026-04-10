@@ -105,8 +105,8 @@ DevOpsMaestro automatically detects and uses your installed container platform:
 
 | Platform | Build Tool | Notes |
 |----------|-----------|-------|
-| OrbStack | Docker/BuildKit | Recommended for macOS |
-| Docker Desktop | Docker/BuildKit | Full feature support |
+| OrbStack | docker buildx / BuildKit | Recommended for macOS |
+| Docker Desktop | docker buildx / BuildKit | Full feature support |
 | Colima | nerdctl/BuildKit | Uses containerd backend |
 | Podman | Podman Build | Rootless support |
 
@@ -115,6 +115,42 @@ Check your detected platform:
 ```bash
 dvm get platforms
 ```
+
+---
+
+## Build Cache
+
+### Builder Stage Cache Mounts
+
+All builder stages in the generated Dockerfile use `--mount=type=cache` to preserve package manager caches between builds:
+
+| Stage | Cache Mount |
+|-------|------------|
+| `neovim-builder` | `apt` cache (`/var/cache/apt`, `/var/lib/apt`) |
+| `lazygit-builder` | `apt` or `apk` cache depending on base image |
+| `starship-builder` | `apt` or `apk` cache |
+| `treesitter-builder` | `apt` or `apk` cache |
+| `go-tools-builder` | Go module cache (`/root/go/pkg/mod`) |
+
+BuildKit isolates each cache mount per stage, so there is no lock contention between parallel builds. Package caches are preserved across builds even when layers change — apt/apk packages are not re-downloaded on every build.
+
+### docker buildx
+
+DevOpsMaestro uses `docker buildx build` for all Docker-compatible platforms (OrbStack, Docker Desktop). This enables BuildKit features including `--mount=type=cache` and lays the groundwork for registry-based layer caching in a future phase.
+
+### Cache Readiness Reporting
+
+Before each build, DevOpsMaestro checks all configured registries and reports which caches are available:
+
+```
+Cache: 3/5 registries active (zot-layer-cache: connection refused, devpi: not started)
+```
+
+This output appears in the build log so you can see whether caches are warm before the Docker build begins.
+
+### Registry-Based Layer Cache (Phase 2 — Planned)
+
+`--cache-from`/`--cache-to` with a Zot OCI registry is planned but not yet enabled. Docker BuildKit defaults to HTTPS for non-localhost registries, which requires adding the registry to Docker's `insecure-registries` daemon config. Phase 1 (builder stage cache mounts + `docker buildx`) already provides excellent warm rebuild performance (~2s for a fully cached build). Phase 2 will add cross-machine layer cache sharing via the local Zot registry.
 
 ---
 

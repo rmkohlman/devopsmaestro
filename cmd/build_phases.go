@@ -143,6 +143,7 @@ func (bc *buildContext) prepareRegistry() error {
 
 	bc.registryEndpoint = regResult.OCIEndpoint
 	bc.registryEnvVars = regResult.EnvVars
+	bc.cacheReadiness = &regResult.CacheReadiness
 	for _, w := range regResult.Warnings {
 		render.Warning(w)
 	}
@@ -408,11 +409,26 @@ func (bc *buildContext) buildImage() (skipped bool, err error) {
 	buildArgs := bc.assembleBuildArgs()
 
 	slog.Debug("starting image build", "target", buildTarget, "no_cache", buildNocache)
-	if err := bc.builder.Build(bc.ctx, builders.BuildOptions{
+
+	// Registry-based build cache (--cache-from / --cache-to) is deferred to Phase 2.
+	// The Zot OCI registry is HTTP-only, but Docker BuildKit (inside the Colima VM)
+	// defaults to HTTPS for non-localhost hosts (host.docker.internal).  This causes:
+	//   "http: server gave HTTP response to HTTPS client"
+	// Both --cache-to (export) and --cache-from (import) trigger this error, and
+	// buildx returns exit code 1 even when the image itself was built successfully.
+	// Fixing this requires configuring insecure-registries in the Docker daemon,
+	// which we cannot guarantee on all developer machines.
+	//
+	// Docker's built-in layer cache already provides the primary caching benefit —
+	// every step shows CACHED on warm rebuilds.  CacheReadiness reporting is still
+	// active for visibility into registry health.
+	buildOpts := builders.BuildOptions{
 		BuildArgs: buildArgs,
 		Target:    buildTarget,
 		NoCache:   buildNocache,
-	}); err != nil {
+	}
+
+	if err := bc.builder.Build(bc.ctx, buildOpts); err != nil {
 		slog.Error("build failed", "image", bc.imageName, "error", err)
 		return false, err
 	}
@@ -517,6 +533,9 @@ func (bc *buildContext) postBuild() {
 	render.Info(fmt.Sprintf("Dockerfile: %s", bc.dvmDockerfile))
 	if bc.registryEndpoint != "" {
 		render.Info(fmt.Sprintf("Registry cache: %s", bc.registryEndpoint))
+	}
+	if bc.cacheReadiness != nil {
+		render.Info(bc.cacheReadiness.FormatSummary())
 	}
 	render.Blank()
 	render.Info("Next: Attach to your workspace with: dvm attach")

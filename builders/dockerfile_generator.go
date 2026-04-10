@@ -558,10 +558,10 @@ func (g *DefaultDockerfileGenerator) activeBuilderStages() []builderStage {
 //   - Tree-sitter CLI: Alpine (small image, binary is statically linked).
 //   - Go tools: Uses the same golang:X-alpine image as the base stage for ABI compatibility.
 //
-// Cache mount strategy: Builder stages generally do NOT use cache mounts because they are
-// short-lived throwaway stages and parallel cache mounts can cause lock contention.
-// Exception: go-tools-builder uses Go module/build cache mounts because `go install`
-// downloads significant dependencies that benefit from caching.
+// Cache mount strategy: Builder stages use cache mounts for package manager directories
+// (apt, apk). BuildKit handles concurrent cache mounts with copy-on-write semantics —
+// parallel stages sharing /var/cache/apk or /var/cache/apt will NOT deadlock or corrupt.
+// go-tools-builder additionally uses Go module/build cache mounts.
 // The dev stage (long-lived) uses cache mounts for all package managers.
 func (g *DefaultDockerfileGenerator) emitBuilderStages(dockerfile *strings.Builder, stages []builderStage) {
 	for _, stage := range stages {
@@ -574,7 +574,8 @@ func (g *DefaultDockerfileGenerator) emitBuilderStages(dockerfile *strings.Build
 func (g *DefaultDockerfileGenerator) generateNeovimBuilder(dockerfile *strings.Builder) {
 	dockerfile.WriteString("# --- Parallel builder: Neovim ---\n")
 	dockerfile.WriteString(fmt.Sprintf("FROM %s AS neovim-builder\n", pinnedImage("debian:bookworm-slim")))
-	dockerfile.WriteString("RUN set -e && \\\n")
+	dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,target=/var/lib/apt,sharing=locked \\\n")
+	dockerfile.WriteString("    set -e && \\\n")
 	dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
 	dockerfile.WriteString("    ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m) && \\\n")
 	dockerfile.WriteString("    if [ \"$ARCH\" = \"arm64\" ] || [ \"$ARCH\" = \"aarch64\" ]; then \\\n")
@@ -598,7 +599,8 @@ func (g *DefaultDockerfileGenerator) generateLazygitBuilder(dockerfile *strings.
 	dockerfile.WriteString("# --- Parallel builder: lazygit ---\n")
 	if isAlpine {
 		dockerfile.WriteString(fmt.Sprintf("FROM %s AS lazygit-builder\n", pinnedImage("alpine:3.20")))
-		dockerfile.WriteString("RUN set -e && \\\n")
+		dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \\\n")
+		dockerfile.WriteString("    set -e && \\\n")
 		dockerfile.WriteString("    apk add --no-cache curl && \\\n")
 		dockerfile.WriteString("    ARCH=$(uname -m) && \\\n")
 		dockerfile.WriteString("    if [ \"$ARCH\" = \"aarch64\" ]; then \\\n")
@@ -610,7 +612,8 @@ func (g *DefaultDockerfileGenerator) generateLazygitBuilder(dockerfile *strings.
 		dockerfile.WriteString("    fi && \\\n")
 	} else {
 		dockerfile.WriteString(fmt.Sprintf("FROM %s AS lazygit-builder\n", pinnedImage("debian:bookworm-slim")))
-		dockerfile.WriteString("RUN set -e && \\\n")
+		dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,target=/var/lib/apt,sharing=locked \\\n")
+		dockerfile.WriteString("    set -e && \\\n")
 		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
 		dockerfile.WriteString("    ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m) && \\\n")
 		dockerfile.WriteString("    if [ \"$ARCH\" = \"arm64\" ] || [ \"$ARCH\" = \"aarch64\" ]; then \\\n")
@@ -636,7 +639,8 @@ func (g *DefaultDockerfileGenerator) generateLazygitBuilder(dockerfile *strings.
 func (g *DefaultDockerfileGenerator) generateStarshipBuilder(dockerfile *strings.Builder) {
 	dockerfile.WriteString("# --- Parallel builder: Starship prompt ---\n")
 	dockerfile.WriteString(fmt.Sprintf("FROM %s AS starship-builder\n", pinnedImage("debian:bookworm-slim")))
-	dockerfile.WriteString("RUN set -e && \\\n")
+	dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,target=/var/lib/apt,sharing=locked \\\n")
+	dockerfile.WriteString("    set -e && \\\n")
 	dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
 	dockerfile.WriteString("    ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m) && \\\n")
 	dockerfile.WriteString("    if [ \"$ARCH\" = \"arm64\" ] || [ \"$ARCH\" = \"aarch64\" ]; then \\\n")
@@ -659,7 +663,8 @@ func (g *DefaultDockerfileGenerator) generateTreeSitterBuilder(dockerfile *strin
 	dockerfile.WriteString("# --- Parallel builder: tree-sitter CLI ---\n")
 	if isAlpine {
 		dockerfile.WriteString(fmt.Sprintf("FROM %s AS treesitter-builder\n", pinnedImage("alpine:3.20")))
-		dockerfile.WriteString("RUN set -e && \\\n")
+		dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \\\n")
+		dockerfile.WriteString("    set -e && \\\n")
 		dockerfile.WriteString("    apk add --no-cache curl && \\\n")
 		dockerfile.WriteString("    ARCH=$(uname -m) && \\\n")
 		dockerfile.WriteString("    if [ \"$ARCH\" = \"aarch64\" ]; then \\\n")
@@ -669,7 +674,8 @@ func (g *DefaultDockerfileGenerator) generateTreeSitterBuilder(dockerfile *strin
 		dockerfile.WriteString("    else echo \"ERROR: Unsupported architecture: $ARCH\"; exit 1; fi && \\\n")
 	} else {
 		dockerfile.WriteString(fmt.Sprintf("FROM %s AS treesitter-builder\n", pinnedImage("debian:bookworm-slim")))
-		dockerfile.WriteString("RUN set -e && \\\n")
+		dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,target=/var/lib/apt,sharing=locked \\\n")
+		dockerfile.WriteString("    set -e && \\\n")
 		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
 		dockerfile.WriteString("    ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m) && \\\n")
 		dockerfile.WriteString("    if [ \"$ARCH\" = \"arm64\" ] || [ \"$ARCH\" = \"aarch64\" ]; then \\\n")
@@ -695,7 +701,8 @@ func (g *DefaultDockerfileGenerator) generateOpencodeBuilder(dockerfile *strings
 	dockerfile.WriteString("# --- Parallel builder: opencode ---\n")
 	if isAlpine {
 		dockerfile.WriteString(fmt.Sprintf("FROM %s AS opencode-builder\n", pinnedImage("alpine:3.20")))
-		dockerfile.WriteString("RUN set -e && \\\n")
+		dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \\\n")
+		dockerfile.WriteString("    set -e && \\\n")
 		dockerfile.WriteString("    apk add --no-cache curl && \\\n")
 		dockerfile.WriteString("    ARCH=$(uname -m) && \\\n")
 		dockerfile.WriteString("    if [ \"$ARCH\" = \"aarch64\" ]; then \\\n")
@@ -707,7 +714,8 @@ func (g *DefaultDockerfileGenerator) generateOpencodeBuilder(dockerfile *strings
 		dockerfile.WriteString("    fi && \\\n")
 	} else {
 		dockerfile.WriteString(fmt.Sprintf("FROM %s AS opencode-builder\n", pinnedImage("debian:bookworm-slim")))
-		dockerfile.WriteString("RUN set -e && \\\n")
+		dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,target=/var/lib/apt,sharing=locked \\\n")
+		dockerfile.WriteString("    set -e && \\\n")
 		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
 		dockerfile.WriteString("    ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m) && \\\n")
 		dockerfile.WriteString("    if [ \"$ARCH\" = \"arm64\" ] || [ \"$ARCH\" = \"aarch64\" ]; then \\\n")

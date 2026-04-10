@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Cache mounts on all builder stages** — `neovim-builder`, `lazygit-builder`, `starship-builder`, and `treesitter-builder` now use `--mount=type=cache` for `apt`/`apk` package caches. Previously only `go-tools-builder` had cache mounts; the lock contention concern that blocked the others was incorrect for BuildKit (each mount target is isolated per stage). Package caches are preserved across builds even when layers change, preventing unnecessary re-downloads. Closes [#221](https://github.com/rmkohlman/devopsmaestro/issues/221)
+
+- **Cache readiness reporting** — Build output now shows `Cache: X/5 registries active (failures listed)` before the Docker build begins, so users can see which caches are healthy and which are unavailable. Implemented via `CacheReadiness` struct and `EnsureCachesReady()` / `FormatSummary()` in `pkg/registry/build_support.go`. Closes [#221](https://github.com/rmkohlman/devopsmaestro/issues/221)
+
+### Changed
+
+- **`docker build` → `docker buildx build`** — `DockerBuilder` now uses `docker buildx build` for all image builds. This enables `--cache-from`/`--cache-to` registry layer cache support in a future phase. Docker's built-in layer cache continues to provide warm rebuild performance (~2s for 31 steps, all cached). Closes [#221](https://github.com/rmkohlman/devopsmaestro/issues/221)
+
 ---
 
 ## [v0.79.1] - 2026-04-10

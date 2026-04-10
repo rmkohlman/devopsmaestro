@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/rmkohlman/MaestroSDK/render"
@@ -138,6 +139,22 @@ func (b *BuildKitBuilder) Build(ctx context.Context, opts BuildOptions) error {
 		solveOpts.FrontendAttrs["build-arg:"+key] = value
 	}
 
+	// Add cache import if specified (e.g., "type=registry,ref=localhost:5001/dvm-cache/img")
+	if opts.CacheFrom != "" {
+		cacheImport := parseCacheSpec(opts.CacheFrom)
+		if cacheImport.Type != "" {
+			solveOpts.CacheImports = []bkclient.CacheOptionsEntry{cacheImport}
+		}
+	}
+
+	// Add cache export if specified (e.g., "type=registry,ref=localhost:5001/dvm-cache/img,mode=max")
+	if opts.CacheTo != "" {
+		cacheExport := parseCacheSpec(opts.CacheTo)
+		if cacheExport.Type != "" {
+			solveOpts.CacheExports = []bkclient.CacheOptionsEntry{cacheExport}
+		}
+	}
+
 	// Create session for build context
 	s, err := session.NewSession(ctx, "dvm-build")
 	if err != nil {
@@ -235,4 +252,25 @@ func (b *BuildKitBuilder) Close() error {
 		return fmt.Errorf("errors closing clients: %v", errs)
 	}
 	return nil
+}
+
+// parseCacheSpec parses a cache specification string (e.g., "type=registry,ref=localhost:5001/img,mode=max")
+// into a BuildKit CacheOptionsEntry. The "type=<value>" part becomes the Type field;
+// all other "key=value" pairs become Attrs.
+func parseCacheSpec(spec string) bkclient.CacheOptionsEntry {
+	entry := bkclient.CacheOptionsEntry{
+		Attrs: make(map[string]string),
+	}
+	for _, part := range strings.Split(spec, ",") {
+		kv := strings.SplitN(part, "=", 2)
+		if len(kv) != 2 {
+			continue
+		}
+		if kv[0] == "type" {
+			entry.Type = kv[1]
+		} else {
+			entry.Attrs[kv[0]] = kv[1]
+		}
+	}
+	return entry
 }

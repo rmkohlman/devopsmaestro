@@ -66,8 +66,8 @@ func (b *DockerBuilder) Build(ctx context.Context, opts BuildOptions) error {
 	render.Infof("Socket: %s", b.platform.SocketPath)
 	render.Blank()
 
-	// Build docker build command
-	args := []string{"build"}
+	// Build docker buildx build command (buildx supports --cache-from/--cache-to)
+	args := []string{"buildx", "build"}
 
 	// Add dockerfile flag if specified
 	dockerfilePath := b.dockerfile
@@ -100,6 +100,16 @@ func (b *DockerBuilder) Build(ctx context.Context, opts BuildOptions) error {
 	// Add pull if specified
 	if opts.Pull {
 		args = append(args, "--pull")
+	}
+
+	// Add cache-from if specified (e.g., "type=registry,ref=localhost:5001/dvm-cache/img")
+	if opts.CacheFrom != "" {
+		args = append(args, "--cache-from", opts.CacheFrom)
+	}
+
+	// Add cache-to if specified (e.g., "type=registry,ref=localhost:5001/dvm-cache/img,mode=max")
+	if opts.CacheTo != "" {
+		args = append(args, "--cache-to", opts.CacheTo)
 	}
 
 	// Add labels for namespace tracking

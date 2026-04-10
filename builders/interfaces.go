@@ -56,4 +56,10 @@ type BuildOptions struct {
 
 	// Pull forces pulling the base image even if cached
 	Pull bool
+
+	// CacheFrom specifies external cache sources (e.g., "type=registry,ref=localhost:5001/dvm-cache/img")
+	CacheFrom string
+
+	// CacheTo specifies external cache destinations (e.g., "type=registry,ref=localhost:5001/dvm-cache/img,mode=max")
+	CacheTo string
 }
