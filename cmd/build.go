@@ -7,15 +7,17 @@ import (
 )
 
 var (
-	buildForce    bool
-	buildNocache  bool
-	buildTarget   string
-	buildPush     bool
-	buildRegistry string
-	buildTimeout  time.Duration
-	buildFlags    HierarchyFlags
-	buildDryRun   bool
-	buildAll      bool
+	buildForce       bool
+	buildNocache     bool
+	buildTarget      string
+	buildPush        bool
+	buildRegistry    string
+	buildTimeout     time.Duration
+	buildFlags       HierarchyFlags
+	buildDryRun      bool
+	buildAll         bool
+	buildDetach      bool
+	buildConcurrency int
 )
 
 // buildCmd represents the build command
@@ -85,6 +87,8 @@ func init() {
 	buildCmd.Flags().DurationVar(&buildTimeout, "timeout", 30*time.Minute, "Timeout for the build operation (e.g., 30m, 1h)")
 	AddHierarchyFlags(buildCmd, &buildFlags)
 	AddDryRunFlag(buildCmd, &buildDryRun)
-	AddAllFlag(buildCmd, "Build all workspaces across all apps, domains, and ecosystems")
+	AddAllFlag(buildCmd, "Build all matching workspaces (use with -e/-d/-a to scope)")
+	buildCmd.Flags().BoolVar(&buildDetach, "detach", false, "Run in background; monitor with 'dvm build status'")
+	buildCmd.Flags().IntVar(&buildConcurrency, "concurrency", 4, "Max parallel builds")
 	buildCmd.AddCommand(buildStatusCmd)
 }

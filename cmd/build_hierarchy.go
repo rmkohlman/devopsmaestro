@@ -51,15 +51,10 @@ func FormatBuildDryRunSummary(count int) string {
 	return fmt.Sprintf("Would build %d workspace(s). Use without --dry-run to execute.", count)
 }
 
-// validateBuildAllMutualExclusion checks that --all is not combined with
-// any hierarchy scope flags (--app, --domain, --ecosystem, --workspace).
-// Returns an error if mutual exclusion is violated.
+// validateBuildAllMutualExclusion is retained for backward compatibility but
+// always returns nil. Per the CLI architect review on issue #213, --all and
+// scope flags (--app, --domain, --ecosystem, --workspace) are additive, not
+// mutually exclusive. Scope flags narrow the set of workspaces built.
 func validateBuildAllMutualExclusion(allFlag bool, flags HierarchyFlags) error {
-	if !allFlag {
-		return nil
-	}
-	if flags.HasAnyFlag() {
-		return fmt.Errorf("--all is mutually exclusive with --app, --domain, --ecosystem, --workspace")
-	}
 	return nil
 }

@@ -43,9 +43,10 @@ func FormatBuildSummaryLine(succeeded, failed, total int) string {
 }
 
 // FormatNoActiveBuildSessionMessage returns the message shown when `dvm build
-// status` is called but no build session is active.
+// status` is called but no build session is active. Includes a hint to start
+// a build with --all or a scope flag.
 func FormatNoActiveBuildSessionMessage() string {
-	return "no active build session"
+	return "no active build session\nHint: Run 'dvm build --all' or 'dvm build -e <ecosystem>' to start a build session"
 }
 
 // FormatBuildDryRunStatusValue returns the string used in the STATUS column

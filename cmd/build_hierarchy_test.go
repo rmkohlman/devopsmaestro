@@ -38,11 +38,15 @@ func TestBuildCmd_AllFlagRegistered(t *testing.T) {
 }
 
 // =========================================================================
-// R2: --all is mutually exclusive with scope flags
+// R2 (revised per #213 CLI architect review): --all is ADDITIVE with scope flags
 // =========================================================================
 
 // TestBuildCmd_AllFlag_MutuallyExclusive_WithApp verifies that passing both
-// --all and --app returns an error.
+// --all and --app does NOT return a mutual exclusion error.
+//
+// Revised by #213: the CLI architect review explicitly removed mutual exclusion.
+// Scope flags + --all are additive — --app narrows the set of workspaces built,
+// --all means "all matching". validateBuildAllMutualExclusion now always returns nil.
 func TestBuildCmd_AllFlag_MutuallyExclusive_WithApp(t *testing.T) {
 	// Reset flags between tests
 	buildFlags = HierarchyFlags{}
@@ -55,17 +59,21 @@ func TestBuildCmd_AllFlag_MutuallyExclusive_WithApp(t *testing.T) {
 	t.Cleanup(func() {
 		_ = buildCmd.Flags().Set("all", "false")
 		_ = buildCmd.Flags().Set("app", "")
+		buildFlags = HierarchyFlags{}
 	})
 
-	// RunE should return a mutual exclusion error
-	runErr := buildCmd.RunE(buildCmd, []string{})
-	require.Error(t, runErr, "expected error when --all and --app are both set")
-	assert.Contains(t, runErr.Error(), "--all",
-		"error should mention --all flag")
+	// validateBuildAllMutualExclusion must NOT error — scope flags + --all are additive
+	allSet, _ := buildCmd.Flags().GetBool("all")
+	validationErr := validateBuildAllMutualExclusion(allSet, buildFlags)
+	assert.NoError(t, validationErr,
+		"--all + --app must NOT be a mutual exclusion error after #213 removes the restriction")
 }
 
 // TestBuildCmd_AllFlag_MutuallyExclusive_WithDomain verifies that passing both
-// --all and --domain returns an error.
+// --all and --domain does NOT return a mutual exclusion error.
+//
+// Revised by #213: the CLI architect review explicitly removed mutual exclusion.
+// Scope flags + --all are additive — --domain narrows the set of workspaces built.
 func TestBuildCmd_AllFlag_MutuallyExclusive_WithDomain(t *testing.T) {
 	buildFlags = HierarchyFlags{}
 
@@ -77,11 +85,14 @@ func TestBuildCmd_AllFlag_MutuallyExclusive_WithDomain(t *testing.T) {
 	t.Cleanup(func() {
 		_ = buildCmd.Flags().Set("all", "false")
 		_ = buildCmd.Flags().Set("domain", "")
+		buildFlags = HierarchyFlags{}
 	})
 
-	runErr := buildCmd.RunE(buildCmd, []string{})
-	require.Error(t, runErr, "expected error when --all and --domain are both set")
-	assert.Contains(t, runErr.Error(), "--all")
+	// validateBuildAllMutualExclusion must NOT error — scope flags + --all are additive
+	allSet, _ := buildCmd.Flags().GetBool("all")
+	validationErr := validateBuildAllMutualExclusion(allSet, buildFlags)
+	assert.NoError(t, validationErr,
+		"--all + --domain must NOT be a mutual exclusion error after #213 removes the restriction")
 }
 
 // =========================================================================
