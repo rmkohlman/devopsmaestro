@@ -394,9 +394,9 @@ The build command:
 
 **Registry integration:** If `registry.enabled` is `true` in config and lifecycle is `on-demand` or `persistent`, the registry is automatically started before building to provide image caching.
 
-**Hierarchy flags (`-A/--all`, `-e`, `-d`, `-a`, `-w`) — NEW in v0.74.0:**
+**Hierarchy flags (`-A/--all`, `-e`, `-d`, `-a`, `-w`) — NEW in v0.74.0; additive behavior added in [#213](https://github.com/rmkohlman/devopsmaestro/issues/213):**
 
-Scope flags allow building specific workspaces without first running `dvm use`. Use `-A/--all` to build every workspace across all apps, domains, and ecosystems in parallel. `--all` is mutually exclusive with the individual scope flags (`-e`, `-d`, `-a`, `-w`).
+Scope flags allow building specific workspaces without first running `dvm use`. Use `-A/--all` to build every workspace across all apps, domains, and ecosystems in parallel. Scope flags (`-e`, `-d`, `-a`, `-w`) **compose additively** with `--all` — they narrow the set of workspaces to build rather than conflicting with it. `dvm build --all` does not require an active workspace to be set.
 
 **Flags:**
 
@@ -407,6 +407,8 @@ Scope flags allow building specific workspaces without first running `dvm use`. 
 | `--domain <name>` | `-d` | string | `""` | Filter by domain name |
 | `--app <name>` | `-a` | string | `""` | Filter by app name |
 | `--workspace <name>` | `-w` | string | `""` | Filter by workspace name |
+| `--concurrency <n>` | | int | `4` | Maximum number of parallel builds when building multiple workspaces |
+| `--detach` | | bool | `false` | Run the build session in the background; return immediately and monitor with `dvm build status` |
 | `--force` | | bool | `false` | Force rebuild even if image exists |
 | `--no-cache` | | bool | `false` | Build without using cache (skip registry cache) |
 | `--target <stage>` | | string | `"dev"` | Build target stage |
@@ -427,14 +429,26 @@ dvm build --force
 # Build without cache
 dvm build --no-cache
 
-# Build a specific app's workspace using hierarchy flags (NEW in v0.74.0)
+# Build a specific app's workspace using hierarchy flags
 dvm build -a my-api
 
-# Build all workspaces in a specific domain (NEW in v0.74.0)
+# Build all workspaces in a specific domain
 dvm build -d backend
 
-# Build all workspaces across every app and ecosystem (NEW in v0.74.0)
+# Build all workspaces across every app and ecosystem
 dvm build --all
+
+# Build all workspaces in a specific ecosystem (additive scoping)
+dvm build --all --ecosystem beans-modules
+
+# Build all workspaces in an ecosystem's domain (additive scoping)
+dvm build --all --ecosystem beans-modules --domain services
+
+# Run parallel build in the background (monitor with dvm build status)
+dvm build --all --detach
+
+# Run background build with higher concurrency
+dvm build --all --ecosystem beans-modules --detach --concurrency 8
 
 # Preview what --all would build without executing
 dvm build --all --dry-run
@@ -442,22 +456,19 @@ dvm build --all --dry-run
 # Build and push to local registry
 dvm build --push
 
-# Specify ecosystem and app
-dvm build -e my-platform -a my-api
-
 # Use a specific platform
 DVM_PLATFORM=colima dvm build
 ```
 
 ### `dvm build status`
 
-Show the status of the current or most recent build session. New in v0.74.0.
+Show the status of the current or most recent build session. New in v0.74.0; updated in [#213](https://github.com/rmkohlman/devopsmaestro/issues/213).
 
 ```bash
 dvm build status [flags]
 ```
 
-Displays a table of all workspaces being built with their current status, duration, and any errors encountered. Outputs `no active build session` if no hierarchical build is currently running.
+Displays a table of all workspaces being built with their current status, duration, and any errors encountered. When no active build session exists, outputs a message with a hint to run `dvm build --all` to start one.
 
 **Table columns:** `WORKSPACE`, `APP`, `STATUS`, `DURATION`, `ERROR`
 
@@ -3173,6 +3184,69 @@ dvm set credential deploy-key --expires 0 --app my-api
 
 # Preview change without applying
 dvm set credential github-token --expires 90d --app my-api --dry-run
+```
+
+---
+
+## Template Generation
+
+### `dvm generate template`
+
+Output an annotated, copy-paste-ready YAML template for any resource kind to stdout. Templates are embedded in the binary and include all fields with inline comments, required/optional annotations, valid value ranges, and a documentation link in the header.
+
+```bash
+dvm generate template <kind> [flags]
+```
+
+**Supported kinds:**
+
+| Kind | Description |
+|------|-------------|
+| `ecosystem` | Top-level platform grouping |
+| `domain` | Bounded context within an ecosystem |
+| `app` | Application/codebase within a domain |
+| `workspace` | Development environment for an app |
+| `credential` | Secret reference (MaestroVault or env) |
+| `registry` | Local package registry (OCI, Python, Go, npm, HTTP) |
+| `nvim-plugin` | Neovim plugin configuration |
+| `terminal-prompt` | Shell prompt configuration |
+| `source` | External plugin source definition |
+| `mirror` | Git repository mirror |
+| `build-arg` | Build argument at any hierarchy level |
+| `ca-cert` | CA certificate for corporate network builds |
+| `color` | Color palette or theme definition |
+| `env` | Environment variable injection |
+| `infra` | Infrastructure resource definition |
+
+Kind names accept both kebab-case (e.g., `nvim-plugin`) and PascalCase (e.g., `NvimPlugin`). Shell completion is built in for kind names.
+
+**Flags:**
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--output <format>` | `-o` | Output format: `yaml` (default), `json` |
+| `--all` | `-A` | Output all 15 kinds as a multi-document YAML stream |
+
+**Examples:**
+
+```bash
+# Generate a workspace template and save to a file
+dvm generate template workspace > my-workspace.yaml
+
+# Generate an ecosystem template
+dvm generate template ecosystem > my-ecosystem.yaml
+
+# Use PascalCase kind name
+dvm generate template Workspace > my-workspace.yaml
+
+# Generate in JSON format
+dvm generate template workspace --output json > my-workspace.json
+
+# Generate ALL resource kinds as a multi-document YAML
+dvm generate template --all > all-resources.yaml
+
+# Preview a template and pipe directly to an editor
+dvm generate template app | vim -
 ```
 
 ---

@@ -6,7 +6,15 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 **New**
 
+- **`dvm generate template`** — Outputs annotated, copy-paste-ready YAML templates for any resource kind to stdout. 15 kinds supported: `ecosystem`, `domain`, `app`, `workspace`, `infra`, `build-arg`, `ca-cert`, `color`, `credential`, `env`, `mirror`, `nvim-plugin`, `registry`, `source`, `terminal-prompt`. Use `--output json` for JSON, `--all` / `-A` for all kinds as a multi-document YAML stream. Shell completion built in for kind names. Templates are embedded in the binary via `pkg/templates/` (#210).
+
 - **Man page generation** — All three CLIs (`dvm`, `nvp`, `dvt`) now ship a hidden `generate-docs` developer command that generates section-1 man pages and markdown reference docs for every command and subcommand via `cobra/doc`. Run `dvm generate-docs --man-pages --output-dir ./docs/man/` (#35).
+
+- **Parallel batch builds** — `dvm build --all` now builds every workspace across all apps without requiring an active workspace. Scope flags (`-e`, `-d`, `-a`, `-w`) compose additively with `--all` to narrow the build scope (e.g., `dvm build --all --ecosystem beans-modules`). New `--detach` flag runs the session in the background; `--concurrency` (default: `4`) controls parallelism. `dvm build status` now shows a hint suggesting `dvm build --all` when no active session exists. Build failures in one workspace do not block others; exit code is non-zero if any workspace fails (#213).
+
+**Changed**
+
+- **`dvm build` scope flags are additive** — `--all` and scope flags (`-e/-d/-a/-w`) no longer conflict. They compose: `--all` selects all workspaces, scope flags filter that set. Previously combining `--all` with any scope flag returned an error (#213).
 
 ## v0.60.7 (2026-04-06)
 

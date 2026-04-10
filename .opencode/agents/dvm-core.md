@@ -83,3 +83,12 @@ go test $(go list ./... | grep -v integration_test) -short -count=1
   ```
 - **If resuming interrupted work**, read issue comments for previous progress — pick up where it left off
 - **When done**, return a summary to the Engineering Lead: files changed, what was implemented, issues created, any blockers
+
+## Writing Rules — MANDATORY
+
+- **Write files in small chunks** — never write more than 100 lines in a single Write tool call. Split large files into multiple Write/Edit operations.
+- **Prefer Edit (append/insert) over Write (overwrite)** — when adding to existing files, use Edit to insert or append sections rather than rewriting the entire file.
+- **Keep individual files under 200 lines** when creating new files. If a file would exceed 200 lines, split it into multiple files.
+- **Avoid broad exploration** — read only the specific files you need, with line limits (e.g., Read with offset/limit). Don't read entire large files.
+- **Work incrementally** — write a small section, verify it compiles/works, then write the next section. Don't try to write everything at once.
+- **Use Grep to find patterns** — instead of reading entire files to understand structure, Grep for specific function names, types, or patterns.

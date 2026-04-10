@@ -414,6 +414,11 @@ dvm build                     # Build workspace container
 dvm build --no-cache          # Build without using registry cache
 dvm build --push              # Build and push to local registry
 dvm build --registry <url>    # Use custom registry endpoint
+dvm build --all               # Build ALL workspaces in parallel (no active workspace required)
+dvm build --all --ecosystem <name>  # Build all workspaces in an ecosystem (additive scoping)
+dvm build --all --detach      # Build in background; monitor with dvm build status
+dvm build --all --concurrency 8  # Build with up to 8 parallel workers (default: 4)
+dvm build status              # Show parallel build session progress
 dvm attach                    # Attach to workspace (auto-syncs GitRepo if configured)
 dvm attach --ssh-agent        # Attach with SSH agent forwarding
 dvm attach --no-sync          # Attach without syncing GitRepo mirror
@@ -475,6 +480,12 @@ dvm get credentials -A                            # Same (short form)
 dvm get credentials --app <name>                  # Filter by app scope
 dvm get credential <name> --app <name>            # Get specific credential
 dvm get creds -A                                  # Alias
+
+# Template Generation
+dvm generate template workspace                   # Annotated YAML template to stdout
+dvm generate template workspace > my-ws.yaml      # Save to file
+dvm generate template workspace --output json     # JSON format
+dvm generate template --all > all-resources.yaml  # All 15 kinds (multi-doc YAML)
 ```
 
 ### nvp Commands

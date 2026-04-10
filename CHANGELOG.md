@@ -11,12 +11,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`dvm generate template`** — New command that outputs annotated, copy-paste-ready YAML templates for any resource kind to stdout. Templates are embedded in the binary (`pkg/templates/` with `TemplateStore` interface and `//go:embed` YAML files). Supports 15 resource kinds: `ecosystem`, `domain`, `app`, `workspace`, `infra`, `build-arg`, `ca-cert`, `color`, `credential`, `env`, `mirror`, `nvim-plugin`, `registry`, `source`, `terminal-prompt`. Kind names accept both kebab-case and PascalCase. Closes [#210](https://github.com/rmkohlman/devopsmaestro/issues/210)
+  - `dvm generate template <kind>` — outputs annotated YAML to stdout (default); `--output json` for JSON output
+  - `dvm generate template --all` / `-A` — outputs all 15 kinds as a multi-document YAML stream
+  - Shell completion built in for kind names
+  - Generated templates include all fields with inline comments, required/optional annotations, valid value ranges, and a docs link in the header comment
+
 - **Man page generation** — All three CLIs (`dvm`, `nvp`, `dvt`) now support `generate-docs`, a hidden developer command that generates section-1 man pages and markdown reference docs for all commands and subcommands. Uses `github.com/spf13/cobra/doc` and Cobra's built-in command tree traversal. Closes [#35](https://github.com/rmkohlman/devopsmaestro/issues/35)
   - `dvm generate-docs --man-pages --output-dir ./docs/man/`
   - `nvp generate-docs --man-pages --output-dir ./docs/man/`
   - `dvt generate-docs --man-pages --output-dir ./docs/man/`
   - `--markdown` flag also available for Markdown reference output
   - Command is hidden from `--help` — intended for developer and release workflows only
+
+- **Parallel batch builds for `dvm build`** — `dvm build --all` now builds every workspace across all apps without requiring an active workspace to be set. Scope flags (`-e/--ecosystem`, `-d/--domain`, `-a/--app`, `-w/--workspace`) compose additively with `--all` to narrow the build scope. Parallel execution with configurable concurrency replaces the previous serial, single-workspace-only behavior. Closes [#213](https://github.com/rmkohlman/devopsmaestro/issues/213)
+  - **`--detach` flag** — run the parallel build session in the background and return immediately; monitor progress with `dvm build status`
+  - **`--concurrency` flag** — maximum number of parallel builds (default: `4`)
+  - **`dvm build status` hint** — when no active build session exists, the output now includes a hint suggesting `dvm build --all` to start one
+  - Build failures in one workspace do not block others from completing; exit code is non-zero if any workspace fails
+
+### Changed
+
+- **`dvm build` scope flags are now additive** — Previously, `--all` was mutually exclusive with `-e/-d/-a/-w`; combining them produced an error. Now they compose: `--all` sets the universe to "all workspaces" and scope flags narrow it. `dvm build --all --ecosystem beans-modules` builds only workspaces inside that ecosystem. Closes [#213](https://github.com/rmkohlman/devopsmaestro/issues/213)
 
 ---
 
