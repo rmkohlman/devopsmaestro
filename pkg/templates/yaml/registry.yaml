@@ -1,0 +1,16 @@
+# registry — Package registry configuration
+# Types: zot, athens, devpi, verdaccio, squid
+apiVersion: devopsmaestro.io/v1
+kind: Registry
+metadata:
+  name: my-registry
+  description: ""
+spec:
+  type: zot
+  version: ""
+  enabled: true
+  port: 5000
+  lifecycle: persistent
+  storage: ""
+  idleTimeout: 0
+  config: {}

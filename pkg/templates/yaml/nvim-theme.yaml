@@ -1,0 +1,20 @@
+# nvim-theme — Neovim color theme definition
+# Defines a color scheme for the Neovim editor
+apiVersion: devopsmaestro.io/v1
+kind: NvimTheme
+metadata:
+  name: my-theme
+  description: ""
+  author: ""
+  category: ""
+spec:
+  inherits: ""
+  plugin:
+    repo: ""
+    branch: ""
+    tag: ""
+  style: ""
+  transparent: false
+  colors: {}
+  options: {}
+  customHighlights: {}

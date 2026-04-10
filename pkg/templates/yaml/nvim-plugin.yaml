@@ -1,0 +1,24 @@
+# nvim-plugin — Neovim plugin definition
+# Reusable plugin that can be included in nvim packages
+apiVersion: devopsmaestro.io/v1
+kind: NvimPlugin
+metadata:
+  name: my-plugin
+  description: ""
+  category: ""
+  tags: []
+  labels: {}
+  annotations: {}
+spec:
+  repo: ""
+  branch: ""
+  version: ""
+  lazy: true
+  event: []
+  ft: []
+  keys: []
+  cmd: []
+  dependencies: []
+  build: ""
+  config: ""
+  opts: {}

@@ -1,0 +1,24 @@
+# workspace — Developer environment for an app
+# Hierarchy: Ecosystem → Domain → App → Workspace
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: dev
+  app: my-app
+  domain: my-domain
+  ecosystem: my-ecosystem
+  labels: {}
+  annotations: {}
+spec:
+  image:
+    name: ubuntu:22.04
+  build: {}
+  shell:
+    type: zsh
+  terminal: {}
+  nvim: {}
+  tools: {}
+  mounts: []
+  sshKey: {}
+  env: {}
+  container: {}

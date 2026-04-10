@@ -1,0 +1,19 @@
+# global-defaults — Global configuration defaults
+# Applied across all ecosystems, domains, apps, and workspaces
+apiVersion: devopsmaestro.io/v1
+kind: GlobalDefaults
+metadata:
+  name: global-defaults
+spec:
+  theme: ""
+  nvimPackage: ""
+  terminalPackage: ""
+  buildArgs: {}
+  caCerts: []
+  plugins: []
+  registryOci: ""
+  registryPypi: ""
+  registryNpm: ""
+  registryGo: ""
+  registryHttp: ""
+  registryIdleTimeout: ""

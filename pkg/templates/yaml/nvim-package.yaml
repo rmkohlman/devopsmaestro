@@ -1,0 +1,13 @@
+# nvim-package — Collection of nvim plugins
+# Groups plugins together for reuse across workspaces
+apiVersion: devopsmaestro.io/v1
+kind: NvimPackage
+metadata:
+  name: my-nvim-package
+  description: ""
+  category: ""
+  labels: {}
+spec:
+  extends: ""
+  plugins:
+    - plugin-name

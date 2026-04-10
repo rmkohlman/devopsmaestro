@@ -1,0 +1,17 @@
+# domain — Bounded context within an ecosystem
+# Hierarchy: Ecosystem → Domain → App → Workspace
+apiVersion: devopsmaestro.io/v1
+kind: Domain
+metadata:
+  name: my-domain
+  ecosystem: my-ecosystem
+  labels: {}
+  annotations: {}
+spec:
+  theme: ""
+  nvimPackage: ""
+  terminalPackage: ""
+  apps: []
+  build:
+    args: {}
+  caCerts: []

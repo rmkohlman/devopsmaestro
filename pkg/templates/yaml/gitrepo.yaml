@@ -1,0 +1,15 @@
+# gitrepo — Git repository configuration
+# Used by apps and workspaces for source code cloning
+apiVersion: devopsmaestro.io/v1
+kind: GitRepo
+metadata:
+  name: my-repo
+  labels: {}
+  annotations: {}
+spec:
+  url: https://github.com/example/repo
+  defaultRef: main
+  authType: none
+  credential: ""
+  autoSync: false
+  syncIntervalMinutes: 0

@@ -1,0 +1,17 @@
+# terminal-package — Collection of terminal plugins, prompts, and profiles
+# Groups terminal configuration for reuse across workspaces
+apiVersion: devopsmaestro.io/v1
+kind: TerminalPackage
+metadata:
+  name: my-terminal-package
+  description: ""
+  category: ""
+  labels: {}
+spec:
+  extends: ""
+  plugins:
+    - plugin-name
+  prompts:
+    - prompt-name
+  profiles:
+    - profile-name

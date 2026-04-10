@@ -1,0 +1,26 @@
+# app — A codebase/application within a domain
+# Hierarchy: Ecosystem → Domain → App → Workspace
+apiVersion: devopsmaestro.io/v1
+kind: App
+metadata:
+  name: my-app
+  domain: my-domain
+  ecosystem: my-ecosystem
+  labels: {}
+  annotations: {}
+spec:
+  path: /path/to/source
+  theme: ""
+  nvimPackage: ""
+  terminalPackage: ""
+  gitRepo: ""
+  language:
+    name: ""
+    version: ""
+  build:
+    dockerfile: ""
+    context: "."
+  dependencies: {}
+  services: []
+  env: {}
+  ports: []

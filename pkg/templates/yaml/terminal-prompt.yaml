@@ -1,0 +1,16 @@
+# terminal-prompt — Terminal prompt configuration
+# Types: starship, powerlevel10k, oh-my-posh
+apiVersion: devopsmaestro.io/v1
+kind: TerminalPrompt
+metadata:
+  name: my-prompt
+  description: ""
+  category: ""
+  tags: []
+spec:
+  type: starship
+  addNewline: true
+  palette: {}
+  format: ""
+  modules: {}
+  character: {}

@@ -1,0 +1,18 @@
+# terminal-plugin — Terminal shell plugin definition
+# Reusable plugin for shell environments (zsh, bash, fish)
+apiVersion: devopsmaestro.io/v1
+kind: TerminalPlugin
+metadata:
+  name: my-terminal-plugin
+  description: ""
+  category: ""
+  labels: {}
+  annotations: {}
+spec:
+  repo: ""
+  shell: zsh
+  manager: manual
+  loadCommand: ""
+  sourceFile: ""
+  dependencies: []
+  envVars: {}

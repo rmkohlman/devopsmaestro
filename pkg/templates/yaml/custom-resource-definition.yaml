@@ -1,0 +1,19 @@
+# custom-resource-definition — Extend dvm with custom resource types
+# Define new resource kinds with their own schema and behavior
+apiVersion: devopsmaestro.io/v1alpha1
+kind: CustomResourceDefinition
+metadata:
+  name: my-custom-resource
+spec:
+  group: example.io
+  names:
+    kind: MyResource
+    singular: myresource
+    plural: myresources
+    shortNames: []
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema: {}
