@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [v0.79.0] - 2026-04-09
+
 ### Added
 
 - **Build session persistence** — Every `dvm build` run now creates a session record in the database. Each session stores a UUID, start/end timestamps, overall status (`in_progress` / `succeeded` / `failed`), and a per-workspace result row with its own status, duration, built image tag, and error message. Sessions older than 30 days are automatically cleaned up. New migration #022 adds the `build_sessions` and `build_session_workspaces` tables. Closes [#217](https://github.com/rmkohlman/devopsmaestro/issues/217)

@@ -2,7 +2,7 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
-## Unreleased
+## v0.79.0 (2026-04-09)
 
 **Bug Fixes**
 
