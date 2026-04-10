@@ -73,6 +73,12 @@ Examples:
 		if err := validateBuildAllMutualExclusion(allSet, buildFlags); err != nil {
 			return err
 		}
+
+		// Route to parallel build path when --all or scope flags are set
+		if shouldRouteToParallelBuild(buildFlags, allSet) {
+			return runParallelBuild(cmd)
+		}
+
 		return buildWorkspace(cmd)
 	},
 }
