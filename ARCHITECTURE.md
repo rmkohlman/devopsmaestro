@@ -161,6 +161,17 @@ Before writing or reviewing code, verify:
 | `DataStore` | SQLDataStore, MockDataStore | `NewSQLDataStore()` |
 | `Driver` | SQLiteDriver | `NewDriver()` |
 
+### Schema — Key Tables
+
+| Table | Migration | Purpose |
+|-------|-----------|---------|
+| `build_sessions` | 022 | One row per `dvm build` invocation: UUID, start/end timestamps, status (`in_progress` / `succeeded` / `failed`), total/succeeded/failed workspace counts |
+| `build_session_workspaces` | 022 | Per-workspace result within a session: status, start/end timestamps, duration (seconds), built image tag, error message. FK → `build_sessions` and `workspaces` with `ON DELETE CASCADE` |
+| `build_args` | 017 | Hierarchical build args (`global → ecosystem → domain → app → workspace`) |
+| `ca_certs` | 018 | Hierarchical CA certificates (same cascade levels as build args) |
+
+Build sessions older than 30 days are cleaned up automatically. Query the most recent session with `dvm build status`, a specific session with `dvm build status --session-id <uuid>`, or list recent history with `dvm build status --history`.
+
 ---
 
 ## Container Runtime Layer

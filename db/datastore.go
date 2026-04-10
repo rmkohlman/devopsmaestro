@@ -28,6 +28,7 @@ type DataStore interface {
 	RegistryStore
 	RegistryHistoryStore
 	CustomResourceStore
+	BuildSessionStore
 	MigrationStore
 
 	// Driver Access

@@ -462,13 +462,13 @@ DVM_PLATFORM=colima dvm build
 
 ### `dvm build status`
 
-Show the status of the current or most recent build session. New in v0.74.0; updated in [#213](https://github.com/rmkohlman/devopsmaestro/issues/213).
+Show the status of a build session. Updated in [#217](https://github.com/rmkohlman/devopsmaestro/issues/217) to use persisted session data.
 
 ```bash
 dvm build status [flags]
 ```
 
-Displays a table of all workspaces being built with their current status, duration, and any errors encountered. When no active build session exists, outputs a message with a hint to run `dvm build --all` to start one.
+Displays a table of all workspaces in a build session with their status, duration, and any errors. By default shows the most recent session. When no sessions exist, outputs a hint to run `dvm build --all` to start one.
 
 **Table columns:** `WORKSPACE`, `APP`, `STATUS`, `DURATION`, `ERROR`
 
@@ -476,19 +476,27 @@ Displays a table of all workspaces being built with their current status, durati
 
 | Flag | Short | Type | Default | Description |
 |------|-------|------|---------|-------------|
+| `--session-id <uuid>` | | string | `""` | Show a specific build session by UUID |
+| `--history` | | bool | `false` | List the 10 most recent build sessions |
 | `--output <format>` | `-o` | string | `""` | Output format: `table`, `json`, `yaml` |
 
 **Examples:**
 
 ```bash
-# Show build session status (human-readable table)
+# Show the latest build session (human-readable table)
 dvm build status
+
+# Show a specific session by UUID
+dvm build status --session-id 550e8400-e29b-41d4-a716-446655440000
+
+# List the 10 most recent sessions
+dvm build status --history
 
 # Output as JSON
 dvm build status -o json
 
-# Output as YAML
-dvm build status -o yaml
+# Output a specific session as YAML
+dvm build status --session-id 550e8400-e29b-41d4-a716-446655440000 -o yaml
 ```
 
 ### `dvm detach`

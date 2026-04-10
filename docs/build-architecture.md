@@ -11,6 +11,7 @@ Each workspace has a Dockerfile generated from its YAML configuration. The build
 1. Generates a Dockerfile based on your workspace's `language`, `version`, and plugin settings
 2. Builds the image using your active container platform (OrbStack, Docker Desktop, Colima, or Podman)
 3. Optionally pushes the image to a local OCI registry (Zot) for caching
+4. Records the build outcome in the database and updates the workspace's image field with the built tag
 
 ---
 
@@ -28,6 +29,30 @@ dvm build --push
 
 # Build against a specific registry
 dvm build --registry <url>
+```
+
+---
+
+## Build Session Tracking
+
+Every `dvm build` run creates a **build session** in the database. A session records:
+
+- **UUID** — unique session identifier
+- **Timestamps** — start and completion time
+- **Status** — `in_progress`, `succeeded`, or `failed`
+- **Per-workspace results** — status, duration, built image tag, and any error message for each workspace in the build
+
+After a successful build, the workspace record's image field is updated with the actual built image tag (e.g., `dvm-dev-my-api:20260409-153012`). Build sessions older than 30 days are automatically cleaned up.
+
+```bash
+# Show the most recent build session
+dvm build status
+
+# Show a specific session by UUID
+dvm build status --session-id <uuid>
+
+# List the 10 most recent sessions
+dvm build status --history
 ```
 
 ---

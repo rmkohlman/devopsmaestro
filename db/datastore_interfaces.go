@@ -1,6 +1,8 @@
 package db
 
 import (
+	"time"
+
 	"devopsmaestro/models"
 )
 
@@ -557,4 +559,42 @@ type CustomResourceStore interface {
 
 	// ListCustomResources retrieves all custom resources of a given kind.
 	ListCustomResources(kind string) ([]*models.CustomResource, error)
+}
+
+// BuildSessionStore defines operations for managing build session persistence.
+// Build sessions track batches of workspace builds with per-workspace status.
+type BuildSessionStore interface {
+	// CreateBuildSession inserts a new build session.
+	CreateBuildSession(session *models.BuildSession) error
+
+	// UpdateBuildSession updates an existing build session (status, counts, completion time).
+	UpdateBuildSession(session *models.BuildSession) error
+
+	// GetLatestBuildSession retrieves the most recent build session.
+	GetLatestBuildSession() (*models.BuildSession, error)
+
+	// GetBuildSession retrieves a build session by its ID.
+	GetBuildSession(id string) (*models.BuildSession, error)
+
+	// GetBuildSessions retrieves the most recent build sessions up to limit.
+	GetBuildSessions(limit int) ([]*models.BuildSession, error)
+
+	// DeleteBuildSessionsOlderThan removes build sessions older than the cutoff time.
+	// Returns the number of sessions deleted.
+	DeleteBuildSessionsOlderThan(cutoff time.Time) (int64, error)
+
+	// CreateBuildSessionWorkspace inserts a new workspace entry for a build session.
+	CreateBuildSessionWorkspace(bsw *models.BuildSessionWorkspace) error
+
+	// UpdateBuildSessionWorkspace updates a workspace entry within a build session.
+	UpdateBuildSessionWorkspace(bsw *models.BuildSessionWorkspace) error
+
+	// GetBuildSessionWorkspaces retrieves all workspace entries for a build session.
+	GetBuildSessionWorkspaces(sessionID string) ([]*models.BuildSessionWorkspace, error)
+
+	// GetBuildSessionStats returns the succeeded and failed counts for a build session.
+	GetBuildSessionStats(sessionID string) (succeeded int, failed int, err error)
+
+	// UpdateWorkspaceImage updates the image_name field of a workspace by ID.
+	UpdateWorkspaceImage(workspaceID int, imageTag string) error
 }

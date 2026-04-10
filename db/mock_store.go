@@ -16,27 +16,29 @@ type MockDataStore struct {
 	mu sync.Mutex
 
 	// In-memory storage
-	Ecosystems        map[string]*models.Ecosystem
-	Domains           map[int]*models.Domain // keyed by ID for easier lookup
-	Apps              map[int]*models.App    // keyed by ID for easier lookup
-	Workspaces        map[int]*models.Workspace
-	Plugins           map[string]*models.NvimPluginDB
-	Packages          map[string]*models.NvimPackageDB      // keyed by name
-	TerminalPackages  map[string]*models.TerminalPackageDB  // keyed by name
-	TerminalPlugins   map[string]*models.TerminalPluginDB   // keyed by name
-	TerminalEmulators map[string]*models.TerminalEmulatorDB // keyed by name
-	Themes            map[string]*models.NvimThemeDB
-	TerminalPrompts   map[string]*models.TerminalPromptDB
-	TerminalProfiles  map[string]*models.TerminalProfileDB
-	Credentials       map[string]*models.CredentialDB             // keyed by "scopeType:scopeID:name"
-	GitRepos          map[string]*models.GitRepoDB                // keyed by name
-	Registries        map[string]*models.Registry                 // keyed by name
-	RegistryHistories map[string]*models.RegistryHistory          // keyed by "registryID:revision"
-	Defaults          map[string]string                           // keyed by default key
-	CRDs              map[string]*models.CustomResourceDefinition // keyed by kind
-	CustomResources   map[string]*models.CustomResource           // keyed by "kind:name:namespace"
-	ActiveTheme       string
-	Context           *models.Context
+	Ecosystems             map[string]*models.Ecosystem
+	Domains                map[int]*models.Domain // keyed by ID for easier lookup
+	Apps                   map[int]*models.App    // keyed by ID for easier lookup
+	Workspaces             map[int]*models.Workspace
+	Plugins                map[string]*models.NvimPluginDB
+	Packages               map[string]*models.NvimPackageDB      // keyed by name
+	TerminalPackages       map[string]*models.TerminalPackageDB  // keyed by name
+	TerminalPlugins        map[string]*models.TerminalPluginDB   // keyed by name
+	TerminalEmulators      map[string]*models.TerminalEmulatorDB // keyed by name
+	Themes                 map[string]*models.NvimThemeDB
+	TerminalPrompts        map[string]*models.TerminalPromptDB
+	TerminalProfiles       map[string]*models.TerminalProfileDB
+	Credentials            map[string]*models.CredentialDB             // keyed by "scopeType:scopeID:name"
+	GitRepos               map[string]*models.GitRepoDB                // keyed by name
+	Registries             map[string]*models.Registry                 // keyed by name
+	RegistryHistories      map[string]*models.RegistryHistory          // keyed by "registryID:revision"
+	Defaults               map[string]string                           // keyed by default key
+	CRDs                   map[string]*models.CustomResourceDefinition // keyed by kind
+	CustomResources        map[string]*models.CustomResource           // keyed by "kind:name:namespace"
+	BuildSessions          map[string]*models.BuildSession             // keyed by session ID
+	BuildSessionWorkspaces map[int]*models.BuildSessionWorkspace       // keyed by auto-inc ID
+	ActiveTheme            string
+	Context                *models.Context
 
 	// ID counters for auto-increment simulation
 	NextEcosystemID        int
@@ -205,6 +207,17 @@ type MockDataStore struct {
 	UpdateCustomResourceErr             error
 	DeleteCustomResourceErr             error
 	ListCustomResourcesErr              error
+	CreateBuildSessionErr               error
+	UpdateBuildSessionErr               error
+	GetLatestBuildSessionErr            error
+	GetBuildSessionErr                  error
+	GetBuildSessionsErr                 error
+	DeleteBuildSessionsOlderThanErr     error
+	CreateBuildSessionWorkspaceErr      error
+	UpdateBuildSessionWorkspaceErr      error
+	GetBuildSessionWorkspacesErr        error
+	GetBuildSessionStatsErr             error
+	UpdateWorkspaceImageErr             error
 	CloseErr                            error
 	PingErr                             error
 	MigrationVersionErr                 error
@@ -214,15 +227,16 @@ type MockDataStore struct {
 	Calls []MockDataStoreCall
 
 	// Auto-increment IDs
-	nextEcosystemID       int
-	nextDomainID          int
-	nextAppID             int
-	nextWorkspaceID       int
-	nextPluginID          int
-	nextPackageID         int
-	nextThemeID           int
-	nextTerminalPromptID  int
-	nextTerminalProfileID int
+	nextEcosystemID             int
+	nextDomainID                int
+	nextAppID                   int
+	nextWorkspaceID             int
+	nextPluginID                int
+	nextPackageID               int
+	nextThemeID                 int
+	nextTerminalPromptID        int
+	nextTerminalProfileID       int
+	nextBuildSessionWorkspaceID int
 }
 
 // MockDataStoreCall represents a recorded method call
@@ -234,36 +248,38 @@ type MockDataStoreCall struct {
 // NewMockDataStore creates a new mock data store with initialized storage
 func NewMockDataStore() *MockDataStore {
 	return &MockDataStore{
-		Ecosystems:            make(map[string]*models.Ecosystem),
-		Domains:               make(map[int]*models.Domain),
-		Apps:                  make(map[int]*models.App),
-		Workspaces:            make(map[int]*models.Workspace),
-		Plugins:               make(map[string]*models.NvimPluginDB),
-		Packages:              make(map[string]*models.NvimPackageDB),
-		TerminalPackages:      make(map[string]*models.TerminalPackageDB),
-		TerminalPlugins:       make(map[string]*models.TerminalPluginDB),
-		TerminalEmulators:     make(map[string]*models.TerminalEmulatorDB),
-		Themes:                make(map[string]*models.NvimThemeDB),
-		TerminalPrompts:       make(map[string]*models.TerminalPromptDB),
-		TerminalProfiles:      make(map[string]*models.TerminalProfileDB),
-		GitRepos:              make(map[string]*models.GitRepoDB),
-		Registries:            make(map[string]*models.Registry),
-		RegistryHistories:     make(map[string]*models.RegistryHistory),
-		CRDs:                  make(map[string]*models.CustomResourceDefinition),
-		CustomResources:       make(map[string]*models.CustomResource),
-		WorkspacePlugins:      make(map[int]map[int]bool),
-		Context:               &models.Context{ID: 1},
-		MockDriver:            NewMockDriver(),
-		nextEcosystemID:       1,
-		nextDomainID:          1,
-		nextAppID:             1,
-		nextWorkspaceID:       1,
-		nextPluginID:          1,
-		nextPackageID:         1,
-		nextThemeID:           1,
-		nextTerminalPromptID:  1,
-		nextTerminalProfileID: 1,
-		NextTerminalPackageID: 1,
+		Ecosystems:             make(map[string]*models.Ecosystem),
+		Domains:                make(map[int]*models.Domain),
+		Apps:                   make(map[int]*models.App),
+		Workspaces:             make(map[int]*models.Workspace),
+		Plugins:                make(map[string]*models.NvimPluginDB),
+		Packages:               make(map[string]*models.NvimPackageDB),
+		TerminalPackages:       make(map[string]*models.TerminalPackageDB),
+		TerminalPlugins:        make(map[string]*models.TerminalPluginDB),
+		TerminalEmulators:      make(map[string]*models.TerminalEmulatorDB),
+		Themes:                 make(map[string]*models.NvimThemeDB),
+		TerminalPrompts:        make(map[string]*models.TerminalPromptDB),
+		TerminalProfiles:       make(map[string]*models.TerminalProfileDB),
+		GitRepos:               make(map[string]*models.GitRepoDB),
+		Registries:             make(map[string]*models.Registry),
+		RegistryHistories:      make(map[string]*models.RegistryHistory),
+		CRDs:                   make(map[string]*models.CustomResourceDefinition),
+		CustomResources:        make(map[string]*models.CustomResource),
+		BuildSessions:          make(map[string]*models.BuildSession),
+		BuildSessionWorkspaces: make(map[int]*models.BuildSessionWorkspace),
+		WorkspacePlugins:       make(map[int]map[int]bool),
+		Context:                &models.Context{ID: 1},
+		MockDriver:             NewMockDriver(),
+		nextEcosystemID:        1,
+		nextDomainID:           1,
+		nextAppID:              1,
+		nextWorkspaceID:        1,
+		nextPluginID:           1,
+		nextPackageID:          1,
+		nextThemeID:            1,
+		nextTerminalPromptID:   1,
+		nextTerminalProfileID:  1,
+		NextTerminalPackageID:  1,
 	}
 }
 
@@ -3080,6 +3096,229 @@ func (m *MockDataStore) ListCustomResources(kind string) ([]*models.CustomResour
 	})
 
 	return resources, nil
+}
+
+// =============================================================================
+// Build Session Operations
+// =============================================================================
+
+func (m *MockDataStore) CreateBuildSession(session *models.BuildSession) error {
+	m.recordCall("CreateBuildSession", session)
+	if m.CreateBuildSessionErr != nil {
+		return m.CreateBuildSessionErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if session.CreatedAt.IsZero() {
+		session.CreatedAt = time.Now()
+	}
+
+	sessionClone := *session
+	m.BuildSessions[session.ID] = &sessionClone
+	return nil
+}
+
+func (m *MockDataStore) UpdateBuildSession(session *models.BuildSession) error {
+	m.recordCall("UpdateBuildSession", session)
+	if m.UpdateBuildSessionErr != nil {
+		return m.UpdateBuildSessionErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, exists := m.BuildSessions[session.ID]; !exists {
+		return NewErrNotFound("build session", session.ID)
+	}
+
+	sessionClone := *session
+	m.BuildSessions[session.ID] = &sessionClone
+	return nil
+}
+
+func (m *MockDataStore) GetLatestBuildSession() (*models.BuildSession, error) {
+	m.recordCall("GetLatestBuildSession")
+	if m.GetLatestBuildSessionErr != nil {
+		return nil, m.GetLatestBuildSessionErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var latest *models.BuildSession
+	for _, s := range m.BuildSessions {
+		if latest == nil || s.StartedAt.After(latest.StartedAt) {
+			latest = s
+		}
+	}
+
+	if latest == nil {
+		return nil, nil
+	}
+
+	clone := *latest
+	return &clone, nil
+}
+
+func (m *MockDataStore) GetBuildSession(id string) (*models.BuildSession, error) {
+	m.recordCall("GetBuildSession", id)
+	if m.GetBuildSessionErr != nil {
+		return nil, m.GetBuildSessionErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	session, exists := m.BuildSessions[id]
+	if !exists {
+		return nil, NewErrNotFound("build session", id)
+	}
+
+	clone := *session
+	return &clone, nil
+}
+
+func (m *MockDataStore) GetBuildSessions(limit int) ([]*models.BuildSession, error) {
+	m.recordCall("GetBuildSessions", limit)
+	if m.GetBuildSessionsErr != nil {
+		return nil, m.GetBuildSessionsErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var sessions []*models.BuildSession
+	for _, s := range m.BuildSessions {
+		clone := *s
+		sessions = append(sessions, &clone)
+	}
+
+	sort.Slice(sessions, func(i, j int) bool {
+		return sessions[i].StartedAt.After(sessions[j].StartedAt)
+	})
+
+	if limit > 0 && len(sessions) > limit {
+		sessions = sessions[:limit]
+	}
+
+	return sessions, nil
+}
+
+func (m *MockDataStore) DeleteBuildSessionsOlderThan(cutoff time.Time) (int64, error) {
+	m.recordCall("DeleteBuildSessionsOlderThan", cutoff)
+	if m.DeleteBuildSessionsOlderThanErr != nil {
+		return 0, m.DeleteBuildSessionsOlderThanErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var count int64
+	for id, s := range m.BuildSessions {
+		if s.StartedAt.Before(cutoff) {
+			delete(m.BuildSessions, id)
+			// Also delete associated workspaces
+			for bswID, bsw := range m.BuildSessionWorkspaces {
+				if bsw.SessionID == id {
+					delete(m.BuildSessionWorkspaces, bswID)
+				}
+			}
+			count++
+		}
+	}
+
+	return count, nil
+}
+
+func (m *MockDataStore) CreateBuildSessionWorkspace(bsw *models.BuildSessionWorkspace) error {
+	m.recordCall("CreateBuildSessionWorkspace", bsw)
+	if m.CreateBuildSessionWorkspaceErr != nil {
+		return m.CreateBuildSessionWorkspaceErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.nextBuildSessionWorkspaceID++
+	bsw.ID = m.nextBuildSessionWorkspaceID
+
+	clone := *bsw
+	m.BuildSessionWorkspaces[bsw.ID] = &clone
+	return nil
+}
+
+func (m *MockDataStore) UpdateBuildSessionWorkspace(bsw *models.BuildSessionWorkspace) error {
+	m.recordCall("UpdateBuildSessionWorkspace", bsw)
+	if m.UpdateBuildSessionWorkspaceErr != nil {
+		return m.UpdateBuildSessionWorkspaceErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, exists := m.BuildSessionWorkspaces[bsw.ID]; !exists {
+		return NewErrNotFound("build session workspace", bsw.ID)
+	}
+
+	clone := *bsw
+	m.BuildSessionWorkspaces[bsw.ID] = &clone
+	return nil
+}
+
+func (m *MockDataStore) GetBuildSessionWorkspaces(sessionID string) ([]*models.BuildSessionWorkspace, error) {
+	m.recordCall("GetBuildSessionWorkspaces", sessionID)
+	if m.GetBuildSessionWorkspacesErr != nil {
+		return nil, m.GetBuildSessionWorkspacesErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var results []*models.BuildSessionWorkspace
+	for _, bsw := range m.BuildSessionWorkspaces {
+		if bsw.SessionID == sessionID {
+			clone := *bsw
+			results = append(results, &clone)
+		}
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].ID < results[j].ID
+	})
+
+	return results, nil
+}
+
+func (m *MockDataStore) GetBuildSessionStats(sessionID string) (succeeded int, failed int, err error) {
+	m.recordCall("GetBuildSessionStats", sessionID)
+	if m.GetBuildSessionStatsErr != nil {
+		return 0, 0, m.GetBuildSessionStatsErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for _, bsw := range m.BuildSessionWorkspaces {
+		if bsw.SessionID == sessionID {
+			switch bsw.Status {
+			case "succeeded":
+				succeeded++
+			case "failed":
+				failed++
+			}
+		}
+	}
+
+	return succeeded, failed, nil
+}
+
+func (m *MockDataStore) UpdateWorkspaceImage(workspaceID int, imageTag string) error {
+	m.recordCall("UpdateWorkspaceImage", workspaceID, imageTag)
+	if m.UpdateWorkspaceImageErr != nil {
+		return m.UpdateWorkspaceImageErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	ws, exists := m.Workspaces[workspaceID]
+	if !exists {
+		return NewErrNotFound("workspace", workspaceID)
+	}
+
+	ws.ImageName = imageTag
+	return nil
 }
 
 // Ensure MockDataStore implements DataStore

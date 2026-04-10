@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"testing"
+	"time"
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
@@ -504,6 +505,29 @@ func (m *MockDataStore) FindAppsByName(name string) ([]*models.AppWithHierarchy,
 func (m *MockDataStore) FindDomainsByName(name string) ([]*models.DomainWithHierarchy, error) {
 	return nil, nil
 }
+
+// Build Session Operations (stub implementations for interface compliance)
+func (m *MockDataStore) CreateBuildSession(session *models.BuildSession) error   { return nil }
+func (m *MockDataStore) UpdateBuildSession(session *models.BuildSession) error   { return nil }
+func (m *MockDataStore) GetLatestBuildSession() (*models.BuildSession, error)    { return nil, nil }
+func (m *MockDataStore) GetBuildSession(id string) (*models.BuildSession, error) { return nil, nil }
+func (m *MockDataStore) GetBuildSessions(limit int) ([]*models.BuildSession, error) {
+	return nil, nil
+}
+func (m *MockDataStore) DeleteBuildSessionsOlderThan(cutoff time.Time) (int64, error) {
+	return 0, nil
+}
+func (m *MockDataStore) CreateBuildSessionWorkspace(bsw *models.BuildSessionWorkspace) error {
+	return nil
+}
+func (m *MockDataStore) UpdateBuildSessionWorkspace(bsw *models.BuildSessionWorkspace) error {
+	return nil
+}
+func (m *MockDataStore) GetBuildSessionWorkspaces(sessionID string) ([]*models.BuildSessionWorkspace, error) {
+	return nil, nil
+}
+func (m *MockDataStore) GetBuildSessionStats(sessionID string) (int, int, error)     { return 0, 0, nil }
+func (m *MockDataStore) UpdateWorkspaceImage(workspaceID int, imageTag string) error { return nil }
 
 // MockThemeStore implements theme.Store for testing
 type MockThemeStore struct {

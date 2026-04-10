@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Build session persistence** — Every `dvm build` run now creates a session record in the database. Each session stores a UUID, start/end timestamps, overall status (`in_progress` / `succeeded` / `failed`), and a per-workspace result row with its own status, duration, built image tag, and error message. Sessions older than 30 days are automatically cleaned up. New migration #022 adds the `build_sessions` and `build_session_workspaces` tables. Closes [#217](https://github.com/rmkohlman/devopsmaestro/issues/217)
+
+- **`dvm build status` is fully operational** — Previously returned a stub error: `"no active build session"`. Now:
+  - `dvm build status` — shows the latest build session with per-workspace status table
+  - `dvm build status --session-id <uuid>` — shows a specific historical session by UUID
+  - `dvm build status --history` — lists the 10 most recent build sessions
+  Closes [#217](https://github.com/rmkohlman/devopsmaestro/issues/217)
+
+### Fixed
+
+- **Workspace images no longer stuck on `:pending`** — After a successful build, the workspace record's image field is updated with the actual built image tag. Previously, the tag remained `:pending` indefinitely after a build completed. Fixes [#217](https://github.com/rmkohlman/devopsmaestro/issues/217)
+
 - **`dvm generate template`** — New command that outputs annotated, copy-paste-ready YAML templates for any resource kind to stdout. Templates are embedded in the binary (`pkg/templates/` with `TemplateStore` interface and `//go:embed` YAML files). Supports 15 resource kinds: `ecosystem`, `domain`, `app`, `workspace`, `infra`, `build-arg`, `ca-cert`, `color`, `credential`, `env`, `mirror`, `nvim-plugin`, `registry`, `source`, `terminal-prompt`. Kind names accept both kebab-case and PascalCase. Closes [#210](https://github.com/rmkohlman/devopsmaestro/issues/210)
   - `dvm generate template <kind>` — outputs annotated YAML to stdout (default); `--output json` for JSON output
   - `dvm generate template --all` / `-A` — outputs all 15 kinds as a multi-document YAML stream

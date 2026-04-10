@@ -98,7 +98,7 @@ func runParallelBuild(cmd *cobra.Command) error {
 	}
 
 	// Foreground mode: wait for all builds to complete
-	buildErr := buildWorkspacesInParallel(workspaces, buildConcurrency, buildFn)
+	buildErr := buildWorkspacesInParallel(workspaces, buildConcurrency, buildFn, ds)
 
 	succeeded := len(workspaces)
 	failed := 0

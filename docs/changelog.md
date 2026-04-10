@@ -4,7 +4,15 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Unreleased
 
+**Bug Fixes**
+
+- **Workspace images no longer stuck on `:pending`** — After a successful build, the workspace record's image field is updated with the actual built image tag. Previously the tag remained `:pending` indefinitely after the build completed (#217).
+
 **New**
+
+- **Build session persistence** — Every `dvm build` run now creates a session record in the database with a UUID, start/end timestamps, status (`in_progress` / `succeeded` / `failed`), and per-workspace results (status, duration, image tag, error). Sessions older than 30 days are automatically cleaned up. New migration `022_add_build_sessions` adds the `build_sessions` and `build_session_workspaces` tables (#217).
+
+- **`dvm build status` is fully operational** — Previously returned `"no active build session"`. Now shows the latest session with a per-workspace table. New flags: `--session-id <uuid>` to query a specific session, `--history` to list the 10 most recent sessions (#217).
 
 - **`dvm generate template`** — Outputs annotated, copy-paste-ready YAML templates for any resource kind to stdout. 15 kinds supported: `ecosystem`, `domain`, `app`, `workspace`, `infra`, `build-arg`, `ca-cert`, `color`, `credential`, `env`, `mirror`, `nvim-plugin`, `registry`, `source`, `terminal-prompt`. Use `--output json` for JSON, `--all` / `-A` for all kinds as a multi-document YAML stream. Shell completion built in for kind names. Templates are embedded in the binary via `pkg/templates/` (#210).
 
