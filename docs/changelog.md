@@ -6,6 +6,16 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ---
 
+## v0.82.1 (2026-04-10)
+
+**Bug Fixes**
+
+- **Build staging directory collision when building multiple workspaces in parallel** — Changed the staging directory key from `filepath.Base(sourcePath) + "-" + workspaceName` to `appName + "-" + workspaceName` so each workspace gets a unique staging directory. Staging cleanup failure is now logged as a warning instead of a fatal error (#227).
+
+- **Dockerfile COPY commands failing for files not copied to staging directory** — `dockerfile_generator.go` now tracks the staging directory, validates that required files are present in staging before emitting `COPY` instructions, and skips `.dockerignore` during the staging copy phase. A new Phase 6b (`validateStagingDirectory`) runs before the Docker build to verify staging is populated (#228).
+
+---
+
 ## v0.82.0 (2026-04-10)
 
 **New**
