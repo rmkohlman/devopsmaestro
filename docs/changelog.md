@@ -6,6 +6,14 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ---
 
+## v0.82.2 (2026-04-10)
+
+**Bug Fixes**
+
+- **CI test failures: table rendering tests updated to match actual unbordered renderer output** — Two tests in `cmd/pretty_table_test.go` expected bordered output with box-drawing characters for a planned feature that was never shipped. Updated to match the actual MaestroSDK v0.1.6 renderer behavior (unbordered format with horizontal dividers, column headers, and data rows) (#229).
+
+---
+
 ## v0.82.1 (2026-04-10)
 
 **Bug Fixes**

@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.82.2] - 2026-04-10
+
+### Fixed
+
+- **CI test failures: table rendering tests updated to match actual unbordered renderer output** — Two tests in `cmd/pretty_table_test.go` were written expecting bordered output with box-drawing characters (│, ┌, etc.) for a planned feature that was never shipped. Updated to match the actual MaestroSDK v0.1.6 renderer behavior (unbordered format with horizontal dividers `─`, column headers, and data rows). ([#229](https://github.com/rmkohlman/devopsmaestro/issues/229))
+
+---
+
 ## [v0.82.1] - 2026-04-10
 
 ### Fixed
