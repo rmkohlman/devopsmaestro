@@ -1587,23 +1587,23 @@ func (g *DefaultDockerfileGenerator) installTreesitterParsers(dockerfile *string
 	user := g.effectiveUser()
 
 	// Write the Lua install script using BuildKit COPY heredoc syntax.
-	// The old approach used -c "TSInstall ..." which is ASYNCHRONOUS — parsers
-	// start compiling in the background but -c "qa" exits immediately (0.3s),
-	// producing parser_count=0 (see issue #248).
+	// Previous approaches using TSInstall / TSInstall! / TSInstallSync all failed
+	// in headless mode because they dispatch ASYNC compilation — nvim exits before
+	// the .so files are produced (see issues #232, #235, #246, #248).
 	//
-	// The Lua script calls TSInstall! per parser, then uses vim.wait() to poll
-	// for each .so file to actually appear on disk before exiting. This ensures
-	// the event loop runs long enough for compilation to complete in headless mode.
-	// Note: +qa is NOT on the nvim command line — the script calls vim.cmd('qa!')
-	// only after all parsers are verified compiled.
+	// The fix: use require('nvim-treesitter.configs').setup() with:
+	//   sync_install = true   — blocks until each parser is compiled
+	//   ensure_installed = {} — list of parsers to install
+	// This makes treesitter install parsers SYNCHRONOUSLY on startup, which
+	// works correctly in headless mode. The Lua script then verifies the .so
+	// files exist before exiting.
 	g.writeTreesitterLuaScript(dockerfile, user, parsers)
 
 	// Execute nvim with the Lua script.
-	// Force-load nvim-treesitter via Lazy! so TSInstall! is available in headless mode
-	// (see issues #232, #235, #248).
+	// Force-load nvim-treesitter via Lazy! so the configs module is available.
 	// Proxy vars are unset to avoid interference with parser git clones.
-	// NOTE: No +qa here — the Lua script exits nvim after verifying .so files exist.
-	dockerfile.WriteString("# Install Treesitter parsers at build time\n")
+	// NOTE: No +qa on the command line — the script exits after verification.
+	dockerfile.WriteString("# Install Treesitter parsers at build time (sync_install mode)\n")
 	dockerfile.WriteString("RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \\\n")
 	dockerfile.WriteString("    nvim --headless \\\n")
 	dockerfile.WriteString("      -c \"Lazy! load nvim-treesitter\" \\\n")
@@ -1622,38 +1622,35 @@ func (g *DefaultDockerfileGenerator) installTreesitterParsers(dockerfile *string
 }
 
 // writeTreesitterLuaScript writes the COPY heredoc for the Treesitter install Lua script.
-// The script calls TSInstall! per parser, then polls for each .so file using vim.wait().
-// This is critical in headless mode: TSInstall! dispatches async compilation jobs, and
-// without polling, nvim exits before the .so files are produced (issue #248).
-// The script calls vim.cmd('qa!') only after all .so files are verified on disk.
+// Uses require('nvim-treesitter.configs').setup() with sync_install=true and ensure_installed
+// to install parsers SYNCHRONOUSLY in headless mode. Previous approaches using TSInstall!
+// with vim.wait() polling failed because the async compilation jobs never ran properly
+// in headless mode (issue #246). sync_install makes treesitter block on each parser
+// compilation, which is exactly what we need for Docker builds.
 func (g *DefaultDockerfileGenerator) writeTreesitterLuaScript(dockerfile *strings.Builder, user string, parsers []string) {
-	luaParsers := "'" + strings.Join(parsers, "','") + "'"
+	luaParsers := "'" + strings.Join(parsers, "', '") + "'"
 
 	dockerfile.WriteString(fmt.Sprintf("COPY --chown=%s:%s <<'LUAEOF' /tmp/treesitter-install.lua\n", user, user))
-	dockerfile.WriteString(fmt.Sprintf("local parsers = {%s}\n", luaParsers))
-	dockerfile.WriteString("local failed = {}\n")
+	dockerfile.WriteString(fmt.Sprintf("local parsers = { %s }\n", luaParsers))
 	dockerfile.WriteString("local parser_dir = vim.fn.stdpath('data') .. '/lazy/nvim-treesitter/parser/'\n\n")
-	dockerfile.WriteString("-- Dispatch all TSInstall! commands first\n")
-	dockerfile.WriteString("for _, lang in ipairs(parsers) do\n")
-	dockerfile.WriteString("  print('[Treesitter] Installing ' .. lang .. '...')\n")
-	dockerfile.WriteString("  local ok, err = pcall(vim.cmd, 'TSInstall! ' .. lang)\n")
-	dockerfile.WriteString("  if not ok then\n")
-	dockerfile.WriteString("    print('[Treesitter] FAILED to dispatch: ' .. lang .. ' — ' .. tostring(err))\n")
-	dockerfile.WriteString("    table.insert(failed, lang)\n")
-	dockerfile.WriteString("  end\n")
-	dockerfile.WriteString("end\n\n")
-	dockerfile.WriteString("-- Poll for each .so file to verify compilation completed.\n")
-	dockerfile.WriteString("-- TSInstall! dispatches async compilation; in headless mode the event loop\n")
-	dockerfile.WriteString("-- must keep running until the .so files actually appear on disk.\n")
+	dockerfile.WriteString("print('[Treesitter] Installing ' .. #parsers .. ' parsers with sync_install...')\n\n")
+	dockerfile.WriteString("-- Use sync_install = true so treesitter blocks until each parser is compiled.\n")
+	dockerfile.WriteString("-- This is the ONLY reliable method in headless mode (issue #246).\n")
+	dockerfile.WriteString("-- TSInstall / TSInstall! / TSInstallSync all dispatch async jobs that\n")
+	dockerfile.WriteString("-- never complete before nvim exits in headless mode.\n")
+	dockerfile.WriteString("require('nvim-treesitter.configs').setup({\n")
+	dockerfile.WriteString("  ensure_installed = parsers,\n")
+	dockerfile.WriteString("  sync_install = true,\n")
+	dockerfile.WriteString("  auto_install = false,\n")
+	dockerfile.WriteString("})\n\n")
+	dockerfile.WriteString("-- Verify each .so file was actually written to disk\n")
+	dockerfile.WriteString("local failed = {}\n")
 	dockerfile.WriteString("for _, lang in ipairs(parsers) do\n")
 	dockerfile.WriteString("  local so_path = parser_dir .. lang .. '.so'\n")
-	dockerfile.WriteString("  local found = vim.wait(120000, function()\n")
-	dockerfile.WriteString("    return vim.fn.filereadable(so_path) == 1\n")
-	dockerfile.WriteString("  end, 1000)\n")
-	dockerfile.WriteString("  if found then\n")
+	dockerfile.WriteString("  if vim.fn.filereadable(so_path) == 1 then\n")
 	dockerfile.WriteString("    print('[Treesitter] OK: ' .. lang .. ' (.so verified)')\n")
 	dockerfile.WriteString("  else\n")
-	dockerfile.WriteString("    print('[Treesitter] TIMEOUT: ' .. lang .. ' — .so not found after 120s')\n")
+	dockerfile.WriteString("    print('[Treesitter] MISSING: ' .. lang .. ' — .so not found at ' .. so_path)\n")
 	dockerfile.WriteString("    table.insert(failed, lang)\n")
 	dockerfile.WriteString("  end\n")
 	dockerfile.WriteString("end\n\n")
