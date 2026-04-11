@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.83.3] - 2026-04-10
+
+### Added
+
+- **Shell tab-completion for `dvm set theme`** — Tab-completion now includes all 34+ built-in library themes in addition to user-defined themes, enabling full tab-completion for `dvm set theme <name>` across bash, zsh, and fish shells. ([#238](https://github.com/rmkohlman/devopsmaestro/issues/238), [#239](https://github.com/rmkohlman/devopsmaestro/issues/239), [#240](https://github.com/rmkohlman/devopsmaestro/issues/240), [#241](https://github.com/rmkohlman/devopsmaestro/issues/241), [#242](https://github.com/rmkohlman/devopsmaestro/issues/242))
+
+---
+
 ## [v0.83.2] - 2026-04-10
 
 ### Added

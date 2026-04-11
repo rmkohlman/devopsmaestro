@@ -6,6 +6,14 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ---
 
+## v0.83.3 (2026-04-10)
+
+**New**
+
+- **Shell tab-completion for `dvm set theme`** — Tab-completion now includes all 34+ built-in library themes in addition to user-defined themes, enabling full tab-completion for `dvm set theme <name>` across bash, zsh, and fish shells (#238, #239, #240, #241, #242).
+
+---
+
 ## v0.83.2 (2026-04-10)
 
 **New**
