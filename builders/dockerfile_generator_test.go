@@ -1288,7 +1288,7 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 			},
 			wantMason: "mason-registry",
 			noMason:   "Mason not installed - skipping LSP pre-install",
-			wantTS:    "require('lazy').load({ plugins = { 'nvim-treesitter' } })",
+			wantTS:    "runtimepath:prepend(ts_path)",
 			noTS:      "Treesitter not installed - skipping parser pre-install",
 		},
 		{
@@ -1302,7 +1302,7 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 			wantMason: "Mason not installed - skipping LSP pre-install",
 			noMason:   "mason-registry",
 			wantTS:    "Treesitter not installed - skipping parser pre-install",
-			noTS:      "require('lazy').load({ plugins = { 'nvim-treesitter' } })",
+			noTS:      "runtimepath:prepend(ts_path)",
 		},
 		{
 			name: "with Mason only",
@@ -1315,7 +1315,7 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 			wantMason: "mason-registry",
 			noMason:   "Mason not installed - skipping LSP pre-install",
 			wantTS:    "Treesitter not installed - skipping parser pre-install",
-			noTS:      "require('lazy').load({ plugins = { 'nvim-treesitter' } })",
+			noTS:      "runtimepath:prepend(ts_path)",
 		},
 		{
 			name: "with Treesitter only",
@@ -1327,7 +1327,7 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 			},
 			wantMason: "Mason not installed - skipping LSP pre-install",
 			noMason:   "mason-registry",
-			wantTS:    "require('lazy').load({ plugins = { 'nvim-treesitter' } })",
+			wantTS:    "runtimepath:prepend(ts_path)",
 			noTS:      "Treesitter not installed - skipping parser pre-install",
 		},
 		{
@@ -1335,7 +1335,7 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 			manifest:  nil,
 			wantMason: "mason-registry",
 			noMason:   "",
-			wantTS:    "require('lazy').load({ plugins = { 'nvim-treesitter' } })",
+			wantTS:    "runtimepath:prepend(ts_path)",
 			noTS:      "",
 		},
 	}
@@ -5317,8 +5317,9 @@ func TestInstallTreesitterParsers_ErrorHandling(t *testing.T) {
 
 // TestInstallTreesitterParsers_OutputFormat verifies the command format
 // uses a Lua script with sync_install=true and ensure_installed to install parsers
-// SYNCHRONOUSLY in headless mode. The Lua script loads nvim-treesitter via
-// require('lazy').load() internally for reliable package.path (issue #246).
+// SYNCHRONOUSLY in headless mode. The Lua script explicitly prepends nvim-treesitter's
+// path to runtimepath and package.path instead of using require('lazy').load() which
+// does NOT synchronously update these paths (issue #246, attempt 4).
 func TestInstallTreesitterParsers_OutputFormat(t *testing.T) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -5373,10 +5374,29 @@ func TestInstallTreesitterParsers_OutputFormat(t *testing.T) {
 		t.Fatalf("Generate() error = %v", err)
 	}
 
-	// Verify lazy.load() is called inside the Lua script to load nvim-treesitter
-	// (moved from -c "Lazy! load" on command line to inside script for reliable package.path, issue #246)
-	if !strings.Contains(dockerfile, "require('lazy').load({ plugins = { 'nvim-treesitter' } })") {
-		t.Error("treesitter Lua script missing require('lazy').load() call for nvim-treesitter")
+	// Verify explicit runtimepath prepend is used instead of require('lazy').load()
+	// (issue #246, attempt 4: lazy.load() does NOT synchronously update runtimepath/package.path)
+	if !strings.Contains(dockerfile, "vim.opt.runtimepath:prepend(ts_path)") {
+		t.Error("treesitter Lua script missing vim.opt.runtimepath:prepend(ts_path) — " +
+			"explicit runtimepath manipulation required because require('lazy').load() does not " +
+			"synchronously update runtimepath (issue #246, attempt 4)")
+	}
+
+	// Verify stdpath('data') is used to locate the nvim-treesitter install path
+	if !strings.Contains(dockerfile, "vim.fn.stdpath('data')") {
+		t.Error("treesitter Lua script missing vim.fn.stdpath('data') for locating nvim-treesitter")
+	}
+
+	// Verify package.path is updated for require() to find nvim-treesitter modules
+	if !strings.Contains(dockerfile, "package.path") {
+		t.Error("treesitter Lua script missing package.path update for nvim-treesitter modules")
+	}
+
+	// REGRESSION GUARD: require('lazy').load() must NOT be used — it doesn't synchronously
+	// update runtimepath/package.path (issue #246, attempts 1-3)
+	if strings.Contains(dockerfile, "require('lazy').load(") {
+		t.Error("REGRESSION: treesitter must NOT use require('lazy').load() — " +
+			"it does not synchronously update runtimepath/package.path (issue #246)")
 	}
 
 	// Verify Lazy! load is NOT on the nvim command line (it's now in the Lua script)
@@ -5406,19 +5426,19 @@ func TestInstallTreesitterParsers_OutputFormat(t *testing.T) {
 	}
 
 	// Verify luafile invocation uses -c flag (NOT + prefix).
-	// REGRESSION GUARD (issue #246, attempt 3): The + prefix runs during Neovim
-	// STARTUP before init.lua bootstraps Lazy.nvim, so require('lazy') fails.
-	// The -c flag runs AFTER init.lua completes, so Lazy is available.
+	// REGRESSION GUARD (issue #246): The + prefix runs during Neovim STARTUP
+	// before init.lua completes. The -c flag runs AFTER init.lua, ensuring Lazy
+	// has synced plugins so nvim-treesitter exists on disk for runtimepath prepend.
 	if !strings.Contains(dockerfile, `-c "luafile /tmp/treesitter-install.lua"`) {
 		t.Error("treesitter command must use -c \"luafile ...\" (NOT +luafile) — " +
-			"-c runs after init.lua bootstraps Lazy.nvim (issue #246)")
+			"-c runs after init.lua completes Lazy sync (issue #246)")
 	}
 
 	// REGRESSION GUARD: ensure +luafile is NOT used for treesitter
 	if strings.Contains(dockerfile, `+"luafile /tmp/treesitter-install.lua"`) ||
 		strings.Contains(dockerfile, `+\"luafile /tmp/treesitter-install.lua\"`) {
 		t.Error("REGRESSION: treesitter must NOT use +luafile — the + prefix runs during " +
-			"startup BEFORE init.lua bootstraps Lazy.nvim, causing require('lazy') to fail (issue #246)")
+			"startup BEFORE init.lua completes, so nvim-treesitter may not be synced yet (issue #246)")
 	}
 
 	// Verify +qa is NOT on the nvim command line (script controls exit via vim.cmd)
