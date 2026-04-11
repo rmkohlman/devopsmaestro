@@ -267,8 +267,7 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 			} else {
 				dockerfile.WriteString("# Install git for private repositories\n")
 			}
-			dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apt \\\n")
-			dockerfile.WriteString("    --mount=type=cache,target=/var/lib/apt/lists \\\n")
+			dockerfile.WriteString(g.aptCacheMounts())
 			dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
 			for _, pkg := range packages {
 				dockerfile.WriteString(fmt.Sprintf("    %s \\\n", pkg))
@@ -301,8 +300,7 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 			} else {
 				dockerfile.WriteString("# Install build dependencies\n")
 			}
-			dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apt \\\n")
-			dockerfile.WriteString("    --mount=type=cache,target=/var/lib/apt/lists \\\n")
+			dockerfile.WriteString(g.aptCacheMounts())
 			dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
 			for _, pkg := range packages {
 				dockerfile.WriteString(fmt.Sprintf("    %s \\\n", pkg))
@@ -382,7 +380,7 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 		g.emitAdditionalBuildArgs(dockerfile, privateRepoInfo.RequiredBuildArgs)
 
 		dockerfile.WriteString("# Install basic dependencies\n")
-		dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apk \\\n")
+		dockerfile.WriteString(g.apkCacheMounts())
 		if len(g.workspaceYAML.Build.CACerts) > 0 {
 			dockerfile.WriteString("    apk add git ca-certificates\n\n")
 		} else {
@@ -415,7 +413,7 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 
 		if privateRepoInfo.NeedsGit {
 			dockerfile.WriteString("# Install git for private repositories\n")
-			dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apk \\\n")
+			dockerfile.WriteString(g.apkCacheMounts())
 			if len(g.workspaceYAML.Build.CACerts) > 0 {
 				dockerfile.WriteString("    apk add git ca-certificates\n\n")
 			} else {
@@ -423,7 +421,7 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 			}
 		} else if len(g.workspaceYAML.Build.CACerts) > 0 {
 			dockerfile.WriteString("# Install ca-certificates for custom CA support\n")
-			dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apk \\\n")
+			dockerfile.WriteString(g.apkCacheMounts())
 			dockerfile.WriteString("    apk add ca-certificates\n\n")
 		}
 
@@ -455,8 +453,7 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 			packages = append(packages, "git")
 		}
 
-		dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apt \\\n")
-		dockerfile.WriteString("    --mount=type=cache,target=/var/lib/apt/lists \\\n")
+		dockerfile.WriteString(g.aptCacheMounts())
 		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
 		for i, pkg := range packages {
 			if i < len(packages)-1 {
@@ -585,7 +582,7 @@ func (g *DefaultDockerfileGenerator) emitBuilderStages(dockerfile *strings.Build
 func (g *DefaultDockerfileGenerator) generateNeovimBuilder(dockerfile *strings.Builder) {
 	dockerfile.WriteString("# --- Parallel builder: Neovim ---\n")
 	dockerfile.WriteString(fmt.Sprintf("FROM %s AS neovim-builder\n", pinnedImage("debian:bookworm-slim")))
-	dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,target=/var/lib/apt,sharing=locked \\\n")
+	dockerfile.WriteString(g.aptCacheMountsLocked())
 	dockerfile.WriteString("    set -e && \\\n")
 	dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
 	dockerfile.WriteString("    ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m) && \\\n")
@@ -610,7 +607,7 @@ func (g *DefaultDockerfileGenerator) generateLazygitBuilder(dockerfile *strings.
 	dockerfile.WriteString("# --- Parallel builder: lazygit ---\n")
 	if isAlpine {
 		dockerfile.WriteString(fmt.Sprintf("FROM %s AS lazygit-builder\n", pinnedImage("alpine:3.20")))
-		dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \\\n")
+		dockerfile.WriteString(g.apkCacheMountsLocked())
 		dockerfile.WriteString("    set -e && \\\n")
 		dockerfile.WriteString("    apk add --no-cache curl && \\\n")
 		dockerfile.WriteString("    ARCH=$(uname -m) && \\\n")
@@ -623,7 +620,7 @@ func (g *DefaultDockerfileGenerator) generateLazygitBuilder(dockerfile *strings.
 		dockerfile.WriteString("    fi && \\\n")
 	} else {
 		dockerfile.WriteString(fmt.Sprintf("FROM %s AS lazygit-builder\n", pinnedImage("debian:bookworm-slim")))
-		dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,target=/var/lib/apt,sharing=locked \\\n")
+		dockerfile.WriteString(g.aptCacheMountsLocked())
 		dockerfile.WriteString("    set -e && \\\n")
 		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
 		dockerfile.WriteString("    ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m) && \\\n")
@@ -650,7 +647,7 @@ func (g *DefaultDockerfileGenerator) generateLazygitBuilder(dockerfile *strings.
 func (g *DefaultDockerfileGenerator) generateStarshipBuilder(dockerfile *strings.Builder) {
 	dockerfile.WriteString("# --- Parallel builder: Starship prompt ---\n")
 	dockerfile.WriteString(fmt.Sprintf("FROM %s AS starship-builder\n", pinnedImage("debian:bookworm-slim")))
-	dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,target=/var/lib/apt,sharing=locked \\\n")
+	dockerfile.WriteString(g.aptCacheMountsLocked())
 	dockerfile.WriteString("    set -e && \\\n")
 	dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
 	dockerfile.WriteString("    ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m) && \\\n")
@@ -674,7 +671,7 @@ func (g *DefaultDockerfileGenerator) generateTreeSitterBuilder(dockerfile *strin
 	dockerfile.WriteString("# --- Parallel builder: tree-sitter CLI ---\n")
 	if isAlpine {
 		dockerfile.WriteString(fmt.Sprintf("FROM %s AS treesitter-builder\n", pinnedImage("alpine:3.20")))
-		dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \\\n")
+		dockerfile.WriteString(g.apkCacheMountsLocked())
 		dockerfile.WriteString("    set -e && \\\n")
 		dockerfile.WriteString("    apk add --no-cache curl && \\\n")
 		dockerfile.WriteString("    ARCH=$(uname -m) && \\\n")
@@ -685,7 +682,7 @@ func (g *DefaultDockerfileGenerator) generateTreeSitterBuilder(dockerfile *strin
 		dockerfile.WriteString("    else echo \"ERROR: Unsupported architecture: $ARCH\"; exit 1; fi && \\\n")
 	} else {
 		dockerfile.WriteString(fmt.Sprintf("FROM %s AS treesitter-builder\n", pinnedImage("debian:bookworm-slim")))
-		dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,target=/var/lib/apt,sharing=locked \\\n")
+		dockerfile.WriteString(g.aptCacheMountsLocked())
 		dockerfile.WriteString("    set -e && \\\n")
 		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
 		dockerfile.WriteString("    ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m) && \\\n")
@@ -712,7 +709,7 @@ func (g *DefaultDockerfileGenerator) generateOpencodeBuilder(dockerfile *strings
 	dockerfile.WriteString("# --- Parallel builder: opencode ---\n")
 	if isAlpine {
 		dockerfile.WriteString(fmt.Sprintf("FROM %s AS opencode-builder\n", pinnedImage("alpine:3.20")))
-		dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \\\n")
+		dockerfile.WriteString(g.apkCacheMountsLocked())
 		dockerfile.WriteString("    set -e && \\\n")
 		dockerfile.WriteString("    apk add --no-cache curl && \\\n")
 		dockerfile.WriteString("    ARCH=$(uname -m) && \\\n")
@@ -725,7 +722,7 @@ func (g *DefaultDockerfileGenerator) generateOpencodeBuilder(dockerfile *strings
 		dockerfile.WriteString("    fi && \\\n")
 	} else {
 		dockerfile.WriteString(fmt.Sprintf("FROM %s AS opencode-builder\n", pinnedImage("debian:bookworm-slim")))
-		dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,target=/var/lib/apt,sharing=locked \\\n")
+		dockerfile.WriteString(g.aptCacheMountsLocked())
 		dockerfile.WriteString("    set -e && \\\n")
 		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
 		dockerfile.WriteString("    ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m) && \\\n")
@@ -871,11 +868,10 @@ func (g *DefaultDockerfileGenerator) generateDevStage(dockerfile *strings.Builde
 	// Install all packages in one shot with cache mounts
 	dockerfile.WriteString("# Install all dev tools, nvim dependencies, and Mason toolchains (merged)\n")
 	if isAlpine {
-		dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apk \\\n")
+		dockerfile.WriteString(g.apkCacheMounts())
 		dockerfile.WriteString("    apk add \\\n")
 	} else {
-		dockerfile.WriteString("RUN --mount=type=cache,target=/var/cache/apt \\\n")
-		dockerfile.WriteString("    --mount=type=cache,target=/var/lib/apt/lists \\\n")
+		dockerfile.WriteString(g.aptCacheMounts())
 		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
 	}
 
@@ -1078,6 +1074,48 @@ func (g *DefaultDockerfileGenerator) getDefaultPackages() []string {
 // package manager selection, and binary compatibility.
 func (g *DefaultDockerfileGenerator) isAlpineImage() bool {
 	return g.isAlpine
+}
+
+// cacheID returns a workspace-scoped identifier for Docker cache mounts.
+// When multiple workspaces build in parallel, shared cache mounts cause apt lock
+// conflicts (E: Could not get lock /var/lib/apt/lists/lock). Scoping the cache
+// mount ID to the workspace name ensures each parallel build uses its own cache,
+// eliminating lock file contention. See issue #233.
+func (g *DefaultDockerfileGenerator) cacheID() string {
+	if g.workspace != nil && g.workspace.Name != "" {
+		return g.workspace.Name
+	}
+	return "default"
+}
+
+// aptCacheMounts returns multi-line apt cache mount directives with workspace-scoped IDs.
+// Format (for embedding into RUN instructions):
+//
+//	RUN --mount=type=cache,target=/var/cache/apt,id=apt-cache-<ws> \
+//	    --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-<ws> \
+func (g *DefaultDockerfileGenerator) aptCacheMounts() string {
+	id := g.cacheID()
+	return fmt.Sprintf("RUN --mount=type=cache,target=/var/cache/apt,id=apt-cache-%s \\\n"+
+		"    --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-%s \\\n", id, id)
+}
+
+// aptCacheMountsLocked returns single-line apt cache mount directives with
+// workspace-scoped IDs and sharing=locked (used in parallel builder stages).
+func (g *DefaultDockerfileGenerator) aptCacheMountsLocked() string {
+	id := g.cacheID()
+	return fmt.Sprintf("RUN --mount=type=cache,target=/var/cache/apt,id=apt-cache-%s,sharing=locked "+
+		"--mount=type=cache,target=/var/lib/apt,id=apt-lists-%s,sharing=locked \\\n", id, id)
+}
+
+// apkCacheMounts returns the apk cache mount directive with a workspace-scoped ID.
+func (g *DefaultDockerfileGenerator) apkCacheMounts() string {
+	return fmt.Sprintf("RUN --mount=type=cache,target=/var/cache/apk,id=apk-cache-%s \\\n", g.cacheID())
+}
+
+// apkCacheMountsLocked returns the apk cache mount directive with a workspace-scoped
+// ID and sharing=locked (used in parallel builder stages).
+func (g *DefaultDockerfileGenerator) apkCacheMountsLocked() string {
+	return fmt.Sprintf("RUN --mount=type=cache,target=/var/cache/apk,id=apk-cache-%s,sharing=locked \\\n", g.cacheID())
 }
 
 // effectiveStagingDir returns the staging directory to use for file existence checks.
@@ -1314,6 +1352,10 @@ func (g *DefaultDockerfileGenerator) getBaseMasonTools() []string {
 // installMasonTools installs language servers, linters, and formatters via Mason at build time.
 // Uses synchronous Lua-based install with mason-registry and vim.wait() to ensure
 // all tools are fully installed before the build layer completes.
+//
+// The Lua script force-loads mason.nvim via lazy.nvim to ensure Mason is available
+// in headless mode (see issue #234). It includes per-tool logging, retry logic for
+// transient network failures, and a verification step.
 func (g *DefaultDockerfileGenerator) installMasonTools(dockerfile *strings.Builder) {
 	// Check if Mason is installed via manifest
 	if g.pluginManifest != nil && !g.pluginManifest.Features.HasMason {
@@ -1346,31 +1388,100 @@ func (g *DefaultDockerfileGenerator) installMasonTools(dockerfile *strings.Build
 	// Use --chown so the file is owned by the container user, allowing cleanup
 	// in subsequent RUN steps that execute as non-root (see issue #222).
 	user := g.effectiveUser()
-	dockerfile.WriteString(fmt.Sprintf("COPY --chown=%s:%s <<'LUAEOF' /tmp/mason-install.lua\n", user, user))
-	dockerfile.WriteString("local registry = require('mason-registry')\n")
-	dockerfile.WriteString("registry.refresh()\n")
-	dockerfile.WriteString(fmt.Sprintf("local tools = {%s}\n", luaTools))
-	dockerfile.WriteString("for _, name in ipairs(tools) do\n")
-	dockerfile.WriteString("  local ok, pkg = pcall(registry.get_package, name)\n")
-	dockerfile.WriteString("  if ok and not pkg:is_installed() then\n")
-	dockerfile.WriteString("    pkg:install()\n")
-	dockerfile.WriteString("  end\n")
-	dockerfile.WriteString("end\n")
-	dockerfile.WriteString("vim.wait(300000, function()\n")
-	dockerfile.WriteString("  local done = 0\n")
-	dockerfile.WriteString("  for _, name in ipairs(tools) do\n")
-	dockerfile.WriteString("    local ok, pkg = pcall(registry.get_package, name)\n")
-	dockerfile.WriteString("    if ok and pkg:is_installed() then done = done + 1 end\n")
-	dockerfile.WriteString("  end\n")
-	dockerfile.WriteString("  return done >= #tools\n")
-	dockerfile.WriteString("end, 1000)\n")
-	dockerfile.WriteString("LUAEOF\n\n")
+	g.writeMasonLuaScript(dockerfile, user, luaTools)
+
 	// Execute nvim with the Lua script.
+	// Force-load mason.nvim via Lazy! so Mason is available in headless mode
+	// (same pattern as treesitter fix — see issues #232, #234).
 	// Proxy vars are unset to avoid interference with Mason's package downloads.
 	// Note: we don't rm the temp file — it's in /tmp and gets cleaned up anyway,
 	// and removing it caused permission errors when COPY ran as root (issue #222).
 	dockerfile.WriteString("RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \\\n")
-	dockerfile.WriteString("    nvim --headless +\"luafile /tmp/mason-install.lua\" +qa 2>&1\n\n")
+	dockerfile.WriteString("    nvim --headless \\\n")
+	dockerfile.WriteString("      -c \"Lazy! load mason.nvim\" \\\n")
+	dockerfile.WriteString("      +\"luafile /tmp/mason-install.lua\" +qa 2>&1 | tee /tmp/mason-install.log || \\\n")
+	dockerfile.WriteString("    (echo '--- Mason install log ---' && cat /tmp/mason-install.log && exit 1)\n\n")
+
+	// Verification: ensure Mason packages directory was populated
+	g.writeMasonVerification(dockerfile, user, len(tools))
+}
+
+// writeMasonLuaScript writes the COPY heredoc for the Mason install Lua script.
+// The script includes: error-handled registry refresh, per-tool logging with retry
+// logic (3 attempts per tool), and a final verification that all tools installed.
+func (g *DefaultDockerfileGenerator) writeMasonLuaScript(dockerfile *strings.Builder, user, luaTools string) {
+	dockerfile.WriteString(fmt.Sprintf("COPY --chown=%s:%s <<'LUAEOF' /tmp/mason-install.lua\n", user, user))
+	// Refresh registry with error handling
+	dockerfile.WriteString("local registry = require('mason-registry')\n")
+	dockerfile.WriteString("print('[Mason] Refreshing registry...')\n")
+	dockerfile.WriteString("local refresh_ok, refresh_err = pcall(registry.refresh)\n")
+	dockerfile.WriteString("if not refresh_ok then\n")
+	dockerfile.WriteString("  print('[Mason] ERROR: Registry refresh failed: ' .. tostring(refresh_err))\n")
+	dockerfile.WriteString("  vim.cmd('cq')\n")
+	dockerfile.WriteString("end\n\n")
+	// Tool list and install loop with retry logic
+	dockerfile.WriteString(fmt.Sprintf("local tools = {%s}\n", luaTools))
+	dockerfile.WriteString("local max_retries = 3\n")
+	dockerfile.WriteString("local failed = {}\n\n")
+	dockerfile.WriteString("for _, name in ipairs(tools) do\n")
+	dockerfile.WriteString("  local ok, pkg = pcall(registry.get_package, name)\n")
+	dockerfile.WriteString("  if not ok then\n")
+	dockerfile.WriteString("    print('[Mason] ERROR: Package not found: ' .. name)\n")
+	dockerfile.WriteString("    table.insert(failed, name)\n")
+	dockerfile.WriteString("  elseif pkg:is_installed() then\n")
+	dockerfile.WriteString("    print('[Mason] ' .. name .. ' already installed')\n")
+	dockerfile.WriteString("  else\n")
+	dockerfile.WriteString("    local installed = false\n")
+	dockerfile.WriteString("    for attempt = 1, max_retries do\n")
+	dockerfile.WriteString("      print('[Mason] Installing ' .. name .. ' (attempt ' .. attempt .. '/' .. max_retries .. ')')\n")
+	dockerfile.WriteString("      local install_ok, install_err = pcall(function()\n")
+	dockerfile.WriteString("        pkg:install()\n")
+	dockerfile.WriteString("      end)\n")
+	dockerfile.WriteString("      if not install_ok then\n")
+	dockerfile.WriteString("        print('[Mason] ERROR starting ' .. name .. ': ' .. tostring(install_err))\n")
+	dockerfile.WriteString("      end\n")
+	// Wait for this specific tool with a per-tool timeout
+	dockerfile.WriteString("      vim.wait(120000, function() return pkg:is_installed() end, 2000)\n")
+	dockerfile.WriteString("      if pkg:is_installed() then\n")
+	dockerfile.WriteString("        print('[Mason] OK: ' .. name .. ' installed')\n")
+	dockerfile.WriteString("        installed = true\n")
+	dockerfile.WriteString("        break\n")
+	dockerfile.WriteString("      else\n")
+	dockerfile.WriteString("        print('[Mason] WARN: ' .. name .. ' not installed after attempt ' .. attempt)\n")
+	dockerfile.WriteString("      end\n")
+	dockerfile.WriteString("    end\n")
+	dockerfile.WriteString("    if not installed then\n")
+	dockerfile.WriteString("      print('[Mason] FAILED: ' .. name .. ' after ' .. max_retries .. ' attempts')\n")
+	dockerfile.WriteString("      table.insert(failed, name)\n")
+	dockerfile.WriteString("    end\n")
+	dockerfile.WriteString("  end\n")
+	dockerfile.WriteString("end\n\n")
+	// Final verification
+	dockerfile.WriteString("-- Final verification\n")
+	dockerfile.WriteString("local done = 0\n")
+	dockerfile.WriteString("for _, name in ipairs(tools) do\n")
+	dockerfile.WriteString("  local ok, pkg = pcall(registry.get_package, name)\n")
+	dockerfile.WriteString("  if ok and pkg:is_installed() then done = done + 1 end\n")
+	dockerfile.WriteString("end\n")
+	dockerfile.WriteString("print('[Mason] Installed ' .. done .. '/' .. #tools .. ' tools')\n")
+	dockerfile.WriteString("if #failed > 0 then\n")
+	dockerfile.WriteString("  print('[Mason] FAILED tools: ' .. table.concat(failed, ', '))\n")
+	dockerfile.WriteString("  vim.cmd('cq')\n")
+	dockerfile.WriteString("end\n")
+	dockerfile.WriteString("LUAEOF\n\n")
+}
+
+// writeMasonVerification writes a Dockerfile RUN step that verifies Mason packages
+// were actually installed by checking the Mason packages directory.
+func (g *DefaultDockerfileGenerator) writeMasonVerification(dockerfile *strings.Builder, user string, toolCount int) {
+	dockerfile.WriteString("# Verify Mason tools were installed\n")
+	dockerfile.WriteString(fmt.Sprintf("RUN pkg_count=$(ls -1d /home/%s/.local/share/nvim/mason/packages/*/ 2>/dev/null | wc -l) && \\\n", user))
+	dockerfile.WriteString("    if [ \"$pkg_count\" -lt 1 ]; then \\\n")
+	dockerfile.WriteString("      echo \"ERROR: No Mason packages found after install step\" && \\\n")
+	dockerfile.WriteString("      cat /tmp/mason-install.log 2>/dev/null && \\\n")
+	dockerfile.WriteString("      exit 1; \\\n")
+	dockerfile.WriteString("    fi && \\\n")
+	dockerfile.WriteString(fmt.Sprintf("    echo \"Mason: $pkg_count package(s) installed (expected %d)\"\n\n", toolCount))
 }
 
 // getTreesitterParsersForLanguage returns Treesitter parsers for the detected language
@@ -1418,11 +1529,29 @@ func (g *DefaultDockerfileGenerator) installTreesitterParsers(dockerfile *string
 	}
 
 	dockerfile.WriteString("# Install Treesitter parsers at build time\n")
-	// Use :TSInstallSync ex command for reliable synchronous installation.
-	// The Lua API (require('nvim-treesitter').install()) has breaking changes
-	// across versions, while the ex command remains stable (see issue #222).
+	// Use -c flags to first load lazy.nvim (which registers :TSInstall), then
+	// run :TSInstall for each parser.  The previous +\"TSInstallSync ...\" form
+	// failed in headless Docker builds because lazy.nvim had not loaded
+	// nvim-treesitter yet (E492, see issues #232, #235).
+	//
+	// Using -c \"Lazy! load nvim-treesitter\" forces lazy.nvim to load the
+	// plugin synchronously, making :TSInstall available.  We use :TSInstall
+	// (not TSInstallSync) because it is the stable, documented user command.
 	parserList := strings.Join(parsers, " ")
 	dockerfile.WriteString("RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \\\n")
-	dockerfile.WriteString(fmt.Sprintf("    nvim --headless +\"TSInstallSync %s\" +qa 2>&1 | tee /tmp/treesitter-install.log || \\\n", parserList))
+	dockerfile.WriteString("    nvim --headless \\\n")
+	dockerfile.WriteString("      -c \"Lazy! load nvim-treesitter\" \\\n")
+	dockerfile.WriteString(fmt.Sprintf("      -c \"TSInstall %s\" \\\n", parserList))
+	dockerfile.WriteString("      -c \"qa\" 2>&1 | tee /tmp/treesitter-install.log || \\\n")
 	dockerfile.WriteString("    (cat /tmp/treesitter-install.log && exit 1)\n\n")
+	// Verification: ensure at least one parser .so was actually installed
+	user := g.effectiveUser()
+	dockerfile.WriteString("# Verify Treesitter parsers were installed\n")
+	dockerfile.WriteString(fmt.Sprintf("RUN parser_count=$(find /home/%s/.local/share/nvim/lazy/nvim-treesitter/parser -name '*.so' 2>/dev/null | wc -l) && \\\n", user))
+	dockerfile.WriteString("    if [ \"$parser_count\" -lt 1 ]; then \\\n")
+	dockerfile.WriteString("      echo \"ERROR: No Treesitter parsers found after install step\" && \\\n")
+	dockerfile.WriteString("      cat /tmp/treesitter-install.log 2>/dev/null && \\\n")
+	dockerfile.WriteString("      exit 1; \\\n")
+	dockerfile.WriteString("    fi && \\\n")
+	dockerfile.WriteString(fmt.Sprintf("    echo \"Treesitter: $parser_count parser(s) installed (expected %d)\"\n\n", len(parsers)))
 }
