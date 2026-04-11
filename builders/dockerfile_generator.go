@@ -564,7 +564,8 @@ func (g *DefaultDockerfileGenerator) activeBuilderStages() []builderStage {
 //     the binary is statically linked but download tools (curl vs wget, sed behavior) differ.
 //   - Starship: Always Debian for consistency with Neovim builder (install script uses POSIX sh).
 //   - Tree-sitter CLI: Alpine (small image, binary is statically linked).
-//   - Go tools: Uses the same golang:X-alpine image as the base stage for ABI compatibility.
+//   - Go tools: Uses golang:X-alpine with a minimum version floor (goToolsMinGoVersion)
+//     to satisfy gopls@latest requirements. May differ from the workspace base Go version.
 //
 // Cache mount strategy: Builder stages use cache mounts for package manager directories
 // (apt, apk). BuildKit handles concurrent cache mounts with copy-on-write semantics —
@@ -791,7 +792,7 @@ func (g *DefaultDockerfileGenerator) generateGoToolsBuilder(dockerfile *strings.
 	}
 
 	dockerfile.WriteString("# --- Parallel builder: Go tools ---\n")
-	goToolsImage := fmt.Sprintf("golang:%s-alpine", g.effectiveGoVersion())
+	goToolsImage := fmt.Sprintf("golang:%s-alpine", g.goToolsBuilderVersion())
 	dockerfile.WriteString(pinnedImageComment(goToolsImage))
 	dockerfile.WriteString(fmt.Sprintf("FROM %s AS go-tools-builder\n", pinnedImage(goToolsImage)))
 	dockerfile.WriteString("RUN --mount=type=cache,target=/go/pkg/mod \\\n")
@@ -834,6 +835,59 @@ func (g *DefaultDockerfileGenerator) effectiveVersion() string {
 // Delegates to effectiveVersion() for unified version defaulting.
 func (g *DefaultDockerfileGenerator) effectiveGoVersion() string {
 	return g.effectiveVersion()
+}
+
+// goToolsBuilderVersion returns the Go version for the go-tools-builder stage.
+// gopls@latest requires Go >= 1.24, so we enforce a minimum floor. The workspace
+// base image may use an older Go version (e.g., 1.21) for application compatibility,
+// but the tools builder only compiles developer tools — the binaries are copied
+// into the final image via COPY --from and don't require matching Go versions.
+// See issue #247.
+const goToolsMinGoVersion = "1.24"
+
+func (g *DefaultDockerfileGenerator) goToolsBuilderVersion() string {
+	v := g.effectiveGoVersion()
+	if compareGoVersions(v, goToolsMinGoVersion) < 0 {
+		return goToolsMinGoVersion
+	}
+	return v
+}
+
+// compareGoVersions compares two Go version strings like "1.21" and "1.24".
+// Returns -1 if a < b, 0 if a == b, 1 if a > b.
+func compareGoVersions(a, b string) int {
+	aParts := strings.SplitN(a, ".", 2)
+	bParts := strings.SplitN(b, ".", 2)
+
+	aMajor, aMinor := 0, 0
+	bMajor, bMinor := 0, 0
+
+	if len(aParts) >= 1 {
+		fmt.Sscanf(aParts[0], "%d", &aMajor)
+	}
+	if len(aParts) >= 2 {
+		fmt.Sscanf(aParts[1], "%d", &aMinor)
+	}
+	if len(bParts) >= 1 {
+		fmt.Sscanf(bParts[0], "%d", &bMajor)
+	}
+	if len(bParts) >= 2 {
+		fmt.Sscanf(bParts[1], "%d", &bMinor)
+	}
+
+	if aMajor != bMajor {
+		if aMajor < bMajor {
+			return -1
+		}
+		return 1
+	}
+	if aMinor != bMinor {
+		if aMinor < bMinor {
+			return -1
+		}
+		return 1
+	}
+	return 0
 }
 
 func (g *DefaultDockerfileGenerator) generateDevStage(dockerfile *strings.Builder) {
@@ -1088,15 +1142,16 @@ func (g *DefaultDockerfileGenerator) cacheID() string {
 	return "default"
 }
 
-// aptCacheMounts returns multi-line apt cache mount directives with workspace-scoped IDs.
+// aptCacheMounts returns multi-line apt cache mount directives with workspace-scoped IDs
+// and sharing=locked to prevent cache corruption during parallel builds. See issue #249.
 // Format (for embedding into RUN instructions):
 //
-//	RUN --mount=type=cache,target=/var/cache/apt,id=apt-cache-<ws> \
-//	    --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-<ws> \
+//	RUN --mount=type=cache,target=/var/cache/apt,id=apt-cache-<ws>,sharing=locked \
+//	    --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-<ws>,sharing=locked \
 func (g *DefaultDockerfileGenerator) aptCacheMounts() string {
 	id := g.cacheID()
-	return fmt.Sprintf("RUN --mount=type=cache,target=/var/cache/apt,id=apt-cache-%s \\\n"+
-		"    --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-%s \\\n", id, id)
+	return fmt.Sprintf("RUN --mount=type=cache,target=/var/cache/apt,id=apt-cache-%s,sharing=locked \\\n"+
+		"    --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-%s,sharing=locked \\\n", id, id)
 }
 
 // aptCacheMountsLocked returns single-line apt cache mount directives with
@@ -1107,9 +1162,10 @@ func (g *DefaultDockerfileGenerator) aptCacheMountsLocked() string {
 		"--mount=type=cache,target=/var/lib/apt,id=apt-lists-%s,sharing=locked \\\n", id, id)
 }
 
-// apkCacheMounts returns the apk cache mount directive with a workspace-scoped ID.
+// apkCacheMounts returns the apk cache mount directive with a workspace-scoped ID
+// and sharing=locked to prevent cache corruption during parallel builds. See issue #249.
 func (g *DefaultDockerfileGenerator) apkCacheMounts() string {
-	return fmt.Sprintf("RUN --mount=type=cache,target=/var/cache/apk,id=apk-cache-%s \\\n", g.cacheID())
+	return fmt.Sprintf("RUN --mount=type=cache,target=/var/cache/apk,id=apk-cache-%s,sharing=locked \\\n", g.cacheID())
 }
 
 // apkCacheMountsLocked returns the apk cache mount directive with a workspace-scoped
@@ -1528,24 +1584,30 @@ func (g *DefaultDockerfileGenerator) installTreesitterParsers(dockerfile *string
 		return
 	}
 
-	dockerfile.WriteString("# Install Treesitter parsers at build time\n")
-	// Use -c flags to first load lazy.nvim (which registers :TSInstall), then
-	// run :TSInstall for each parser.  The previous +\"TSInstallSync ...\" form
-	// failed in headless Docker builds because lazy.nvim had not loaded
-	// nvim-treesitter yet (E492, see issues #232, #235).
+	user := g.effectiveUser()
+
+	// Write the Lua install script using BuildKit COPY heredoc syntax.
+	// The old approach used -c "TSInstall ..." which is ASYNCHRONOUS — parsers
+	// start compiling in the background but -c "qa" exits immediately (0.3s),
+	// producing parser_count=0 (see issue #248).
 	//
-	// Using -c \"Lazy! load nvim-treesitter\" forces lazy.nvim to load the
-	// plugin synchronously, making :TSInstall available.  We use :TSInstall
-	// (not TSInstallSync) because it is the stable, documented user command.
-	parserList := strings.Join(parsers, " ")
+	// This Lua script follows the same synchronous pattern as Mason install:
+	// it calls vim.treesitter.language.add() / TSInstallSync per parser and
+	// uses vim.wait() to block until each parser's .so file appears on disk.
+	g.writeTreesitterLuaScript(dockerfile, user, parsers)
+
+	// Execute nvim with the Lua script.
+	// Force-load nvim-treesitter via Lazy! so TSInstallSync is available in headless mode
+	// (see issues #232, #235, #248).
+	// Proxy vars are unset to avoid interference with parser git clones.
+	dockerfile.WriteString("# Install Treesitter parsers at build time\n")
 	dockerfile.WriteString("RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \\\n")
 	dockerfile.WriteString("    nvim --headless \\\n")
 	dockerfile.WriteString("      -c \"Lazy! load nvim-treesitter\" \\\n")
-	dockerfile.WriteString(fmt.Sprintf("      -c \"TSInstall %s\" \\\n", parserList))
-	dockerfile.WriteString("      -c \"qa\" 2>&1 | tee /tmp/treesitter-install.log || \\\n")
+	dockerfile.WriteString("      +\"luafile /tmp/treesitter-install.lua\" +qa 2>&1 | tee /tmp/treesitter-install.log || \\\n")
 	dockerfile.WriteString("    (cat /tmp/treesitter-install.log && exit 1)\n\n")
+
 	// Verification: ensure at least one parser .so was actually installed
-	user := g.effectiveUser()
 	dockerfile.WriteString("# Verify Treesitter parsers were installed\n")
 	dockerfile.WriteString(fmt.Sprintf("RUN parser_count=$(find /home/%s/.local/share/nvim/lazy/nvim-treesitter/parser -name '*.so' 2>/dev/null | wc -l) && \\\n", user))
 	dockerfile.WriteString("    if [ \"$parser_count\" -lt 1 ]; then \\\n")
@@ -1554,4 +1616,31 @@ func (g *DefaultDockerfileGenerator) installTreesitterParsers(dockerfile *string
 	dockerfile.WriteString("      exit 1; \\\n")
 	dockerfile.WriteString("    fi && \\\n")
 	dockerfile.WriteString(fmt.Sprintf("    echo \"Treesitter: $parser_count parser(s) installed (expected %d)\"\n\n", len(parsers)))
+}
+
+// writeTreesitterLuaScript writes the COPY heredoc for the Treesitter install Lua script.
+// The script calls TSInstallSync for each parser sequentially, with per-parser timeout
+// and retry logic. This ensures parsers are fully compiled before nvim exits.
+func (g *DefaultDockerfileGenerator) writeTreesitterLuaScript(dockerfile *strings.Builder, user string, parsers []string) {
+	luaParsers := "'" + strings.Join(parsers, "','") + "'"
+
+	dockerfile.WriteString(fmt.Sprintf("COPY --chown=%s:%s <<'LUAEOF' /tmp/treesitter-install.lua\n", user, user))
+	dockerfile.WriteString(fmt.Sprintf("local parsers = {%s}\n", luaParsers))
+	dockerfile.WriteString("local failed = {}\n\n")
+	dockerfile.WriteString("for _, lang in ipairs(parsers) do\n")
+	dockerfile.WriteString("  print('[Treesitter] Installing ' .. lang .. '...')\n")
+	dockerfile.WriteString("  local ok, err = pcall(vim.cmd, 'TSInstallSync ' .. lang)\n")
+	dockerfile.WriteString("  if ok then\n")
+	dockerfile.WriteString("    print('[Treesitter] OK: ' .. lang)\n")
+	dockerfile.WriteString("  else\n")
+	dockerfile.WriteString("    print('[Treesitter] FAILED: ' .. lang .. ' — ' .. tostring(err))\n")
+	dockerfile.WriteString("    table.insert(failed, lang)\n")
+	dockerfile.WriteString("  end\n")
+	dockerfile.WriteString("end\n\n")
+	dockerfile.WriteString("print('[Treesitter] Installed ' .. (#parsers - #failed) .. '/' .. #parsers .. ' parsers')\n")
+	dockerfile.WriteString("if #failed > 0 then\n")
+	dockerfile.WriteString("  print('[Treesitter] FAILED parsers: ' .. table.concat(failed, ', '))\n")
+	dockerfile.WriteString("  vim.cmd('cq')\n")
+	dockerfile.WriteString("end\n")
+	dockerfile.WriteString("LUAEOF\n\n")
 }

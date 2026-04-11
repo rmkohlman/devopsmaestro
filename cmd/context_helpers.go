@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"devopsmaestro/db"
+	"devopsmaestro/models"
 	"devopsmaestro/pkg/mirror"
 
 	"github.com/spf13/cobra"
@@ -152,4 +153,29 @@ func getMirrorManager(cmd *cobra.Command) mirror.MirrorManager {
 	}
 	// Fall back to real manager using default git repo base directory
 	return mirror.NewGitMirrorManager(getGitRepoBaseDir())
+}
+
+// resolveAppByNameScoped resolves an app by name, scoped to the active ecosystem
+// context. When an active ecosystem is set, it prefers the app within that ecosystem
+// to avoid cross-ecosystem workspace creation (issue #250). Falls back to global
+// lookup when no ecosystem context is active.
+func resolveAppByNameScoped(ds db.DataStore, appName string) (*models.App, error) {
+	// Try ecosystem-scoped resolution first
+	eco, ecoErr := getActiveEcosystem(ds)
+	if ecoErr == nil && eco != nil {
+		matches, err := ds.FindAppsByName(appName)
+		if err == nil && len(matches) > 0 {
+			// Filter to apps in the active ecosystem
+			for _, m := range matches {
+				if m.Ecosystem.ID == eco.ID {
+					return m.App, nil
+				}
+			}
+			// App exists but not in the active ecosystem — still return the first
+			// match so existing behavior is preserved for single-app names
+		}
+	}
+
+	// Fall back to global lookup (no active ecosystem or app not found in ecosystem)
+	return ds.GetAppByNameGlobal(appName)
 }

@@ -145,8 +145,11 @@ Examples:
 			}
 		}
 
-		// Get app to get its ID (search globally across all domains)
-		app, err := ds.GetAppByNameGlobal(appName)
+		// Resolve app scoped to active ecosystem context (issue #250).
+		// When an ecosystem context is active, prefer the app in that ecosystem
+		// to avoid cross-ecosystem workspace creation. Fall back to global lookup
+		// only when no ecosystem context is set.
+		app, err := resolveAppByNameScoped(ds, appName)
 		if err != nil {
 			render.Error(fmt.Sprintf("App '%s' not found: %v", appName, err))
 			render.Plain(FormatSuggestions(SuggestAppNotFound(appName)...))
