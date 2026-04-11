@@ -1288,7 +1288,7 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 			},
 			wantMason: "mason-registry",
 			noMason:   "Mason not installed - skipping LSP pre-install",
-			wantTS:    "Lazy! load nvim-treesitter",
+			wantTS:    "require('lazy').load({ plugins = { 'nvim-treesitter' } })",
 			noTS:      "Treesitter not installed - skipping parser pre-install",
 		},
 		{
@@ -1302,7 +1302,7 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 			wantMason: "Mason not installed - skipping LSP pre-install",
 			noMason:   "mason-registry",
 			wantTS:    "Treesitter not installed - skipping parser pre-install",
-			noTS:      "Lazy! load nvim-treesitter",
+			noTS:      "require('lazy').load({ plugins = { 'nvim-treesitter' } })",
 		},
 		{
 			name: "with Mason only",
@@ -1315,7 +1315,7 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 			wantMason: "mason-registry",
 			noMason:   "Mason not installed - skipping LSP pre-install",
 			wantTS:    "Treesitter not installed - skipping parser pre-install",
-			noTS:      "Lazy! load nvim-treesitter",
+			noTS:      "require('lazy').load({ plugins = { 'nvim-treesitter' } })",
 		},
 		{
 			name: "with Treesitter only",
@@ -1327,7 +1327,7 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 			},
 			wantMason: "Mason not installed - skipping LSP pre-install",
 			noMason:   "mason-registry",
-			wantTS:    "Lazy! load nvim-treesitter",
+			wantTS:    "require('lazy').load({ plugins = { 'nvim-treesitter' } })",
 			noTS:      "Treesitter not installed - skipping parser pre-install",
 		},
 		{
@@ -1335,7 +1335,7 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 			manifest:  nil,
 			wantMason: "mason-registry",
 			noMason:   "",
-			wantTS:    "Lazy! load nvim-treesitter",
+			wantTS:    "require('lazy').load({ plugins = { 'nvim-treesitter' } })",
 			noTS:      "",
 		},
 	}
@@ -4562,7 +4562,7 @@ func TestDockerfileGenerator_MasonInstallStep_ProxyUnsetPrefix(t *testing.T) {
 }
 
 // TestDockerfileGenerator_TreesitterInstallStep_ProxyUnsetPrefix verifies that the
-// `nvim --headless -c "Lazy! load nvim-treesitter" +"luafile /tmp/treesitter-install.lua"` RUN command in
+// `nvim --headless +"luafile /tmp/treesitter-install.lua"` RUN command in
 // installTreesitterParsers() is prefixed with `unset HTTP_PROXY HTTPS_PROXY
 // http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry &&` before the
 // nvim invocation.
@@ -4660,7 +4660,7 @@ func TestDockerfileGenerator_TreesitterInstallStep_ProxyUnsetPrefix(t *testing.T
 			// MUST have: unset prefix on the RUN containing the treesitter install
 			// Expected form:
 			//   RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \
-			//       nvim --headless -c "Lazy! load nvim-treesitter" +"luafile /tmp/treesitter-install.lua" 2>&1
+			//       nvim --headless +"luafile /tmp/treesitter-install.lua" 2>&1
 			tsIdx := strings.Index(dockerfile, "luafile /tmp/treesitter-install.lua")
 			if tsIdx < 0 {
 				t.Fatalf("cannot locate treesitter luafile invocation in generated Dockerfile")
@@ -5317,7 +5317,8 @@ func TestInstallTreesitterParsers_ErrorHandling(t *testing.T) {
 
 // TestInstallTreesitterParsers_OutputFormat verifies the command format
 // uses a Lua script with sync_install=true and ensure_installed to install parsers
-// SYNCHRONOUSLY in headless mode, preceded by a Lazy! load step (issue #246).
+// SYNCHRONOUSLY in headless mode. The Lua script loads nvim-treesitter via
+// require('lazy').load() internally for reliable package.path (issue #246).
 func TestInstallTreesitterParsers_OutputFormat(t *testing.T) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -5372,9 +5373,16 @@ func TestInstallTreesitterParsers_OutputFormat(t *testing.T) {
 		t.Fatalf("Generate() error = %v", err)
 	}
 
-	// Verify Lazy! load step is still used to load nvim-treesitter
-	if !strings.Contains(dockerfile, "Lazy! load nvim-treesitter") {
-		t.Error("treesitter command missing 'Lazy! load nvim-treesitter' step")
+	// Verify lazy.load() is called inside the Lua script to load nvim-treesitter
+	// (moved from -c "Lazy! load" on command line to inside script for reliable package.path, issue #246)
+	if !strings.Contains(dockerfile, "require('lazy').load({ plugins = { 'nvim-treesitter' } })") {
+		t.Error("treesitter Lua script missing require('lazy').load() call for nvim-treesitter")
+	}
+
+	// Verify Lazy! load is NOT on the nvim command line (it's now in the Lua script)
+	// Look for the nvim --headless command and ensure it doesn't have -c "Lazy! load"
+	if strings.Contains(dockerfile, `-c "Lazy! load nvim-treesitter"`) {
+		t.Error("treesitter nvim command should NOT have -c 'Lazy! load' — loading is now done inside the Lua script (issue #246)")
 	}
 
 	// Verify synchronous Lua script is used (COPY heredoc pattern)
