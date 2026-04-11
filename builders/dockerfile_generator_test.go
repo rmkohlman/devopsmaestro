@@ -4562,7 +4562,7 @@ func TestDockerfileGenerator_MasonInstallStep_ProxyUnsetPrefix(t *testing.T) {
 }
 
 // TestDockerfileGenerator_TreesitterInstallStep_ProxyUnsetPrefix verifies that the
-// `nvim --headless +"luafile /tmp/treesitter-install.lua"` RUN command in
+// `nvim --headless -c "luafile /tmp/treesitter-install.lua"` RUN command in
 // installTreesitterParsers() is prefixed with `unset HTTP_PROXY HTTPS_PROXY
 // http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry &&` before the
 // nvim invocation.
@@ -4660,7 +4660,7 @@ func TestDockerfileGenerator_TreesitterInstallStep_ProxyUnsetPrefix(t *testing.T
 			// MUST have: unset prefix on the RUN containing the treesitter install
 			// Expected form:
 			//   RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \
-			//       nvim --headless +"luafile /tmp/treesitter-install.lua" 2>&1
+			//       nvim --headless -c "luafile /tmp/treesitter-install.lua" 2>&1
 			tsIdx := strings.Index(dockerfile, "luafile /tmp/treesitter-install.lua")
 			if tsIdx < 0 {
 				t.Fatalf("cannot locate treesitter luafile invocation in generated Dockerfile")
@@ -5405,9 +5405,20 @@ func TestInstallTreesitterParsers_OutputFormat(t *testing.T) {
 		t.Error("treesitter Lua script missing nvim-treesitter.configs setup call")
 	}
 
-	// Verify luafile invocation — no +qa on nvim command (script controls exit)
-	if !strings.Contains(dockerfile, "luafile /tmp/treesitter-install.lua") {
-		t.Error("treesitter command missing luafile invocation")
+	// Verify luafile invocation uses -c flag (NOT + prefix).
+	// REGRESSION GUARD (issue #246, attempt 3): The + prefix runs during Neovim
+	// STARTUP before init.lua bootstraps Lazy.nvim, so require('lazy') fails.
+	// The -c flag runs AFTER init.lua completes, so Lazy is available.
+	if !strings.Contains(dockerfile, `-c "luafile /tmp/treesitter-install.lua"`) {
+		t.Error("treesitter command must use -c \"luafile ...\" (NOT +luafile) — " +
+			"-c runs after init.lua bootstraps Lazy.nvim (issue #246)")
+	}
+
+	// REGRESSION GUARD: ensure +luafile is NOT used for treesitter
+	if strings.Contains(dockerfile, `+"luafile /tmp/treesitter-install.lua"`) ||
+		strings.Contains(dockerfile, `+\"luafile /tmp/treesitter-install.lua\"`) {
+		t.Error("REGRESSION: treesitter must NOT use +luafile — the + prefix runs during " +
+			"startup BEFORE init.lua bootstraps Lazy.nvim, causing require('lazy') to fail (issue #246)")
 	}
 
 	// Verify +qa is NOT on the nvim command line (script controls exit via vim.cmd)
