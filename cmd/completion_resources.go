@@ -2,11 +2,13 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/resource/handlers"
 	"github.com/rmkohlman/MaestroSDK/resource"
+	"github.com/rmkohlman/MaestroTheme/library"
 
 	"github.com/spf13/cobra"
 )
@@ -167,6 +169,50 @@ func completeNvimPlugins(cmd *cobra.Command, args []string, toComplete string) (
 
 func completeNvimThemes(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	return completeResources(cmd, "NvimTheme")
+}
+
+// completeAllThemes returns both library and user themes for completion.
+// Unlike completeNvimThemes (which only returns user-stored themes via the
+// NvimTheme handler), this function merges the 34+ built-in library themes
+// with any user-defined themes, matching what `dvm get themes` displays.
+// Used by setThemeCmd where users need to see all available themes.
+func completeAllThemes(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	// Start with library themes (always available, no DB needed)
+	libraryInfos, err := library.List()
+	if err != nil {
+		libraryInfos = nil
+	}
+
+	// Build completion list; use a map to deduplicate library vs user
+	byName := make(map[string]string, len(libraryInfos)) // name → description tab string
+	var order []string
+
+	for _, info := range libraryInfos {
+		desc := info.Category
+		if desc == "" {
+			desc = "library"
+		}
+		byName[info.Name] = fmt.Sprintf("%s\t%s", info.Name, desc)
+		order = append(order, info.Name)
+	}
+
+	// Try to add user themes from the DB (override library entries with same name)
+	userCompletions, _ := completeResources(cmd, "NvimTheme")
+	for _, comp := range userCompletions {
+		// comp is either "name" or "name\tdescription"
+		name, _, _ := strings.Cut(comp, "\t")
+		if _, exists := byName[name]; !exists {
+			order = append(order, name)
+		}
+		byName[name] = comp // user theme overrides library entry
+	}
+
+	completions := make([]string, 0, len(order))
+	for _, name := range order {
+		completions = append(completions, byName[name])
+	}
+
+	return completions, cobra.ShellCompDirectiveNoFileComp
 }
 
 func completeNvimPackages(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -361,9 +407,9 @@ func registerAllResourceCompletions() {
 		setTerminalPromptCmd.ValidArgsFunction = completeTerminalPrompts
 	}
 
-	// === Set theme command (positional arg = theme name from NvimTheme library) ===
+	// === Set theme command (positional arg = library + user themes) ===
 	if setThemeCmd != nil {
-		setThemeCmd.ValidArgsFunction = completeNvimThemes
+		setThemeCmd.ValidArgsFunction = completeAllThemes
 	}
 
 	// === Registry config commands ===
