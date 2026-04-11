@@ -7,6 +7,7 @@ require (
 	github.com/containerd/containerd/v2 v2.2.1
 	github.com/containerd/errdefs v1.0.0
 	github.com/docker/docker v28.5.2+incompatible
+	github.com/google/uuid v1.6.0
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/moby/buildkit v0.26.3
 	github.com/moby/go-archive v0.2.0
@@ -14,7 +15,7 @@ require (
 	github.com/opencontainers/runtime-spec v1.3.0
 	github.com/rmkohlman/MaestroNvim v0.2.5
 	github.com/rmkohlman/MaestroPalette v0.1.0
-	github.com/rmkohlman/MaestroSDK v0.1.6
+	github.com/rmkohlman/MaestroSDK v0.1.7
 	github.com/rmkohlman/MaestroTerminal v0.1.0
 	github.com/rmkohlman/MaestroTheme v0.1.0
 	github.com/rmkohlman/MaestroVault v0.7.0
@@ -68,7 +69,6 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.3 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
