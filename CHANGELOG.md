@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.83.4] - 2026-04-10
+
+### Fixed
+
+- **ANSI-aware table column alignment** — Table renderers (colored, compact, plain) now strip ANSI escape sequences before measuring column widths, so cells containing colored text (e.g. theme swatches with `●` and ANSI true-color codes) align correctly. Previously, escape-code byte lengths inflated width calculations causing visible misalignment. Requires MaestroSDK v0.1.7. ([#243](https://github.com/rmkohlman/devopsmaestro/issues/243))
+
+---
+
 ## [v0.83.3] - 2026-04-10
 
 ### Added

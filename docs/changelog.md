@@ -6,6 +6,14 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ---
 
+## v0.83.4 (2026-04-10)
+
+**Bug Fixes**
+
+- **ANSI-aware table column alignment** — Table renderers (colored, compact, plain) now strip ANSI escape sequences before measuring column widths, so cells with colored text (e.g. theme swatches) align correctly. Previously, escape-code bytes inflated width calculations causing visible misalignment. Requires MaestroSDK v0.1.7 (#243).
+
+---
+
 ## v0.83.3 (2026-04-10)
 
 **New**
