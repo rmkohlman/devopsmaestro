@@ -4653,8 +4653,8 @@ func TestDockerfileGenerator_TreesitterInstallStep_ProxyUnsetPrefix(t *testing.T
 			}
 
 			// Verify the treesitter install Lua script is present
-			if !strings.Contains(dockerfile, "TSInstallSync") {
-				t.Fatalf("Generate() missing 'TSInstallSync' in Lua script — test requires it to be present for language=%s", tt.language)
+			if !strings.Contains(dockerfile, "TSInstall!") {
+				t.Fatalf("Generate() missing 'TSInstall!' in Lua script — test requires it to be present for language=%s", tt.language)
 			}
 
 			// MUST have: unset prefix on the RUN containing the treesitter install
@@ -5289,9 +5289,9 @@ func TestInstallTreesitterParsers_ErrorHandling(t *testing.T) {
 	}
 
 	// Find the treesitter Lua script section (synchronous install via COPY heredoc)
-	tsIdx := strings.Index(dockerfile, "TSInstallSync")
+	tsIdx := strings.Index(dockerfile, "TSInstall!")
 	if tsIdx < 0 {
-		t.Fatalf("treesitter install Lua script not found in Dockerfile (expected TSInstallSync)")
+		t.Fatalf("treesitter install Lua script not found in Dockerfile (expected TSInstall!)")
 	}
 
 	// Verify tee pattern for log capture
@@ -5316,7 +5316,7 @@ func TestInstallTreesitterParsers_ErrorHandling(t *testing.T) {
 }
 
 // TestInstallTreesitterParsers_OutputFormat verifies the command format
-// uses a synchronous Lua script with TSInstallSync per parser, preceded by
+// uses a synchronous Lua script with TSInstall! (bang) per parser, preceded by
 // a Lazy! load step to ensure nvim-treesitter is available (issue #248).
 func TestInstallTreesitterParsers_OutputFormat(t *testing.T) {
 	homeDir, err := os.UserHomeDir()
@@ -5382,9 +5382,9 @@ func TestInstallTreesitterParsers_OutputFormat(t *testing.T) {
 		t.Error("treesitter install missing COPY heredoc for Lua script")
 	}
 
-	// Verify TSInstallSync is used (synchronous, not async TSInstall)
-	if !strings.Contains(dockerfile, "TSInstallSync") {
-		t.Error("treesitter Lua script missing TSInstallSync (synchronous install)")
+	// Verify TSInstall! is used (bang = synchronous, not async TSInstall)
+	if !strings.Contains(dockerfile, "TSInstall!") {
+		t.Error("treesitter Lua script missing TSInstall! (synchronous install)")
 	}
 
 	// Verify luafile invocation

@@ -843,7 +843,7 @@ func (g *DefaultDockerfileGenerator) effectiveGoVersion() string {
 // but the tools builder only compiles developer tools — the binaries are copied
 // into the final image via COPY --from and don't require matching Go versions.
 // See issue #247.
-const goToolsMinGoVersion = "1.24"
+const goToolsMinGoVersion = "1.25"
 
 func (g *DefaultDockerfileGenerator) goToolsBuilderVersion() string {
 	v := g.effectiveGoVersion()
@@ -853,7 +853,7 @@ func (g *DefaultDockerfileGenerator) goToolsBuilderVersion() string {
 	return v
 }
 
-// compareGoVersions compares two Go version strings like "1.21" and "1.24".
+// compareGoVersions compares two Go version strings like "1.21" and "1.25".
 // Returns -1 if a < b, 0 if a == b, 1 if a > b.
 func compareGoVersions(a, b string) int {
 	aParts := strings.SplitN(a, ".", 2)
@@ -1592,12 +1592,12 @@ func (g *DefaultDockerfileGenerator) installTreesitterParsers(dockerfile *string
 	// producing parser_count=0 (see issue #248).
 	//
 	// This Lua script follows the same synchronous pattern as Mason install:
-	// it calls vim.treesitter.language.add() / TSInstallSync per parser and
-	// uses vim.wait() to block until each parser's .so file appears on disk.
+	// it calls TSInstall! (bang = synchronous variant) per parser sequentially.
+	// Note: TSInstallSync does NOT exist — the bang variant is the correct API.
 	g.writeTreesitterLuaScript(dockerfile, user, parsers)
 
 	// Execute nvim with the Lua script.
-	// Force-load nvim-treesitter via Lazy! so TSInstallSync is available in headless mode
+	// Force-load nvim-treesitter via Lazy! so TSInstall! is available in headless mode
 	// (see issues #232, #235, #248).
 	// Proxy vars are unset to avoid interference with parser git clones.
 	dockerfile.WriteString("# Install Treesitter parsers at build time\n")
@@ -1619,8 +1619,8 @@ func (g *DefaultDockerfileGenerator) installTreesitterParsers(dockerfile *string
 }
 
 // writeTreesitterLuaScript writes the COPY heredoc for the Treesitter install Lua script.
-// The script calls TSInstallSync for each parser sequentially, with per-parser timeout
-// and retry logic. This ensures parsers are fully compiled before nvim exits.
+// The script calls TSInstall! (bang = synchronous) for each parser sequentially, with
+// per-parser error handling. This ensures parsers are fully compiled before nvim exits.
 func (g *DefaultDockerfileGenerator) writeTreesitterLuaScript(dockerfile *strings.Builder, user string, parsers []string) {
 	luaParsers := "'" + strings.Join(parsers, "','") + "'"
 
@@ -1629,7 +1629,7 @@ func (g *DefaultDockerfileGenerator) writeTreesitterLuaScript(dockerfile *string
 	dockerfile.WriteString("local failed = {}\n\n")
 	dockerfile.WriteString("for _, lang in ipairs(parsers) do\n")
 	dockerfile.WriteString("  print('[Treesitter] Installing ' .. lang .. '...')\n")
-	dockerfile.WriteString("  local ok, err = pcall(vim.cmd, 'TSInstallSync ' .. lang)\n")
+	dockerfile.WriteString("  local ok, err = pcall(vim.cmd, 'TSInstall! ' .. lang)\n")
 	dockerfile.WriteString("  if ok then\n")
 	dockerfile.WriteString("    print('[Treesitter] OK: ' .. lang)\n")
 	dockerfile.WriteString("  else\n")
