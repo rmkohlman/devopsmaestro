@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.84.0] - 2026-04-10
+
+### Fixed
+
+- **Treesitter TSInstallSync command not recognized in headless Neovim** — Fixed by forcing lazy.nvim to load nvim-treesitter before TSInstall runs, ensuring the plugin is available in headless mode. ([#232](https://github.com/rmkohlman/devopsmaestro/issues/232))
+
+- **Treesitter parser installation uses incorrect Lua API method** — Fixed by using the correct `-c "Lazy! load nvim-treesitter" -c "TSInstall ..."` sequence with a verification step to confirm parser installation. ([#235](https://github.com/rmkohlman/devopsmaestro/issues/235))
+
+- **Mason tool installation fails during Docker build** — Fixed with per-tool logging, retry logic, Lazy! force-load, and a verification step to confirm each tool is installed before proceeding. ([#234](https://github.com/rmkohlman/devopsmaestro/issues/234))
+
+- **Apt package manager lock conflict during parallel Docker builds** — Fixed by assigning per-workspace unique Docker cache mount IDs to prevent concurrent `apt` processes from contending on the same lock. ([#233](https://github.com/rmkohlman/devopsmaestro/issues/233))
+
+---
+
 ## [v0.83.4] - 2026-04-10
 
 ### Fixed
