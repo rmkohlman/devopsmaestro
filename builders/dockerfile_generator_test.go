@@ -4660,8 +4660,8 @@ func TestDockerfileGenerator_TreesitterInstallStep_ProxyUnsetPrefix(t *testing.T
 			// MUST have: unset prefix on the RUN containing the treesitter install
 			// Expected form:
 			//   RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \
-			//       nvim --headless -c "Lazy! load nvim-treesitter" +"luafile /tmp/treesitter-install.lua" +qa 2>&1
-			tsIdx := strings.Index(dockerfile, "treesitter-install.lua\" +qa")
+			//       nvim --headless -c "Lazy! load nvim-treesitter" +"luafile /tmp/treesitter-install.lua" 2>&1
+			tsIdx := strings.Index(dockerfile, "luafile /tmp/treesitter-install.lua")
 			if tsIdx < 0 {
 				t.Fatalf("cannot locate treesitter luafile invocation in generated Dockerfile")
 			}
@@ -4671,7 +4671,7 @@ func TestDockerfileGenerator_TreesitterInstallStep_ProxyUnsetPrefix(t *testing.T
 			if lookbackStart < 0 {
 				lookbackStart = 0
 			}
-			context := dockerfile[lookbackStart : tsIdx+len("treesitter-install.lua\" +qa")]
+			context := dockerfile[lookbackStart : tsIdx+len("luafile /tmp/treesitter-install.lua")]
 
 			// Find the last RUN keyword before the treesitter install command
 			lastRunIdx := strings.LastIndex(context, "RUN ")
@@ -5316,8 +5316,8 @@ func TestInstallTreesitterParsers_ErrorHandling(t *testing.T) {
 }
 
 // TestInstallTreesitterParsers_OutputFormat verifies the command format
-// uses a synchronous Lua script with TSInstall! (bang) per parser, preceded by
-// a Lazy! load step to ensure nvim-treesitter is available (issue #248).
+// uses a Lua script with TSInstall! per parser and vim.wait() polling for .so files,
+// preceded by a Lazy! load step to ensure nvim-treesitter is available (issue #248).
 func TestInstallTreesitterParsers_OutputFormat(t *testing.T) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -5387,9 +5387,27 @@ func TestInstallTreesitterParsers_OutputFormat(t *testing.T) {
 		t.Error("treesitter Lua script missing TSInstall! (synchronous install)")
 	}
 
-	// Verify luafile invocation
+	// Verify luafile invocation — no +qa on nvim command (script controls exit)
 	if !strings.Contains(dockerfile, "luafile /tmp/treesitter-install.lua") {
 		t.Error("treesitter command missing luafile invocation")
+	}
+
+	// Verify +qa is NOT on the nvim command line (script controls exit via vim.cmd)
+	if strings.Contains(dockerfile, "treesitter-install.lua\" +qa") {
+		t.Error("treesitter nvim command should NOT have +qa — the Lua script must control exit timing")
+	}
+
+	// Verify vim.wait() polling for .so files (the key fix for #248)
+	if !strings.Contains(dockerfile, "vim.wait(") {
+		t.Error("treesitter Lua script missing vim.wait() polling for .so files")
+	}
+	if !strings.Contains(dockerfile, ".so") {
+		t.Error("treesitter Lua script missing .so file check")
+	}
+
+	// Verify the script exits nvim after successful install
+	if !strings.Contains(dockerfile, "vim.cmd('qa!')") {
+		t.Error("treesitter Lua script missing vim.cmd('qa!') for clean exit after success")
 	}
 
 	// Verify parsers are present as Lua-quoted strings in the script
