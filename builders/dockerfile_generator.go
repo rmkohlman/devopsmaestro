@@ -1587,16 +1587,14 @@ func (g *DefaultDockerfileGenerator) installTreesitterParsers(dockerfile *string
 	user := g.effectiveUser()
 
 	// Write the Lua install script using BuildKit COPY heredoc syntax.
-	// Previous approaches using TSInstall / TSInstall! / TSInstallSync all failed
-	// in headless mode because they dispatch ASYNC compilation — nvim exits before
-	// the .so files are produced (see issues #232, #235, #246, #248).
+	// Previous approaches using TSInstall / TSInstall! / TSInstallSync / configs.setup()
+	// all failed in headless mode (see issues #232, #235, #246 attempts 1-4).
 	//
-	// The fix: use require('nvim-treesitter.configs').setup() with:
-	//   sync_install = true   — blocks until each parser is compiled
-	//   ensure_installed = {} — list of parsers to install
-	// This makes treesitter install parsers SYNCHRONOUSLY on startup, which
-	// works correctly in headless mode. The Lua script then verifies the .so
-	// files exist before exiting.
+	// nvim-treesitter had a complete API rewrite for Neovim 0.12+.
+	// The module 'nvim-treesitter.configs' no longer exists.
+	// The fix (attempt 5): use the NEW API:
+	//   require('nvim-treesitter').install(parsers):wait(300000)
+	// This installs parsers synchronously with a 5-minute timeout.
 	g.writeTreesitterLuaScript(dockerfile, user, parsers)
 
 	// Execute nvim with the Lua script using -c (NOT + prefix).
@@ -1607,15 +1605,16 @@ func (g *DefaultDockerfileGenerator) installTreesitterParsers(dockerfile *string
 	// the nvim-treesitter directory exists for runtimepath prepend.
 	// Proxy vars are unset to avoid interference with parser git clones.
 	// NOTE: No +qa on the command line — the script exits after verification.
-	dockerfile.WriteString("# Install Treesitter parsers at build time (sync_install mode)\n")
+	dockerfile.WriteString("# Install Treesitter parsers at build time (new API: install+wait)\n")
 	dockerfile.WriteString("RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \\\n")
 	dockerfile.WriteString("    nvim --headless \\\n")
 	dockerfile.WriteString("      -c \"luafile /tmp/treesitter-install.lua\" 2>&1 | tee /tmp/treesitter-install.log || \\\n")
 	dockerfile.WriteString("    (cat /tmp/treesitter-install.log && exit 1)\n\n")
 
 	// Verification: ensure at least one parser .so was actually installed
+	// Check BOTH possible locations: new default (site/parser/) and legacy (lazy/nvim-treesitter/parser/)
 	dockerfile.WriteString("# Verify Treesitter parsers were installed\n")
-	dockerfile.WriteString(fmt.Sprintf("RUN parser_count=$(find /home/%s/.local/share/nvim/lazy/nvim-treesitter/parser -name '*.so' 2>/dev/null | wc -l) && \\\n", user))
+	dockerfile.WriteString(fmt.Sprintf("RUN parser_count=$(( $(find /home/%s/.local/share/nvim/site/parser -name '*.so' 2>/dev/null | wc -l) + $(find /home/%s/.local/share/nvim/lazy/nvim-treesitter/parser -name '*.so' 2>/dev/null | wc -l) )) && \\\n", user, user))
 	dockerfile.WriteString("    if [ \"$parser_count\" -lt 1 ]; then \\\n")
 	dockerfile.WriteString("      echo \"ERROR: No Treesitter parsers found after install step\" && \\\n")
 	dockerfile.WriteString("      cat /tmp/treesitter-install.log 2>/dev/null && \\\n")
@@ -1626,56 +1625,48 @@ func (g *DefaultDockerfileGenerator) installTreesitterParsers(dockerfile *string
 
 // writeTreesitterLuaScript writes the COPY heredoc for the Treesitter install Lua script.
 // Explicitly prepends nvim-treesitter's install path to vim.opt.runtimepath AND package.path
-// so that require('nvim-treesitter.configs') resolves without depending on Lazy's loader.
-// Previous attempts (issue #246, attempts 1-3) tried require('lazy').load() but that does NOT
-// synchronously update runtimepath / package.path, causing "module not found" errors.
-// Then calls require('nvim-treesitter.configs').setup() with sync_install=true and
-// ensure_installed to install parsers SYNCHRONOUSLY in headless mode.
+// so that require('nvim-treesitter') resolves without depending on Lazy's loader.
+// Previous attempts (issue #246, attempts 1-4) used require('nvim-treesitter.configs').setup()
+// with sync_install/ensure_installed, but nvim-treesitter had a complete API rewrite for
+// Neovim 0.12+ and the 'nvim-treesitter.configs' module no longer exists.
+// Attempt 5 uses the NEW API: require('nvim-treesitter').install(parsers):wait(timeout).
 func (g *DefaultDockerfileGenerator) writeTreesitterLuaScript(dockerfile *strings.Builder, user string, parsers []string) {
 	luaParsers := "'" + strings.Join(parsers, "', '") + "'"
 
 	dockerfile.WriteString(fmt.Sprintf("COPY --chown=%s:%s <<'LUAEOF' /tmp/treesitter-install.lua\n", user, user))
-	dockerfile.WriteString(fmt.Sprintf("local parsers = { %s }\n", luaParsers))
-	dockerfile.WriteString("local parser_dir = vim.fn.stdpath('data') .. '/lazy/nvim-treesitter/parser/'\n\n")
-	dockerfile.WriteString("print('[Treesitter] Installing ' .. #parsers .. ' parsers with sync_install...')\n\n")
-	dockerfile.WriteString("-- Explicitly add nvim-treesitter to runtimepath and package.path.\n")
-	dockerfile.WriteString("-- Previous attempts used Lazy's load() API but that does NOT synchronously\n")
-	dockerfile.WriteString("-- update vim.opt.runtimepath / Lua package.path, causing 'module not found'\n")
-	dockerfile.WriteString("-- errors for require('nvim-treesitter.configs') (issue #246, attempts 1-3).\n")
+	dockerfile.WriteString(fmt.Sprintf("local parsers = { %s }\n\n", luaParsers))
+	dockerfile.WriteString("-- Add nvim-treesitter to runtimepath (needed in headless -c context)\n")
 	dockerfile.WriteString("local ts_path = vim.fn.stdpath('data') .. '/lazy/nvim-treesitter'\n")
 	dockerfile.WriteString("if vim.fn.isdirectory(ts_path) == 1 then\n")
 	dockerfile.WriteString("  vim.opt.runtimepath:prepend(ts_path)\n")
 	dockerfile.WriteString("  package.path = ts_path .. '/lua/?.lua;' .. ts_path .. '/lua/?/init.lua;' .. package.path\n")
 	dockerfile.WriteString("else\n")
-	dockerfile.WriteString("  print('ERROR: nvim-treesitter not found at ' .. ts_path)\n")
+	dockerfile.WriteString("  print('[Treesitter] ERROR: nvim-treesitter not found at ' .. ts_path)\n")
 	dockerfile.WriteString("  vim.cmd('cq')\n")
 	dockerfile.WriteString("end\n\n")
-	dockerfile.WriteString("-- Use sync_install = true so treesitter blocks until each parser is compiled.\n")
-	dockerfile.WriteString("-- This is the ONLY reliable method in headless mode (issue #246).\n")
-	dockerfile.WriteString("-- TSInstall / TSInstall! / TSInstallSync all dispatch async jobs that\n")
-	dockerfile.WriteString("-- never complete before nvim exits in headless mode.\n")
-	dockerfile.WriteString("require('nvim-treesitter.configs').setup({\n")
-	dockerfile.WriteString("  ensure_installed = parsers,\n")
-	dockerfile.WriteString("  sync_install = true,\n")
-	dockerfile.WriteString("  auto_install = false,\n")
-	dockerfile.WriteString("})\n\n")
-	dockerfile.WriteString("-- Verify each .so file was actually written to disk\n")
-	dockerfile.WriteString("local failed = {}\n")
-	dockerfile.WriteString("for _, lang in ipairs(parsers) do\n")
-	dockerfile.WriteString("  local so_path = parser_dir .. lang .. '.so'\n")
-	dockerfile.WriteString("  if vim.fn.filereadable(so_path) == 1 then\n")
-	dockerfile.WriteString("    print('[Treesitter] OK: ' .. lang .. ' (.so verified)')\n")
-	dockerfile.WriteString("  else\n")
-	dockerfile.WriteString("    print('[Treesitter] MISSING: ' .. lang .. ' — .so not found at ' .. so_path)\n")
-	dockerfile.WriteString("    table.insert(failed, lang)\n")
-	dockerfile.WriteString("  end\n")
-	dockerfile.WriteString("end\n\n")
-	dockerfile.WriteString("print('[Treesitter] Installed ' .. (#parsers - #failed) .. '/' .. #parsers .. ' parsers')\n")
-	dockerfile.WriteString("if #failed > 0 then\n")
-	dockerfile.WriteString("  print('[Treesitter] FAILED parsers: ' .. table.concat(failed, ', '))\n")
+	dockerfile.WriteString("print('[Treesitter] Installing ' .. #parsers .. ' parsers synchronously...')\n\n")
+	dockerfile.WriteString("local ok, err = pcall(function()\n")
+	dockerfile.WriteString("  require('nvim-treesitter').install(parsers):wait(300000)\n")
+	dockerfile.WriteString("end)\n\n")
+	dockerfile.WriteString("if not ok then\n")
+	dockerfile.WriteString("  print('[Treesitter] Install failed: ' .. tostring(err))\n")
 	dockerfile.WriteString("  vim.cmd('cq')\n")
-	dockerfile.WriteString("else\n")
-	dockerfile.WriteString("  vim.cmd('qa!')\n")
-	dockerfile.WriteString("end\n")
+	dockerfile.WriteString("end\n\n")
+	dockerfile.WriteString("-- Verify .so files exist (check BOTH possible locations)\n")
+	dockerfile.WriteString("local parser_dirs = {\n")
+	dockerfile.WriteString("  vim.fn.stdpath('data') .. '/site/parser/',\n")
+	dockerfile.WriteString("  vim.fn.stdpath('data') .. '/lazy/nvim-treesitter/parser/',\n")
+	dockerfile.WriteString("}\n")
+	dockerfile.WriteString("local found = 0\n")
+	dockerfile.WriteString("for _, dir in ipairs(parser_dirs) do\n")
+	dockerfile.WriteString("  local files = vim.fn.glob(dir .. '*.so', false, true)\n")
+	dockerfile.WriteString("  found = found + #files\n")
+	dockerfile.WriteString("end\n\n")
+	dockerfile.WriteString("if found == 0 then\n")
+	dockerfile.WriteString("  print('[Treesitter] ERROR: No .so parser files found after install')\n")
+	dockerfile.WriteString("  vim.cmd('cq')\n")
+	dockerfile.WriteString("end\n\n")
+	dockerfile.WriteString("print('[Treesitter] SUCCESS: ' .. found .. ' parser files verified')\n")
+	dockerfile.WriteString("vim.cmd('qa!')\n")
 	dockerfile.WriteString("LUAEOF\n\n")
 }

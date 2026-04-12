@@ -4652,9 +4652,9 @@ func TestDockerfileGenerator_TreesitterInstallStep_ProxyUnsetPrefix(t *testing.T
 				t.Fatalf("Generate() error = %v", err)
 			}
 
-			// Verify the treesitter install Lua script is present
-			if !strings.Contains(dockerfile, "sync_install = true") {
-				t.Fatalf("Generate() missing 'sync_install = true' in Lua script — test requires it to be present for language=%s", tt.language)
+			// Verify the treesitter install Lua script is present (new API)
+			if !strings.Contains(dockerfile, "require('nvim-treesitter').install(parsers)") {
+				t.Fatalf("Generate() missing require('nvim-treesitter').install(parsers) in Lua script — test requires it to be present for language=%s", tt.language)
 			}
 
 			// MUST have: unset prefix on the RUN containing the treesitter install
@@ -5288,10 +5288,10 @@ func TestInstallTreesitterParsers_ErrorHandling(t *testing.T) {
 		t.Fatalf("Generate() error = %v", err)
 	}
 
-	// Find the treesitter Lua script section (sync_install via COPY heredoc)
-	tsIdx := strings.Index(dockerfile, "sync_install = true")
+	// Find the treesitter Lua script section (new API: install+wait via COPY heredoc)
+	tsIdx := strings.Index(dockerfile, "require('nvim-treesitter').install(parsers)")
 	if tsIdx < 0 {
-		t.Fatalf("treesitter install Lua script not found in Dockerfile (expected sync_install = true)")
+		t.Fatalf("treesitter install Lua script not found in Dockerfile (expected require('nvim-treesitter').install(parsers))")
 	}
 
 	// Verify tee pattern for log capture
@@ -5316,10 +5316,9 @@ func TestInstallTreesitterParsers_ErrorHandling(t *testing.T) {
 }
 
 // TestInstallTreesitterParsers_OutputFormat verifies the command format
-// uses a Lua script with sync_install=true and ensure_installed to install parsers
-// SYNCHRONOUSLY in headless mode. The Lua script explicitly prepends nvim-treesitter's
-// path to runtimepath and package.path instead of using require('lazy').load() which
-// does NOT synchronously update these paths (issue #246, attempt 4).
+// uses a Lua script with the new nvim-treesitter API: require('nvim-treesitter').install(parsers):wait()
+// to install parsers SYNCHRONOUSLY in headless mode. The Lua script explicitly prepends
+// nvim-treesitter's path to runtimepath and package.path (issue #246, attempt 5).
 func TestInstallTreesitterParsers_OutputFormat(t *testing.T) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -5410,19 +5409,35 @@ func TestInstallTreesitterParsers_OutputFormat(t *testing.T) {
 		t.Error("treesitter install missing COPY heredoc for Lua script")
 	}
 
-	// Verify sync_install = true is used (the key fix for #246)
-	if !strings.Contains(dockerfile, "sync_install = true") {
-		t.Error("treesitter Lua script missing sync_install = true (required for headless mode)")
+	// Verify sync_install = true is NOT used (removed in attempt 5 — old API)
+	// REGRESSION GUARD: nvim-treesitter.configs module no longer exists in Neovim 0.12+
+	if strings.Contains(dockerfile, "sync_install = true") {
+		t.Error("REGRESSION: treesitter Lua script must NOT use sync_install = true — " +
+			"nvim-treesitter.configs module was removed in Neovim 0.12+ (issue #246, attempt 5)")
 	}
 
-	// Verify ensure_installed is used instead of TSInstall!
-	if !strings.Contains(dockerfile, "ensure_installed") {
-		t.Error("treesitter Lua script missing ensure_installed configuration")
+	// Verify ensure_installed is NOT used (removed in attempt 5 — old API)
+	if strings.Contains(dockerfile, "ensure_installed") {
+		t.Error("REGRESSION: treesitter Lua script must NOT use ensure_installed — " +
+			"old configs API was removed in Neovim 0.12+ (issue #246, attempt 5)")
 	}
 
-	// Verify require('nvim-treesitter.configs').setup() is used
-	if !strings.Contains(dockerfile, "require('nvim-treesitter.configs').setup(") {
-		t.Error("treesitter Lua script missing nvim-treesitter.configs setup call")
+	// Verify require('nvim-treesitter.configs') is NOT used (removed in Neovim 0.12+)
+	if strings.Contains(dockerfile, "require('nvim-treesitter.configs')") {
+		t.Error("REGRESSION: treesitter Lua script must NOT use require('nvim-treesitter.configs') — " +
+			"this module was removed in Neovim 0.12+ (issue #246, attempt 5)")
+	}
+
+	// Verify new API: require('nvim-treesitter').install(parsers):wait() is used
+	if !strings.Contains(dockerfile, "require('nvim-treesitter').install(parsers)") {
+		t.Error("treesitter Lua script missing require('nvim-treesitter').install(parsers) — " +
+			"this is the new API for Neovim 0.12+ (issue #246, attempt 5)")
+	}
+
+	// Verify :wait() timeout is used for synchronous install
+	if !strings.Contains(dockerfile, ":wait(") {
+		t.Error("treesitter Lua script missing :wait() timeout on install call — " +
+			"required for synchronous installation in headless mode (issue #246, attempt 5)")
 	}
 
 	// Verify luafile invocation uses -c flag (NOT + prefix).
