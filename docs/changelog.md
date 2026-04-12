@@ -6,6 +6,18 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ---
 
+## v0.85.2 (2026-04-12)
+
+**New Features**
+
+- **Column width constraints for `dvm get git-repos` table** — The NAME column is capped at 40 characters (truncated at end) and the URL column at 50 characters (truncated in the middle) to prevent long values from breaking table layout. Introduces `constrainedTableBuilder` interface and `gitRepoTableBuilder.Constraints()`. Powered by MaestroSDK v0.1.10's new `ColumnConstraint`, `TruncateStrategy` enum, and `TruncateMiddle()` helper (#258).
+
+**Dependency Updates**
+
+- MaestroSDK bumped to v0.1.10 (`ColumnConstraint`, `TruncateStrategy`, `TruncateMiddle()`) (#258).
+
+---
+
 ## v0.85.1 (2026-04-12)
 
 **Bug Fixes**

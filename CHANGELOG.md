@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.85.2] - 2026-04-12
+
+### Added
+
+- **Column width constraints for `dvm get git-repos` table** — The NAME column is capped at 40 characters (truncated at end) and the URL column at 50 characters (truncated in the middle) to prevent long values from breaking table layout. Introduces `constrainedTableBuilder` interface and `gitRepoTableBuilder.Constraints()`. Powered by MaestroSDK v0.1.10's new `ColumnConstraint`, `TruncateStrategy` enum, and `TruncateMiddle()` helper. ([#258](https://github.com/rmkohlman/devopsmaestro/issues/258))
+
+### Changed
+
+- **MaestroSDK bumped to v0.1.10** — Adds `ColumnConstraint`, `TruncateStrategy` enum, and `TruncateMiddle()` helper used by the git-repos table renderer. ([#258](https://github.com/rmkohlman/devopsmaestro/issues/258))
+
+---
+
 ## [v0.85.1] - 2026-04-12
 
 ### Fixed
