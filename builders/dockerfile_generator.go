@@ -1645,6 +1645,8 @@ func (g *DefaultDockerfileGenerator) writeTreesitterLuaScript(dockerfile *string
 	dockerfile.WriteString("  vim.cmd('cq')\n")
 	dockerfile.WriteString("end\n\n")
 	dockerfile.WriteString("print('[Treesitter] Installing ' .. #parsers .. ' parsers synchronously...')\n\n")
+	dockerfile.WriteString("-- Initialize nvim-treesitter internal config before install (issue #246, attempt 6)\n")
+	dockerfile.WriteString("require('nvim-treesitter').setup({})\n\n")
 	dockerfile.WriteString("local ok, err = pcall(function()\n")
 	dockerfile.WriteString("  require('nvim-treesitter').install(parsers):wait(300000)\n")
 	dockerfile.WriteString("end)\n\n")

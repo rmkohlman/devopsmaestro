@@ -5428,10 +5428,24 @@ func TestInstallTreesitterParsers_OutputFormat(t *testing.T) {
 			"this module was removed in Neovim 0.12+ (issue #246, attempt 5)")
 	}
 
+	// Verify setup({}) is called BEFORE install() to initialize internal config (issue #246, attempt 6)
+	setupIdx := strings.Index(dockerfile, "require('nvim-treesitter').setup({})")
+	if setupIdx == -1 {
+		t.Error("treesitter Lua script missing require('nvim-treesitter').setup({}) — " +
+			"setup must be called before install to initialize internal config (issue #246, attempt 6)")
+	}
+
 	// Verify new API: require('nvim-treesitter').install(parsers):wait() is used
-	if !strings.Contains(dockerfile, "require('nvim-treesitter').install(parsers)") {
+	installIdx := strings.Index(dockerfile, "require('nvim-treesitter').install(parsers)")
+	if installIdx == -1 {
 		t.Error("treesitter Lua script missing require('nvim-treesitter').install(parsers) — " +
 			"this is the new API for Neovim 0.12+ (issue #246, attempt 5)")
+	}
+
+	// Verify setup() comes BEFORE install() (issue #246, attempt 6)
+	if setupIdx != -1 && installIdx != -1 && setupIdx >= installIdx {
+		t.Error("treesitter Lua script has setup({}) AFTER install() — " +
+			"setup must come first to initialize config.list (issue #246, attempt 6)")
 	}
 
 	// Verify :wait() timeout is used for synchronous install
