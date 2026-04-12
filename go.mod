@@ -15,7 +15,7 @@ require (
 	github.com/opencontainers/runtime-spec v1.3.0
 	github.com/rmkohlman/MaestroNvim v0.2.7
 	github.com/rmkohlman/MaestroPalette v0.1.0
-	github.com/rmkohlman/MaestroSDK v0.1.8
+	github.com/rmkohlman/MaestroSDK v0.1.9
 	github.com/rmkohlman/MaestroTerminal v0.1.0
 	github.com/rmkohlman/MaestroTheme v0.1.0
 	github.com/rmkohlman/MaestroVault v0.7.0
