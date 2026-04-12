@@ -13,7 +13,7 @@ require (
 	github.com/moby/go-archive v0.2.0
 	github.com/moby/term v0.5.2
 	github.com/opencontainers/runtime-spec v1.3.0
-	github.com/rmkohlman/MaestroNvim v0.2.6
+	github.com/rmkohlman/MaestroNvim v0.2.7
 	github.com/rmkohlman/MaestroPalette v0.1.0
 	github.com/rmkohlman/MaestroSDK v0.1.7
 	github.com/rmkohlman/MaestroTerminal v0.1.0
