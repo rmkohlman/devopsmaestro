@@ -11,6 +11,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.85.0] - 2026-04-12
+
+### Added
+
+- **Styled table output with box-drawing borders and zebra-striping** — All table-producing commands (`dvm get apps`, `dvm get workspaces`, `dvm get themes`, etc.) now render with box-drawing borders, alternating row backgrounds, and a themed header by default. `NO_COLOR` support is respected. Powered by MaestroSDK v0.1.8's styled table renderer. ([#230](https://github.com/rmkohlman/devopsmaestro/issues/230))
+
+- **Stress test infrastructure for parallel builds** — New test suite validates staging directory uniqueness and same-domain parallel build behavior to guard against race conditions in multi-workspace scenarios. ([#245](https://github.com/rmkohlman/devopsmaestro/issues/245))
+
+### Fixed
+
+- **Treesitter parsers not installing in Docker builds** — Root cause was nvim-treesitter's `main` branch (requiring Neovim 0.12+) running on Neovim 0.11.6. Fixed by pinning to the `master` branch, using the legacy `configs` API with `sync_install = true`, explicitly prepending the runtimepath, and using `-c "luafile"` (post-init) instead of `+"luafile"` (pre-init). Requires MaestroNvim v0.2.7. ([#246](https://github.com/rmkohlman/devopsmaestro/issues/246))
+
+- **gopls requires Go 1.25+ in Docker builds** — Fixed by using `golang:1.25-alpine` as the base image for Go tools installation in generated Dockerfiles. ([#247](https://github.com/rmkohlman/devopsmaestro/issues/247))
+
+- **`apt-get` exit 100 in parallel builds** — Fixed by assigning per-workspace unique Docker cache mount IDs to prevent concurrent `apt-get` processes from contending on the same lock file. ([#249](https://github.com/rmkohlman/devopsmaestro/issues/249))
+
+### Changed
+
+- **MaestroSDK bumped to v0.1.8** — Adds the styled table renderer used by all table-producing commands. ([#230](https://github.com/rmkohlman/devopsmaestro/issues/230))
+
+- **MaestroNvim bumped to v0.2.7** — Pins nvim-treesitter to the `master` branch for Neovim 0.11 compatibility in Docker builds. ([#246](https://github.com/rmkohlman/devopsmaestro/issues/246))
+
+---
+
 ## [v0.84.0] - 2026-04-10
 
 ### Fixed

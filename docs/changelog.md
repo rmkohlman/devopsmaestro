@@ -6,6 +6,29 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ---
 
+## v0.85.0 (2026-04-12)
+
+**New Features**
+
+- **Styled table output with box-drawing borders and zebra-striping** — All table-producing commands now render with box-drawing borders, alternating row backgrounds, and a themed header by default. `NO_COLOR` support is respected. Powered by MaestroSDK v0.1.8's styled table renderer (#230).
+
+- **Stress test infrastructure for parallel builds** — New test suite validates staging directory uniqueness and same-domain parallel build behavior (#245).
+
+**Bug Fixes**
+
+- **Treesitter parsers not installing in Docker builds** — Pinned nvim-treesitter to `master` branch, using legacy `configs` API with `sync_install = true`, explicit runtimepath prepend, and `-c "luafile"` post-init execution. Requires MaestroNvim v0.2.7 (#246).
+
+- **gopls requires Go 1.25+ in Docker builds** — Fixed by using `golang:1.25-alpine` as the base image for Go tools installation (#247).
+
+- **`apt-get` exit 100 in parallel builds** — Fixed by assigning per-workspace unique Docker cache mount IDs to prevent concurrent `apt-get` lock contention (#249).
+
+**Dependency Updates**
+
+- MaestroSDK bumped to v0.1.8 (styled table renderer) (#230).
+- MaestroNvim bumped to v0.2.7 (treesitter master branch pin) (#246).
+
+---
+
 ## v0.84.0 (2026-04-10)
 
 **Bug Fixes**
