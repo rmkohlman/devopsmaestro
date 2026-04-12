@@ -8,6 +8,8 @@ package cmd
 //
 // NOTE: Tests updated in Issue #229 to match the actual renderer behavior
 // in MaestroSDK v0.1.6 (unbordered format with horizontal dividers).
+// NOTE: Tests updated in Issue #230 to verify the new bordered table format
+// with alternating row backgrounds and box-drawing borders.
 
 import (
 	"bytes"
@@ -26,6 +28,17 @@ import (
 
 func containsHorizontalDivider(s string) bool {
 	return strings.Contains(s, "─")
+}
+
+// containsVerticalBorder detects vertical box-drawing borders (│).
+func containsVerticalBorder(s string) bool {
+	return strings.Contains(s, "│")
+}
+
+// containsBoxCorners detects box-drawing corner characters.
+func containsBoxCorners(s string) bool {
+	return strings.Contains(s, "┌") && strings.Contains(s, "┐") &&
+		strings.Contains(s, "└") && strings.Contains(s, "┘")
 }
 
 // ---------------------------------------------------------------------------
@@ -247,5 +260,102 @@ func TestRenderTableData_ColoredAlias_MapsToTableRenderer(t *testing.T) {
 	if tableHasDivider && !coloredHasDivider {
 		t.Errorf("'colored' alias should produce the same output style as 'table'.\nTable output:\n%s\nColored output:\n%s",
 			bufTable.String(), bufColored.String())
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 6. Colored renderer produces bordered table with box-drawing (Issue #230)
+// ---------------------------------------------------------------------------
+
+func TestRenderTableData_ColoredFormat_HasBoxBorders(t *testing.T) {
+	r := render.Get(render.RendererColored)
+	if r == nil {
+		t.Fatal("Colored renderer not registered")
+	}
+
+	var buf bytes.Buffer
+	data := render.TableData{
+		Headers: []string{"NAME", "STATUS", "APP"},
+		Rows: [][]string{
+			{"main", "running", "portal"},
+			{"dev", "stopped", "api"},
+		},
+	}
+
+	err := r.Render(&buf, data, render.Options{Type: render.TypeTable})
+	if err != nil {
+		t.Fatalf("Render failed: %v", err)
+	}
+
+	output := buf.String()
+
+	// Should have box-drawing borders
+	if !containsVerticalBorder(output) {
+		t.Errorf("colored table should have vertical borders (│).\nOutput:\n%s", output)
+	}
+	if !containsBoxCorners(output) {
+		t.Errorf("colored table should have box corners (┌┐└┘).\nOutput:\n%s", output)
+	}
+
+	// Headers and data should still be present
+	if !strings.Contains(output, "NAME") || !strings.Contains(output, "STATUS") {
+		t.Errorf("colored table should include column headers.\nOutput:\n%s", output)
+	}
+	if !strings.Contains(output, "main") || !strings.Contains(output, "running") {
+		t.Errorf("colored table should include data rows.\nOutput:\n%s", output)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 7. --output json/yaml still work as overrides (backward compat with #230)
+// ---------------------------------------------------------------------------
+
+func TestRenderTableData_JSONOverride_StillWorks(t *testing.T) {
+	var buf bytes.Buffer
+	data := render.TableData{
+		Headers: []string{"NAME", "STATUS"},
+		Rows: [][]string{
+			{"ws-1", "active"},
+		},
+	}
+
+	err := render.OutputTo(&buf, "json", data, render.Options{Type: render.TypeTable})
+	if err != nil {
+		t.Fatalf("OutputTo('json') failed: %v", err)
+	}
+
+	output := buf.String()
+	// JSON output should not contain box-drawing
+	if containsVerticalBorder(output) || containsBoxCorners(output) {
+		t.Errorf("--output json should not produce box-drawing borders.\nOutput:\n%s", output)
+	}
+
+	// Must be valid JSON
+	var parsed interface{}
+	if err := json.Unmarshal([]byte(output), &parsed); err != nil {
+		t.Errorf("--output json should produce valid JSON.\nOutput: %s\nError: %v", output, err)
+	}
+}
+
+func TestRenderTableData_YAMLOverride_StillWorks(t *testing.T) {
+	var buf bytes.Buffer
+	data := render.TableData{
+		Headers: []string{"NAME", "STATUS"},
+		Rows:    [][]string{{"ws-1", "active"}},
+	}
+
+	err := render.OutputTo(&buf, "yaml", data, render.Options{Type: render.TypeTable})
+	if err != nil {
+		t.Fatalf("OutputTo('yaml') failed: %v", err)
+	}
+
+	output := buf.String()
+	// YAML output should not contain box-drawing
+	if containsVerticalBorder(output) || containsBoxCorners(output) {
+		t.Errorf("--output yaml should not produce box-drawing borders.\nOutput:\n%s", output)
+	}
+	// Should still contain data
+	if !strings.Contains(output, "ws-1") {
+		t.Errorf("YAML output should contain table data.\nOutput:\n%s", output)
 	}
 }
