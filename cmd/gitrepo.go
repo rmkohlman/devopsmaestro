@@ -393,49 +393,14 @@ func runGetGitRepos(cmd *cobra.Command, args []string) error {
 	// Determine if wide format
 	isWide := format == "wide"
 
-	// Build table data
-	var headers []string
-	if isWide {
-		headers = []string{"NAME", "URL", "STATUS", "LAST_SYNCED", "SLUG", "REF", "AUTO_SYNC"}
-	} else {
-		headers = []string{"NAME", "URL", "STATUS", "LAST_SYNCED"}
+	// Convert to pointer slice for BuildTable
+	repoPtrs := make([]*models.GitRepoDB, len(repos))
+	for i := range repos {
+		repoPtrs[i] = &repos[i]
 	}
 
-	rows := make([][]string, len(repos))
-	for i, repo := range repos {
-		lastSynced := "never"
-		if repo.LastSyncedAt.Valid {
-			lastSynced = repo.LastSyncedAt.Time.Format("2006-01-02 15:04")
-		}
-
-		if isWide {
-			autoSync := "no"
-			if repo.AutoSync {
-				autoSync = "yes"
-			}
-			rows[i] = []string{
-				repo.Name,
-				repo.URL,
-				repo.SyncStatus,
-				lastSynced,
-				repo.Slug,
-				repo.DefaultRef,
-				autoSync,
-			}
-		} else {
-			rows[i] = []string{
-				repo.Name,
-				repo.URL,
-				repo.SyncStatus,
-				lastSynced,
-			}
-		}
-	}
-
-	tableData := render.TableData{
-		Headers: headers,
-		Rows:    rows,
-	}
+	// Build table using shared builder (with constraints)
+	tableData := BuildTable(&gitRepoTableBuilder{}, repoPtrs, isWide)
 
 	return render.OutputWith(format, tableData, render.Options{
 		Type: render.TypeTable,

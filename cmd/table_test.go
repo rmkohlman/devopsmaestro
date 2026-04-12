@@ -1426,3 +1426,129 @@ func TestWorkspaceTableBuilder_Row_ThemeNull(t *testing.T) {
 		t.Errorf("row[4] (theme) = %q, want empty string for null theme", row[4])
 	}
 }
+
+// =============================================================================
+// constrainedTableBuilder / Constraints
+// =============================================================================
+
+// TestGitRepoTableBuilder_Constraints_Normal verifies that gitRepoTableBuilder
+// returns non-nil constraints in normal (non-wide) mode with correct values.
+func TestGitRepoTableBuilder_Constraints_Normal(t *testing.T) {
+	b := &gitRepoTableBuilder{}
+	constraints := b.Constraints(false)
+
+	if constraints == nil {
+		t.Fatal("Constraints(false) returned nil, want non-nil slice")
+	}
+	if len(constraints) != 4 {
+		t.Fatalf("want 4 constraints (matching 4 columns), got %d", len(constraints))
+	}
+
+	// NAME: max 40, TruncEnd
+	if constraints[0].MaxWidth != 40 {
+		t.Errorf("NAME MaxWidth = %d, want 40", constraints[0].MaxWidth)
+	}
+	if constraints[0].Truncate != render.TruncEnd {
+		t.Errorf("NAME Truncate = %v, want TruncEnd", constraints[0].Truncate)
+	}
+
+	// URL: max 50, TruncMiddle
+	if constraints[1].MaxWidth != 50 {
+		t.Errorf("URL MaxWidth = %d, want 50", constraints[1].MaxWidth)
+	}
+	if constraints[1].Truncate != render.TruncMiddle {
+		t.Errorf("URL Truncate = %v, want TruncMiddle", constraints[1].Truncate)
+	}
+
+	// STATUS: unconstrained
+	if constraints[2].MaxWidth != 0 {
+		t.Errorf("STATUS MaxWidth = %d, want 0 (unconstrained)", constraints[2].MaxWidth)
+	}
+
+	// LAST_SYNCED: unconstrained
+	if constraints[3].MaxWidth != 0 {
+		t.Errorf("LAST_SYNCED MaxWidth = %d, want 0 (unconstrained)", constraints[3].MaxWidth)
+	}
+}
+
+// TestGitRepoTableBuilder_Constraints_Wide verifies that wide mode returns nil
+// constraints (no truncation when user explicitly asks for everything).
+func TestGitRepoTableBuilder_Constraints_Wide(t *testing.T) {
+	b := &gitRepoTableBuilder{}
+	constraints := b.Constraints(true)
+
+	if constraints != nil {
+		t.Errorf("Constraints(true) = %v, want nil (wide mode should relax all constraints)", constraints)
+	}
+}
+
+// TestBuildTable_WithConstraints verifies that BuildTable picks up constraints
+// from a builder that implements constrainedTableBuilder.
+func TestBuildTable_WithConstraints(t *testing.T) {
+	b := &gitRepoTableBuilder{}
+	repos := []*models.GitRepoDB{
+		{
+			Name:         "repo-a",
+			URL:          "https://github.com/org/a.git",
+			SyncStatus:   "synced",
+			LastSyncedAt: sql.NullTime{Valid: false},
+		},
+	}
+	tableData := BuildTable(b, repos, false)
+
+	if tableData.Constraints == nil {
+		t.Fatal("BuildTable with constrainedTableBuilder should set Constraints, got nil")
+	}
+	if len(tableData.Constraints) != 4 {
+		t.Fatalf("want 4 constraints, got %d", len(tableData.Constraints))
+	}
+	if tableData.Constraints[0].MaxWidth != 40 {
+		t.Errorf("constraint[0].MaxWidth = %d, want 40", tableData.Constraints[0].MaxWidth)
+	}
+	if tableData.Constraints[1].Truncate != render.TruncMiddle {
+		t.Errorf("constraint[1].Truncate = %v, want TruncMiddle", tableData.Constraints[1].Truncate)
+	}
+}
+
+// TestBuildTable_WithConstraints_WideNil verifies that BuildTable in wide mode
+// gets nil constraints from gitRepoTableBuilder.
+func TestBuildTable_WithConstraints_WideNil(t *testing.T) {
+	b := &gitRepoTableBuilder{}
+	repos := []*models.GitRepoDB{
+		{
+			Name:         "repo-a",
+			URL:          "https://github.com/org/a.git",
+			SyncStatus:   "synced",
+			LastSyncedAt: sql.NullTime{Valid: false},
+			Slug:         "repo-a",
+			DefaultRef:   "main",
+			AutoSync:     true,
+		},
+	}
+	tableData := BuildTable(b, repos, true)
+
+	if tableData.Constraints != nil {
+		t.Errorf("BuildTable wide mode should have nil Constraints, got %v", tableData.Constraints)
+	}
+}
+
+// TestBuildTable_WithoutConstraints verifies backward compat: builders that do
+// NOT implement constrainedTableBuilder produce TableData with nil Constraints.
+func TestBuildTable_WithoutConstraints(t *testing.T) {
+	b := &ecosystemTableBuilder{}
+	ecos := []*models.Ecosystem{
+		{ID: 1, Name: "prod", CreatedAt: mustTime("2024-01-01 00:00")},
+	}
+	tableData := BuildTable(b, ecos, false)
+
+	if tableData.Constraints != nil {
+		t.Errorf("BuildTable with non-constrained builder should have nil Constraints, got %v", tableData.Constraints)
+	}
+	// Headers and rows should still be populated
+	if len(tableData.Headers) == 0 {
+		t.Error("Headers should not be empty")
+	}
+	if len(tableData.Rows) != 1 {
+		t.Errorf("want 1 row, got %d", len(tableData.Rows))
+	}
+}

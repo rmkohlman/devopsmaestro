@@ -17,8 +17,17 @@ type tableBuilder interface {
 	Row(model any, wide bool) []string
 }
 
+// constrainedTableBuilder extends tableBuilder with column constraints.
+// Builders that implement this interface can provide MaxWidth / truncation hints
+// which the SDK renderers apply during column-width calculation.
+type constrainedTableBuilder interface {
+	tableBuilder
+	Constraints(wide bool) []render.ColumnConstraint
+}
+
 // BuildTable assembles a render.TableData from a builder and a typed slice of items.
 // Each item is passed as-is to builder.Row, so builders must type-assert internally.
+// If the builder implements constrainedTableBuilder, constraints are set on the result.
 func BuildTable[T any](builder tableBuilder, items []T, wide bool) render.TableData {
 	td := render.TableData{
 		Headers: builder.Headers(wide),
@@ -26,6 +35,9 @@ func BuildTable[T any](builder tableBuilder, items []T, wide bool) render.TableD
 	}
 	for _, item := range items {
 		td.Rows = append(td.Rows, builder.Row(item, wide))
+	}
+	if cb, ok := builder.(constrainedTableBuilder); ok {
+		td.Constraints = cb.Constraints(wide)
 	}
 	return td
 }
@@ -394,6 +406,22 @@ func (b *gitRepoTableBuilder) Row(model any, wide bool) []string {
 		row = append(row, repo.Slug, repo.DefaultRef, autoSync)
 	}
 	return row
+}
+
+// Constraints returns column constraints for the git repo table.
+// In normal mode, NAME is capped at 40 chars (end-truncated) and URL at 50
+// chars (middle-truncated to preserve protocol + repo name).
+// In wide mode, all constraints are relaxed so nothing is truncated.
+func (b *gitRepoTableBuilder) Constraints(wide bool) []render.ColumnConstraint {
+	if wide {
+		return nil
+	}
+	return []render.ColumnConstraint{
+		{MaxWidth: 40, Truncate: render.TruncEnd},    // NAME
+		{MaxWidth: 50, Truncate: render.TruncMiddle}, // URL
+		{}, // STATUS
+		{}, // LAST_SYNCED
+	}
 }
 
 // =============================================================================
