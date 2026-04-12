@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.85.1] - 2026-04-12
+
+### Fixed
+
+- **Table colors now adapt to terminal color scheme** — Default table styling uses standard ANSI codes that respect the terminal's configured palette instead of hardcoded Catppuccin dark theme colors. Truecolor is only used when a MaestroTheme is active. ([#230](https://github.com/rmkohlman/devopsmaestro/issues/230))
+
+---
+
 ## [v0.85.0] - 2026-04-12
 
 ### Added

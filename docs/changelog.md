@@ -6,6 +6,14 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ---
 
+## v0.85.1 (2026-04-12)
+
+**Bug Fixes**
+
+- **Table colors now adapt to terminal color scheme** — Default table styling uses standard ANSI codes that respect the terminal's configured palette instead of hardcoded Catppuccin dark theme colors. Truecolor is only used when a MaestroTheme is active (#230).
+
+---
+
 ## v0.85.0 (2026-04-12)
 
 **New Features**
