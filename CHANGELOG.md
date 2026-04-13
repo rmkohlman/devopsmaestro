@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.87.2] - 2026-04-13
+
+### Fixed
+
+- **`dvm create app --system` now resolves systems globally** — When the `--system` flag is explicitly provided, the command now searches across all domains instead of only the active domain. This fixes workflows where the system exists in a different domain than the current active context. Also fixes `get app`, `get apps`, `delete app`, and YAML apply with the same issue. ([#287](https://github.com/rmkohlman/devopsmaestro/issues/287))
+
+---
+
 ## [v0.87.1] - 2026-04-13
 
 ### Fixed
