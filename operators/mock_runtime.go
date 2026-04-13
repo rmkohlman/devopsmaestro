@@ -33,6 +33,10 @@ type MockContainerRuntime struct {
 	AttachToWorkspaceError error
 	StopWorkspaceError     error
 	GetStatusError         error
+	RemoveContainerError   error
+	RemoveImageError       error
+	ListContainersError    error
+	ImageExistsError       error
 
 	// Behavior configuration
 	RuntimeType string
@@ -287,6 +291,90 @@ func (m *MockContainerRuntime) StopAllWorkspaces(ctx context.Context) (int, erro
 }
 
 // =============================================================================
+// Sandbox / Container Management Methods
+// =============================================================================
+
+// RemoveContainer simulates removing a container
+func (m *MockContainerRuntime) RemoveContainer(ctx context.Context, containerID string, force bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.Calls = append(m.Calls, MockRuntimeCall{
+		Method: "RemoveContainer",
+		Args:   []interface{}{containerID, force},
+	})
+
+	if m.RemoveContainerError != nil {
+		return m.RemoveContainerError
+	}
+
+	delete(m.Workspaces, containerID)
+	return nil
+}
+
+// RemoveImage simulates removing an image
+func (m *MockContainerRuntime) RemoveImage(ctx context.Context, imageID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.Calls = append(m.Calls, MockRuntimeCall{
+		Method: "RemoveImage",
+		Args:   []interface{}{imageID},
+	})
+
+	if m.RemoveImageError != nil {
+		return m.RemoveImageError
+	}
+
+	delete(m.Images, imageID)
+	return nil
+}
+
+// ListContainers simulates listing containers by labels
+func (m *MockContainerRuntime) ListContainers(ctx context.Context, labels map[string]string) ([]ContainerInfo, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.Calls = append(m.Calls, MockRuntimeCall{
+		Method: "ListContainers",
+		Args:   []interface{}{labels},
+	})
+
+	if m.ListContainersError != nil {
+		return nil, m.ListContainersError
+	}
+
+	var result []ContainerInfo
+	for name, status := range m.Workspaces {
+		result = append(result, ContainerInfo{
+			ID:     fmt.Sprintf("mock-%s", name),
+			Name:   name,
+			Status: status,
+			Image:  "mock-image:latest",
+			Labels: map[string]string{},
+		})
+	}
+	return result, nil
+}
+
+// ImageExists simulates checking if an image exists
+func (m *MockContainerRuntime) ImageExists(ctx context.Context, imageName string) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.Calls = append(m.Calls, MockRuntimeCall{
+		Method: "ImageExists",
+		Args:   []interface{}{imageName},
+	})
+
+	if m.ImageExistsError != nil {
+		return false, m.ImageExistsError
+	}
+
+	return m.Images[imageName], nil
+}
+
+// =============================================================================
 // Test Helper Methods
 // =============================================================================
 
@@ -303,6 +391,10 @@ func (m *MockContainerRuntime) Reset() {
 	m.AttachToWorkspaceError = nil
 	m.StopWorkspaceError = nil
 	m.GetStatusError = nil
+	m.RemoveContainerError = nil
+	m.RemoveImageError = nil
+	m.ListContainersError = nil
+	m.ImageExistsError = nil
 }
 
 // CallCount returns the number of times a method was called

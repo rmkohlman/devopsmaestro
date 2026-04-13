@@ -129,6 +129,11 @@ func shouldSkipAutoMigration(cmd *cobra.Command) bool {
 		"dvm generate template", // template generation: no database needed
 		"dvm admin init",        // init handles its own migrations
 		"dvm admin migrate",     // migrate command handles migrations explicitly
+		"dvm sandbox",           // sandboxes are runtime-only, no database needed
+		"dvm sandbox create",
+		"dvm sandbox get",
+		"dvm sandbox attach",
+		"dvm sandbox delete",
 	}
 
 	for _, skipCmd := range skipCommands {

@@ -46,6 +46,20 @@ type ContainerRuntime interface {
 
 	// StopAllWorkspaces stops all DVM-managed workspaces
 	StopAllWorkspaces(ctx context.Context) (int, error)
+
+	// RemoveContainer removes a container by ID or name.
+	// If force is true, the container is stopped first if running.
+	RemoveContainer(ctx context.Context, containerID string, force bool) error
+
+	// RemoveImage removes a container image by name or ID.
+	RemoveImage(ctx context.Context, imageID string) error
+
+	// ListContainers lists containers matching the given label selectors.
+	// Labels are matched as key=value pairs (AND logic).
+	ListContainers(ctx context.Context, labels map[string]string) ([]ContainerInfo, error)
+
+	// ImageExists checks whether a container image exists locally.
+	ImageExists(ctx context.Context, imageName string) (bool, error)
 }
 
 // AttachOptions contains options for attaching to a workspace
@@ -69,6 +83,16 @@ type WorkspaceInfo struct {
 	Ecosystem string            // Ecosystem name from labels
 	Domain    string            // Domain name from labels
 	Labels    map[string]string // All labels
+}
+
+// ContainerInfo contains information about a container discovered via label queries.
+// Used by sandbox and other label-based container management features.
+type ContainerInfo struct {
+	ID     string            // Container ID (short form)
+	Name   string            // Container name
+	Status string            // Container status (running, stopped, etc.)
+	Image  string            // Image name
+	Labels map[string]string // All labels
 }
 
 // BuildOptions contains options for building container images
@@ -110,6 +134,7 @@ type StartOptions struct {
 	NetworkMode        string            // Network mode: "bridge" (default), "none", "host", or custom name
 	CPUs               float64           // CPU limit (e.g., 1.5 for 1.5 cores; 0 = no limit)
 	Memory             string            // Memory limit (e.g., "512m", "2g"; "" = no limit)
+	Labels             map[string]string // Additional container labels (merged with DVM defaults)
 }
 
 // ContainerNamingStrategy defines the interface for generating and parsing container names

@@ -14,6 +14,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/moby/go-archive"
@@ -561,6 +562,70 @@ func (d *DockerRuntime) StopAllWorkspaces(ctx context.Context) (int, error) {
 	return stopped, nil
 }
 
+// RemoveContainer removes a container by ID or name.
+// If force is true, the container is stopped first if running.
+func (d *DockerRuntime) RemoveContainer(ctx context.Context, containerID string, force bool) error {
+	if force {
+		timeout := 10
+		// Ignore stop errors — container may already be stopped
+		_ = d.client.ContainerStop(ctx, containerID, container.StopOptions{Timeout: &timeout})
+	}
+	return d.client.ContainerRemove(ctx, containerID, container.RemoveOptions{Force: force})
+}
+
+// RemoveImage removes a container image by name or ID.
+func (d *DockerRuntime) RemoveImage(ctx context.Context, imageID string) error {
+	_, err := d.client.ImageRemove(ctx, imageID, image.RemoveOptions{Force: true, PruneChildren: true})
+	return err
+}
+
+// ListContainers lists containers matching the given label selectors.
+func (d *DockerRuntime) ListContainers(ctx context.Context, labels map[string]string) ([]ContainerInfo, error) {
+	filterArgs := filters.NewArgs()
+	for k, v := range labels {
+		filterArgs.Add("label", fmt.Sprintf("%s=%s", k, v))
+	}
+
+	containers, err := d.client.ContainerList(ctx, container.ListOptions{
+		All:     true,
+		Filters: filterArgs,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list containers: %w", err)
+	}
+
+	var result []ContainerInfo
+	for _, c := range containers {
+		name := ""
+		if len(c.Names) > 0 {
+			name = c.Names[0]
+			if len(name) > 0 && name[0] == '/' {
+				name = name[1:]
+			}
+		}
+		result = append(result, ContainerInfo{
+			ID:     c.ID[:12],
+			Name:   name,
+			Status: c.Status,
+			Image:  c.Image,
+			Labels: c.Labels,
+		})
+	}
+	return result, nil
+}
+
+// ImageExists checks whether a container image exists locally.
+func (d *DockerRuntime) ImageExists(ctx context.Context, imageName string) (bool, error) {
+	_, _, err := d.client.ImageInspectWithRaw(ctx, imageName)
+	if err != nil {
+		if client.IsErrNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 // Helper function to convert map to env slice
 func envMapToSlice(envMap map[string]string) []string {
 	var envSlice []string
@@ -570,7 +635,8 @@ func envMapToSlice(envMap map[string]string) []string {
 	return envSlice
 }
 
-// buildDVMLabels creates the standard DVM labels with ecosystem and domain support
+// buildDVMLabels creates the standard DVM labels with ecosystem and domain support.
+// If opts.Labels is provided, those labels are merged (custom labels take precedence).
 func buildDVMLabels(opts StartOptions) map[string]string {
 	labels := map[string]string{
 		"io.devopsmaestro.managed":   "true",
@@ -587,6 +653,11 @@ func buildDVMLabels(opts StartOptions) map[string]string {
 	// Add domain label if provided
 	if opts.DomainName != "" {
 		labels["io.devopsmaestro.domain"] = opts.DomainName
+	}
+
+	// Merge custom labels (sandbox labels, etc.)
+	for k, v := range opts.Labels {
+		labels[k] = v
 	}
 
 	return labels
