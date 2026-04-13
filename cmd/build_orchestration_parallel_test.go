@@ -12,6 +12,7 @@ package cmd
 // =============================================================================
 
 import (
+	"database/sql"
 	"errors"
 	"sync"
 	"sync/atomic"
@@ -359,11 +360,11 @@ func TestBuildOrchestration_AllFlag_RoutesToParallelBuild(t *testing.T) {
 // makeTestWorkspaceList creates N WorkspaceWithHierarchy entries for testing.
 func makeTestWorkspaceList(n int) []*models.WorkspaceWithHierarchy {
 	eco := &models.Ecosystem{ID: 1, Name: "test-eco"}
-	dom := &models.Domain{ID: 1, Name: "test-domain", EcosystemID: 1}
+	dom := &models.Domain{ID: 1, Name: "test-domain", EcosystemID: sql.NullInt64{Int64: 1, Valid: true}}
 
 	result := make([]*models.WorkspaceWithHierarchy, n)
 	for i := 0; i < n; i++ {
-		app := &models.App{ID: i + 1, Name: "test-app", DomainID: 1}
+		app := &models.App{ID: i + 1, Name: "test-app", DomainID: sql.NullInt64{Int64: 1, Valid: true}}
 		ws := &models.Workspace{
 			ID:    i + 1,
 			Name:  wsName(i),

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -73,7 +74,7 @@ func resolveCredentialScopeFromFlags(cmd *cobra.Command, ds db.DataStore) (model
 		// Try active context first, fall back to global search
 		dbCtx, err := ds.GetContext()
 		if err == nil && dbCtx.ActiveEcosystemID != nil {
-			d, err := ds.GetDomainByName(*dbCtx.ActiveEcosystemID, dom)
+			d, err := ds.GetDomainByName(sql.NullInt64{Int64: int64(*dbCtx.ActiveEcosystemID), Valid: true}, dom)
 			if err == nil {
 				return models.CredentialScopeDomain, int64(d.ID), nil
 			}

@@ -75,10 +75,10 @@ func (m *mockHierarchyReader) GetEcosystemByID(id int) (*models.Ecosystem, error
 func newFullHierarchy() *mockHierarchyReader {
 	return &mockHierarchyReader{
 		apps: map[int]*models.App{
-			3: {ID: 3, DomainID: 2, Name: "myapp"},
+			3: {ID: 3, DomainID: sql.NullInt64{Int64: 2, Valid: true}, Name: "myapp"},
 		},
 		domains: map[int]*models.Domain{
-			2: {ID: 2, EcosystemID: 1, Name: "mydomain"},
+			2: {ID: 2, EcosystemID: sql.NullInt64{Int64: 1, Valid: true}, Name: "mydomain"},
 		},
 		ecosystems: map[int]*models.Ecosystem{
 			1: {ID: 1, Name: "myeco"},
@@ -91,13 +91,13 @@ func newFullHierarchy() *mockHierarchyReader {
 func newFullHierarchyWithSystem() *mockHierarchyReader {
 	return &mockHierarchyReader{
 		apps: map[int]*models.App{
-			3: {ID: 3, DomainID: 2, Name: "myapp", SystemID: sql.NullInt64{Int64: 5, Valid: true}},
+			3: {ID: 3, DomainID: sql.NullInt64{Int64: 2, Valid: true}, Name: "myapp", SystemID: sql.NullInt64{Int64: 5, Valid: true}},
 		},
 		systems: map[int]*models.System{
 			5: {ID: 5, Name: "mysystem"},
 		},
 		domains: map[int]*models.Domain{
-			2: {ID: 2, EcosystemID: 1, Name: "mydomain"},
+			2: {ID: 2, EcosystemID: sql.NullInt64{Int64: 1, Valid: true}, Name: "mydomain"},
 		},
 		ecosystems: map[int]*models.Ecosystem{
 			1: {ID: 1, Name: "myeco"},
@@ -192,7 +192,7 @@ func TestPrepareDefaults(t *testing.T) {
 			},
 			hierarchy: &mockHierarchyReader{
 				apps: map[int]*models.App{
-					3: {ID: 3, DomainID: 2, Name: "myapp"},
+					3: {ID: 3, DomainID: sql.NullInt64{Int64: 2, Valid: true}, Name: "myapp"},
 				},
 				domainErr: errors.New("domain table missing"),
 			},
@@ -207,10 +207,10 @@ func TestPrepareDefaults(t *testing.T) {
 			},
 			hierarchy: &mockHierarchyReader{
 				apps: map[int]*models.App{
-					3: {ID: 3, DomainID: 2, Name: "myapp"},
+					3: {ID: 3, DomainID: sql.NullInt64{Int64: 2, Valid: true}, Name: "myapp"},
 				},
 				domains: map[int]*models.Domain{
-					2: {ID: 2, EcosystemID: 1, Name: "mydomain"},
+					2: {ID: 2, EcosystemID: sql.NullInt64{Int64: 1, Valid: true}, Name: "mydomain"},
 				},
 				ecoErr: errors.New("ecosystem not found in store"),
 			},
@@ -247,7 +247,7 @@ func TestPrepareDefaults(t *testing.T) {
 			},
 			hierarchy: &mockHierarchyReader{
 				apps: map[int]*models.App{
-					3: {ID: 3, DomainID: 2, Name: "myapp", SystemID: sql.NullInt64{Int64: 99, Valid: true}},
+					3: {ID: 3, DomainID: sql.NullInt64{Int64: 2, Valid: true}, Name: "myapp", SystemID: sql.NullInt64{Int64: 99, Valid: true}},
 				},
 				systemErr: errors.New("system table missing"),
 			},
@@ -313,10 +313,10 @@ func TestPrepareDefaults_NvimDefaultIsLazyvim(t *testing.T) {
 func TestPrepareDefaults_SlugUsesHierarchyNames(t *testing.T) {
 	hierarchy := &mockHierarchyReader{
 		apps: map[int]*models.App{
-			10: {ID: 10, DomainID: 20, Name: "payments-api"},
+			10: {ID: 10, DomainID: sql.NullInt64{Int64: 20, Valid: true}, Name: "payments-api"},
 		},
 		domains: map[int]*models.Domain{
-			20: {ID: 20, EcosystemID: 30, Name: "finance"},
+			20: {ID: 20, EcosystemID: sql.NullInt64{Int64: 30, Valid: true}, Name: "finance"},
 		},
 		ecosystems: map[int]*models.Ecosystem{
 			30: {ID: 30, Name: "corp"},
@@ -341,13 +341,13 @@ func TestPrepareDefaults_SlugUsesHierarchyNames(t *testing.T) {
 func TestPrepareDefaults_SlugIncludesSystemWhenPresent(t *testing.T) {
 	hierarchy := &mockHierarchyReader{
 		apps: map[int]*models.App{
-			10: {ID: 10, DomainID: 20, Name: "auth-api", SystemID: sql.NullInt64{Int64: 15, Valid: true}},
+			10: {ID: 10, DomainID: sql.NullInt64{Int64: 20, Valid: true}, Name: "auth-api", SystemID: sql.NullInt64{Int64: 15, Valid: true}},
 		},
 		systems: map[int]*models.System{
 			15: {ID: 15, Name: "identity"},
 		},
 		domains: map[int]*models.Domain{
-			20: {ID: 20, EcosystemID: 30, Name: "platform"},
+			20: {ID: 20, EcosystemID: sql.NullInt64{Int64: 30, Valid: true}, Name: "platform"},
 		},
 		ecosystems: map[int]*models.Ecosystem{
 			30: {ID: 30, Name: "corp"},

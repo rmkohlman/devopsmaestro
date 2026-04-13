@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"strings"
 	"testing"
 
@@ -25,7 +26,7 @@ func setupAppTest(t *testing.T) (*db.MockDataStore, int, int) {
 		t.Fatalf("failed to create ecosystem: %v", err)
 	}
 
-	domain := &models.Domain{Name: "app-domain", EcosystemID: eco.ID}
+	domain := &models.Domain{Name: "app-domain", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	if err := store.CreateDomain(domain); err != nil {
 		t.Fatalf("failed to create domain: %v", err)
 	}
@@ -97,7 +98,7 @@ func TestAppHandler_Apply_Update(t *testing.T) {
 	ctx := resource.Context{DataStore: store}
 
 	// Pre-populate app
-	_ = store.CreateApp(&models.App{Name: "app-upd", DomainID: domainID, Path: "/old/path"})
+	_ = store.CreateApp(&models.App{Name: "app-upd", DomainID: sql.NullInt64{Int64: int64(domainID), Valid: true}, Path: "/old/path"})
 
 	updateYAML := []byte(`
 apiVersion: devopsmaestro.io/v1
@@ -191,7 +192,7 @@ func TestAppHandler_Get_Found(t *testing.T) {
 	store, _, domainID := setupAppTest(t)
 	ctx := resource.Context{DataStore: store}
 
-	_ = store.CreateApp(&models.App{Name: "get-app", DomainID: domainID, Path: "/get/path"})
+	_ = store.CreateApp(&models.App{Name: "get-app", DomainID: sql.NullInt64{Int64: int64(domainID), Valid: true}, Path: "/get/path"})
 
 	res, err := h.Get(ctx, "get-app")
 	if err != nil {
@@ -236,8 +237,8 @@ func TestAppHandler_List_WithActiveDomain(t *testing.T) {
 	store, _, domainID := setupAppTest(t)
 	ctx := resource.Context{DataStore: store}
 
-	_ = store.CreateApp(&models.App{Name: "a1", DomainID: domainID, Path: "/a1"})
-	_ = store.CreateApp(&models.App{Name: "a2", DomainID: domainID, Path: "/a2"})
+	_ = store.CreateApp(&models.App{Name: "a1", DomainID: sql.NullInt64{Int64: int64(domainID), Valid: true}, Path: "/a1"})
+	_ = store.CreateApp(&models.App{Name: "a2", DomainID: sql.NullInt64{Int64: int64(domainID), Valid: true}, Path: "/a2"})
 
 	resources, err := h.List(ctx)
 	if err != nil {
@@ -259,12 +260,12 @@ func TestAppHandler_List_NoActiveDomain(t *testing.T) {
 	ctx := resource.Context{DataStore: store}
 
 	// Pre-populate across two domains
-	d1 := &models.Domain{Name: "d1", EcosystemID: 1}
-	d2 := &models.Domain{Name: "d2", EcosystemID: 1}
+	d1 := &models.Domain{Name: "d1", EcosystemID: sql.NullInt64{Int64: 1, Valid: true}}
+	d2 := &models.Domain{Name: "d2", EcosystemID: sql.NullInt64{Int64: 1, Valid: true}}
 	_ = store.CreateDomain(d1)
 	_ = store.CreateDomain(d2)
-	_ = store.CreateApp(&models.App{Name: "app-d1", DomainID: d1.ID, Path: "/p1"})
-	_ = store.CreateApp(&models.App{Name: "app-d2", DomainID: d2.ID, Path: "/p2"})
+	_ = store.CreateApp(&models.App{Name: "app-d1", DomainID: sql.NullInt64{Int64: int64(d1.ID), Valid: true}, Path: "/p1"})
+	_ = store.CreateApp(&models.App{Name: "app-d2", DomainID: sql.NullInt64{Int64: int64(d2.ID), Valid: true}, Path: "/p2"})
 
 	// No active domain: should call ListAllApps
 	resources, err := h.List(ctx)
@@ -285,7 +286,7 @@ func TestAppHandler_Delete_Found(t *testing.T) {
 	store, _, domainID := setupAppTest(t)
 	ctx := resource.Context{DataStore: store}
 
-	app := &models.App{Name: "del-app", DomainID: domainID, Path: "/del"}
+	app := &models.App{Name: "del-app", DomainID: sql.NullInt64{Int64: int64(domainID), Valid: true}, Path: "/del"}
 	_ = store.CreateApp(app)
 
 	if err := h.Delete(ctx, "del-app"); err != nil {
@@ -293,7 +294,7 @@ func TestAppHandler_Delete_Found(t *testing.T) {
 	}
 
 	// Verify removed
-	_, err := store.GetAppByName(domainID, "del-app")
+	_, err := store.GetAppByName(sql.NullInt64{Int64: int64(domainID), Valid: true}, "del-app")
 	if err == nil {
 		t.Error("Delete() did not remove app from store")
 	}
@@ -322,7 +323,7 @@ func TestAppHandler_ToYAML(t *testing.T) {
 
 	app := &models.App{
 		ID:       1,
-		DomainID: 1,
+		DomainID: sql.NullInt64{Int64: 1, Valid: true},
 		Name:     "yaml-app",
 		Path:     "/my/path",
 	}
@@ -369,22 +370,22 @@ func TestAppResource_Validate(t *testing.T) {
 	}{
 		{
 			name:    "valid app",
-			app:     &models.App{Name: "good-app", DomainID: 1, Path: "/valid/path"},
+			app:     &models.App{Name: "good-app", DomainID: sql.NullInt64{Int64: 1, Valid: true}, Path: "/valid/path"},
 			wantErr: false,
 		},
 		{
 			name:    "missing name",
-			app:     &models.App{Name: "", DomainID: 1, Path: "/valid/path"},
+			app:     &models.App{Name: "", DomainID: sql.NullInt64{Int64: 1, Valid: true}, Path: "/valid/path"},
 			wantErr: true,
 		},
 		{
-			name:    "missing domain_id",
-			app:     &models.App{Name: "no-domain", DomainID: 0, Path: "/valid/path"},
-			wantErr: true,
+			name:    "no domain_id is allowed",
+			app:     &models.App{Name: "no-domain", Path: "/valid/path"},
+			wantErr: false,
 		},
 		{
 			name:    "missing path",
-			app:     &models.App{Name: "no-path", DomainID: 1, Path: ""},
+			app:     &models.App{Name: "no-path", DomainID: sql.NullInt64{Int64: 1, Valid: true}, Path: ""},
 			wantErr: true,
 		},
 	}

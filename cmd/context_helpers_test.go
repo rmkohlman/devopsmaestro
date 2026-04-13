@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"database/sql"
 	"fmt"
 	"testing"
 
@@ -46,7 +47,7 @@ func TestGetActiveAppFromContext(t *testing.T) {
 			setup: func(t *testing.T, mock *db.MockDataStore) {
 				appID := 42
 				mock.Context = &models.Context{ID: 1, ActiveAppID: &appID}
-				mock.Apps[42] = &models.App{ID: 42, Name: "my-app", DomainID: 1}
+				mock.Apps[42] = &models.App{ID: 42, Name: "my-app", DomainID: sql.NullInt64{Int64: 1, Valid: true}}
 			},
 			wantName: "my-app",
 			wantErr:  false,
@@ -288,7 +289,7 @@ func TestGetActiveDomainFromContext_DBContext(t *testing.T) {
 	// No env var, DB has active domain -> returns domain name
 	mock := db.NewMockDataStore()
 	domID := 10
-	mock.Domains[10] = &models.Domain{ID: 10, Name: "backend", EcosystemID: 1}
+	mock.Domains[10] = &models.Domain{ID: 10, Name: "backend", EcosystemID: sql.NullInt64{Int64: 1, Valid: true}}
 	mock.Context = &models.Context{ID: 1, ActiveDomainID: &domID}
 
 	name, err := getActiveDomainFromContext(mock)

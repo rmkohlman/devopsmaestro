@@ -33,7 +33,7 @@ func TestListAppsByGitRepoID(t *testing.T) {
 	if err := ds.CreateEcosystem(eco); err != nil {
 		t.Fatalf("setup: CreateEcosystem: %v", err)
 	}
-	dom := &models.Domain{EcosystemID: eco.ID, Name: "rel-dom"}
+	dom := &models.Domain{EcosystemID: validNullInt64(eco.ID), Name: "rel-dom"}
 	if err := ds.CreateDomain(dom); err != nil {
 		t.Fatalf("setup: CreateDomain: %v", err)
 	}
@@ -51,19 +51,19 @@ func TestListAppsByGitRepoID(t *testing.T) {
 
 	// Create 2 apps linked to the gitrepo, 1 unlinked
 	app1 := &models.App{
-		DomainID:  dom.ID,
+		DomainID: validNullInt64(dom.ID),
 		Name:      "linked-app-1",
 		Path:      "/path/linked-1",
 		GitRepoID: sql.NullInt64{Int64: int64(repo.ID), Valid: true},
 	}
 	app2 := &models.App{
-		DomainID:  dom.ID,
+		DomainID: validNullInt64(dom.ID),
 		Name:      "linked-app-2",
 		Path:      "/path/linked-2",
 		GitRepoID: sql.NullInt64{Int64: int64(repo.ID), Valid: true},
 	}
 	unlinked := &models.App{
-		DomainID: dom.ID,
+		DomainID: validNullInt64(dom.ID),
 		Name:     "unlinked-app",
 		Path:     "/path/unlinked",
 	}
@@ -135,11 +135,11 @@ func TestListWorkspacesByGitRepoID(t *testing.T) {
 	if err := ds.CreateEcosystem(eco); err != nil {
 		t.Fatalf("setup: CreateEcosystem: %v", err)
 	}
-	dom := &models.Domain{EcosystemID: eco.ID, Name: "ws-rel-dom"}
+	dom := &models.Domain{EcosystemID: validNullInt64(eco.ID), Name: "ws-rel-dom"}
 	if err := ds.CreateDomain(dom); err != nil {
 		t.Fatalf("setup: CreateDomain: %v", err)
 	}
-	app := &models.App{DomainID: dom.ID, Name: "ws-rel-app", Path: "/ws/rel"}
+	app := &models.App{DomainID: validNullInt64(dom.ID), Name: "ws-rel-app", Path: "/ws/rel"}
 	if err := ds.CreateApp(app); err != nil {
 		t.Fatalf("setup: CreateApp: %v", err)
 	}

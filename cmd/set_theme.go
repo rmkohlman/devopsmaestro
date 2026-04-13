@@ -270,14 +270,14 @@ func getParentLevelAndID(ds db.DataStore, level resolver.HierarchyLevel, objectI
 		return 0, resolver.LevelGlobal
 	case resolver.LevelApp:
 		// Get app's domain ID
-		if app, err := ds.GetAppByID(objectID); err == nil {
-			return app.DomainID, resolver.LevelDomain
+		if app, err := ds.GetAppByID(objectID); err == nil && app.DomainID.Valid {
+			return int(app.DomainID.Int64), resolver.LevelDomain
 		}
 		return 0, resolver.LevelGlobal
 	case resolver.LevelDomain:
 		// Get domain's ecosystem ID
-		if domain, err := ds.GetDomainByID(objectID); err == nil {
-			return domain.EcosystemID, resolver.LevelEcosystem
+		if domain, err := ds.GetDomainByID(objectID); err == nil && domain.EcosystemID.Valid {
+			return int(domain.EcosystemID.Int64), resolver.LevelEcosystem
 		}
 		return 0, resolver.LevelGlobal
 	case resolver.LevelEcosystem:
@@ -529,12 +529,15 @@ func setDomainTheme(cmd *cobra.Command, ctx resource.Context, domainName, themeN
 	if err != nil {
 		return nil, fmt.Errorf("failed to get DataStore: %w", err)
 	}
-	ecosystem, err := ds.GetEcosystemByID(domain.EcosystemID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get ecosystem for domain: %w", err)
+	ecoName := ""
+	if domain.EcosystemID.Valid {
+		ecosystem, err := ds.GetEcosystemByID(int(domain.EcosystemID.Int64))
+		if err == nil {
+			ecoName = ecosystem.Name
+		}
 	}
 
-	domainYAML := domain.ToYAML(ecosystem.Name, nil)
+	domainYAML := domain.ToYAML(ecoName, nil)
 	yamlData, err := yaml.Marshal(domainYAML)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal domain YAML: %w", err)
@@ -601,12 +604,15 @@ func setAppTheme(cmd *cobra.Command, ctx resource.Context, appName, themeName st
 	if err != nil {
 		return nil, fmt.Errorf("failed to get DataStore: %w", err)
 	}
-	domain, err := ds.GetDomainByID(app.DomainID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get domain for app: %w", err)
+	domainName := ""
+	if app.DomainID.Valid {
+		domain, err := ds.GetDomainByID(int(app.DomainID.Int64))
+		if err == nil {
+			domainName = domain.Name
+		}
 	}
 
-	appYAML := app.ToYAML(domain.Name, nil, "", "")
+	appYAML := app.ToYAML(domainName, nil, "", "")
 	yamlData, err := yaml.Marshal(appYAML)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal app YAML: %w", err)

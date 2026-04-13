@@ -49,7 +49,7 @@ func TestAppHandler_ToYAML_IncludesGitRepo(t *testing.T) {
 
 	app := &models.App{
 		ID:       1,
-		DomainID: 1,
+		DomainID: sql.NullInt64{Int64: 1, Valid: true},
 		Name:     "git-app",
 		Path:     "/my/app",
 		// GitRepoID is set — simulates an app created with `dvm create app --repo`
@@ -207,7 +207,7 @@ spec:
 	}
 
 	// Also verify the association persisted in the store
-	storedApp, err := store.GetAppByName(domainID, "linked-app")
+	storedApp, err := store.GetAppByName(sql.NullInt64{Int64: int64(domainID), Valid: true}, "linked-app")
 	if err != nil {
 		t.Fatalf("GetAppByName() after Apply() error = %v", err)
 	}
@@ -263,7 +263,7 @@ func TestAppHandler_ToYAML_RoundTrip_PreservesGitRepo(t *testing.T) {
 			app := &models.App{
 				ID:        1,
 				Name:      "roundtrip-app",
-				DomainID:  1,
+				DomainID:  sql.NullInt64{Int64: 1, Valid: true},
 				Path:      "/rt/app",
 				GitRepoID: sql.NullInt64{Int64: int64(gitRepo.ID), Valid: true},
 			}

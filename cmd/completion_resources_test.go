@@ -188,7 +188,7 @@ func TestCompleteResources(t *testing.T) {
 
 	domain := &models.Domain{
 		Name:        "test-domain",
-		EcosystemID: ecosystem.ID,
+		EcosystemID: sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true},
 		Description: sql.NullString{String: "Test domain description", Valid: true},
 	}
 	err = dataStore.CreateDomain(domain)
@@ -198,7 +198,7 @@ func TestCompleteResources(t *testing.T) {
 	app := &models.App{
 		Name:        "test-app",
 		Path:        "/path/to/test-app",
-		DomainID:    domain.ID,
+		DomainID:    sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Description: sql.NullString{String: "Test app description", Valid: true},
 	}
 	err = dataStore.CreateApp(app)

@@ -100,13 +100,13 @@ func setupTestContext() (*db.MockDataStore, *models.App) {
 	mockStore.CreateEcosystem(ecosystem)
 
 	// Create test domain
-	domain := &models.Domain{Name: "test-domain", EcosystemID: ecosystem.ID}
+	domain := &models.Domain{Name: "test-domain", EcosystemID: sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true}}
 	mockStore.CreateDomain(domain)
 
 	// Create test app
 	app := &models.App{
 		Name:     "test-app",
-		DomainID: domain.ID,
+		DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Path:     "/test/path",
 	}
 	mockStore.CreateApp(app)

@@ -255,10 +255,12 @@ func runGetAllBuildArgs(cmd *cobra.Command, ctx resource.Context) error {
 	// 3. All domains
 	domains, _ := ds.ListAllDomains()
 	for _, dom := range domains {
-		eco, _ := ds.GetEcosystemByID(dom.EcosystemID)
 		ecoName := ""
-		if eco != nil {
-			ecoName = eco.Name
+		if dom.EcosystemID.Valid {
+			eco, _ := ds.GetEcosystemByID(int(dom.EcosystemID.Int64))
+			if eco != nil {
+				ecoName = eco.Name
+			}
 		}
 		domYAML := dom.ToYAML(ecoName, nil)
 		addArgs(domYAML.Spec.Build.Args, fmt.Sprintf("domain: %s", dom.Name))
@@ -341,11 +343,14 @@ func getBuildArgsAtDomain(cmd *cobra.Command, ctx resource.Context, domainName s
 		return fmt.Errorf("failed to get DataStore: %w", err)
 	}
 	domain := domainRes.Domain()
-	eco, err := ds.GetEcosystemByID(domain.EcosystemID)
-	if err != nil {
-		return fmt.Errorf("failed to get ecosystem for domain: %w", err)
+	ecoName := ""
+	if domain.EcosystemID.Valid {
+		eco, err := ds.GetEcosystemByID(int(domain.EcosystemID.Int64))
+		if err == nil {
+			ecoName = eco.Name
+		}
 	}
-	domainYAML := domain.ToYAML(eco.Name, nil)
+	domainYAML := domain.ToYAML(ecoName, nil)
 	return displayBuildArgs("domain", domainName, domainYAML.Spec.Build.Args)
 }
 

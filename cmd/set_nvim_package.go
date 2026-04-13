@@ -177,12 +177,15 @@ func setNvimPkgAtDomain(cmd *cobra.Command, ctx resource.Context, domName, pkgNa
 	if err != nil {
 		return nil, fmt.Errorf("failed to get DataStore: %w", err)
 	}
-	eco, err := ds.GetEcosystemByID(dom.EcosystemID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get ecosystem for domain: %w", err)
+	ecoName := ""
+	if dom.EcosystemID.Valid {
+		eco, err := ds.GetEcosystemByID(int(dom.EcosystemID.Int64))
+		if err == nil {
+			ecoName = eco.Name
+		}
 	}
 
-	domYAML := dom.ToYAML(eco.Name, nil)
+	domYAML := dom.ToYAML(ecoName, nil)
 	yamlData, err := yaml.Marshal(domYAML)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal domain YAML: %w", err)
@@ -223,12 +226,15 @@ func setNvimPkgAtApp(cmd *cobra.Command, ctx resource.Context, appName, pkgName 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get DataStore: %w", err)
 	}
-	dom, err := ds.GetDomainByID(app.DomainID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get domain for app: %w", err)
+	domName := ""
+	if app.DomainID.Valid {
+		dom, err := ds.GetDomainByID(int(app.DomainID.Int64))
+		if err == nil {
+			domName = dom.Name
+		}
 	}
 
-	appYAML := app.ToYAML(dom.Name, nil, "", "")
+	appYAML := app.ToYAML(domName, nil, "", "")
 	yamlData, err := yaml.Marshal(appYAML)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal app YAML: %w", err)

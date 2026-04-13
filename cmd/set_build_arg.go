@@ -174,12 +174,15 @@ func setBuildArgAtDomain(ctx resource.Context, domainName, key, value string) (l
 	if err != nil {
 		return "", "", fmt.Errorf("failed to get DataStore: %w", err)
 	}
-	ecosystem, err := ds.GetEcosystemByID(domain.EcosystemID)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to get ecosystem for domain: %w", err)
+	ecoName := ""
+	if domain.EcosystemID.Valid {
+		ecosystem, err := ds.GetEcosystemByID(int(domain.EcosystemID.Int64))
+		if err == nil {
+			ecoName = ecosystem.Name
+		}
 	}
 
-	domainYAML := domain.ToYAML(ecosystem.Name, nil)
+	domainYAML := domain.ToYAML(ecoName, nil)
 	if domainYAML.Spec.Build.Args == nil {
 		domainYAML.Spec.Build.Args = make(map[string]string)
 	}
@@ -214,12 +217,15 @@ func setBuildArgAtApp(ctx resource.Context, appName, key, value string) (levelNa
 	if err != nil {
 		return "", "", fmt.Errorf("failed to get DataStore: %w", err)
 	}
-	domain, err := ds.GetDomainByID(app.DomainID)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to get domain for app: %w", err)
+	domainName := ""
+	if app.DomainID.Valid {
+		domain, err := ds.GetDomainByID(int(app.DomainID.Int64))
+		if err == nil {
+			domainName = domain.Name
+		}
 	}
 
-	appYAML := app.ToYAML(domain.Name, nil, "", "")
+	appYAML := app.ToYAML(domainName, nil, "", "")
 	if appYAML.Spec.Build.Args == nil {
 		appYAML.Spec.Build.Args = make(map[string]string)
 	}

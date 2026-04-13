@@ -92,7 +92,7 @@ func TestIntegration_FullStack_WorkspaceWorkflow(t *testing.T) {
 	}
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "test-domain",
 	}
 	if err := store.CreateDomain(domain); err != nil {
@@ -100,7 +100,7 @@ func TestIntegration_FullStack_WorkspaceWorkflow(t *testing.T) {
 	}
 
 	app := &models.App{
-		DomainID: domain.ID,
+		DomainID: validNullInt64(domain.ID),
 		Name:     "test-app",
 		Path:     "/test/app",
 	}
@@ -160,10 +160,10 @@ func TestIntegration_FullStack_ContextWorkflow(t *testing.T) {
 	ecosystem := &models.Ecosystem{Name: "ctx-eco"}
 	store.CreateEcosystem(ecosystem)
 
-	domain := &models.Domain{EcosystemID: ecosystem.ID, Name: "ctx-domain"}
+	domain := &models.Domain{EcosystemID: validNullInt64(ecosystem.ID), Name: "ctx-domain"}
 	store.CreateDomain(domain)
 
-	app := &models.App{DomainID: domain.ID, Name: "ctx-app", Path: "/ctx/app"}
+	app := &models.App{DomainID: validNullInt64(domain.ID), Name: "ctx-app", Path: "/ctx/app"}
 	store.CreateApp(app)
 
 	workspace := &models.Workspace{

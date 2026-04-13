@@ -12,6 +12,7 @@
 package cmd
 
 import (
+	"database/sql"
 	"context"
 	"os"
 	"testing"
@@ -95,7 +96,7 @@ func TestUseApp_NoYAMLWrite(t *testing.T) {
 	t.Setenv("HOME", tempHome)
 
 	mock := db.NewMockDataStore()
-	app := &models.App{ID: 5, Name: "my-api", DomainID: 1}
+	app := &models.App{ID: 5, Name: "my-api", DomainID: sql.NullInt64{Int64: 1, Valid: true}}
 	mock.Apps[5] = app
 
 	useAppCmd.SetContext(newCmdContextWithMock(mock))

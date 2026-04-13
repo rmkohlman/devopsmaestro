@@ -52,12 +52,14 @@ func (h *DomainHandler) Apply(ctx resource.Context, data []byte) (resource.Resou
 
 	// Convert to model
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true},
 	}
 	domain.FromYAML(domainYAML)
 
+	ecoNullID := sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true}
+
 	// Check if domain exists
-	existing, _ := ds.GetDomainByName(ecosystem.ID, domain.Name)
+	existing, _ := ds.GetDomainByName(ecoNullID, domain.Name)
 	if existing != nil {
 		// Update existing
 		domain.ID = existing.ID
@@ -70,7 +72,7 @@ func (h *DomainHandler) Apply(ctx resource.Context, data []byte) (resource.Resou
 			return nil, fmt.Errorf("failed to create domain: %w", err)
 		}
 		// Fetch to get the ID
-		domain, err = ds.GetDomainByName(ecosystem.ID, domain.Name)
+		domain, err = ds.GetDomainByName(ecoNullID, domain.Name)
 		if err != nil {
 			return nil, fmt.Errorf("failed to retrieve created domain: %w", err)
 		}
@@ -97,15 +99,17 @@ func (h *DomainHandler) Get(ctx resource.Context, name string) (resource.Resourc
 		return nil, fmt.Errorf("no active ecosystem set; use 'dvm use ecosystem <name>' first")
 	}
 
-	domain, err := ds.GetDomainByName(*dbCtx.ActiveEcosystemID, name)
+	domain, err := ds.GetDomainByName(sql.NullInt64{Int64: int64(*dbCtx.ActiveEcosystemID), Valid: true}, name)
 	if err != nil {
 		return nil, err
 	}
 
-	ecosystem, _ := ds.GetEcosystemByID(domain.EcosystemID)
 	ecosystemName := ""
-	if ecosystem != nil {
-		ecosystemName = ecosystem.Name
+	if domain.EcosystemID.Valid {
+		ecosystem, err := ds.GetEcosystemByID(int(domain.EcosystemID.Int64))
+		if err == nil {
+			ecosystemName = ecosystem.Name
+		}
 	}
 
 	return &DomainResource{domain: domain, ecosystemName: ecosystemName}, nil
@@ -137,10 +141,12 @@ func (h *DomainHandler) List(ctx resource.Context) ([]resource.Resource, error) 
 
 	result := make([]resource.Resource, len(domains))
 	for i, d := range domains {
-		ecosystem, _ := ds.GetEcosystemByID(d.EcosystemID)
 		ecosystemName := ""
-		if ecosystem != nil {
-			ecosystemName = ecosystem.Name
+		if d.EcosystemID.Valid {
+			ecosystem, err := ds.GetEcosystemByID(int(d.EcosystemID.Int64))
+			if err == nil {
+				ecosystemName = ecosystem.Name
+			}
 		}
 		result[i] = &DomainResource{domain: d, ecosystemName: ecosystemName}
 	}
@@ -164,7 +170,7 @@ func (h *DomainHandler) Delete(ctx resource.Context, name string) error {
 		return fmt.Errorf("no active ecosystem set; use 'dvm use ecosystem <name>' first")
 	}
 
-	domain, err := ds.GetDomainByName(*dbCtx.ActiveEcosystemID, name)
+	domain, err := ds.GetDomainByName(sql.NullInt64{Int64: int64(*dbCtx.ActiveEcosystemID), Valid: true}, name)
 	if err != nil {
 		return err
 	}
@@ -201,9 +207,6 @@ func (r *DomainResource) Validate() error {
 	if r.domain.Name == "" {
 		return fmt.Errorf("domain name is required")
 	}
-	if r.domain.EcosystemID == 0 {
-		return fmt.Errorf("domain ecosystem_id is required")
-	}
 	return nil
 }
 
@@ -226,7 +229,7 @@ func NewDomainResource(domain *models.Domain, ecosystemName string) *DomainResou
 func NewDomainFromModel(name string, ecosystemID int, description string) *models.Domain {
 	return &models.Domain{
 		Name:        name,
-		EcosystemID: ecosystemID,
+		EcosystemID: sql.NullInt64{Int64: int64(ecosystemID), Valid: ecosystemID != 0},
 		Description: sql.NullString{
 			String: description,
 			Valid:  description != "",

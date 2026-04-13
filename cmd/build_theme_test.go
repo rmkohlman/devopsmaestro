@@ -130,7 +130,7 @@ func TestResolveWorkspaceTheme_WorkspaceLevel(t *testing.T) {
 	}
 	ds.domains[1] = &models.Domain{
 		ID:          1,
-		EcosystemID: 1,
+		EcosystemID: sql.NullInt64{Int64: 1, Valid: true},
 		Name:        "backend",
 		Theme: sql.NullString{
 			String: "domain-theme",
@@ -139,7 +139,7 @@ func TestResolveWorkspaceTheme_WorkspaceLevel(t *testing.T) {
 	}
 	ds.apps[1] = &models.App{
 		ID:       1,
-		DomainID: 1,
+		DomainID: sql.NullInt64{Int64: 1, Valid: true},
 		Name:     "api-service",
 		Theme: sql.NullString{
 			Valid: false, // No app theme
@@ -194,7 +194,7 @@ func TestResolveWorkspaceTheme_DomainLevelInheritance(t *testing.T) {
 	}
 	ds.domains[1] = &models.Domain{
 		ID:          1,
-		EcosystemID: 1,
+		EcosystemID: sql.NullInt64{Int64: 1, Valid: true},
 		Name:        "backend",
 		Theme: sql.NullString{
 			String: "domain-theme",
@@ -203,7 +203,7 @@ func TestResolveWorkspaceTheme_DomainLevelInheritance(t *testing.T) {
 	}
 	ds.apps[1] = &models.App{
 		ID:       1,
-		DomainID: 1,
+		DomainID: sql.NullInt64{Int64: 1, Valid: true},
 		Name:     "api-service",
 	}
 	ds.workspaces[1] = &models.Workspace{
@@ -245,12 +245,12 @@ func TestResolveWorkspaceTheme_GlobalDefault(t *testing.T) {
 	}
 	ds.domains[1] = &models.Domain{
 		ID:          1,
-		EcosystemID: 1,
+		EcosystemID: sql.NullInt64{Int64: 1, Valid: true},
 		Name:        "backend",
 	}
 	ds.apps[1] = &models.App{
 		ID:       1,
-		DomainID: 1,
+		DomainID: sql.NullInt64{Int64: 1, Valid: true},
 		Name:     "api-service",
 	}
 	ds.workspaces[1] = &models.Workspace{
@@ -290,7 +290,7 @@ func TestResolveWorkspaceTheme_ErrorHandling(t *testing.T) {
 	}
 	ds.domains[1] = &models.Domain{
 		ID:          1,
-		EcosystemID: 1,
+		EcosystemID: sql.NullInt64{Int64: 1, Valid: true},
 		Name:        "backend",
 		Theme: sql.NullString{
 			String: "nonexistent-theme", // Theme doesn't exist in store
@@ -299,7 +299,7 @@ func TestResolveWorkspaceTheme_ErrorHandling(t *testing.T) {
 	}
 	ds.apps[1] = &models.App{
 		ID:       1,
-		DomainID: 1,
+		DomainID: sql.NullInt64{Int64: 1, Valid: true},
 		Name:     "api-service",
 	}
 	ds.workspaces[1] = &models.Workspace{

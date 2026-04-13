@@ -25,6 +25,7 @@ package cmd
 // =============================================================================
 
 import (
+	"database/sql"
 	"testing"
 
 	"devopsmaestro/db"
@@ -55,10 +56,10 @@ func setupHierarchyTestStore(t *testing.T) (
 	eco := &models.Ecosystem{Name: "prod-eco"}
 	require.NoError(t, store.CreateEcosystem(eco))
 
-	dom := &models.Domain{Name: "backend", EcosystemID: eco.ID}
+	dom := &models.Domain{Name: "backend", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	require.NoError(t, store.CreateDomain(dom))
 
-	app := &models.App{Name: "my-app", DomainID: dom.ID, Path: "/apps/my-app"}
+	app := &models.App{Name: "my-app", DomainID: sql.NullInt64{Int64: int64(dom.ID), Valid: true}, Path: "/apps/my-app"}
 	require.NoError(t, store.CreateApp(app))
 
 	ws := &models.Workspace{
@@ -246,7 +247,7 @@ func TestUpdateContextFromHierarchy_NotCalledDuringBuild(t *testing.T) {
 	// Create a "different" app that the flag will resolve to
 	flagApp := &models.App{
 		Name:     "build-flag-app",
-		DomainID: dom.ID,
+		DomainID: sql.NullInt64{Int64: int64(dom.ID), Valid: true},
 		Path:     "/apps/build-flag-app",
 	}
 	require.NoError(t, store.CreateApp(flagApp))
@@ -321,7 +322,7 @@ func TestFlagOverrides_NeverPersistContext(t *testing.T) {
 			// Create the app/workspace that the flags reference
 			flagApp := &models.App{
 				Name:     "persist-test-app",
-				DomainID: dom.ID,
+				DomainID: sql.NullInt64{Int64: int64(dom.ID), Valid: true},
 				Path:     "/apps/persist-test-app",
 			}
 			require.NoError(t, store.CreateApp(flagApp))

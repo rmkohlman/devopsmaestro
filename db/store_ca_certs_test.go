@@ -42,13 +42,13 @@ func createTestHierarchyForCACerts(t *testing.T, ds *SQLDataStore, name string) 
 	require.NoError(t, ds.CreateEcosystem(ecosystem), "setup: CreateEcosystem")
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "ca-dom-" + name,
 	}
 	require.NoError(t, ds.CreateDomain(domain), "setup: CreateDomain")
 
 	app := &models.App{
-		DomainID: domain.ID,
+		DomainID: validNullInt64(domain.ID),
 		Name:     "ca-app-" + name,
 		Path:     "/ca/" + name,
 	}
@@ -269,7 +269,7 @@ func TestDomain_CACerts_StoreRoundTrip(t *testing.T) {
 
 			// RED: Domain.CACerts does not exist yet
 			dom := &models.Domain{
-				EcosystemID: eco.ID,
+				EcosystemID: validNullInt64(eco.ID),
 				Name:        fmt.Sprintf("ca-dom-rt-%d", i),
 				CACerts:     tt.initialCACerts,
 			}
@@ -277,7 +277,7 @@ func TestDomain_CACerts_StoreRoundTrip(t *testing.T) {
 			require.NotZero(t, dom.ID, "CreateDomain should set ID")
 
 			// --- GetByName round-trip ---
-			byName, err := ds.GetDomainByName(eco.ID, dom.Name)
+			byName, err := ds.GetDomainByName(validNullInt64(eco.ID), dom.Name)
 			require.NoError(t, err)
 			// RED: byName.CACerts does not exist yet
 			assert.Equal(t, tt.wantValid, byName.CACerts.Valid,
@@ -330,7 +330,7 @@ func TestDomain_CACerts_Update(t *testing.T) {
 	require.NoError(t, ds.CreateEcosystem(eco))
 
 	// Create domain without CA certs
-	dom := &models.Domain{EcosystemID: eco.ID, Name: "dom-ca-update-test"}
+	dom := &models.Domain{EcosystemID: validNullInt64(eco.ID), Name: "dom-ca-update-test"}
 	require.NoError(t, ds.CreateDomain(dom))
 
 	// Verify no CA certs initially
@@ -410,7 +410,7 @@ func TestApp_CACerts_StoreRoundTrip(t *testing.T) {
 			_, dom, _ := createTestHierarchyForCACerts(t, ds, fmt.Sprintf("app-ca-rt-%d", i))
 
 			app := &models.App{
-				DomainID:    dom.ID,
+				DomainID: validNullInt64(dom.ID),
 				Name:        "ca-test-app",
 				Path:        "/code/ca-test-app",
 				BuildConfig: tt.initialConfig,
@@ -419,7 +419,7 @@ func TestApp_CACerts_StoreRoundTrip(t *testing.T) {
 			require.NotZero(t, app.ID, "CreateApp should set ID")
 
 			// --- GetByName round-trip ---
-			byName, err := ds.GetAppByName(dom.ID, "ca-test-app")
+			byName, err := ds.GetAppByName(validNullInt64(dom.ID), "ca-test-app")
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantValid, byName.BuildConfig.Valid,
 				"GetAppByName: BuildConfig.Valid mismatch")
@@ -619,14 +619,14 @@ func TestListDomains_IncludesCACerts(t *testing.T) {
 
 	// RED: Domain.CACerts does not exist yet
 	domWith := &models.Domain{
-		EcosystemID: eco.ID,
+		EcosystemID: validNullInt64(eco.ID),
 		Name:        "domain-with-ca-certs",
 		CACerts:     sql.NullString{String: caCertsJSON, Valid: true},
 	}
 	require.NoError(t, ds.CreateDomain(domWith))
 
 	domWithout := &models.Domain{
-		EcosystemID: eco.ID,
+		EcosystemID: validNullInt64(eco.ID),
 		Name:        "domain-without-ca-certs",
 	}
 	require.NoError(t, ds.CreateDomain(domWithout))

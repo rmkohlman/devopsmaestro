@@ -132,7 +132,7 @@ func TestPositionalCompletion_ReturnValue_WorkspaceCommands(t *testing.T) {
 
 	domain := &models.Domain{
 		Name:        "test-domain",
-		EcosystemID: ecosystem.ID,
+		EcosystemID: sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true},
 		Description: sql.NullString{String: "Test domain", Valid: true},
 	}
 	require.NoError(t, dataStore.CreateDomain(domain))
@@ -140,7 +140,7 @@ func TestPositionalCompletion_ReturnValue_WorkspaceCommands(t *testing.T) {
 	app := &models.App{
 		Name:        "test-app",
 		Path:        "/path/to/app",
-		DomainID:    domain.ID,
+		DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Description: sql.NullString{String: "Test app", Valid: true},
 	}
 	require.NoError(t, dataStore.CreateApp(app))
@@ -268,7 +268,7 @@ func TestPositionalCompletion_UseSubcommand_ReturnValues(t *testing.T) {
 
 	domain := &models.Domain{
 		Name:        "backend",
-		EcosystemID: ecosystem.ID,
+		EcosystemID: sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true},
 		Description: sql.NullString{String: "Backend domain", Valid: true},
 	}
 	require.NoError(t, dataStore.CreateDomain(domain))
@@ -276,7 +276,7 @@ func TestPositionalCompletion_UseSubcommand_ReturnValues(t *testing.T) {
 	app := &models.App{
 		Name:        "api-service",
 		Path:        "/path/to/api",
-		DomainID:    domain.ID,
+		DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Description: sql.NullString{String: "API service", Valid: true},
 	}
 	require.NoError(t, dataStore.CreateApp(app))

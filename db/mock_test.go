@@ -337,10 +337,10 @@ func TestMockDataStore_WorkspaceCRUD(t *testing.T) {
 	ecosystem := &models.Ecosystem{Name: "test-eco"}
 	store.CreateEcosystem(ecosystem)
 
-	domain := &models.Domain{Name: "test-domain", EcosystemID: ecosystem.ID}
+	domain := &models.Domain{Name: "test-domain", EcosystemID: validNullInt64(ecosystem.ID)}
 	store.CreateDomain(domain)
 
-	app := &models.App{Name: "test-app", DomainID: domain.ID, Path: "/test"}
+	app := &models.App{Name: "test-app", DomainID: validNullInt64(domain.ID), Path: "/test"}
 	store.CreateApp(app)
 
 	// Create workspace

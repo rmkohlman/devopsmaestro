@@ -57,7 +57,8 @@ type DomainStore interface {
 	CreateDomain(domain *models.Domain) error
 
 	// GetDomainByName retrieves a domain by ecosystem ID and name.
-	GetDomainByName(ecosystemID int, name string) (*models.Domain, error)
+	// ecosystemID is nullable because domains can exist without a parent ecosystem.
+	GetDomainByName(ecosystemID sql.NullInt64, name string) (*models.Domain, error)
 
 	// GetDomainByID retrieves a domain by its ID.
 	GetDomainByID(id int) (*models.Domain, error)
@@ -119,7 +120,8 @@ type AppStore interface {
 	CreateApp(app *models.App) error
 
 	// GetAppByName retrieves an app by domain ID and name.
-	GetAppByName(domainID int, name string) (*models.App, error)
+	// domainID is nullable because apps can exist without a parent domain.
+	GetAppByName(domainID sql.NullInt64, name string) (*models.App, error)
 
 	// GetAppByNameGlobal retrieves an app by name across all domains.
 	// Returns the first match if multiple apps have the same name in different domains.

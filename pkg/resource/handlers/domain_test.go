@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"strings"
 	"testing"
 
@@ -86,7 +87,7 @@ func TestDomainHandler_Apply_Update(t *testing.T) {
 	ctx := resource.Context{DataStore: store}
 
 	// Pre-populate domain
-	_ = store.CreateDomain(&models.Domain{Name: "domain-upd", EcosystemID: ecoID})
+	_ = store.CreateDomain(&models.Domain{Name: "domain-upd", EcosystemID: sql.NullInt64{Int64: int64(ecoID), Valid: true}})
 
 	updateYAML := []byte(`
 apiVersion: devopsmaestro.io/v1
@@ -179,7 +180,7 @@ func TestDomainHandler_Get_Found(t *testing.T) {
 	store, ecoID := setupDomainTest(t)
 	ctx := resource.Context{DataStore: store}
 
-	_ = store.CreateDomain(&models.Domain{Name: "get-domain", EcosystemID: ecoID})
+	_ = store.CreateDomain(&models.Domain{Name: "get-domain", EcosystemID: sql.NullInt64{Int64: int64(ecoID), Valid: true}})
 
 	res, err := h.Get(ctx, "get-domain")
 	if err != nil {
@@ -224,8 +225,8 @@ func TestDomainHandler_List_WithActiveEcosystem(t *testing.T) {
 	store, ecoID := setupDomainTest(t)
 	ctx := resource.Context{DataStore: store}
 
-	_ = store.CreateDomain(&models.Domain{Name: "d1", EcosystemID: ecoID})
-	_ = store.CreateDomain(&models.Domain{Name: "d2", EcosystemID: ecoID})
+	_ = store.CreateDomain(&models.Domain{Name: "d1", EcosystemID: sql.NullInt64{Int64: int64(ecoID), Valid: true}})
+	_ = store.CreateDomain(&models.Domain{Name: "d2", EcosystemID: sql.NullInt64{Int64: int64(ecoID), Valid: true}})
 
 	resources, err := h.List(ctx)
 	if err != nil {
@@ -251,8 +252,8 @@ func TestDomainHandler_List_NoActiveEcosystem(t *testing.T) {
 	eco2 := &models.Ecosystem{Name: "eco2"}
 	_ = store.CreateEcosystem(eco1)
 	_ = store.CreateEcosystem(eco2)
-	_ = store.CreateDomain(&models.Domain{Name: "d-eco1", EcosystemID: eco1.ID})
-	_ = store.CreateDomain(&models.Domain{Name: "d-eco2", EcosystemID: eco2.ID})
+	_ = store.CreateDomain(&models.Domain{Name: "d-eco1", EcosystemID: sql.NullInt64{Int64: int64(eco1.ID), Valid: true}})
+	_ = store.CreateDomain(&models.Domain{Name: "d-eco2", EcosystemID: sql.NullInt64{Int64: int64(eco2.ID), Valid: true}})
 
 	// No active ecosystem: should call ListAllDomains
 	resources, err := h.List(ctx)
@@ -273,7 +274,7 @@ func TestDomainHandler_Delete_Found(t *testing.T) {
 	store, ecoID := setupDomainTest(t)
 	ctx := resource.Context{DataStore: store}
 
-	domain := &models.Domain{Name: "del-domain", EcosystemID: ecoID}
+	domain := &models.Domain{Name: "del-domain", EcosystemID: sql.NullInt64{Int64: int64(ecoID), Valid: true}}
 	_ = store.CreateDomain(domain)
 
 	if err := h.Delete(ctx, "del-domain"); err != nil {
@@ -281,7 +282,7 @@ func TestDomainHandler_Delete_Found(t *testing.T) {
 	}
 
 	// Verify removed
-	_, err := store.GetDomainByName(ecoID, "del-domain")
+	_, err := store.GetDomainByName(sql.NullInt64{Int64: int64(ecoID), Valid: true}, "del-domain")
 	if err == nil {
 		t.Error("Delete() did not remove domain from store")
 	}
@@ -310,7 +311,7 @@ func TestDomainHandler_ToYAML(t *testing.T) {
 
 	domain := &models.Domain{
 		ID:          1,
-		EcosystemID: 1,
+		EcosystemID: sql.NullInt64{Int64: 1, Valid: true},
 		Name:        "yaml-domain",
 	}
 	res := NewDomainResource(domain, "my-eco")
@@ -353,18 +354,18 @@ func TestDomainResource_Validate(t *testing.T) {
 	}{
 		{
 			name:    "valid domain",
-			domain:  &models.Domain{Name: "good-domain", EcosystemID: 1},
+			domain:  &models.Domain{Name: "good-domain", EcosystemID: sql.NullInt64{Int64: 1, Valid: true}},
 			wantErr: false,
 		},
 		{
 			name:    "missing name",
-			domain:  &models.Domain{Name: "", EcosystemID: 1},
+			domain:  &models.Domain{Name: "", EcosystemID: sql.NullInt64{Int64: 1, Valid: true}},
 			wantErr: true,
 		},
 		{
-			name:    "missing ecosystem_id",
-			domain:  &models.Domain{Name: "no-eco", EcosystemID: 0},
-			wantErr: true,
+			name:    "no ecosystem_id is allowed",
+			domain:  &models.Domain{Name: "no-eco"},
+			wantErr: false,
 		},
 	}
 

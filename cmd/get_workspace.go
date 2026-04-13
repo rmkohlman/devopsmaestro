@@ -42,12 +42,16 @@ func getWorkspaces(cmd *cobra.Command) error {
 				ecoName := ""
 				if app != nil {
 					appName = app.Name
-					dom, _ := sqlDS.GetDomainByID(app.DomainID)
-					if dom != nil {
-						domName = dom.Name
-						eco, _ := sqlDS.GetEcosystemByID(dom.EcosystemID)
-						if eco != nil {
-							ecoName = eco.Name
+					if app.DomainID.Valid {
+						dom, _ := sqlDS.GetDomainByID(int(app.DomainID.Int64))
+						if dom != nil {
+							domName = dom.Name
+							if dom.EcosystemID.Valid {
+								eco, _ := sqlDS.GetEcosystemByID(int(dom.EcosystemID.Int64))
+								if eco != nil {
+									ecoName = eco.Name
+								}
+							}
 						}
 					}
 				}
@@ -327,12 +331,16 @@ func getWorkspaces(cmd *cobra.Command) error {
 		// Resolve domain/ecosystem names for context-free output
 		domName := ""
 		ecoName := ""
-		dom, _ := sqlDS.GetDomainByID(app.DomainID)
-		if dom != nil {
-			domName = dom.Name
-			eco, _ := sqlDS.GetEcosystemByID(dom.EcosystemID)
-			if eco != nil {
-				ecoName = eco.Name
+		if app.DomainID.Valid {
+			dom, _ := sqlDS.GetDomainByID(int(app.DomainID.Int64))
+			if dom != nil {
+				domName = dom.Name
+				if dom.EcosystemID.Valid {
+					eco, _ := sqlDS.GetEcosystemByID(int(dom.EcosystemID.Int64))
+					if eco != nil {
+						ecoName = eco.Name
+					}
+				}
 			}
 		}
 		wsResources := make([]resource.Resource, len(workspaces))

@@ -65,7 +65,7 @@ func TestWorkspaceSlugRoundTrip(t *testing.T) {
 			}
 
 			domain := &models.Domain{
-				EcosystemID: ecosystem.ID,
+				EcosystemID: validNullInt64(ecosystem.ID),
 				Name:        tt.domain,
 			}
 			if err := ds.CreateDomain(domain); err != nil {
@@ -73,7 +73,7 @@ func TestWorkspaceSlugRoundTrip(t *testing.T) {
 			}
 
 			app := &models.App{
-				DomainID: domain.ID,
+				DomainID: validNullInt64(domain.ID),
 				Name:     tt.app,
 				Path:     "/path/to/app",
 			}
@@ -118,7 +118,7 @@ func TestWorkspaceSlugUniqueness(t *testing.T) {
 	}
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "test-domain",
 	}
 	if err := ds.CreateDomain(domain); err != nil {
@@ -126,7 +126,7 @@ func TestWorkspaceSlugUniqueness(t *testing.T) {
 	}
 
 	app := &models.App{
-		DomainID: domain.ID,
+		DomainID: validNullInt64(domain.ID),
 		Name:     "test-app",
 		Path:     "/path",
 	}
@@ -179,7 +179,7 @@ func TestWorkspaceSSHAgentDefault(t *testing.T) {
 	}
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "test-domain",
 	}
 	if err := ds.CreateDomain(domain); err != nil {
@@ -187,7 +187,7 @@ func TestWorkspaceSSHAgentDefault(t *testing.T) {
 	}
 
 	app := &models.App{
-		DomainID: domain.ID,
+		DomainID: validNullInt64(domain.ID),
 		Name:     "test-app",
 		Path:     "/path",
 	}
@@ -230,7 +230,7 @@ func TestWorkspaceSSHAgentExplicitEnable(t *testing.T) {
 	}
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "test-domain",
 	}
 	if err := ds.CreateDomain(domain); err != nil {
@@ -238,7 +238,7 @@ func TestWorkspaceSSHAgentExplicitEnable(t *testing.T) {
 	}
 
 	app := &models.App{
-		DomainID: domain.ID,
+		DomainID: validNullInt64(domain.ID),
 		Name:     "test-app",
 		Path:     "/path",
 	}
@@ -282,7 +282,7 @@ func TestWorkspaceSlugInList(t *testing.T) {
 	}
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "dom",
 	}
 	if err := ds.CreateDomain(domain); err != nil {
@@ -290,7 +290,7 @@ func TestWorkspaceSlugInList(t *testing.T) {
 	}
 
 	app := &models.App{
-		DomainID: domain.ID,
+		DomainID: validNullInt64(domain.ID),
 		Name:     "app",
 		Path:     "/path",
 	}

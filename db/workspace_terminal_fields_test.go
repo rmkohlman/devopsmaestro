@@ -30,13 +30,13 @@ func TestWorkspace_TerminalPromptPersistence(t *testing.T) {
 	require.NoError(t, ds.CreateEcosystem(ecosystem))
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "test-domain",
 	}
 	require.NoError(t, ds.CreateDomain(domain))
 
 	app := &models.App{
-		DomainID: domain.ID,
+		DomainID: validNullInt64(domain.ID),
 		Name:     "test-app",
 		Path:     "/test",
 	}
@@ -73,13 +73,13 @@ func TestWorkspace_TerminalPluginsPersistence(t *testing.T) {
 	require.NoError(t, ds.CreateEcosystem(ecosystem))
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "test-domain",
 	}
 	require.NoError(t, ds.CreateDomain(domain))
 
 	app := &models.App{
-		DomainID: domain.ID,
+		DomainID: validNullInt64(domain.ID),
 		Name:     "test-app",
 		Path:     "/test",
 	}
@@ -120,13 +120,13 @@ func TestWorkspace_TerminalPackagePersistence(t *testing.T) {
 	require.NoError(t, ds.CreateEcosystem(ecosystem))
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "test-domain",
 	}
 	require.NoError(t, ds.CreateDomain(domain))
 
 	app := &models.App{
-		DomainID: domain.ID,
+		DomainID: validNullInt64(domain.ID),
 		Name:     "test-app",
 		Path:     "/test",
 	}
@@ -163,13 +163,13 @@ func TestWorkspace_AllTerminalFieldsPersistence(t *testing.T) {
 	require.NoError(t, ds.CreateEcosystem(ecosystem))
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "test-domain",
 	}
 	require.NoError(t, ds.CreateDomain(domain))
 
 	app := &models.App{
-		DomainID: domain.ID,
+		DomainID: validNullInt64(domain.ID),
 		Name:     "test-app",
 		Path:     "/test",
 	}
@@ -216,13 +216,13 @@ func TestListWorkspacesByApp_IncludesTerminalFields(t *testing.T) {
 	require.NoError(t, ds.CreateEcosystem(ecosystem))
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "test-domain",
 	}
 	require.NoError(t, ds.CreateDomain(domain))
 
 	app := &models.App{
-		DomainID: domain.ID,
+		DomainID: validNullInt64(domain.ID),
 		Name:     "test-app",
 		Path:     "/test",
 	}
@@ -267,13 +267,13 @@ func TestListAllWorkspaces_IncludesTerminalFields(t *testing.T) {
 	require.NoError(t, ds.CreateEcosystem(ecosystem))
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "test-domain",
 	}
 	require.NoError(t, ds.CreateDomain(domain))
 
 	app := &models.App{
-		DomainID: domain.ID,
+		DomainID: validNullInt64(domain.ID),
 		Name:     "test-app",
 		Path:     "/test",
 	}

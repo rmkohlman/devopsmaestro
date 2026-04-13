@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"fmt"
 
 	"devopsmaestro/db"
@@ -96,7 +97,7 @@ func resolveCredentialScope(ds db.DataStore, scopeType models.CredentialScopeTyp
 		// Try active context first
 		dbCtx, err := ds.GetContext()
 		if err == nil && dbCtx.ActiveEcosystemID != nil {
-			domain, err := ds.GetDomainByName(*dbCtx.ActiveEcosystemID, scopeName)
+			domain, err := ds.GetDomainByName(sql.NullInt64{Int64: int64(*dbCtx.ActiveEcosystemID), Valid: true}, scopeName)
 			if err == nil {
 				return int64(domain.ID), nil
 			}
@@ -117,7 +118,7 @@ func resolveCredentialScope(ds db.DataStore, scopeType models.CredentialScopeTyp
 		// Try active context first
 		dbCtx, err := ds.GetContext()
 		if err == nil && dbCtx.ActiveDomainID != nil {
-			app, err := ds.GetAppByName(*dbCtx.ActiveDomainID, scopeName)
+			app, err := ds.GetAppByName(sql.NullInt64{Int64: int64(*dbCtx.ActiveDomainID), Valid: true}, scopeName)
 			if err == nil {
 				return int64(app.ID), nil
 			}

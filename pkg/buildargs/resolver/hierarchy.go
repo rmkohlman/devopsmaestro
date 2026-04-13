@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"devopsmaestro/db"
+	"devopsmaestro/models"
 	"devopsmaestro/pkg/envvalidation"
 )
 
@@ -43,10 +44,19 @@ func (r *HierarchyBuildArgsResolver) Resolve(ctx context.Context, workspaceID in
 		return nil, fmt.Errorf("resolving build args: getting app %d: %w", ws.AppID, err)
 	}
 
-	// ─── Load domain ──────────────────────────────────────────────────────────
-	domain, err := r.store.GetDomainByID(app.DomainID)
-	if err != nil {
-		return nil, fmt.Errorf("resolving build args: getting domain %d: %w", app.DomainID, err)
+	// ─── Load domain (optional) ───────────────────────────────────────────────
+	var domainName string
+	var domainArgs map[string]string
+	var domain *models.Domain
+	if app.DomainID.Valid {
+		domain, err = r.store.GetDomainByID(int(app.DomainID.Int64))
+		if err != nil {
+			return nil, fmt.Errorf("resolving build args: getting domain %d: %w", app.DomainID.Int64, err)
+		}
+		domainName = domain.Name
+		domainArgs = parseDirectMap(nullableString(domain.BuildArgs.String, domain.BuildArgs.Valid))
+	} else {
+		domainArgs = map[string]string{}
 	}
 
 	// ─── Load system (optional) ───────────────────────────────────────────────
@@ -63,26 +73,32 @@ func (r *HierarchyBuildArgsResolver) Resolve(ctx context.Context, workspaceID in
 		systemArgs = map[string]string{}
 	}
 
-	// ─── Load ecosystem ───────────────────────────────────────────────────────
-	eco, err := r.store.GetEcosystemByID(domain.EcosystemID)
-	if err != nil {
-		return nil, fmt.Errorf("resolving build args: getting ecosystem %d: %w", domain.EcosystemID, err)
+	// ─── Load ecosystem (optional) ───────────────────────────────────────────
+	var ecoName string
+	var ecoArgs map[string]string
+	if domain != nil && domain.EcosystemID.Valid {
+		eco, eErr := r.store.GetEcosystemByID(int(domain.EcosystemID.Int64))
+		if eErr != nil {
+			return nil, fmt.Errorf("resolving build args: getting ecosystem %d: %w", domain.EcosystemID.Int64, eErr)
+		}
+		ecoName = eco.Name
+		ecoArgs = parseDirectMap(nullableString(eco.BuildArgs.String, eco.BuildArgs.Valid))
+	} else {
+		ecoArgs = map[string]string{}
 	}
 
 	// ─── Load global build args ───────────────────────────────────────────────
 	globalArgs := parseDirectMap(getDefault(r.store, defaultsBuildArgsKey))
 
 	// ─── Parse each level ────────────────────────────────────────────────────
-	ecoArgs := parseDirectMap(nullableString(eco.BuildArgs.String, eco.BuildArgs.Valid))
-	domainArgs := parseDirectMap(nullableString(domain.BuildArgs.String, domain.BuildArgs.Valid))
 	appArgs := parseWrappedArgs(nullableString(app.BuildConfig.String, app.BuildConfig.Valid))
 	wsArgs := parseWrappedArgs(nullableString(ws.BuildConfig.String, ws.BuildConfig.Valid))
 
 	// ─── Build path (always 6 entries) ───────────────────────────────────────
 	path := []BuildArgsStep{
 		{Level: LevelGlobal, Name: "global", Args: globalArgs, Found: len(globalArgs) > 0},
-		{Level: LevelEcosystem, Name: eco.Name, Args: ecoArgs, Found: len(ecoArgs) > 0},
-		{Level: LevelDomain, Name: domain.Name, Args: domainArgs, Found: len(domainArgs) > 0},
+		{Level: LevelEcosystem, Name: ecoName, Args: ecoArgs, Found: len(ecoArgs) > 0},
+		{Level: LevelDomain, Name: domainName, Args: domainArgs, Found: len(domainArgs) > 0},
 		{Level: LevelSystem, Name: systemName, Args: systemArgs, Found: len(systemArgs) > 0},
 		{Level: LevelApp, Name: app.Name, Args: appArgs, Found: len(appArgs) > 0},
 		{Level: LevelWorkspace, Name: ws.Name, Args: wsArgs, Found: len(wsArgs) > 0},

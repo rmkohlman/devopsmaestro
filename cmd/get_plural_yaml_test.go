@@ -209,9 +209,9 @@ func TestGetWorkspaces_YAML_ProducesListWrapper(t *testing.T) {
 	// Build hierarchy needed for workspaces
 	eco := &models.Ecosystem{Name: "ws-list-eco"}
 	require.NoError(t, ds.CreateEcosystem(eco))
-	dom := &models.Domain{Name: "ws-list-dom", EcosystemID: eco.ID}
+	dom := &models.Domain{Name: "ws-list-dom", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	require.NoError(t, ds.CreateDomain(dom))
-	app := &models.App{Name: "ws-list-app", Path: "/app", DomainID: dom.ID}
+	app := &models.App{Name: "ws-list-app", Path: "/app", DomainID: sql.NullInt64{Int64: int64(dom.ID), Valid: true}}
 	require.NoError(t, ds.CreateApp(app))
 
 	ws1 := &models.Workspace{

@@ -13,6 +13,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"testing"
 
 	"devopsmaestro/models"
@@ -77,13 +78,13 @@ func seedAppHierarchy(t *testing.T, ds interface {
 	eco = &models.Ecosystem{Name: "singular-yaml-eco"}
 	require.NoError(t, ds.CreateEcosystem(eco))
 
-	dom = &models.Domain{Name: "singular-yaml-dom", EcosystemID: eco.ID}
+	dom = &models.Domain{Name: "singular-yaml-dom", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	require.NoError(t, ds.CreateDomain(dom))
 
 	app = &models.App{
 		Name:     "singular-yaml-app",
 		Path:     "/srv/singular",
-		DomainID: dom.ID,
+		DomainID: sql.NullInt64{Int64: int64(dom.ID), Valid: true},
 	}
 	require.NoError(t, ds.CreateApp(app))
 

@@ -21,6 +21,7 @@ package handlers
 // =============================================================================
 
 import (
+	"database/sql"
 	"strings"
 	"testing"
 
@@ -46,7 +47,7 @@ func TestAppHandler_Apply_WithMetadataEcosystem(t *testing.T) {
 		t.Fatalf("CreateEcosystem: %v", err)
 	}
 
-	domain := &models.Domain{Name: "restore-domain", EcosystemID: eco.ID}
+	domain := &models.Domain{Name: "restore-domain", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	if err := store.CreateDomain(domain); err != nil {
 		t.Fatalf("CreateDomain: %v", err)
 	}
@@ -146,7 +147,7 @@ func TestAppHandler_ToYAML_IncludesEcosystem(t *testing.T) {
 
 	app := &models.App{
 		ID:       1,
-		DomainID: 1,
+		DomainID: sql.NullInt64{Int64: 1, Valid: true},
 		Name:     "eco-app",
 		Path:     "/eco/app",
 	}
@@ -212,14 +213,14 @@ func TestApp_RoundTrip_WithoutActiveContext(t *testing.T) {
 		t.Fatalf("CreateEcosystem: %v", err)
 	}
 
-	domain := &models.Domain{Name: "roundtrip-domain", EcosystemID: eco.ID}
+	domain := &models.Domain{Name: "roundtrip-domain", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	if err := sourceStore.CreateDomain(domain); err != nil {
 		t.Fatalf("CreateDomain: %v", err)
 	}
 
 	app := &models.App{
 		Name:     "roundtrip-app",
-		DomainID: domain.ID,
+		DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Path:     "/rt/app",
 	}
 	if err := sourceStore.CreateApp(app); err != nil {
@@ -248,7 +249,7 @@ func TestApp_RoundTrip_WithoutActiveContext(t *testing.T) {
 	if err := destStore.CreateEcosystem(dstEco); err != nil {
 		t.Fatalf("dest CreateEcosystem: %v", err)
 	}
-	dstDomain := &models.Domain{Name: "roundtrip-domain", EcosystemID: dstEco.ID}
+	dstDomain := &models.Domain{Name: "roundtrip-domain", EcosystemID: sql.NullInt64{Int64: int64(dstEco.ID), Valid: true}}
 	if err := destStore.CreateDomain(dstDomain); err != nil {
 		t.Fatalf("dest CreateDomain: %v", err)
 	}

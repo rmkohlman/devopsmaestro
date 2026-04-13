@@ -77,7 +77,7 @@ func (m *buildArgsMockStore) addEcosystem(id int, name string, args map[string]s
 
 // addDomain adds a domain with optional build args.
 func (m *buildArgsMockStore) addDomain(id, ecosystemID int, name string, args map[string]string) {
-	d := &models.Domain{ID: id, EcosystemID: ecosystemID, Name: name}
+	d := &models.Domain{ID: id, EcosystemID: sql.NullInt64{Int64: int64(ecosystemID), Valid: true}, Name: name}
 	if len(args) > 0 {
 		// RED: Domain.BuildArgs (sql.NullString) does not exist yet
 		b, _ := json.Marshal(args)
@@ -90,7 +90,7 @@ func (m *buildArgsMockStore) addDomain(id, ecosystemID int, name string, args ma
 // RED: models.App does not yet have a BuildConfig field that preserves Args-only builds.
 // Once WI-2 is implemented, args will be stored in app.BuildConfig.
 func (m *buildArgsMockStore) addApp(id, domainID int, name string, args map[string]string) {
-	a := &models.App{ID: id, DomainID: domainID, Name: name}
+	a := &models.App{ID: id, DomainID: sql.NullInt64{Int64: int64(domainID), Valid: true}, Name: name}
 	if len(args) > 0 {
 		// RED: AppBuildConfig args persistence fix (WI-2) not yet implemented.
 		// For now we wire through BuildConfig JSON as if WI-2 is complete.

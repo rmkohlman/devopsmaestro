@@ -65,15 +65,23 @@ func PrepareDefaults(workspace *models.Workspace, hierarchy HierarchyReader) err
 			systemName = system.Name
 		}
 
-		domain, err := hierarchy.GetDomainByID(app.DomainID)
-		if err != nil {
-			return fmt.Errorf("failed to get domain for slug generation: %w", err)
+		domainName := ""
+		ecosystemName := ""
+		if app.DomainID.Valid {
+			domain, err := hierarchy.GetDomainByID(int(app.DomainID.Int64))
+			if err != nil {
+				return fmt.Errorf("failed to get domain for slug generation: %w", err)
+			}
+			domainName = domain.Name
+			if domain.EcosystemID.Valid {
+				ecosystem, err := hierarchy.GetEcosystemByID(int(domain.EcosystemID.Int64))
+				if err != nil {
+					return fmt.Errorf("failed to get ecosystem for slug generation: %w", err)
+				}
+				ecosystemName = ecosystem.Name
+			}
 		}
-		ecosystem, err := hierarchy.GetEcosystemByID(domain.EcosystemID)
-		if err != nil {
-			return fmt.Errorf("failed to get ecosystem for slug generation: %w", err)
-		}
-		workspace.Slug = GenerateSlug(ecosystem.Name, domain.Name, systemName, app.Name, workspace.Name)
+		workspace.Slug = GenerateSlug(ecosystemName, domainName, systemName, app.Name, workspace.Name)
 	}
 
 	return nil

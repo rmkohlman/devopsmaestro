@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"testing"
 
 	"devopsmaestro/db"
@@ -34,12 +35,12 @@ func TestCredentialHandler_Apply(t *testing.T) {
 		t.Fatalf("Setup: CreateEcosystem() error = %v", err)
 	}
 
-	domain := &models.Domain{EcosystemID: eco.ID, Name: "backend"}
+	domain := &models.Domain{EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}, Name: "backend"}
 	if err := ds.CreateDomain(domain); err != nil {
 		t.Fatalf("Setup: CreateDomain() error = %v", err)
 	}
 
-	app := &models.App{DomainID: domain.ID, Name: "api-server"}
+	app := &models.App{DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true}, Name: "api-server"}
 	if err := ds.CreateApp(app); err != nil {
 		t.Fatalf("Setup: CreateApp() error = %v", err)
 	}

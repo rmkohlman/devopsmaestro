@@ -95,7 +95,7 @@ func (m *caCertsMockStore) addEcosystem(id int, name string, certs []models.CACe
 // addDomain adds a domain with optional CA certs.
 // RED: Domain.CACerts sql.NullString does not exist yet (v0.56.0 WI).
 func (m *caCertsMockStore) addDomain(id, ecosystemID int, name string, certs []models.CACertConfig) {
-	d := &models.Domain{ID: id, EcosystemID: ecosystemID, Name: name}
+	d := &models.Domain{ID: id, EcosystemID: sql.NullInt64{Int64: int64(ecosystemID), Valid: true}, Name: name}
 	if len(certs) > 0 {
 		// RED: Domain.CACerts field does not exist yet
 		d.CACerts = sql.NullString{String: makeCACertJSON(certs), Valid: true}
@@ -107,7 +107,7 @@ func (m *caCertsMockStore) addDomain(id, ecosystemID int, name string, certs []m
 // RED: AppBuildConfig.CACerts within the stored JSON does not yet cascade
 // from app level. The app's BuildConfig JSON must include a "caCerts" key.
 func (m *caCertsMockStore) addApp(id, domainID int, name string, certs []models.CACertConfig) {
-	a := &models.App{ID: id, DomainID: domainID, Name: name, Path: "/code/" + name}
+	a := &models.App{ID: id, DomainID: sql.NullInt64{Int64: int64(domainID), Valid: true}, Name: name, Path: "/code/" + name}
 	if len(certs) > 0 {
 		buildConfig := models.AppBuildConfig{CACerts: certs}
 		b, _ := json.Marshal(buildConfig)

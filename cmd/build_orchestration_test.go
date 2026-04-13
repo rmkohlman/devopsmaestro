@@ -20,6 +20,7 @@ package cmd
 // =============================================================================
 
 import (
+	"database/sql"
 	"testing"
 
 	"devopsmaestro/db"
@@ -42,11 +43,11 @@ func setupParallelBuildTestStore(t *testing.T, ecosystemName, domainName string,
 	eco := &models.Ecosystem{Name: ecosystemName}
 	require.NoError(t, store.CreateEcosystem(eco))
 
-	dom := &models.Domain{Name: domainName, EcosystemID: eco.ID}
+	dom := &models.Domain{Name: domainName, EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	require.NoError(t, store.CreateDomain(dom))
 
 	for _, pair := range appWorkspacePairs {
-		app := &models.App{Name: pair.app, DomainID: dom.ID}
+		app := &models.App{Name: pair.app, DomainID: sql.NullInt64{Int64: int64(dom.ID), Valid: true}}
 		require.NoError(t, store.CreateApp(app))
 
 		ws := &models.Workspace{Name: pair.workspace, AppID: app.ID}
@@ -94,9 +95,9 @@ func TestBuildOrchestration_AllFlag_NoActiveWorkspaceRequired(t *testing.T) {
 
 	eco := &models.Ecosystem{Name: "eco"}
 	require.NoError(t, store.CreateEcosystem(eco))
-	dom := &models.Domain{Name: "dom", EcosystemID: eco.ID}
+	dom := &models.Domain{Name: "dom", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	require.NoError(t, store.CreateDomain(dom))
-	app := &models.App{Name: "myapp", DomainID: dom.ID}
+	app := &models.App{Name: "myapp", DomainID: sql.NullInt64{Int64: int64(dom.ID), Valid: true}}
 	require.NoError(t, store.CreateApp(app))
 	ws := &models.Workspace{Name: "dev", AppID: app.ID}
 	require.NoError(t, store.CreateWorkspace(ws))
@@ -124,21 +125,21 @@ func TestBuildOrchestration_EcosystemFilter_ReturnsMatchingWorkspaces(t *testing
 	// Ecosystem A with 2 workspaces
 	ecoA := &models.Ecosystem{Name: "ecosystem-a"}
 	require.NoError(t, store.CreateEcosystem(ecoA))
-	domA := &models.Domain{Name: "domain-a", EcosystemID: ecoA.ID}
+	domA := &models.Domain{Name: "domain-a", EcosystemID: sql.NullInt64{Int64: int64(ecoA.ID), Valid: true}}
 	require.NoError(t, store.CreateDomain(domA))
-	appA1 := &models.App{Name: "app-a1", DomainID: domA.ID}
+	appA1 := &models.App{Name: "app-a1", DomainID: sql.NullInt64{Int64: int64(domA.ID), Valid: true}}
 	require.NoError(t, store.CreateApp(appA1))
 	require.NoError(t, store.CreateWorkspace(&models.Workspace{Name: "dev", AppID: appA1.ID}))
-	appA2 := &models.App{Name: "app-a2", DomainID: domA.ID}
+	appA2 := &models.App{Name: "app-a2", DomainID: sql.NullInt64{Int64: int64(domA.ID), Valid: true}}
 	require.NoError(t, store.CreateApp(appA2))
 	require.NoError(t, store.CreateWorkspace(&models.Workspace{Name: "dev", AppID: appA2.ID}))
 
 	// Ecosystem B with 1 workspace
 	ecoB := &models.Ecosystem{Name: "ecosystem-b"}
 	require.NoError(t, store.CreateEcosystem(ecoB))
-	domB := &models.Domain{Name: "domain-b", EcosystemID: ecoB.ID}
+	domB := &models.Domain{Name: "domain-b", EcosystemID: sql.NullInt64{Int64: int64(ecoB.ID), Valid: true}}
 	require.NoError(t, store.CreateDomain(domB))
-	appB := &models.App{Name: "app-b", DomainID: domB.ID}
+	appB := &models.App{Name: "app-b", DomainID: sql.NullInt64{Int64: int64(domB.ID), Valid: true}}
 	require.NoError(t, store.CreateApp(appB))
 	require.NoError(t, store.CreateWorkspace(&models.Workspace{Name: "dev", AppID: appB.ID}))
 
@@ -189,18 +190,18 @@ func TestBuildOrchestration_ScopeFilter_TableDriven(t *testing.T) {
 	eco := &models.Ecosystem{Name: "main-eco"}
 	require.NoError(t, store.CreateEcosystem(eco))
 
-	domPay := &models.Domain{Name: "payments", EcosystemID: eco.ID}
+	domPay := &models.Domain{Name: "payments", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	require.NoError(t, store.CreateDomain(domPay))
-	appPay1 := &models.App{Name: "pay-service", DomainID: domPay.ID}
+	appPay1 := &models.App{Name: "pay-service", DomainID: sql.NullInt64{Int64: int64(domPay.ID), Valid: true}}
 	require.NoError(t, store.CreateApp(appPay1))
 	require.NoError(t, store.CreateWorkspace(&models.Workspace{Name: "dev", AppID: appPay1.ID}))
-	appPay2 := &models.App{Name: "pay-worker", DomainID: domPay.ID}
+	appPay2 := &models.App{Name: "pay-worker", DomainID: sql.NullInt64{Int64: int64(domPay.ID), Valid: true}}
 	require.NoError(t, store.CreateApp(appPay2))
 	require.NoError(t, store.CreateWorkspace(&models.Workspace{Name: "dev", AppID: appPay2.ID}))
 
-	domUI := &models.Domain{Name: "ui", EcosystemID: eco.ID}
+	domUI := &models.Domain{Name: "ui", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	require.NoError(t, store.CreateDomain(domUI))
-	appPortal := &models.App{Name: "portal", DomainID: domUI.ID}
+	appPortal := &models.App{Name: "portal", DomainID: sql.NullInt64{Int64: int64(domUI.ID), Valid: true}}
 	require.NoError(t, store.CreateApp(appPortal))
 	require.NoError(t, store.CreateWorkspace(&models.Workspace{Name: "dev", AppID: appPortal.ID}))
 

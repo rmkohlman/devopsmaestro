@@ -15,6 +15,7 @@
 package cmd
 
 import (
+	"database/sql"
 	"bytes"
 	"context"
 	"strings"
@@ -82,7 +83,7 @@ func TestGetContext_ShowsWorkspaceEnvVar(t *testing.T) {
 	mock := db.NewMockDataStore()
 	appID := 1
 	mock.Context.ActiveAppID = &appID
-	mock.Apps[1] = &models.App{ID: 1, Name: "my-api", DomainID: 1}
+	mock.Apps[1] = &models.App{ID: 1, Name: "my-api", DomainID: sql.NullInt64{Int64: 1, Valid: true}}
 
 	t.Setenv("DVM_WORKSPACE", "my-env-ws")
 
@@ -103,7 +104,7 @@ func TestGetContext_ShowsEcosystemEnvVar(t *testing.T) {
 	mock.Context.ActiveEcosystemID = nil
 	appID := 1
 	mock.Context.ActiveAppID = &appID
-	mock.Apps[1] = &models.App{ID: 1, Name: "my-api", DomainID: 1}
+	mock.Apps[1] = &models.App{ID: 1, Name: "my-api", DomainID: sql.NullInt64{Int64: 1, Valid: true}}
 
 	t.Setenv("DVM_ECOSYSTEM", "myeco")
 

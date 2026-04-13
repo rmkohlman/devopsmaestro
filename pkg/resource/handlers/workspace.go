@@ -86,7 +86,7 @@ func (h *WorkspaceHandler) Apply(ctx resource.Context, data []byte) (resource.Re
 	}
 
 	// Resolve domain: try metadata.domain first, then fall back to active context
-	var domainID int
+	var domainID sql.NullInt64
 	if wsYAML.Metadata.Domain != "" {
 		if wsYAML.Metadata.Ecosystem != "" {
 			// Ecosystem-scoped domain resolution: use GetEcosystemByName + ListDomainsByEcosystem
@@ -108,7 +108,7 @@ func (h *WorkspaceHandler) Apply(ctx resource.Context, data []byte) (resource.Re
 			if found == nil {
 				return nil, fmt.Errorf("domain '%s' not found in ecosystem '%s'", wsYAML.Metadata.Domain, wsYAML.Metadata.Ecosystem)
 			}
-			domainID = found.ID
+			domainID = sql.NullInt64{Int64: int64(found.ID), Valid: true}
 		} else {
 			// No ecosystem hint — resolve domain by name across all ecosystems
 			allDomains, err := ds.ListAllDomains()
@@ -127,7 +127,7 @@ func (h *WorkspaceHandler) Apply(ctx resource.Context, data []byte) (resource.Re
 			if len(matches) > 1 {
 				return nil, fmt.Errorf("domain '%s' is ambiguous (exists in %d ecosystems); add metadata.ecosystem to disambiguate", wsYAML.Metadata.Domain, len(matches))
 			}
-			domainID = matches[0].ID
+			domainID = sql.NullInt64{Int64: int64(matches[0].ID), Valid: true}
 		}
 	} else {
 		// Fall back to active context (existing behavior)
@@ -138,7 +138,7 @@ func (h *WorkspaceHandler) Apply(ctx resource.Context, data []byte) (resource.Re
 		if dbCtx.ActiveDomainID == nil {
 			return nil, fmt.Errorf("no active domain set and no metadata.domain specified; use 'dvm use domain <name>' or add metadata.domain to YAML")
 		}
-		domainID = *dbCtx.ActiveDomainID
+		domainID = sql.NullInt64{Int64: int64(*dbCtx.ActiveDomainID), Valid: true}
 	}
 
 	app, err := ds.GetAppByName(domainID, appName)
@@ -258,9 +258,9 @@ func (h *WorkspaceHandler) Apply(ctx resource.Context, data []byte) (resource.Re
 
 	// Resolve domain name for the resource output
 	domainName := wsYAML.Metadata.Domain
-	if domainName == "" {
+	if domainName == "" && domainID.Valid {
 		// Look up domain name from ID for round-trip fidelity
-		domain, domErr := ds.GetDomainByID(domainID)
+		domain, domErr := ds.GetDomainByID(int(domainID.Int64))
 		if domErr == nil {
 			domainName = domain.Name
 		}
@@ -268,11 +268,11 @@ func (h *WorkspaceHandler) Apply(ctx resource.Context, data []byte) (resource.Re
 
 	// Resolve ecosystem name for the resource output
 	ecosystemName := wsYAML.Metadata.Ecosystem
-	if ecosystemName == "" {
+	if ecosystemName == "" && domainID.Valid {
 		// Look up ecosystem name from domain for round-trip fidelity
-		domain, domErr := ds.GetDomainByID(domainID)
-		if domErr == nil {
-			eco, ecoErr := ds.GetEcosystemByID(domain.EcosystemID)
+		domain, domErr := ds.GetDomainByID(int(domainID.Int64))
+		if domErr == nil && domain.EcosystemID.Valid {
+			eco, ecoErr := ds.GetEcosystemByID(int(domain.EcosystemID.Int64))
 			if ecoErr == nil {
 				ecosystemName = eco.Name
 			}
@@ -318,13 +318,17 @@ func (h *WorkspaceHandler) Get(ctx resource.Context, name string) (resource.Reso
 	if app != nil {
 		appName = app.Name
 		// Resolve domain name for round-trip fidelity
-		domain, domErr := ds.GetDomainByID(app.DomainID)
-		if domErr == nil {
-			domainName = domain.Name
-			// Resolve ecosystem name for cross-ecosystem disambiguation
-			eco, ecoErr := ds.GetEcosystemByID(domain.EcosystemID)
-			if ecoErr == nil {
-				ecosystemName = eco.Name
+		if app.DomainID.Valid {
+			domain, domErr := ds.GetDomainByID(int(app.DomainID.Int64))
+			if domErr == nil {
+				domainName = domain.Name
+				// Resolve ecosystem name for cross-ecosystem disambiguation
+				if domain.EcosystemID.Valid {
+					eco, ecoErr := ds.GetEcosystemByID(int(domain.EcosystemID.Int64))
+					if ecoErr == nil {
+						ecosystemName = eco.Name
+					}
+				}
 			}
 		}
 	}
@@ -380,13 +384,17 @@ func (h *WorkspaceHandler) List(ctx resource.Context) ([]resource.Resource, erro
 		if app != nil {
 			appName = app.Name
 			// Resolve domain name for round-trip fidelity
-			domain, domErr := ds.GetDomainByID(app.DomainID)
-			if domErr == nil {
-				domainName = domain.Name
-				// Resolve ecosystem name for cross-ecosystem disambiguation
-				eco, ecoErr := ds.GetEcosystemByID(domain.EcosystemID)
-				if ecoErr == nil {
-					ecosystemName = eco.Name
+			if app.DomainID.Valid {
+				domain, domErr := ds.GetDomainByID(int(app.DomainID.Int64))
+				if domErr == nil {
+					domainName = domain.Name
+					// Resolve ecosystem name for cross-ecosystem disambiguation
+					if domain.EcosystemID.Valid {
+						eco, ecoErr := ds.GetEcosystemByID(int(domain.EcosystemID.Int64))
+						if ecoErr == nil {
+							ecosystemName = eco.Name
+						}
+					}
 				}
 			}
 		}

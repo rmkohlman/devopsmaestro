@@ -414,7 +414,7 @@ func (m *MockDataStore) CreateDomain(domain *models.Domain) error {
 	return nil
 }
 
-func (m *MockDataStore) GetDomainByName(ecosystemID int, name string) (*models.Domain, error) {
+func (m *MockDataStore) GetDomainByName(ecosystemID sql.NullInt64, name string) (*models.Domain, error) {
 	m.recordCall("GetDomainByName", ecosystemID, name)
 	if m.GetDomainByNameErr != nil {
 		return nil, m.GetDomainByNameErr
@@ -473,7 +473,7 @@ func (m *MockDataStore) ListDomainsByEcosystem(ecosystemID int) ([]*models.Domai
 	defer m.mu.Unlock()
 	var domains []*models.Domain
 	for _, d := range m.Domains {
-		if d.EcosystemID == ecosystemID {
+		if d.EcosystemID.Valid && int(d.EcosystemID.Int64) == ecosystemID {
 			domains = append(domains, d)
 		}
 	}
@@ -508,7 +508,7 @@ func (m *MockDataStore) FindDomainsByName(name string) ([]*models.DomainWithHier
 			// Find the parent ecosystem
 			var ecosystem *models.Ecosystem
 			for _, e := range m.Ecosystems {
-				if e.ID == d.EcosystemID {
+				if d.EcosystemID.Valid && e.ID == int(d.EcosystemID.Int64) {
 					ecosystem = e
 					break
 				}
@@ -682,7 +682,7 @@ func (m *MockDataStore) CreateApp(app *models.App) error {
 	return nil
 }
 
-func (m *MockDataStore) GetAppByName(domainID int, name string) (*models.App, error) {
+func (m *MockDataStore) GetAppByName(domainID sql.NullInt64, name string) (*models.App, error) {
 	m.recordCall("GetAppByName", domainID, name)
 	if m.GetAppByNameErr != nil {
 		return nil, m.GetAppByNameErr
@@ -756,7 +756,7 @@ func (m *MockDataStore) ListAppsByDomain(domainID int) ([]*models.App, error) {
 	defer m.mu.Unlock()
 	var apps []*models.App
 	for _, a := range m.Apps {
-		if a.DomainID == domainID {
+		if a.DomainID.Valid && int(a.DomainID.Int64) == domainID {
 			apps = append(apps, a)
 		}
 	}
@@ -788,15 +788,18 @@ func (m *MockDataStore) FindAppsByName(name string) ([]*models.AppWithHierarchy,
 	var results []*models.AppWithHierarchy
 	for _, a := range m.Apps {
 		if a.Name == name {
-			// Find the parent domain
-			domain, ok := m.Domains[a.DomainID]
+			// Find the parent domain (nullable)
+			if !a.DomainID.Valid {
+				continue
+			}
+			domain, ok := m.Domains[int(a.DomainID.Int64)]
 			if !ok {
 				continue
 			}
-			// Find the parent ecosystem
+			// Find the parent ecosystem (nullable)
 			var ecosystem *models.Ecosystem
 			for _, e := range m.Ecosystems {
-				if e.ID == domain.EcosystemID {
+				if domain.EcosystemID.Valid && e.ID == int(domain.EcosystemID.Int64) {
 					ecosystem = e
 					break
 				}
@@ -943,16 +946,19 @@ func (m *MockDataStore) FindWorkspaces(filter models.WorkspaceFilter) ([]*models
 			continue
 		}
 
-		// Get the domain for this app
-		domain, ok := m.Domains[app.DomainID]
+		// Get the domain for this app (nullable)
+		if !app.DomainID.Valid {
+			continue
+		}
+		domain, ok := m.Domains[int(app.DomainID.Int64)]
 		if !ok {
 			continue
 		}
 
-		// Get the ecosystem for this domain
+		// Get the ecosystem for this domain (nullable)
 		var ecosystem *models.Ecosystem
 		for _, e := range m.Ecosystems {
-			if e.ID == domain.EcosystemID {
+			if domain.EcosystemID.Valid && e.ID == int(domain.EcosystemID.Int64) {
 				ecosystem = e
 				break
 			}

@@ -31,11 +31,20 @@ func (ds *SQLDataStore) CreateApp(app *models.App) error {
 }
 
 // GetAppByName retrieves an app by domain ID and name.
-func (ds *SQLDataStore) GetAppByName(domainID int, name string) (*models.App, error) {
+// domainID is nullable because apps can exist without a parent domain.
+func (ds *SQLDataStore) GetAppByName(domainID sql.NullInt64, name string) (*models.App, error) {
 	app := &models.App{}
-	query := `SELECT id, domain_id, system_id, name, path, description, theme, nvim_package, terminal_package, language, build_config, git_repo_id, created_at, updated_at FROM apps WHERE domain_id = ? AND name = ?`
+	var query string
+	var row Row
 
-	row := ds.driver.QueryRow(query, domainID, name)
+	if domainID.Valid {
+		query = `SELECT id, domain_id, system_id, name, path, description, theme, nvim_package, terminal_package, language, build_config, git_repo_id, created_at, updated_at FROM apps WHERE domain_id = ? AND name = ?`
+		row = ds.driver.QueryRow(query, domainID.Int64, name)
+	} else {
+		query = `SELECT id, domain_id, system_id, name, path, description, theme, nvim_package, terminal_package, language, build_config, git_repo_id, created_at, updated_at FROM apps WHERE domain_id IS NULL AND name = ?`
+		row = ds.driver.QueryRow(query, name)
+	}
+
 	if err := row.Scan(&app.ID, &app.DomainID, &app.SystemID, &app.Name, &app.Path, &app.Description, &app.Theme, &app.NvimPackage, &app.TerminalPackage, &app.Language, &app.BuildConfig, &app.GitRepoID, &app.CreatedAt, &app.UpdatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("app", name)
@@ -188,8 +197,8 @@ func (ds *SQLDataStore) FindAppsByName(name string) ([]*models.AppWithHierarchy,
 		d.id, d.ecosystem_id, d.name, d.description, d.theme, d.nvim_package, d.terminal_package, d.build_args, d.ca_certs, d.created_at, d.updated_at,
 		e.id, e.name, e.description, e.theme, e.nvim_package, e.terminal_package, e.build_args, e.ca_certs, e.created_at, e.updated_at
 	FROM apps a
-	JOIN domains d ON a.domain_id = d.id
-	JOIN ecosystems e ON d.ecosystem_id = e.id
+	LEFT JOIN domains d ON a.domain_id = d.id
+	LEFT JOIN ecosystems e ON d.ecosystem_id = e.id
 	WHERE a.name = ?
 	ORDER BY e.name, d.name`
 
@@ -202,25 +211,73 @@ func (ds *SQLDataStore) FindAppsByName(name string) ([]*models.AppWithHierarchy,
 	var results []*models.AppWithHierarchy
 	for rows.Next() {
 		app := &models.App{}
-		domain := &models.Domain{}
-		ecosystem := &models.Ecosystem{}
+
+		// Domain fields are nullable via LEFT JOIN
+		var domID sql.NullInt64
+		var domEcoID sql.NullInt64
+		var domName, domDesc, domTheme sql.NullString
+		var domNvimPkg, domTermPkg, domBuildArgs, domCACerts sql.NullString
+		var domCreatedAt, domUpdatedAt sql.NullTime
+
+		// Ecosystem fields are nullable via LEFT JOIN
+		var ecoID sql.NullInt64
+		var ecoName, ecoDesc, ecoTheme sql.NullString
+		var ecoNvimPkg, ecoTermPkg, ecoBuildArgs, ecoCACerts sql.NullString
+		var ecoCreatedAt, ecoUpdatedAt sql.NullTime
 
 		if err := rows.Scan(
 			// App fields
 			&app.ID, &app.DomainID, &app.SystemID, &app.Name, &app.Path, &app.Description, &app.Theme, &app.NvimPackage, &app.TerminalPackage, &app.Language, &app.BuildConfig, &app.GitRepoID, &app.CreatedAt, &app.UpdatedAt,
-			// Domain fields
-			&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description, &domain.Theme, &domain.NvimPackage, &domain.TerminalPackage, &domain.BuildArgs, &domain.CACerts, &domain.CreatedAt, &domain.UpdatedAt,
-			// Ecosystem fields
-			&ecosystem.ID, &ecosystem.Name, &ecosystem.Description, &ecosystem.Theme, &ecosystem.NvimPackage, &ecosystem.TerminalPackage, &ecosystem.BuildArgs, &ecosystem.CACerts, &ecosystem.CreatedAt, &ecosystem.UpdatedAt,
+			// Domain fields (nullable via LEFT JOIN)
+			&domID, &domEcoID, &domName, &domDesc, &domTheme, &domNvimPkg, &domTermPkg, &domBuildArgs, &domCACerts, &domCreatedAt, &domUpdatedAt,
+			// Ecosystem fields (nullable via LEFT JOIN)
+			&ecoID, &ecoName, &ecoDesc, &ecoTheme, &ecoNvimPkg, &ecoTermPkg, &ecoBuildArgs, &ecoCACerts, &ecoCreatedAt, &ecoUpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan app with hierarchy: %w", err)
 		}
 
-		results = append(results, &models.AppWithHierarchy{
-			App:       app,
-			Domain:    domain,
-			Ecosystem: ecosystem,
-		})
+		result := &models.AppWithHierarchy{App: app}
+
+		if domID.Valid {
+			result.Domain = &models.Domain{
+				ID:              int(domID.Int64),
+				EcosystemID:     domEcoID,
+				Name:            domName.String,
+				Description:     domDesc,
+				Theme:           domTheme,
+				NvimPackage:     domNvimPkg,
+				TerminalPackage: domTermPkg,
+				BuildArgs:       domBuildArgs,
+				CACerts:         domCACerts,
+			}
+			if domCreatedAt.Valid {
+				result.Domain.CreatedAt = domCreatedAt.Time
+			}
+			if domUpdatedAt.Valid {
+				result.Domain.UpdatedAt = domUpdatedAt.Time
+			}
+		}
+
+		if ecoID.Valid {
+			result.Ecosystem = &models.Ecosystem{
+				ID:              int(ecoID.Int64),
+				Name:            ecoName.String,
+				Description:     ecoDesc,
+				Theme:           ecoTheme,
+				NvimPackage:     ecoNvimPkg,
+				TerminalPackage: ecoTermPkg,
+				BuildArgs:       ecoBuildArgs,
+				CACerts:         ecoCACerts,
+			}
+			if ecoCreatedAt.Valid {
+				result.Ecosystem.CreatedAt = ecoCreatedAt.Time
+			}
+			if ecoUpdatedAt.Valid {
+				result.Ecosystem.UpdatedAt = ecoUpdatedAt.Time
+			}
+		}
+
+		results = append(results, result)
 	}
 
 	if err := rows.Err(); err != nil {

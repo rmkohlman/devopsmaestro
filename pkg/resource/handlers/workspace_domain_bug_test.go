@@ -154,11 +154,11 @@ func TestWorkspace_RoundTrip_DomainPreserved(t *testing.T) {
 	if err := sourceStore.CreateEcosystem(eco); err != nil {
 		t.Fatalf("CreateEcosystem: %v", err)
 	}
-	domain := &models.Domain{Name: "ws-rt-domain", EcosystemID: eco.ID}
+	domain := &models.Domain{Name: "ws-rt-domain", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	if err := sourceStore.CreateDomain(domain); err != nil {
 		t.Fatalf("CreateDomain: %v", err)
 	}
-	app := &models.App{Name: "ws-rt-app", DomainID: domain.ID, Path: "/rt"}
+	app := &models.App{Name: "ws-rt-app", DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true}, Path: "/rt"}
 	if err := sourceStore.CreateApp(app); err != nil {
 		t.Fatalf("CreateApp: %v", err)
 	}
@@ -195,11 +195,11 @@ func TestWorkspace_RoundTrip_DomainPreserved(t *testing.T) {
 	if err := destStore.CreateEcosystem(dstEco); err != nil {
 		t.Fatalf("dest CreateEcosystem: %v", err)
 	}
-	dstDomain := &models.Domain{Name: "ws-rt-domain", EcosystemID: dstEco.ID}
+	dstDomain := &models.Domain{Name: "ws-rt-domain", EcosystemID: sql.NullInt64{Int64: int64(dstEco.ID), Valid: true}}
 	if err := destStore.CreateDomain(dstDomain); err != nil {
 		t.Fatalf("dest CreateDomain: %v", err)
 	}
-	dstApp := &models.App{Name: "ws-rt-app", DomainID: dstDomain.ID, Path: "/rt"}
+	dstApp := &models.App{Name: "ws-rt-app", DomainID: sql.NullInt64{Int64: int64(dstDomain.ID), Valid: true}, Path: "/rt"}
 	if err := destStore.CreateApp(dstApp); err != nil {
 		t.Fatalf("dest CreateApp: %v", err)
 	}
@@ -226,11 +226,11 @@ func TestWorkspace_RoundTrip_GitRepoPreserved(t *testing.T) {
 	if err := sourceStore.CreateEcosystem(eco); err != nil {
 		t.Fatalf("CreateEcosystem: %v", err)
 	}
-	domain := &models.Domain{Name: "ws-git-domain", EcosystemID: eco.ID}
+	domain := &models.Domain{Name: "ws-git-domain", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	if err := sourceStore.CreateDomain(domain); err != nil {
 		t.Fatalf("CreateDomain: %v", err)
 	}
-	app := &models.App{Name: "ws-git-app", DomainID: domain.ID, Path: "/git"}
+	app := &models.App{Name: "ws-git-app", DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true}, Path: "/git"}
 	if err := sourceStore.CreateApp(app); err != nil {
 		t.Fatalf("CreateApp: %v", err)
 	}
@@ -270,11 +270,11 @@ func TestWorkspace_RoundTrip_GitRepoPreserved(t *testing.T) {
 	if err := destStore.CreateEcosystem(dstEco); err != nil {
 		t.Fatalf("dest CreateEcosystem: %v", err)
 	}
-	dstDomain := &models.Domain{Name: "ws-git-domain", EcosystemID: dstEco.ID}
+	dstDomain := &models.Domain{Name: "ws-git-domain", EcosystemID: sql.NullInt64{Int64: int64(dstEco.ID), Valid: true}}
 	if err := destStore.CreateDomain(dstDomain); err != nil {
 		t.Fatalf("dest CreateDomain: %v", err)
 	}
-	dstApp := &models.App{Name: "ws-git-app", DomainID: dstDomain.ID, Path: "/git"}
+	dstApp := &models.App{Name: "ws-git-app", DomainID: sql.NullInt64{Int64: int64(dstDomain.ID), Valid: true}, Path: "/git"}
 	if err := destStore.CreateApp(dstApp); err != nil {
 		t.Fatalf("dest CreateApp: %v", err)
 	}

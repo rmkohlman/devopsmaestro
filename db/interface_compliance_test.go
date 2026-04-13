@@ -139,7 +139,7 @@ func TestMockDataStore_AllDomainMethods(t *testing.T) {
 
 	// CreateDomain
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "test-domain",
 		Description: sql.NullString{String: "Test domain", Valid: true},
 	}
@@ -148,7 +148,7 @@ func TestMockDataStore_AllDomainMethods(t *testing.T) {
 	assert.NotZero(t, domain.ID)
 
 	// GetDomainByName
-	retrieved, err := store.GetDomainByName(ecosystem.ID, "test-domain")
+	retrieved, err := store.GetDomainByName(validNullInt64(ecosystem.ID), "test-domain")
 	require.NoError(t, err)
 	assert.Equal(t, "test-domain", retrieved.Name)
 
@@ -189,12 +189,12 @@ func TestMockDataStore_AllAppMethods(t *testing.T) {
 	// Setup: Create ecosystem and domain
 	ecosystem := &models.Ecosystem{Name: "test-eco"}
 	store.CreateEcosystem(ecosystem)
-	domain := &models.Domain{EcosystemID: ecosystem.ID, Name: "test-domain"}
+	domain := &models.Domain{EcosystemID: validNullInt64(ecosystem.ID), Name: "test-domain"}
 	store.CreateDomain(domain)
 
 	// CreateApp
 	app := &models.App{
-		DomainID:    domain.ID,
+		DomainID: validNullInt64(domain.ID),
 		Name:        "test-app",
 		Description: sql.NullString{String: "Test application", Valid: true},
 		Path:        "/test/app",
@@ -204,7 +204,7 @@ func TestMockDataStore_AllAppMethods(t *testing.T) {
 	assert.NotZero(t, app.ID)
 
 	// GetAppByName
-	retrieved, err := store.GetAppByName(domain.ID, "test-app")
+	retrieved, err := store.GetAppByName(validNullInt64(domain.ID), "test-app")
 	require.NoError(t, err)
 	assert.Equal(t, "test-app", retrieved.Name)
 
@@ -250,9 +250,9 @@ func TestMockDataStore_AllWorkspaceMethods(t *testing.T) {
 	// Setup: Create full hierarchy
 	ecosystem := &models.Ecosystem{Name: "test-eco"}
 	store.CreateEcosystem(ecosystem)
-	domain := &models.Domain{EcosystemID: ecosystem.ID, Name: "test-domain"}
+	domain := &models.Domain{EcosystemID: validNullInt64(ecosystem.ID), Name: "test-domain"}
 	store.CreateDomain(domain)
-	app := &models.App{DomainID: domain.ID, Name: "test-app", Path: "/test"}
+	app := &models.App{DomainID: validNullInt64(domain.ID), Name: "test-app", Path: "/test"}
 	store.CreateApp(app)
 
 	// CreateWorkspace

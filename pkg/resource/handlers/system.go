@@ -49,7 +49,7 @@ func (h *SystemHandler) Apply(ctx resource.Context, data []byte) (resource.Resou
 		if err != nil {
 			return nil, fmt.Errorf("ecosystem '%s' not found: %w", ecosystemName, err)
 		}
-		domain, err := ds.GetDomainByName(ecosystem.ID, domainName)
+		domain, err := ds.GetDomainByName(sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true}, domainName)
 		if err != nil {
 			return nil, fmt.Errorf("domain '%s' not found in ecosystem '%s': %w", domainName, ecosystemName, err)
 		}
@@ -109,8 +109,10 @@ func (h *SystemHandler) Get(ctx resource.Context, name string) (resource.Resourc
 	if system.DomainID.Valid {
 		if domain, e := ds.GetDomainByID(int(system.DomainID.Int64)); e == nil {
 			domainName = domain.Name
-			if eco, e2 := ds.GetEcosystemByID(domain.EcosystemID); e2 == nil {
-				ecosystemName = eco.Name
+			if domain.EcosystemID.Valid {
+				if eco, e2 := ds.GetEcosystemByID(int(domain.EcosystemID.Int64)); e2 == nil {
+					ecosystemName = eco.Name
+				}
 			}
 		}
 	}
@@ -147,8 +149,10 @@ func (h *SystemHandler) List(ctx resource.Context) ([]resource.Resource, error) 
 		if s.DomainID.Valid {
 			if domain, e := ds.GetDomainByID(int(s.DomainID.Int64)); e == nil {
 				domainName = domain.Name
-				if eco, e2 := ds.GetEcosystemByID(domain.EcosystemID); e2 == nil {
-					ecosystemName = eco.Name
+				if domain.EcosystemID.Valid {
+					if eco, e2 := ds.GetEcosystemByID(int(domain.EcosystemID.Int64)); e2 == nil {
+						ecosystemName = eco.Name
+					}
 				}
 			}
 		}

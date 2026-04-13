@@ -392,7 +392,7 @@ func TestDeleteDomain_WithHierarchy(t *testing.T) {
 	}
 
 	// Create domain
-	domain := &models.Domain{Name: "test-domain", EcosystemID: eco.ID}
+	domain := &models.Domain{Name: "test-domain", EcosystemID: validNullInt64(eco.ID)}
 	if err := ds.CreateDomain(domain); err != nil {
 		t.Fatalf("Failed to create domain: %v", err)
 	}
@@ -423,12 +423,12 @@ func TestDeleteApp_WithHierarchy(t *testing.T) {
 		t.Fatalf("Failed to create ecosystem: %v", err)
 	}
 
-	domain := &models.Domain{Name: "test-domain", EcosystemID: eco.ID}
+	domain := &models.Domain{Name: "test-domain", EcosystemID: validNullInt64(eco.ID)}
 	if err := ds.CreateDomain(domain); err != nil {
 		t.Fatalf("Failed to create domain: %v", err)
 	}
 
-	app := &models.App{Name: "test-app", DomainID: domain.ID}
+	app := &models.App{Name: "test-app", DomainID: validNullInt64(domain.ID)}
 	if err := ds.CreateApp(app); err != nil {
 		t.Fatalf("Failed to create app: %v", err)
 	}
@@ -459,12 +459,12 @@ func TestDeleteWorkspace_WithHierarchy(t *testing.T) {
 		t.Fatalf("Failed to create ecosystem: %v", err)
 	}
 
-	domain := &models.Domain{Name: "test-domain", EcosystemID: eco.ID}
+	domain := &models.Domain{Name: "test-domain", EcosystemID: validNullInt64(eco.ID)}
 	if err := ds.CreateDomain(domain); err != nil {
 		t.Fatalf("Failed to create domain: %v", err)
 	}
 
-	app := &models.App{Name: "test-app", DomainID: domain.ID}
+	app := &models.App{Name: "test-app", DomainID: validNullInt64(domain.ID)}
 	if err := ds.CreateApp(app); err != nil {
 		t.Fatalf("Failed to create app: %v", err)
 	}

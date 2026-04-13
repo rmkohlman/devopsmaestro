@@ -26,6 +26,7 @@ package resolver
 // =============================================================================
 
 import (
+	"database/sql"
 	"testing"
 
 	"devopsmaestro/db"
@@ -56,10 +57,10 @@ func setupSingleEcosystemStore(t *testing.T) (
 	eco := &models.Ecosystem{Name: "production"}
 	require.NoError(t, store.CreateEcosystem(eco))
 
-	dom := &models.Domain{Name: "backend", EcosystemID: eco.ID}
+	dom := &models.Domain{Name: "backend", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	require.NoError(t, store.CreateDomain(dom))
 
-	app := &models.App{Name: "myapi", DomainID: dom.ID, Path: "/apps/myapi"}
+	app := &models.App{Name: "myapi", DomainID: sql.NullInt64{Int64: int64(dom.ID), Valid: true}, Path: "/apps/myapi"}
 	require.NoError(t, store.CreateApp(app))
 
 	ws := &models.Workspace{
@@ -84,9 +85,9 @@ func setupMultiEcosystemStore(t *testing.T) *db.MockDataStore {
 	// Ecosystem 1: healthcare
 	eco1 := &models.Ecosystem{Name: "healthcare"}
 	require.NoError(t, store.CreateEcosystem(eco1))
-	dom1 := &models.Domain{Name: "billing", EcosystemID: eco1.ID}
+	dom1 := &models.Domain{Name: "billing", EcosystemID: sql.NullInt64{Int64: int64(eco1.ID), Valid: true}}
 	require.NoError(t, store.CreateDomain(dom1))
-	app1 := &models.App{Name: "api", DomainID: dom1.ID, Path: "/apps/healthcare-api"}
+	app1 := &models.App{Name: "api", DomainID: sql.NullInt64{Int64: int64(dom1.ID), Valid: true}, Path: "/apps/healthcare-api"}
 	require.NoError(t, store.CreateApp(app1))
 	ws1 := &models.Workspace{
 		Name:      "dev",
@@ -99,9 +100,9 @@ func setupMultiEcosystemStore(t *testing.T) *db.MockDataStore {
 	// Ecosystem 2: fintech
 	eco2 := &models.Ecosystem{Name: "fintech"}
 	require.NoError(t, store.CreateEcosystem(eco2))
-	dom2 := &models.Domain{Name: "payments", EcosystemID: eco2.ID}
+	dom2 := &models.Domain{Name: "payments", EcosystemID: sql.NullInt64{Int64: int64(eco2.ID), Valid: true}}
 	require.NoError(t, store.CreateDomain(dom2))
-	app2 := &models.App{Name: "api", DomainID: dom2.ID, Path: "/apps/fintech-api"}
+	app2 := &models.App{Name: "api", DomainID: sql.NullInt64{Int64: int64(dom2.ID), Valid: true}, Path: "/apps/fintech-api"}
 	require.NoError(t, store.CreateApp(app2))
 	ws2 := &models.Workspace{
 		Name:      "dev",
@@ -124,9 +125,9 @@ func setupMixedAppStore(t *testing.T) *db.MockDataStore {
 	eco := &models.Ecosystem{Name: "platform"}
 	require.NoError(t, store.CreateEcosystem(eco))
 
-	dom1 := &models.Domain{Name: "frontend-domain", EcosystemID: eco.ID}
+	dom1 := &models.Domain{Name: "frontend-domain", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	require.NoError(t, store.CreateDomain(dom1))
-	appFrontend := &models.App{Name: "frontend", DomainID: dom1.ID, Path: "/apps/frontend"}
+	appFrontend := &models.App{Name: "frontend", DomainID: sql.NullInt64{Int64: int64(dom1.ID), Valid: true}, Path: "/apps/frontend"}
 	require.NoError(t, store.CreateApp(appFrontend))
 	wsFrontend := &models.Workspace{
 		Name:      "staging",
@@ -136,9 +137,9 @@ func setupMixedAppStore(t *testing.T) *db.MockDataStore {
 	}
 	require.NoError(t, store.CreateWorkspace(wsFrontend))
 
-	dom2 := &models.Domain{Name: "backend-domain", EcosystemID: eco.ID}
+	dom2 := &models.Domain{Name: "backend-domain", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	require.NoError(t, store.CreateDomain(dom2))
-	appBackend := &models.App{Name: "backend-api", DomainID: dom2.ID, Path: "/apps/backend-api"}
+	appBackend := &models.App{Name: "backend-api", DomainID: sql.NullInt64{Int64: int64(dom2.ID), Valid: true}, Path: "/apps/backend-api"}
 	require.NoError(t, store.CreateApp(appBackend))
 	wsBackend := &models.Workspace{
 		Name:      "staging",

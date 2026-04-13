@@ -212,8 +212,8 @@ func (ds *SQLDataStore) FindWorkspaces(filter models.WorkspaceFilter) ([]*models
 	FROM workspaces w
 	JOIN apps a ON w.app_id = a.id
 	LEFT JOIN systems s ON a.system_id = s.id
-	JOIN domains d ON a.domain_id = d.id
-	JOIN ecosystems e ON d.ecosystem_id = e.id
+	LEFT JOIN domains d ON a.domain_id = d.id
+	LEFT JOIN ecosystems e ON d.ecosystem_id = e.id
 	WHERE 1=1`
 
 	var args []interface{}
@@ -252,14 +252,23 @@ func (ds *SQLDataStore) FindWorkspaces(filter models.WorkspaceFilter) ([]*models
 	for rows.Next() {
 		workspace := &models.Workspace{}
 		app := &models.App{}
-		domain := &models.Domain{}
-		ecosystem := &models.Ecosystem{}
 
 		// System fields are nullable via LEFT JOIN
 		var sysID, sysEcoID, sysDomainID sql.NullInt64
 		var sysName, sysDesc, sysTheme sql.NullString
 		var sysNvimPkg, sysTermPkg, sysBuildArgs, sysCACerts sql.NullString
 		var sysCreatedAt, sysUpdatedAt sql.NullTime
+
+		// Domain fields are nullable via LEFT JOIN
+		var domID sql.NullInt64
+		var domEcoID sql.NullInt64
+		var domName, domDesc sql.NullString
+		var domCreatedAt, domUpdatedAt sql.NullTime
+
+		// Ecosystem fields are nullable via LEFT JOIN
+		var ecoID sql.NullInt64
+		var ecoName, ecoDesc sql.NullString
+		var ecoCreatedAt, ecoUpdatedAt sql.NullTime
 
 		if err := rows.Scan(
 			// Workspace fields
@@ -273,12 +282,12 @@ func (ds *SQLDataStore) FindWorkspaces(filter models.WorkspaceFilter) ([]*models
 			&sysID, &sysEcoID, &sysDomainID, &sysName, &sysDesc, &sysTheme,
 			&sysNvimPkg, &sysTermPkg, &sysBuildArgs, &sysCACerts,
 			&sysCreatedAt, &sysUpdatedAt,
-			// Domain fields
-			&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description,
-			&domain.CreatedAt, &domain.UpdatedAt,
-			// Ecosystem fields
-			&ecosystem.ID, &ecosystem.Name, &ecosystem.Description,
-			&ecosystem.CreatedAt, &ecosystem.UpdatedAt,
+			// Domain fields (nullable via LEFT JOIN)
+			&domID, &domEcoID, &domName, &domDesc,
+			&domCreatedAt, &domUpdatedAt,
+			// Ecosystem fields (nullable via LEFT JOIN)
+			&ecoID, &ecoName, &ecoDesc,
+			&ecoCreatedAt, &ecoUpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan workspace with hierarchy: %w", err)
 		}
@@ -286,8 +295,6 @@ func (ds *SQLDataStore) FindWorkspaces(filter models.WorkspaceFilter) ([]*models
 		result := &models.WorkspaceWithHierarchy{
 			Workspace: workspace,
 			App:       app,
-			Domain:    domain,
-			Ecosystem: ecosystem,
 		}
 
 		// Populate system if present
@@ -309,6 +316,37 @@ func (ds *SQLDataStore) FindWorkspaces(filter models.WorkspaceFilter) ([]*models
 			}
 			if sysUpdatedAt.Valid {
 				result.System.UpdatedAt = sysUpdatedAt.Time
+			}
+		}
+
+		// Populate domain if present
+		if domID.Valid {
+			result.Domain = &models.Domain{
+				ID:          int(domID.Int64),
+				EcosystemID: domEcoID,
+				Name:        domName.String,
+				Description: domDesc,
+			}
+			if domCreatedAt.Valid {
+				result.Domain.CreatedAt = domCreatedAt.Time
+			}
+			if domUpdatedAt.Valid {
+				result.Domain.UpdatedAt = domUpdatedAt.Time
+			}
+		}
+
+		// Populate ecosystem if present
+		if ecoID.Valid {
+			result.Ecosystem = &models.Ecosystem{
+				ID:          int(ecoID.Int64),
+				Name:        ecoName.String,
+				Description: ecoDesc,
+			}
+			if ecoCreatedAt.Valid {
+				result.Ecosystem.CreatedAt = ecoCreatedAt.Time
+			}
+			if ecoUpdatedAt.Valid {
+				result.Ecosystem.UpdatedAt = ecoUpdatedAt.Time
 			}
 		}
 

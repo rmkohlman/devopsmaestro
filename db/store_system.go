@@ -224,7 +224,7 @@ func (ds *SQLDataStore) FindSystemsByName(name string) ([]*models.SystemWithHier
 		if domainID.Valid {
 			result.Domain = &models.Domain{
 				ID:              int(domainID.Int64),
-				EcosystemID:     int(domainEcosystemID.Int64),
+				EcosystemID:     domainEcosystemID,
 				Name:            domainName.String,
 				Description:     domainDesc,
 				Theme:           domainTheme,

@@ -48,7 +48,7 @@ func createSystem(cmd *cobra.Command, systemName string) error {
 		ecosystemName = ecosystem.Name
 		ecosystemID = sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true}
 
-		domain, err = ds.GetDomainByName(ecosystem.ID, systemDomain)
+		domain, err = ds.GetDomainByName(sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true}, systemDomain)
 		if err != nil {
 			return fmt.Errorf("domain '%s' not found in ecosystem '%s': %w", systemDomain, ecosystem.Name, err)
 		}
@@ -60,9 +60,11 @@ func createSystem(cmd *cobra.Command, systemName string) error {
 		if err == nil && domain != nil {
 			domainID = sql.NullInt64{Int64: int64(domain.ID), Valid: true}
 			domainName = domain.Name
-			if eco, e := ds.GetEcosystemByID(domain.EcosystemID); e == nil {
-				ecosystemName = eco.Name
-				ecosystemID = sql.NullInt64{Int64: int64(eco.ID), Valid: true}
+			if domain.EcosystemID.Valid {
+				if eco, e := ds.GetEcosystemByID(int(domain.EcosystemID.Int64)); e == nil {
+					ecosystemName = eco.Name
+					ecosystemID = sql.NullInt64{Int64: int64(eco.ID), Valid: true}
+				}
 			}
 		}
 		// It's OK to have no domain — systems can be standalone
@@ -148,7 +150,7 @@ func getSystems(cmd *cobra.Command) error {
 			if ecoErr != nil {
 				return ecoErr
 			}
-			domain, err = ds.GetDomainByName(ecosystem.ID, domainFlag)
+			domain, err = ds.GetDomainByName(sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true}, domainFlag)
 			if err != nil {
 				return fmt.Errorf("domain '%s' not found: %w", domainFlag, err)
 			}
@@ -243,7 +245,7 @@ func getSystem(cmd *cobra.Command, name string) error {
 		if ecoErr != nil {
 			return ecoErr
 		}
-		domain, domErr := ds.GetDomainByName(ecosystem.ID, domainFlag)
+		domain, domErr := ds.GetDomainByName(sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true}, domainFlag)
 		if domErr != nil {
 			return fmt.Errorf("domain '%s' not found: %w", domainFlag, domErr)
 		}
@@ -397,7 +399,7 @@ func deleteSystem(cmd *cobra.Command, systemName string) error {
 		if ecoErr != nil {
 			return ecoErr
 		}
-		domain, domErr := ds.GetDomainByName(ecosystem.ID, domainFlag)
+		domain, domErr := ds.GetDomainByName(sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true}, domainFlag)
 		if domErr != nil {
 			return fmt.Errorf("domain '%s' not found: %w", domainFlag, domErr)
 		}
@@ -481,8 +483,10 @@ func resolveSystemParents(ds db.DataStore, system *models.System) (domainName, e
 	if system.DomainID.Valid {
 		if domain, err := ds.GetDomainByID(int(system.DomainID.Int64)); err == nil {
 			domainName = domain.Name
-			if eco, err := ds.GetEcosystemByID(domain.EcosystemID); err == nil {
-				ecosystemName = eco.Name
+			if domain.EcosystemID.Valid {
+				if eco, err := ds.GetEcosystemByID(int(domain.EcosystemID.Int64)); err == nil {
+					ecosystemName = eco.Name
+				}
 			}
 		}
 	}

@@ -12,7 +12,7 @@ import (
 // Hierarchy: Ecosystem -> Domain -> App -> Workspace
 type Domain struct {
 	ID              int            `db:"id" json:"id" yaml:"-"`
-	EcosystemID     int            `db:"ecosystem_id" json:"ecosystem_id" yaml:"-"`
+	EcosystemID     sql.NullInt64  `db:"ecosystem_id" json:"ecosystem_id,omitempty" yaml:"-"`
 	Name            string         `db:"name" json:"name" yaml:"name"`
 	Description     sql.NullString `db:"description" json:"description,omitempty" yaml:"description,omitempty"`
 	Theme           sql.NullString `db:"theme" json:"theme,omitempty" yaml:"theme,omitempty"`

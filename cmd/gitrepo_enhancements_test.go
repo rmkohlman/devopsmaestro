@@ -134,7 +134,7 @@ func setupDescribeTestStore(t *testing.T) (*db.MockDataStore, *models.GitRepoDB)
 	eco := &models.Ecosystem{Name: "desc-eco"}
 	require.NoError(t, store.CreateEcosystem(eco))
 
-	dom := &models.Domain{Name: "desc-dom", EcosystemID: eco.ID}
+	dom := &models.Domain{Name: "desc-dom", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	require.NoError(t, store.CreateDomain(dom))
 
 	repo := &models.GitRepoDB{
@@ -150,7 +150,7 @@ func setupDescribeTestStore(t *testing.T) (*db.MockDataStore, *models.GitRepoDB)
 	// Link 2 apps to the gitrepo
 	for i := 1; i <= 2; i++ {
 		app := &models.App{
-			DomainID:  dom.ID,
+			DomainID: sql.NullInt64{Int64: int64(dom.ID), Valid: true},
 			Name:      "desc-app-" + string(rune('0'+i)),
 			Path:      "/path/desc/" + string(rune('0'+i)),
 			GitRepoID: sql.NullInt64{Int64: int64(repo.ID), Valid: true},

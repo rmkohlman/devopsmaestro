@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"database/sql"
 	"testing"
 
 	"devopsmaestro/db"
@@ -18,17 +19,17 @@ func setupTestData() *db.MockDataStore {
 	store.CreateEcosystem(eco2)
 
 	// Create domains
-	dom1 := &models.Domain{EcosystemID: eco1.ID, Name: "billing"}
-	dom2 := &models.Domain{EcosystemID: eco1.ID, Name: "claims"}
-	dom3 := &models.Domain{EcosystemID: eco2.ID, Name: "payments"}
+	dom1 := &models.Domain{EcosystemID: sql.NullInt64{Int64: int64(eco1.ID), Valid: true}, Name: "billing"}
+	dom2 := &models.Domain{EcosystemID: sql.NullInt64{Int64: int64(eco1.ID), Valid: true}, Name: "claims"}
+	dom3 := &models.Domain{EcosystemID: sql.NullInt64{Int64: int64(eco2.ID), Valid: true}, Name: "payments"}
 	store.CreateDomain(dom1)
 	store.CreateDomain(dom2)
 	store.CreateDomain(dom3)
 
 	// Create apps
-	app1 := &models.App{DomainID: dom1.ID, Name: "portal"}
-	app2 := &models.App{DomainID: dom2.ID, Name: "portal"} // Same name, different domain
-	app3 := &models.App{DomainID: dom3.ID, Name: "api"}
+	app1 := &models.App{DomainID: sql.NullInt64{Int64: int64(dom1.ID), Valid: true}, Name: "portal"}
+	app2 := &models.App{DomainID: sql.NullInt64{Int64: int64(dom2.ID), Valid: true}, Name: "portal"} // Same name, different domain
+	app3 := &models.App{DomainID: sql.NullInt64{Int64: int64(dom3.ID), Valid: true}, Name: "api"}
 	store.CreateApp(app1)
 	store.CreateApp(app2)
 	store.CreateApp(app3)

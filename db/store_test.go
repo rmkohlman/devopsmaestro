@@ -503,7 +503,7 @@ func TestSQLDataStore_CreateDomain(t *testing.T) {
 	}
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "test-domain",
 		Description: sql.NullString{
 			String: "Test domain description",
@@ -533,7 +533,7 @@ func TestSQLDataStore_GetDomainByName(t *testing.T) {
 
 	// Create a domain
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "findme-domain",
 		Description: sql.NullString{
 			String: "Find me",
@@ -545,7 +545,7 @@ func TestSQLDataStore_GetDomainByName(t *testing.T) {
 	}
 
 	// Retrieve by name
-	retrieved, err := ds.GetDomainByName(ecosystem.ID, "findme-domain")
+	retrieved, err := ds.GetDomainByName(validNullInt64(ecosystem.ID), "findme-domain")
 	if err != nil {
 		t.Fatalf("GetDomainByName() error = %v", err)
 	}
@@ -553,8 +553,8 @@ func TestSQLDataStore_GetDomainByName(t *testing.T) {
 	if retrieved.Name != "findme-domain" {
 		t.Errorf("GetDomainByName() Name = %q, want %q", retrieved.Name, "findme-domain")
 	}
-	if retrieved.EcosystemID != ecosystem.ID {
-		t.Errorf("GetDomainByName() EcosystemID = %d, want %d", retrieved.EcosystemID, ecosystem.ID)
+	if retrieved.EcosystemID != validNullInt64(ecosystem.ID) {
+		t.Errorf("GetDomainByName() EcosystemID = %v, want %d", retrieved.EcosystemID, ecosystem.ID)
 	}
 }
 
@@ -568,7 +568,7 @@ func TestSQLDataStore_GetDomainByName_NotFound(t *testing.T) {
 		t.Fatalf("Setup error: %v", err)
 	}
 
-	_, err := ds.GetDomainByName(ecosystem.ID, "nonexistent")
+	_, err := ds.GetDomainByName(validNullInt64(ecosystem.ID), "nonexistent")
 	if err == nil {
 		t.Errorf("GetDomainByName() expected error for nonexistent domain")
 	}
@@ -584,7 +584,7 @@ func TestSQLDataStore_GetDomainByID(t *testing.T) {
 	}
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "getbyid-domain",
 	}
 	if err := ds.CreateDomain(domain); err != nil {
@@ -611,7 +611,7 @@ func TestSQLDataStore_UpdateDomain(t *testing.T) {
 	}
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "update-domain",
 	}
 	if err := ds.CreateDomain(domain); err != nil {
@@ -646,7 +646,7 @@ func TestSQLDataStore_DeleteDomain(t *testing.T) {
 	}
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "delete-domain",
 	}
 	if err := ds.CreateDomain(domain); err != nil {
@@ -676,7 +676,7 @@ func TestSQLDataStore_ListDomainsByEcosystem(t *testing.T) {
 	// Create multiple domains
 	for i := 1; i <= 3; i++ {
 		domain := &models.Domain{
-			EcosystemID: ecosystem.ID,
+			EcosystemID: validNullInt64(ecosystem.ID),
 			Name:        "list-domain-" + string(rune('0'+i)),
 		}
 		if err := ds.CreateDomain(domain); err != nil {
@@ -709,7 +709,7 @@ func TestSQLDataStore_ListAllDomains(t *testing.T) {
 
 		for d := 1; d <= 2; d++ {
 			domain := &models.Domain{
-				EcosystemID: ecosystem.ID,
+				EcosystemID: validNullInt64(ecosystem.ID),
 				Name:        "domain-" + string(rune('0'+d)),
 			}
 			if err := ds.CreateDomain(domain); err != nil {
@@ -743,7 +743,7 @@ func TestSQLDataStore_CreateApp(t *testing.T) {
 	}
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "app-test-domain",
 	}
 	if err := ds.CreateDomain(domain); err != nil {
@@ -751,7 +751,7 @@ func TestSQLDataStore_CreateApp(t *testing.T) {
 	}
 
 	app := &models.App{
-		DomainID: domain.ID,
+		DomainID: validNullInt64(domain.ID),
 		Name:     "test-app",
 		Path:     "/path/to/app",
 		Description: sql.NullString{
@@ -781,7 +781,7 @@ func TestSQLDataStore_GetAppByName(t *testing.T) {
 	}
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "app-findme-domain",
 	}
 	if err := ds.CreateDomain(domain); err != nil {
@@ -790,7 +790,7 @@ func TestSQLDataStore_GetAppByName(t *testing.T) {
 
 	// Create an app
 	app := &models.App{
-		DomainID: domain.ID,
+		DomainID: validNullInt64(domain.ID),
 		Name:     "findme-app",
 		Path:     "/path/to/findme",
 	}
@@ -799,7 +799,7 @@ func TestSQLDataStore_GetAppByName(t *testing.T) {
 	}
 
 	// Retrieve by name
-	retrieved, err := ds.GetAppByName(domain.ID, "findme-app")
+	retrieved, err := ds.GetAppByName(validNullInt64(domain.ID), "findme-app")
 	if err != nil {
 		t.Fatalf("GetAppByName() error = %v", err)
 	}
@@ -823,14 +823,14 @@ func TestSQLDataStore_GetAppByName_NotFound(t *testing.T) {
 	}
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "app-notfound-domain",
 	}
 	if err := ds.CreateDomain(domain); err != nil {
 		t.Fatalf("Setup error: %v", err)
 	}
 
-	_, err := ds.GetAppByName(domain.ID, "nonexistent")
+	_, err := ds.GetAppByName(validNullInt64(domain.ID), "nonexistent")
 	if err == nil {
 		t.Errorf("GetAppByName() expected error for nonexistent app")
 	}
@@ -846,7 +846,7 @@ func TestSQLDataStore_GetAppByID(t *testing.T) {
 	}
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "app-getbyid-domain",
 	}
 	if err := ds.CreateDomain(domain); err != nil {
@@ -854,7 +854,7 @@ func TestSQLDataStore_GetAppByID(t *testing.T) {
 	}
 
 	app := &models.App{
-		DomainID: domain.ID,
+		DomainID: validNullInt64(domain.ID),
 		Name:     "getbyid-app",
 		Path:     "/path/to/getbyid",
 	}
@@ -882,7 +882,7 @@ func TestSQLDataStore_UpdateApp(t *testing.T) {
 	}
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "app-update-domain",
 	}
 	if err := ds.CreateDomain(domain); err != nil {
@@ -890,7 +890,7 @@ func TestSQLDataStore_UpdateApp(t *testing.T) {
 	}
 
 	app := &models.App{
-		DomainID: domain.ID,
+		DomainID: validNullInt64(domain.ID),
 		Name:     "update-app",
 		Path:     "/original/path",
 	}
@@ -930,7 +930,7 @@ func TestSQLDataStore_DeleteApp(t *testing.T) {
 	}
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "app-delete-domain",
 	}
 	if err := ds.CreateDomain(domain); err != nil {
@@ -938,7 +938,7 @@ func TestSQLDataStore_DeleteApp(t *testing.T) {
 	}
 
 	app := &models.App{
-		DomainID: domain.ID,
+		DomainID: validNullInt64(domain.ID),
 		Name:     "delete-app",
 		Path:     "/path/to/delete",
 	}
@@ -967,7 +967,7 @@ func TestSQLDataStore_ListAppsByDomain(t *testing.T) {
 	}
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "app-list-domain",
 	}
 	if err := ds.CreateDomain(domain); err != nil {
@@ -977,7 +977,7 @@ func TestSQLDataStore_ListAppsByDomain(t *testing.T) {
 	// Create multiple apps
 	for i := 1; i <= 3; i++ {
 		app := &models.App{
-			DomainID: domain.ID,
+			DomainID: validNullInt64(domain.ID),
 			Name:     "list-app-" + string(rune('0'+i)),
 			Path:     "/path/" + string(rune('0'+i)),
 		}
@@ -1008,7 +1008,7 @@ func TestSQLDataStore_ListAllApps(t *testing.T) {
 	// Create two domains with apps
 	for d := 1; d <= 2; d++ {
 		domain := &models.Domain{
-			EcosystemID: ecosystem.ID,
+			EcosystemID: validNullInt64(ecosystem.ID),
 			Name:        "listall-domain-" + string(rune('0'+d)),
 		}
 		if err := ds.CreateDomain(domain); err != nil {
@@ -1017,7 +1017,7 @@ func TestSQLDataStore_ListAllApps(t *testing.T) {
 
 		for a := 1; a <= 2; a++ {
 			app := &models.App{
-				DomainID: domain.ID,
+				DomainID: validNullInt64(domain.ID),
 				Name:     "app-" + string(rune('0'+a)),
 				Path:     "/path/" + string(rune('0'+a)),
 			}
@@ -1051,7 +1051,7 @@ func TestSQLDataStore_CreateApp_WithLanguage(t *testing.T) {
 	}
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "app-lang-domain",
 	}
 	if err := ds.CreateDomain(domain); err != nil {
@@ -1061,7 +1061,7 @@ func TestSQLDataStore_CreateApp_WithLanguage(t *testing.T) {
 	// Create app with language config (JSON serialized)
 	langJSON := `{"name":"golang","version":"1.22"}`
 	app := &models.App{
-		DomainID: domain.ID,
+		DomainID: validNullInt64(domain.ID),
 		Name:     "lang-test-app",
 		Path:     "/path/to/golang-app",
 		Language: sql.NullString{String: langJSON, Valid: true},
@@ -1095,7 +1095,7 @@ func TestSQLDataStore_CreateApp_WithBuildConfig(t *testing.T) {
 	}
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "app-build-domain",
 	}
 	if err := ds.CreateDomain(domain); err != nil {
@@ -1105,7 +1105,7 @@ func TestSQLDataStore_CreateApp_WithBuildConfig(t *testing.T) {
 	// Create app with build config (JSON serialized)
 	buildJSON := `{"dockerfile":"Dockerfile.dev","args":{"BUILD_ENV":"development","DEBUG":"true"}}`
 	app := &models.App{
-		DomainID:    domain.ID,
+		DomainID:    validNullInt64(domain.ID),
 		Name:        "build-test-app",
 		Path:        "/path/to/build-app",
 		BuildConfig: sql.NullString{String: buildJSON, Valid: true},
@@ -1139,7 +1139,7 @@ func TestSQLDataStore_UpdateApp_Language(t *testing.T) {
 	}
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "app-updatelang-domain",
 	}
 	if err := ds.CreateDomain(domain); err != nil {
@@ -1148,7 +1148,7 @@ func TestSQLDataStore_UpdateApp_Language(t *testing.T) {
 
 	// Create app without language initially
 	app := &models.App{
-		DomainID: domain.ID,
+		DomainID: validNullInt64(domain.ID),
 		Name:     "update-lang-app",
 		Path:     "/path/to/app",
 	}
@@ -1188,7 +1188,7 @@ func TestSQLDataStore_App_PreservesLanguageAndBuildConfig(t *testing.T) {
 	}
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "app-preserve-domain",
 	}
 	if err := ds.CreateDomain(domain); err != nil {
@@ -1200,7 +1200,7 @@ func TestSQLDataStore_App_PreservesLanguageAndBuildConfig(t *testing.T) {
 	buildJSON := `{"dockerfile":"Dockerfile","args":{"NODE_ENV":"development"},"target":"dev"}`
 
 	app := &models.App{
-		DomainID:    domain.ID,
+		DomainID:    validNullInt64(domain.ID),
 		Name:        "full-config-app",
 		Path:        "/path/to/node-app",
 		Description: sql.NullString{String: "Full config test", Valid: true},
@@ -1213,7 +1213,7 @@ func TestSQLDataStore_App_PreservesLanguageAndBuildConfig(t *testing.T) {
 	}
 
 	// Test GetAppByName
-	byName, err := ds.GetAppByName(domain.ID, "full-config-app")
+	byName, err := ds.GetAppByName(validNullInt64(domain.ID), "full-config-app")
 	if err != nil {
 		t.Fatalf("GetAppByName() error = %v", err)
 	}
@@ -1299,7 +1299,7 @@ func createTestApp(t *testing.T, ds *SQLDataStore, name string) *models.App {
 
 	// Create domain
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "test-domain-" + name,
 	}
 	if err := ds.CreateDomain(domain); err != nil {
@@ -1308,7 +1308,7 @@ func createTestApp(t *testing.T, ds *SQLDataStore, name string) *models.App {
 
 	// Create app
 	app := &models.App{
-		DomainID: domain.ID,
+		DomainID: validNullInt64(domain.ID),
 		Name:     "test-app-" + name,
 		Path:     "/test/" + name,
 	}
@@ -1711,7 +1711,7 @@ func TestSQLDataStore_Context_Domain(t *testing.T) {
 	}
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "ctx-domain",
 	}
 	if err := ds.CreateDomain(domain); err != nil {
@@ -1759,7 +1759,7 @@ func TestSQLDataStore_Context_App(t *testing.T) {
 	}
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "ctx-app-domain",
 	}
 	if err := ds.CreateDomain(domain); err != nil {
@@ -1767,7 +1767,7 @@ func TestSQLDataStore_Context_App(t *testing.T) {
 	}
 
 	app := &models.App{
-		DomainID: domain.ID,
+		DomainID: validNullInt64(domain.ID),
 		Name:     "ctx-app",
 		Path:     "/path/to/ctx-app",
 	}
@@ -1816,7 +1816,7 @@ func TestSQLDataStore_Context_FullHierarchy(t *testing.T) {
 	}
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "full-ctx-domain",
 	}
 	if err := ds.CreateDomain(domain); err != nil {
@@ -1824,7 +1824,7 @@ func TestSQLDataStore_Context_FullHierarchy(t *testing.T) {
 	}
 
 	app := &models.App{
-		DomainID: domain.ID,
+		DomainID: validNullInt64(domain.ID),
 		Name:     "full-ctx-app",
 		Path:     "/path/to/full-ctx-app",
 	}
@@ -2266,7 +2266,7 @@ func TestSQLDataStore_MigrationSchema_AppsTableHasLanguageAndBuildConfig(t *test
 
 	// Create domain
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "migration-test-domain",
 	}
 	if err := ds.CreateDomain(domain); err != nil {
@@ -2280,7 +2280,7 @@ func TestSQLDataStore_MigrationSchema_AppsTableHasLanguageAndBuildConfig(t *test
 	buildJSON := `{"dockerfile":"Dockerfile","args":{"CGO_ENABLED":"1"}}`
 
 	app := &models.App{
-		DomainID:    domain.ID,
+		DomainID:    validNullInt64(domain.ID),
 		Name:        "migration-test-app",
 		Path:        "/path/to/app",
 		Language:    sql.NullString{String: langJSON, Valid: true},
@@ -2328,7 +2328,7 @@ func TestSQLDataStore_CreateApp_ErrorNotDuplicated(t *testing.T) {
 	}
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "error-test-domain",
 	}
 	if err := ds.CreateDomain(domain); err != nil {
@@ -2337,7 +2337,7 @@ func TestSQLDataStore_CreateApp_ErrorNotDuplicated(t *testing.T) {
 
 	// Create first app
 	app1 := &models.App{
-		DomainID: domain.ID,
+		DomainID: validNullInt64(domain.ID),
 		Name:     "duplicate-app",
 		Path:     "/path/to/app",
 	}
@@ -2347,7 +2347,7 @@ func TestSQLDataStore_CreateApp_ErrorNotDuplicated(t *testing.T) {
 
 	// Try to create duplicate app - should fail with unique constraint
 	app2 := &models.App{
-		DomainID: domain.ID,
+		DomainID: validNullInt64(domain.ID),
 		Name:     "duplicate-app", // Same name, same domain
 		Path:     "/path/to/other",
 	}
@@ -2933,7 +2933,7 @@ func TestSQLDataStore_CascadeDelete_DomainDeletedWithEcosystem(t *testing.T) {
 		t.Fatalf("CreateEcosystem() error = %v", err)
 	}
 
-	domain := &models.Domain{Name: "cascade-domain-wi1", EcosystemID: eco.ID}
+	domain := &models.Domain{Name: "cascade-domain-wi1", EcosystemID: validNullInt64(eco.ID)}
 	if err := ds.CreateDomain(domain); err != nil {
 		t.Fatalf("CreateDomain() error = %v", err)
 	}
@@ -2965,12 +2965,12 @@ func TestSQLDataStore_CreateWorkspace_WithEnv(t *testing.T) {
 		t.Fatalf("CreateEcosystem() error = %v", err)
 	}
 
-	domain := &models.Domain{Name: "env-domain", EcosystemID: eco.ID}
+	domain := &models.Domain{Name: "env-domain", EcosystemID: validNullInt64(eco.ID)}
 	if err := ds.CreateDomain(domain); err != nil {
 		t.Fatalf("CreateDomain() error = %v", err)
 	}
 
-	app := &models.App{Name: "env-app", DomainID: domain.ID, Path: "/env/path"}
+	app := &models.App{Name: "env-app", DomainID: validNullInt64(domain.ID), Path: "/env/path"}
 	if err := ds.CreateApp(app); err != nil {
 		t.Fatalf("CreateApp() error = %v", err)
 	}
@@ -3021,12 +3021,12 @@ func TestSQLDataStore_UpdateWorkspace_Env(t *testing.T) {
 		t.Fatalf("CreateEcosystem() error = %v", err)
 	}
 
-	domain := &models.Domain{Name: "env-update-domain", EcosystemID: eco.ID}
+	domain := &models.Domain{Name: "env-update-domain", EcosystemID: validNullInt64(eco.ID)}
 	if err := ds.CreateDomain(domain); err != nil {
 		t.Fatalf("CreateDomain() error = %v", err)
 	}
 
-	app := &models.App{Name: "env-update-app", DomainID: domain.ID, Path: "/env/update"}
+	app := &models.App{Name: "env-update-app", DomainID: validNullInt64(domain.ID), Path: "/env/update"}
 	if err := ds.CreateApp(app); err != nil {
 		t.Fatalf("CreateApp() error = %v", err)
 	}

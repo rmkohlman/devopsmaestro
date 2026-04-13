@@ -55,13 +55,13 @@ func setupPersistenceTestStore(
 
 	eco := &models.Ecosystem{Name: "persist-eco"}
 	require.NoError(t, store.CreateEcosystem(eco))
-	dom := &models.Domain{Name: "persist-dom", EcosystemID: eco.ID}
+	dom := &models.Domain{Name: "persist-dom", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	require.NoError(t, store.CreateDomain(dom))
 
 	for i := 0; i < workspaceCount; i++ {
 		app := &models.App{
 			Name:     "persist-app-" + string(rune('a'+i)),
-			DomainID: dom.ID,
+			DomainID: sql.NullInt64{Int64: int64(dom.ID), Valid: true},
 		}
 		require.NoError(t, store.CreateApp(app))
 		ws := &models.Workspace{

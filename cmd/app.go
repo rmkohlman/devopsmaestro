@@ -152,7 +152,7 @@ Next Steps:
 				render.Info("Hint: Set active ecosystem first with: dvm use ecosystem <name>")
 				return errSilent
 			}
-			domain, err = ds.GetDomainByName(ecosystem.ID, appDomain)
+			domain, err = ds.GetDomainByName(sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true}, appDomain)
 			if err != nil {
 				return fmt.Errorf("domain '%s' not found in ecosystem '%s': %w", appDomain, ecosystem.Name, err)
 			}
@@ -179,10 +179,12 @@ Next Steps:
 		}
 
 		// Get ecosystem name for display
-		ecosystem, _ := ds.GetEcosystemByID(domain.EcosystemID)
 		ecosystemName := ""
-		if ecosystem != nil {
-			ecosystemName = ecosystem.Name
+		if domain.EcosystemID.Valid {
+			ecosystem, _ := ds.GetEcosystemByID(int(domain.EcosystemID.Int64))
+			if ecosystem != nil {
+				ecosystemName = ecosystem.Name
+			}
 		}
 
 		render.Progress(fmt.Sprintf("Creating app '%s' in domain '%s'...", appName, domain.Name))
@@ -198,7 +200,7 @@ Next Steps:
 		}
 
 		// Check if app already exists
-		existing, _ := ds.GetAppByName(domain.ID, appName)
+		existing, _ := ds.GetAppByName(sql.NullInt64{Int64: int64(domain.ID), Valid: true}, appName)
 		if existing != nil {
 			return fmt.Errorf("app '%s' already exists in domain '%s'", appName, domain.Name)
 		}
@@ -221,7 +223,7 @@ Next Steps:
 		}
 
 		// Get the created app to get its ID
-		createdApp, err := ds.GetAppByName(domain.ID, appName)
+		createdApp, err := ds.GetAppByName(sql.NullInt64{Int64: int64(domain.ID), Valid: true}, appName)
 		if err != nil {
 			return fmt.Errorf("failed to retrieve created app: %w", err)
 		}
@@ -323,7 +325,7 @@ func getApps(cmd *cobra.Command) error {
 				render.Info("Hint: Use --all, or set active ecosystem first with: dvm use ecosystem <name>")
 				return errSilent
 			}
-			domain, err = ds.GetDomainByName(ecosystem.ID, domainFlag)
+			domain, err = ds.GetDomainByName(sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true}, domainFlag)
 			if err != nil {
 				return fmt.Errorf("domain '%s' not found: %w", domainFlag, err)
 			}
@@ -352,7 +354,7 @@ func getApps(cmd *cobra.Command) error {
 			var domain *models.Domain
 			ecosystem, ecoErr := getActiveEcosystem(ds)
 			if ecoErr == nil {
-				domain, _ = ds.GetDomainByName(ecosystem.ID, domainName)
+				domain, _ = ds.GetDomainByName(sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true}, domainName)
 			}
 			if domain != nil {
 				systemDomainID = sql.NullInt64{Int64: int64(domain.ID), Valid: true}
@@ -387,14 +389,18 @@ func getApps(cmd *cobra.Command) error {
 		// Convert app models to Resource objects for BuildList
 		appResources := make([]resource.Resource, len(apps))
 		for i, a := range apps {
-			dom, _ := ds.GetDomainByID(a.DomainID)
 			domName := ""
 			ecoName := ""
-			if dom != nil {
-				domName = dom.Name
-				eco, _ := ds.GetEcosystemByID(dom.EcosystemID)
-				if eco != nil {
-					ecoName = eco.Name
+			if a.DomainID.Valid {
+				dom, _ := ds.GetDomainByID(int(a.DomainID.Int64))
+				if dom != nil {
+					domName = dom.Name
+					if dom.EcosystemID.Valid {
+						eco, _ := ds.GetEcosystemByID(int(dom.EcosystemID.Int64))
+						if eco != nil {
+							ecoName = eco.Name
+						}
+					}
 				}
 			}
 			// Resolve git repo name if associated
@@ -458,10 +464,12 @@ func getApps(cmd *cobra.Command) error {
 		}
 
 		// Get domain name for display
-		dom, _ := ds.GetDomainByID(a.DomainID)
 		domName := ""
-		if dom != nil {
-			domName = dom.Name
+		if a.DomainID.Valid {
+			dom, _ := ds.GetDomainByID(int(a.DomainID.Int64))
+			if dom != nil {
+				domName = dom.Name
+			}
 		}
 
 		// Truncate path if too long
@@ -538,7 +546,7 @@ func getApp(cmd *cobra.Command, name string) error {
 			render.Info("Hint: Set active ecosystem first with: dvm use ecosystem <name>")
 			return errSilent
 		}
-		domain, err = ds.GetDomainByName(ecosystem.ID, domainFlag)
+		domain, err = ds.GetDomainByName(sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true}, domainFlag)
 		if err != nil {
 			return fmt.Errorf("domain '%s' not found: %w", domainFlag, err)
 		}
@@ -564,10 +572,12 @@ func getApp(cmd *cobra.Command, name string) error {
 	}
 
 	// Get ecosystem for display
-	ecosystem, _ := ds.GetEcosystemByID(domain.EcosystemID)
 	ecosystemName := ""
-	if ecosystem != nil {
-		ecosystemName = ecosystem.Name
+	if domain.EcosystemID.Valid {
+		ecosystem, _ := ds.GetEcosystemByID(int(domain.EcosystemID.Int64))
+		if ecosystem != nil {
+			ecosystemName = ecosystem.Name
+		}
 	}
 
 	res, err := resource.Get(ctx, handlers.KindApp, name)
@@ -683,7 +693,7 @@ Examples:
 				render.Info("Hint: Set active ecosystem first with: dvm use ecosystem <name>")
 				return errSilent
 			}
-			domain, err = ds.GetDomainByName(ecosystem.ID, domainFlag)
+			domain, err = ds.GetDomainByName(sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true}, domainFlag)
 			if err != nil {
 				return fmt.Errorf("domain '%s' not found: %w", domainFlag, err)
 			}
@@ -709,7 +719,7 @@ Examples:
 		}
 
 		// Look up app to show cascade info
-		app, err := ds.GetAppByName(domain.ID, appName)
+		app, err := ds.GetAppByName(sql.NullInt64{Int64: int64(domain.ID), Valid: true}, appName)
 		if err != nil {
 			return fmt.Errorf("app '%s' not found in domain '%s'", appName, domain.Name)
 		}

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"database/sql"
 	"fmt"
 
 	"devopsmaestro/db"
@@ -189,13 +190,17 @@ func getAll(cmd *cobra.Command) error {
 		domEcoIDs := make(map[int]int)
 		for _, d := range domains {
 			domNames[d.ID] = d.Name
-			domEcoIDs[d.ID] = d.EcosystemID
+			if d.EcosystemID.Valid {
+				domEcoIDs[d.ID] = int(d.EcosystemID.Int64)
+			}
 		}
 		appNames := make(map[int]string)
 		appDomIDs := make(map[int]int)
 		for _, a := range apps {
 			appNames[a.ID] = a.Name
-			appDomIDs[a.ID] = a.DomainID
+			if a.DomainID.Valid {
+				appDomIDs[a.ID] = int(a.DomainID.Int64)
+			}
 		}
 
 		// Workspace name lookup (for credential scope resolution)
@@ -235,7 +240,11 @@ func getAll(cmd *cobra.Command) error {
 
 		// Domains (need parent ecosystem name)
 		for _, d := range domains {
-			allResources = append(allResources, handlers.NewDomainResource(d, ecoNames[d.EcosystemID]))
+			ecoName := ""
+			if d.EcosystemID.Valid {
+				ecoName = ecoNames[int(d.EcosystemID.Int64)]
+			}
+			allResources = append(allResources, handlers.NewDomainResource(d, ecoName))
 		}
 
 		// Systems (need parent domain and ecosystem names)
@@ -269,13 +278,19 @@ func getAll(cmd *cobra.Command) error {
 
 		// Apps (need parent domain name + ecosystem name for context-free apply)
 		for _, a := range apps {
-			ecoName := ecoNames[domEcoIDs[a.DomainID]]
+			domName := ""
+			ecoName := ""
+			if a.DomainID.Valid {
+				domID := int(a.DomainID.Int64)
+				domName = domNames[domID]
+				ecoName = ecoNames[domEcoIDs[domID]]
+			}
 			// Resolve git repo name if associated
 			gitRepoName := ""
 			if a.GitRepoID.Valid {
 				gitRepoName = gitRepoNames[a.GitRepoID.Int64]
 			}
-			allResources = append(allResources, handlers.NewAppResource(a, domNames[a.DomainID], ecoName, gitRepoName))
+			allResources = append(allResources, handlers.NewAppResource(a, domName, ecoName, gitRepoName))
 		}
 
 		// Workspaces (need parent app name + resolve domain/gitrepo/ecosystem names)
@@ -571,8 +586,10 @@ func getAll(cmd *cobra.Command) error {
 	}
 	for _, dom := range domains {
 		ecoName := ""
-		if eco, err := ds.GetEcosystemByID(dom.EcosystemID); err == nil {
-			ecoName = eco.Name
+		if dom.EcosystemID.Valid {
+			if eco, err := ds.GetEcosystemByID(int(dom.EcosystemID.Int64)); err == nil {
+				ecoName = eco.Name
+			}
 		}
 		domYAML := dom.ToYAML(ecoName, nil)
 		for _, c := range domYAML.Spec.CACerts {
@@ -615,8 +632,10 @@ func getAll(cmd *cobra.Command) error {
 	}
 	for _, dom := range domains {
 		ecoName := ""
-		if eco, err := ds.GetEcosystemByID(dom.EcosystemID); err == nil {
-			ecoName = eco.Name
+		if dom.EcosystemID.Valid {
+			if eco, err := ds.GetEcosystemByID(int(dom.EcosystemID.Int64)); err == nil {
+				ecoName = eco.Name
+			}
 		}
 		domYAML := dom.ToYAML(ecoName, nil)
 		for k := range domYAML.Spec.Build.Args {
@@ -689,7 +708,7 @@ func resolveGetAllScope(ds db.DataStore, ecosystem, domain, app string, showAll 
 			sc.EcosystemID = &ecoID
 		}
 
-		dom, err := ds.GetDomainByName(*sc.EcosystemID, domain)
+		dom, err := ds.GetDomainByName(sql.NullInt64{Int64: int64(*sc.EcosystemID), Valid: true}, domain)
 		if err != nil {
 			return nil, fmt.Errorf("domain not found: %s", domain)
 		}
@@ -711,14 +730,14 @@ func resolveGetAllScope(ds db.DataStore, ecosystem, domain, app string, showAll 
 			// Also ensure we have ecosystem set
 			if sc.EcosystemID == nil {
 				dom, err := ds.GetDomainByID(domID)
-				if err == nil {
-					ecoID := dom.EcosystemID
+				if err == nil && dom.EcosystemID.Valid {
+					ecoID := int(dom.EcosystemID.Int64)
 					sc.EcosystemID = &ecoID
 				}
 			}
 		}
 
-		a, err := ds.GetAppByName(*sc.DomainID, app)
+		a, err := ds.GetAppByName(sql.NullInt64{Int64: int64(*sc.DomainID), Valid: true}, app)
 		if err != nil {
 			return nil, fmt.Errorf("app not found: %s", app)
 		}
@@ -741,18 +760,20 @@ func resolveGetAllScope(ds db.DataStore, ecosystem, domain, app string, showAll 
 
 			// Walk up to get domain and ecosystem
 			if a, err := ds.GetAppByID(appID); err == nil {
-				domID := a.DomainID
-				sc.DomainID = &domID
-				if dom, err := ds.GetDomainByID(domID); err == nil {
-					ecoID := dom.EcosystemID
-					sc.EcosystemID = &ecoID
+				if a.DomainID.Valid {
+					domID := int(a.DomainID.Int64)
+					sc.DomainID = &domID
+					if dom, err := ds.GetDomainByID(domID); err == nil && dom.EcosystemID.Valid {
+						ecoID := int(dom.EcosystemID.Int64)
+						sc.EcosystemID = &ecoID
+					}
 				}
 			}
 		} else if dbCtx.ActiveDomainID != nil {
 			domID := *dbCtx.ActiveDomainID
 			sc.DomainID = &domID
-			if dom, err := ds.GetDomainByID(domID); err == nil {
-				ecoID := dom.EcosystemID
+			if dom, err := ds.GetDomainByID(domID); err == nil && dom.EcosystemID.Valid {
+				ecoID := int(dom.EcosystemID.Int64)
 				sc.EcosystemID = &ecoID
 			}
 		} else if dbCtx.ActiveEcosystemID != nil {
@@ -792,7 +813,7 @@ func filterDomains(domains []*models.Domain, sc *scopeContext) []*models.Domain 
 	}
 	var filtered []*models.Domain
 	for _, d := range domains {
-		if d.EcosystemID != *sc.EcosystemID {
+		if !d.EcosystemID.Valid || int(d.EcosystemID.Int64) != *sc.EcosystemID {
 			continue
 		}
 		if sc.DomainID != nil && d.ID != *sc.DomainID {
@@ -852,14 +873,14 @@ func filterApps(apps []*models.App, sc *scopeContext, filteredDomains []*models.
 			continue
 		}
 		if sc.DomainID != nil {
-			if a.DomainID == *sc.DomainID {
+			if a.DomainID.Valid && int(a.DomainID.Int64) == *sc.DomainID {
 				filtered = append(filtered, a)
 			}
 			continue
 		}
 		// Ecosystem scope only: include only apps whose domain is in the
 		// filtered domain set (i.e., belongs to the scoped ecosystem).
-		if allowedDomains[a.DomainID] {
+		if a.DomainID.Valid && allowedDomains[int(a.DomainID.Int64)] {
 			filtered = append(filtered, a)
 		}
 	}

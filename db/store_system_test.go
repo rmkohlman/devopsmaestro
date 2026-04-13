@@ -20,7 +20,7 @@ func TestSQLDataStore_CreateSystem(t *testing.T) {
 	if err := ds.CreateEcosystem(ecosystem); err != nil {
 		t.Fatalf("Setup CreateEcosystem() error = %v", err)
 	}
-	domain := &models.Domain{EcosystemID: ecosystem.ID, Name: "system-test-domain"}
+	domain := &models.Domain{EcosystemID: validNullInt64(ecosystem.ID), Name: "system-test-domain"}
 	if err := ds.CreateDomain(domain); err != nil {
 		t.Fatalf("Setup CreateDomain() error = %v", err)
 	}
@@ -69,7 +69,7 @@ func TestSQLDataStore_GetSystemByID(t *testing.T) {
 	if err := ds.CreateEcosystem(ecosystem); err != nil {
 		t.Fatalf("Setup error: %v", err)
 	}
-	domain := &models.Domain{EcosystemID: ecosystem.ID, Name: "system-getbyid-dom"}
+	domain := &models.Domain{EcosystemID: validNullInt64(ecosystem.ID), Name: "system-getbyid-dom"}
 	if err := ds.CreateDomain(domain); err != nil {
 		t.Fatalf("Setup error: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestSQLDataStore_GetSystemByName(t *testing.T) {
 	if err := ds.CreateEcosystem(ecosystem); err != nil {
 		t.Fatalf("Setup error: %v", err)
 	}
-	domain := &models.Domain{EcosystemID: ecosystem.ID, Name: "system-getbyname-dom"}
+	domain := &models.Domain{EcosystemID: validNullInt64(ecosystem.ID), Name: "system-getbyname-dom"}
 	if err := ds.CreateDomain(domain); err != nil {
 		t.Fatalf("Setup error: %v", err)
 	}
@@ -182,7 +182,7 @@ func TestSQLDataStore_UpdateSystem(t *testing.T) {
 	if err := ds.CreateEcosystem(ecosystem); err != nil {
 		t.Fatalf("Setup error: %v", err)
 	}
-	domain := &models.Domain{EcosystemID: ecosystem.ID, Name: "system-update-dom"}
+	domain := &models.Domain{EcosystemID: validNullInt64(ecosystem.ID), Name: "system-update-dom"}
 	if err := ds.CreateDomain(domain); err != nil {
 		t.Fatalf("Setup error: %v", err)
 	}
@@ -247,7 +247,7 @@ func TestSQLDataStore_ListSystems(t *testing.T) {
 	if err := ds.CreateEcosystem(ecosystem); err != nil {
 		t.Fatalf("Setup error: %v", err)
 	}
-	domain := &models.Domain{EcosystemID: ecosystem.ID, Name: "system-list-dom"}
+	domain := &models.Domain{EcosystemID: validNullInt64(ecosystem.ID), Name: "system-list-dom"}
 	if err := ds.CreateDomain(domain); err != nil {
 		t.Fatalf("Setup error: %v", err)
 	}
@@ -280,11 +280,11 @@ func TestSQLDataStore_ListSystemsByDomain(t *testing.T) {
 	if err := ds.CreateEcosystem(ecosystem); err != nil {
 		t.Fatalf("Setup error: %v", err)
 	}
-	domain1 := &models.Domain{EcosystemID: ecosystem.ID, Name: "system-listbydomain-dom1"}
+	domain1 := &models.Domain{EcosystemID: validNullInt64(ecosystem.ID), Name: "system-listbydomain-dom1"}
 	if err := ds.CreateDomain(domain1); err != nil {
 		t.Fatalf("Setup error: %v", err)
 	}
-	domain2 := &models.Domain{EcosystemID: ecosystem.ID, Name: "system-listbydomain-dom2"}
+	domain2 := &models.Domain{EcosystemID: validNullInt64(ecosystem.ID), Name: "system-listbydomain-dom2"}
 	if err := ds.CreateDomain(domain2); err != nil {
 		t.Fatalf("Setup error: %v", err)
 	}
@@ -326,7 +326,7 @@ func TestSQLDataStore_FindSystemsByName(t *testing.T) {
 	if err := ds.CreateEcosystem(eco1); err != nil {
 		t.Fatalf("Setup error: %v", err)
 	}
-	dom1 := &models.Domain{EcosystemID: eco1.ID, Name: "find-system-dom1"}
+	dom1 := &models.Domain{EcosystemID: validNullInt64(eco1.ID), Name: "find-system-dom1"}
 	if err := ds.CreateDomain(dom1); err != nil {
 		t.Fatalf("Setup error: %v", err)
 	}
@@ -335,7 +335,7 @@ func TestSQLDataStore_FindSystemsByName(t *testing.T) {
 	if err := ds.CreateEcosystem(eco2); err != nil {
 		t.Fatalf("Setup error: %v", err)
 	}
-	dom2 := &models.Domain{EcosystemID: eco2.ID, Name: "find-system-dom2"}
+	dom2 := &models.Domain{EcosystemID: validNullInt64(eco2.ID), Name: "find-system-dom2"}
 	if err := ds.CreateDomain(dom2); err != nil {
 		t.Fatalf("Setup error: %v", err)
 	}

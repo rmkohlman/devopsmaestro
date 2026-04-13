@@ -9,6 +9,7 @@
 package cmd
 
 import (
+	"database/sql"
 	"os"
 	"testing"
 
@@ -38,7 +39,7 @@ func TestUseWorkspace_NoYAMLWrite(t *testing.T) {
 	// Seed active app (required for use workspace — getActiveAppFromContext reads DB)
 	appID := 1
 	mock.Context.ActiveAppID = &appID
-	app := &models.App{ID: 1, Name: "my-api", DomainID: 1}
+	app := &models.App{ID: 1, Name: "my-api", DomainID: sql.NullInt64{Int64: 1, Valid: true}}
 	mock.Apps[1] = app
 
 	// Seed a workspace under that app
@@ -100,7 +101,7 @@ func TestUseWorkspaceNone_ClearsDB(t *testing.T) {
 	mock.Context.ActiveWorkspaceID = &wsID
 
 	// Provide the app record so getActiveAppFromContext resolves it
-	app := &models.App{ID: 2, Name: "my-api", DomainID: 1}
+	app := &models.App{ID: 2, Name: "my-api", DomainID: sql.NullInt64{Int64: 1, Valid: true}}
 	mock.Apps[2] = app
 
 	useWorkspaceCmd.SetContext(newCmdContextWithMock(mock))

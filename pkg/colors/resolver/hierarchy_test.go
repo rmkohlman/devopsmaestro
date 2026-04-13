@@ -54,7 +54,7 @@ func (m *MockDataStore) AddEcosystem(id int, name string, theme *string) {
 func (m *MockDataStore) AddDomain(id, ecosystemID int, name string, theme *string) {
 	domain := &models.Domain{
 		ID:          id,
-		EcosystemID: ecosystemID,
+		EcosystemID: sql.NullInt64{Int64: int64(ecosystemID), Valid: true},
 		Name:        name,
 	}
 	if theme != nil {
@@ -66,7 +66,7 @@ func (m *MockDataStore) AddDomain(id, ecosystemID int, name string, theme *strin
 func (m *MockDataStore) AddApp(id, domainID int, name string, theme *string) {
 	app := &models.App{
 		ID:       id,
-		DomainID: domainID,
+		DomainID: sql.NullInt64{Int64: int64(domainID), Valid: true},
 		Name:     name,
 	}
 	if theme != nil {
@@ -143,7 +143,7 @@ func (m *MockDataStore) DeleteEcosystem(name string) error                      
 func (m *MockDataStore) ListEcosystems() ([]*models.Ecosystem, error)              { return nil, nil }
 
 func (m *MockDataStore) CreateDomain(domain *models.Domain) error { return nil }
-func (m *MockDataStore) GetDomainByName(ecosystemID int, name string) (*models.Domain, error) {
+func (m *MockDataStore) GetDomainByName(ecosystemID sql.NullInt64, name string) (*models.Domain, error) {
 	return nil, nil
 }
 func (m *MockDataStore) UpdateDomain(domain *models.Domain) error { return nil }
@@ -153,13 +153,15 @@ func (m *MockDataStore) ListDomainsByEcosystem(ecosystemID int) ([]*models.Domai
 }
 func (m *MockDataStore) ListAllDomains() ([]*models.Domain, error) { return nil, nil }
 
-func (m *MockDataStore) CreateApp(app *models.App) error                             { return nil }
-func (m *MockDataStore) GetAppByName(domainID int, name string) (*models.App, error) { return nil, nil }
-func (m *MockDataStore) GetAppByNameGlobal(name string) (*models.App, error)         { return nil, nil }
-func (m *MockDataStore) UpdateApp(app *models.App) error                             { return nil }
-func (m *MockDataStore) DeleteApp(id int) error                                      { return nil }
-func (m *MockDataStore) ListAppsByDomain(domainID int) ([]*models.App, error)        { return nil, nil }
-func (m *MockDataStore) ListAllApps() ([]*models.App, error)                         { return nil, nil }
+func (m *MockDataStore) CreateApp(app *models.App) error { return nil }
+func (m *MockDataStore) GetAppByName(domainID sql.NullInt64, name string) (*models.App, error) {
+	return nil, nil
+}
+func (m *MockDataStore) GetAppByNameGlobal(name string) (*models.App, error)  { return nil, nil }
+func (m *MockDataStore) UpdateApp(app *models.App) error                      { return nil }
+func (m *MockDataStore) DeleteApp(id int) error                               { return nil }
+func (m *MockDataStore) ListAppsByDomain(domainID int) ([]*models.App, error) { return nil, nil }
+func (m *MockDataStore) ListAllApps() ([]*models.App, error)                  { return nil, nil }
 
 func (m *MockDataStore) CreateWorkspace(workspace *models.Workspace) error { return nil }
 func (m *MockDataStore) GetWorkspaceByName(appID int, name string) (*models.Workspace, error) {

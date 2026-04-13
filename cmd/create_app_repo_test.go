@@ -26,7 +26,7 @@ func setupAppTestContext() (*db.MockDataStore, *models.Domain) {
 	mockStore.CreateEcosystem(ecosystem)
 
 	// Create test domain
-	domain := &models.Domain{Name: "test-domain", EcosystemID: ecosystem.ID}
+	domain := &models.Domain{Name: "test-domain", EcosystemID: sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true}}
 	mockStore.CreateDomain(domain)
 
 	// Set as active
@@ -85,7 +85,7 @@ func TestCreateApp_WithRepoURL_AutoCreatesGitRepo(t *testing.T) {
 	// 2. App should be created with GitRepoID set
 	app := &models.App{
 		Name:      appName,
-		DomainID:  domain.ID,
+		DomainID:  sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Path:      "/tmp/test", // Path is optional when --repo is provided
 		GitRepoID: sql.NullInt64{Int64: int64(gitRepo.ID), Valid: true},
 	}
@@ -100,7 +100,7 @@ func TestCreateApp_WithRepoURL_AutoCreatesGitRepo(t *testing.T) {
 	assert.Equal(t, expectedSlug, createdRepo.Slug)
 
 	// Verify App was created with GitRepoID
-	createdApp, err := mockStore.GetAppByName(domain.ID, appName)
+	createdApp, err := mockStore.GetAppByName(sql.NullInt64{Int64: int64(domain.ID), Valid: true}, appName)
 	assert.NoError(t, err)
 	assert.NotNil(t, createdApp)
 	assert.True(t, createdApp.GitRepoID.Valid, "App should have GitRepoID set")
@@ -140,7 +140,7 @@ func TestCreateApp_WithExistingGitRepoName(t *testing.T) {
 	// Create app linked to existing repo
 	app := &models.App{
 		Name:      appName,
-		DomainID:  domain.ID,
+		DomainID:  sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Path:      "/tmp/test",
 		GitRepoID: sql.NullInt64{Int64: int64(repo.ID), Valid: true},
 	}
@@ -148,7 +148,7 @@ func TestCreateApp_WithExistingGitRepoName(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify app is linked to existing repo
-	createdApp, err := mockStore.GetAppByName(domain.ID, appName)
+	createdApp, err := mockStore.GetAppByName(sql.NullInt64{Int64: int64(domain.ID), Valid: true}, appName)
 	assert.NoError(t, err)
 	assert.True(t, createdApp.GitRepoID.Valid)
 	assert.Equal(t, int64(existingRepo.ID), createdApp.GitRepoID.Int64)
@@ -375,7 +375,7 @@ func TestCreateApp_PathOptionalWhenRepoProvided(t *testing.T) {
 	// ~/.devopsmaestro/apps/<app-name> or similar
 	app := &models.App{
 		Name:      "myapp",
-		DomainID:  domain.ID,
+		DomainID:  sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Path:      "", // Empty/default path - should be allowed when GitRepoID is set
 		GitRepoID: sql.NullInt64{Int64: int64(repo.ID), Valid: true},
 	}
@@ -391,7 +391,7 @@ func TestCreateApp_PathOptionalWhenRepoProvided(t *testing.T) {
 	assert.NoError(t, err, "Should allow creating app with --repo even if --path is not provided")
 
 	// Verify app was created with GitRepoID
-	createdApp, err := mockStore.GetAppByName(domain.ID, "myapp")
+	createdApp, err := mockStore.GetAppByName(sql.NullInt64{Int64: int64(domain.ID), Valid: true}, "myapp")
 	assert.NoError(t, err)
 	assert.True(t, createdApp.GitRepoID.Valid)
 	assert.NotEmpty(t, createdApp.Path, "Path should have a default value")
@@ -428,7 +428,7 @@ func TestCreateApp_RepoURL_DetectsExistingRepoByURL(t *testing.T) {
 	// Create app linked to existing repo
 	app := &models.App{
 		Name:      "myapp",
-		DomainID:  domain.ID,
+		DomainID:  sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Path:      "/tmp/test",
 		GitRepoID: sql.NullInt64{Int64: int64(foundRepo.ID), Valid: true},
 	}
@@ -441,7 +441,7 @@ func TestCreateApp_RepoURL_DetectsExistingRepoByURL(t *testing.T) {
 	assert.Len(t, allRepos, 1, "Should reuse existing GitRepo, not create duplicate")
 
 	// Verify app is linked correctly
-	createdApp, err := mockStore.GetAppByName(domain.ID, "myapp")
+	createdApp, err := mockStore.GetAppByName(sql.NullInt64{Int64: int64(domain.ID), Valid: true}, "myapp")
 	assert.NoError(t, err)
 	assert.True(t, createdApp.GitRepoID.Valid)
 	assert.Equal(t, int64(existingRepo.ID), createdApp.GitRepoID.Int64)

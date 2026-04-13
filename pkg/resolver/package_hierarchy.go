@@ -242,6 +242,9 @@ func (r *hierarchyPackageResolver) resolveApp(id int, step PackageStep, sel func
 		step.PackageName = pkg.String
 		step.Found = true
 	}
+	if app.DomainID == 0 {
+		return step, 0, PackageLevelGlobal, nil
+	}
 	return step, app.DomainID, PackageLevelDomain, nil
 }
 
@@ -255,6 +258,9 @@ func (r *hierarchyPackageResolver) resolveDomain(id int, step PackageStep, sel f
 	if pkg.Valid && pkg.String != "" {
 		step.PackageName = pkg.String
 		step.Found = true
+	}
+	if dom.EcosystemID == 0 {
+		return step, 0, PackageLevelGlobal, nil
 	}
 	return step, dom.EcosystemID, PackageLevelEcosystem, nil
 }

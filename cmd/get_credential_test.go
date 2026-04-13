@@ -6,6 +6,7 @@ package cmd
 // =============================================================================
 
 import (
+	"database/sql"
 	"encoding/json"
 	"testing"
 
@@ -42,7 +43,7 @@ func TestResolveScopeName_DomainScope(t *testing.T) {
 	eco := &models.Ecosystem{Name: "parent-eco"}
 	require.NoError(t, store.CreateEcosystem(eco))
 
-	domain := &models.Domain{Name: "my-domain", EcosystemID: eco.ID}
+	domain := &models.Domain{Name: "my-domain", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	require.NoError(t, store.CreateDomain(domain))
 
 	result := resolveScopeName(store, models.CredentialScopeDomain, int64(domain.ID))
@@ -56,9 +57,9 @@ func TestResolveScopeName_AppScope(t *testing.T) {
 	store := db.NewMockDataStore()
 	eco := &models.Ecosystem{Name: "eco"}
 	require.NoError(t, store.CreateEcosystem(eco))
-	dom := &models.Domain{Name: "dom", EcosystemID: eco.ID}
+	dom := &models.Domain{Name: "dom", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	require.NoError(t, store.CreateDomain(dom))
-	app := &models.App{Name: "my-api", DomainID: dom.ID, Path: "/srv/api"}
+	app := &models.App{Name: "my-api", DomainID: sql.NullInt64{Int64: int64(dom.ID), Valid: true}, Path: "/srv/api"}
 	require.NoError(t, store.CreateApp(app))
 
 	result := resolveScopeName(store, models.CredentialScopeApp, int64(app.ID))
@@ -72,9 +73,9 @@ func TestResolveScopeName_WorkspaceScope(t *testing.T) {
 	store := db.NewMockDataStore()
 	eco := &models.Ecosystem{Name: "eco"}
 	require.NoError(t, store.CreateEcosystem(eco))
-	dom := &models.Domain{Name: "dom", EcosystemID: eco.ID}
+	dom := &models.Domain{Name: "dom", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	require.NoError(t, store.CreateDomain(dom))
-	app := &models.App{Name: "app", DomainID: dom.ID, Path: "/srv/app"}
+	app := &models.App{Name: "app", DomainID: sql.NullInt64{Int64: int64(dom.ID), Valid: true}, Path: "/srv/app"}
 	require.NoError(t, store.CreateApp(app))
 	ws := &models.Workspace{
 		Name:      "my-workspace",
@@ -138,7 +139,7 @@ func TestResolveScopeName_AllScopeTypes(t *testing.T) {
 	eco, err := store.GetEcosystemByName("test-eco")
 	require.NoError(t, err)
 
-	domain, err := store.GetDomainByName(eco.ID, "test-domain")
+	domain, err := store.GetDomainByName(sql.NullInt64{Int64: int64(eco.ID), Valid: true}, "test-domain")
 	require.NoError(t, err)
 
 	// Create a workspace for workspace scope

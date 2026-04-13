@@ -23,13 +23,13 @@ func TestBuildSourcePath_WithGitRepoID_UsesWorkspaceRepoPath(t *testing.T) {
 
 	domain := &models.Domain{
 		Name:        "test-domain",
-		EcosystemID: ecosystem.ID,
+		EcosystemID: sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true},
 	}
 	mockStore.CreateDomain(domain)
 
 	app := &models.App{
 		Name:     "test-app",
-		DomainID: domain.ID,
+		DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Path:     "/original/app/path",
 	}
 	mockStore.CreateApp(app)
@@ -81,13 +81,13 @@ func TestBuildSourcePath_WithoutGitRepoID_UsesAppPath(t *testing.T) {
 
 	domain := &models.Domain{
 		Name:        "test-domain",
-		EcosystemID: ecosystem.ID,
+		EcosystemID: sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true},
 	}
 	mockStore.CreateDomain(domain)
 
 	app := &models.App{
 		Name:     "test-app",
-		DomainID: domain.ID,
+		DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Path:     "/original/app/path",
 	}
 	mockStore.CreateApp(app)
@@ -131,13 +131,13 @@ func TestBuildSourcePath_WithGitRepoID_AlwaysUsesRepoPath(t *testing.T) {
 
 	domain := &models.Domain{
 		Name:        "test-domain",
-		EcosystemID: ecosystem.ID,
+		EcosystemID: sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true},
 	}
 	mockStore.CreateDomain(domain)
 
 	app := &models.App{
 		Name:     "test-app",
-		DomainID: domain.ID,
+		DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Path:     "/original/app/path",
 	}
 	mockStore.CreateApp(app)

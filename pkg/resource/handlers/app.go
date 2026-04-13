@@ -66,14 +66,15 @@ func (h *AppHandler) Apply(ctx resource.Context, data []byte) (resource.Resource
 		ecosystemID = *dbCtx.ActiveEcosystemID
 	}
 
-	domain, err := ds.GetDomainByName(ecosystemID, domainName)
+	domain, err := ds.GetDomainByName(sql.NullInt64{Int64: int64(ecosystemID), Valid: true}, domainName)
 	if err != nil {
 		return nil, fmt.Errorf("domain '%s' not found: %w", domainName, err)
 	}
 
 	// Convert to model
+	domainNullID := sql.NullInt64{Int64: int64(domain.ID), Valid: true}
 	app := &models.App{
-		DomainID: domain.ID,
+		DomainID: domainNullID,
 	}
 	app.FromYAML(appYAML)
 
@@ -96,7 +97,7 @@ func (h *AppHandler) Apply(ctx resource.Context, data []byte) (resource.Resource
 	}
 
 	// Check if app exists
-	existing, _ := ds.GetAppByName(domain.ID, app.Name)
+	existing, _ := ds.GetAppByName(domainNullID, app.Name)
 	if existing != nil {
 		// Update existing
 		app.ID = existing.ID
@@ -109,7 +110,7 @@ func (h *AppHandler) Apply(ctx resource.Context, data []byte) (resource.Resource
 			return nil, fmt.Errorf("failed to create app: %w", err)
 		}
 		// Fetch to get the ID
-		app, err = ds.GetAppByName(domain.ID, app.Name)
+		app, err = ds.GetAppByName(domainNullID, app.Name)
 		if err != nil {
 			return nil, fmt.Errorf("failed to retrieve created app: %w", err)
 		}
@@ -136,19 +137,23 @@ func (h *AppHandler) Get(ctx resource.Context, name string) (resource.Resource, 
 		return nil, fmt.Errorf("no active domain set; use 'dvm use domain <name>' first")
 	}
 
-	app, err := ds.GetAppByName(*dbCtx.ActiveDomainID, name)
+	app, err := ds.GetAppByName(sql.NullInt64{Int64: int64(*dbCtx.ActiveDomainID), Valid: true}, name)
 	if err != nil {
 		return nil, err
 	}
 
-	domain, _ := ds.GetDomainByID(app.DomainID)
 	domainName := ""
 	ecosystemName := ""
-	if domain != nil {
-		domainName = domain.Name
-		// Resolve ecosystem name for round-trip fidelity
-		if eco, ecoErr := ds.GetEcosystemByID(domain.EcosystemID); ecoErr == nil {
-			ecosystemName = eco.Name
+	if app.DomainID.Valid {
+		domain, _ := ds.GetDomainByID(int(app.DomainID.Int64))
+		if domain != nil {
+			domainName = domain.Name
+			// Resolve ecosystem name for round-trip fidelity
+			if domain.EcosystemID.Valid {
+				if eco, ecoErr := ds.GetEcosystemByID(int(domain.EcosystemID.Int64)); ecoErr == nil {
+					ecosystemName = eco.Name
+				}
+			}
 		}
 	}
 
@@ -199,13 +204,17 @@ func (h *AppHandler) List(ctx resource.Context) ([]resource.Resource, error) {
 
 	result := make([]resource.Resource, len(apps))
 	for i, a := range apps {
-		domain, _ := ds.GetDomainByID(a.DomainID)
 		domainName := ""
 		ecosystemName := ""
-		if domain != nil {
-			domainName = domain.Name
-			if eco, ecoErr := ds.GetEcosystemByID(domain.EcosystemID); ecoErr == nil {
-				ecosystemName = eco.Name
+		if a.DomainID.Valid {
+			domain, _ := ds.GetDomainByID(int(a.DomainID.Int64))
+			if domain != nil {
+				domainName = domain.Name
+				if domain.EcosystemID.Valid {
+					if eco, ecoErr := ds.GetEcosystemByID(int(domain.EcosystemID.Int64)); ecoErr == nil {
+						ecosystemName = eco.Name
+					}
+				}
 			}
 		}
 		// Resolve GitRepo name if GitRepoID is set
@@ -246,7 +255,7 @@ func (h *AppHandler) Delete(ctx resource.Context, name string) error {
 		return fmt.Errorf("no active domain set; use 'dvm use domain <name>' first")
 	}
 
-	app, err := ds.GetAppByName(*dbCtx.ActiveDomainID, name)
+	app, err := ds.GetAppByName(sql.NullInt64{Int64: int64(*dbCtx.ActiveDomainID), Valid: true}, name)
 	if err != nil {
 		return err
 	}
@@ -290,9 +299,6 @@ func (r *AppResource) Validate() error {
 	if r.app.Name == "" {
 		return fmt.Errorf("app name is required")
 	}
-	if r.app.DomainID == 0 {
-		return fmt.Errorf("app domain_id is required")
-	}
 	if r.app.Path == "" {
 		return fmt.Errorf("app path is required")
 	}
@@ -324,7 +330,7 @@ func NewAppResource(app *models.App, domainName, ecosystemName string, extra ...
 func NewAppFromModel(name string, domainID int, path, description string) *models.App {
 	return &models.App{
 		Name:     name,
-		DomainID: domainID,
+		DomainID: sql.NullInt64{Int64: int64(domainID), Valid: domainID != 0},
 		Path:     path,
 		Description: sql.NullString{
 			String: description,

@@ -39,7 +39,7 @@ func (a *DataStorePackageAdapter) GetPackageDomainByID(id int) (PackageDomainDat
 	}
 	return PackageDomainData{
 		ID:              dom.ID,
-		EcosystemID:     dom.EcosystemID,
+		EcosystemID:     int(dom.EcosystemID.Int64),
 		Name:            dom.Name,
 		NvimPackage:     dom.NvimPackage,
 		TerminalPackage: dom.TerminalPackage,
@@ -54,7 +54,7 @@ func (a *DataStorePackageAdapter) GetPackageAppByID(id int) (PackageAppData, err
 	}
 	return PackageAppData{
 		ID:              app.ID,
-		DomainID:        app.DomainID,
+		DomainID:        int(app.DomainID.Int64),
 		Name:            app.Name,
 		NvimPackage:     app.NvimPackage,
 		TerminalPackage: app.TerminalPackage,

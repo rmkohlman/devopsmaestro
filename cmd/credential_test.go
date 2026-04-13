@@ -28,6 +28,7 @@ package cmd
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"testing"
 
@@ -1148,7 +1149,7 @@ func TestCreateCredential_AllScopeTypes(t *testing.T) {
 	eco, err := mockStore.GetEcosystemByName("test-eco")
 	require.NoError(t, err)
 
-	domain, err := mockStore.GetDomainByName(eco.ID, "test-domain")
+	domain, err := mockStore.GetDomainByName(sql.NullInt64{Int64: int64(eco.ID), Valid: true}, "test-domain")
 	require.NoError(t, err)
 
 	// Create a workspace so we have a workspace-scope ID

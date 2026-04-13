@@ -16,6 +16,7 @@ package cmd
 // =============================================================================
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -139,11 +140,11 @@ func TestStagingDirUniqueness_StagingPathContainsKey(t *testing.T) {
 // Each app has a distinct name to reflect a realistic microservices setup.
 func makeSameDomainWorkspaces(appNames []string, workspaceName string) []*models.WorkspaceWithHierarchy {
 	eco := &models.Ecosystem{ID: 10, Name: "cloud"}
-	dom := &models.Domain{ID: 20, Name: "payments", EcosystemID: 10}
+	dom := &models.Domain{ID: 20, Name: "payments", EcosystemID: sql.NullInt64{Int64: 10, Valid: true}}
 
 	result := make([]*models.WorkspaceWithHierarchy, len(appNames))
 	for i, appName := range appNames {
-		app := &models.App{ID: i + 100, Name: appName, DomainID: 20}
+		app := &models.App{ID: i + 100, Name: appName, DomainID: sql.NullInt64{Int64: 20, Valid: true}}
 		ws := &models.Workspace{ID: i + 200, Name: workspaceName, AppID: app.ID}
 		result[i] = &models.WorkspaceWithHierarchy{
 			Workspace: ws,

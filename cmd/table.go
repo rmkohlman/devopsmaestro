@@ -169,8 +169,8 @@ func (b *domainTableBuilder) Row(model any, wide bool) []string {
 	name := activeMarker(domain.Name, domain.ID, b.ActiveID)
 
 	ecoName := ""
-	if b.DataStore != nil {
-		if eco, err := b.DataStore.GetEcosystemByID(domain.EcosystemID); err == nil {
+	if domain.EcosystemID.Valid && b.DataStore != nil {
+		if eco, err := b.DataStore.GetEcosystemByID(int(domain.EcosystemID.Int64)); err == nil {
 			ecoName = eco.Name
 		}
 	}
@@ -222,8 +222,10 @@ func (b *systemTableBuilder) Row(model any, wide bool) []string {
 	if system.DomainID.Valid && b.DataStore != nil {
 		if domain, err := b.DataStore.GetDomainByID(int(system.DomainID.Int64)); err == nil {
 			domainName = domain.Name
-			if eco, err := b.DataStore.GetEcosystemByID(domain.EcosystemID); err == nil {
-				ecosystemName = eco.Name
+			if domain.EcosystemID.Valid {
+				if eco, err := b.DataStore.GetEcosystemByID(int(domain.EcosystemID.Int64)); err == nil {
+					ecosystemName = eco.Name
+				}
 			}
 		}
 	}
@@ -266,8 +268,8 @@ func (b *appTableBuilder) Row(model any, wide bool) []string {
 	name := activeMarker(app.Name, app.ID, b.ActiveID)
 
 	domainName := ""
-	if b.DataStore != nil {
-		if domain, err := b.DataStore.GetDomainByID(app.DomainID); err == nil {
+	if app.DomainID.Valid && b.DataStore != nil {
+		if domain, err := b.DataStore.GetDomainByID(int(app.DomainID.Int64)); err == nil {
 			domainName = domain.Name
 		}
 	}

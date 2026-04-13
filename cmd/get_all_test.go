@@ -276,7 +276,7 @@ func TestGetAll_WithData(t *testing.T) {
 
 	domain := &models.Domain{
 		Name:        "backend",
-		EcosystemID: ecosystem.ID,
+		EcosystemID: sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true},
 		Description: sql.NullString{String: "Backend services", Valid: true},
 	}
 	require.NoError(t, dataStore.CreateDomain(domain))
@@ -284,7 +284,7 @@ func TestGetAll_WithData(t *testing.T) {
 	app := &models.App{
 		Name:        "api",
 		Path:        "/srv/api",
-		DomainID:    domain.ID,
+		DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Description: sql.NullString{String: "REST API", Valid: true},
 		Language:    sql.NullString{String: "go", Valid: true},
 	}
@@ -427,7 +427,7 @@ func TestGetAll_YAML_ProducesListFormat(t *testing.T) {
 
 	domain := &models.Domain{
 		Name:        "domain-yaml",
-		EcosystemID: ecosystem.ID,
+		EcosystemID: sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true},
 	}
 	require.NoError(t, dataStore.CreateDomain(domain))
 
@@ -576,10 +576,10 @@ func TestGetAll_TableOutput(t *testing.T) {
 	eco := &models.Ecosystem{Name: "eco-table"}
 	require.NoError(t, dataStore.CreateEcosystem(eco))
 
-	dom := &models.Domain{Name: "dom-table", EcosystemID: eco.ID}
+	dom := &models.Domain{Name: "dom-table", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateDomain(dom))
 
-	app := &models.App{Name: "app-table", Path: "/app", DomainID: dom.ID}
+	app := &models.App{Name: "app-table", Path: "/app", DomainID: sql.NullInt64{Int64: int64(dom.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateApp(app))
 
 	ws := &models.Workspace{
@@ -718,9 +718,9 @@ func TestGetAll_JSON_ItemsCountMatchesAllResources(t *testing.T) {
 	eco2 := &models.Ecosystem{Name: "eco-count-b"}
 	require.NoError(t, dataStore.CreateEcosystem(eco2))
 
-	dom1 := &models.Domain{Name: "dom-count-1", EcosystemID: eco1.ID}
+	dom1 := &models.Domain{Name: "dom-count-1", EcosystemID: sql.NullInt64{Int64: int64(eco1.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateDomain(dom1))
-	dom2 := &models.Domain{Name: "dom-count-2", EcosystemID: eco1.ID}
+	dom2 := &models.Domain{Name: "dom-count-2", EcosystemID: sql.NullInt64{Int64: int64(eco1.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateDomain(dom2))
 
 	cmd := newGetAllTestCmd(t, dataStore)
@@ -802,10 +802,10 @@ func TestGetAll_ActiveMarkers(t *testing.T) {
 	eco := &models.Ecosystem{Name: "active-eco"}
 	require.NoError(t, dataStore.CreateEcosystem(eco))
 
-	dom := &models.Domain{Name: "active-dom", EcosystemID: eco.ID}
+	dom := &models.Domain{Name: "active-dom", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateDomain(dom))
 
-	app := &models.App{Name: "active-app", Path: "/app", DomainID: dom.ID}
+	app := &models.App{Name: "active-app", Path: "/app", DomainID: sql.NullInt64{Int64: int64(dom.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateApp(app))
 
 	ws := &models.Workspace{
@@ -859,10 +859,10 @@ func TestGetAll_WideOutput(t *testing.T) {
 	eco := &models.Ecosystem{Name: "wide-eco"}
 	require.NoError(t, dataStore.CreateEcosystem(eco))
 
-	dom := &models.Domain{Name: "wide-dom", EcosystemID: eco.ID}
+	dom := &models.Domain{Name: "wide-dom", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateDomain(dom))
 
-	app := &models.App{Name: "wide-app", Path: "/app", DomainID: dom.ID}
+	app := &models.App{Name: "wide-app", Path: "/app", DomainID: sql.NullInt64{Int64: int64(dom.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateApp(app))
 
 	ws := &models.Workspace{
@@ -931,14 +931,14 @@ func TestGetAll_RichColumns(t *testing.T) {
 
 	dom := &models.Domain{
 		Name:        "rich-dom",
-		EcosystemID: eco.ID,
+		EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true},
 	}
 	require.NoError(t, dataStore.CreateDomain(dom))
 
 	app := &models.App{
 		Name:     "rich-app",
 		Path:     "/src/rich",
-		DomainID: dom.ID,
+		DomainID: sql.NullInt64{Int64: int64(dom.ID), Valid: true},
 	}
 	require.NoError(t, dataStore.CreateApp(app))
 
@@ -1073,7 +1073,7 @@ func TestResolveGetAllScope_DomainFlagWithExplicitEcosystem(t *testing.T) {
 	mock := db.NewMockDataStore()
 	eco := &models.Ecosystem{ID: 1, Name: "eco1"}
 	mock.Ecosystems["eco1"] = eco
-	dom := &models.Domain{ID: 10, Name: "backend", EcosystemID: 1}
+	dom := &models.Domain{ID: 10, Name: "backend", EcosystemID: sql.NullInt64{Int64: 1, Valid: true}}
 	mock.Domains[10] = dom
 
 	sc, err := resolveGetAllScope(mock, "eco1", "backend", "", false)
@@ -1094,7 +1094,7 @@ func TestResolveGetAllScope_DomainFlagUsesActiveContext(t *testing.T) {
 	mock.Ecosystems["ctx-eco"] = eco
 	mock.Context = &models.Context{ID: 1, ActiveEcosystemID: &ecoID}
 
-	dom := &models.Domain{ID: 20, Name: "frontend", EcosystemID: 5}
+	dom := &models.Domain{ID: 20, Name: "frontend", EcosystemID: sql.NullInt64{Int64: 5, Valid: true}}
 	mock.Domains[20] = dom
 
 	sc, err := resolveGetAllScope(mock, "", "frontend", "", false)
@@ -1119,9 +1119,9 @@ func TestResolveGetAllScope_AppFlagWithExplicitDomainAndEcosystem(t *testing.T) 
 	mock := db.NewMockDataStore()
 	eco := &models.Ecosystem{ID: 1, Name: "eco1"}
 	mock.Ecosystems["eco1"] = eco
-	dom := &models.Domain{ID: 10, Name: "backend", EcosystemID: 1}
+	dom := &models.Domain{ID: 10, Name: "backend", EcosystemID: sql.NullInt64{Int64: 1, Valid: true}}
 	mock.Domains[10] = dom
-	app := &models.App{ID: 100, Name: "api", DomainID: 10}
+	app := &models.App{ID: 100, Name: "api", DomainID: sql.NullInt64{Int64: 10, Valid: true}}
 	mock.Apps[100] = app
 
 	sc, err := resolveGetAllScope(mock, "eco1", "backend", "api", false)
@@ -1214,9 +1214,9 @@ func TestGetAll_ScopedByEcosystem(t *testing.T) {
 	eco2 := &models.Ecosystem{Name: "eco-beta"}
 	require.NoError(t, dataStore.CreateEcosystem(eco2))
 
-	dom1 := &models.Domain{Name: "dom-in-alpha", EcosystemID: eco1.ID}
+	dom1 := &models.Domain{Name: "dom-in-alpha", EcosystemID: sql.NullInt64{Int64: int64(eco1.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateDomain(dom1))
-	dom2 := &models.Domain{Name: "dom-in-beta", EcosystemID: eco2.ID}
+	dom2 := &models.Domain{Name: "dom-in-beta", EcosystemID: sql.NullInt64{Int64: int64(eco2.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateDomain(dom2))
 
 	cmd := newScopedGetAllCmd(t, dataStore)
@@ -1249,14 +1249,14 @@ func TestGetAll_ScopedByDomain(t *testing.T) {
 	eco := &models.Ecosystem{Name: "eco-scope-dom"}
 	require.NoError(t, dataStore.CreateEcosystem(eco))
 
-	dom1 := &models.Domain{Name: "dom-target", EcosystemID: eco.ID}
+	dom1 := &models.Domain{Name: "dom-target", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateDomain(dom1))
-	dom2 := &models.Domain{Name: "dom-other", EcosystemID: eco.ID}
+	dom2 := &models.Domain{Name: "dom-other", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateDomain(dom2))
 
-	app1 := &models.App{Name: "app-in-target", Path: "/t", DomainID: dom1.ID}
+	app1 := &models.App{Name: "app-in-target", Path: "/t", DomainID: sql.NullInt64{Int64: int64(dom1.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateApp(app1))
-	app2 := &models.App{Name: "app-in-other", Path: "/o", DomainID: dom2.ID}
+	app2 := &models.App{Name: "app-in-other", Path: "/o", DomainID: sql.NullInt64{Int64: int64(dom2.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateApp(app2))
 
 	cmd := newScopedGetAllCmd(t, dataStore)
@@ -1286,12 +1286,12 @@ func TestGetAll_ScopedByApp(t *testing.T) {
 
 	eco := &models.Ecosystem{Name: "eco-scope-app"}
 	require.NoError(t, dataStore.CreateEcosystem(eco))
-	dom := &models.Domain{Name: "dom-scope-app", EcosystemID: eco.ID}
+	dom := &models.Domain{Name: "dom-scope-app", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateDomain(dom))
 
-	app1 := &models.App{Name: "app-target", Path: "/t", DomainID: dom.ID}
+	app1 := &models.App{Name: "app-target", Path: "/t", DomainID: sql.NullInt64{Int64: int64(dom.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateApp(app1))
-	app2 := &models.App{Name: "app-other", Path: "/o", DomainID: dom.ID}
+	app2 := &models.App{Name: "app-other", Path: "/o", DomainID: sql.NullInt64{Int64: int64(dom.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateApp(app2))
 
 	ws1 := &models.Workspace{Name: "ws-in-target", Slug: "eco-scope-app/dom-scope-app/app-target/ws-in-target", AppID: app1.ID, ImageName: "img", Status: "stopped"}
@@ -1754,13 +1754,13 @@ func TestFilterApps_EcosystemScope_ExcludesCrossEcosystemApps(t *testing.T) {
 	sc := &scopeContext{EcosystemID: &ecoID}
 
 	// Domains: domainA belongs to ecosystem 10; domainB belongs to ecosystem 99
-	domainA := &models.Domain{ID: 1, EcosystemID: 10, Name: "domain-in-scope"}
-	domainB := &models.Domain{ID: 2, EcosystemID: 99, Name: "domain-out-of-scope"}
+	domainA := &models.Domain{ID: 1, EcosystemID: sql.NullInt64{Int64: 10, Valid: true}, Name: "domain-in-scope"}
+	domainB := &models.Domain{ID: 2, EcosystemID: sql.NullInt64{Int64: 99, Valid: true}, Name: "domain-out-of-scope"}
 	_ = domainB // domainB is in different ecosystem — its apps must be excluded
 
 	// Apps: appA is under domainA (in scope), appB is under domainB (out of scope)
-	appA := &models.App{ID: 101, DomainID: domainA.ID, Name: "app-in-scope"}
-	appB := &models.App{ID: 102, DomainID: domainB.ID, Name: "app-out-of-scope"}
+	appA := &models.App{ID: 101, DomainID: sql.NullInt64{Int64: int64(domainA.ID), Valid: true}, Name: "app-in-scope"}
+	appB := &models.App{ID: 102, DomainID: sql.NullInt64{Int64: int64(domainB.ID), Valid: true}, Name: "app-out-of-scope"}
 
 	allApps := []*models.App{appA, appB}
 	filteredDomains := []*models.Domain{domainA} // only domain in ecosystem 10
@@ -1787,21 +1787,21 @@ func TestFilterApps_EcosystemScope_IncludesOnlyInScopeApps(t *testing.T) {
 	ecoID := 1
 
 	// Ecosystem 1 domains (in scope)
-	dom1 := &models.Domain{ID: 10, EcosystemID: 1, Name: "dom-eco1-a"}
-	dom2 := &models.Domain{ID: 11, EcosystemID: 1, Name: "dom-eco1-b"}
+	dom1 := &models.Domain{ID: 10, EcosystemID: sql.NullInt64{Int64: 1, Valid: true}, Name: "dom-eco1-a"}
+	dom2 := &models.Domain{ID: 11, EcosystemID: sql.NullInt64{Int64: 1, Valid: true}, Name: "dom-eco1-b"}
 
 	// Ecosystem 2 domains (out of scope)
-	dom3 := &models.Domain{ID: 20, EcosystemID: 2, Name: "dom-eco2"}
+	dom3 := &models.Domain{ID: 20, EcosystemID: sql.NullInt64{Int64: 2, Valid: true}, Name: "dom-eco2"}
 
 	// Ecosystem 3 domains (out of scope)
-	dom4 := &models.Domain{ID: 30, EcosystemID: 3, Name: "dom-eco3"}
+	dom4 := &models.Domain{ID: 30, EcosystemID: sql.NullInt64{Int64: 3, Valid: true}, Name: "dom-eco3"}
 
 	apps := []*models.App{
-		{ID: 1, DomainID: dom1.ID, Name: "app-eco1-dom1-a"},
-		{ID: 2, DomainID: dom1.ID, Name: "app-eco1-dom1-b"},
-		{ID: 3, DomainID: dom2.ID, Name: "app-eco1-dom2"},
-		{ID: 4, DomainID: dom3.ID, Name: "app-eco2"},
-		{ID: 5, DomainID: dom4.ID, Name: "app-eco3"},
+		{ID: 1, DomainID: sql.NullInt64{Int64: int64(dom1.ID), Valid: true}, Name: "app-eco1-dom1-a"},
+		{ID: 2, DomainID: sql.NullInt64{Int64: int64(dom1.ID), Valid: true}, Name: "app-eco1-dom1-b"},
+		{ID: 3, DomainID: sql.NullInt64{Int64: int64(dom2.ID), Valid: true}, Name: "app-eco1-dom2"},
+		{ID: 4, DomainID: sql.NullInt64{Int64: int64(dom3.ID), Valid: true}, Name: "app-eco2"},
+		{ID: 5, DomainID: sql.NullInt64{Int64: int64(dom4.ID), Valid: true}, Name: "app-eco3"},
 	}
 
 	// filteredDomains only includes domains in ecosystem 1
@@ -1834,8 +1834,8 @@ func TestFilterApps_NoScope_ReturnsAll(t *testing.T) {
 	sc := &scopeContext{} // no scope set
 
 	apps := []*models.App{
-		{ID: 1, DomainID: 10, Name: "app-a"},
-		{ID: 2, DomainID: 20, Name: "app-b"},
+		{ID: 1, DomainID: sql.NullInt64{Int64: 10, Valid: true}, Name: "app-a"},
+		{ID: 2, DomainID: sql.NullInt64{Int64: 20, Valid: true}, Name: "app-b"},
 	}
 	var domains []*models.Domain // empty — irrelevant for unscoped
 
@@ -1853,12 +1853,12 @@ func TestFilterApps_DomainScope_StillWorks(t *testing.T) {
 	sc := &scopeContext{EcosystemID: &ecoID, DomainID: &domID}
 
 	filteredDomains := []*models.Domain{
-		{ID: 10, EcosystemID: 1, Name: "dom-in-scope"},
+		{ID: 10, EcosystemID: sql.NullInt64{Int64: 1, Valid: true}, Name: "dom-in-scope"},
 	}
 
 	apps := []*models.App{
-		{ID: 1, DomainID: 10, Name: "app-in-domain"},
-		{ID: 2, DomainID: 11, Name: "app-other-domain"},
+		{ID: 1, DomainID: sql.NullInt64{Int64: 10, Valid: true}, Name: "app-in-domain"},
+		{ID: 2, DomainID: sql.NullInt64{Int64: 11, Valid: true}, Name: "app-other-domain"},
 	}
 
 	result := filterApps(apps, sc, filteredDomains)
@@ -1877,12 +1877,12 @@ func TestFilterApps_AppScope_StillWorks(t *testing.T) {
 	sc := &scopeContext{EcosystemID: &ecoID, DomainID: &domID, AppID: &appID}
 
 	filteredDomains := []*models.Domain{
-		{ID: 10, EcosystemID: 1, Name: "dom-in-scope"},
+		{ID: 10, EcosystemID: sql.NullInt64{Int64: 1, Valid: true}, Name: "dom-in-scope"},
 	}
 
 	apps := []*models.App{
-		{ID: 42, DomainID: 10, Name: "target-app"},
-		{ID: 43, DomainID: 10, Name: "other-app"},
+		{ID: 42, DomainID: sql.NullInt64{Int64: 10, Valid: true}, Name: "target-app"},
+		{ID: 43, DomainID: sql.NullInt64{Int64: 10, Valid: true}, Name: "other-app"},
 	}
 
 	result := filterApps(apps, sc, filteredDomains)
@@ -1909,20 +1909,20 @@ func TestGetAll_EcosystemScoped_ExcludesCrossEcosystemApps(t *testing.T) {
 	ecoAlpha := &models.Ecosystem{Name: "eco-filter-alpha"}
 	require.NoError(t, dataStore.CreateEcosystem(ecoAlpha))
 
-	domAlpha := &models.Domain{Name: "dom-filter-alpha", EcosystemID: ecoAlpha.ID}
+	domAlpha := &models.Domain{Name: "dom-filter-alpha", EcosystemID: sql.NullInt64{Int64: int64(ecoAlpha.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateDomain(domAlpha))
 
-	appAlpha := &models.App{Name: "app-filter-alpha", Path: "/alpha", DomainID: domAlpha.ID}
+	appAlpha := &models.App{Name: "app-filter-alpha", Path: "/alpha", DomainID: sql.NullInt64{Int64: int64(domAlpha.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateApp(appAlpha))
 
 	// Seed ecosystem beta with one domain and one app
 	ecoBeta := &models.Ecosystem{Name: "eco-filter-beta"}
 	require.NoError(t, dataStore.CreateEcosystem(ecoBeta))
 
-	domBeta := &models.Domain{Name: "dom-filter-beta", EcosystemID: ecoBeta.ID}
+	domBeta := &models.Domain{Name: "dom-filter-beta", EcosystemID: sql.NullInt64{Int64: int64(ecoBeta.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateDomain(domBeta))
 
-	appBeta := &models.App{Name: "app-filter-beta", Path: "/beta", DomainID: domBeta.ID}
+	appBeta := &models.App{Name: "app-filter-beta", Path: "/beta", DomainID: sql.NullInt64{Int64: int64(domBeta.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateApp(appBeta))
 
 	cmd := newScopedGetAllCmd(t, dataStore)
@@ -1968,20 +1968,20 @@ func TestGetAll_EcosystemScoped_YAML_AppMetadataNotEmpty(t *testing.T) {
 	eco := &models.Ecosystem{Name: "eco-meta-check"}
 	require.NoError(t, dataStore.CreateEcosystem(eco))
 
-	dom := &models.Domain{Name: "dom-meta-check", EcosystemID: eco.ID}
+	dom := &models.Domain{Name: "dom-meta-check", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateDomain(dom))
 
-	app := &models.App{Name: "app-meta-check", Path: "/meta", DomainID: dom.ID}
+	app := &models.App{Name: "app-meta-check", Path: "/meta", DomainID: sql.NullInt64{Int64: int64(dom.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateApp(app))
 
 	// Seed a second ecosystem with an app that should NOT leak
 	ecoOther := &models.Ecosystem{Name: "eco-meta-other"}
 	require.NoError(t, dataStore.CreateEcosystem(ecoOther))
 
-	domOther := &models.Domain{Name: "dom-meta-other", EcosystemID: ecoOther.ID}
+	domOther := &models.Domain{Name: "dom-meta-other", EcosystemID: sql.NullInt64{Int64: int64(ecoOther.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateDomain(domOther))
 
-	appOther := &models.App{Name: "app-meta-other", Path: "/other", DomainID: domOther.ID}
+	appOther := &models.App{Name: "app-meta-other", Path: "/other", DomainID: sql.NullInt64{Int64: int64(domOther.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateApp(appOther))
 
 	cmd := newScopedGetAllCmd(t, dataStore)
@@ -2289,10 +2289,10 @@ func TestGetAll_EcosystemScoped_WorkspacesNotLeaked(t *testing.T) {
 	ecoAlpha := &models.Ecosystem{Name: "eco-ws-alpha"}
 	require.NoError(t, dataStore.CreateEcosystem(ecoAlpha))
 
-	domAlpha := &models.Domain{Name: "dom-ws-alpha", EcosystemID: ecoAlpha.ID}
+	domAlpha := &models.Domain{Name: "dom-ws-alpha", EcosystemID: sql.NullInt64{Int64: int64(ecoAlpha.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateDomain(domAlpha))
 
-	appAlpha := &models.App{Name: "app-ws-alpha", Path: "/a", DomainID: domAlpha.ID}
+	appAlpha := &models.App{Name: "app-ws-alpha", Path: "/a", DomainID: sql.NullInt64{Int64: int64(domAlpha.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateApp(appAlpha))
 
 	wsAlpha := &models.Workspace{
@@ -2308,10 +2308,10 @@ func TestGetAll_EcosystemScoped_WorkspacesNotLeaked(t *testing.T) {
 	ecoBeta := &models.Ecosystem{Name: "eco-ws-beta"}
 	require.NoError(t, dataStore.CreateEcosystem(ecoBeta))
 
-	domBeta := &models.Domain{Name: "dom-ws-beta", EcosystemID: ecoBeta.ID}
+	domBeta := &models.Domain{Name: "dom-ws-beta", EcosystemID: sql.NullInt64{Int64: int64(ecoBeta.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateDomain(domBeta))
 
-	appBeta := &models.App{Name: "app-ws-beta", Path: "/b", DomainID: domBeta.ID}
+	appBeta := &models.App{Name: "app-ws-beta", Path: "/b", DomainID: sql.NullInt64{Int64: int64(domBeta.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateApp(appBeta))
 
 	wsBeta := &models.Workspace{

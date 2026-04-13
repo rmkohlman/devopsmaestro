@@ -21,6 +21,7 @@ package cmd
 
 import (
 	"bytes"
+	"database/sql"
 	"testing"
 
 	"devopsmaestro/models"
@@ -64,10 +65,10 @@ func TestFilterCredentials_HierarchyWalking(t *testing.T) {
 	eco := &models.Ecosystem{Name: "fc-eco"}
 	require.NoError(t, dataStore.CreateEcosystem(eco))
 
-	dom := &models.Domain{Name: "fc-dom", EcosystemID: eco.ID}
+	dom := &models.Domain{Name: "fc-dom", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateDomain(dom))
 
-	app := &models.App{Name: "fc-app", Path: "/fc", DomainID: dom.ID}
+	app := &models.App{Name: "fc-app", Path: "/fc", DomainID: sql.NullInt64{Int64: int64(dom.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateApp(app))
 
 	ws := &models.Workspace{
@@ -124,10 +125,10 @@ func TestFilterCredentials_HierarchyWalking(t *testing.T) {
 	otherEco := &models.Ecosystem{Name: "fc-other-eco"}
 	require.NoError(t, dataStore.CreateEcosystem(otherEco))
 
-	otherDom := &models.Domain{Name: "fc-other-dom", EcosystemID: otherEco.ID}
+	otherDom := &models.Domain{Name: "fc-other-dom", EcosystemID: sql.NullInt64{Int64: int64(otherEco.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateDomain(otherDom))
 
-	otherApp := &models.App{Name: "fc-other-app", Path: "/other", DomainID: otherDom.ID}
+	otherApp := &models.App{Name: "fc-other-app", Path: "/other", DomainID: sql.NullInt64{Int64: int64(otherDom.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateApp(otherApp))
 
 	otherWs := &models.Workspace{
@@ -279,10 +280,10 @@ func TestFilterCredentials_Unscoped_ShowsAllCredentials(t *testing.T) {
 	eco := &models.Ecosystem{Name: "fc-unscoped-eco"}
 	require.NoError(t, dataStore.CreateEcosystem(eco))
 
-	dom := &models.Domain{Name: "fc-unscoped-dom", EcosystemID: eco.ID}
+	dom := &models.Domain{Name: "fc-unscoped-dom", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateDomain(dom))
 
-	app := &models.App{Name: "fc-unscoped-app", Path: "/u", DomainID: dom.ID}
+	app := &models.App{Name: "fc-unscoped-app", Path: "/u", DomainID: sql.NullInt64{Int64: int64(dom.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateApp(app))
 
 	ws := &models.Workspace{
@@ -375,10 +376,10 @@ func TestFilterCredentials_DomainScoped_IncludesAllLevels(t *testing.T) {
 	eco := &models.Ecosystem{Name: "fc-domscope-eco"}
 	require.NoError(t, dataStore.CreateEcosystem(eco))
 
-	dom := &models.Domain{Name: "fc-domscope-dom", EcosystemID: eco.ID}
+	dom := &models.Domain{Name: "fc-domscope-dom", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateDomain(dom))
 
-	app := &models.App{Name: "fc-domscope-app", Path: "/ds", DomainID: dom.ID}
+	app := &models.App{Name: "fc-domscope-app", Path: "/ds", DomainID: sql.NullInt64{Int64: int64(dom.ID), Valid: true}}
 	require.NoError(t, dataStore.CreateApp(app))
 
 	ws := &models.Workspace{

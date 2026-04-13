@@ -242,7 +242,7 @@ func TestDomainTableBuilder_Row_Default(t *testing.T) {
 	b := &domainTableBuilder{DataStore: mockDS}
 	domain := &models.Domain{
 		ID:          10,
-		EcosystemID: eco.ID,
+		EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true},
 		Name:        "backend",
 		Description: sql.NullString{String: "Backend domain", Valid: true},
 		CreatedAt:   mustTime("2024-02-20 10:00"),
@@ -270,7 +270,7 @@ func TestDomainTableBuilder_Row_Wide(t *testing.T) {
 	b := &domainTableBuilder{DataStore: mockDS}
 	domain := &models.Domain{
 		ID:          10,
-		EcosystemID: eco.ID,
+		EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true},
 		Name:        "backend",
 		CreatedAt:   mustTime("2024-02-20 10:00"),
 	}
@@ -292,7 +292,7 @@ func TestDomainTableBuilder_Row_ActiveMarker(t *testing.T) {
 	b := &domainTableBuilder{DataStore: mockDS, ActiveID: &activeID}
 	domain := &models.Domain{
 		ID:          10,
-		EcosystemID: eco.ID,
+		EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true},
 		Name:        "backend",
 		CreatedAt:   mustTime("2024-02-20 10:00"),
 	}
@@ -311,7 +311,7 @@ func TestDomainTableBuilder_Row_ActiveMarker_Absent(t *testing.T) {
 	b := &domainTableBuilder{DataStore: mockDS, ActiveID: &otherID}
 	domain := &models.Domain{
 		ID:          10,
-		EcosystemID: eco.ID,
+		EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true},
 		Name:        "backend",
 		CreatedAt:   mustTime("2024-02-20 10:00"),
 	}
@@ -331,7 +331,7 @@ func TestDomainTableBuilder_Row_DescriptionTruncation(t *testing.T) {
 	longDesc := "1234567890123456789012345678901"
 	domain := &models.Domain{
 		ID:          10,
-		EcosystemID: eco.ID,
+		EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true},
 		Name:        "backend",
 		Description: sql.NullString{String: longDesc, Valid: true},
 		CreatedAt:   mustTime("2024-02-20 10:00"),
@@ -379,13 +379,13 @@ func TestAppTableBuilder_Headers_Wide(t *testing.T) {
 
 func TestAppTableBuilder_Row_Default(t *testing.T) {
 	mockDS := db.NewMockDataStore()
-	domain := &models.Domain{EcosystemID: 1, Name: "backend"}
+	domain := &models.Domain{EcosystemID: sql.NullInt64{Int64: 1, Valid: true}, Name: "backend"}
 	_ = mockDS.CreateDomain(domain)
 
 	b := &appTableBuilder{DataStore: mockDS}
 	app := &models.App{
 		ID:        5,
-		DomainID:  domain.ID,
+		DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Name:      "api",
 		Path:      "/home/user/projects/api",
 		CreatedAt: mustTime("2024-03-01 12:00"),
@@ -407,13 +407,13 @@ func TestAppTableBuilder_Row_Default(t *testing.T) {
 
 func TestAppTableBuilder_Row_Wide_ShowsGitRepoNone(t *testing.T) {
 	mockDS := db.NewMockDataStore()
-	domain := &models.Domain{EcosystemID: 1, Name: "backend"}
+	domain := &models.Domain{EcosystemID: sql.NullInt64{Int64: 1, Valid: true}, Name: "backend"}
 	_ = mockDS.CreateDomain(domain)
 
 	b := &appTableBuilder{DataStore: mockDS}
 	app := &models.App{
 		ID:        5,
-		DomainID:  domain.ID,
+		DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Name:      "api",
 		Path:      "/code/api",
 		CreatedAt: mustTime("2024-03-01 12:00"),
@@ -432,14 +432,14 @@ func TestAppTableBuilder_Row_Wide_ShowsGitRepoNone(t *testing.T) {
 
 func TestAppTableBuilder_Row_ActiveMarker(t *testing.T) {
 	mockDS := db.NewMockDataStore()
-	domain := &models.Domain{EcosystemID: 1, Name: "backend"}
+	domain := &models.Domain{EcosystemID: sql.NullInt64{Int64: 1, Valid: true}, Name: "backend"}
 	_ = mockDS.CreateDomain(domain)
 
 	activeID := 5
 	b := &appTableBuilder{DataStore: mockDS, ActiveID: &activeID}
 	app := &models.App{
 		ID:        5,
-		DomainID:  domain.ID,
+		DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Name:      "api",
 		Path:      "/code/api",
 		CreatedAt: mustTime("2024-03-01 12:00"),
@@ -452,14 +452,14 @@ func TestAppTableBuilder_Row_ActiveMarker(t *testing.T) {
 
 func TestAppTableBuilder_Row_ActiveMarker_Absent(t *testing.T) {
 	mockDS := db.NewMockDataStore()
-	domain := &models.Domain{EcosystemID: 1, Name: "backend"}
+	domain := &models.Domain{EcosystemID: sql.NullInt64{Int64: 1, Valid: true}, Name: "backend"}
 	_ = mockDS.CreateDomain(domain)
 
 	otherID := 99
 	b := &appTableBuilder{DataStore: mockDS, ActiveID: &otherID}
 	app := &models.App{
 		ID:        5,
-		DomainID:  domain.ID,
+		DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Name:      "api",
 		Path:      "/code/api",
 		CreatedAt: mustTime("2024-03-01 12:00"),
@@ -472,7 +472,7 @@ func TestAppTableBuilder_Row_ActiveMarker_Absent(t *testing.T) {
 
 func TestAppTableBuilder_Row_PathTruncation(t *testing.T) {
 	mockDS := db.NewMockDataStore()
-	domain := &models.Domain{EcosystemID: 1, Name: "backend"}
+	domain := &models.Domain{EcosystemID: sql.NullInt64{Int64: 1, Valid: true}, Name: "backend"}
 	_ = mockDS.CreateDomain(domain)
 
 	b := &appTableBuilder{DataStore: mockDS}
@@ -480,7 +480,7 @@ func TestAppTableBuilder_Row_PathTruncation(t *testing.T) {
 	longPath := "/home/user/projects/very-deep/nested/api"
 	app := &models.App{
 		ID:        5,
-		DomainID:  domain.ID,
+		DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Name:      "api",
 		Path:      longPath,
 		CreatedAt: mustTime("2024-03-01 12:00"),
@@ -501,14 +501,14 @@ func TestAppTableBuilder_Row_PathTruncation(t *testing.T) {
 
 func TestAppTableBuilder_Row_PathNotTruncated(t *testing.T) {
 	mockDS := db.NewMockDataStore()
-	domain := &models.Domain{EcosystemID: 1, Name: "backend"}
+	domain := &models.Domain{EcosystemID: sql.NullInt64{Int64: 1, Valid: true}, Name: "backend"}
 	_ = mockDS.CreateDomain(domain)
 
 	b := &appTableBuilder{DataStore: mockDS}
 	exactPath := "/home/user/projects/api-service-long/" // 37 chars
 	app := &models.App{
 		ID:        5,
-		DomainID:  domain.ID,
+		DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Name:      "api",
 		Path:      exactPath,
 		CreatedAt: mustTime("2024-03-01 12:00"),
@@ -553,7 +553,7 @@ func TestWorkspaceTableBuilder_Headers_Wide(t *testing.T) {
 
 func TestWorkspaceTableBuilder_Row_Default(t *testing.T) {
 	mockDS := db.NewMockDataStore()
-	app := &models.App{DomainID: 1, Name: "api", Path: "/code"}
+	app := &models.App{DomainID: sql.NullInt64{Int64: 1, Valid: true}, Name: "api", Path: "/code"}
 	_ = mockDS.CreateApp(app)
 
 	b := &workspaceTableBuilder{DataStore: mockDS}
@@ -588,7 +588,7 @@ func TestWorkspaceTableBuilder_Row_Default(t *testing.T) {
 
 func TestWorkspaceTableBuilder_Row_Wide_WithContainerID(t *testing.T) {
 	mockDS := db.NewMockDataStore()
-	app := &models.App{DomainID: 1, Name: "api", Path: "/code"}
+	app := &models.App{DomainID: sql.NullInt64{Int64: 1, Valid: true}, Name: "api", Path: "/code"}
 	_ = mockDS.CreateApp(app)
 
 	b := &workspaceTableBuilder{DataStore: mockDS}
@@ -613,7 +613,7 @@ func TestWorkspaceTableBuilder_Row_Wide_WithContainerID(t *testing.T) {
 
 func TestWorkspaceTableBuilder_Row_Wide_NullContainerID(t *testing.T) {
 	mockDS := db.NewMockDataStore()
-	app := &models.App{DomainID: 1, Name: "api", Path: "/code"}
+	app := &models.App{DomainID: sql.NullInt64{Int64: 1, Valid: true}, Name: "api", Path: "/code"}
 	_ = mockDS.CreateApp(app)
 
 	b := &workspaceTableBuilder{DataStore: mockDS}
@@ -637,7 +637,7 @@ func TestWorkspaceTableBuilder_Row_Wide_NullContainerID(t *testing.T) {
 
 func TestWorkspaceTableBuilder_Row_Wide_ShortContainerID(t *testing.T) {
 	mockDS := db.NewMockDataStore()
-	app := &models.App{DomainID: 1, Name: "api", Path: "/code"}
+	app := &models.App{DomainID: sql.NullInt64{Int64: 1, Valid: true}, Name: "api", Path: "/code"}
 	_ = mockDS.CreateApp(app)
 
 	b := &workspaceTableBuilder{DataStore: mockDS}
@@ -659,7 +659,7 @@ func TestWorkspaceTableBuilder_Row_Wide_ShortContainerID(t *testing.T) {
 
 func TestWorkspaceTableBuilder_Row_ActiveMarker(t *testing.T) {
 	mockDS := db.NewMockDataStore()
-	app := &models.App{DomainID: 1, Name: "api", Path: "/code"}
+	app := &models.App{DomainID: sql.NullInt64{Int64: 1, Valid: true}, Name: "api", Path: "/code"}
 	_ = mockDS.CreateApp(app)
 
 	b := &workspaceTableBuilder{DataStore: mockDS, ActiveWorkspaceName: "dev"}
@@ -679,7 +679,7 @@ func TestWorkspaceTableBuilder_Row_ActiveMarker(t *testing.T) {
 
 func TestWorkspaceTableBuilder_Row_ActiveMarker_Absent(t *testing.T) {
 	mockDS := db.NewMockDataStore()
-	app := &models.App{DomainID: 1, Name: "api", Path: "/code"}
+	app := &models.App{DomainID: sql.NullInt64{Int64: 1, Valid: true}, Name: "api", Path: "/code"}
 	_ = mockDS.CreateApp(app)
 
 	b := &workspaceTableBuilder{DataStore: mockDS, ActiveWorkspaceName: "other-ws"}
@@ -720,7 +720,7 @@ func TestCredentialTableBuilder_Headers(t *testing.T) {
 
 func TestCredentialTableBuilder_Row_Default(t *testing.T) {
 	mockDS := db.NewMockDataStore()
-	app := &models.App{DomainID: 1, Name: "api", Path: "/code"}
+	app := &models.App{DomainID: sql.NullInt64{Int64: 1, Valid: true}, Name: "api", Path: "/code"}
 	_ = mockDS.CreateApp(app)
 
 	b := &credentialTableBuilder{DataStore: mockDS}
@@ -755,7 +755,7 @@ func TestCredentialTableBuilder_Row_Default(t *testing.T) {
 
 func TestCredentialTableBuilder_Row_NilDescription(t *testing.T) {
 	mockDS := db.NewMockDataStore()
-	app := &models.App{DomainID: 1, Name: "api", Path: "/code"}
+	app := &models.App{DomainID: sql.NullInt64{Int64: 1, Valid: true}, Name: "api", Path: "/code"}
 	_ = mockDS.CreateApp(app)
 
 	b := &credentialTableBuilder{DataStore: mockDS}
@@ -1312,7 +1312,7 @@ func TestDomainTableBuilder_Row_ThemeSet(t *testing.T) {
 	b := &domainTableBuilder{DataStore: mockDS}
 	domain := &models.Domain{
 		ID:          10,
-		EcosystemID: eco.ID,
+		EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true},
 		Name:        "backend",
 		Theme:       sql.NullString{String: "tokyonight-night", Valid: true},
 		CreatedAt:   mustTime("2024-02-20 10:00"),
@@ -1332,7 +1332,7 @@ func TestDomainTableBuilder_Row_ThemeNull(t *testing.T) {
 	b := &domainTableBuilder{DataStore: mockDS}
 	domain := &models.Domain{
 		ID:          10,
-		EcosystemID: eco.ID,
+		EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true},
 		Name:        "backend",
 		Theme:       sql.NullString{Valid: false},
 		CreatedAt:   mustTime("2024-02-20 10:00"),
@@ -1345,13 +1345,13 @@ func TestDomainTableBuilder_Row_ThemeNull(t *testing.T) {
 
 func TestAppTableBuilder_Row_ThemeSet(t *testing.T) {
 	mockDS := db.NewMockDataStore()
-	domain := &models.Domain{EcosystemID: 1, Name: "backend"}
+	domain := &models.Domain{EcosystemID: sql.NullInt64{Int64: 1, Valid: true}, Name: "backend"}
 	_ = mockDS.CreateDomain(domain)
 
 	b := &appTableBuilder{DataStore: mockDS}
 	app := &models.App{
 		ID:        5,
-		DomainID:  domain.ID,
+		DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Name:      "api",
 		Path:      "/code/api",
 		Theme:     sql.NullString{String: "catppuccin-mocha", Valid: true},
@@ -1366,13 +1366,13 @@ func TestAppTableBuilder_Row_ThemeSet(t *testing.T) {
 
 func TestAppTableBuilder_Row_ThemeNull(t *testing.T) {
 	mockDS := db.NewMockDataStore()
-	domain := &models.Domain{EcosystemID: 1, Name: "backend"}
+	domain := &models.Domain{EcosystemID: sql.NullInt64{Int64: 1, Valid: true}, Name: "backend"}
 	_ = mockDS.CreateDomain(domain)
 
 	b := &appTableBuilder{DataStore: mockDS}
 	app := &models.App{
 		ID:        5,
-		DomainID:  domain.ID,
+		DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Name:      "api",
 		Path:      "/code/api",
 		Theme:     sql.NullString{Valid: false},
@@ -1386,7 +1386,7 @@ func TestAppTableBuilder_Row_ThemeNull(t *testing.T) {
 
 func TestWorkspaceTableBuilder_Row_ThemeSet(t *testing.T) {
 	mockDS := db.NewMockDataStore()
-	app := &models.App{DomainID: 1, Name: "api", Path: "/code"}
+	app := &models.App{DomainID: sql.NullInt64{Int64: 1, Valid: true}, Name: "api", Path: "/code"}
 	_ = mockDS.CreateApp(app)
 
 	b := &workspaceTableBuilder{DataStore: mockDS}
@@ -1408,7 +1408,7 @@ func TestWorkspaceTableBuilder_Row_ThemeSet(t *testing.T) {
 
 func TestWorkspaceTableBuilder_Row_ThemeNull(t *testing.T) {
 	mockDS := db.NewMockDataStore()
-	app := &models.App{DomainID: 1, Name: "api", Path: "/code"}
+	app := &models.App{DomainID: sql.NullInt64{Int64: 1, Valid: true}, Name: "api", Path: "/code"}
 	_ = mockDS.CreateApp(app)
 
 	b := &workspaceTableBuilder{DataStore: mockDS}

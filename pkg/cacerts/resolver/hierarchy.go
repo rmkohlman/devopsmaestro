@@ -48,10 +48,17 @@ func (r *HierarchyCACertsResolver) Resolve(ctx context.Context, workspaceID int)
 		return nil, fmt.Errorf("resolving CA certs: getting app %d: %w", ws.AppID, err)
 	}
 
-	// ─── Load domain ──────────────────────────────────────────────────────────
-	domain, err := r.store.GetDomainByID(app.DomainID)
-	if err != nil {
-		return nil, fmt.Errorf("resolving CA certs: getting domain %d: %w", app.DomainID, err)
+	// ─── Load domain (optional) ──────────────────────────────────────────────
+	var domainName string
+	var domainCerts []models.CACertConfig
+	var domain *models.Domain
+	if app.DomainID.Valid {
+		domain, err = r.store.GetDomainByID(int(app.DomainID.Int64))
+		if err != nil {
+			return nil, fmt.Errorf("resolving CA certs: getting domain %d: %w", app.DomainID.Int64, err)
+		}
+		domainName = domain.Name
+		domainCerts = parseDirectCACerts(nullableString(domain.CACerts.String, domain.CACerts.Valid))
 	}
 
 	// ─── Load system (optional) ───────────────────────────────────────────────
@@ -66,24 +73,28 @@ func (r *HierarchyCACertsResolver) Resolve(ctx context.Context, workspaceID int)
 		systemCerts = parseDirectCACerts(nullableString(system.CACerts.String, system.CACerts.Valid))
 	}
 
-	// ─── Load ecosystem ───────────────────────────────────────────────────────
-	eco, err := r.store.GetEcosystemByID(domain.EcosystemID)
-	if err != nil {
-		return nil, fmt.Errorf("resolving CA certs: getting ecosystem %d: %w", domain.EcosystemID, err)
+	// ─── Load ecosystem (optional) ───────────────────────────────────────────
+	var ecoName string
+	var ecoCerts []models.CACertConfig
+	if domain != nil && domain.EcosystemID.Valid {
+		eco, eErr := r.store.GetEcosystemByID(int(domain.EcosystemID.Int64))
+		if eErr != nil {
+			return nil, fmt.Errorf("resolving CA certs: getting ecosystem %d: %w", domain.EcosystemID.Int64, eErr)
+		}
+		ecoName = eco.Name
+		ecoCerts = parseDirectCACerts(nullableString(eco.CACerts.String, eco.CACerts.Valid))
 	}
 
 	// ─── Parse each level ────────────────────────────────────────────────────
 	globalCerts := parseGlobalCACerts(r.store)
-	ecoCerts := parseDirectCACerts(nullableString(eco.CACerts.String, eco.CACerts.Valid))
-	domainCerts := parseDirectCACerts(nullableString(domain.CACerts.String, domain.CACerts.Valid))
 	appCerts := parseWrappedCACerts(nullableString(app.BuildConfig.String, app.BuildConfig.Valid))
 	wsCerts := parseWrappedDevBuildCACerts(nullableString(ws.BuildConfig.String, ws.BuildConfig.Valid))
 
 	// ─── Build path (always 6 entries) ───────────────────────────────────────
 	path := []CACertsResolutionStep{
 		{Level: LevelGlobal, Name: "global", Certs: toCACertEntries(globalCerts, LevelGlobal), Found: len(globalCerts) > 0},
-		{Level: LevelEcosystem, Name: eco.Name, Certs: toCACertEntries(ecoCerts, LevelEcosystem), Found: len(ecoCerts) > 0},
-		{Level: LevelDomain, Name: domain.Name, Certs: toCACertEntries(domainCerts, LevelDomain), Found: len(domainCerts) > 0},
+		{Level: LevelEcosystem, Name: ecoName, Certs: toCACertEntries(ecoCerts, LevelEcosystem), Found: len(ecoCerts) > 0},
+		{Level: LevelDomain, Name: domainName, Certs: toCACertEntries(domainCerts, LevelDomain), Found: len(domainCerts) > 0},
 		{Level: LevelSystem, Name: systemName, Certs: toCACertEntries(systemCerts, LevelSystem), Found: len(systemCerts) > 0},
 		{Level: LevelApp, Name: app.Name, Certs: toCACertEntries(appCerts, LevelApp), Found: len(appCerts) > 0},
 		{Level: LevelWorkspace, Name: ws.Name, Certs: toCACertEntries(wsCerts, LevelWorkspace), Found: len(wsCerts) > 0},

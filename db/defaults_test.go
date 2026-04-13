@@ -1,11 +1,18 @@
 package db
 
 import (
+	"database/sql"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// validNullInt64 creates a sql.NullInt64 from an int, marking it as valid.
+// This is a test helper for constructing Domain.EcosystemID and App.DomainID values.
+func validNullInt64(id int) sql.NullInt64 {
+	return sql.NullInt64{Int64: int64(id), Valid: true}
+}
 
 func TestSQLDataStore_DefaultOperations(t *testing.T) {
 	// Create in-memory database for testing

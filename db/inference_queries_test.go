@@ -33,12 +33,12 @@ func TestFindAppsByName(t *testing.T) {
 				if err := ds.CreateEcosystem(eco); err != nil {
 					t.Fatalf("setup: CreateEcosystem: %v", err)
 				}
-				dom := &models.Domain{EcosystemID: eco.ID, Name: "findapps-dom-single"}
+				dom := &models.Domain{EcosystemID: validNullInt64(eco.ID), Name: "findapps-dom-single"}
 				if err := ds.CreateDomain(dom); err != nil {
 					t.Fatalf("setup: CreateDomain: %v", err)
 				}
 				app := &models.App{
-					DomainID:    dom.ID,
+					DomainID: validNullInt64(dom.ID),
 					Name:        "api",
 					Path:        "/services/api",
 					Description: sql.NullString{String: "The API service", Valid: true},
@@ -83,11 +83,11 @@ func TestFindAppsByName(t *testing.T) {
 				if err := ds.CreateEcosystem(eco1); err != nil {
 					t.Fatalf("setup: CreateEcosystem eco1: %v", err)
 				}
-				dom1 := &models.Domain{EcosystemID: eco1.ID, Name: "findapps-dom-multi1"}
+				dom1 := &models.Domain{EcosystemID: validNullInt64(eco1.ID), Name: "findapps-dom-multi1"}
 				if err := ds.CreateDomain(dom1); err != nil {
 					t.Fatalf("setup: CreateDomain dom1: %v", err)
 				}
-				app1 := &models.App{DomainID: dom1.ID, Name: "api", Path: "/team1/api"}
+				app1 := &models.App{DomainID: validNullInt64(dom1.ID), Name: "api", Path: "/team1/api"}
 				if err := ds.CreateApp(app1); err != nil {
 					t.Fatalf("setup: CreateApp app1: %v", err)
 				}
@@ -97,17 +97,17 @@ func TestFindAppsByName(t *testing.T) {
 				if err := ds.CreateEcosystem(eco2); err != nil {
 					t.Fatalf("setup: CreateEcosystem eco2: %v", err)
 				}
-				dom2 := &models.Domain{EcosystemID: eco2.ID, Name: "findapps-dom-multi2"}
+				dom2 := &models.Domain{EcosystemID: validNullInt64(eco2.ID), Name: "findapps-dom-multi2"}
 				if err := ds.CreateDomain(dom2); err != nil {
 					t.Fatalf("setup: CreateDomain dom2: %v", err)
 				}
-				app2 := &models.App{DomainID: dom2.ID, Name: "api", Path: "/team2/api"}
+				app2 := &models.App{DomainID: validNullInt64(dom2.ID), Name: "api", Path: "/team2/api"}
 				if err := ds.CreateApp(app2); err != nil {
 					t.Fatalf("setup: CreateApp app2: %v", err)
 				}
 
 				// Extra app with different name — should NOT appear in results
-				app3 := &models.App{DomainID: dom2.ID, Name: "other-service", Path: "/team2/other"}
+				app3 := &models.App{DomainID: validNullInt64(dom2.ID), Name: "other-service", Path: "/team2/other"}
 				if err := ds.CreateApp(app3); err != nil {
 					t.Fatalf("setup: CreateApp app3: %v", err)
 				}
@@ -150,11 +150,11 @@ func TestFindAppsByName(t *testing.T) {
 				if err := ds.CreateEcosystem(eco); err != nil {
 					t.Fatalf("setup: CreateEcosystem: %v", err)
 				}
-				dom := &models.Domain{EcosystemID: eco.ID, Name: "findapps-dom-nomatch"}
+				dom := &models.Domain{EcosystemID: validNullInt64(eco.ID), Name: "findapps-dom-nomatch"}
 				if err := ds.CreateDomain(dom); err != nil {
 					t.Fatalf("setup: CreateDomain: %v", err)
 				}
-				app := &models.App{DomainID: dom.ID, Name: "real-app", Path: "/real/path"}
+				app := &models.App{DomainID: validNullInt64(dom.ID), Name: "real-app", Path: "/real/path"}
 				if err := ds.CreateApp(app); err != nil {
 					t.Fatalf("setup: CreateApp: %v", err)
 				}
@@ -221,7 +221,7 @@ func TestFindDomainsByName(t *testing.T) {
 					t.Fatalf("setup: CreateEcosystem: %v", err)
 				}
 				dom := &models.Domain{
-					EcosystemID: eco.ID,
+					EcosystemID: validNullInt64(eco.ID),
 					Name:        "backend",
 					Description: sql.NullString{String: "Backend services", Valid: true},
 				}
@@ -256,7 +256,7 @@ func TestFindDomainsByName(t *testing.T) {
 				if err := ds.CreateEcosystem(ecoA); err != nil {
 					t.Fatalf("setup: CreateEcosystem ecoA: %v", err)
 				}
-				domA := &models.Domain{EcosystemID: ecoA.ID, Name: "backend"}
+				domA := &models.Domain{EcosystemID: validNullInt64(ecoA.ID), Name: "backend"}
 				if err := ds.CreateDomain(domA); err != nil {
 					t.Fatalf("setup: CreateDomain domA: %v", err)
 				}
@@ -266,13 +266,13 @@ func TestFindDomainsByName(t *testing.T) {
 				if err := ds.CreateEcosystem(ecoB); err != nil {
 					t.Fatalf("setup: CreateEcosystem ecoB: %v", err)
 				}
-				domB := &models.Domain{EcosystemID: ecoB.ID, Name: "backend"}
+				domB := &models.Domain{EcosystemID: validNullInt64(ecoB.ID), Name: "backend"}
 				if err := ds.CreateDomain(domB); err != nil {
 					t.Fatalf("setup: CreateDomain domB: %v", err)
 				}
 
 				// Ecosystem B also has a different domain — should NOT appear
-				domC := &models.Domain{EcosystemID: ecoB.ID, Name: "frontend"}
+				domC := &models.Domain{EcosystemID: validNullInt64(ecoB.ID), Name: "frontend"}
 				if err := ds.CreateDomain(domC); err != nil {
 					t.Fatalf("setup: CreateDomain domC: %v", err)
 				}
@@ -312,7 +312,7 @@ func TestFindDomainsByName(t *testing.T) {
 				if err := ds.CreateEcosystem(eco); err != nil {
 					t.Fatalf("setup: CreateEcosystem: %v", err)
 				}
-				dom := &models.Domain{EcosystemID: eco.ID, Name: "real-domain"}
+				dom := &models.Domain{EcosystemID: validNullInt64(eco.ID), Name: "real-domain"}
 				if err := ds.CreateDomain(dom); err != nil {
 					t.Fatalf("setup: CreateDomain: %v", err)
 				}

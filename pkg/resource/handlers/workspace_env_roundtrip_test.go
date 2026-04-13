@@ -24,6 +24,7 @@ package handlers
 // =============================================================================
 
 import (
+	"database/sql"
 	"strings"
 	"testing"
 
@@ -266,11 +267,11 @@ func TestWorkspaceEnvRoundTrip_ExportParseApply(t *testing.T) {
 	if err := store.CreateEcosystem(eco); err != nil {
 		t.Fatalf("CreateEcosystem: %v", err)
 	}
-	dom := &models.Domain{Name: "test-domain", EcosystemID: eco.ID}
+	dom := &models.Domain{Name: "test-domain", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	if err := store.CreateDomain(dom); err != nil {
 		t.Fatalf("CreateDomain: %v", err)
 	}
-	app := &models.App{Name: "test-app", DomainID: dom.ID, Path: "/test/app"}
+	app := &models.App{Name: "test-app", DomainID: sql.NullInt64{Int64: int64(dom.ID), Valid: true}, Path: "/test/app"}
 	if err := store.CreateApp(app); err != nil {
 		t.Fatalf("CreateApp: %v", err)
 	}

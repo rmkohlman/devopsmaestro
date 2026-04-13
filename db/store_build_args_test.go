@@ -40,13 +40,13 @@ func createTestHierarchy(t *testing.T, ds *SQLDataStore, name string) (*models.E
 	require.NoError(t, ds.CreateEcosystem(ecosystem), "setup: CreateEcosystem")
 
 	domain := &models.Domain{
-		EcosystemID: ecosystem.ID,
+		EcosystemID: validNullInt64(ecosystem.ID),
 		Name:        "ba-dom-" + name,
 	}
 	require.NoError(t, ds.CreateDomain(domain), "setup: CreateDomain")
 
 	app := &models.App{
-		DomainID: domain.ID,
+		DomainID: validNullInt64(domain.ID),
 		Name:     "ba-app-" + name,
 		Path:     "/ba/" + name,
 	}
@@ -194,7 +194,7 @@ func TestDomain_BuildArgs_RoundTrip(t *testing.T) {
 			require.NoError(t, ds.CreateEcosystem(eco))
 
 			dom := &models.Domain{
-				EcosystemID: eco.ID,
+				EcosystemID: validNullInt64(eco.ID),
 				Name:        fmt.Sprintf("ba-dom-rt-%d", i),
 				BuildArgs:   tt.initialArgs,
 			}
@@ -202,7 +202,7 @@ func TestDomain_BuildArgs_RoundTrip(t *testing.T) {
 			require.NotZero(t, dom.ID, "CreateDomain should set ID")
 
 			// --- GetByName round-trip ---
-			byName, err := ds.GetDomainByName(eco.ID, dom.Name)
+			byName, err := ds.GetDomainByName(validNullInt64(eco.ID), dom.Name)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantValid, byName.BuildArgs.Valid,
 				"GetDomainByName: BuildArgs.Valid mismatch")
@@ -405,14 +405,14 @@ func TestListDomains_IncludesBuildArgs(t *testing.T) {
 	buildArgsJSON := `{"NPM_REGISTRY":"https://npm.corp.com"}`
 
 	domWith := &models.Domain{
-		EcosystemID: eco.ID,
+		EcosystemID: validNullInt64(eco.ID),
 		Name:        "domain-with-args",
 		BuildArgs:   sql.NullString{String: buildArgsJSON, Valid: true},
 	}
 	require.NoError(t, ds.CreateDomain(domWith))
 
 	domWithout := &models.Domain{
-		EcosystemID: eco.ID,
+		EcosystemID: validNullInt64(eco.ID),
 		Name:        "domain-without-args",
 		BuildArgs:   sql.NullString{},
 	}

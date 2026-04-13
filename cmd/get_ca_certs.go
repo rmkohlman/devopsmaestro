@@ -260,10 +260,12 @@ func runGetAllCACerts(cmd *cobra.Command, ctx resource.Context) error {
 	// 3. All domains
 	domains, _ := ds.ListAllDomains()
 	for _, dom := range domains {
-		eco, _ := ds.GetEcosystemByID(dom.EcosystemID)
 		ecoName := ""
-		if eco != nil {
-			ecoName = eco.Name
+		if dom.EcosystemID.Valid {
+			eco, _ := ds.GetEcosystemByID(int(dom.EcosystemID.Int64))
+			if eco != nil {
+				ecoName = eco.Name
+			}
 		}
 		domYAML := dom.ToYAML(ecoName, nil)
 		for _, c := range domYAML.Spec.CACerts {
@@ -364,11 +366,14 @@ func getCACertsAtDomain(cmd *cobra.Command, ctx resource.Context, domainName str
 		return fmt.Errorf("failed to get DataStore: %w", err)
 	}
 	domain := domainRes.Domain()
-	eco, err := ds.GetEcosystemByID(domain.EcosystemID)
-	if err != nil {
-		return fmt.Errorf("failed to get ecosystem for domain: %w", err)
+	ecoName := ""
+	if domain.EcosystemID.Valid {
+		eco, err := ds.GetEcosystemByID(int(domain.EcosystemID.Int64))
+		if err == nil {
+			ecoName = eco.Name
+		}
 	}
-	domainYAML := domain.ToYAML(eco.Name, nil)
+	domainYAML := domain.ToYAML(ecoName, nil)
 	return displayCACerts("domain", domainName, domainYAML.Spec.CACerts)
 }
 

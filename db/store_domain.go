@@ -31,11 +31,20 @@ func (ds *SQLDataStore) CreateDomain(domain *models.Domain) error {
 }
 
 // GetDomainByName retrieves a domain by ecosystem ID and name.
-func (ds *SQLDataStore) GetDomainByName(ecosystemID int, name string) (*models.Domain, error) {
+// ecosystemID is nullable because domains can exist without a parent ecosystem.
+func (ds *SQLDataStore) GetDomainByName(ecosystemID sql.NullInt64, name string) (*models.Domain, error) {
 	domain := &models.Domain{}
-	query := `SELECT id, ecosystem_id, name, description, theme, nvim_package, terminal_package, build_args, ca_certs, created_at, updated_at FROM domains WHERE ecosystem_id = ? AND name = ?`
+	var query string
+	var row Row
 
-	row := ds.driver.QueryRow(query, ecosystemID, name)
+	if ecosystemID.Valid {
+		query = `SELECT id, ecosystem_id, name, description, theme, nvim_package, terminal_package, build_args, ca_certs, created_at, updated_at FROM domains WHERE ecosystem_id = ? AND name = ?`
+		row = ds.driver.QueryRow(query, ecosystemID.Int64, name)
+	} else {
+		query = `SELECT id, ecosystem_id, name, description, theme, nvim_package, terminal_package, build_args, ca_certs, created_at, updated_at FROM domains WHERE ecosystem_id IS NULL AND name = ?`
+		row = ds.driver.QueryRow(query, name)
+	}
+
 	if err := row.Scan(&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description, &domain.Theme, &domain.NvimPackage, &domain.TerminalPackage, &domain.BuildArgs, &domain.CACerts, &domain.CreatedAt, &domain.UpdatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("domain", name)
@@ -178,7 +187,7 @@ func (ds *SQLDataStore) FindDomainsByName(name string) ([]*models.DomainWithHier
 		d.id, d.ecosystem_id, d.name, d.description, d.theme, d.nvim_package, d.terminal_package, d.build_args, d.ca_certs, d.created_at, d.updated_at,
 		e.id, e.name, e.description, e.theme, e.nvim_package, e.terminal_package, e.build_args, e.ca_certs, e.created_at, e.updated_at
 	FROM domains d
-	JOIN ecosystems e ON d.ecosystem_id = e.id
+	LEFT JOIN ecosystems e ON d.ecosystem_id = e.id
 	WHERE d.name = ?
 	ORDER BY e.name`
 
@@ -191,21 +200,44 @@ func (ds *SQLDataStore) FindDomainsByName(name string) ([]*models.DomainWithHier
 	var results []*models.DomainWithHierarchy
 	for rows.Next() {
 		domain := &models.Domain{}
-		ecosystem := &models.Ecosystem{}
+
+		// Ecosystem fields are nullable via LEFT JOIN
+		var ecoID sql.NullInt64
+		var ecoName, ecoDesc, ecoTheme sql.NullString
+		var ecoNvimPkg, ecoTermPkg, ecoBuildArgs, ecoCACerts sql.NullString
+		var ecoCreatedAt, ecoUpdatedAt sql.NullTime
 
 		if err := rows.Scan(
 			// Domain fields
 			&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description, &domain.Theme, &domain.NvimPackage, &domain.TerminalPackage, &domain.BuildArgs, &domain.CACerts, &domain.CreatedAt, &domain.UpdatedAt,
-			// Ecosystem fields
-			&ecosystem.ID, &ecosystem.Name, &ecosystem.Description, &ecosystem.Theme, &ecosystem.NvimPackage, &ecosystem.TerminalPackage, &ecosystem.BuildArgs, &ecosystem.CACerts, &ecosystem.CreatedAt, &ecosystem.UpdatedAt,
+			// Ecosystem fields (nullable via LEFT JOIN)
+			&ecoID, &ecoName, &ecoDesc, &ecoTheme, &ecoNvimPkg, &ecoTermPkg, &ecoBuildArgs, &ecoCACerts, &ecoCreatedAt, &ecoUpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan domain with hierarchy: %w", err)
 		}
 
-		results = append(results, &models.DomainWithHierarchy{
-			Domain:    domain,
-			Ecosystem: ecosystem,
-		})
+		result := &models.DomainWithHierarchy{Domain: domain}
+
+		if ecoID.Valid {
+			result.Ecosystem = &models.Ecosystem{
+				ID:              int(ecoID.Int64),
+				Name:            ecoName.String,
+				Description:     ecoDesc,
+				Theme:           ecoTheme,
+				NvimPackage:     ecoNvimPkg,
+				TerminalPackage: ecoTermPkg,
+				BuildArgs:       ecoBuildArgs,
+				CACerts:         ecoCACerts,
+			}
+			if ecoCreatedAt.Valid {
+				result.Ecosystem.CreatedAt = ecoCreatedAt.Time
+			}
+			if ecoUpdatedAt.Valid {
+				result.Ecosystem.UpdatedAt = ecoUpdatedAt.Time
+			}
+		}
+
+		results = append(results, result)
 	}
 
 	if err := rows.Err(); err != nil {

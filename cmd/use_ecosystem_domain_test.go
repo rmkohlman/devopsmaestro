@@ -10,6 +10,7 @@ package cmd
 // These tests FAIL until the implementation is added in cmd/use.go.
 
 import (
+	"database/sql"
 	"bytes"
 	"context"
 	"strings"
@@ -216,7 +217,7 @@ func TestUseDomain_SetsActiveDomainInDB(t *testing.T) {
 	ecoID := 1
 	mock.Context.ActiveEcosystemID = &ecoID
 	mock.Ecosystems["prod"] = &models.Ecosystem{ID: 1, Name: "prod"}
-	domain := &models.Domain{ID: 7, Name: "mydom", EcosystemID: 1}
+	domain := &models.Domain{ID: 7, Name: "mydom", EcosystemID: sql.NullInt64{Int64: 1, Valid: true}}
 	mock.Domains[7] = domain
 
 	useDomainCmd.SetContext(newCmdContextWithDS(mock))
@@ -236,7 +237,7 @@ func TestUseDomain_ClearsCascadingContext(t *testing.T) {
 	ecoID := 1
 	mock.Context.ActiveEcosystemID = &ecoID
 	mock.Ecosystems["prod"] = &models.Ecosystem{ID: 1, Name: "prod"}
-	domain := &models.Domain{ID: 3, Name: "mydom", EcosystemID: 1}
+	domain := &models.Domain{ID: 3, Name: "mydom", EcosystemID: sql.NullInt64{Int64: 1, Valid: true}}
 	mock.Domains[3] = domain
 
 	// Pre-set app and workspace to simulate existing context
@@ -351,7 +352,7 @@ func TestUseExport_AppOutputsExportStatement(t *testing.T) {
 	mock := db.NewMockDataStore()
 
 	// Seed an app
-	app := &models.App{ID: 1, Name: "myapi", DomainID: 1}
+	app := &models.App{ID: 1, Name: "myapi", DomainID: sql.NullInt64{Int64: 1, Valid: true}}
 	mock.Apps[1] = app
 
 	// Capture output by redirecting useAppCmd's Out
@@ -382,7 +383,7 @@ func TestUseExport_WorkspaceOutputsExportStatement(t *testing.T) {
 	// Seed context: active app + workspace
 	appID := 1
 	mock.Context.ActiveAppID = &appID
-	app := &models.App{ID: 1, Name: "myapi", DomainID: 1}
+	app := &models.App{ID: 1, Name: "myapi", DomainID: sql.NullInt64{Int64: 1, Valid: true}}
 	mock.Apps[1] = app
 	ws := &models.Workspace{ID: 5, Name: "dev", AppID: 1}
 	mock.Workspaces[5] = ws
@@ -436,7 +437,7 @@ func TestUseExport_DomainOutputsExportStatement(t *testing.T) {
 	ecoID := 1
 	mock.Context.ActiveEcosystemID = &ecoID
 	mock.Ecosystems["prod"] = &models.Ecosystem{ID: 1, Name: "prod"}
-	domain := &models.Domain{ID: 2, Name: "backend", EcosystemID: 1}
+	domain := &models.Domain{ID: 2, Name: "backend", EcosystemID: sql.NullInt64{Int64: 1, Valid: true}}
 	mock.Domains[2] = domain
 
 	var buf bytes.Buffer

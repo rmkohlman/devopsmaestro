@@ -26,12 +26,12 @@ func setupWorkspaceTest(t *testing.T) (*db.MockDataStore, int, int, int) {
 		t.Fatalf("failed to create ecosystem: %v", err)
 	}
 
-	domain := &models.Domain{Name: "ws-domain", EcosystemID: eco.ID}
+	domain := &models.Domain{Name: "ws-domain", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	if err := store.CreateDomain(domain); err != nil {
 		t.Fatalf("failed to create domain: %v", err)
 	}
 
-	app := &models.App{Name: "ws-app", DomainID: domain.ID, Path: "/ws/app"}
+	app := &models.App{Name: "ws-app", DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true}, Path: "/ws/app"}
 	if err := store.CreateApp(app); err != nil {
 		t.Fatalf("failed to create app: %v", err)
 	}
@@ -399,10 +399,10 @@ func TestWorkspaceHandler_List_NoActiveApp(t *testing.T) {
 
 	eco := &models.Ecosystem{Name: "list-eco"}
 	_ = store.CreateEcosystem(eco)
-	domain := &models.Domain{Name: "list-domain", EcosystemID: eco.ID}
+	domain := &models.Domain{Name: "list-domain", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	_ = store.CreateDomain(domain)
-	app1 := &models.App{Name: "list-app1", DomainID: domain.ID, Path: "/p1"}
-	app2 := &models.App{Name: "list-app2", DomainID: domain.ID, Path: "/p2"}
+	app1 := &models.App{Name: "list-app1", DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true}, Path: "/p1"}
+	app2 := &models.App{Name: "list-app2", DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true}, Path: "/p2"}
 	_ = store.CreateApp(app1)
 	_ = store.CreateApp(app2)
 	_ = store.CreateWorkspace(&models.Workspace{Name: "ws-a1", AppID: app1.ID, ImageName: "img:1", Status: "stopped"})
@@ -587,12 +587,12 @@ func TestWorkspaceHandler_Apply_WithMetadataDomain(t *testing.T) {
 		t.Fatalf("failed to create ecosystem: %v", err)
 	}
 
-	domain := &models.Domain{Name: "my-domain", EcosystemID: eco.ID}
+	domain := &models.Domain{Name: "my-domain", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	if err := store.CreateDomain(domain); err != nil {
 		t.Fatalf("failed to create domain: %v", err)
 	}
 
-	app := &models.App{Name: "domain-app", DomainID: domain.ID, Path: "/app"}
+	app := &models.App{Name: "domain-app", DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true}, Path: "/app"}
 	if err := store.CreateApp(app); err != nil {
 		t.Fatalf("failed to create app: %v", err)
 	}

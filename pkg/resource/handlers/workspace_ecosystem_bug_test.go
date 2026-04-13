@@ -21,6 +21,7 @@ package handlers
 // =============================================================================
 
 import (
+	"database/sql"
 	"strings"
 	"testing"
 
@@ -65,25 +66,25 @@ func setupCollisionScenario(t *testing.T) *collisionScenario {
 	}
 
 	// Domain "library" in A
-	domA := &models.Domain{Name: "library", EcosystemID: ecoA.ID}
+	domA := &models.Domain{Name: "library", EcosystemID: sql.NullInt64{Int64: int64(ecoA.ID), Valid: true}}
 	if err := store.CreateDomain(domA); err != nil {
 		t.Fatalf("CreateDomain(A/library): %v", err)
 	}
 
 	// Domain "library" in B  (same name — this triggers the bug)
-	domB := &models.Domain{Name: "library", EcosystemID: ecoB.ID}
+	domB := &models.Domain{Name: "library", EcosystemID: sql.NullInt64{Int64: int64(ecoB.ID), Valid: true}}
 	if err := store.CreateDomain(domB); err != nil {
 		t.Fatalf("CreateDomain(B/library): %v", err)
 	}
 
 	// App "api" under domainA
-	appA := &models.App{Name: "api", DomainID: domA.ID, Path: "/alpha/api"}
+	appA := &models.App{Name: "api", DomainID: sql.NullInt64{Int64: int64(domA.ID), Valid: true}, Path: "/alpha/api"}
 	if err := store.CreateApp(appA); err != nil {
 		t.Fatalf("CreateApp(A/api): %v", err)
 	}
 
 	// App "api" under domainB
-	appB := &models.App{Name: "api", DomainID: domB.ID, Path: "/beta/api"}
+	appB := &models.App{Name: "api", DomainID: sql.NullInt64{Int64: int64(domB.ID), Valid: true}, Path: "/beta/api"}
 	if err := store.CreateApp(appB); err != nil {
 		t.Fatalf("CreateApp(B/api): %v", err)
 	}
@@ -316,19 +317,19 @@ func TestWorkspaceRoundTrip_EcosystemPreserved(t *testing.T) {
 	if err := srcStore.CreateEcosystem(srcEcoB); err != nil {
 		t.Fatalf("src CreateEcosystem(B): %v", err)
 	}
-	srcDomA := &models.Domain{Name: "library", EcosystemID: srcEcoA.ID}
+	srcDomA := &models.Domain{Name: "library", EcosystemID: sql.NullInt64{Int64: int64(srcEcoA.ID), Valid: true}}
 	if err := srcStore.CreateDomain(srcDomA); err != nil {
 		t.Fatalf("src CreateDomain(A/library): %v", err)
 	}
-	srcDomB := &models.Domain{Name: "library", EcosystemID: srcEcoB.ID}
+	srcDomB := &models.Domain{Name: "library", EcosystemID: sql.NullInt64{Int64: int64(srcEcoB.ID), Valid: true}}
 	if err := srcStore.CreateDomain(srcDomB); err != nil {
 		t.Fatalf("src CreateDomain(B/library): %v", err)
 	}
-	srcAppA := &models.App{Name: "api", DomainID: srcDomA.ID, Path: "/alpha/api"}
+	srcAppA := &models.App{Name: "api", DomainID: sql.NullInt64{Int64: int64(srcDomA.ID), Valid: true}, Path: "/alpha/api"}
 	if err := srcStore.CreateApp(srcAppA); err != nil {
 		t.Fatalf("src CreateApp(A/api): %v", err)
 	}
-	srcAppB := &models.App{Name: "api", DomainID: srcDomB.ID, Path: "/beta/api"}
+	srcAppB := &models.App{Name: "api", DomainID: sql.NullInt64{Int64: int64(srcDomB.ID), Valid: true}, Path: "/beta/api"}
 	if err := srcStore.CreateApp(srcAppB); err != nil {
 		t.Fatalf("src CreateApp(B/api): %v", err)
 	}
@@ -372,19 +373,19 @@ func TestWorkspaceRoundTrip_EcosystemPreserved(t *testing.T) {
 	if err := dstStore.CreateEcosystem(dstEcoB); err != nil {
 		t.Fatalf("dst CreateEcosystem(B): %v", err)
 	}
-	dstDomA := &models.Domain{Name: "library", EcosystemID: dstEcoA.ID}
+	dstDomA := &models.Domain{Name: "library", EcosystemID: sql.NullInt64{Int64: int64(dstEcoA.ID), Valid: true}}
 	if err := dstStore.CreateDomain(dstDomA); err != nil {
 		t.Fatalf("dst CreateDomain(A/library): %v", err)
 	}
-	dstDomB := &models.Domain{Name: "library", EcosystemID: dstEcoB.ID}
+	dstDomB := &models.Domain{Name: "library", EcosystemID: sql.NullInt64{Int64: int64(dstEcoB.ID), Valid: true}}
 	if err := dstStore.CreateDomain(dstDomB); err != nil {
 		t.Fatalf("dst CreateDomain(B/library): %v", err)
 	}
-	dstAppA := &models.App{Name: "api", DomainID: dstDomA.ID, Path: "/alpha/api"}
+	dstAppA := &models.App{Name: "api", DomainID: sql.NullInt64{Int64: int64(dstDomA.ID), Valid: true}, Path: "/alpha/api"}
 	if err := dstStore.CreateApp(dstAppA); err != nil {
 		t.Fatalf("dst CreateApp(A/api): %v", err)
 	}
-	dstAppB := &models.App{Name: "api", DomainID: dstDomB.ID, Path: "/beta/api"}
+	dstAppB := &models.App{Name: "api", DomainID: sql.NullInt64{Int64: int64(dstDomB.ID), Valid: true}, Path: "/beta/api"}
 	if err := dstStore.CreateApp(dstAppB); err != nil {
 		t.Fatalf("dst CreateApp(B/api): %v", err)
 	}

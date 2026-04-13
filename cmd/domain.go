@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"database/sql"
 	"fmt"
 
 	"devopsmaestro/db"
@@ -87,7 +88,7 @@ Examples:
 		}
 
 		// Check if domain already exists
-		existing, _ := ds.GetDomainByName(ecosystem.ID, domainName)
+		existing, _ := ds.GetDomainByName(sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true}, domainName)
 		if existing != nil {
 			return fmt.Errorf("domain '%s' already exists in ecosystem '%s'", domainName, ecosystem.Name)
 		}
@@ -100,7 +101,7 @@ Examples:
 		}
 
 		// Get the created domain to get its ID
-		createdDomain, err := ds.GetDomainByName(ecosystem.ID, domainName)
+		createdDomain, err := ds.GetDomainByName(sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true}, domainName)
 		if err != nil {
 			return fmt.Errorf("failed to retrieve created domain: %w", err)
 		}
@@ -199,7 +200,7 @@ Examples:
 		}
 
 		// Verify domain exists
-		domain, err := ds.GetDomainByName(ecosystem.ID, domainName)
+		domain, err := ds.GetDomainByName(sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true}, domainName)
 		if err != nil {
 			render.Error(fmt.Sprintf("Domain '%s' not found in ecosystem '%s': %v", domainName, ecosystem.Name, err))
 			render.Info("Hint: List available domains with: dvm get domains")
@@ -299,10 +300,12 @@ func getDomains(cmd *cobra.Command) error {
 		// Convert domain models to Resource objects for BuildList
 		domainResources := make([]resource.Resource, len(domains))
 		for i, d := range domains {
-			eco, _ := ds.GetEcosystemByID(d.EcosystemID)
 			ecoName := ""
-			if eco != nil {
-				ecoName = eco.Name
+			if d.EcosystemID.Valid {
+				eco, _ := ds.GetEcosystemByID(int(d.EcosystemID.Int64))
+				if eco != nil {
+					ecoName = eco.Name
+				}
 			}
 			domainResources[i] = handlers.NewDomainResource(d, ecoName)
 		}
@@ -358,10 +361,12 @@ func getDomains(cmd *cobra.Command) error {
 		}
 
 		// Get ecosystem name for display
-		eco, _ := ds.GetEcosystemByID(d.EcosystemID)
 		ecoName := ""
-		if eco != nil {
-			ecoName = eco.Name
+		if d.EcosystemID.Valid {
+			eco, _ := ds.GetEcosystemByID(int(d.EcosystemID.Int64))
+			if eco != nil {
+				ecoName = eco.Name
+			}
 		}
 
 		desc := ""
@@ -548,7 +553,7 @@ Examples:
 		}
 
 		// Look up domain to show cascade info
-		domain, err := ds.GetDomainByName(ecosystem.ID, domainName)
+		domain, err := ds.GetDomainByName(sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true}, domainName)
 		if err != nil {
 			return fmt.Errorf("domain '%s' not found in ecosystem '%s'", domainName, ecosystem.Name)
 		}

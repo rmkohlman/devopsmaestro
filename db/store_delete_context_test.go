@@ -345,7 +345,7 @@ func TestDeleteDomain_WhenActiveContext(t *testing.T) {
 	if err := ds.CreateEcosystem(eco); err != nil {
 		t.Fatalf("setup: CreateEcosystem() error = %v", err)
 	}
-	domain := &models.Domain{EcosystemID: eco.ID, Name: "active-domain-delete"}
+	domain := &models.Domain{EcosystemID: validNullInt64(eco.ID), Name: "active-domain-delete"}
 	if err := ds.CreateDomain(domain); err != nil {
 		t.Fatalf("setup: CreateDomain() error = %v", err)
 	}
@@ -394,11 +394,11 @@ func TestDeleteApp_WhenActiveContext(t *testing.T) {
 	if err := ds.CreateEcosystem(eco); err != nil {
 		t.Fatalf("setup: CreateEcosystem() error = %v", err)
 	}
-	domain := &models.Domain{EcosystemID: eco.ID, Name: "active-app-domain"}
+	domain := &models.Domain{EcosystemID: validNullInt64(eco.ID), Name: "active-app-domain"}
 	if err := ds.CreateDomain(domain); err != nil {
 		t.Fatalf("setup: CreateDomain() error = %v", err)
 	}
-	app := &models.App{DomainID: domain.ID, Name: "active-app-delete", Path: "/tmp/active-app"}
+	app := &models.App{DomainID: validNullInt64(domain.ID), Name: "active-app-delete", Path: "/tmp/active-app"}
 	if err := ds.CreateApp(app); err != nil {
 		t.Fatalf("setup: CreateApp() error = %v", err)
 	}
@@ -447,11 +447,11 @@ func TestDeleteWorkspace_WhenActiveContext(t *testing.T) {
 	if err := ds.CreateEcosystem(eco); err != nil {
 		t.Fatalf("setup: CreateEcosystem() error = %v", err)
 	}
-	domain := &models.Domain{EcosystemID: eco.ID, Name: "active-ws-domain"}
+	domain := &models.Domain{EcosystemID: validNullInt64(eco.ID), Name: "active-ws-domain"}
 	if err := ds.CreateDomain(domain); err != nil {
 		t.Fatalf("setup: CreateDomain() error = %v", err)
 	}
-	app := &models.App{DomainID: domain.ID, Name: "active-ws-app", Path: "/tmp/active-ws-app"}
+	app := &models.App{DomainID: validNullInt64(domain.ID), Name: "active-ws-app", Path: "/tmp/active-ws-app"}
 	if err := ds.CreateApp(app); err != nil {
 		t.Fatalf("setup: CreateApp() error = %v", err)
 	}
@@ -559,11 +559,11 @@ func TestDeleteApp_CleansUpWorkspaceAndAppCredentials(t *testing.T) {
 	if err := ds.CreateEcosystem(eco); err != nil {
 		t.Fatalf("setup: CreateEcosystem() error = %v", err)
 	}
-	domain := &models.Domain{EcosystemID: eco.ID, Name: "app-cred-cleanup-domain"}
+	domain := &models.Domain{EcosystemID: validNullInt64(eco.ID), Name: "app-cred-cleanup-domain"}
 	if err := ds.CreateDomain(domain); err != nil {
 		t.Fatalf("setup: CreateDomain() error = %v", err)
 	}
-	app := &models.App{DomainID: domain.ID, Name: "app-cred-cleanup-app", Path: "/tmp/app-cred-cleanup"}
+	app := &models.App{DomainID: validNullInt64(domain.ID), Name: "app-cred-cleanup-app", Path: "/tmp/app-cred-cleanup"}
 	if err := ds.CreateApp(app); err != nil {
 		t.Fatalf("setup: CreateApp() error = %v", err)
 	}
@@ -627,17 +627,17 @@ func TestDeleteDomain_CleansUpHierarchyCredentials(t *testing.T) {
 	if err := ds.CreateEcosystem(eco); err != nil {
 		t.Fatalf("setup: CreateEcosystem() error = %v", err)
 	}
-	domain := &models.Domain{EcosystemID: eco.ID, Name: "domain-cred-cleanup"}
+	domain := &models.Domain{EcosystemID: validNullInt64(eco.ID), Name: "domain-cred-cleanup"}
 	if err := ds.CreateDomain(domain); err != nil {
 		t.Fatalf("setup: CreateDomain() error = %v", err)
 	}
 
 	// Two apps, each with a workspace
-	app1 := &models.App{DomainID: domain.ID, Name: "domain-cred-app1", Path: "/tmp/app1"}
+	app1 := &models.App{DomainID: validNullInt64(domain.ID), Name: "domain-cred-app1", Path: "/tmp/app1"}
 	if err := ds.CreateApp(app1); err != nil {
 		t.Fatalf("setup: CreateApp(app1) error = %v", err)
 	}
-	app2 := &models.App{DomainID: domain.ID, Name: "domain-cred-app2", Path: "/tmp/app2"}
+	app2 := &models.App{DomainID: validNullInt64(domain.ID), Name: "domain-cred-app2", Path: "/tmp/app2"}
 	if err := ds.CreateApp(app2); err != nil {
 		t.Fatalf("setup: CreateApp(app2) error = %v", err)
 	}
@@ -691,11 +691,11 @@ func TestDeleteWorkspace_CleansUpCredentials(t *testing.T) {
 	if err := ds.CreateEcosystem(eco); err != nil {
 		t.Fatalf("setup: CreateEcosystem() error = %v", err)
 	}
-	domain := &models.Domain{EcosystemID: eco.ID, Name: "ws-cred-cleanup-domain"}
+	domain := &models.Domain{EcosystemID: validNullInt64(eco.ID), Name: "ws-cred-cleanup-domain"}
 	if err := ds.CreateDomain(domain); err != nil {
 		t.Fatalf("setup: CreateDomain() error = %v", err)
 	}
-	app := &models.App{DomainID: domain.ID, Name: "ws-cred-cleanup-app", Path: "/tmp/ws-cred"}
+	app := &models.App{DomainID: validNullInt64(domain.ID), Name: "ws-cred-cleanup-app", Path: "/tmp/ws-cred"}
 	if err := ds.CreateApp(app); err != nil {
 		t.Fatalf("setup: CreateApp() error = %v", err)
 	}

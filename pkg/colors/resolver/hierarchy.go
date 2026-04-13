@@ -296,13 +296,17 @@ func (r *HierarchyThemeResolver) getParent(ctx context.Context, level HierarchyL
 	case LevelApp:
 		// Get app's domain ID
 		if app, err := r.dataStore.GetAppByID(objectID); err == nil {
-			return app.DomainID, LevelDomain
+			if app.DomainID.Valid {
+				return int(app.DomainID.Int64), LevelDomain
+			}
 		}
 		return 0, LevelGlobal
 	case LevelDomain:
 		// Get domain's ecosystem ID
 		if domain, err := r.dataStore.GetDomainByID(objectID); err == nil {
-			return domain.EcosystemID, LevelEcosystem
+			if domain.EcosystemID.Valid {
+				return int(domain.EcosystemID.Int64), LevelEcosystem
+			}
 		}
 		return 0, LevelGlobal
 	case LevelEcosystem:

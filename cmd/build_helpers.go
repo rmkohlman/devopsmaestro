@@ -315,10 +315,10 @@ func loadBuildCredentials(ds db.DataStore, app *models.App, workspace *models.Wo
 	}
 
 	// Layer 2: Ecosystem credentials (if app belongs to a domain with an ecosystem)
-	if app.DomainID > 0 {
-		domain, err := ds.GetDomainByID(app.DomainID)
-		if err == nil && domain.EcosystemID > 0 {
-			ecosystem, err := ds.GetEcosystemByID(domain.EcosystemID)
+	if app.DomainID.Valid {
+		domain, err := ds.GetDomainByID(int(app.DomainID.Int64))
+		if err == nil && domain.EcosystemID.Valid {
+			ecosystem, err := ds.GetEcosystemByID(int(domain.EcosystemID.Int64))
 			if err == nil {
 				ecoCreds, err := ds.ListCredentialsByScope(models.CredentialScopeEcosystem, int64(ecosystem.ID))
 				if err == nil && len(ecoCreds) > 0 {

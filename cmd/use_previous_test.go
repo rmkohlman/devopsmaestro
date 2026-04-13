@@ -17,6 +17,7 @@
 package cmd
 
 import (
+	"database/sql"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -99,8 +100,8 @@ func TestUseDash_TogglesBetweenContexts(t *testing.T) {
 	mock := db.NewMockDataStore()
 
 	// Seed two apps
-	appA := &models.App{ID: 1, Name: "app-alpha", DomainID: 1}
-	appB := &models.App{ID: 2, Name: "app-beta", DomainID: 1}
+	appA := &models.App{ID: 1, Name: "app-alpha", DomainID: sql.NullInt64{Int64: 1, Valid: true}}
+	appB := &models.App{ID: 2, Name: "app-beta", DomainID: sql.NullInt64{Int64: 1, Valid: true}}
 	mock.Apps[1] = appA
 	mock.Apps[2] = appB
 
@@ -181,7 +182,7 @@ func TestUseDash_SavesPreviousOnAppSwitch(t *testing.T) {
 	mock.Context.ActiveWorkspaceID = &wsAID
 
 	// Seed the target app B
-	appB := &models.App{ID: 7, Name: "new-app", DomainID: 1}
+	appB := &models.App{ID: 7, Name: "new-app", DomainID: sql.NullInt64{Int64: 1, Valid: true}}
 	mock.Apps[7] = appB
 
 	// Switch to app B

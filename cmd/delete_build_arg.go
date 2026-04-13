@@ -198,12 +198,15 @@ func deleteBuildArgAtDomain(ctx resource.Context, domainName, key string) error 
 	if err != nil {
 		return fmt.Errorf("failed to get DataStore: %w", err)
 	}
-	eco, err := ds.GetEcosystemByID(domain.EcosystemID)
-	if err != nil {
-		return fmt.Errorf("failed to get ecosystem for domain: %w", err)
+	ecoName := ""
+	if domain.EcosystemID.Valid {
+		eco, err := ds.GetEcosystemByID(int(domain.EcosystemID.Int64))
+		if err == nil {
+			ecoName = eco.Name
+		}
 	}
 
-	domainYAML := domain.ToYAML(eco.Name, nil)
+	domainYAML := domain.ToYAML(ecoName, nil)
 	domainYAML.Spec.Build.Args = parseDirectJSONMap(updatedJSON)
 
 	data, err := yaml.Marshal(domainYAML)
@@ -243,12 +246,15 @@ func deleteBuildArgAtApp(ctx resource.Context, appName, key string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get DataStore: %w", err)
 	}
-	domain, err := ds.GetDomainByID(app.DomainID)
-	if err != nil {
-		return fmt.Errorf("failed to get domain for app: %w", err)
+	domainName := ""
+	if app.DomainID.Valid {
+		domain, err := ds.GetDomainByID(int(app.DomainID.Int64))
+		if err == nil {
+			domainName = domain.Name
+		}
 	}
 
-	appYAML := app.ToYAML(domain.Name, nil, "", "")
+	appYAML := app.ToYAML(domainName, nil, "", "")
 	appYAML.Spec.Build.Args = parseArgsFromWrappedJSON(updatedJSON)
 
 	data, err := yaml.Marshal(appYAML)

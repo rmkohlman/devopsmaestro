@@ -15,6 +15,7 @@ package cmd
 // ---------------------------------------------------------------------------
 
 import (
+	"database/sql"
 	"bytes"
 	"strings"
 	"testing"
@@ -48,10 +49,10 @@ func TestGetAllOrdering_CredentialAfterWorkspace(t *testing.T) {
 	eco := &models.Ecosystem{Name: "ord-eco"}
 	require.NoError(t, ds.CreateEcosystem(eco))
 
-	dom := &models.Domain{Name: "ord-dom", EcosystemID: eco.ID}
+	dom := &models.Domain{Name: "ord-dom", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	require.NoError(t, ds.CreateDomain(dom))
 
-	app := &models.App{Name: "ord-app", Path: "/ord", DomainID: dom.ID}
+	app := &models.App{Name: "ord-app", Path: "/ord", DomainID: sql.NullInt64{Int64: int64(dom.ID), Valid: true}}
 	require.NoError(t, ds.CreateApp(app))
 
 	ws := &models.Workspace{
@@ -116,7 +117,7 @@ func TestGetAllOrdering_DependencyChain(t *testing.T) {
 	eco := &models.Ecosystem{Name: "chain-eco"}
 	require.NoError(t, ds.CreateEcosystem(eco))
 
-	dom := &models.Domain{Name: "chain-dom", EcosystemID: eco.ID}
+	dom := &models.Domain{Name: "chain-dom", EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true}}
 	require.NoError(t, ds.CreateDomain(dom))
 
 	reg := &models.Registry{
@@ -152,7 +153,7 @@ func TestGetAllOrdering_DependencyChain(t *testing.T) {
 	app := &models.App{
 		Name:     "chain-app",
 		Path:     "/chain",
-		DomainID: dom.ID,
+		DomainID: sql.NullInt64{Int64: int64(dom.ID), Valid: true},
 	}
 	require.NoError(t, ds.CreateApp(app))
 

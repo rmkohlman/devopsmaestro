@@ -18,6 +18,7 @@
 package cmd
 
 import (
+	"database/sql"
 	"strings"
 	"testing"
 
@@ -80,7 +81,7 @@ func TestGetContext_ShowsWorkspaceEnvVarSource(t *testing.T) {
 	mock := db.NewMockDataStore()
 	appID := 1
 	mock.Context.ActiveAppID = &appID
-	mock.Apps[1] = &models.App{ID: 1, Name: "my-api", DomainID: 1}
+	mock.Apps[1] = &models.App{ID: 1, Name: "my-api", DomainID: sql.NullInt64{Int64: 1, Valid: true}}
 	// DB has no active workspace — provided entirely by env var
 	mock.Context.ActiveWorkspaceID = nil
 
@@ -118,7 +119,7 @@ func TestGetContext_ShowsDBSource(t *testing.T) {
 	// DB-only context — no env vars
 	appID := 3
 	mock.Context.ActiveAppID = &appID
-	mock.Apps[3] = &models.App{ID: 3, Name: "persisted-api", DomainID: 1}
+	mock.Apps[3] = &models.App{ID: 3, Name: "persisted-api", DomainID: sql.NullInt64{Int64: 1, Valid: true}}
 
 	// Ensure env vars are explicitly NOT set
 	t.Setenv("DVM_APP", "")
