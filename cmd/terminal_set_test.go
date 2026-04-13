@@ -710,6 +710,7 @@ func createMinimalTestSchema(driver db.Driver) error {
 		`CREATE TABLE IF NOT EXISTS apps (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			domain_id INTEGER,
+			system_id INTEGER,
 			name TEXT NOT NULL,
 			path TEXT,
 			description TEXT,

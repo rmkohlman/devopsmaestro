@@ -23,6 +23,7 @@ import (
 var (
 	appDescription string
 	appDomain      string
+	appSystem      string
 	appPath        string
 	appFromCwd     bool
 	appRepo        string
@@ -57,6 +58,9 @@ Examples:
   
   # Create an app in a specific domain
   dvm create app my-api --from-cwd --domain backend
+  
+  # Create an app in a specific system
+  dvm create app my-api --from-cwd --system auth-system
   
   # Create from git URL (auto-creates GitRepo)
   dvm create app golang-app --repo https://github.com/rmkohlman/dvm-test-golang.git
@@ -161,6 +165,19 @@ Next Steps:
 			}
 		}
 
+		// Resolve system from flag or active context (optional)
+		var system *models.System
+		if appSystem != "" {
+			domainNullID := sql.NullInt64{Int64: int64(domain.ID), Valid: true}
+			system, err = ds.GetSystemByName(domainNullID, appSystem)
+			if err != nil {
+				return fmt.Errorf("system '%s' not found in domain '%s': %w", appSystem, domain.Name, err)
+			}
+		} else {
+			// Try active system context (optional — apps don't require a system)
+			system, _ = getActiveSystem(ds)
+		}
+
 		// Get ecosystem name for display
 		ecosystem, _ := ds.GetEcosystemByID(domain.EcosystemID)
 		ecosystemName := ""
@@ -189,6 +206,11 @@ Next Steps:
 		// Create app using handler helper
 		app := handlers.NewAppFromModel(appName, domain.ID, path, appDescription)
 
+		// Link System if resolved
+		if system != nil {
+			app.SystemID = sql.NullInt64{Int64: int64(system.ID), Valid: true}
+		}
+
 		// Link GitRepo if using --repo
 		if gitRepoID != nil {
 			app.GitRepoID = sql.NullInt64{Int64: int64(*gitRepoID), Valid: true}
@@ -207,6 +229,9 @@ Next Steps:
 		render.Success(fmt.Sprintf("App '%s' created successfully (ID: %d)", appName, createdApp.ID))
 		render.Info(fmt.Sprintf("Ecosystem: %s", ecosystemName))
 		render.Info(fmt.Sprintf("Domain: %s", domain.Name))
+		if system != nil {
+			render.Info(fmt.Sprintf("System: %s", system.Name))
+		}
 		if gitRepoName != "" {
 			render.Info(fmt.Sprintf("GitRepo: %s", gitRepoName))
 		} else {
@@ -239,11 +264,12 @@ var getAppsCmd = &cobra.Command{
 	Use:     "apps",
 	Aliases: []string{"application", "applications", "a"},
 	Short:   "List all apps",
-	Long: `List all apps, optionally filtered by domain.
+	Long: `List all apps, optionally filtered by domain or system.
 
 Examples:
   dvm get apps                          # List apps in active domain
   dvm get apps --domain backend
+  dvm get apps --system auth-system     # Filter by system
   dvm get apps -A                       # List all apps across all domains
   dvm get apps --all                    # Same as -A
   dvm get apps -o yaml`,
@@ -274,6 +300,7 @@ func getApps(cmd *cobra.Command) error {
 
 	allFlag, _ := cmd.Flags().GetBool("all")
 	domainFlag, _ := cmd.Flags().GetString("domain")
+	systemFlag, _ := cmd.Flags().GetString("system")
 
 	var apps []*models.App
 	var domainName string
@@ -314,6 +341,34 @@ func getApps(cmd *cobra.Command) error {
 		if err != nil {
 			return fmt.Errorf("failed to list apps: %w", err)
 		}
+	}
+
+	// Filter by system if --system flag is provided
+	if systemFlag != "" {
+		// Resolve system by name within the domain context
+		var systemDomainID sql.NullInt64
+		if domainName != "" && domainName != "(all)" {
+			// We have a domain — find system within it
+			var domain *models.Domain
+			ecosystem, ecoErr := getActiveEcosystem(ds)
+			if ecoErr == nil {
+				domain, _ = ds.GetDomainByName(ecosystem.ID, domainName)
+			}
+			if domain != nil {
+				systemDomainID = sql.NullInt64{Int64: int64(domain.ID), Valid: true}
+			}
+		}
+		targetSystem, sErr := ds.GetSystemByName(systemDomainID, systemFlag)
+		if sErr != nil {
+			return fmt.Errorf("system '%s' not found: %w", systemFlag, sErr)
+		}
+		filtered := make([]*models.App, 0, len(apps))
+		for _, a := range apps {
+			if a.SystemID.Valid && a.SystemID.Int64 == int64(targetSystem.ID) {
+				filtered = append(filtered, a)
+			}
+		}
+		apps = filtered
 	}
 
 	// Get active app for highlighting
@@ -471,6 +526,7 @@ func getApp(cmd *cobra.Command, name string) error {
 	}
 
 	domainFlag, _ := cmd.Flags().GetString("domain")
+	systemFlag, _ := cmd.Flags().GetString("system")
 
 	// Get domain from flag or active context
 	var domain *models.Domain
@@ -495,6 +551,16 @@ func getApp(cmd *cobra.Command, name string) error {
 			render.Info("Hint: Use --domain <name> or 'dvm use domain <name>' first")
 			return errSilent
 		}
+	}
+
+	// Resolve system from flag if provided (for context)
+	if systemFlag != "" {
+		domainNullID := sql.NullInt64{Int64: int64(domain.ID), Valid: true}
+		resolvedSystem, sErr := ds.GetSystemByName(domainNullID, systemFlag)
+		if sErr != nil {
+			return fmt.Errorf("system '%s' not found in domain '%s': %w", systemFlag, domain.Name, sErr)
+		}
+		ds.SetActiveSystem(&resolvedSystem.ID)
 	}
 
 	// Get ecosystem for display
@@ -525,7 +591,14 @@ func getApp(cmd *cobra.Command, name string) error {
 				gitRepoName = gr.Name
 			}
 		}
-		yamlDoc := app.ToYAML(domain.Name, wsNames, gitRepoName)
+		// Resolve system name if associated
+		systemName := ""
+		if app.SystemID.Valid {
+			if sys, sErr := ds.GetSystemByID(int(app.SystemID.Int64)); sErr == nil && sys != nil {
+				systemName = sys.Name
+			}
+		}
+		yamlDoc := app.ToYAML(domain.Name, wsNames, gitRepoName, systemName)
 		yamlDoc.Metadata.Ecosystem = ecosystemName
 		return render.OutputWith(getOutputFormat, yamlDoc, render.Options{})
 	}
@@ -586,6 +659,7 @@ By default, you will be prompted for confirmation. Use --force to skip.
 Examples:
   dvm delete app my-api
   dvm delete app my-api --domain backend
+  dvm delete app my-api --system auth-system
   dvm delete app my-api --force              # Skip confirmation`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -597,6 +671,7 @@ Examples:
 		}
 
 		domainFlag, _ := cmd.Flags().GetString("domain")
+		systemFlag, _ := cmd.Flags().GetString("system")
 
 		// Get domain from flag or active context
 		var domain *models.Domain
@@ -621,6 +696,16 @@ Examples:
 				render.Info("Hint: Use --domain <name> or 'dvm use domain <name>' first")
 				return errSilent
 			}
+		}
+
+		// Resolve system from flag if provided (for context)
+		if systemFlag != "" {
+			domainNullID := sql.NullInt64{Int64: int64(domain.ID), Valid: true}
+			resolvedSystem, sErr := ds.GetSystemByName(domainNullID, systemFlag)
+			if sErr != nil {
+				return fmt.Errorf("system '%s' not found in domain '%s': %w", systemFlag, domain.Name, sErr)
+			}
+			ds.SetActiveSystem(&resolvedSystem.ID)
 		}
 
 		// Look up app to show cascade info
@@ -688,6 +773,7 @@ func init() {
 	// App creation flags
 	createAppCmd.Flags().StringVar(&appDescription, "description", "", "App description")
 	createAppCmd.Flags().StringVar(&appDomain, "domain", "", "Domain name (defaults to active domain)")
+	createAppCmd.Flags().StringVarP(&appSystem, "system", "s", "", "System name (defaults to active system)")
 	createAppCmd.Flags().StringVar(&appPath, "path", "", "Path to the app source code")
 	createAppCmd.Flags().BoolVar(&appFromCwd, "from-cwd", false, "Use current working directory as app path")
 	createAppCmd.Flags().StringVar(&appRepo, "repo", "", "Git repository (URL or existing GitRepo name)")
@@ -695,11 +781,14 @@ func init() {
 
 	// App get/delete flags
 	getAppsCmd.Flags().StringP("domain", "d", "", "Domain name (defaults to active domain)")
+	getAppsCmd.Flags().StringP("system", "s", "", "System name (filter apps by system)")
 	AddAllFlag(getAppsCmd, "List apps from all domains")
 	getAppsCmd.Flags().BoolVar(&showTheme, "show-theme", false, "Show theme resolution information")
 	getAppCmd.Flags().StringP("domain", "d", "", "Domain name (defaults to active domain)")
+	getAppCmd.Flags().StringP("system", "s", "", "System name (resolve system context)")
 	getAppCmd.Flags().BoolVar(&showTheme, "show-theme", false, "Show theme resolution information")
 	deleteAppCmd.Flags().StringP("domain", "d", "", "Domain name (defaults to active domain)")
+	deleteAppCmd.Flags().StringP("system", "s", "", "System name (resolve system context)")
 	AddForceConfirmFlag(deleteAppCmd)
 	AddDryRunFlag(deleteAppCmd, &deleteAppDryRun)
 }

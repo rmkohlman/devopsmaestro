@@ -195,6 +195,54 @@ func (b *domainTableBuilder) Row(model any, wide bool) []string {
 }
 
 // =============================================================================
+// systemTableBuilder
+// =============================================================================
+
+// systemTableBuilder builds table rows for *models.System values.
+type systemTableBuilder struct {
+	DataStore db.DataStore
+	ActiveID  *int
+}
+
+func (b *systemTableBuilder) Headers(wide bool) []string {
+	headers := []string{"NAME", "DOMAIN", "ECOSYSTEM", "DESCRIPTION", "CREATED"}
+	if wide {
+		headers = append(headers, "ID")
+	}
+	return headers
+}
+
+func (b *systemTableBuilder) Row(model any, wide bool) []string {
+	system := model.(*models.System)
+
+	name := activeMarker(system.Name, system.ID, b.ActiveID)
+
+	domainName := ""
+	ecosystemName := ""
+	if system.DomainID.Valid && b.DataStore != nil {
+		if domain, err := b.DataStore.GetDomainByID(int(system.DomainID.Int64)); err == nil {
+			domainName = domain.Name
+			if eco, err := b.DataStore.GetEcosystemByID(domain.EcosystemID); err == nil {
+				ecosystemName = eco.Name
+			}
+		}
+	}
+
+	desc := ""
+	if system.Description.Valid {
+		desc = truncateLeft(system.Description.String, 30)
+	}
+
+	created := system.CreatedAt.Format("2006-01-02 15:04")
+
+	row := []string{name, domainName, ecosystemName, desc, created}
+	if wide {
+		row = append(row, fmt.Sprintf("%d", system.ID))
+	}
+	return row
+}
+
+// =============================================================================
 // appTableBuilder
 // =============================================================================
 

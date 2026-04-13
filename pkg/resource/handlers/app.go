@@ -86,6 +86,15 @@ func (h *AppHandler) Apply(ctx resource.Context, data []byte) (resource.Resource
 		app.GitRepoID = sql.NullInt64{Int64: int64(gitRepo.ID), Valid: true}
 	}
 
+	// Resolve System if specified in YAML metadata
+	if appYAML.Metadata.System != "" {
+		system, err := ds.GetSystemByName(sql.NullInt64{Int64: int64(domain.ID), Valid: true}, appYAML.Metadata.System)
+		if err != nil {
+			return nil, fmt.Errorf("system '%s' not found in domain '%s': %w", appYAML.Metadata.System, domainName, err)
+		}
+		app.SystemID = sql.NullInt64{Int64: int64(system.ID), Valid: true}
+	}
+
 	// Check if app exists
 	existing, _ := ds.GetAppByName(domain.ID, app.Name)
 	if existing != nil {
@@ -106,7 +115,7 @@ func (h *AppHandler) Apply(ctx resource.Context, data []byte) (resource.Resource
 		}
 	}
 
-	return &AppResource{app: app, domainName: domainName, ecosystemName: appYAML.Metadata.Ecosystem, gitRepoName: appYAML.Spec.GitRepo}, nil
+	return &AppResource{app: app, domainName: domainName, ecosystemName: appYAML.Metadata.Ecosystem, systemName: appYAML.Metadata.System, gitRepoName: appYAML.Spec.GitRepo}, nil
 }
 
 // Get retrieves an app by name.
@@ -152,7 +161,16 @@ func (h *AppHandler) Get(ctx resource.Context, name string) (resource.Resource, 
 		}
 	}
 
-	return &AppResource{app: app, domainName: domainName, ecosystemName: ecosystemName, gitRepoName: gitRepoName}, nil
+	// Resolve System name if SystemID is set
+	systemName := ""
+	if app.SystemID.Valid {
+		system, sErr := ds.GetSystemByID(int(app.SystemID.Int64))
+		if sErr == nil && system != nil {
+			systemName = system.Name
+		}
+	}
+
+	return &AppResource{app: app, domainName: domainName, ecosystemName: ecosystemName, systemName: systemName, gitRepoName: gitRepoName}, nil
 }
 
 // List returns all apps in the active domain.
@@ -198,7 +216,15 @@ func (h *AppHandler) List(ctx resource.Context) ([]resource.Resource, error) {
 				gitRepoName = gitRepo.Name
 			}
 		}
-		result[i] = &AppResource{app: a, domainName: domainName, ecosystemName: ecosystemName, gitRepoName: gitRepoName}
+		// Resolve System name if SystemID is set
+		systemName := ""
+		if a.SystemID.Valid {
+			system, sErr := ds.GetSystemByID(int(a.SystemID.Int64))
+			if sErr == nil && system != nil {
+				systemName = system.Name
+			}
+		}
+		result[i] = &AppResource{app: a, domainName: domainName, ecosystemName: ecosystemName, systemName: systemName, gitRepoName: gitRepoName}
 	}
 	return result, nil
 }
@@ -235,7 +261,7 @@ func (h *AppHandler) ToYAML(res resource.Resource) ([]byte, error) {
 		return nil, fmt.Errorf("expected AppResource, got %T", res)
 	}
 
-	yamlDoc := ar.app.ToYAML(ar.domainName, nil, ar.gitRepoName)
+	yamlDoc := ar.app.ToYAML(ar.domainName, nil, ar.gitRepoName, ar.systemName)
 	// Include ecosystem name in metadata for context-free round-trip
 	if ar.ecosystemName != "" {
 		yamlDoc.Metadata.Ecosystem = ar.ecosystemName
@@ -248,6 +274,7 @@ type AppResource struct {
 	app           *models.App
 	domainName    string
 	ecosystemName string
+	systemName    string // Name of the parent System, if any
 	gitRepoName   string // Name of the GitRepo, if any
 }
 

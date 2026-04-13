@@ -119,6 +119,11 @@ func extractResourceDescription(res resource.Resource) string {
 		if domain.Description.Valid {
 			return domain.Description.String
 		}
+	case interface{ System() *models.System }:
+		system := r.System()
+		if system.Description.Valid {
+			return system.Description.String
+		}
 	case interface{ Ecosystem() *models.Ecosystem }:
 		ecosystem := r.Ecosystem()
 		if ecosystem.Description.Valid {
@@ -140,6 +145,10 @@ func completeEcosystems(cmd *cobra.Command, args []string, toComplete string) ([
 
 func completeDomains(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	return completeResources(cmd, "Domain")
+}
+
+func completeSystems(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return completeResources(cmd, "System")
 }
 
 func completeApps(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -296,6 +305,7 @@ func getCompletionDataStore(cmd *cobra.Command) (db.DataStore, error) {
 func registerHierarchyFlagCompletions(cmd *cobra.Command) {
 	cmd.RegisterFlagCompletionFunc("ecosystem", completeEcosystems)
 	cmd.RegisterFlagCompletionFunc("domain", completeDomains)
+	cmd.RegisterFlagCompletionFunc("system", completeSystems)
 	cmd.RegisterFlagCompletionFunc("app", completeApps)
 	cmd.RegisterFlagCompletionFunc("workspace", completeWorkspaces)
 }
@@ -333,6 +343,13 @@ func registerAllResourceCompletions() {
 	for _, cmd := range []*cobra.Command{getDomainCmd, useDomainCmd, deleteDomainCmd} {
 		if cmd != nil {
 			cmd.ValidArgsFunction = completeDomains
+		}
+	}
+
+	// System commands
+	for _, cmd := range []*cobra.Command{getSystemCmd, useSystemCmd, deleteSystemCmd} {
+		if cmd != nil {
+			cmd.ValidArgsFunction = completeSystems
 		}
 	}
 
@@ -452,10 +469,23 @@ func registerAllFlagCompletions() {
 		}
 	}
 
-	// === App commands with --domain flag ===
+	// === System commands with --domain and --ecosystem flags ===
+	for _, cmd := range []*cobra.Command{getSystemsCmd, getSystemCmd, deleteSystemCmd, createSystemCmd} {
+		if cmd != nil {
+			cmd.RegisterFlagCompletionFunc("domain", completeDomains)
+		}
+	}
+	for _, cmd := range []*cobra.Command{createSystemCmd} {
+		if cmd != nil {
+			cmd.RegisterFlagCompletionFunc("ecosystem", completeEcosystems)
+		}
+	}
+
+	// === App commands with --domain and --system flags ===
 	for _, cmd := range []*cobra.Command{getAppsCmd, getAppCmd, deleteAppCmd, createAppCmd} {
 		if cmd != nil {
 			cmd.RegisterFlagCompletionFunc("domain", completeDomains)
+			cmd.RegisterFlagCompletionFunc("system", completeSystems)
 		}
 	}
 

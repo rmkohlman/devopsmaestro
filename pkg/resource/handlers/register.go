@@ -35,9 +35,10 @@ func RegisterAll() {
 		resource.Register(NewNvimThemeHandler())
 		resource.Register(NewNvimPackageHandler())
 
-		// Object hierarchy resources (Ecosystem -> Domain -> App -> Workspace)
+		// Object hierarchy resources (Ecosystem -> Domain -> System -> App -> Workspace)
 		resource.Register(NewEcosystemHandler())
 		resource.Register(NewDomainHandler())
+		resource.Register(NewSystemHandler())
 		resource.Register(NewAppHandler())
 		resource.Register(NewWorkspaceHandler())
 

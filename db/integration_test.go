@@ -525,6 +525,23 @@ func createIntegrationSchema(driver Driver) error {
 			FOREIGN KEY (ecosystem_id) REFERENCES ecosystems(id),
 			UNIQUE(ecosystem_id, name)
 		)`,
+		`CREATE TABLE IF NOT EXISTS systems (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			ecosystem_id INTEGER,
+			domain_id INTEGER,
+			name TEXT NOT NULL,
+			description TEXT,
+			theme TEXT,
+			nvim_package TEXT,
+			terminal_package TEXT,
+			build_args TEXT,
+			ca_certs TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (ecosystem_id) REFERENCES ecosystems(id) ON DELETE SET NULL,
+			FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE,
+			UNIQUE(domain_id, name)
+		)`,
 		`CREATE TABLE IF NOT EXISTS git_repos (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT NOT NULL UNIQUE,
@@ -537,6 +554,7 @@ func createIntegrationSchema(driver Driver) error {
 		`CREATE TABLE IF NOT EXISTS apps (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			domain_id INTEGER NOT NULL,
+			system_id INTEGER,
 			name TEXT NOT NULL,
 			path TEXT NOT NULL,
 			description TEXT,
@@ -549,6 +567,7 @@ func createIntegrationSchema(driver Driver) error {
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (domain_id) REFERENCES domains(id),
+			FOREIGN KEY (system_id) REFERENCES systems(id),
 			FOREIGN KEY (git_repo_id) REFERENCES git_repos(id) ON DELETE SET NULL,
 			UNIQUE(domain_id, name)
 		)`,
@@ -590,12 +609,14 @@ func createIntegrationSchema(driver Driver) error {
 			id INTEGER PRIMARY KEY CHECK (id = 1),
 			active_ecosystem_id INTEGER,
 			active_domain_id INTEGER,
+			active_system_id INTEGER,
 			active_app_id INTEGER,
 			active_workspace_id INTEGER,
 			active_project_id INTEGER,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (active_ecosystem_id) REFERENCES ecosystems(id),
 			FOREIGN KEY (active_domain_id) REFERENCES domains(id),
+			FOREIGN KEY (active_system_id) REFERENCES systems(id),
 			FOREIGN KEY (active_app_id) REFERENCES apps(id),
 			FOREIGN KEY (active_workspace_id) REFERENCES workspaces(id),
 			FOREIGN KEY (active_project_id) REFERENCES projects(id)

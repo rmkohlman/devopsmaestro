@@ -15,10 +15,10 @@ import (
 // GetContext retrieves the current context.
 func (ds *SQLDataStore) GetContext() (*models.Context, error) {
 	context := &models.Context{}
-	query := `SELECT id, active_ecosystem_id, active_domain_id, active_app_id, active_workspace_id, updated_at FROM context WHERE id = 1`
+	query := `SELECT id, active_ecosystem_id, active_domain_id, active_system_id, active_app_id, active_workspace_id, updated_at FROM context WHERE id = 1`
 
 	row := ds.driver.QueryRow(query)
-	if err := row.Scan(&context.ID, &context.ActiveEcosystemID, &context.ActiveDomainID, &context.ActiveAppID, &context.ActiveWorkspaceID, &context.UpdatedAt); err != nil {
+	if err := row.Scan(&context.ID, &context.ActiveEcosystemID, &context.ActiveDomainID, &context.ActiveSystemID, &context.ActiveAppID, &context.ActiveWorkspaceID, &context.UpdatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, NewErrNotFound("context", "current")
 		}
@@ -48,6 +48,18 @@ func (ds *SQLDataStore) SetActiveDomain(domainID *int) error {
 	_, err := ds.driver.Execute(query, domainID)
 	if err != nil {
 		return fmt.Errorf("failed to set active domain: %w", err)
+	}
+	return nil
+}
+
+// SetActiveSystem sets the active system in the context.
+func (ds *SQLDataStore) SetActiveSystem(systemID *int) error {
+	query := fmt.Sprintf(`UPDATE context SET active_system_id = ?, updated_at = %s WHERE id = 1`,
+		ds.queryBuilder.Now())
+
+	_, err := ds.driver.Execute(query, systemID)
+	if err != nil {
+		return fmt.Errorf("failed to set active system: %w", err)
 	}
 	return nil
 }

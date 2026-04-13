@@ -16,7 +16,7 @@ const KindCRD = "CustomResourceDefinition"
 
 // Built-in kinds that cannot be overridden by CRDs
 var builtInKinds = []string{
-	"Workspace", "App", "Domain", "Ecosystem",
+	"Workspace", "App", "Domain", "System", "Ecosystem",
 	"NvimPlugin", "NvimTheme", "NvimPackage",
 	"TerminalPrompt", "TerminalPackage", "TerminalPlugin", "TerminalEmulator",
 	"Registry", "GitRepo", "Credential", "CustomResourceDefinition",

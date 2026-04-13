@@ -11,6 +11,7 @@ package db
 type DataStore interface {
 	EcosystemStore
 	DomainStore
+	SystemStore
 	AppStore
 	WorkspaceStore
 	ContextStore

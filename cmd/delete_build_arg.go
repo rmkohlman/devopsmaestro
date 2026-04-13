@@ -248,7 +248,7 @@ func deleteBuildArgAtApp(ctx resource.Context, appName, key string) error {
 		return fmt.Errorf("failed to get domain for app: %w", err)
 	}
 
-	appYAML := app.ToYAML(domain.Name, nil, "")
+	appYAML := app.ToYAML(domain.Name, nil, "", "")
 	appYAML.Spec.Build.Args = parseArgsFromWrappedJSON(updatedJSON)
 
 	data, err := yaml.Marshal(appYAML)

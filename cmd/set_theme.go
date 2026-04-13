@@ -606,7 +606,7 @@ func setAppTheme(cmd *cobra.Command, ctx resource.Context, appName, themeName st
 		return nil, fmt.Errorf("failed to get domain for app: %w", err)
 	}
 
-	appYAML := app.ToYAML(domain.Name, nil, "")
+	appYAML := app.ToYAML(domain.Name, nil, "", "")
 	yamlData, err := yaml.Marshal(appYAML)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal app YAML: %w", err)

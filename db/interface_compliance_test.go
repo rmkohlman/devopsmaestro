@@ -26,6 +26,7 @@ func TestDataStoreInterfaceCompliance(t *testing.T) {
 func TestSubInterfaceCompliance_SQLDataStore(t *testing.T) {
 	var _ EcosystemStore = (*SQLDataStore)(nil)
 	var _ DomainStore = (*SQLDataStore)(nil)
+	var _ SystemStore = (*SQLDataStore)(nil)
 	var _ AppStore = (*SQLDataStore)(nil)
 	var _ WorkspaceStore = (*SQLDataStore)(nil)
 	var _ ContextStore = (*SQLDataStore)(nil)
@@ -51,6 +52,7 @@ func TestSubInterfaceCompliance_SQLDataStore(t *testing.T) {
 func TestSubInterfaceCompliance_MockDataStore(t *testing.T) {
 	var _ EcosystemStore = (*MockDataStore)(nil)
 	var _ DomainStore = (*MockDataStore)(nil)
+	var _ SystemStore = (*MockDataStore)(nil)
 	var _ AppStore = (*MockDataStore)(nil)
 	var _ WorkspaceStore = (*MockDataStore)(nil)
 	var _ ContextStore = (*MockDataStore)(nil)

@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -18,6 +19,7 @@ type MockDataStore struct {
 	// In-memory storage
 	Ecosystems             map[string]*models.Ecosystem
 	Domains                map[int]*models.Domain // keyed by ID for easier lookup
+	Systems                map[int]*models.System // keyed by ID for easier lookup
 	Apps                   map[int]*models.App    // keyed by ID for easier lookup
 	Workspaces             map[int]*models.Workspace
 	Plugins                map[string]*models.NvimPluginDB
@@ -81,6 +83,15 @@ type MockDataStore struct {
 	ListDomainsByEcosystemErr           error
 	ListAllDomainsErr                   error
 	FindDomainsByNameErr                error
+	CreateSystemErr                     error
+	GetSystemByIDErr                    error
+	GetSystemByNameErr                  error
+	UpdateSystemErr                     error
+	DeleteSystemErr                     error
+	ListSystemsErr                      error
+	ListSystemsByDomainErr              error
+	FindSystemsByNameErr                error
+	CountSystemsErr                     error
 	CreateAppErr                        error
 	GetAppByNameErr                     error
 	GetAppByIDErr                       error
@@ -101,6 +112,7 @@ type MockDataStore struct {
 	GetContextErr                       error
 	SetActiveEcosystemErr               error
 	SetActiveDomainErr                  error
+	SetActiveSystemErr                  error
 	SetActiveAppErr                     error
 	SetActiveWorkspaceErr               error
 	CreatePluginErr                     error
@@ -231,6 +243,7 @@ type MockDataStore struct {
 	// Auto-increment IDs
 	nextEcosystemID             int
 	nextDomainID                int
+	nextSystemID                int
 	nextAppID                   int
 	nextWorkspaceID             int
 	nextPluginID                int
@@ -252,6 +265,7 @@ func NewMockDataStore() *MockDataStore {
 	return &MockDataStore{
 		Ecosystems:             make(map[string]*models.Ecosystem),
 		Domains:                make(map[int]*models.Domain),
+		Systems:                make(map[int]*models.System),
 		Apps:                   make(map[int]*models.App),
 		Workspaces:             make(map[int]*models.Workspace),
 		Plugins:                make(map[string]*models.NvimPluginDB),
@@ -274,6 +288,7 @@ func NewMockDataStore() *MockDataStore {
 		MockDriver:             NewMockDriver(),
 		nextEcosystemID:        1,
 		nextDomainID:           1,
+		nextSystemID:           1,
 		nextAppID:              1,
 		nextWorkspaceID:        1,
 		nextPluginID:           1,
@@ -508,6 +523,146 @@ func (m *MockDataStore) FindDomainsByName(name string) ([]*models.DomainWithHier
 		}
 	}
 	return results, nil
+}
+
+// =============================================================================
+// System Operations
+// =============================================================================
+
+func (m *MockDataStore) CreateSystem(system *models.System) error {
+	m.recordCall("CreateSystem", system)
+	if m.CreateSystemErr != nil {
+		return m.CreateSystemErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	system.ID = m.nextSystemID
+	m.nextSystemID++
+	m.Systems[system.ID] = system
+	return nil
+}
+
+func (m *MockDataStore) GetSystemByID(id int) (*models.System, error) {
+	m.recordCall("GetSystemByID", id)
+	if m.GetSystemByIDErr != nil {
+		return nil, m.GetSystemByIDErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if s, ok := m.Systems[id]; ok {
+		return s, nil
+	}
+	return nil, NewErrNotFound("system", id)
+}
+
+func (m *MockDataStore) GetSystemByName(domainID sql.NullInt64, name string) (*models.System, error) {
+	m.recordCall("GetSystemByName", domainID, name)
+	if m.GetSystemByNameErr != nil {
+		return nil, m.GetSystemByNameErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, s := range m.Systems {
+		if s.DomainID == domainID && s.Name == name {
+			return s, nil
+		}
+	}
+	return nil, NewErrNotFound("system", name)
+}
+
+func (m *MockDataStore) UpdateSystem(system *models.System) error {
+	m.recordCall("UpdateSystem", system)
+	if m.UpdateSystemErr != nil {
+		return m.UpdateSystemErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.Systems[system.ID] = system
+	return nil
+}
+
+func (m *MockDataStore) DeleteSystem(id int) error {
+	m.recordCall("DeleteSystem", id)
+	if m.DeleteSystemErr != nil {
+		return m.DeleteSystemErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.Systems, id)
+	return nil
+}
+
+func (m *MockDataStore) ListSystems() ([]*models.System, error) {
+	m.recordCall("ListSystems")
+	if m.ListSystemsErr != nil {
+		return nil, m.ListSystemsErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var systems []*models.System
+	for _, s := range m.Systems {
+		systems = append(systems, s)
+	}
+	return systems, nil
+}
+
+func (m *MockDataStore) ListSystemsByDomain(domainID int) ([]*models.System, error) {
+	m.recordCall("ListSystemsByDomain", domainID)
+	if m.ListSystemsByDomainErr != nil {
+		return nil, m.ListSystemsByDomainErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var systems []*models.System
+	for _, s := range m.Systems {
+		if s.DomainID.Valid && int(s.DomainID.Int64) == domainID {
+			systems = append(systems, s)
+		}
+	}
+	return systems, nil
+}
+
+func (m *MockDataStore) FindSystemsByName(name string) ([]*models.SystemWithHierarchy, error) {
+	m.recordCall("FindSystemsByName", name)
+	if m.FindSystemsByNameErr != nil {
+		return nil, m.FindSystemsByNameErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var results []*models.SystemWithHierarchy
+	for _, s := range m.Systems {
+		if s.Name == name {
+			result := &models.SystemWithHierarchy{System: s}
+			// Find parent domain
+			if s.DomainID.Valid {
+				if d, ok := m.Domains[int(s.DomainID.Int64)]; ok {
+					result.Domain = d
+				}
+			}
+			// Find parent ecosystem
+			if s.EcosystemID.Valid {
+				for _, e := range m.Ecosystems {
+					if e.ID == int(s.EcosystemID.Int64) {
+						result.Ecosystem = e
+						break
+					}
+				}
+			}
+			results = append(results, result)
+		}
+	}
+	return results, nil
+}
+
+func (m *MockDataStore) CountSystems() (int, error) {
+	m.recordCall("CountSystems")
+	if m.CountSystemsErr != nil {
+		return 0, m.CountSystemsErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.Systems), nil
 }
 
 // =============================================================================
@@ -878,6 +1033,17 @@ func (m *MockDataStore) SetActiveDomain(domainID *int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.Context.ActiveDomainID = domainID
+	return nil
+}
+
+func (m *MockDataStore) SetActiveSystem(systemID *int) error {
+	m.recordCall("SetActiveSystem", systemID)
+	if m.SetActiveSystemErr != nil {
+		return m.SetActiveSystemErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.Context.ActiveSystemID = systemID
 	return nil
 }
 
@@ -2388,6 +2554,7 @@ func (m *MockDataStore) Reset() {
 	defer m.mu.Unlock()
 	m.Ecosystems = make(map[string]*models.Ecosystem)
 	m.Domains = make(map[int]*models.Domain)
+	m.Systems = make(map[int]*models.System)
 	m.Apps = make(map[int]*models.App)
 	m.Workspaces = make(map[int]*models.Workspace)
 	m.Plugins = make(map[string]*models.NvimPluginDB)
@@ -2402,6 +2569,7 @@ func (m *MockDataStore) Reset() {
 	m.Calls = nil
 	m.nextEcosystemID = 1
 	m.nextDomainID = 1
+	m.nextSystemID = 1
 	m.nextAppID = 1
 	m.nextWorkspaceID = 1
 	m.nextPluginID = 1

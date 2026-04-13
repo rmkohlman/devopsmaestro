@@ -79,6 +79,12 @@ func getAll(cmd *cobra.Command) error {
 		domains = nil
 	}
 
+	systems, err := ds.ListSystems()
+	if err != nil {
+		render.Warning(fmt.Sprintf("failed to list systems: %v", err))
+		systems = nil
+	}
+
 	apps, err := ds.ListAllApps()
 	if err != nil {
 		render.Warning(fmt.Sprintf("failed to list apps: %v", err))
@@ -157,6 +163,7 @@ func getAll(cmd *cobra.Command) error {
 	if !scope.ShowAll {
 		ecosystems = filterEcosystems(ecosystems, scope)
 		domains = filterDomains(domains, scope)
+		systems = filterSystems(systems, scope, domains)
 		apps = filterApps(apps, scope, domains)
 		workspaces = filterWorkspaces(workspaces, scope, apps)
 		credentials = filterCredentials(credentials, scope, domains, apps, workspaces)
@@ -229,6 +236,17 @@ func getAll(cmd *cobra.Command) error {
 		// Domains (need parent ecosystem name)
 		for _, d := range domains {
 			allResources = append(allResources, handlers.NewDomainResource(d, ecoNames[d.EcosystemID]))
+		}
+
+		// Systems (need parent domain and ecosystem names)
+		for _, s := range systems {
+			domName := ""
+			ecoName := ""
+			if s.DomainID.Valid {
+				domName = domNames[int(s.DomainID.Int64)]
+				ecoName = ecoNames[domEcoIDs[int(s.DomainID.Int64)]]
+			}
+			allResources = append(allResources, handlers.NewSystemResource(s, domName, ecoName))
 		}
 
 		// Registries — global; include only when unscoped
@@ -349,10 +367,12 @@ func getAll(cmd *cobra.Command) error {
 
 	// Fetch active context for markers (ignore errors - no active context is fine)
 	var activeEcoID, activeDomID, activeAppID *int
+	var activeSystemID *int
 	var activeWorkspaceName string
 	if dbCtx, ctxErr := ds.GetContext(); ctxErr == nil && dbCtx != nil {
 		activeEcoID = dbCtx.ActiveEcosystemID
 		activeDomID = dbCtx.ActiveDomainID
+		activeSystemID = dbCtx.ActiveSystemID
 		activeAppID = dbCtx.ActiveAppID
 		if dbCtx.ActiveWorkspaceID != nil {
 			if ws, wsErr := ds.GetWorkspaceByID(*dbCtx.ActiveWorkspaceID); wsErr == nil {
@@ -379,6 +399,17 @@ func getAll(cmd *cobra.Command) error {
 	if len(domains) > 0 {
 		b := &domainTableBuilder{DataStore: ds, ActiveID: activeDomID}
 		td := BuildTable(b, domains, wide)
+		renderTable(td)
+	} else {
+		render.Plainf("  (none)")
+	}
+	render.Blank()
+
+	// === Systems ===
+	render.Info(fmt.Sprintf("=== Systems (%d) ===", len(systems)))
+	if len(systems) > 0 {
+		b := &systemTableBuilder{DataStore: ds, ActiveID: activeSystemID}
+		td := BuildTable(b, systems, wide)
 		renderTable(td)
 	} else {
 		render.Plainf("  (none)")
@@ -768,6 +799,30 @@ func filterDomains(domains []*models.Domain, sc *scopeContext) []*models.Domain 
 			continue
 		}
 		filtered = append(filtered, d)
+	}
+	return filtered
+}
+
+// filterSystems filters systems to those in the scoped domains.
+// filteredDomains should be the already-filtered domain list.
+func filterSystems(systems []*models.System, sc *scopeContext, filteredDomains []*models.Domain) []*models.System {
+	if sc.EcosystemID == nil {
+		return systems
+	}
+
+	allowedDomains := make(map[int64]bool)
+	for _, d := range filteredDomains {
+		allowedDomains[int64(d.ID)] = true
+	}
+
+	var filtered []*models.System
+	for _, s := range systems {
+		if s.DomainID.Valid {
+			if allowedDomains[s.DomainID.Int64] {
+				filtered = append(filtered, s)
+			}
+		}
+		// Systems without a domain are excluded in scoped mode
 	}
 	return filtered
 }

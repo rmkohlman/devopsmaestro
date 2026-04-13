@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"time"
 
 	"devopsmaestro/models"
@@ -79,6 +80,39 @@ type DomainStore interface {
 	FindDomainsByName(name string) ([]*models.DomainWithHierarchy, error)
 }
 
+// SystemStore defines operations for managing systems (organizational grouping within a domain).
+type SystemStore interface {
+	// CreateSystem inserts a new system into the database.
+	CreateSystem(system *models.System) error
+
+	// GetSystemByID retrieves a system by its ID.
+	GetSystemByID(id int) (*models.System, error)
+
+	// GetSystemByName retrieves a system by domain ID and name.
+	// domainID is nullable because systems can exist without a parent domain.
+	GetSystemByName(domainID sql.NullInt64, name string) (*models.System, error)
+
+	// UpdateSystem updates an existing system.
+	UpdateSystem(system *models.System) error
+
+	// DeleteSystem removes a system by ID.
+	DeleteSystem(id int) error
+
+	// ListSystems retrieves all systems across all domains.
+	ListSystems() ([]*models.System, error)
+
+	// ListSystemsByDomain retrieves all systems for a domain.
+	ListSystemsByDomain(domainID int) ([]*models.System, error)
+
+	// FindSystemsByName retrieves all systems with the given name,
+	// including their parent domain and ecosystem via LEFT JOINs.
+	// Returns an empty slice (not an error) if no systems match.
+	FindSystemsByName(name string) ([]*models.SystemWithHierarchy, error)
+
+	// CountSystems returns the total number of systems.
+	CountSystems() (int, error)
+}
+
 // AppStore defines operations for managing apps (codebase/application within a domain).
 type AppStore interface {
 	// CreateApp inserts a new app into the database.
@@ -151,7 +185,7 @@ type WorkspaceStore interface {
 }
 
 // ContextStore defines operations for active selection state tracking.
-// The hierarchy is: Ecosystem -> Domain -> App -> Workspace
+// The hierarchy is: Ecosystem -> Domain -> System -> App -> Workspace
 type ContextStore interface {
 	// GetContext retrieves the current context.
 	GetContext() (*models.Context, error)
@@ -161,6 +195,9 @@ type ContextStore interface {
 
 	// SetActiveDomain sets the active domain in the context.
 	SetActiveDomain(domainID *int) error
+
+	// SetActiveSystem sets the active system in the context.
+	SetActiveSystem(systemID *int) error
 
 	// SetActiveApp sets the active app in the context.
 	SetActiveApp(appID *int) error

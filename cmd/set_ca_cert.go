@@ -225,7 +225,7 @@ func setCACertAtApp(ctx resource.Context, appName string, cert models.CACertConf
 		return "", "", fmt.Errorf("failed to get domain for app: %w", err)
 	}
 
-	appYAML := app.ToYAML(domain.Name, nil, "")
+	appYAML := app.ToYAML(domain.Name, nil, "", "")
 	appYAML.Spec.Build.CACerts = upsertCACertInSlice(appYAML.Spec.Build.CACerts, cert)
 
 	data, err := yaml.Marshal(appYAML)

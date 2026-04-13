@@ -9,6 +9,9 @@ type WorkspaceFilter struct {
 	// DomainName filters by domain name.
 	DomainName string
 
+	// SystemName filters by system name.
+	SystemName string
+
 	// AppName filters by app name.
 	AppName string
 
@@ -20,6 +23,7 @@ type WorkspaceFilter struct {
 func (f WorkspaceFilter) IsEmpty() bool {
 	return f.EcosystemName == "" &&
 		f.DomainName == "" &&
+		f.SystemName == "" &&
 		f.AppName == "" &&
 		f.WorkspaceName == ""
 }
@@ -44,6 +48,19 @@ type DomainWithHierarchy struct {
 	Domain *Domain
 
 	// Ecosystem is the parent ecosystem.
+	Ecosystem *Ecosystem
+}
+
+// SystemWithHierarchy contains a system along with its parent hierarchy.
+// This is used for ambiguity detection when resolving systems by name.
+type SystemWithHierarchy struct {
+	// System is the resolved system.
+	System *System
+
+	// Domain is the parent domain (may be nil if system has no domain).
+	Domain *Domain
+
+	// Ecosystem is the parent ecosystem (may be nil if system has no ecosystem).
 	Ecosystem *Ecosystem
 }
 

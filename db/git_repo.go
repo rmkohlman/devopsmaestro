@@ -256,7 +256,7 @@ func (ds *SQLDataStore) ListGitRepos() ([]models.GitRepoDB, error) {
 // Returns an empty slice (not nil) when no apps are linked.
 func (ds *SQLDataStore) ListAppsByGitRepoID(gitRepoID int64) ([]*models.App, error) {
 	query := `
-		SELECT id, domain_id, name, path, description, theme, nvim_package,
+		SELECT id, domain_id, system_id, name, path, description, theme, nvim_package,
 		       terminal_package, language, build_config, git_repo_id,
 		       created_at, updated_at
 		FROM apps
@@ -275,6 +275,7 @@ func (ds *SQLDataStore) ListAppsByGitRepoID(gitRepoID int64) ([]*models.App, err
 		err := rows.Scan(
 			&app.ID,
 			&app.DomainID,
+			&app.SystemID,
 			&app.Name,
 			&app.Path,
 			&app.Description,

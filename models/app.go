@@ -14,6 +14,7 @@ import (
 type App struct {
 	ID              int            `db:"id" json:"id" yaml:"-"`
 	DomainID        int            `db:"domain_id" json:"domain_id" yaml:"-"`
+	SystemID        sql.NullInt64  `db:"system_id" json:"system_id,omitempty" yaml:"-"`
 	Name            string         `db:"name" json:"name" yaml:"name"`
 	Path            string         `db:"path" json:"path" yaml:"path"`
 	Description     sql.NullString `db:"description" json:"description,omitempty" yaml:"description,omitempty"`
@@ -40,6 +41,7 @@ type AppYAML struct {
 type AppMetadata struct {
 	Name        string            `yaml:"name"`
 	Domain      string            `yaml:"domain"`
+	System      string            `yaml:"system,omitempty"`
 	Ecosystem   string            `yaml:"ecosystem,omitempty"`
 	Labels      map[string]string `yaml:"labels,omitempty"`
 	Annotations map[string]string `yaml:"annotations,omitempty"`
@@ -106,7 +108,8 @@ type AppServiceConfig struct {
 // ToYAML converts an App to YAML format.
 // workspaceNames should contain the names of child workspaces (pass nil for empty).
 // gitRepoName is the resolved name of the associated git repo (pass "" if none).
-func (a *App) ToYAML(domainName string, workspaceNames []string, gitRepoName string) AppYAML {
+// systemName is the resolved name of the associated system (pass "" if none).
+func (a *App) ToYAML(domainName string, workspaceNames []string, gitRepoName string, systemName string) AppYAML {
 	description := ""
 	if a.Description.Valid {
 		description = a.Description.String
@@ -150,6 +153,7 @@ func (a *App) ToYAML(domainName string, workspaceNames []string, gitRepoName str
 		Metadata: AppMetadata{
 			Name:        a.Name,
 			Domain:      domainName,
+			System:      systemName,
 			Labels:      make(map[string]string),
 			Annotations: annotations,
 		},

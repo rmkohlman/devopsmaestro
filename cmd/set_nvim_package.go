@@ -228,7 +228,7 @@ func setNvimPkgAtApp(cmd *cobra.Command, ctx resource.Context, appName, pkgName 
 		return nil, fmt.Errorf("failed to get domain for app: %w", err)
 	}
 
-	appYAML := app.ToYAML(dom.Name, nil, "")
+	appYAML := app.ToYAML(dom.Name, nil, "", "")
 	yamlData, err := yaml.Marshal(appYAML)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal app YAML: %w", err)
