@@ -6,6 +6,14 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ---
 
+## v0.87.3 (2026-04-13)
+
+**Bug Fixes**
+
+- **System column missing from get command table outputs** — Added SYSTEM column to `get apps`, `get app`, `get all`, `get workspaces --all`, and `get workspace` detail views so the hierarchy context is complete ([#288](https://github.com/rmkohlman/devopsmaestro/issues/288)).
+
+---
+
 ## v0.87.2 (2026-04-13)
 
 **Bug Fixes**
