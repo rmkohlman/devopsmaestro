@@ -6,6 +6,24 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ---
 
+## v0.86.0 (2026-04-12)
+
+**New Features**
+
+- **Ephemeral sandbox workspaces (`dvm sandbox`)** — New top-level command (alias: `sb`) with `create`, `get`, `attach`, and `delete` subcommands for spinning up short-lived language environments in containers. Containers are auto-cleaned on exit and tracked at runtime via container labels only — no database records. Image caching enables fast re-creation (#259).
+
+- **5 built-in language presets** — Python, Go, Rust, Node.js, and C++ presets ship out of the box with sensible base images and toolchain defaults (#259).
+
+- **Interactive version picker** — Tab/arrow navigation for selecting a language runtime version without typing exact strings (#259).
+
+- **`--deps` flag for dependency file injection** — Supports `requirements.txt` (Python), `go.mod` (Go), `package.json` (Node.js), `Cargo.toml` (Rust), and `CMakeLists.txt` (C++) so project dependencies are available inside the sandbox immediately (#259).
+
+- **`--version`, `--name`, `--repo`, `--no-cache` flags** — Fine-grained control over sandbox runtime version, container name, image repository, and cache bypass (#259).
+
+- **Extended `ContainerRuntime` interface** — Adds `RemoveContainer`, `RemoveImage`, `ListContainers`, and `ListImages` methods to support sandbox lifecycle management (#259).
+
+---
+
 ## v0.85.2 (2026-04-12)
 
 **New Features**
