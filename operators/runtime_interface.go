@@ -82,6 +82,7 @@ type WorkspaceInfo struct {
 	Workspace string            // Workspace name from labels
 	Ecosystem string            // Ecosystem name from labels
 	Domain    string            // Domain name from labels
+	System    string            // System name from labels
 	Labels    map[string]string // All labels
 }
 
@@ -122,6 +123,7 @@ type StartOptions struct {
 	AppName            string            // App name for labeling
 	EcosystemName      string            // Ecosystem name for hierarchical naming
 	DomainName         string            // Domain name for hierarchical naming
+	SystemName         string            // System name for hierarchical naming (optional)
 	AppPath            string            // Host path to mount at /workspace
 	WorkingDir         string            // Container working directory (default: /workspace)
 	Command            []string          // Command to run (default: /bin/sleep infinity for keep-alive)
@@ -139,16 +141,18 @@ type StartOptions struct {
 
 // ContainerNamingStrategy defines the interface for generating and parsing container names
 type ContainerNamingStrategy interface {
-	// GenerateName generates a container name from ecosystem, domain, app, and workspace
-	GenerateName(ecosystem, domain, app, workspace string) string
+	// GenerateName generates a container name from ecosystem, domain, system, app, and workspace.
+	// System is optional — when empty, the segment is omitted.
+	GenerateName(ecosystem, domain, system, app, workspace string) string
 
 	// ParseName parses a container name and returns its components
 	// Returns ok=false if the name doesn't follow this strategy's format
-	ParseName(containerName string) (ecosystem, domain, app, workspace string, ok bool)
+	ParseName(containerName string) (ecosystem, domain, system, app, workspace string, ok bool)
 }
 
 // HierarchicalNamingStrategy implements a hierarchical container naming strategy
-// Format: dvm-{ecosystem}-{domain}-{app}-{workspace} (all lowercase, dash-separated)
+// Format: dvm-{ecosystem}-{domain}-{system}-{app}-{workspace} (all lowercase, dash-separated)
+// System is optional — when empty, the segment is omitted.
 // If ecosystem/domain are empty, falls back to legacy dvm-{app}-{workspace} format
 type HierarchicalNamingStrategy struct{}
 
@@ -158,10 +162,11 @@ func NewHierarchicalNamingStrategy() ContainerNamingStrategy {
 }
 
 // GenerateName generates a hierarchical container name
-func (h *HierarchicalNamingStrategy) GenerateName(ecosystem, domain, app, workspace string) string {
+func (h *HierarchicalNamingStrategy) GenerateName(ecosystem, domain, system, app, workspace string) string {
 	// Normalize all components to lowercase
 	ecosystem = strings.ToLower(strings.TrimSpace(ecosystem))
 	domain = strings.ToLower(strings.TrimSpace(domain))
+	system = strings.ToLower(strings.TrimSpace(system))
 	app = strings.ToLower(strings.TrimSpace(app))
 	workspace = strings.ToLower(strings.TrimSpace(workspace))
 
@@ -178,6 +183,11 @@ func (h *HierarchicalNamingStrategy) GenerateName(ecosystem, domain, app, worksp
 		parts = append(parts, domain)
 	}
 
+	// Add system if present
+	if system != "" {
+		parts = append(parts, system)
+	}
+
 	// Always add app and workspace
 	parts = append(parts, app, workspace)
 
@@ -185,16 +195,16 @@ func (h *HierarchicalNamingStrategy) GenerateName(ecosystem, domain, app, worksp
 }
 
 // ParseName parses a hierarchical container name into its components
-func (h *HierarchicalNamingStrategy) ParseName(containerName string) (ecosystem, domain, app, workspace string, ok bool) {
+func (h *HierarchicalNamingStrategy) ParseName(containerName string) (ecosystem, domain, system, app, workspace string, ok bool) {
 	// Must start with "dvm-"
 	if !strings.HasPrefix(containerName, "dvm-") {
-		return "", "", "", "", false
+		return "", "", "", "", "", false
 	}
 
 	// Split into parts
 	parts := strings.Split(containerName, "-")
 	if len(parts) < 3 { // At minimum: dvm-app-workspace
-		return "", "", "", "", false
+		return "", "", "", "", "", false
 	}
 
 	// Remove "dvm" prefix
@@ -203,24 +213,27 @@ func (h *HierarchicalNamingStrategy) ParseName(containerName string) (ecosystem,
 	switch len(parts) {
 	case 2:
 		// Legacy format: dvm-app-workspace
-		return "", "", parts[0], parts[1], true
+		return "", "", "", parts[0], parts[1], true
 	case 3:
 		// Single hierarchy: dvm-ecosystem-app-workspace or dvm-domain-app-workspace
 		// We can't distinguish between ecosystem and domain without context
 		// For parsing purposes, assume it's ecosystem
-		return parts[0], "", parts[1], parts[2], true
+		return parts[0], "", "", parts[1], parts[2], true
 	case 4:
-		// Full hierarchy: dvm-ecosystem-domain-app-workspace
-		return parts[0], parts[1], parts[2], parts[3], true
+		// Full hierarchy without system: dvm-ecosystem-domain-app-workspace
+		return parts[0], parts[1], "", parts[2], parts[3], true
+	case 5:
+		// Full hierarchy with system: dvm-ecosystem-domain-system-app-workspace
+		return parts[0], parts[1], parts[2], parts[3], parts[4], true
 	default:
 		// Too many parts, not a valid format
-		return "", "", "", "", false
+		return "", "", "", "", "", false
 	}
 }
 
 // computeContainerName returns the container name to use.
 // If ContainerName is set, use it. Otherwise, generate using hierarchical naming
-// if ecosystem/domain are provided, or fall back to WorkspaceName.
+// if ecosystem/domain/system are provided, or fall back to WorkspaceName.
 func (opts StartOptions) ComputeContainerName() string {
 	if opts.ContainerName != "" {
 		return opts.ContainerName
@@ -229,7 +242,7 @@ func (opts StartOptions) ComputeContainerName() string {
 	// Use hierarchical naming if ecosystem or domain are provided
 	if opts.EcosystemName != "" || opts.DomainName != "" {
 		strategy := NewHierarchicalNamingStrategy()
-		return strategy.GenerateName(opts.EcosystemName, opts.DomainName, opts.AppName, opts.WorkspaceName)
+		return strategy.GenerateName(opts.EcosystemName, opts.DomainName, opts.SystemName, opts.AppName, opts.WorkspaceName)
 	}
 
 	// Fall back to workspace name for backward compatibility

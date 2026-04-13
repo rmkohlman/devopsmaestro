@@ -73,6 +73,9 @@ type WorkspaceWithHierarchy struct {
 	// App is the parent app.
 	App *App
 
+	// System is the optional parent system (nil when app has no system).
+	System *System
+
 	// Domain is the parent domain.
 	Domain *Domain
 
@@ -81,8 +84,11 @@ type WorkspaceWithHierarchy struct {
 }
 
 // FullPath returns the full hierarchical path of the workspace.
-// Format: ecosystem/domain/app/workspace
+// Format: ecosystem/domain/system/app/workspace (system omitted when nil)
 func (w *WorkspaceWithHierarchy) FullPath() string {
+	if w.System != nil {
+		return w.Ecosystem.Name + "/" + w.Domain.Name + "/" + w.System.Name + "/" + w.App.Name + "/" + w.Workspace.Name
+	}
 	return w.Ecosystem.Name + "/" + w.Domain.Name + "/" + w.App.Name + "/" + w.Workspace.Name
 }
 

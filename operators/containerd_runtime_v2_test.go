@@ -167,15 +167,23 @@ func TestHierarchicalNamingStrategy(t *testing.T) {
 	strategy := NewHierarchicalNamingStrategy()
 
 	t.Run("GenerateName - full hierarchy", func(t *testing.T) {
-		result := strategy.GenerateName("production", "backend", "userservice", "dev")
+		result := strategy.GenerateName("production", "backend", "", "userservice", "dev")
 		expected := "dvm-production-backend-userservice-dev"
 		if result != expected {
 			t.Errorf("Expected %s, got %s", expected, result)
 		}
 	})
 
+	t.Run("GenerateName - full hierarchy with system", func(t *testing.T) {
+		result := strategy.GenerateName("production", "backend", "auth", "userservice", "dev")
+		expected := "dvm-production-backend-auth-userservice-dev"
+		if result != expected {
+			t.Errorf("Expected %s, got %s", expected, result)
+		}
+	})
+
 	t.Run("GenerateName - ecosystem only", func(t *testing.T) {
-		result := strategy.GenerateName("staging", "", "frontend", "test")
+		result := strategy.GenerateName("staging", "", "", "frontend", "test")
 		expected := "dvm-staging-frontend-test"
 		if result != expected {
 			t.Errorf("Expected %s, got %s", expected, result)
@@ -183,7 +191,7 @@ func TestHierarchicalNamingStrategy(t *testing.T) {
 	})
 
 	t.Run("GenerateName - domain only", func(t *testing.T) {
-		result := strategy.GenerateName("", "data", "analytics", "dev")
+		result := strategy.GenerateName("", "data", "", "analytics", "dev")
 		expected := "dvm-data-analytics-dev"
 		if result != expected {
 			t.Errorf("Expected %s, got %s", expected, result)
@@ -191,7 +199,7 @@ func TestHierarchicalNamingStrategy(t *testing.T) {
 	})
 
 	t.Run("GenerateName - legacy format (no hierarchy)", func(t *testing.T) {
-		result := strategy.GenerateName("", "", "myapp", "dev")
+		result := strategy.GenerateName("", "", "", "myapp", "dev")
 		expected := "dvm-myapp-dev"
 		if result != expected {
 			t.Errorf("Expected %s, got %s", expected, result)
@@ -199,62 +207,73 @@ func TestHierarchicalNamingStrategy(t *testing.T) {
 	})
 
 	t.Run("GenerateName - case normalization", func(t *testing.T) {
-		result := strategy.GenerateName("PROD", "Backend", "UserService", "DEV")
+		result := strategy.GenerateName("PROD", "Backend", "", "UserService", "DEV")
 		expected := "dvm-prod-backend-userservice-dev"
 		if result != expected {
 			t.Errorf("Expected %s, got %s", expected, result)
 		}
 	})
 
-	t.Run("ParseName - full hierarchy", func(t *testing.T) {
-		ecosystem, domain, app, workspace, ok := strategy.ParseName("dvm-production-backend-userservice-dev")
+	t.Run("ParseName - full hierarchy without system", func(t *testing.T) {
+		ecosystem, domain, system, app, workspace, ok := strategy.ParseName("dvm-production-backend-userservice-dev")
 		if !ok {
 			t.Errorf("Expected parsing to succeed")
 		}
-		if ecosystem != "production" || domain != "backend" || app != "userservice" || workspace != "dev" {
-			t.Errorf("Expected (production, backend, userservice, dev), got (%s, %s, %s, %s)",
-				ecosystem, domain, app, workspace)
+		if ecosystem != "production" || domain != "backend" || system != "" || app != "userservice" || workspace != "dev" {
+			t.Errorf("Expected (production, backend, , userservice, dev), got (%s, %s, %s, %s, %s)",
+				ecosystem, domain, system, app, workspace)
+		}
+	})
+
+	t.Run("ParseName - full hierarchy with system", func(t *testing.T) {
+		ecosystem, domain, system, app, workspace, ok := strategy.ParseName("dvm-production-backend-auth-userservice-dev")
+		if !ok {
+			t.Errorf("Expected parsing to succeed")
+		}
+		if ecosystem != "production" || domain != "backend" || system != "auth" || app != "userservice" || workspace != "dev" {
+			t.Errorf("Expected (production, backend, auth, userservice, dev), got (%s, %s, %s, %s, %s)",
+				ecosystem, domain, system, app, workspace)
 		}
 	})
 
 	t.Run("ParseName - ecosystem only", func(t *testing.T) {
-		ecosystem, domain, app, workspace, ok := strategy.ParseName("dvm-staging-frontend-test")
+		ecosystem, domain, system, app, workspace, ok := strategy.ParseName("dvm-staging-frontend-test")
 		if !ok {
 			t.Errorf("Expected parsing to succeed")
 		}
-		if ecosystem != "staging" || domain != "" || app != "frontend" || workspace != "test" {
-			t.Errorf("Expected (staging, , frontend, test), got (%s, %s, %s, %s)",
-				ecosystem, domain, app, workspace)
+		if ecosystem != "staging" || domain != "" || system != "" || app != "frontend" || workspace != "test" {
+			t.Errorf("Expected (staging, , , frontend, test), got (%s, %s, %s, %s, %s)",
+				ecosystem, domain, system, app, workspace)
 		}
 	})
 
 	t.Run("ParseName - legacy format", func(t *testing.T) {
-		ecosystem, domain, app, workspace, ok := strategy.ParseName("dvm-myapp-dev")
+		ecosystem, domain, system, app, workspace, ok := strategy.ParseName("dvm-myapp-dev")
 		if !ok {
 			t.Errorf("Expected parsing to succeed")
 		}
-		if ecosystem != "" || domain != "" || app != "myapp" || workspace != "dev" {
-			t.Errorf("Expected (, , myapp, dev), got (%s, %s, %s, %s)",
-				ecosystem, domain, app, workspace)
+		if ecosystem != "" || domain != "" || system != "" || app != "myapp" || workspace != "dev" {
+			t.Errorf("Expected (, , , myapp, dev), got (%s, %s, %s, %s, %s)",
+				ecosystem, domain, system, app, workspace)
 		}
 	})
 
 	t.Run("ParseName - invalid format (no dvm prefix)", func(t *testing.T) {
-		_, _, _, _, ok := strategy.ParseName("invalid-name")
+		_, _, _, _, _, ok := strategy.ParseName("invalid-name")
 		if ok {
 			t.Errorf("Expected parsing to fail for invalid format")
 		}
 	})
 
 	t.Run("ParseName - invalid format (too few parts)", func(t *testing.T) {
-		_, _, _, _, ok := strategy.ParseName("dvm-only")
+		_, _, _, _, _, ok := strategy.ParseName("dvm-only")
 		if ok {
 			t.Errorf("Expected parsing to fail for too few parts")
 		}
 	})
 
 	t.Run("ParseName - invalid format (too many parts)", func(t *testing.T) {
-		_, _, _, _, ok := strategy.ParseName("dvm-too-many-parts-here-test-dev-extra")
+		_, _, _, _, _, ok := strategy.ParseName("dvm-too-many-parts-here-test-dev-extra")
 		if ok {
 			t.Errorf("Expected parsing to fail for too many parts")
 		}

@@ -36,7 +36,7 @@ func (bc *buildContext) resolveWorkspaceTarget() error {
 // resolveFromHierarchyFlags uses the workspace resolver with hierarchy flags.
 func (bc *buildContext) resolveFromHierarchyFlags() error {
 	slog.Debug("using hierarchy flags", "ecosystem", buildFlags.Ecosystem,
-		"domain", buildFlags.Domain, "app", buildFlags.App, "workspace", buildFlags.Workspace)
+		"domain", buildFlags.Domain, "system", buildFlags.System, "app", buildFlags.App, "workspace", buildFlags.Workspace)
 
 	wsResolver := wsresolver.NewWorkspaceResolver(bc.ds)
 	result, err := wsResolver.Resolve(buildFlags.ToFilter())
@@ -96,6 +96,18 @@ func (bc *buildContext) resolveFromActiveContext() error {
 	}
 
 	return nil
+}
+
+// buildKey returns a unique key for this workspace build, used for staging
+// directories and build cache paths. Prefers the workspace slug (which encodes
+// the full hierarchy: ecosystem-domain-system-app-workspace) for uniqueness.
+// Falls back to appName-workspaceName for workspaces created before slug
+// generation was introduced.
+func (bc *buildContext) buildKey() string {
+	if bc.workspace != nil && bc.workspace.Slug != "" {
+		return bc.workspace.Slug
+	}
+	return bc.appName + "-" + bc.workspaceName
 }
 
 // validateAppPath verifies the app's source path exists on disk.
@@ -215,11 +227,12 @@ func (bc *buildContext) prepareSourceAndStaging() error {
 	render.Progress("Detecting app language...")
 	bc.languageName, bc.version, _ = bc.detectLanguageAndReport()
 
-	// Use appName-workspaceName to ensure each parallel workspace build gets
-	// its own isolated staging directory (prevents collisions when multiple
-	// apps share the same git repo — filepath.Base(sourcePath) would be
-	// identical for both, so we include the app name for uniqueness).
-	stagingKey := bc.appName + "-" + bc.workspaceName
+	// Use the workspace slug (ecosystem-domain-system-app-workspace) to
+	// ensure each parallel workspace build gets its own isolated staging
+	// directory. The slug encodes the full hierarchy including system,
+	// preventing collisions when multiple apps share the same name across
+	// different systems or domains.
+	stagingKey := bc.buildKey()
 	bc.stagingDir = paths.New(bc.homeDir).BuildStagingDir(stagingKey)
 	if err := prepareStagingDirectory(bc.stagingDir, bc.sourcePath, bc.appName, bc.workspaceName, bc.ds, bc.workspace); err != nil {
 		return err
@@ -494,7 +507,7 @@ func (bc *buildContext) buildImage() (skipped bool, err error) {
 
 	if !buildNocache {
 		pc := paths.New(bc.homeDir)
-		cacheKey := fmt.Sprintf("%s-%s", bc.appName, bc.workspaceName)
+		cacheKey := bc.buildKey()
 		cacheDir := filepath.Join(pc.Root(), "build-cache", cacheKey)
 
 		if err := os.MkdirAll(cacheDir, 0755); err != nil {

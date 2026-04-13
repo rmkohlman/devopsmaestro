@@ -115,6 +115,7 @@ func (r *ContainerdRuntimeV2) ListWorkspaces(ctx context.Context) ([]WorkspaceIn
 			Workspace: labels["io.devopsmaestro.workspace"],
 			Ecosystem: labels["io.devopsmaestro.ecosystem"],
 			Domain:    labels["io.devopsmaestro.domain"],
+			System:    labels["io.devopsmaestro.system"],
 			Labels:    labels,
 		})
 	}
@@ -167,6 +168,7 @@ func (r *ContainerdRuntimeV2) FindWorkspace(ctx context.Context, name string) (*
 		Workspace: labels["io.devopsmaestro.workspace"],
 		Ecosystem: labels["io.devopsmaestro.ecosystem"],
 		Domain:    labels["io.devopsmaestro.domain"],
+		System:    labels["io.devopsmaestro.system"],
 		Labels:    labels,
 	}, nil
 }

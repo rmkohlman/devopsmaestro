@@ -97,7 +97,7 @@ func countCallsTo(store *db.MockDataStore, methodName string) int {
 func hasContextMutationCall(store *db.MockDataStore) bool {
 	for _, call := range store.Calls {
 		switch call.Method {
-		case "SetActiveEcosystem", "SetActiveDomain", "SetActiveApp", "SetActiveWorkspace":
+		case "SetActiveEcosystem", "SetActiveDomain", "SetActiveSystem", "SetActiveApp", "SetActiveWorkspace":
 			return true
 		}
 	}
@@ -133,11 +133,13 @@ func TestUpdateContextFromHierarchy_MutatesDBContext(t *testing.T) {
 	err := updateContextFromHierarchy(store, wh)
 	require.NoError(t, err)
 
-	// Verify all four SetActive* calls were made
+	// Verify all five SetActive* calls were made
 	assert.Equal(t, 1, countCallsTo(store, "SetActiveEcosystem"),
 		"updateContextFromHierarchy should call SetActiveEcosystem once")
 	assert.Equal(t, 1, countCallsTo(store, "SetActiveDomain"),
 		"updateContextFromHierarchy should call SetActiveDomain once")
+	assert.Equal(t, 1, countCallsTo(store, "SetActiveSystem"),
+		"updateContextFromHierarchy should call SetActiveSystem once (nil when no system)")
 	assert.Equal(t, 1, countCallsTo(store, "SetActiveApp"),
 		"updateContextFromHierarchy should call SetActiveApp once")
 	assert.Equal(t, 1, countCallsTo(store, "SetActiveWorkspace"),
@@ -272,7 +274,8 @@ func TestUpdateContextFromHierarchy_NotCalledDuringBuild(t *testing.T) {
 	setActiveCallCount := countCallsTo(store, "SetActiveApp") +
 		countCallsTo(store, "SetActiveWorkspace") +
 		countCallsTo(store, "SetActiveEcosystem") +
-		countCallsTo(store, "SetActiveDomain")
+		countCallsTo(store, "SetActiveDomain") +
+		countCallsTo(store, "SetActiveSystem")
 
 	assert.Equal(t, 0, setActiveCallCount,
 		"Bug #197: resolveFromHierarchyFlags calls updateContextFromHierarchy "+

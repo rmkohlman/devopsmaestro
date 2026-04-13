@@ -150,7 +150,7 @@ func createCascadeTestDataStore(t *testing.T) *SQLDataStore {
 		)`,
 		`CREATE TABLE IF NOT EXISTS credentials (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			scope_type TEXT NOT NULL CHECK(scope_type IN ('ecosystem', 'domain', 'app', 'workspace')),
+			scope_type TEXT NOT NULL CHECK(scope_type IN ('ecosystem', 'domain', 'system', 'app', 'workspace')),
 			scope_id INTEGER,
 			name TEXT NOT NULL,
 			source TEXT NOT NULL CHECK(source IN ('vault', 'env')),

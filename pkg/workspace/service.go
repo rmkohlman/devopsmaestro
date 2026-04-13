@@ -10,7 +10,7 @@ import (
 
 // HierarchyReader provides read-only access to the entity hierarchy needed for
 // workspace slug generation and default propagation during workspace creation.
-// It is a narrow sub-interface of db.DataStore that covers only the three
+// It is a narrow sub-interface of db.DataStore that covers only the
 // lookup methods required by PrepareDefaults.
 //
 // Implemented by db.SQLDataStore (and db.MockDataStore in tests).
@@ -19,6 +19,10 @@ type HierarchyReader interface {
 	// GetAppByID retrieves an app by its primary key.
 	// Returns an error if the app does not exist.
 	GetAppByID(id int) (*models.App, error)
+
+	// GetSystemByID retrieves a system by its primary key.
+	// Returns an error if the system does not exist.
+	GetSystemByID(id int) (*models.System, error)
 
 	// GetDomainByID retrieves a domain by its primary key.
 	// Returns an error if the domain does not exist.
@@ -50,6 +54,17 @@ func PrepareDefaults(workspace *models.Workspace, hierarchy HierarchyReader) err
 		if err != nil {
 			return fmt.Errorf("failed to get app for slug generation: %w", err)
 		}
+
+		// Look up system name if the app belongs to one
+		systemName := ""
+		if app.SystemID.Valid {
+			system, err := hierarchy.GetSystemByID(int(app.SystemID.Int64))
+			if err != nil {
+				return fmt.Errorf("failed to get system for slug generation: %w", err)
+			}
+			systemName = system.Name
+		}
+
 		domain, err := hierarchy.GetDomainByID(app.DomainID)
 		if err != nil {
 			return fmt.Errorf("failed to get domain for slug generation: %w", err)
@@ -58,7 +73,7 @@ func PrepareDefaults(workspace *models.Workspace, hierarchy HierarchyReader) err
 		if err != nil {
 			return fmt.Errorf("failed to get ecosystem for slug generation: %w", err)
 		}
-		workspace.Slug = GenerateSlug(ecosystem.Name, domain.Name, app.Name, workspace.Name)
+		workspace.Slug = GenerateSlug(ecosystem.Name, domain.Name, systemName, app.Name, workspace.Name)
 	}
 
 	return nil

@@ -12,6 +12,7 @@ type CredentialScopeType string
 const (
 	CredentialScopeEcosystem CredentialScopeType = "ecosystem"
 	CredentialScopeDomain    CredentialScopeType = "domain"
+	CredentialScopeSystem    CredentialScopeType = "system"
 	CredentialScopeApp       CredentialScopeType = "app"
 	CredentialScopeWorkspace CredentialScopeType = "workspace"
 )
@@ -121,6 +122,7 @@ type CredentialMetadata struct {
 	Name      string `yaml:"name" json:"name"`
 	Ecosystem string `yaml:"ecosystem,omitempty" json:"ecosystem,omitempty"`
 	Domain    string `yaml:"domain,omitempty" json:"domain,omitempty"`
+	System    string `yaml:"system,omitempty" json:"system,omitempty"`
 	App       string `yaml:"app,omitempty" json:"app,omitempty"`
 	Workspace string `yaml:"workspace,omitempty" json:"workspace,omitempty"`
 }
@@ -145,6 +147,8 @@ func (m *CredentialMetadata) ScopeInfo() (CredentialScopeType, string) {
 		return CredentialScopeEcosystem, m.Ecosystem
 	case m.Domain != "":
 		return CredentialScopeDomain, m.Domain
+	case m.System != "":
+		return CredentialScopeSystem, m.System
 	case m.App != "":
 		return CredentialScopeApp, m.App
 	case m.Workspace != "":
@@ -174,6 +178,8 @@ func (c *CredentialDB) ToYAML(scopeName string) CredentialYAML {
 		y.Metadata.Ecosystem = scopeName
 	case CredentialScopeDomain:
 		y.Metadata.Domain = scopeName
+	case CredentialScopeSystem:
+		y.Metadata.System = scopeName
 	case CredentialScopeApp:
 		y.Metadata.App = scopeName
 	case CredentialScopeWorkspace:

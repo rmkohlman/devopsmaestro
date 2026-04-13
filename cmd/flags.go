@@ -12,6 +12,7 @@ import (
 type HierarchyFlags struct {
 	Ecosystem string
 	Domain    string
+	System    string
 	App       string
 	Workspace string
 }
@@ -20,11 +21,13 @@ type HierarchyFlags struct {
 // Flags:
 //   - `-e, --ecosystem` - Filter by ecosystem name
 //   - `-d, --domain`    - Filter by domain name
+//   - `-s, --system`    - Filter by system name
 //   - `-a, --app`       - Filter by app name
 //   - `-w, --workspace` - Filter by workspace name
 func AddHierarchyFlags(cmd *cobra.Command, flags *HierarchyFlags) {
 	cmd.Flags().StringVarP(&flags.Ecosystem, "ecosystem", "e", "", "Filter by ecosystem name")
 	cmd.Flags().StringVarP(&flags.Domain, "domain", "d", "", "Filter by domain name")
+	cmd.Flags().StringVarP(&flags.System, "system", "s", "", "Filter by system name")
 	cmd.Flags().StringVarP(&flags.App, "app", "a", "", "Filter by app name")
 	cmd.Flags().StringVarP(&flags.Workspace, "workspace", "w", "", "Filter by workspace name")
 }
@@ -34,6 +37,7 @@ func (f *HierarchyFlags) ToFilter() models.WorkspaceFilter {
 	return models.WorkspaceFilter{
 		EcosystemName: f.Ecosystem,
 		DomainName:    f.Domain,
+		SystemName:    f.System,
 		AppName:       f.App,
 		WorkspaceName: f.Workspace,
 	}
@@ -41,7 +45,7 @@ func (f *HierarchyFlags) ToFilter() models.WorkspaceFilter {
 
 // HasAnyFlag returns true if any hierarchy flag was provided.
 func (f *HierarchyFlags) HasAnyFlag() bool {
-	return f.Ecosystem != "" || f.Domain != "" || f.App != "" || f.Workspace != ""
+	return f.Ecosystem != "" || f.Domain != "" || f.System != "" || f.App != "" || f.Workspace != ""
 }
 
 // IsEmpty returns true if no flags were provided.

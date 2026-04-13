@@ -21,9 +21,11 @@ import (
 // enabling fine-grained control over hierarchy traversal in tests.
 type mockHierarchyReader struct {
 	apps       map[int]*models.App
+	systems    map[int]*models.System
 	domains    map[int]*models.Domain
 	ecosystems map[int]*models.Ecosystem
 	appErr     error
+	systemErr  error
 	domainErr  error
 	ecoErr     error
 }
@@ -36,6 +38,16 @@ func (m *mockHierarchyReader) GetAppByID(id int) (*models.App, error) {
 		return app, nil
 	}
 	return nil, errors.New("app not found")
+}
+
+func (m *mockHierarchyReader) GetSystemByID(id int) (*models.System, error) {
+	if m.systemErr != nil {
+		return nil, m.systemErr
+	}
+	if sys, ok := m.systems[id]; ok {
+		return sys, nil
+	}
+	return nil, errors.New("system not found")
 }
 
 func (m *mockHierarchyReader) GetDomainByID(id int) (*models.Domain, error) {
@@ -64,6 +76,25 @@ func newFullHierarchy() *mockHierarchyReader {
 	return &mockHierarchyReader{
 		apps: map[int]*models.App{
 			3: {ID: 3, DomainID: 2, Name: "myapp"},
+		},
+		domains: map[int]*models.Domain{
+			2: {ID: 2, EcosystemID: 1, Name: "mydomain"},
+		},
+		ecosystems: map[int]*models.Ecosystem{
+			1: {ID: 1, Name: "myeco"},
+		},
+	}
+}
+
+// newFullHierarchyWithSystem builds a mock reader with a complete hierarchy
+// including system: ecosystem(id=1) → domain(id=2) → system(id=5) → app(id=3).
+func newFullHierarchyWithSystem() *mockHierarchyReader {
+	return &mockHierarchyReader{
+		apps: map[int]*models.App{
+			3: {ID: 3, DomainID: 2, Name: "myapp", SystemID: sql.NullInt64{Int64: 5, Valid: true}},
+		},
+		systems: map[int]*models.System{
+			5: {ID: 5, Name: "mysystem"},
 		},
 		domains: map[int]*models.Domain{
 			2: {ID: 2, EcosystemID: 1, Name: "mydomain"},
@@ -187,6 +218,43 @@ func TestPrepareDefaults(t *testing.T) {
 			errContains: "failed to get ecosystem for slug generation",
 		},
 		{
+			name: "system included in slug when app has SystemID",
+			workspace: &models.Workspace{
+				AppID: 3,
+				Name:  "dev",
+			},
+			hierarchy: newFullHierarchyWithSystem(),
+			wantErr:   false,
+			wantNvim:  "lazyvim",
+			wantSlug:  "myeco-mydomain-mysystem-myapp-dev",
+		},
+		{
+			name: "system omitted from slug when app has no SystemID",
+			workspace: &models.Workspace{
+				AppID: 3,
+				Name:  "dev",
+			},
+			hierarchy: newFullHierarchy(),
+			wantErr:   false,
+			wantNvim:  "lazyvim",
+			wantSlug:  "myeco-mydomain-myapp-dev",
+		},
+		{
+			name: "system lookup error is propagated",
+			workspace: &models.Workspace{
+				AppID: 3,
+				Name:  "dev",
+			},
+			hierarchy: &mockHierarchyReader{
+				apps: map[int]*models.App{
+					3: {ID: 3, DomainID: 2, Name: "myapp", SystemID: sql.NullInt64{Int64: 99, Valid: true}},
+				},
+				systemErr: errors.New("system table missing"),
+			},
+			wantErr:     true,
+			errContains: "failed to get system for slug generation",
+		},
+		{
 			name: "nvim structure valid but empty string still gets default applied",
 			workspace: &models.Workspace{
 				AppID:         3,
@@ -265,4 +333,35 @@ func TestPrepareDefaults_SlugUsesHierarchyNames(t *testing.T) {
 
 	assert.Equal(t, "corp-finance-payments-api-dev", ws.Slug,
 		"slug should concatenate ecosystem-domain-app-workspace with hyphens")
+}
+
+// TestPrepareDefaults_SlugIncludesSystemWhenPresent documents that slug generation
+// traverses the full ecosystem → domain → system → app → workspace chain when
+// the app belongs to a system.
+func TestPrepareDefaults_SlugIncludesSystemWhenPresent(t *testing.T) {
+	hierarchy := &mockHierarchyReader{
+		apps: map[int]*models.App{
+			10: {ID: 10, DomainID: 20, Name: "auth-api", SystemID: sql.NullInt64{Int64: 15, Valid: true}},
+		},
+		systems: map[int]*models.System{
+			15: {ID: 15, Name: "identity"},
+		},
+		domains: map[int]*models.Domain{
+			20: {ID: 20, EcosystemID: 30, Name: "platform"},
+		},
+		ecosystems: map[int]*models.Ecosystem{
+			30: {ID: 30, Name: "corp"},
+		},
+	}
+
+	ws := &models.Workspace{
+		AppID: 10,
+		Name:  "dev",
+	}
+
+	err := PrepareDefaults(ws, hierarchy)
+	require.NoError(t, err)
+
+	assert.Equal(t, "corp-platform-identity-auth-api-dev", ws.Slug,
+		"slug should concatenate ecosystem-domain-system-app-workspace with hyphens")
 }

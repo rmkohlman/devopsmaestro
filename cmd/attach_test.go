@@ -509,10 +509,10 @@ func TestAttach_MultipleWorkspaces_DifferentRepos(t *testing.T) {
 // TestBuildRuntimeEnv_IncludesWorkspaceMetadata verifies that the env map
 // passed to AttachOptions includes the standard DVM workspace metadata vars.
 //
-// NOTE (WI-1): Updated to new 4-map signature:
-// buildRuntimeEnv(app, ws, eco, domain, themeEnv, registryEnv, credentialEnv, wsEnv)
+// NOTE (WI-1): Updated to new 5-string + 4-map signature:
+// buildRuntimeEnv(app, ws, eco, domain, system, themeEnv, registryEnv, credentialEnv, wsEnv)
 func TestBuildRuntimeEnv_IncludesWorkspaceMetadata(t *testing.T) {
-	envVars := buildRuntimeEnv("my-app", "dev-ws", "my-eco", "my-domain", nil, nil, nil, nil)
+	envVars := buildRuntimeEnv("my-app", "dev-ws", "my-eco", "my-domain", "", nil, nil, nil, nil)
 
 	tests := []struct {
 		key   string
@@ -547,7 +547,7 @@ func TestBuildRuntimeEnv_MergesWorkspaceEnv(t *testing.T) {
 		"LOG_LEVEL":  "debug",
 	}
 
-	envVars := buildRuntimeEnv("app", "ws", "", "", nil, nil, nil, wsEnv)
+	envVars := buildRuntimeEnv("app", "ws", "", "", "", nil, nil, nil, wsEnv)
 
 	if envVars["MY_API_KEY"] != "secret" {
 		t.Errorf("env[MY_API_KEY] = %q, want %q", envVars["MY_API_KEY"], "secret")
@@ -567,7 +567,7 @@ func TestBuildRuntimeEnv_ThemeVarsIncluded(t *testing.T) {
 		"DVM_COLOR_TEXT": "#c0caf5",
 	}
 
-	envVars := buildRuntimeEnv("app", "ws", "", "", themeEnv, nil, nil, nil)
+	envVars := buildRuntimeEnv("app", "ws", "", "", "", themeEnv, nil, nil, nil)
 
 	if envVars["DVM_COLOR_BG"] != "#1a1b26" {
 		t.Errorf("env[DVM_COLOR_BG] = %q, want %q", envVars["DVM_COLOR_BG"], "#1a1b26")
@@ -586,7 +586,7 @@ func TestBuildRuntimeEnv_WorkspaceEnvPriority(t *testing.T) {
 		"DVM_COLOR_BG": "theme-value",
 	}
 
-	envVars := buildRuntimeEnv("app", "ws", "", "", themeEnv, nil, nil, wsEnv)
+	envVars := buildRuntimeEnv("app", "ws", "", "", "", themeEnv, nil, nil, wsEnv)
 
 	if envVars["DVM_COLOR_BG"] != "workspace-override" {
 		t.Errorf("workspace env should override theme env; env[DVM_COLOR_BG] = %q, want %q",
@@ -623,7 +623,7 @@ func TestBuildRuntimeEnv_FullMergePriority(t *testing.T) {
 		metaKey:     "evil-workspace",  // must NOT override metadata
 	}
 
-	result := buildRuntimeEnv("my-app", "real-ws", "eco", "dom", themeEnv, registryEnv, credentialEnv, wsEnv)
+	result := buildRuntimeEnv("my-app", "real-ws", "eco", "dom", "", themeEnv, registryEnv, credentialEnv, wsEnv)
 
 	t.Run("workspace env wins conflict", func(t *testing.T) {
 		if got := result[conflictKey]; got != "workspace-value" {
@@ -654,7 +654,7 @@ func TestBuildRuntimeEnv_RegistryEnvMerged(t *testing.T) {
 		"NPM_CONFIG_REGISTRY": "http://localhost:4873/",
 	}
 
-	result := buildRuntimeEnv("app", "ws", "", "", nil, registryEnv, nil, nil)
+	result := buildRuntimeEnv("app", "ws", "", "", "", nil, registryEnv, nil, nil)
 
 	for k, want := range registryEnv {
 		t.Run(k, func(t *testing.T) {
@@ -675,7 +675,7 @@ func TestBuildRuntimeEnv_CredentialEnvMerged(t *testing.T) {
 		"AWS_SECRET_ACCESS_KEY": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
 	}
 
-	result := buildRuntimeEnv("app", "ws", "", "", nil, nil, credentialEnv, nil)
+	result := buildRuntimeEnv("app", "ws", "", "", "", nil, nil, credentialEnv, nil)
 
 	for k, want := range credentialEnv {
 		t.Run(k, func(t *testing.T) {
@@ -696,7 +696,7 @@ func TestBuildRuntimeEnv_CredentialOverridesRegistry(t *testing.T) {
 		"GOPROXY": "https://proxy.corporate.example.com",
 	}
 
-	result := buildRuntimeEnv("app", "ws", "", "", nil, registryEnv, credentialEnv, nil)
+	result := buildRuntimeEnv("app", "ws", "", "", "", nil, registryEnv, credentialEnv, nil)
 
 	if got := result["GOPROXY"]; got != "https://proxy.corporate.example.com" {
 		t.Errorf("credential should override registry for GOPROXY; got %q", got)
@@ -713,7 +713,7 @@ func TestBuildRuntimeEnv_WorkspaceEnvOverridesCredential(t *testing.T) {
 		"GITHUB_TOKEN": "workspace-personal-token",
 	}
 
-	result := buildRuntimeEnv("app", "ws", "", "", nil, nil, credentialEnv, wsEnv)
+	result := buildRuntimeEnv("app", "ws", "", "", "", nil, nil, credentialEnv, wsEnv)
 
 	if got := result["GITHUB_TOKEN"]; got != "workspace-personal-token" {
 		t.Errorf("wsEnv should override credential for GITHUB_TOKEN; got %q", got)
@@ -736,7 +736,7 @@ func TestBuildRuntimeEnv_DVMPrefixReserved(t *testing.T) {
 		"DVM_DOMAIN":    "evil-domain",
 	}
 
-	result := buildRuntimeEnv("real-app", "real-ws", "real-eco", "real-domain", nil, nil, nil, wsEnv)
+	result := buildRuntimeEnv("real-app", "real-ws", "real-eco", "real-domain", "", nil, nil, nil, wsEnv)
 
 	tests := []struct {
 		key  string
@@ -773,7 +773,7 @@ func TestBuildRuntimeEnv_MetadataAlwaysPresent(t *testing.T) {
 		"TERM":          "vt100",
 	}
 
-	result := buildRuntimeEnv("correct-app", "correct-ws", "", "", themeEnv, nil, nil, wsEnv)
+	result := buildRuntimeEnv("correct-app", "correct-ws", "", "", "", themeEnv, nil, nil, wsEnv)
 
 	t.Run("DVM_APP is authoritative", func(t *testing.T) {
 		if got := result["DVM_APP"]; got != "correct-app" {
@@ -815,7 +815,7 @@ func TestBuildRuntimeEnv_DangerousCredentialFiltered(t *testing.T) {
 		"LD_LIBRARY_PATH": "/evil/lib",  // must be filtered (denylist)
 	}
 
-	result := buildRuntimeEnv("app", "ws", "", "", nil, nil, credentialEnv, nil)
+	result := buildRuntimeEnv("app", "ws", "", "", "", nil, nil, credentialEnv, nil)
 
 	t.Run("safe credential is present", func(t *testing.T) {
 		if got := result["GITHUB_TOKEN"]; got != "safe-token" {

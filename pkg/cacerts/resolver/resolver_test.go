@@ -481,6 +481,7 @@ func TestCACertsHierarchyLevel_Constants(t *testing.T) {
 		{resolver.LevelGlobal, "global"},
 		{resolver.LevelEcosystem, "ecosystem"},
 		{resolver.LevelDomain, "domain"},
+		{resolver.LevelSystem, "system"},
 		{resolver.LevelApp, "app"},
 		{resolver.LevelWorkspace, "workspace"},
 	}
@@ -664,8 +665,8 @@ func TestCACertsResolver_Path_ShowsAllLevels(t *testing.T) {
 	require.NotNil(t, resolution)
 
 	// Path must always contain an entry for every level
-	require.Len(t, resolution.Path, 5,
-		"Path must always have exactly 5 entries — one per hierarchy level")
+	require.Len(t, resolution.Path, 6,
+		"Path must always have exactly 6 entries — one per hierarchy level")
 
 	// Collect all levels present in path for assertion
 	pathLevels := make(map[resolver.HierarchyLevel]bool)
@@ -675,10 +676,11 @@ func TestCACertsResolver_Path_ShowsAllLevels(t *testing.T) {
 		foundFlags[step.Level] = step.Found
 	}
 
-	// All 5 levels must be represented
+	// All 6 levels must be represented
 	assert.True(t, pathLevels[resolver.LevelGlobal], "Path must include LevelGlobal step")
 	assert.True(t, pathLevels[resolver.LevelEcosystem], "Path must include LevelEcosystem step")
 	assert.True(t, pathLevels[resolver.LevelDomain], "Path must include LevelDomain step")
+	assert.True(t, pathLevels[resolver.LevelSystem], "Path must include LevelSystem step")
 	assert.True(t, pathLevels[resolver.LevelApp], "Path must include LevelApp step")
 	assert.True(t, pathLevels[resolver.LevelWorkspace], "Path must include LevelWorkspace step")
 
@@ -691,6 +693,8 @@ func TestCACertsResolver_Path_ShowsAllLevels(t *testing.T) {
 		"LevelGlobal step must have Found=false (no global certs set)")
 	assert.False(t, foundFlags[resolver.LevelDomain],
 		"LevelDomain step must have Found=false (no domain certs set)")
+	assert.False(t, foundFlags[resolver.LevelSystem],
+		"LevelSystem step must have Found=false (no system exists)")
 	assert.False(t, foundFlags[resolver.LevelApp],
 		"LevelApp step must have Found=false (no app certs set)")
 }

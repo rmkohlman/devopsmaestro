@@ -17,7 +17,7 @@ const defaultsCACertsKey = "ca-certs"
 const maxMergedCACerts = 10
 
 // HierarchyCACertsResolver implements CACertsResolver by walking the full
-// 5-level hierarchy: global → ecosystem → domain → app → workspace.
+// 6-level hierarchy: global → ecosystem → domain → system → app → workspace.
 // More-specific levels override less-specific levels for certs with the same Name.
 type HierarchyCACertsResolver struct {
 	store db.DataStore
@@ -30,9 +30,10 @@ func NewHierarchyCACertsResolver(store db.DataStore) CACertsResolver {
 }
 
 // Resolve walks the full hierarchy for the given workspace and merges all CA
-// certs from global → ecosystem → domain → app → workspace (workspace wins).
+// certs from global → ecosystem → domain → system → app → workspace (workspace wins).
 // Certs with the same Name at a more-specific level override those from less-specific
 // levels. Uniquely-named certs from all levels are additively merged.
+// The system level is optional — if the app has no system, that level is skipped gracefully.
 // Returns an error if the merged result exceeds the 10-cert maximum.
 func (r *HierarchyCACertsResolver) Resolve(ctx context.Context, workspaceID int) (*CACertsResolution, error) {
 	// ─── Load workspace ───────────────────────────────────────────────────────
@@ -53,6 +54,18 @@ func (r *HierarchyCACertsResolver) Resolve(ctx context.Context, workspaceID int)
 		return nil, fmt.Errorf("resolving CA certs: getting domain %d: %w", app.DomainID, err)
 	}
 
+	// ─── Load system (optional) ───────────────────────────────────────────────
+	var systemName string
+	var systemCerts []models.CACertConfig
+	if app.SystemID.Valid {
+		system, sErr := r.store.GetSystemByID(int(app.SystemID.Int64))
+		if sErr != nil {
+			return nil, fmt.Errorf("resolving CA certs: getting system %d: %w", app.SystemID.Int64, sErr)
+		}
+		systemName = system.Name
+		systemCerts = parseDirectCACerts(nullableString(system.CACerts.String, system.CACerts.Valid))
+	}
+
 	// ─── Load ecosystem ───────────────────────────────────────────────────────
 	eco, err := r.store.GetEcosystemByID(domain.EcosystemID)
 	if err != nil {
@@ -66,11 +79,12 @@ func (r *HierarchyCACertsResolver) Resolve(ctx context.Context, workspaceID int)
 	appCerts := parseWrappedCACerts(nullableString(app.BuildConfig.String, app.BuildConfig.Valid))
 	wsCerts := parseWrappedDevBuildCACerts(nullableString(ws.BuildConfig.String, ws.BuildConfig.Valid))
 
-	// ─── Build path (always 5 entries) ───────────────────────────────────────
+	// ─── Build path (always 6 entries) ───────────────────────────────────────
 	path := []CACertsResolutionStep{
 		{Level: LevelGlobal, Name: "global", Certs: toCACertEntries(globalCerts, LevelGlobal), Found: len(globalCerts) > 0},
 		{Level: LevelEcosystem, Name: eco.Name, Certs: toCACertEntries(ecoCerts, LevelEcosystem), Found: len(ecoCerts) > 0},
 		{Level: LevelDomain, Name: domain.Name, Certs: toCACertEntries(domainCerts, LevelDomain), Found: len(domainCerts) > 0},
+		{Level: LevelSystem, Name: systemName, Certs: toCACertEntries(systemCerts, LevelSystem), Found: len(systemCerts) > 0},
 		{Level: LevelApp, Name: app.Name, Certs: toCACertEntries(appCerts, LevelApp), Found: len(appCerts) > 0},
 		{Level: LevelWorkspace, Name: ws.Name, Certs: toCACertEntries(wsCerts, LevelWorkspace), Found: len(wsCerts) > 0},
 	}

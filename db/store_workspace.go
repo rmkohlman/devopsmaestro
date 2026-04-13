@@ -199,17 +199,19 @@ func (ds *SQLDataStore) ListAllWorkspaces() ([]*models.Workspace, error) {
 }
 
 // FindWorkspaces searches for workspaces matching the given filter criteria.
-// Returns workspaces with their full hierarchy information (ecosystem, domain, app).
+// Returns workspaces with their full hierarchy information (ecosystem, domain, system, app).
 // Use this for smart workspace resolution when the user provides partial criteria.
 func (ds *SQLDataStore) FindWorkspaces(filter models.WorkspaceFilter) ([]*models.WorkspaceWithHierarchy, error) {
-	// Build query with JOINs to get full hierarchy
+	// Build query with JOINs to get full hierarchy (LEFT JOIN on systems since system is optional)
 	query := `SELECT 
 		w.id, w.app_id, w.name, w.description, w.image_name, w.container_id, w.status, w.nvim_structure, w.nvim_plugins, w.theme, w.terminal_prompt, w.terminal_plugins, w.terminal_package, w.nvim_package, w.slug, w.ssh_agent_forwarding, w.git_repo_id, w.env, w.build_config, w.created_at, w.updated_at,
-		a.id, a.domain_id, a.name, a.path, a.description, a.language, a.build_config, a.created_at, a.updated_at,
+		a.id, a.domain_id, a.system_id, a.name, a.path, a.description, a.language, a.build_config, a.created_at, a.updated_at,
+		s.id, s.ecosystem_id, s.domain_id, s.name, s.description, s.theme, s.nvim_package, s.terminal_package, s.build_args, s.ca_certs, s.created_at, s.updated_at,
 		d.id, d.ecosystem_id, d.name, d.description, d.created_at, d.updated_at,
 		e.id, e.name, e.description, e.created_at, e.updated_at
 	FROM workspaces w
 	JOIN apps a ON w.app_id = a.id
+	LEFT JOIN systems s ON a.system_id = s.id
 	JOIN domains d ON a.domain_id = d.id
 	JOIN ecosystems e ON d.ecosystem_id = e.id
 	WHERE 1=1`
@@ -224,6 +226,10 @@ func (ds *SQLDataStore) FindWorkspaces(filter models.WorkspaceFilter) ([]*models
 	if filter.DomainName != "" {
 		query += " AND d.name = ?"
 		args = append(args, filter.DomainName)
+	}
+	if filter.SystemName != "" {
+		query += " AND s.name = ?"
+		args = append(args, filter.SystemName)
 	}
 	if filter.AppName != "" {
 		query += " AND a.name = ?"
@@ -249,14 +255,24 @@ func (ds *SQLDataStore) FindWorkspaces(filter models.WorkspaceFilter) ([]*models
 		domain := &models.Domain{}
 		ecosystem := &models.Ecosystem{}
 
+		// System fields are nullable via LEFT JOIN
+		var sysID, sysEcoID, sysDomainID sql.NullInt64
+		var sysName, sysDesc, sysTheme sql.NullString
+		var sysNvimPkg, sysTermPkg, sysBuildArgs, sysCACerts sql.NullString
+		var sysCreatedAt, sysUpdatedAt sql.NullTime
+
 		if err := rows.Scan(
 			// Workspace fields
 			&workspace.ID, &workspace.AppID, &workspace.Name, &workspace.Description,
 			&workspace.ImageName, &workspace.ContainerID, &workspace.Status, &workspace.NvimStructure,
 			&workspace.NvimPlugins, &workspace.Theme, &workspace.TerminalPrompt, &workspace.TerminalPlugins, &workspace.TerminalPackage, &workspace.NvimPackage, &workspace.Slug, &workspace.SSHAgentForwarding, &workspace.GitRepoID, &workspace.Env, &workspace.BuildConfig, &workspace.CreatedAt, &workspace.UpdatedAt,
-			// App fields
-			&app.ID, &app.DomainID, &app.Name, &app.Path, &app.Description,
+			// App fields (now includes system_id)
+			&app.ID, &app.DomainID, &app.SystemID, &app.Name, &app.Path, &app.Description,
 			&app.Language, &app.BuildConfig, &app.CreatedAt, &app.UpdatedAt,
+			// System fields (nullable via LEFT JOIN)
+			&sysID, &sysEcoID, &sysDomainID, &sysName, &sysDesc, &sysTheme,
+			&sysNvimPkg, &sysTermPkg, &sysBuildArgs, &sysCACerts,
+			&sysCreatedAt, &sysUpdatedAt,
 			// Domain fields
 			&domain.ID, &domain.EcosystemID, &domain.Name, &domain.Description,
 			&domain.CreatedAt, &domain.UpdatedAt,
@@ -267,12 +283,36 @@ func (ds *SQLDataStore) FindWorkspaces(filter models.WorkspaceFilter) ([]*models
 			return nil, fmt.Errorf("failed to scan workspace with hierarchy: %w", err)
 		}
 
-		results = append(results, &models.WorkspaceWithHierarchy{
+		result := &models.WorkspaceWithHierarchy{
 			Workspace: workspace,
 			App:       app,
 			Domain:    domain,
 			Ecosystem: ecosystem,
-		})
+		}
+
+		// Populate system if present
+		if sysID.Valid {
+			result.System = &models.System{
+				ID:              int(sysID.Int64),
+				EcosystemID:     sysEcoID,
+				DomainID:        sysDomainID,
+				Name:            sysName.String,
+				Description:     sysDesc,
+				Theme:           sysTheme,
+				NvimPackage:     sysNvimPkg,
+				TerminalPackage: sysTermPkg,
+				BuildArgs:       sysBuildArgs,
+				CACerts:         sysCACerts,
+			}
+			if sysCreatedAt.Valid {
+				result.System.CreatedAt = sysCreatedAt.Time
+			}
+			if sysUpdatedAt.Valid {
+				result.System.UpdatedAt = sysUpdatedAt.Time
+			}
+		}
+
+		results = append(results, result)
 	}
 
 	if err := rows.Err(); err != nil {

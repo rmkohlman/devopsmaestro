@@ -56,7 +56,7 @@ func createTestCredentialStore(t *testing.T) *SQLDataStore {
 		// Credentials — includes the post-migration-013 columns (vault_fields)
 		`CREATE TABLE credentials (
 			id                   INTEGER PRIMARY KEY AUTOINCREMENT,
-			scope_type           TEXT NOT NULL CHECK(scope_type IN ('ecosystem','domain','app','workspace')),
+			scope_type           TEXT NOT NULL CHECK(scope_type IN ('ecosystem','domain','system','app','workspace')),
 			scope_id             INTEGER NOT NULL,
 			name                 TEXT NOT NULL,
 			source               TEXT NOT NULL CHECK(source IN ('vault','env')),
@@ -356,7 +356,7 @@ func createTestVaultCredentialStore(t *testing.T) *SQLDataStore {
 		// Credentials — post-migration-013: vault columns + vault_fields
 		`CREATE TABLE credentials (
 			id                   INTEGER PRIMARY KEY AUTOINCREMENT,
-			scope_type           TEXT NOT NULL CHECK(scope_type IN ('ecosystem','domain','app','workspace')),
+			scope_type           TEXT NOT NULL CHECK(scope_type IN ('ecosystem','domain','system','app','workspace')),
 			scope_id             INTEGER NOT NULL,
 			name                 TEXT NOT NULL,
 			source               TEXT NOT NULL CHECK(source IN ('vault','env')),

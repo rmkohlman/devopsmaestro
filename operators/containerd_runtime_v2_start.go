@@ -200,6 +200,11 @@ func (r *ContainerdRuntimeV2) startWorkspaceViaColima(ctx context.Context, opts 
 		nerdctlArgs = append(nerdctlArgs, "--label", fmt.Sprintf("io.devopsmaestro.domain=%s", opts.DomainName))
 	}
 
+	// Add system label if provided
+	if opts.SystemName != "" {
+		nerdctlArgs = append(nerdctlArgs, "--label", fmt.Sprintf("io.devopsmaestro.system=%s", opts.SystemName))
+	}
+
 	// Network isolation (issue #91)
 	if opts.NetworkMode != "" {
 		nerdctlArgs = append(nerdctlArgs, "--network", opts.NetworkMode)

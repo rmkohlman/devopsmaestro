@@ -1,5 +1,5 @@
 // Package resolver provides hierarchical build args resolution across the object hierarchy.
-// It walks the cascade: global < ecosystem < domain < app < workspace,
+// It walks the cascade: global < ecosystem < domain < system < app < workspace,
 // merging build args at each level (most-specific wins for overlapping keys).
 package resolver
 
@@ -18,6 +18,8 @@ const (
 	LevelEcosystem
 	// LevelDomain is the domain-scoped build args level.
 	LevelDomain
+	// LevelSystem is the system-scoped build args level (optional layer between domain and app).
+	LevelSystem
 	// LevelApp is the app-scoped build args level.
 	LevelApp
 	// LevelWorkspace is the most-specific level — workspace-scoped build args.
@@ -33,6 +35,8 @@ func (h HierarchyLevel) String() string {
 		return "ecosystem"
 	case LevelDomain:
 		return "domain"
+	case LevelSystem:
+		return "system"
 	case LevelApp:
 		return "app"
 	case LevelWorkspace:
@@ -61,8 +65,9 @@ type BuildArgsResolution struct {
 	// Useful for --effective display to show provenance.
 	Sources map[string]HierarchyLevel
 
-	// Path contains one BuildArgsStep for every hierarchy level (always 5 entries),
-	// ordered from global (index 0) to workspace (index 4).
+	// Path contains one BuildArgsStep for every hierarchy level (always 6 entries),
+	// ordered from global (index 0) to workspace (index 5).
+	// When no system exists for the app, the system step has Found=false and an empty name.
 	Path []BuildArgsStep
 }
 

@@ -13,7 +13,7 @@ import (
 const defaultsBuildArgsKey = "build-args"
 
 // HierarchyBuildArgsResolver implements BuildArgsResolver by walking the full
-// 5-level hierarchy: global → ecosystem → domain → app → workspace.
+// 6-level hierarchy: global → ecosystem → domain → system → app → workspace.
 // More-specific levels override less-specific levels for the same key.
 type HierarchyBuildArgsResolver struct {
 	store db.DataStore
@@ -26,9 +26,10 @@ func NewHierarchyBuildArgsResolver(store db.DataStore) BuildArgsResolver {
 }
 
 // Resolve walks the full hierarchy for the given workspace and merges all build
-// args from global → ecosystem → domain → app → workspace (workspace wins).
+// args from global → ecosystem → domain → system → app → workspace (workspace wins).
 // Keys that fail ValidateEnvKey() or are in the IsDangerousEnvVar() denylist are
 // silently filtered as a defence-in-depth measure.
+// The system level is optional — if the app has no system, that level is skipped gracefully.
 func (r *HierarchyBuildArgsResolver) Resolve(ctx context.Context, workspaceID int) (*BuildArgsResolution, error) {
 	// ─── Load workspace ───────────────────────────────────────────────────────
 	ws, err := r.store.GetWorkspaceByID(workspaceID)
@@ -48,6 +49,20 @@ func (r *HierarchyBuildArgsResolver) Resolve(ctx context.Context, workspaceID in
 		return nil, fmt.Errorf("resolving build args: getting domain %d: %w", app.DomainID, err)
 	}
 
+	// ─── Load system (optional) ───────────────────────────────────────────────
+	var systemName string
+	var systemArgs map[string]string
+	if app.SystemID.Valid {
+		system, sErr := r.store.GetSystemByID(int(app.SystemID.Int64))
+		if sErr != nil {
+			return nil, fmt.Errorf("resolving build args: getting system %d: %w", app.SystemID.Int64, sErr)
+		}
+		systemName = system.Name
+		systemArgs = parseDirectMap(nullableString(system.BuildArgs.String, system.BuildArgs.Valid))
+	} else {
+		systemArgs = map[string]string{}
+	}
+
 	// ─── Load ecosystem ───────────────────────────────────────────────────────
 	eco, err := r.store.GetEcosystemByID(domain.EcosystemID)
 	if err != nil {
@@ -63,11 +78,12 @@ func (r *HierarchyBuildArgsResolver) Resolve(ctx context.Context, workspaceID in
 	appArgs := parseWrappedArgs(nullableString(app.BuildConfig.String, app.BuildConfig.Valid))
 	wsArgs := parseWrappedArgs(nullableString(ws.BuildConfig.String, ws.BuildConfig.Valid))
 
-	// ─── Build path (always 5 entries) ───────────────────────────────────────
+	// ─── Build path (always 6 entries) ───────────────────────────────────────
 	path := []BuildArgsStep{
 		{Level: LevelGlobal, Name: "global", Args: globalArgs, Found: len(globalArgs) > 0},
 		{Level: LevelEcosystem, Name: eco.Name, Args: ecoArgs, Found: len(ecoArgs) > 0},
 		{Level: LevelDomain, Name: domain.Name, Args: domainArgs, Found: len(domainArgs) > 0},
+		{Level: LevelSystem, Name: systemName, Args: systemArgs, Found: len(systemArgs) > 0},
 		{Level: LevelApp, Name: app.Name, Args: appArgs, Found: len(appArgs) > 0},
 		{Level: LevelWorkspace, Name: ws.Name, Args: wsArgs, Found: len(wsArgs) > 0},
 	}

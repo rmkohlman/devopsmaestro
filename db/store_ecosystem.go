@@ -100,6 +100,10 @@ func (ds *SQLDataStore) DeleteEcosystem(name string) error {
 	if _, err := tx.Execute(`DELETE FROM credentials WHERE scope_type = 'app' AND scope_id IN (SELECT a.id FROM apps a JOIN domains d ON a.domain_id = d.id WHERE d.ecosystem_id = ?)`, ecoID); err != nil {
 		return fmt.Errorf("failed to delete app credentials for ecosystem: %w", err)
 	}
+	// Clean up credentials scoped to systems in this ecosystem
+	if _, err := tx.Execute(`DELETE FROM credentials WHERE scope_type = 'system' AND scope_id IN (SELECT id FROM systems WHERE ecosystem_id = ?)`, ecoID); err != nil {
+		return fmt.Errorf("failed to delete system credentials for ecosystem: %w", err)
+	}
 	// Clean up credentials scoped to domains in this ecosystem
 	if _, err := tx.Execute(`DELETE FROM credentials WHERE scope_type = 'domain' AND scope_id IN (SELECT id FROM domains WHERE ecosystem_id = ?)`, ecoID); err != nil {
 		return fmt.Errorf("failed to delete domain credentials for ecosystem: %w", err)

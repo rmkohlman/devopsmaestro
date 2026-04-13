@@ -93,6 +93,10 @@ func (ds *SQLDataStore) DeleteDomain(id int) error {
 	if _, err := tx.Execute(`DELETE FROM credentials WHERE scope_type = 'app' AND scope_id IN (SELECT id FROM apps WHERE domain_id = ?)`, id); err != nil {
 		return fmt.Errorf("failed to delete app credentials for domain: %w", err)
 	}
+	// Clean up credentials scoped to systems in this domain
+	if _, err := tx.Execute(`DELETE FROM credentials WHERE scope_type = 'system' AND scope_id IN (SELECT id FROM systems WHERE domain_id = ?)`, id); err != nil {
+		return fmt.Errorf("failed to delete system credentials for domain: %w", err)
+	}
 	// Clean up credentials scoped to this domain
 	if _, err := tx.Execute(`DELETE FROM credentials WHERE scope_type = 'domain' AND scope_id = ?`, id); err != nil {
 		return fmt.Errorf("failed to delete domain credentials: %w", err)

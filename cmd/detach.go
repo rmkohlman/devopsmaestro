@@ -100,13 +100,13 @@ func detachActiveWorkspace(cmd *cobra.Command, ctx context.Context, runtime oper
 	var app *models.App
 	var workspace *models.Workspace
 	var appName, workspaceName string
-	var ecosystemName, domainName string // For hierarchical container naming
+	var ecosystemName, domainName, systemName string // For hierarchical container naming
 
 	// Check if hierarchy flags were provided
 	if detachFlags.HasAnyFlag() {
 		// Use resolver to find workspace
 		slog.Debug("using hierarchy flags", "ecosystem", detachFlags.Ecosystem,
-			"domain", detachFlags.Domain, "app", detachFlags.App, "workspace", detachFlags.Workspace)
+			"domain", detachFlags.Domain, "system", detachFlags.System, "app", detachFlags.App, "workspace", detachFlags.Workspace)
 
 		wsResolver := resolver.NewWorkspaceResolver(ds)
 		result, err := wsResolver.Resolve(detachFlags.ToFilter())
@@ -133,6 +133,9 @@ func detachActiveWorkspace(cmd *cobra.Command, ctx context.Context, runtime oper
 		workspaceName = workspace.Name
 		ecosystemName = result.Ecosystem.Name
 		domainName = result.Domain.Name
+		if result.System != nil {
+			systemName = result.System.Name
+		}
 
 		render.Info(fmt.Sprintf("Resolved: %s", result.FullPath()))
 	} else {
@@ -171,7 +174,7 @@ func detachActiveWorkspace(cmd *cobra.Command, ctx context.Context, runtime oper
 
 	// Stop the container using hierarchical naming strategy
 	namingStrategy := operators.NewHierarchicalNamingStrategy()
-	containerName := namingStrategy.GenerateName(ecosystemName, domainName, appName, workspaceName)
+	containerName := namingStrategy.GenerateName(ecosystemName, domainName, systemName, appName, workspaceName)
 	return stopWorkspace(ctx, runtime, containerName)
 }
 

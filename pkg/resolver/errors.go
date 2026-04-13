@@ -36,13 +36,19 @@ func (e *AmbiguousError) FormatDisambiguation() string {
 
 	for i, wh := range e.Matches {
 		sb.WriteString(fmt.Sprintf("  %d. %s\n", i+1, wh.FullPath()))
-		sb.WriteString(fmt.Sprintf("     App: %s, Domain: %s, Ecosystem: %s\n",
-			wh.App.Name, wh.Domain.Name, wh.Ecosystem.Name))
+		if wh.System != nil {
+			sb.WriteString(fmt.Sprintf("     App: %s, System: %s, Domain: %s, Ecosystem: %s\n",
+				wh.App.Name, wh.System.Name, wh.Domain.Name, wh.Ecosystem.Name))
+		} else {
+			sb.WriteString(fmt.Sprintf("     App: %s, Domain: %s, Ecosystem: %s\n",
+				wh.App.Name, wh.Domain.Name, wh.Ecosystem.Name))
+		}
 	}
 
 	sb.WriteString("\nUse additional flags to narrow your selection:\n")
 	sb.WriteString("  -e <ecosystem>  Filter by ecosystem\n")
 	sb.WriteString("  -d <domain>     Filter by domain\n")
+	sb.WriteString("  -s <system>     Filter by system\n")
 	sb.WriteString("  -a <app>        Filter by app\n")
 	sb.WriteString("  -w <workspace>  Filter by workspace name\n")
 

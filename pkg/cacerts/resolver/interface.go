@@ -1,5 +1,5 @@
 // Package resolver provides hierarchical CA certificate resolution across the object hierarchy.
-// It walks the cascade: global < ecosystem < domain < app < workspace,
+// It walks the cascade: global < ecosystem < domain < system < app < workspace,
 // merging CA certs at each level (more-specific levels override by cert Name).
 //
 // RED PHASE (v0.56.0): This file defines the interface contract that the
@@ -24,6 +24,8 @@ const (
 	LevelEcosystem
 	// LevelDomain is the domain-scoped CA certs level.
 	LevelDomain
+	// LevelSystem is the system-scoped CA certs level (optional layer between domain and app).
+	LevelSystem
 	// LevelApp is the app-scoped CA certs level.
 	LevelApp
 	// LevelWorkspace is the most-specific level — workspace-scoped CA certs.
@@ -39,6 +41,8 @@ func (h HierarchyLevel) String() string {
 		return "ecosystem"
 	case LevelDomain:
 		return "domain"
+	case LevelSystem:
+		return "system"
 	case LevelApp:
 		return "app"
 	case LevelWorkspace:
@@ -89,7 +93,8 @@ type CACertsResolution struct {
 	Sources map[string]HierarchyLevel
 
 	// Path contains one CACertsResolutionStep for every hierarchy level
-	// (always 5 entries), ordered from global (index 0) to workspace (index 4).
+	// (always 6 entries), ordered from global (index 0) to workspace (index 5).
+	// When no system exists for the app, the system step has Found=false and an empty name.
 	Path []CACertsResolutionStep
 }
 

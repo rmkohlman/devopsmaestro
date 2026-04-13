@@ -138,6 +138,7 @@ func TestBuildCmd_HierarchyFlagsToFilter_App(t *testing.T) {
 	assert.Equal(t, "portal", filter.AppName)
 	assert.Empty(t, filter.DomainName)
 	assert.Empty(t, filter.EcosystemName)
+	assert.Empty(t, filter.SystemName)
 	assert.Empty(t, filter.WorkspaceName)
 }
 

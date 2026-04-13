@@ -489,6 +489,7 @@ func (d *DockerRuntime) ListWorkspaces(ctx context.Context) ([]WorkspaceInfo, er
 			Workspace: c.Labels["io.devopsmaestro.workspace"],
 			Ecosystem: c.Labels["io.devopsmaestro.ecosystem"],
 			Domain:    c.Labels["io.devopsmaestro.domain"],
+			System:    c.Labels["io.devopsmaestro.system"],
 			Labels:    c.Labels,
 		})
 	}
@@ -532,6 +533,7 @@ func (d *DockerRuntime) FindWorkspace(ctx context.Context, name string) (*Worksp
 		Workspace: c.Labels["io.devopsmaestro.workspace"],
 		Ecosystem: c.Labels["io.devopsmaestro.ecosystem"],
 		Domain:    c.Labels["io.devopsmaestro.domain"],
+		System:    c.Labels["io.devopsmaestro.system"],
 		Labels:    c.Labels,
 	}, nil
 }
@@ -653,6 +655,11 @@ func buildDVMLabels(opts StartOptions) map[string]string {
 	// Add domain label if provided
 	if opts.DomainName != "" {
 		labels["io.devopsmaestro.domain"] = opts.DomainName
+	}
+
+	// Add system label if provided
+	if opts.SystemName != "" {
+		labels["io.devopsmaestro.system"] = opts.SystemName
 	}
 
 	// Merge custom labels (sandbox labels, etc.)

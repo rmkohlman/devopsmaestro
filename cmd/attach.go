@@ -121,13 +121,13 @@ func runAttach(cmd *cobra.Command) error {
 	var app *models.App
 	var workspace *models.Workspace
 	var appName, workspaceName string
-	var ecosystemName, domainName string // For hierarchical container naming
+	var ecosystemName, domainName, systemName string // For hierarchical container naming
 
 	// Check if hierarchy flags were provided
 	if attachFlags.HasAnyFlag() {
 		// Use resolver to find workspace
 		slog.Debug("using hierarchy flags", "ecosystem", attachFlags.Ecosystem,
-			"domain", attachFlags.Domain, "app", attachFlags.App, "workspace", attachFlags.Workspace)
+			"domain", attachFlags.Domain, "system", attachFlags.System, "app", attachFlags.App, "workspace", attachFlags.Workspace)
 
 		wsResolver := resolver.NewWorkspaceResolver(ds)
 		result, err := wsResolver.Resolve(attachFlags.ToFilter())
@@ -154,6 +154,9 @@ func runAttach(cmd *cobra.Command) error {
 		workspaceName = workspace.Name
 		ecosystemName = result.Ecosystem.Name
 		domainName = result.Domain.Name
+		if result.System != nil {
+			systemName = result.System.Name
+		}
 
 		render.Info(fmt.Sprintf("Resolved: %s", result.FullPath()))
 	} else {
@@ -239,7 +242,7 @@ func runAttach(cmd *cobra.Command) error {
 
 	// Compute container name using hierarchical naming strategy
 	namingStrategy := operators.NewHierarchicalNamingStrategy()
-	containerName := namingStrategy.GenerateName(ecosystemName, domainName, appName, workspaceName)
+	containerName := namingStrategy.GenerateName(ecosystemName, domainName, systemName, appName, workspaceName)
 	slog.Debug("container details", "name", containerName, "image", imageName)
 
 	// Start workspace (handles existing containers automatically)
@@ -276,6 +279,7 @@ func runAttach(cmd *cobra.Command) error {
 		AppName:            appName,
 		EcosystemName:      ecosystemName,
 		DomainName:         domainName,
+		SystemName:         systemName,
 		AppPath:            mountPath,
 		UID:                containerUID,
 		GID:                containerGID,
@@ -319,7 +323,7 @@ func runAttach(cmd *cobra.Command) error {
 	}
 
 	// Build the merged env
-	envVars := buildRuntimeEnv(appName, workspaceName, ecosystemName, domainName, themeEnv, registryEnv, credentialEnv, wsEnv)
+	envVars := buildRuntimeEnv(appName, workspaceName, ecosystemName, domainName, systemName, themeEnv, registryEnv, credentialEnv, wsEnv)
 
 	// Build AttachOptions with environment variables for proper terminal and workspace context
 	attachOpts := operators.AttachOptions{
@@ -357,6 +361,15 @@ func updateContextFromHierarchy(ds db.DataStore, wh *models.WorkspaceWithHierarc
 	}
 	if err := ds.SetActiveDomain(&wh.Domain.ID); err != nil {
 		return err
+	}
+	if wh.System != nil {
+		if err := ds.SetActiveSystem(&wh.System.ID); err != nil {
+			return err
+		}
+	} else {
+		if err := ds.SetActiveSystem(nil); err != nil {
+			return err
+		}
 	}
 	if err := ds.SetActiveApp(&wh.App.ID); err != nil {
 		return err
@@ -430,7 +443,7 @@ func getMountPath(ds db.DataStore, workspace *models.Workspace, appPath string) 
 //	Layer 5 (highest): metadata    — TERM, DVM_WORKSPACE, DVM_APP, DVM_ECOSYSTEM, DVM_DOMAIN
 //
 // Metadata vars are applied last so they can never be overridden by any env layer.
-func buildRuntimeEnv(appName, workspaceName, ecosystemName, domainName string, themeEnv, registryEnv, credentialEnv, wsEnv map[string]string) map[string]string {
+func buildRuntimeEnv(appName, workspaceName, ecosystemName, domainName, systemName string, themeEnv, registryEnv, credentialEnv, wsEnv map[string]string) map[string]string {
 	env := make(map[string]string)
 
 	// Layer 1 (lowest priority): theme env
@@ -472,6 +485,9 @@ func buildRuntimeEnv(appName, workspaceName, ecosystemName, domainName string, t
 	}
 	if domainName != "" {
 		env["DVM_DOMAIN"] = domainName
+	}
+	if systemName != "" {
+		env["DVM_SYSTEM"] = systemName
 	}
 
 	return env

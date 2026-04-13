@@ -84,9 +84,23 @@ func (ds *SQLDataStore) UpdateSystem(system *models.System) error {
 }
 
 // DeleteSystem removes a system by ID.
+// Also cleans up orphaned credentials scoped to this system
+// (polymorphic scope_type/scope_id has no FK constraint).
+// Child app/workspace credentials are handled by ON DELETE CASCADE + app delete logic.
 func (ds *SQLDataStore) DeleteSystem(id int) error {
+	tx, err := ds.driver.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // rollback after commit is a no-op
+
+	// Clean up orphaned credentials scoped to this system
+	if _, err := tx.Execute(`DELETE FROM credentials WHERE scope_type = 'system' AND scope_id = ?`, id); err != nil {
+		return fmt.Errorf("failed to delete system credentials: %w", err)
+	}
+
 	query := `DELETE FROM systems WHERE id = ?`
-	result, err := ds.driver.Execute(query, id)
+	result, err := tx.Execute(query, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete system: %w", err)
 	}
@@ -97,7 +111,8 @@ func (ds *SQLDataStore) DeleteSystem(id int) error {
 	if rowsAffected == 0 {
 		return NewErrNotFound("system", id)
 	}
-	return nil
+
+	return tx.Commit()
 }
 
 // ListSystems retrieves all systems across all domains.

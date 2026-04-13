@@ -535,6 +535,26 @@ func (m *MockDataStore) ListWorkspacesByGitRepoID(gitRepoID int64) ([]*models.Wo
 	return []*models.Workspace{}, nil
 }
 
+// System Operations (stub implementations — added for SystemStore interface compliance)
+func (m *MockDataStore) CreateSystem(system *models.System) error { return nil }
+func (m *MockDataStore) GetSystemByID(id int) (*models.System, error) {
+	return nil, nil
+}
+func (m *MockDataStore) GetSystemByName(domainID sql.NullInt64, name string) (*models.System, error) {
+	return nil, nil
+}
+func (m *MockDataStore) UpdateSystem(system *models.System) error { return nil }
+func (m *MockDataStore) DeleteSystem(id int) error                { return nil }
+func (m *MockDataStore) ListSystems() ([]*models.System, error)   { return nil, nil }
+func (m *MockDataStore) ListSystemsByDomain(domainID int) ([]*models.System, error) {
+	return nil, nil
+}
+func (m *MockDataStore) FindSystemsByName(name string) ([]*models.SystemWithHierarchy, error) {
+	return nil, nil
+}
+func (m *MockDataStore) CountSystems() (int, error)          { return 0, nil }
+func (m *MockDataStore) SetActiveSystem(systemID *int) error { return nil }
+
 // MockThemeStore implements theme.Store for testing
 type MockThemeStore struct {
 	themes   map[string]*theme.Theme
