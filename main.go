@@ -10,6 +10,7 @@ import (
 	"github.com/rmkohlman/MaestroSDK/render"
 	"io/fs"
 	"os"
+	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/spf13/viper"
@@ -66,10 +67,12 @@ func main() {
 
 	// Check if this is a command that doesn't need database
 	// (completion, version, help)
+	// Only match actual command names — never flags like -v or --help,
+	// which could be combined with commands that DO need the database.
 	skipDB := false
-	if len(os.Args) > 1 {
+	if len(os.Args) > 1 && !strings.HasPrefix(os.Args[1], "-") {
 		switch os.Args[1] {
-		case "completion", "version", "--version", "-v", "help", "--help", "-h":
+		case "completion", "version", "help":
 			skipDB = true
 		}
 	}

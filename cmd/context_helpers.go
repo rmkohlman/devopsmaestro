@@ -25,7 +25,7 @@ func getDataStore(cmd *cobra.Command) (db.DataStore, error) {
 
 	switch ds := val.(type) {
 	case *db.DataStore:
-		if ds == nil {
+		if ds == nil || *ds == nil {
 			return nil, fmt.Errorf("dataStore not initialized")
 		}
 		return *ds, nil
