@@ -255,7 +255,7 @@ type appTableBuilder struct {
 }
 
 func (b *appTableBuilder) Headers(wide bool) []string {
-	headers := []string{"NAME", "DOMAIN", "PATH", "THEME", "CREATED"}
+	headers := []string{"NAME", "DOMAIN", "SYSTEM", "PATH", "THEME", "CREATED"}
 	if wide {
 		headers = append(headers, "ID", "GITREPO")
 	}
@@ -274,6 +274,13 @@ func (b *appTableBuilder) Row(model any, wide bool) []string {
 		}
 	}
 
+	systemName := ""
+	if app.SystemID.Valid && b.DataStore != nil {
+		if system, err := b.DataStore.GetSystemByID(int(app.SystemID.Int64)); err == nil && system != nil {
+			systemName = system.Name
+		}
+	}
+
 	path := truncateRight(app.Path, 40)
 
 	theme := ""
@@ -283,7 +290,7 @@ func (b *appTableBuilder) Row(model any, wide bool) []string {
 
 	created := app.CreatedAt.Format("2006-01-02 15:04")
 
-	row := []string{name, domainName, path, theme, created}
+	row := []string{name, domainName, systemName, path, theme, created}
 	if wide {
 		gitRepo := "<none>"
 		if app.GitRepoID.Valid {
@@ -308,7 +315,7 @@ type workspaceTableBuilder struct {
 func (b *workspaceTableBuilder) Headers(wide bool) []string {
 	headers := []string{"NAME", "APP", "IMAGE", "STATUS", "THEME"}
 	if wide {
-		headers = append(headers, "CREATED", "CONTAINER-ID")
+		headers = append(headers, "SYSTEM", "CREATED", "CONTAINER-ID")
 	}
 	return headers
 }
@@ -319,9 +326,11 @@ func (b *workspaceTableBuilder) Row(model any, wide bool) []string {
 	name := activeMarkerByName(ws.Name, b.ActiveWorkspaceName)
 
 	appName := ""
+	var app *models.App
 	if b.DataStore != nil {
-		if app, err := b.DataStore.GetAppByID(ws.AppID); err == nil {
-			appName = app.Name
+		if a, err := b.DataStore.GetAppByID(ws.AppID); err == nil {
+			app = a
+			appName = a.Name
 		}
 	}
 
@@ -332,6 +341,12 @@ func (b *workspaceTableBuilder) Row(model any, wide bool) []string {
 		return ""
 	}()}
 	if wide {
+		systemName := ""
+		if app != nil && app.SystemID.Valid && b.DataStore != nil {
+			if system, err := b.DataStore.GetSystemByID(int(app.SystemID.Int64)); err == nil && system != nil {
+				systemName = system.Name
+			}
+		}
 		created := ws.CreatedAt.Format("2006-01-02 15:04")
 		containerID := "<none>"
 		if ws.ContainerID.Valid && ws.ContainerID.String != "" {
@@ -341,7 +356,7 @@ func (b *workspaceTableBuilder) Row(model any, wide bool) []string {
 			}
 			containerID = cid
 		}
-		row = append(row, created, containerID)
+		row = append(row, systemName, created, containerID)
 	}
 	return row
 }

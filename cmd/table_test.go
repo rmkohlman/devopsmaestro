@@ -352,7 +352,7 @@ func TestDomainTableBuilder_Row_DescriptionTruncation(t *testing.T) {
 func TestAppTableBuilder_Headers_Default(t *testing.T) {
 	b := &appTableBuilder{}
 	headers := b.Headers(false)
-	want := []string{"NAME", "DOMAIN", "PATH", "THEME", "CREATED"}
+	want := []string{"NAME", "DOMAIN", "SYSTEM", "PATH", "THEME", "CREATED"}
 	if len(headers) != len(want) {
 		t.Fatalf("want %d headers, got %d: %v", len(want), len(headers), headers)
 	}
@@ -366,7 +366,7 @@ func TestAppTableBuilder_Headers_Default(t *testing.T) {
 func TestAppTableBuilder_Headers_Wide(t *testing.T) {
 	b := &appTableBuilder{}
 	headers := b.Headers(true)
-	want := []string{"NAME", "DOMAIN", "PATH", "THEME", "CREATED", "ID", "GITREPO"}
+	want := []string{"NAME", "DOMAIN", "SYSTEM", "PATH", "THEME", "CREATED", "ID", "GITREPO"}
 	if len(headers) != len(want) {
 		t.Fatalf("want %d headers, got %d: %v", len(want), len(headers), headers)
 	}
@@ -385,14 +385,14 @@ func TestAppTableBuilder_Row_Default(t *testing.T) {
 	b := &appTableBuilder{DataStore: mockDS}
 	app := &models.App{
 		ID:        5,
-		DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true},
+		DomainID:  sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Name:      "api",
 		Path:      "/home/user/projects/api",
 		CreatedAt: mustTime("2024-03-01 12:00"),
 	}
 	row := b.Row(app, false)
-	if len(row) != 5 {
-		t.Fatalf("want 5 columns, got %d: %v", len(row), row)
+	if len(row) != 6 {
+		t.Fatalf("want 6 columns, got %d: %v", len(row), row)
 	}
 	if row[0] != "api" {
 		t.Errorf("row[0] (name) = %q, want %q", row[0], "api")
@@ -400,8 +400,8 @@ func TestAppTableBuilder_Row_Default(t *testing.T) {
 	if row[1] != "backend" {
 		t.Errorf("row[1] (domain) = %q, want %q", row[1], "backend")
 	}
-	if row[2] != "/home/user/projects/api" {
-		t.Errorf("row[2] (path) = %q, want %q", row[2], "/home/user/projects/api")
+	if row[3] != "/home/user/projects/api" {
+		t.Errorf("row[3] (path) = %q, want %q", row[3], "/home/user/projects/api")
 	}
 }
 
@@ -413,20 +413,20 @@ func TestAppTableBuilder_Row_Wide_ShowsGitRepoNone(t *testing.T) {
 	b := &appTableBuilder{DataStore: mockDS}
 	app := &models.App{
 		ID:        5,
-		DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true},
+		DomainID:  sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Name:      "api",
 		Path:      "/code/api",
 		CreatedAt: mustTime("2024-03-01 12:00"),
 	}
 	row := b.Row(app, true)
-	if len(row) != 7 {
-		t.Fatalf("want 7 columns, got %d: %v", len(row), row)
+	if len(row) != 8 {
+		t.Fatalf("want 8 columns, got %d: %v", len(row), row)
 	}
-	if row[5] != "5" {
-		t.Errorf("row[5] (id) = %q, want %q", row[5], "5")
+	if row[6] != "5" {
+		t.Errorf("row[6] (id) = %q, want %q", row[6], "5")
 	}
-	if row[6] != "<none>" {
-		t.Errorf("row[6] (gitrepo) = %q, want %q", row[6], "<none>")
+	if row[7] != "<none>" {
+		t.Errorf("row[7] (gitrepo) = %q, want %q", row[7], "<none>")
 	}
 }
 
@@ -439,7 +439,7 @@ func TestAppTableBuilder_Row_ActiveMarker(t *testing.T) {
 	b := &appTableBuilder{DataStore: mockDS, ActiveID: &activeID}
 	app := &models.App{
 		ID:        5,
-		DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true},
+		DomainID:  sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Name:      "api",
 		Path:      "/code/api",
 		CreatedAt: mustTime("2024-03-01 12:00"),
@@ -459,7 +459,7 @@ func TestAppTableBuilder_Row_ActiveMarker_Absent(t *testing.T) {
 	b := &appTableBuilder{DataStore: mockDS, ActiveID: &otherID}
 	app := &models.App{
 		ID:        5,
-		DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true},
+		DomainID:  sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Name:      "api",
 		Path:      "/code/api",
 		CreatedAt: mustTime("2024-03-01 12:00"),
@@ -480,22 +480,22 @@ func TestAppTableBuilder_Row_PathTruncation(t *testing.T) {
 	longPath := "/home/user/projects/very-deep/nested/api"
 	app := &models.App{
 		ID:        5,
-		DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true},
+		DomainID:  sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Name:      "api",
 		Path:      longPath,
 		CreatedAt: mustTime("2024-03-01 12:00"),
 	}
 	row := b.Row(app, false)
-	if len(row[2]) != 40 {
-		t.Errorf("truncated path length = %d, want 40 (3+37)", len(row[2]))
+	if len(row[3]) != 40 {
+		t.Errorf("truncated path length = %d, want 40 (3+37)", len(row[3]))
 	}
-	if row[2][:3] != "..." {
-		t.Errorf("truncated path prefix = %q, want %q", row[2][:3], "...")
+	if row[3][:3] != "..." {
+		t.Errorf("truncated path prefix = %q, want %q", row[3][:3], "...")
 	}
 	// last 37 chars of longPath
 	want := longPath[len(longPath)-37:]
-	if row[2][3:] != want {
-		t.Errorf("truncated path suffix = %q, want %q", row[2][3:], want)
+	if row[3][3:] != want {
+		t.Errorf("truncated path suffix = %q, want %q", row[3][3:], want)
 	}
 }
 
@@ -508,14 +508,14 @@ func TestAppTableBuilder_Row_PathNotTruncated(t *testing.T) {
 	exactPath := "/home/user/projects/api-service-long/" // 37 chars
 	app := &models.App{
 		ID:        5,
-		DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true},
+		DomainID:  sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Name:      "api",
 		Path:      exactPath,
 		CreatedAt: mustTime("2024-03-01 12:00"),
 	}
 	row := b.Row(app, false)
-	if row[2] != exactPath {
-		t.Errorf("path = %q, want %q (should not be truncated)", row[2], exactPath)
+	if row[3] != exactPath {
+		t.Errorf("path = %q, want %q (should not be truncated)", row[3], exactPath)
 	}
 }
 
@@ -540,7 +540,7 @@ func TestWorkspaceTableBuilder_Headers_Default(t *testing.T) {
 func TestWorkspaceTableBuilder_Headers_Wide(t *testing.T) {
 	b := &workspaceTableBuilder{}
 	headers := b.Headers(true)
-	want := []string{"NAME", "APP", "IMAGE", "STATUS", "THEME", "CREATED", "CONTAINER-ID"}
+	want := []string{"NAME", "APP", "IMAGE", "STATUS", "THEME", "SYSTEM", "CREATED", "CONTAINER-ID"}
 	if len(headers) != len(want) {
 		t.Fatalf("want %d headers, got %d: %v", len(want), len(headers), headers)
 	}
@@ -602,12 +602,12 @@ func TestWorkspaceTableBuilder_Row_Wide_WithContainerID(t *testing.T) {
 		CreatedAt:   mustTime("2024-04-10 08:00"),
 	}
 	row := b.Row(ws, true)
-	if len(row) != 7 {
-		t.Fatalf("want 7 columns, got %d: %v", len(row), row)
+	if len(row) != 8 {
+		t.Fatalf("want 8 columns, got %d: %v", len(row), row)
 	}
 	// Container-ID truncated to 12 chars
-	if row[6] != "abc123def456" {
-		t.Errorf("row[6] (container-id) = %q, want %q", row[6], "abc123def456")
+	if row[7] != "abc123def456" {
+		t.Errorf("row[7] (container-id) = %q, want %q", row[7], "abc123def456")
 	}
 }
 
@@ -627,11 +627,11 @@ func TestWorkspaceTableBuilder_Row_Wide_NullContainerID(t *testing.T) {
 		CreatedAt:   mustTime("2024-04-10 08:00"),
 	}
 	row := b.Row(ws, true)
-	if len(row) != 7 {
-		t.Fatalf("want 7 columns, got %d: %v", len(row), row)
+	if len(row) != 8 {
+		t.Fatalf("want 8 columns, got %d: %v", len(row), row)
 	}
-	if row[6] != "<none>" {
-		t.Errorf("row[6] (container-id) = %q, want %q", row[6], "<none>")
+	if row[7] != "<none>" {
+		t.Errorf("row[7] (container-id) = %q, want %q", row[7], "<none>")
 	}
 }
 
@@ -652,8 +652,8 @@ func TestWorkspaceTableBuilder_Row_Wide_ShortContainerID(t *testing.T) {
 	}
 	row := b.Row(ws, true)
 	// Short container IDs should not be truncated
-	if row[6] != "abc123" {
-		t.Errorf("row[6] (container-id) = %q, want %q (no truncation)", row[6], "abc123")
+	if row[7] != "abc123" {
+		t.Errorf("row[7] (container-id) = %q, want %q (no truncation)", row[7], "abc123")
 	}
 }
 
@@ -1351,16 +1351,16 @@ func TestAppTableBuilder_Row_ThemeSet(t *testing.T) {
 	b := &appTableBuilder{DataStore: mockDS}
 	app := &models.App{
 		ID:        5,
-		DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true},
+		DomainID:  sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Name:      "api",
 		Path:      "/code/api",
 		Theme:     sql.NullString{String: "catppuccin-mocha", Valid: true},
 		CreatedAt: mustTime("2024-03-01 12:00"),
 	}
 	row := b.Row(app, false)
-	// THEME is column index 3 (NAME, DOMAIN, PATH, THEME, CREATED)
-	if row[3] != "catppuccin-mocha" {
-		t.Errorf("row[3] (theme) = %q, want %q", row[3], "catppuccin-mocha")
+	// THEME is column index 4 (NAME, DOMAIN, SYSTEM, PATH, THEME, CREATED)
+	if row[4] != "catppuccin-mocha" {
+		t.Errorf("row[4] (theme) = %q, want %q", row[4], "catppuccin-mocha")
 	}
 }
 
@@ -1372,15 +1372,15 @@ func TestAppTableBuilder_Row_ThemeNull(t *testing.T) {
 	b := &appTableBuilder{DataStore: mockDS}
 	app := &models.App{
 		ID:        5,
-		DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true},
+		DomainID:  sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Name:      "api",
 		Path:      "/code/api",
 		Theme:     sql.NullString{Valid: false},
 		CreatedAt: mustTime("2024-03-01 12:00"),
 	}
 	row := b.Row(app, false)
-	if row[3] != "" {
-		t.Errorf("row[3] (theme) = %q, want empty string for null theme", row[3])
+	if row[4] != "" {
+		t.Errorf("row[4] (theme) = %q, want empty string for null theme", row[4])
 	}
 }
 

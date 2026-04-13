@@ -87,9 +87,9 @@ func getWorkspaces(cmd *cobra.Command) error {
 		// We need to look up app names for display
 		var headers []string
 		if isWide {
-			headers = []string{"NAME", "APP", "IMAGE", "STATUS", "CREATED", "CONTAINER-ID"}
+			headers = []string{"NAME", "APP", "SYSTEM", "IMAGE", "STATUS", "CREATED", "CONTAINER-ID"}
 		} else {
-			headers = []string{"NAME", "APP", "IMAGE", "STATUS"}
+			headers = []string{"NAME", "APP", "SYSTEM", "IMAGE", "STATUS"}
 		}
 		if showTheme {
 			headers = append(headers, "THEME", "THEME SOURCE")
@@ -109,13 +109,20 @@ func getWorkspaces(cmd *cobra.Command) error {
 		for i, ws := range workspaces {
 			app, _ := sqlDS.GetAppByID(ws.AppID)
 			appName := ""
+			sysName := ""
 			if app != nil {
 				appName = app.Name
+				if app.SystemID.Valid {
+					if sys, sErr := sqlDS.GetSystemByID(int(app.SystemID.Int64)); sErr == nil && sys != nil {
+						sysName = sys.Name
+					}
+				}
 			}
 
 			row := []string{
 				ws.Name,
 				appName,
+				sysName,
 				ws.ImageName,
 				ws.Status,
 			}
@@ -535,9 +542,34 @@ func getWorkspace(cmd *cobra.Command, name string) error {
 		nameDisplay = "● " + nameDisplay + " (active)"
 	}
 
+	// Walk hierarchy: app -> system -> domain -> ecosystem
+	systemName := ""
+	domainName := ""
+	ecosystemName := ""
+	if app != nil {
+		if app.SystemID.Valid {
+			if sys, sErr := sqlDS.GetSystemByID(int(app.SystemID.Int64)); sErr == nil && sys != nil {
+				systemName = sys.Name
+			}
+		}
+		if app.DomainID.Valid {
+			if dom, dErr := sqlDS.GetDomainByID(int(app.DomainID.Int64)); dErr == nil && dom != nil {
+				domainName = dom.Name
+				if dom.EcosystemID.Valid {
+					if eco, eErr := sqlDS.GetEcosystemByID(int(dom.EcosystemID.Int64)); eErr == nil && eco != nil {
+						ecosystemName = eco.Name
+					}
+				}
+			}
+		}
+	}
+
 	kvData := render.NewOrderedKeyValueData(
 		render.KeyValue{Key: "Name", Value: nameDisplay},
 		render.KeyValue{Key: "App", Value: appName},
+		render.KeyValue{Key: "System", Value: systemName},
+		render.KeyValue{Key: "Domain", Value: domainName},
+		render.KeyValue{Key: "Ecosystem", Value: ecosystemName},
 		render.KeyValue{Key: "Image", Value: workspace.ImageName},
 		render.KeyValue{Key: "Status", Value: workspace.Status},
 		render.KeyValue{Key: "Created", Value: workspace.CreatedAt.Format("2006-01-02 15:04:05")},

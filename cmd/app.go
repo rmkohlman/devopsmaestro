@@ -441,9 +441,9 @@ func getApps(cmd *cobra.Command) error {
 	// For human output, build table data
 	var headers []string
 	if isWide {
-		headers = []string{"NAME", "DOMAIN", "PATH", "CREATED", "ID", "GITREPO"}
+		headers = []string{"NAME", "DOMAIN", "SYSTEM", "PATH", "CREATED", "ID", "GITREPO"}
 	} else {
-		headers = []string{"NAME", "DOMAIN", "PATH", "CREATED"}
+		headers = []string{"NAME", "DOMAIN", "SYSTEM", "PATH", "CREATED"}
 	}
 	if showTheme {
 		headers = append(headers, "THEME", "THEME SOURCE")
@@ -475,6 +475,15 @@ func getApps(cmd *cobra.Command) error {
 			}
 		}
 
+		// Get system name for display
+		sysName := ""
+		if a.SystemID.Valid {
+			sys, _ := ds.GetSystemByID(int(a.SystemID.Int64))
+			if sys != nil {
+				sysName = sys.Name
+			}
+		}
+
 		// Truncate path if too long
 		pathDisplay := a.Path
 		if len(pathDisplay) > 40 {
@@ -484,6 +493,7 @@ func getApps(cmd *cobra.Command) error {
 		row := []string{
 			name,
 			domName,
+			sysName,
 			pathDisplay,
 			a.CreatedAt.Format("2006-01-02 15:04"),
 		}
@@ -597,6 +607,14 @@ func getApp(cmd *cobra.Command, name string) error {
 
 	app := res.(*handlers.AppResource).App()
 
+	// Resolve system name if associated
+	systemName := ""
+	if app.SystemID.Valid {
+		if sys, sErr := ds.GetSystemByID(int(app.SystemID.Int64)); sErr == nil && sys != nil {
+			systemName = sys.Name
+		}
+	}
+
 	// For JSON/YAML, output the model data directly
 	if getOutputFormat == "json" || getOutputFormat == "yaml" {
 		workspaces, _ := ds.ListWorkspacesByApp(app.ID)
@@ -609,13 +627,6 @@ func getApp(cmd *cobra.Command, name string) error {
 		if app.GitRepoID.Valid {
 			if gr, grErr := ds.GetGitRepoByID(app.GitRepoID.Int64); grErr == nil && gr != nil {
 				gitRepoName = gr.Name
-			}
-		}
-		// Resolve system name if associated
-		systemName := ""
-		if app.SystemID.Valid {
-			if sys, sErr := ds.GetSystemByID(int(app.SystemID.Int64)); sErr == nil && sys != nil {
-				systemName = sys.Name
 			}
 		}
 		yamlDoc := app.ToYAML(domain.Name, wsNames, gitRepoName, systemName)
@@ -645,6 +656,7 @@ func getApp(cmd *cobra.Command, name string) error {
 		render.KeyValue{Key: "Name", Value: nameDisplay},
 		render.KeyValue{Key: "Ecosystem", Value: ecosystemName},
 		render.KeyValue{Key: "Domain", Value: domain.Name},
+		render.KeyValue{Key: "System", Value: systemName},
 		render.KeyValue{Key: "Path", Value: app.Path},
 		render.KeyValue{Key: "Description", Value: desc},
 		render.KeyValue{Key: "Created", Value: app.CreatedAt.Format("2006-01-02 15:04:05")},
