@@ -6,6 +6,14 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ---
 
+## v0.86.1 (2026-04-13)
+
+**Bug Fixes**
+
+- **BuildKit builder used for sandbox image builds on containerd** — Sandbox image builds now correctly select a BuildKit builder instance when running on a containerd runtime, resolving build failures that occurred on containerd-based environments (#260).
+
+---
+
 ## v0.86.0 (2026-04-12)
 
 **New Features**
