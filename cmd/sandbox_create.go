@@ -75,7 +75,7 @@ func runSandboxCreate(cmd *cobra.Command, lang string) error {
 
 	// 5. Build or reuse image
 	imageName := fmt.Sprintf("dvm-sandbox-%s:%s", preset.Language, version)
-	if err := ensureSandboxImage(ctx, runtime, preset, version, depsFile, imageName); err != nil {
+	if err := ensureSandboxImage(ctx, preset, version, depsFile, imageName); err != nil {
 		render.Errorf("Failed to build sandbox image: %v", err)
 		return errSilent
 	}
@@ -140,29 +140,22 @@ func runSandboxCreate(cmd *cobra.Command, lang string) error {
 }
 
 // ensureSandboxImage builds the sandbox image if it doesn't exist or --no-cache is set.
+// Uses the builders.ImageBuilder abstraction (same as dvm build) so that sandbox
+// works on all runtimes including containerd/BuildKit.
 func ensureSandboxImage(
 	ctx context.Context,
-	runtime operators.ContainerRuntime,
 	preset models.SandboxPreset,
 	version, depsFile, imageName string,
 ) error {
-	// Check if image already exists (skip if --no-cache)
-	if !sandboxFlags.noCache {
-		exists, err := runtime.ImageExists(ctx, imageName)
-		if err != nil {
-			slog.Warn("failed to check image existence", "error", err)
-		}
-		if exists {
-			render.Infof("Using cached image %s", imageName)
-			return nil
-		}
+	// Detect platform (same pattern as dvm build)
+	platform, err := detectPlatform()
+	if err != nil {
+		return fmt.Errorf("failed to detect platform: %w", err)
 	}
 
-	// Generate Dockerfile
-	render.Progressf("Building sandbox image %s...", imageName)
+	// Generate Dockerfile and prepare build context in a temp directory
 	dockerfile := builders.GenerateSandboxDockerfile(preset, version, depsFile)
 
-	// Write Dockerfile to a temp directory
 	tmpDir, err := os.MkdirTemp("", "dvm-sandbox-*")
 	if err != nil {
 		return fmt.Errorf("failed to create temp dir: %w", err)
@@ -186,12 +179,46 @@ func ensureSandboxImage(
 		}
 	}
 
-	// Build image
-	return runtime.BuildImage(ctx, operators.BuildOptions{
-		ImageName:    imageName,
-		Dockerfile:   dfPath,
-		BuildContext: tmpDir,
+	// Create builder via the ImageBuilder abstraction (BuildKit for containerd, Docker API otherwise)
+	builder, err := builders.NewImageBuilder(builders.BuilderConfig{
+		Platform:   platform,
+		Namespace:  "devopsmaestro",
+		AppPath:    tmpDir,
+		ImageName:  imageName,
+		Dockerfile: dfPath,
 	})
+	if err != nil {
+		return fmt.Errorf("failed to create image builder: %w", err)
+	}
+	defer builder.Close()
+
+	// Check if image already exists (skip if --no-cache)
+	if !sandboxFlags.noCache {
+		exists, existsErr := builder.ImageExists(ctx)
+		if existsErr != nil {
+			slog.Warn("failed to check image existence", "error", existsErr)
+		}
+		if existsErr == nil && exists {
+			render.Infof("Using cached image %s", imageName)
+			return nil
+		}
+	}
+
+	// Build image
+	render.Progressf("Building sandbox image %s...", imageName)
+	if err := builder.Build(ctx, builders.BuildOptions{NoCache: sandboxFlags.noCache}); err != nil {
+		return fmt.Errorf("build failed: %w", err)
+	}
+
+	// For containerd platforms, copy image from buildkit namespace to devopsmaestro namespace
+	if platform.IsContainerd() {
+		if err := copyImageToNamespace(platform, imageName); err != nil {
+			return fmt.Errorf("failed to copy image to namespace: %w", err)
+		}
+	}
+
+	render.Successf("Sandbox image built: %s", imageName)
+	return nil
 }
 
 // startSandboxContainer creates and starts a sandbox container with proper labels.
