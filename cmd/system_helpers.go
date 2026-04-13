@@ -493,6 +493,74 @@ func resolveSystemParents(ds db.DataStore, system *models.System) (domainName, e
 	return
 }
 
+// systemResolution holds the resolved system along with its parent domain.
+// Used when --system flag triggers a global lookup via FindSystemsByName.
+type systemResolution struct {
+	System *models.System
+	Domain *models.Domain
+}
+
+// resolveSystemGlobally searches for a system by name across all domains.
+// If activeDomain is non-nil, it is used as a tie-breaker when multiple systems
+// share the same name. Returns the system and its owning domain.
+func resolveSystemGlobally(ds db.DataStore, systemName string, activeDomain *models.Domain) (*systemResolution, error) {
+	matches, err := ds.FindSystemsByName(systemName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find system: %w", err)
+	}
+	if len(matches) == 0 {
+		return nil, fmt.Errorf("system '%s' not found", systemName)
+	}
+
+	var chosen *models.SystemWithHierarchy
+	if len(matches) == 1 {
+		chosen = matches[0]
+	} else {
+		// Multiple matches — try active domain as tie-breaker
+		if activeDomain != nil {
+			for _, m := range matches {
+				if m.Domain != nil && m.Domain.ID == activeDomain.ID {
+					chosen = m
+					break
+				}
+			}
+		}
+		if chosen == nil {
+			names := make([]string, 0, len(matches))
+			for _, m := range matches {
+				domName := "(no domain)"
+				if m.Domain != nil {
+					domName = m.Domain.Name
+				}
+				names = append(names, fmt.Sprintf("  - %s (domain: %s)", systemName, domName))
+			}
+			return nil, fmt.Errorf("ambiguous system name '%s' — found in multiple domains:\n%s\nHint: Use --domain to disambiguate",
+				systemName, fmt.Sprintf("%s", joinLines(names)))
+		}
+	}
+
+	if chosen.Domain == nil {
+		return nil, fmt.Errorf("system '%s' has no associated domain", systemName)
+	}
+
+	return &systemResolution{
+		System: chosen.System,
+		Domain: chosen.Domain,
+	}, nil
+}
+
+// joinLines joins string slices with newlines.
+func joinLines(lines []string) string {
+	result := ""
+	for i, l := range lines {
+		if i > 0 {
+			result += "\n"
+		}
+		result += l
+	}
+	return result
+}
+
 // getActiveSystem returns the active system from the context
 func getActiveSystem(ds db.DataStore) (*models.System, error) {
 	ctx, err := ds.GetContext()

@@ -89,11 +89,37 @@ func (h *AppHandler) Apply(ctx resource.Context, data []byte) (resource.Resource
 
 	// Resolve System if specified in YAML metadata
 	if appYAML.Metadata.System != "" {
-		system, err := ds.GetSystemByName(sql.NullInt64{Int64: int64(domain.ID), Valid: true}, appYAML.Metadata.System)
-		if err != nil {
-			return nil, fmt.Errorf("system '%s' not found in domain '%s': %w", appYAML.Metadata.System, domainName, err)
+		// Global system lookup: find system across all domains (#287)
+		matches, findErr := ds.FindSystemsByName(appYAML.Metadata.System)
+		if findErr != nil {
+			return nil, fmt.Errorf("failed to find system '%s': %w", appYAML.Metadata.System, findErr)
 		}
-		app.SystemID = sql.NullInt64{Int64: int64(system.ID), Valid: true}
+		if len(matches) == 0 {
+			return nil, fmt.Errorf("system '%s' not found", appYAML.Metadata.System)
+		}
+		var chosen *models.SystemWithHierarchy
+		if len(matches) == 1 {
+			chosen = matches[0]
+		} else {
+			// Multiple matches — use the YAML domain as tie-breaker
+			for _, m := range matches {
+				if m.Domain != nil && m.Domain.ID == domain.ID {
+					chosen = m
+					break
+				}
+			}
+			if chosen == nil {
+				return nil, fmt.Errorf("ambiguous system name '%s' — found in multiple domains; specify metadata.domain to disambiguate", appYAML.Metadata.System)
+			}
+		}
+		app.SystemID = sql.NullInt64{Int64: int64(chosen.System.ID), Valid: true}
+		// If system's domain differs from the YAML domain, use system's domain
+		if chosen.Domain != nil && chosen.Domain.ID != domain.ID {
+			domain = chosen.Domain
+			domainName = domain.Name
+			domainNullID = sql.NullInt64{Int64: int64(domain.ID), Valid: true}
+			app.DomainID = domainNullID
+		}
 	}
 
 	// Check if app exists

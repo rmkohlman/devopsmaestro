@@ -168,10 +168,17 @@ Next Steps:
 		// Resolve system from flag or active context (optional)
 		var system *models.System
 		if appSystem != "" {
-			domainNullID := sql.NullInt64{Int64: int64(domain.ID), Valid: true}
-			system, err = ds.GetSystemByName(domainNullID, appSystem)
-			if err != nil {
-				return fmt.Errorf("system '%s' not found in domain '%s': %w", appSystem, domain.Name, err)
+			// Global system lookup: find system across all domains (#287)
+			resolution, sErr := resolveSystemGlobally(ds, appSystem, domain)
+			if sErr != nil {
+				return sErr
+			}
+			system = resolution.System
+			// Use the system's domain if it differs from active context
+			if resolution.Domain.ID != domain.ID {
+				render.Info(fmt.Sprintf("System '%s' is in domain '%s' (active domain: '%s') — using system's domain",
+					appSystem, resolution.Domain.Name, domain.Name))
+				domain = resolution.Domain
 			}
 		} else {
 			// Try active system context (optional — apps don't require a system)
@@ -347,23 +354,19 @@ func getApps(cmd *cobra.Command) error {
 
 	// Filter by system if --system flag is provided
 	if systemFlag != "" {
-		// Resolve system by name within the domain context
-		var systemDomainID sql.NullInt64
+		// Global system lookup: find system across all domains (#287)
+		var activeDomain *models.Domain
 		if domainName != "" && domainName != "(all)" {
-			// We have a domain — find system within it
-			var domain *models.Domain
 			ecosystem, ecoErr := getActiveEcosystem(ds)
 			if ecoErr == nil {
-				domain, _ = ds.GetDomainByName(sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true}, domainName)
-			}
-			if domain != nil {
-				systemDomainID = sql.NullInt64{Int64: int64(domain.ID), Valid: true}
+				activeDomain, _ = ds.GetDomainByName(sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true}, domainName)
 			}
 		}
-		targetSystem, sErr := ds.GetSystemByName(systemDomainID, systemFlag)
+		resolution, sErr := resolveSystemGlobally(ds, systemFlag, activeDomain)
 		if sErr != nil {
-			return fmt.Errorf("system '%s' not found: %w", systemFlag, sErr)
+			return sErr
 		}
+		targetSystem := resolution.System
 		filtered := make([]*models.App, 0, len(apps))
 		for _, a := range apps {
 			if a.SystemID.Valid && a.SystemID.Int64 == int64(targetSystem.ID) {
@@ -563,12 +566,19 @@ func getApp(cmd *cobra.Command, name string) error {
 
 	// Resolve system from flag if provided (for context)
 	if systemFlag != "" {
-		domainNullID := sql.NullInt64{Int64: int64(domain.ID), Valid: true}
-		resolvedSystem, sErr := ds.GetSystemByName(domainNullID, systemFlag)
+		// Global system lookup: find system across all domains (#287)
+		resolution, sErr := resolveSystemGlobally(ds, systemFlag, domain)
 		if sErr != nil {
-			return fmt.Errorf("system '%s' not found in domain '%s': %w", systemFlag, domain.Name, sErr)
+			return sErr
 		}
-		ds.SetActiveSystem(&resolvedSystem.ID)
+		ds.SetActiveSystem(&resolution.System.ID)
+		// Use the system's domain if it differs from active context
+		if resolution.Domain.ID != domain.ID {
+			render.Info(fmt.Sprintf("System '%s' is in domain '%s' (active domain: '%s') — using system's domain",
+				systemFlag, resolution.Domain.Name, domain.Name))
+			domain = resolution.Domain
+			ds.SetActiveDomain(&domain.ID)
+		}
 	}
 
 	// Get ecosystem for display
@@ -710,12 +720,19 @@ Examples:
 
 		// Resolve system from flag if provided (for context)
 		if systemFlag != "" {
-			domainNullID := sql.NullInt64{Int64: int64(domain.ID), Valid: true}
-			resolvedSystem, sErr := ds.GetSystemByName(domainNullID, systemFlag)
+			// Global system lookup: find system across all domains (#287)
+			resolution, sErr := resolveSystemGlobally(ds, systemFlag, domain)
 			if sErr != nil {
-				return fmt.Errorf("system '%s' not found in domain '%s': %w", systemFlag, domain.Name, sErr)
+				return sErr
 			}
-			ds.SetActiveSystem(&resolvedSystem.ID)
+			ds.SetActiveSystem(&resolution.System.ID)
+			// Use the system's domain if it differs from active context
+			if resolution.Domain.ID != domain.ID {
+				render.Info(fmt.Sprintf("System '%s' is in domain '%s' (active domain: '%s') — using system's domain",
+					systemFlag, resolution.Domain.Name, domain.Name))
+				domain = resolution.Domain
+				ds.SetActiveDomain(&domain.ID)
+			}
 		}
 
 		// Look up app to show cascade info
