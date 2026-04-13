@@ -6,6 +6,14 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ---
 
+## v0.87.1 (2026-04-13)
+
+**Bug Fixes**
+
+- **Database initialization panic when using `-v` flag** — The `-v` (verbose) flag was incorrectly treated as `--version`, skipping database initialization and causing a panic on commands like `dvm admin init`. Fixed by only matching actual command names (`completion`, `version`, `help`) in the skip check. Added defensive nil-interface guard to prevent panics ([#285](https://github.com/rmkohlman/devopsmaestro/issues/285)).
+
+---
+
 ## v0.87.0 (2026-04-13)
 
 **New Features**
