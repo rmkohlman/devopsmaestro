@@ -7,13 +7,16 @@ Complete reference for all `dvm` commands.
 DevOpsMaestro uses a hierarchical structure:
 
 ```
-Ecosystem → Domain → App → Workspace
+Ecosystem → Domain → System → App → Workspace
 ```
+
+All intermediate levels (Ecosystem, Domain, System) are **optional** — only Workspace is required.
 
 | Level | Purpose | Example |
 |-------|---------|---------|
 | **Ecosystem** | Top-level platform grouping | `my-platform` |
 | **Domain** | Bounded context (group of related apps) | `backend`, `frontend` |
+| **System** | Logical grouping of related apps within a domain | `auth-system`, `payments` |
 | **App** | A codebase/application | `my-api`, `web-app` |
 | **Workspace** | Development environment for an app | `dev`, `feature-x` |
 
@@ -136,6 +139,160 @@ dvm use ecosystem my-platform
 dvm create domain backend  # Creates my-platform/backend
 ```
 
+### `dvm create system`
+
+Create a new system within a domain.
+
+```bash
+dvm create system <name> [flags]
+dvm create sys <name> [flags]      # Alias
+```
+
+**Flags:**
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--domain <name>` | `-d` | Parent domain name |
+| `--ecosystem <name>` | `-e` | Parent ecosystem name |
+| `--description <text>` | | System description |
+| `--dry-run` | | Preview without creating |
+
+**Examples:**
+
+```bash
+# Create a system in the active domain
+dvm create system auth-system
+
+# Specify domain explicitly
+dvm create system auth-system --domain backend
+
+# With ecosystem and description
+dvm create system payments --domain backend --ecosystem my-platform \
+  --description "Payment processing services"
+
+# Preview without creating
+dvm create system auth-system --domain backend --dry-run
+```
+
+### `dvm get system`
+
+Get details for a specific system.
+
+```bash
+dvm get system <name> [flags]
+dvm get sys <name> [flags]         # Alias
+```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `-d, --domain <name>` | Look up system in this domain |
+| `--show-theme` | Show theme resolution information |
+| `-o, --output <format>` | Output format: `json`, `yaml` |
+
+**Examples:**
+
+```bash
+# Show system details (uses active domain)
+dvm get system auth-system
+
+# Target a specific domain
+dvm get system auth-system --domain backend
+
+# Output as YAML
+dvm get system auth-system -o yaml
+```
+
+### `dvm get systems`
+
+List all systems in the active or specified domain.
+
+```bash
+dvm get systems [flags]
+dvm get sys [flags]               # Alias (plural form)
+```
+
+**Flags:**
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--domain <name>` | `-d` | Domain to list systems for |
+| `--ecosystem <name>` | `-e` | Ecosystem context |
+| `-A, --all` | | List all systems across every domain |
+| `-o, --output <format>` | | Output format: `json`, `yaml`, `plain`, `table` |
+
+**Examples:**
+
+```bash
+dvm get systems --domain backend
+dvm get systems --domain backend -o yaml
+dvm get systems -A                    # All systems across all domains
+```
+
+### `dvm use system`
+
+Set the active system context.
+
+```bash
+dvm use system <name> [flags]
+dvm use sys <name> [flags]         # Alias
+```
+
+Use `none` as the name to clear the system context.
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--export` | Print `export DVM_SYSTEM=<name>` for shell eval instead of updating DB |
+| `--dry-run` | Preview the context switch without applying |
+
+**Examples:**
+
+```bash
+# Set active system
+dvm use system auth-system
+
+# Clear system context
+dvm use system none
+
+# Print export statement for eval in current shell tab
+eval $(dvm use system auth-system --export)
+```
+
+### `dvm delete system`
+
+Delete a system.
+
+```bash
+dvm delete system <name> [flags]
+dvm delete sys <name> [flags]      # Alias
+```
+
+**Flags:**
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--domain <name>` | `-d` | Domain containing the system |
+| `--ecosystem <name>` | `-e` | Ecosystem context |
+| `--force` | `-f` | Skip confirmation prompt |
+| `--all` | `-A` | Delete all systems in the domain |
+| `--dry-run` | | Preview without deleting |
+
+**Examples:**
+
+```bash
+# Delete with confirmation prompt
+dvm delete system auth-system
+
+# Delete without confirmation
+dvm delete system auth-system --force
+
+# Preview without deleting
+dvm delete system auth-system --dry-run
+```
+
 ### `dvm create app`
 
 Create a new app within a domain.
@@ -153,6 +310,7 @@ dvm create app <ecosystem>/<domain>/<app> [flags]
 | `--repo <url>` | Git repository URL |
 | `--language <name>` | Programming language (go, python, node, etc.) |
 | `--description <text>` | App description |
+| `--system <name>` | Associate app with a system (`-s` short form) |
 
 **Examples:**
 
@@ -240,6 +398,7 @@ dvm get apps [flags]
 | Flag | Description |
 |------|-------------|
 | `--domain <name>` | Domain name (defaults to active domain if set) |
+| `-s, --system <name>` | Filter apps by system |
 | `-o, --output <format>` | Output format: `json`, `yaml`, `plain`, `table` |
 
 **Examples:**
@@ -3385,6 +3544,7 @@ dvm version
 |--------------|-------|
 | `ecosystem` | `eco` |
 | `domain` | `dom` |
+| `system` | `sys` |
 | `app` | `a`, `application` |
 | `workspace` | `ws` |
 | `credential` | `cred` |

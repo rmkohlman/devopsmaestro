@@ -14,6 +14,7 @@ metadata:
   name: main
   app: api-service
   domain: backend
+  system: payments
   ecosystem: my-platform
   labels:
     purpose: development
@@ -150,6 +151,7 @@ spec:
 | `metadata.name` | string | ✅ | Unique name for the workspace |
 | `metadata.app` | string | ✅ | Parent app name |
 | `metadata.domain` | string | ❌ | Parent domain name — enables context-free apply; required when domain name is ambiguous across ecosystems |
+| `metadata.system` | string | ❌ | Parent system name — optional grouping layer between domain and app |
 | `metadata.ecosystem` | string | ❌ | Parent ecosystem name — used with `metadata.domain` for fully-qualified context-free apply |
 | `metadata.labels` | object | ❌ | Key-value labels for organization |
 | `metadata.annotations` | object | ❌ | Key-value annotations for metadata |
@@ -246,6 +248,18 @@ metadata:
   app: api-service
   domain: backend       # Enables context-free apply
   ecosystem: my-platform  # Add ecosystem to fully disambiguate
+```
+
+### metadata.system (optional)
+The name of the parent system. Optional — when present, provides additional context for `dvm apply` resolution. Must reference an existing System resource when provided.
+
+```yaml
+metadata:
+  name: main
+  app: api-service
+  domain: backend
+  system: payments      # References System/payments
+  ecosystem: my-platform
 ```
 
 ### metadata.ecosystem (optional)
@@ -606,6 +620,7 @@ dvm get workspace dev --include-config -o yaml
 - `metadata.name` must be a valid DNS subdomain
 - `metadata.app` must reference an existing App resource
 - `metadata.domain`, if provided, must reference an existing Domain resource
+- `metadata.system`, if provided, must reference an existing System resource
 - `metadata.ecosystem`, if provided, must reference an existing Ecosystem resource
 - `spec.shell.type` must be `zsh` or `bash`
 - `spec.terminal.type` must be `tmux`, `zellij`, or `screen`

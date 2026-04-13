@@ -45,7 +45,7 @@ spec:
 | `apiVersion` | string | ✅ | Must be `devopsmaestro.io/v1` |
 | `kind` | string | ✅ | Must be `Domain` |
 | `metadata.name` | string | ✅ | Unique name for the domain |
-| `metadata.ecosystem` | string | ✅ | Parent ecosystem name |
+| `metadata.ecosystem` | string | ❌ | Parent ecosystem name — optional; resolved from active context when omitted |
 | `metadata.labels` | object | ❌ | Key-value labels for organization |
 | `metadata.annotations` | object | ❌ | Key-value annotations for metadata |
 | `spec.theme` | string | ❌ | Default theme for apps/workspaces in this domain |
@@ -71,8 +71,8 @@ The unique identifier for the domain within the ecosystem.
 - `data-platform`
 - `infrastructure`
 
-### metadata.ecosystem (required)
-The name of the parent ecosystem this domain belongs to. Must reference an existing Ecosystem resource.
+### metadata.ecosystem (optional)
+The name of the parent ecosystem this domain belongs to. Optional — when omitted, `dvm apply` resolves using the active context. Must reference an existing Ecosystem resource when provided.
 
 ```yaml
 metadata:
@@ -131,10 +131,10 @@ spec:
 
 **Cascade order (most specific level wins):**
 ```
-global < ecosystem < domain < app < workspace
+global < ecosystem < domain < system < app < workspace
 ```
 
-An arg defined at the domain level overrides any matching arg from the ecosystem or global level, and is itself overridden by app- or workspace-level definitions. Use `dvm get build-args --effective --workspace <name>` to see the fully merged result with provenance for any workspace.
+An arg defined at the domain level overrides any matching arg from the ecosystem or global level, and is itself overridden by system-, app-, or workspace-level definitions. Use `dvm get build-args --effective --workspace <name>` to see the fully merged result with provenance for any workspace.
 
 Manage domain-level build args with:
 
@@ -162,10 +162,10 @@ spec:
 
 **Cascade order (most specific level wins by cert name):**
 ```
-global < ecosystem < domain < app < workspace
+global < ecosystem < domain < system < app < workspace
 ```
 
-A cert defined at the domain level overrides any matching cert from the ecosystem or global level, and is itself overridden by app- or workspace-level definitions. Use `dvm get ca-certs --effective --workspace <name>` to see the fully merged result with provenance for any workspace.
+A cert defined at the domain level overrides any matching cert from the ecosystem or global level, and is itself overridden by system-, app-, or workspace-level definitions. Use `dvm get ca-certs --effective --workspace <name>` to see the fully merged result with provenance for any workspace.
 
 Manage domain-level CA certs with:
 
@@ -265,6 +265,7 @@ spec:
 ## Related Resources
 
 - [Ecosystem](ecosystem.md) - Parent organizational grouping
+- [System](system.md) - Logical grouping of apps within this domain
 - [App](app.md) - Applications within this domain
 - [Workspace](workspace.md) - Development environments
 - [Credential](credential.md) - Secrets scoped to this domain
@@ -275,7 +276,7 @@ spec:
 
 - `metadata.name` must be unique within the parent ecosystem
 - `metadata.name` must be a valid DNS subdomain (lowercase, alphanumeric, hyphens)
-- `metadata.ecosystem` must reference an existing Ecosystem resource
+- `metadata.ecosystem`, if provided, must reference an existing Ecosystem resource
 - `spec.apps` references must exist as App resources within this domain
 - `spec.theme` must reference an existing theme (built-in or custom)
 - `spec.nvimPackage` must reference an existing NvimPackage resource

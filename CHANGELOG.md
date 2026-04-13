@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **System hierarchy layer** — New organizational level between Domain and App in the resource hierarchy (`ecosystem → domain → system → app → workspace`). Systems group related apps within a domain and support theme, build args, CA certs, and credential cascading. All intermediate hierarchy levels (ecosystem, domain, system) are now optional — only workspace is required. ([#261](https://github.com/rmkohlman/devopsmaestro/issues/261))
+
 ---
 
 ## [v0.86.1] - 2026-04-13

@@ -13,6 +13,7 @@ kind: App
 metadata:
   name: api-service
   domain: backend
+  system: payments
   ecosystem: my-platform
   labels:
     team: backend-team
@@ -81,7 +82,8 @@ spec:
 | `apiVersion` | string | ✅ | Must be `devopsmaestro.io/v1` |
 | `kind` | string | ✅ | Must be `App` |
 | `metadata.name` | string | ✅ | Unique name for the app |
-| `metadata.domain` | string | ✅ | Parent domain name |
+| `metadata.domain` | string | ❌ | Parent domain name — optional; resolved from active context when omitted |
+| `metadata.system` | string | ❌ | Parent system name — optional grouping layer between domain and app |
 | `metadata.ecosystem` | string | ❌ | Parent ecosystem name — enables context-free apply without `dvm use ecosystem` |
 | `metadata.labels` | object | ❌ | Key-value labels for organization |
 | `metadata.annotations` | object | ❌ | Key-value annotations for metadata |
@@ -128,13 +130,23 @@ The unique identifier for the app within the domain.
 - `user-service`
 - `web-frontend`
 
-### metadata.domain (required)
-The name of the parent domain this app belongs to. Must reference an existing Domain resource.
+### metadata.domain (optional)
+The name of the parent domain this app belongs to. Optional — when omitted, `dvm apply` resolves using the active context. Must reference an existing Domain resource when provided.
 
 ```yaml
 metadata:
   name: api-service
   domain: backend  # References Domain/backend
+```
+
+### metadata.system (optional)
+The name of the parent system this app belongs to. Optional grouping layer between domain and app. Must reference an existing System resource when provided.
+
+```yaml
+metadata:
+  name: api-service
+  domain: backend
+  system: payments  # References System/payments
 ```
 
 ### metadata.ecosystem (optional)
@@ -222,10 +234,10 @@ spec:
 
 **Cascade order (most specific level wins by cert name):**
 ```
-global < ecosystem < domain < app < workspace
+global < ecosystem < domain < system < app < workspace
 ```
 
-An app-level cert overrides any matching cert from higher levels (domain, ecosystem, global). Individual workspaces can further override by defining a cert with the same name. Use `dvm get ca-certs --effective --workspace <name>` to see the fully merged result with provenance.
+An app-level cert overrides any matching cert from higher levels (system, domain, ecosystem, global). Individual workspaces can further override by defining a cert with the same name. Use `dvm get ca-certs --effective --workspace <name>` to see the fully merged result with provenance.
 
 Manage app-level CA certs with:
 
@@ -422,6 +434,7 @@ dvm get app my-api --include-workspaces -o yaml
 ## Related Resources
 
 - [Domain](domain.md) - Parent bounded context
+- [System](system.md) - Optional parent system grouping
 - [Workspace](workspace.md) - Development environments for this app
 - [Credential](credential.md) - Secrets scoped to this app
 - [NvimPackage](nvim-package.md) - Plugin package definitions
@@ -431,7 +444,8 @@ dvm get app my-api --include-workspaces -o yaml
 
 - `metadata.name` must be unique within the parent domain
 - `metadata.name` must be a valid DNS subdomain
-- `metadata.domain` must reference an existing Domain resource
+- `metadata.domain`, if provided, must reference an existing Domain resource
+- `metadata.system`, if provided, must reference an existing System resource
 - `metadata.ecosystem`, if provided, must reference an existing Ecosystem resource
 - `spec.path` must be an existing directory path
 - `spec.gitRepo`, if provided, must reference an existing GitRepo resource

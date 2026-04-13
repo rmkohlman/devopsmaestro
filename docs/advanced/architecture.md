@@ -20,22 +20,25 @@ All three tools share the same object hierarchy and context.
 
 ## Object Hierarchy
 
-Resources are organized in a four-level hierarchy:
+Resources are organized in a five-level hierarchy:
 
 ```
-Ecosystem → Domain → App → Workspace
+Ecosystem → Domain → System → App → Workspace
 ```
 
 | Object | Purpose |
 |--------|---------|
 | **Ecosystem** | Top-level platform grouping (e.g., your company or product area) |
 | **Domain** | Bounded context within an ecosystem (e.g., a team or service area) |
+| **System** | Logical grouping of related apps within a domain (optional) |
 | **App** | Your codebase — the thing you build and maintain |
 | **Workspace** | A development environment for an App (runs in a container) |
 
+All intermediate levels (Ecosystem, Domain, System) are optional — only Workspace is required.
+
 ### Context
 
-Your active context determines which ecosystem, domain, app, and workspace commands operate on by default. Check it at any time:
+Your active context determines which ecosystem, domain, system, app, and workspace commands operate on by default. Check it at any time:
 
 ```bash
 dvm get context     # Show active context
@@ -46,12 +49,13 @@ dvm get ctx         # Short alias
 
 ## Resource Types
 
-DevOpsMaestro manages 12 built-in resource types:
+DevOpsMaestro manages 13 built-in resource types:
 
 | Resource | Kind | Purpose |
 |----------|------|---------|
 | Ecosystem | `Ecosystem` | Organizational grouping |
 | Domain | `Domain` | Bounded context |
+| System | `System` | Logical app cluster within a domain |
 | App | `App` | Application registration |
 | Workspace | `Workspace` | Dev environment container |
 | Credential | `Credential` | Stored credentials for auth |

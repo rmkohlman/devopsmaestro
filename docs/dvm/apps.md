@@ -16,13 +16,14 @@ An **App** is the core object in DevOpsMaestro - it represents your codebase:
 ### Hierarchy
 
 ```
-Ecosystem → Domain → App → Workspace
+Ecosystem → Domain → System → App → Workspace
 ```
 
 | Level | Purpose | Example |
 |-------|---------|---------|
 | Ecosystem | Platform grouping | `customer-platform` |
 | Domain | Bounded context | `auth-domain` |
+| System | Logical app cluster (optional) | `auth-system` |
 | App | Your codebase | `auth-api` |
 | Workspace | Dev environment | `dev`, `test` |
 

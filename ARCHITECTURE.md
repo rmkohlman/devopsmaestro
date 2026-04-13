@@ -8,15 +8,18 @@
 ## Object Hierarchy
 
 ```
-Ecosystem → Domain → App → Workspace (dev mode)
-                      ↓
-                  (live mode - managed by Operator)
+Ecosystem → Domain → System → App → Workspace (dev mode)
+                                ↓
+                            (live mode - managed by Operator)
 ```
+
+All intermediate levels (Ecosystem, Domain, System) are **optional** — only Workspace is required.
 
 | Object | Purpose | Status |
 |--------|---------|--------|
 | **Ecosystem** | Top-level platform grouping | ✅ Complete |
 | **Domain** | Bounded context | ✅ Complete |
+| **System** | Group of related apps within a domain | ✅ Complete |
 | **App** | The codebase (has `path`) | ✅ Complete |
 | **Workspace** | Dev environment for App | ✅ Complete |
 | **Project** | ⚠️ DEPRECATED | Migrate to App |
@@ -167,7 +170,7 @@ Before writing or reviewing code, verify:
 |-------|-----------|---------|
 | `build_sessions` | 022 | One row per `dvm build` invocation: UUID, start/end timestamps, status (`in_progress` / `succeeded` / `failed`), total/succeeded/failed workspace counts |
 | `build_session_workspaces` | 022 | Per-workspace result within a session: status, start/end timestamps, duration (seconds), built image tag, error message. FK → `build_sessions` and `workspaces` with `ON DELETE CASCADE` |
-| `build_args` | 017 | Hierarchical build args (`global → ecosystem → domain → app → workspace`) |
+| `build_args` | 017 | Hierarchical build args (`global → ecosystem → domain → system → app → workspace`) |
 | `ca_certs` | 018 | Hierarchical CA certificates (same cascade levels as build args) |
 
 Build sessions older than 30 days are cleaned up automatically. Query the most recent session with `dvm build status`, a specific session with `dvm build status --session-id <uuid>`, or list recent history with `dvm build status --history`.

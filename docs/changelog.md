@@ -4,6 +4,10 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ## Unreleased
 
+**New Features**
+
+- **System hierarchy layer** — New organizational level between Domain and App in the resource hierarchy (`ecosystem → domain → system → app → workspace`). Systems group related apps within a domain and support theme, build args, CA certs, and credential cascading. All intermediate hierarchy levels (ecosystem, domain, system) are now optional — only workspace is required (#261).
+
 ---
 
 ## v0.86.1 (2026-04-13)

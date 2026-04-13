@@ -12,6 +12,7 @@ DevOpsMaestro supports the following resource types with kubectl-style YAML conf
 |----------|------------|-------------|
 | [Ecosystem](ecosystem.md) | `devopsmaestro.io/v1` | Top-level platform grouping (organization) |
 | [Domain](domain.md) | `devopsmaestro.io/v1` | Bounded context within an ecosystem |
+| [System](system.md) | `devopsmaestro.io/v1` | Logical grouping of related apps within a domain (optional) |
 | [App](app.md) | `devopsmaestro.io/v1` | Application/codebase within a domain |
 | [Workspace](workspace.md) | `devopsmaestro.io/v1` | Development environment for an app |
 | [Credential](credential.md) | `devopsmaestro.io/v1` | Secret reference (MaestroVault or env) scoped to an ecosystem, domain, app, or workspace |
