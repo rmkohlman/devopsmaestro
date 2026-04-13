@@ -6,6 +6,14 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ---
 
+## v0.87.4 (2026-04-13)
+
+**Bug Fixes**
+
+- **Parallel build output corruption (`dvm build -A`)** — Implemented per-workspace output buffering with mutex-protected atomic flush to prevent garbled interleaved output when building multiple workspaces simultaneously ([#290](https://github.com/rmkohlman/devopsmaestro/issues/290)).
+
+---
+
 ## v0.87.3 (2026-04-13)
 
 **Bug Fixes**
