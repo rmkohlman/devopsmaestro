@@ -212,7 +212,7 @@ func ensureSandboxImage(
 
 	// For containerd platforms, copy image from buildkit namespace to devopsmaestro namespace
 	if platform.IsContainerd() {
-		if err := copyImageToNamespace(platform, imageName); err != nil {
+		if err := copyImageToNamespace(platform, imageName, os.Stdout); err != nil {
 			return fmt.Errorf("failed to copy image to namespace: %w", err)
 		}
 	}

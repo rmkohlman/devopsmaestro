@@ -21,7 +21,6 @@ import (
 	"devopsmaestro/utils"
 
 	"github.com/rmkohlman/MaestroSDK/paths"
-	"github.com/rmkohlman/MaestroSDK/render"
 )
 
 // resolveWorkspaceTarget resolves the workspace from hierarchy flags or active context.
@@ -42,14 +41,14 @@ func (bc *buildContext) resolveFromHierarchyFlags() error {
 	result, err := wsResolver.Resolve(buildFlags.ToFilter())
 	if err != nil {
 		if ambiguousErr, ok := wsresolver.IsAmbiguousError(err); ok {
-			render.Warning("Multiple workspaces match your criteria")
-			render.Plain(ambiguousErr.FormatDisambiguation())
-			render.Plain(FormatSuggestions(SuggestAmbiguousWorkspace()...))
+			bc.renderWarning("Multiple workspaces match your criteria")
+			bc.renderPlain(ambiguousErr.FormatDisambiguation())
+			bc.renderPlain(FormatSuggestions(SuggestAmbiguousWorkspace()...))
 			return fmt.Errorf("ambiguous workspace selection")
 		}
 		if wsresolver.IsNoWorkspaceFoundError(err) {
-			render.Warning("No workspace found matching your criteria")
-			render.Plain(FormatSuggestions(SuggestWorkspaceNotFound("")...))
+			bc.renderWarning("No workspace found matching your criteria")
+			bc.renderPlain(FormatSuggestions(SuggestWorkspaceNotFound("")...))
 			return err
 		}
 		return fmt.Errorf("failed to resolve workspace: %w", err)
@@ -60,7 +59,7 @@ func (bc *buildContext) resolveFromHierarchyFlags() error {
 	bc.appName = bc.app.Name
 	bc.workspaceName = bc.workspace.Name
 
-	render.Info(fmt.Sprintf("Resolved: %s", result.FullPath()))
+	bc.renderInfof("Resolved: %s", result.FullPath())
 	return nil
 }
 
@@ -70,14 +69,14 @@ func (bc *buildContext) resolveFromActiveContext() error {
 	bc.appName, err = getActiveAppFromContext(bc.ds)
 	if err != nil {
 		slog.Debug("no active app set")
-		render.Plain(FormatSuggestions(SuggestNoActiveApp()...))
+		bc.renderPlain(FormatSuggestions(SuggestNoActiveApp()...))
 		return fmt.Errorf("no active app set. Use 'dvm use app <name>' first")
 	}
 
 	bc.workspaceName, err = getActiveWorkspaceFromContext(bc.ds)
 	if err != nil {
 		slog.Debug("no active workspace set")
-		render.Plain(FormatSuggestions(SuggestNoActiveWorkspace()...))
+		bc.renderPlain(FormatSuggestions(SuggestNoActiveWorkspace()...))
 		return fmt.Errorf("no active workspace set. Use 'dvm use workspace <name>' first")
 	}
 
@@ -122,13 +121,13 @@ func (bc *buildContext) validateAppPath() error {
 // detectBuildPlatform detects the container platform (Docker/Colima/etc.).
 // Sets bc.platform.
 func (bc *buildContext) detectBuildPlatform() error {
-	render.Progress("Detecting container platform...")
+	bc.renderProgress("Detecting container platform...")
 	platform, err := detectPlatform()
 	if err != nil {
 		return err
 	}
 	bc.platform = platform
-	render.Info(fmt.Sprintf("Platform: %s", platform.Name))
+	bc.renderInfof("Platform: %s", platform.Name)
 	slog.Info("detected platform", "name", platform.Name, "type", platform.Type, "socket", platform.SocketPath)
 	return nil
 }
@@ -147,8 +146,8 @@ func (bc *buildContext) prepareRegistry() error {
 	)
 	regResult, regErr := coordinator.Prepare(bc.ctx)
 	if regErr != nil {
-		render.Warning(fmt.Sprintf("Registry preparation failed: %v", regErr))
-		render.Info("Continuing build without registry cache")
+		bc.renderWarningf("Registry preparation failed: %v", regErr)
+		bc.renderInfo("Continuing build without registry cache")
 		slog.Warn("registry preparation failed", "error", regErr)
 		return nil
 	}
@@ -157,10 +156,10 @@ func (bc *buildContext) prepareRegistry() error {
 	bc.registryEnvVars = regResult.EnvVars
 	bc.cacheReadiness = &regResult.CacheReadiness
 	for _, w := range regResult.Warnings {
-		render.Warning(w)
+		bc.renderWarning(w)
 	}
 	if len(regResult.Managers) > 0 {
-		render.Info(fmt.Sprintf("Started %d registry cache(s)", len(regResult.Managers)))
+		bc.renderInfof("Started %d registry cache(s)", len(regResult.Managers))
 	}
 	return nil
 }
@@ -168,14 +167,14 @@ func (bc *buildContext) prepareRegistry() error {
 // checkDockerfile looks for an existing Dockerfile in the app directory.
 // Sets bc.hasDockerfile and bc.dockerfilePath.
 func (bc *buildContext) checkDockerfile() {
-	render.Blank()
-	render.Progress("Checking for Dockerfile...")
+	bc.renderBlank()
+	bc.renderProgress("Checking for Dockerfile...")
 	bc.hasDockerfile, bc.dockerfilePath = utils.HasDockerfile(bc.app.Path)
 	if bc.hasDockerfile {
-		render.Info(fmt.Sprintf("Found: %s", bc.dockerfilePath))
+		bc.renderInfof("Found: %s", bc.dockerfilePath)
 		slog.Debug("found existing Dockerfile", "path", bc.dockerfilePath)
 	} else {
-		render.Info("No Dockerfile found, will generate from scratch")
+		bc.renderInfo("No Dockerfile found, will generate from scratch")
 		slog.Debug("no Dockerfile found, will generate")
 	}
 }
@@ -223,8 +222,8 @@ func (bc *buildContext) prepareSourceAndStaging() error {
 	}
 
 	// Detect language (use App.Language if set, fall back to auto-detection)
-	render.Blank()
-	render.Progress("Detecting app language...")
+	bc.renderBlank()
+	bc.renderProgress("Detecting app language...")
 	bc.languageName, bc.version, _ = bc.detectLanguageAndReport()
 
 	// Use the workspace slug (ecosystem-domain-system-app-workspace) to
@@ -234,7 +233,7 @@ func (bc *buildContext) prepareSourceAndStaging() error {
 	// different systems or domains.
 	stagingKey := bc.buildKey()
 	bc.stagingDir = paths.New(bc.homeDir).BuildStagingDir(stagingKey)
-	if err := prepareStagingDirectory(bc.stagingDir, bc.sourcePath, bc.appName, bc.workspaceName, bc.ds, bc.workspace); err != nil {
+	if err := prepareStagingDirectory(bc.stagingDir, bc.sourcePath, bc.appName, bc.workspaceName, bc.ds, bc.workspace, bc.out()); err != nil {
 		return err
 	}
 	return nil
@@ -246,20 +245,20 @@ func (bc *buildContext) detectLanguageAndReport() (string, string, bool) {
 	languageName, version, wasDetected := getLanguageFromApp(bc.app, bc.sourcePath)
 
 	if !wasDetected {
-		render.Info(fmt.Sprintf("Language: %s (from app config)", languageName))
+		bc.renderInfof("Language: %s (from app config)", languageName)
 		if version != "" {
-			render.Info(fmt.Sprintf("Version: %s", version))
+			bc.renderInfof("Version: %s", version)
 		}
 		slog.Debug("using language from app config", "language", languageName, "version", version)
 	} else if languageName != "unknown" {
 		if version != "" {
-			render.Info(fmt.Sprintf("Language: %s (version: %s)", languageName, version))
+			bc.renderInfof("Language: %s (version: %s)", languageName, version)
 		} else {
-			render.Info(fmt.Sprintf("Language: %s", languageName))
+			bc.renderInfof("Language: %s", languageName)
 		}
 		slog.Debug("detected language", "language", languageName, "version", version)
 	} else {
-		render.Info("Language: Unknown (will use generic base)")
+		bc.renderInfo("Language: Unknown (will use generic base)")
 		slog.Debug("language detection failed, using generic base")
 	}
 
@@ -289,11 +288,11 @@ func (bc *buildContext) resolveCACerts() error {
 
 	// Prepare CA certificates if configured
 	if len(bc.workspaceYAML.Spec.Build.CACerts) > 0 {
-		render.Progress("Resolving CA certificates from vault...")
+		bc.renderProgress("Resolving CA certificates from vault...")
 		if err := prepareCACerts(bc.stagingDir, bc.workspaceYAML.Spec.Build.CACerts); err != nil {
 			return err
 		}
-		render.Info(fmt.Sprintf("Injecting %d CA certificate(s) into build context", len(bc.workspaceYAML.Spec.Build.CACerts)))
+		bc.renderInfof("Injecting %d CA certificate(s) into build context", len(bc.workspaceYAML.Spec.Build.CACerts))
 	}
 	return nil
 }
@@ -306,7 +305,7 @@ func (bc *buildContext) generateNvimConfiguration() error {
 	}
 	manifest, err := generateNvimConfig(
 		bc.workspaceYAML.Spec.Nvim.Plugins, bc.stagingDir, bc.homeDir, bc.ds,
-		bc.app, bc.workspace, bc.appName, bc.workspaceName, bc.languageName,
+		bc.app, bc.workspace, bc.appName, bc.workspaceName, bc.languageName, bc.out(),
 	)
 	if err != nil {
 		return err
@@ -319,14 +318,14 @@ func (bc *buildContext) generateNvimConfiguration() error {
 // and saves the Dockerfile to the staging directory.
 // Sets bc.cascadeResolution, bc.dvmDockerfile.
 func (bc *buildContext) generateDockerfileAndResolveArgs() error {
-	render.Blank()
-	render.Progress("Generating Dockerfile.dvm...")
+	bc.renderBlank()
+	bc.renderProgress("Generating Dockerfile.dvm...")
 	slog.Debug("generating Dockerfile", "language", bc.languageName, "version", bc.version)
 
 	// Detect private repos and system dependencies
 	privateRepoInfo := utils.DetectPrivateRepos(bc.sourcePath, bc.languageName)
 	if len(privateRepoInfo.SystemDeps) > 0 {
-		render.Info(fmt.Sprintf("Auto-detected system dependencies: %s", strings.Join(privateRepoInfo.SystemDeps, ", ")))
+		bc.renderInfof("Auto-detected system dependencies: %s", strings.Join(privateRepoInfo.SystemDeps, ", "))
 		slog.Debug("auto-detected system dependencies",
 			"deps", privateRepoInfo.SystemDeps,
 			"sources", privateRepoInfo.SystemDepSources)
@@ -457,9 +456,9 @@ func (bc *buildContext) validateStagingDirectory() error {
 		slog.Warn("staging directory validation: missing files referenced by COPY",
 			"staging_dir", bc.stagingDir,
 			"missing", missing)
-		render.Warning(fmt.Sprintf("Staging directory is missing %d file(s) referenced by Dockerfile COPY commands: %s",
-			len(missing), strings.Join(missing, ", ")))
-		render.Info("This may cause Docker build failures. Check that all required files are generated.")
+		bc.renderWarningf("Staging directory is missing %d file(s) referenced by Dockerfile COPY commands: %s",
+			len(missing), strings.Join(missing, ", "))
+		bc.renderInfo("This may cause Docker build failures. Check that all required files are generated.")
 	}
 
 	return nil
@@ -472,8 +471,8 @@ func (bc *buildContext) buildImage() (skipped bool, err error) {
 	// Generate image name with timestamp tag
 	timestamp := time.Now().Format("20060102-150405")
 	bc.imageName = fmt.Sprintf("dvm-%s-%s:%s", bc.workspaceName, bc.appName, timestamp)
-	render.Blank()
-	render.Progress(fmt.Sprintf("Building image: %s", bc.imageName))
+	bc.renderBlank()
+	bc.renderProgressf("Building image: %s", bc.imageName)
 	slog.Info("building image", "image", bc.imageName, "dockerfile", bc.dvmDockerfile)
 
 	if err := bc.createBuilder(); err != nil {
@@ -485,8 +484,8 @@ func (bc *buildContext) buildImage() (skipped bool, err error) {
 		exists, existsErr := bc.builder.ImageExists(bc.ctx)
 		if existsErr == nil && exists {
 			slog.Debug("image already exists, skipping build", "image", bc.imageName)
-			render.Info(fmt.Sprintf("Image already exists: %s", bc.imageName))
-			render.Info("Use --force to rebuild")
+			bc.renderInfof("Image already exists: %s", bc.imageName)
+			bc.renderInfo("Use --force to rebuild")
 			return true, nil
 		}
 	}
@@ -503,6 +502,7 @@ func (bc *buildContext) buildImage() (skipped bool, err error) {
 		BuildArgs: buildArgs,
 		Target:    buildTarget,
 		NoCache:   buildNocache,
+		Output:    bc.output,
 	}
 
 	if !buildNocache {
@@ -530,8 +530,8 @@ func (bc *buildContext) buildImage() (skipped bool, err error) {
 		if exists, existsErr := bc.builder.ImageExists(bc.ctx); existsErr == nil && exists {
 			slog.Warn("builder returned error but image exists, treating as success",
 				"image", bc.imageName, "original_error", err)
-			render.Blank()
-			render.Successf("Image built successfully (recovered): %s", bc.imageName)
+			bc.renderBlank()
+			bc.renderSuccessf("Image built successfully (recovered): %s", bc.imageName)
 		} else {
 			slog.Error("build failed", "image", bc.imageName, "error", err)
 			return false, err
@@ -542,7 +542,7 @@ func (bc *buildContext) buildImage() (skipped bool, err error) {
 
 	// For Colima/BuildKit, copy image to devopsmaestro namespace
 	if bc.platform.IsContainerd() {
-		if err := copyImageToNamespace(bc.platform, bc.imageName); err != nil {
+		if err := copyImageToNamespace(bc.platform, bc.imageName, bc.out()); err != nil {
 			return false, err
 		}
 	}
@@ -598,7 +598,7 @@ func (bc *buildContext) assembleBuildArgs() map[string]string {
 	// Layer 3: Credentials from hierarchy (highest priority)
 	resolvedCreds, credWarnings := loadBuildCredentials(bc.ds, bc.app, bc.workspace)
 	for _, w := range credWarnings {
-		render.Warning(w)
+		bc.renderWarning(w)
 	}
 	for k, v := range resolvedCreds {
 		if envvalidation.IsDangerousEnvVar(k) {
@@ -622,47 +622,47 @@ func (bc *buildContext) postBuild() {
 	// Update workspace image name in database
 	bc.workspace.ImageName = bc.imageName
 	if err := bc.ds.UpdateWorkspace(bc.workspace); err != nil {
-		render.Warning(fmt.Sprintf("Failed to update workspace image name: %v", err))
+		bc.renderWarningf("Failed to update workspace image name: %v", err)
 	}
 
 	// Push to registry if --push flag is set and registry is available
 	if buildPush && bc.registryEndpoint != "" {
 		bc.pushToRegistry()
 	} else if buildPush && bc.registryEndpoint == "" {
-		render.Warning("Cannot push: registry is not available")
-		render.Info("Start the registry with: dvm registry start")
+		bc.renderWarning("Cannot push: registry is not available")
+		bc.renderInfo("Start the registry with: dvm registry start")
 	}
 
-	render.Blank()
-	render.Success("Build complete!")
-	render.Info(fmt.Sprintf("Image: %s", bc.imageName))
-	render.Info(fmt.Sprintf("Dockerfile: %s", bc.dvmDockerfile))
+	bc.renderBlank()
+	bc.renderSuccess("Build complete!")
+	bc.renderInfof("Image: %s", bc.imageName)
+	bc.renderInfof("Dockerfile: %s", bc.dvmDockerfile)
 	if bc.registryEndpoint != "" {
-		render.Info(fmt.Sprintf("Registry cache: %s", bc.registryEndpoint))
+		bc.renderInfof("Registry cache: %s", bc.registryEndpoint)
 	}
 	if bc.cacheReadiness != nil {
-		render.Info(bc.cacheReadiness.FormatSummary())
+		bc.renderInfo(bc.cacheReadiness.FormatSummary())
 	}
-	render.Blank()
-	render.Info("Next: Attach to your workspace with: dvm attach")
+	bc.renderBlank()
+	bc.renderInfo("Next: Attach to your workspace with: dvm attach")
 }
 
 // pushToRegistry tags and pushes the built image to the registry.
 func (bc *buildContext) pushToRegistry() {
-	render.Blank()
-	render.Progress(fmt.Sprintf("Pushing image to registry: %s", bc.registryEndpoint))
+	bc.renderBlank()
+	bc.renderProgressf("Pushing image to registry: %s", bc.registryEndpoint)
 
 	registryImage := fmt.Sprintf("%s/%s", bc.registryEndpoint, bc.imageName)
-	if err := tagImageForRegistry(bc.platform, bc.imageName, registryImage); err != nil {
-		render.Warning(fmt.Sprintf("Failed to tag image for registry: %v", err))
-		render.Info("Skipping push to registry")
+	if err := tagImageForRegistry(bc.platform, bc.imageName, registryImage, bc.out()); err != nil {
+		bc.renderWarningf("Failed to tag image for registry: %v", err)
+		bc.renderInfo("Skipping push to registry")
 		return
 	}
 
-	if err := pushImageToRegistry(bc.platform, registryImage); err != nil {
-		render.Warning(fmt.Sprintf("Failed to push image to registry: %v", err))
+	if err := pushImageToRegistry(bc.platform, registryImage, bc.out()); err != nil {
+		bc.renderWarningf("Failed to push image to registry: %v", err)
 	} else {
-		render.Success(fmt.Sprintf("Pushed to registry: %s", registryImage))
+		bc.renderSuccessf("Pushed to registry: %s", registryImage)
 		slog.Info("pushed image to registry", "image", registryImage)
 	}
 }

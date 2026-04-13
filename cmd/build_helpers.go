@@ -86,8 +86,8 @@ func getPlatformInstallHint() string {
 // prepareStagingDirectory creates and populates the staging directory for container builds.
 // This includes copying app source and generating shell configuration (starship.toml, .zshrc).
 // This function is ALWAYS called during build, regardless of nvim configuration.
-func prepareStagingDirectory(stagingDir, appPath, appName, workspaceName string, ds db.DataStore, workspace *models.Workspace) error {
-	render.Progress("Preparing build staging directory...")
+func prepareStagingDirectory(stagingDir, appPath, appName, workspaceName string, ds db.DataStore, workspace *models.Workspace, out io.Writer) error {
+	render.MsgTo(out, "", render.Message{Level: render.LevelProgress, Content: "Preparing build staging directory..."})
 
 	// Clean and recreate staging directory.
 	// Cleanup failure is non-fatal: a leftover directory from a previous build
@@ -102,7 +102,7 @@ func prepareStagingDirectory(stagingDir, appPath, appName, workspaceName string,
 	}
 
 	// Copy app source to staging directory (for Dockerfile COPY commands)
-	render.Progress("Copying application source...")
+	render.MsgTo(out, "", render.Message{Level: render.LevelProgress, Content: "Copying application source..."})
 	if err := copyAppSource(appPath, stagingDir); err != nil {
 		return fmt.Errorf("failed to copy app source: %w", err)
 	}
@@ -113,7 +113,7 @@ func prepareStagingDirectory(stagingDir, appPath, appName, workspaceName string,
 		return fmt.Errorf("failed to generate shell config: %w", err)
 	}
 
-	render.Success("Staging directory prepared")
+	render.MsgTo(out, "", render.Message{Level: render.LevelSuccess, Content: "Staging directory prepared"})
 	return nil
 }
 
@@ -249,9 +249,9 @@ func copyFile(src, dst string, mode os.FileMode) error {
 
 // copyImageToNamespace copies the built image from buildkit namespace to devopsmaestro namespace
 // This is needed because BuildKit creates images in its own namespace
-func copyImageToNamespace(platform *operators.Platform, imageName string) error {
-	render.Blank()
-	render.Progress("Copying image to devopsmaestro namespace...")
+func copyImageToNamespace(platform *operators.Platform, imageName string, out io.Writer) error {
+	fmt.Fprintln(out)
+	render.MsgTo(out, "", render.Message{Level: render.LevelProgress, Content: "Copying image to devopsmaestro namespace..."})
 
 	profile := platform.Profile
 	if profile == "" {
@@ -263,8 +263,8 @@ func copyImageToNamespace(platform *operators.Platform, imageName string) error 
 	// Save image from buildkit namespace
 	saveCmd := exec.Command("colima", "--profile", profile, "ssh", "--",
 		"sudo", "nerdctl", "--namespace", "buildkit", "image", "save", imageName, "-o", tmpFile)
-	saveCmd.Stdout = os.Stdout
-	saveCmd.Stderr = os.Stderr
+	saveCmd.Stdout = out
+	saveCmd.Stderr = out
 	if err := saveCmd.Run(); err != nil {
 		return fmt.Errorf("failed to save image: %w", err)
 	}
@@ -272,8 +272,8 @@ func copyImageToNamespace(platform *operators.Platform, imageName string) error 
 	// Load image into devopsmaestro namespace
 	loadCmd := exec.Command("colima", "--profile", profile, "ssh", "--",
 		"sudo", "nerdctl", "--namespace", "devopsmaestro", "image", "load", "-i", tmpFile)
-	loadCmd.Stdout = os.Stdout
-	loadCmd.Stderr = os.Stderr
+	loadCmd.Stdout = out
+	loadCmd.Stderr = out
 	if err := loadCmd.Run(); err != nil {
 		return fmt.Errorf("failed to load image: %w", err)
 	}
@@ -282,7 +282,7 @@ func copyImageToNamespace(platform *operators.Platform, imageName string) error 
 	cleanCmd := exec.Command("colima", "--profile", profile, "ssh", "--", "sudo", "rm", "-f", tmpFile)
 	cleanCmd.Run() // Ignore errors on cleanup
 
-	render.Success("Image copied to devopsmaestro namespace")
+	render.MsgTo(out, "", render.Message{Level: render.LevelSuccess, Content: "Image copied to devopsmaestro namespace"})
 	return nil
 }
 
@@ -411,7 +411,7 @@ func loadBuildCredentials(ds db.DataStore, app *models.App, workspace *models.Wo
 // tagImageForRegistry tags an image for pushing to a registry.
 // For Docker/OrbStack/Podman, uses docker tag command.
 // For Colima/containerd, uses nerdctl tag command.
-func tagImageForRegistry(platform *operators.Platform, sourceImage, targetImage string) error {
+func tagImageForRegistry(platform *operators.Platform, sourceImage, targetImage string, out io.Writer) error {
 	slog.Debug("tagging image for registry", "source", sourceImage, "target", targetImage)
 
 	var cmd *exec.Cmd
@@ -428,15 +428,15 @@ func tagImageForRegistry(platform *operators.Platform, sourceImage, targetImage 
 		cmd = exec.Command("docker", "tag", sourceImage, targetImage)
 	}
 
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = out
+	cmd.Stderr = out
 	return cmd.Run()
 }
 
 // pushImageToRegistry pushes an image to a registry.
 // For Docker/OrbStack/Podman, uses docker push command.
 // For Colima/containerd, uses nerdctl push command.
-func pushImageToRegistry(platform *operators.Platform, image string) error {
+func pushImageToRegistry(platform *operators.Platform, image string, out io.Writer) error {
 	slog.Debug("pushing image to registry", "image", image)
 
 	var cmd *exec.Cmd
@@ -453,7 +453,7 @@ func pushImageToRegistry(platform *operators.Platform, image string) error {
 		cmd = exec.Command("docker", "push", image)
 	}
 
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = out
+	cmd.Stderr = out
 	return cmd.Run()
 }

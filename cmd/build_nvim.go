@@ -13,6 +13,7 @@ import (
 	"github.com/rmkohlman/MaestroSDK/paths"
 	"github.com/rmkohlman/MaestroSDK/render"
 	theme "github.com/rmkohlman/MaestroTheme"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -25,8 +26,8 @@ import (
 // It filters plugins based on the workspace's configured plugin list.
 // Reads plugin data from the database (source of truth).
 // Returns a PluginManifest for use by Dockerfile generator.
-func generateNvimConfig(workspacePlugins []string, stagingDir, homeDir string, ds db.DataStore, app *models.App, workspace *models.Workspace, appName, workspaceName, language string) (*plugin.PluginManifest, error) {
-	render.Progress("Generating Neovim configuration...")
+func generateNvimConfig(workspacePlugins []string, stagingDir, homeDir string, ds db.DataStore, app *models.App, workspace *models.Workspace, appName, workspaceName, language string, out io.Writer) (*plugin.PluginManifest, error) {
+	render.MsgTo(out, "", render.Message{Level: render.LevelProgress, Content: "Generating Neovim configuration..."})
 
 	nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
 	if err := os.MkdirAll(nvimConfigPath, 0755); err != nil {
@@ -89,11 +90,11 @@ func generateNvimConfig(workspacePlugins []string, stagingDir, homeDir string, d
 						slog.Debug("loaded workspace plugin from library", "plugin", name)
 					} else {
 						slog.Warn("workspace references unknown plugin", "plugin", name)
-						render.Warning(fmt.Sprintf("Plugin '%s' not found in database or library (skipping)", name))
+						render.MsgTo(out, "", render.Message{Level: render.LevelWarning, Content: fmt.Sprintf("Plugin '%s' not found in database or library (skipping)", name)})
 					}
 				} else {
 					slog.Warn("workspace references unknown plugin", "plugin", name)
-					render.Warning(fmt.Sprintf("Plugin '%s' not found in database (skipping)", name))
+					render.MsgTo(out, "", render.Message{Level: render.LevelWarning, Content: fmt.Sprintf("Plugin '%s' not found in database (skipping)", name)})
 				}
 			}
 		}
@@ -108,7 +109,7 @@ func generateNvimConfig(workspacePlugins []string, stagingDir, homeDir string, d
 			packagePlugins, err := resolveDefaultPackagePlugins(resolvedPkg, ds)
 			if err != nil {
 				slog.Warn("failed to resolve nvim package, falling back to all enabled plugins", "package", resolvedPkg, "error", err)
-				render.Warning(fmt.Sprintf("Failed to resolve nvim package '%s', using all enabled plugins", resolvedPkg))
+				render.MsgTo(out, "", render.Message{Level: render.LevelWarning, Content: fmt.Sprintf("Failed to resolve nvim package '%s', using all enabled plugins", resolvedPkg)})
 			} else {
 				// Use plugins from the resolved package
 				for _, pluginName := range packagePlugins {
@@ -122,11 +123,11 @@ func generateNvimConfig(workspacePlugins []string, stagingDir, homeDir string, d
 								slog.Debug("loaded package plugin from library", "plugin", pluginName, "package", resolvedPkg)
 							} else {
 								slog.Warn("hierarchy package references unknown plugin", "plugin", pluginName, "package", resolvedPkg)
-								render.Warning(fmt.Sprintf("Plugin '%s' from package '%s' not found in database or library (skipping)", pluginName, resolvedPkg))
+								render.MsgTo(out, "", render.Message{Level: render.LevelWarning, Content: fmt.Sprintf("Plugin '%s' from package '%s' not found in database or library (skipping)", pluginName, resolvedPkg)})
 							}
 						} else {
 							slog.Warn("hierarchy package references unknown plugin", "plugin", pluginName, "package", resolvedPkg)
-							render.Warning(fmt.Sprintf("Plugin '%s' from package '%s' not found in database (skipping)", pluginName, resolvedPkg))
+							render.MsgTo(out, "", render.Message{Level: render.LevelWarning, Content: fmt.Sprintf("Plugin '%s' from package '%s' not found in database (skipping)", pluginName, resolvedPkg)})
 						}
 					}
 				}
@@ -154,7 +155,7 @@ func generateNvimConfig(workspacePlugins []string, stagingDir, homeDir string, d
 					}
 					if len(enabledPlugins) > 0 {
 						slog.Info("auto-selected language package", "package", langPkg, "language", language, "plugins", len(enabledPlugins))
-						render.Info(fmt.Sprintf("Auto-selected '%s' package for %s workspace", langPkg, language))
+						render.MsgTo(out, "", render.Message{Level: render.LevelInfo, Content: fmt.Sprintf("Auto-selected '%s' package for %s workspace", langPkg, language)})
 					}
 				} else {
 					slog.Debug("failed to resolve language package", "package", langPkg, "error", err)
@@ -182,7 +183,7 @@ func generateNvimConfig(workspacePlugins []string, stagingDir, homeDir string, d
 				}
 			}
 			slog.Info("no plugins configured, using embedded core package", "count", len(enabledPlugins))
-			render.Info("No plugins configured - using default core package (treesitter, telescope, lsp, etc.)")
+			render.MsgTo(out, "", render.Message{Level: render.LevelInfo, Content: "No plugins configured - using default core package (treesitter, telescope, lsp, etc.)"})
 		}
 	}
 
@@ -244,7 +245,7 @@ func generateNvimConfig(workspacePlugins []string, stagingDir, homeDir string, d
 		}
 	}
 
-	render.Success(fmt.Sprintf("Neovim configuration generated (%d plugins)", len(enabledPlugins)))
+	render.MsgTo(out, "", render.Message{Level: render.LevelSuccess, Content: fmt.Sprintf("Neovim configuration generated (%d plugins)", len(enabledPlugins))})
 
 	return manifest, nil
 }

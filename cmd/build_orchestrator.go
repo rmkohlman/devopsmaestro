@@ -5,7 +5,6 @@ import (
 	"devopsmaestro/config"
 	"devopsmaestro/models"
 	"fmt"
-	"github.com/rmkohlman/MaestroSDK/render"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -31,8 +30,9 @@ func buildWorkspace(cmd *cobra.Command) error {
 	}
 
 	bc := &buildContext{
-		ds:  sqlDS,
-		ctx: ctx,
+		ds:     sqlDS,
+		ctx:    ctx,
+		output: os.Stdout,
 	}
 
 	// Phase 1: Resolve target workspace
@@ -42,22 +42,22 @@ func buildWorkspace(cmd *cobra.Command) error {
 
 	// Dry-run: preview what would be built
 	if buildDryRun {
-		render.Plain(fmt.Sprintf("Would build image for workspace %q in app %q", bc.workspaceName, bc.appName))
+		bc.renderPlain(fmt.Sprintf("Would build image for workspace %q in app %q", bc.workspaceName, bc.appName))
 		if buildNocache {
-			render.Plain("  --no-cache: would skip registry cache")
+			bc.renderPlain("  --no-cache: would skip registry cache")
 		}
 		if buildPush {
-			render.Plain("  --push: would push image to local registry")
+			bc.renderPlain("  --push: would push image to local registry")
 		}
 		if buildTarget != "dev" {
-			render.Plain(fmt.Sprintf("  --target: %s", buildTarget))
+			bc.renderPlain(fmt.Sprintf("  --target: %s", buildTarget))
 		}
 		return nil
 	}
 
-	render.Info(fmt.Sprintf("Building workspace: %s/%s", bc.appName, bc.workspaceName))
-	render.Info(fmt.Sprintf("App path: %s", bc.app.Path))
-	render.Blank()
+	bc.renderInfof("Building workspace: %s/%s", bc.appName, bc.workspaceName)
+	bc.renderInfof("App path: %s", bc.app.Path)
+	bc.renderBlank()
 	slog.Debug("app details", "path", bc.app.Path, "id", bc.app.ID)
 
 	if err := bc.validateAppPath(); err != nil {

@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
+	"sync"
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
@@ -82,10 +85,24 @@ func runParallelBuild(cmd *cobra.Command) error {
 	scopeLabel, scopeValue := parallelBuildScopeLabel(buildFlags)
 	render.Plain(FormatParallelBuildHeader(len(workspaces), scopeLabel, scopeValue, buildConcurrency))
 
-	// Build function wraps the single-workspace build phases for each workspace
+	// Shared mutex for serializing buffer flushes to stdout
+	var outputMu sync.Mutex
+
+	// Build function wraps the single-workspace build phases for each workspace.
+	// Each workspace gets its own output buffer; when the build completes the
+	// buffer is flushed atomically to stdout under a mutex so output from
+	// concurrent builds never interleaves.
 	buildFn := func(ws *models.WorkspaceWithHierarchy) error {
-		render.Info(fmt.Sprintf("Building: %s/%s", ws.App.Name, ws.Workspace.Name))
-		return buildSingleWorkspaceForParallel(ds, ws)
+		var buf bytes.Buffer
+		buf.WriteString(fmt.Sprintf("\n─── Building: %s/%s ───\n", ws.App.Name, ws.Workspace.Name))
+		err := buildSingleWorkspaceForParallel(ds, ws, &buf)
+
+		// Flush the entire workspace output atomically
+		outputMu.Lock()
+		_, _ = io.Copy(os.Stdout, &buf)
+		outputMu.Unlock()
+
+		return err
 	}
 
 	// Detach mode: launch in background, return session ID
@@ -147,7 +164,7 @@ func getBuildSessionCounts(ds db.DataStore, total int, buildErr error) (succeede
 //
 // On success, ws.Workspace.ImageName is updated to the built image tag
 // (e.g., "dvm-dev-myapp:20260410-123456") so the engine can persist it.
-func buildSingleWorkspaceForParallel(ds db.DataStore, ws *models.WorkspaceWithHierarchy) error {
+func buildSingleWorkspaceForParallel(ds db.DataStore, ws *models.WorkspaceWithHierarchy, out io.Writer) error {
 	ctx := context.Background()
 	if buildTimeout > 0 {
 		var cancel context.CancelFunc
@@ -162,6 +179,7 @@ func buildSingleWorkspaceForParallel(ds db.DataStore, ws *models.WorkspaceWithHi
 		workspace:     ws.Workspace,
 		appName:       ws.App.Name,
 		workspaceName: ws.Workspace.Name,
+		output:        out,
 	}
 
 	// Phase 1: Validate app path

@@ -85,11 +85,13 @@ func NewBuildKitBuilder(cfg BuilderConfig) (*BuildKitBuilder, error) {
 
 // Build builds the container image using BuildKit gRPC API.
 func (b *BuildKitBuilder) Build(ctx context.Context, opts BuildOptions) error {
-	render.Progressf("Building image: %s", b.imageName)
-	render.Info("Using BuildKit gRPC API")
-	render.Infof("BuildKit socket: %s", b.buildkitSocket)
-	render.Infof("Namespace: %s", b.namespace)
-	render.Blank()
+	out := opts.OutputOrStdout()
+
+	render.MsgTo(out, "", render.Message{Level: render.LevelProgress, Content: fmt.Sprintf("Building image: %s", b.imageName)})
+	render.MsgTo(out, "", render.Message{Level: render.LevelInfo, Content: "Using BuildKit gRPC API"})
+	render.MsgTo(out, "", render.Message{Level: render.LevelInfo, Content: fmt.Sprintf("BuildKit socket: %s", b.buildkitSocket)})
+	render.MsgTo(out, "", render.Message{Level: render.LevelInfo, Content: fmt.Sprintf("Namespace: %s", b.namespace)})
+	fmt.Fprintln(out)
 
 	// Determine dockerfile path
 	dockerfilePath := b.dockerfile
@@ -175,7 +177,7 @@ func (b *BuildKitBuilder) Build(ctx context.Context, opts BuildOptions) error {
 		})
 		if err == nil {
 			s.Allow(sshProvider)
-			render.Info("  SSH agent forwarding enabled")
+			render.MsgTo(out, "", render.Message{Level: render.LevelInfo, Content: "  SSH agent forwarding enabled"})
 		}
 	}
 
@@ -187,7 +189,7 @@ func (b *BuildKitBuilder) Build(ctx context.Context, opts BuildOptions) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		progressWriter := NewRedactingWriter(os.Stdout, opts.BuildArgs)
+		progressWriter := NewRedactingWriter(out, opts.BuildArgs)
 		display, err := progressui.NewDisplay(progressWriter, progressui.PlainMode)
 		if err != nil {
 			displayErr = err
@@ -212,8 +214,8 @@ func (b *BuildKitBuilder) Build(ctx context.Context, opts BuildOptions) error {
 		return fmt.Errorf("build failed: %w", solveErr)
 	}
 
-	render.Blank()
-	render.Successf("Image built successfully: %s", b.imageName)
+	fmt.Fprintln(out)
+	render.MsgTo(out, "", render.Message{Level: render.LevelSuccess, Content: fmt.Sprintf("Image built successfully: %s", b.imageName)})
 	return nil
 }
 

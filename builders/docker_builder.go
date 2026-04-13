@@ -61,10 +61,12 @@ func NewDockerBuilder(cfg BuilderConfig) (*DockerBuilder, error) {
 // Build builds the container image using Docker CLI.
 // Includes a watchdog to handle Docker buildx hang issue on Colima.
 func (b *DockerBuilder) Build(ctx context.Context, opts BuildOptions) error {
-	render.Progressf("Building image: %s", b.imageName)
-	render.Infof("Using Docker CLI (%s)", b.platform.Name)
-	render.Infof("Socket: %s", b.platform.SocketPath)
-	render.Blank()
+	out := opts.OutputOrStdout()
+
+	render.MsgTo(out, "", render.Message{Level: render.LevelProgress, Content: fmt.Sprintf("Building image: %s", b.imageName)})
+	render.MsgTo(out, "", render.Message{Level: render.LevelInfo, Content: fmt.Sprintf("Using Docker CLI (%s)", b.platform.Name)})
+	render.MsgTo(out, "", render.Message{Level: render.LevelInfo, Content: fmt.Sprintf("Socket: %s", b.platform.SocketPath)})
+	render.MsgTo(out, "", render.Message{Level: render.LevelInfo, Content: ""})
 
 	// Build docker buildx build command (buildx supports --cache-from/--cache-to)
 	args := []string{"buildx", "build"}
@@ -131,15 +133,15 @@ func (b *DockerBuilder) Build(ctx context.Context, opts BuildOptions) error {
 	// Add build context (project path) last
 	args = append(args, ".")
 
-	render.Infof("Command: docker %s", strings.Join(redactBuildArgs(args), " "))
-	render.Blank()
+	render.MsgTo(out, "", render.Message{Level: render.LevelInfo, Content: fmt.Sprintf("Command: docker %s", strings.Join(redactBuildArgs(args), " "))})
+	render.MsgTo(out, "", render.Message{Level: render.LevelInfo, Content: ""})
 
 	// Prepare docker build command
 	cmd := exec.Command("docker", args...)
 	cmd.Dir = b.appPath
 	cmd.Env = append(os.Environ(), "DOCKER_HOST=unix://"+b.platform.SocketPath)
-	stdoutWriter := NewRedactingWriter(os.Stdout, opts.BuildArgs)
-	stderrWriter := NewRedactingWriter(os.Stderr, opts.BuildArgs)
+	stdoutWriter := NewRedactingWriter(out, opts.BuildArgs)
+	stderrWriter := NewRedactingWriter(opts.StderrOrDiscard(), opts.BuildArgs)
 	cmd.Stdout = stdoutWriter
 	cmd.Stderr = stderrWriter
 
@@ -175,14 +177,14 @@ func (b *DockerBuilder) Build(ctx context.Context, opts BuildOptions) error {
 		if err != nil {
 			return fmt.Errorf("failed to build image: %w", err)
 		}
-		render.Blank()
-		render.Successf("Image built successfully: %s", b.imageName)
+		render.MsgTo(out, "", render.Message{Level: render.LevelInfo, Content: ""})
+		render.MsgTo(out, "", render.Message{Level: render.LevelSuccess, Content: fmt.Sprintf("Image built successfully: %s", b.imageName)})
 		return nil
 
 	case WatchdogDetected:
-		render.Blank()
-		render.Info("[watchdog] Image detected, terminating hung build process...")
-		render.Successf("Image built successfully: %s", b.imageName)
+		render.MsgTo(out, "", render.Message{Level: render.LevelInfo, Content: ""})
+		render.MsgTo(out, "", render.Message{Level: render.LevelInfo, Content: "[watchdog] Image detected, terminating hung build process..."})
+		render.MsgTo(out, "", render.Message{Level: render.LevelSuccess, Content: fmt.Sprintf("Image built successfully: %s", b.imageName)})
 		return nil
 
 	case WatchdogTimedOut:

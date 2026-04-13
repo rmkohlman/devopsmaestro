@@ -25,6 +25,8 @@ package builders
 
 import (
 	"context"
+	"io"
+	"os"
 )
 
 // ImageBuilder defines the interface for building container images.
@@ -62,4 +64,25 @@ type BuildOptions struct {
 
 	// CacheTo specifies external cache destinations (e.g., "type=registry,ref=localhost:5001/dvm-cache/img,mode=max")
 	CacheTo string
+
+	// Output is the writer for build output (stdout from subprocess, progress).
+	// When nil, defaults to os.Stdout.
+	Output io.Writer
+}
+
+// OutputOrStdout returns Output if set, otherwise os.Stdout.
+func (o BuildOptions) OutputOrStdout() io.Writer {
+	if o.Output != nil {
+		return o.Output
+	}
+	return os.Stdout
+}
+
+// StderrOrDiscard returns os.Stderr when Output is nil (direct mode),
+// or the Output writer when set (buffered mode — merge stderr into the buffer).
+func (o BuildOptions) StderrOrDiscard() io.Writer {
+	if o.Output != nil {
+		return o.Output
+	}
+	return os.Stderr
 }
