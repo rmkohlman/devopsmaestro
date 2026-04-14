@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.89.0] - 2026-04-14
+
+### Added
+
+- **euporie.nvim plugin for Jupyter notebook support** — New plugin (`54-euporie.yaml`) added to the MaestroNvim plugin library. Lazy-loads on `.ipynb` files, provides an Alt+n toggle for a floating terminal window running `euporie-notebook`, and auto-opens `.ipynb` buffers directly in Euporie. ([#284](https://github.com/rmkohlman/devopsmaestro/issues/284))
+
+- **euporie added to `maestro-python` package** — Python workspaces automatically get Jupyter notebook support via the `maestro-python` Neovim package, which now includes the euporie plugin. ([#284](https://github.com/rmkohlman/devopsmaestro/issues/284))
+
+- **`jupyter` sandbox preset** — New sandbox preset for Jupyter/notebook workspaces with aliases `notebook` and `ipynb`. Uses Python 3.13 slim base image and installs `euporie jupyter` via pip. ([#274](https://github.com/rmkohlman/devopsmaestro/issues/274))
+
+- **euporie added to Python default dev tools** — `euporie` is now included in the default Python language tools generated in Dockerfiles, so Python workspaces automatically include Jupyter notebook support in their dev environment. ([#274](https://github.com/rmkohlman/devopsmaestro/issues/274))
+
+---
+
 ## [v0.88.0] - 2026-04-14
 
 ### Added

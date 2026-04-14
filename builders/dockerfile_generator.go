@@ -1923,7 +1923,7 @@ func fileExistsInDir(dir, relPath string) bool {
 func (g *DefaultDockerfileGenerator) getDefaultLanguageTools() []string {
 	switch g.language {
 	case "python":
-		return []string{"python-lsp-server", "black", "isort", "pytest"}
+		return []string{"python-lsp-server", "black", "isort", "pytest", "euporie"}
 	case "golang":
 		return []string{"gopls", "delve", "golangci-lint"}
 	case "nodejs":

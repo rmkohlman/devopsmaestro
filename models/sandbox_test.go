@@ -6,7 +6,7 @@ import (
 )
 
 func TestGetPreset_AllLanguages(t *testing.T) {
-	languages := []string{"python", "golang", "rust", "node", "cpp", "dotnet", "php", "kotlin", "scala", "elixir", "swift", "zig", "dart", "lua", "r", "haskell", "perl"}
+	languages := []string{"python", "golang", "rust", "node", "cpp", "dotnet", "php", "kotlin", "scala", "elixir", "swift", "zig", "dart", "lua", "r", "haskell", "perl", "jupyter"}
 	for _, lang := range languages {
 		preset, ok := GetPreset(lang)
 		if !ok {
@@ -57,6 +57,8 @@ func TestGetPreset_Aliases(t *testing.T) {
 		{"hs", "haskell"},
 		{"ghc", "haskell"},
 		{"pl", "perl"},
+		{"notebook", "jupyter"},
+		{"ipynb", "jupyter"},
 	}
 
 	for _, tt := range tests {
@@ -245,6 +247,53 @@ func TestBaseImage_Perl(t *testing.T) {
 	}
 }
 
+func TestBaseImage_Jupyter(t *testing.T) {
+	preset, ok := GetPreset("jupyter")
+	if !ok {
+		t.Fatal("GetPreset(\"jupyter\") returned false")
+	}
+	img := preset.BaseImage("3.13")
+	if img != "python:3.13-slim" {
+		t.Errorf("BaseImage(\"3.13\") = %q, want \"python:3.13-slim\"", img)
+	}
+}
+
+func TestJupyterPreset_Details(t *testing.T) {
+	preset, ok := GetPreset("jupyter")
+	if !ok {
+		t.Fatal("GetPreset(\"jupyter\") returned false")
+	}
+	if preset.DefaultVersion != "3.13" {
+		t.Errorf("jupyter DefaultVersion = %q, want \"3.13\"", preset.DefaultVersion)
+	}
+	if preset.DepsInstallCmd != "pip install euporie jupyter" {
+		t.Errorf("jupyter DepsInstallCmd = %q, want \"pip install euporie jupyter\"", preset.DepsInstallCmd)
+	}
+	// Verify versions
+	wantVersions := []string{"3.14", "3.13", "3.12"}
+	if len(preset.Versions) != len(wantVersions) {
+		t.Fatalf("jupyter Versions = %v, want %v", preset.Versions, wantVersions)
+	}
+	for i, v := range wantVersions {
+		if preset.Versions[i] != v {
+			t.Errorf("jupyter Versions[%d] = %q, want %q", i, preset.Versions[i], v)
+		}
+	}
+}
+
+func TestJupyterPreset_Aliases(t *testing.T) {
+	for _, alias := range []string{"notebook", "ipynb"} {
+		preset, ok := GetPreset(alias)
+		if !ok {
+			t.Errorf("GetPreset(%q) returned false", alias)
+			continue
+		}
+		if preset.Language != "jupyter" {
+			t.Errorf("GetPreset(%q).Language = %q, want \"jupyter\"", alias, preset.Language)
+		}
+	}
+}
+
 func TestDefaultVersionInVersionList(t *testing.T) {
 	for _, lang := range ListPresets() {
 		preset, _ := GetPreset(lang)
@@ -268,7 +317,7 @@ func TestListPresets(t *testing.T) {
 	}
 
 	sort.Strings(presets)
-	expected := []string{"cpp", "dart", "dotnet", "elixir", "golang", "haskell", "kotlin", "lua", "node", "perl", "php", "python", "r", "rust", "scala", "swift", "zig"}
+	expected := []string{"cpp", "dart", "dotnet", "elixir", "golang", "haskell", "jupyter", "kotlin", "lua", "node", "perl", "php", "python", "r", "rust", "scala", "swift", "zig"}
 	sort.Strings(expected)
 	for _, e := range expected {
 		found := false

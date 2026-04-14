@@ -164,6 +164,14 @@ var builtinPresets = map[string]SandboxPreset{
 		DepsFiles:         []string{"cpanfile", "Makefile.PL", "Build.PL"},
 		DepsInstallCmd:    "cpanm --installdeps .",
 	},
+	"jupyter": {
+		Language:          "jupyter",
+		Versions:          []string{"3.14", "3.13", "3.12"},
+		DefaultVersion:    "3.13",
+		BaseImageTemplate: "python:%s-slim",
+		DepsFiles:         []string{"requirements.txt", "Pipfile", "pyproject.toml"},
+		DepsInstallCmd:    "pip install euporie jupyter",
+	},
 }
 
 // presetAliases maps alternative language names to canonical preset keys.
@@ -192,6 +200,8 @@ var presetAliases = map[string]string{
 	"hs":         "haskell",
 	"ghc":        "haskell",
 	"pl":         "perl",
+	"notebook":   "jupyter",
+	"ipynb":      "jupyter",
 }
 
 // GetPreset returns the sandbox preset for the given language name.
