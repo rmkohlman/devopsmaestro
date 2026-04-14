@@ -15,32 +15,19 @@ import (
 
 // completeResources is a generic helper that uses the Resource/Handler pattern
 // to provide dynamic completions for resource names with descriptions.
+// NOTE: For the 5 hierarchy resources (Ecosystem, Domain, System, App, Workspace),
+// prefer the dedicated completeXxx functions below which bypass context-dependent
+// handler filtering and always list ALL resources for accurate completion.
 func completeResources(cmd *cobra.Command, kind string) ([]string, cobra.ShellCompDirective) {
 	// Ensure handlers are registered
 	handlers.RegisterAll()
 
-	// Try to get datastore from context first (normal command context)
-	ctx := cmd.Context()
-	if dataStore := ctx.Value(CtxKeyDataStore); dataStore != nil {
-		if ds, ok := dataStore.(db.DataStore); ok {
-			return getResourceCompletions(ds, kind)
-		}
-	}
-
-	// For shell completion context, try to create a datastore with default config
-	// This may fail if configuration isn't available, in which case we return empty
-	createdDS, err := createDefaultDataStore()
+	ds, err := getCompletionDataStore(cmd)
 	if err != nil {
-		// Return empty on error, don't block completion
-		return []string{}, cobra.ShellCompDirectiveDefault
+		return []string{}, cobra.ShellCompDirectiveNoFileComp
 	}
-	defer func() {
-		if closer, ok := createdDS.(interface{ Close() error }); ok {
-			closer.Close()
-		}
-	}()
 
-	return getResourceCompletions(createdDS, kind)
+	return getResourceCompletions(ds, kind)
 }
 
 // createDefaultDataStore creates a DataStore using default configuration
@@ -137,29 +124,107 @@ func extractResourceDescription(res resource.Resource) string {
 // Completion functions for each resource type
 // ---------------------------------------------------------------------------
 
-// Core hierarchy resources
+// Core hierarchy resources — these query the DataStore directly to list ALL
+// resources regardless of the active context. This ensures tab completion shows
+// every valid name, not just those scoped to the current ecosystem/domain/app.
 
 func completeEcosystems(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	return completeResources(cmd, "Ecosystem")
+	ds, err := getCompletionDataStore(cmd)
+	if err != nil {
+		return []string{}, cobra.ShellCompDirectiveNoFileComp
+	}
+	ecosystems, err := ds.ListEcosystems()
+	if err != nil {
+		return []string{}, cobra.ShellCompDirectiveNoFileComp
+	}
+	completions := make([]string, 0, len(ecosystems))
+	for _, e := range ecosystems {
+		if e.Description.Valid && e.Description.String != "" {
+			completions = append(completions, fmt.Sprintf("%s\t%s", e.Name, e.Description.String))
+		} else {
+			completions = append(completions, e.Name)
+		}
+	}
+	return completions, cobra.ShellCompDirectiveNoFileComp
 }
 
 func completeDomains(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	return completeResources(cmd, "Domain")
+	ds, err := getCompletionDataStore(cmd)
+	if err != nil {
+		return []string{}, cobra.ShellCompDirectiveNoFileComp
+	}
+	domains, err := ds.ListAllDomains()
+	if err != nil {
+		return []string{}, cobra.ShellCompDirectiveNoFileComp
+	}
+	completions := make([]string, 0, len(domains))
+	for _, d := range domains {
+		if d.Description.Valid && d.Description.String != "" {
+			completions = append(completions, fmt.Sprintf("%s\t%s", d.Name, d.Description.String))
+		} else {
+			completions = append(completions, d.Name)
+		}
+	}
+	return completions, cobra.ShellCompDirectiveNoFileComp
 }
 
 func completeSystems(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	return completeResources(cmd, "System")
+	ds, err := getCompletionDataStore(cmd)
+	if err != nil {
+		return []string{}, cobra.ShellCompDirectiveNoFileComp
+	}
+	systems, err := ds.ListSystems()
+	if err != nil {
+		return []string{}, cobra.ShellCompDirectiveNoFileComp
+	}
+	completions := make([]string, 0, len(systems))
+	for _, s := range systems {
+		if s.Description.Valid && s.Description.String != "" {
+			completions = append(completions, fmt.Sprintf("%s\t%s", s.Name, s.Description.String))
+		} else {
+			completions = append(completions, s.Name)
+		}
+	}
+	return completions, cobra.ShellCompDirectiveNoFileComp
 }
 
 func completeApps(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	return completeResources(cmd, "App")
+	ds, err := getCompletionDataStore(cmd)
+	if err != nil {
+		return []string{}, cobra.ShellCompDirectiveNoFileComp
+	}
+	apps, err := ds.ListAllApps()
+	if err != nil {
+		return []string{}, cobra.ShellCompDirectiveNoFileComp
+	}
+	completions := make([]string, 0, len(apps))
+	for _, a := range apps {
+		if a.Description.Valid && a.Description.String != "" {
+			completions = append(completions, fmt.Sprintf("%s\t%s", a.Name, a.Description.String))
+		} else {
+			completions = append(completions, a.Name)
+		}
+	}
+	return completions, cobra.ShellCompDirectiveNoFileComp
 }
 
 func completeWorkspaces(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	if len(args) > 0 {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-	return completeResources(cmd, "Workspace")
+	ds, err := getCompletionDataStore(cmd)
+	if err != nil {
+		return []string{}, cobra.ShellCompDirectiveNoFileComp
+	}
+	workspaces, err := ds.ListAllWorkspaces()
+	if err != nil {
+		return []string{}, cobra.ShellCompDirectiveNoFileComp
+	}
+	completions := make([]string, 0, len(workspaces))
+	for _, ws := range workspaces {
+		completions = append(completions, ws.Name)
+	}
+	return completions, cobra.ShellCompDirectiveNoFileComp
 }
 
 // Supporting resources (have registered handlers)
@@ -285,11 +350,18 @@ func completeRegistrySetDefault(cmd *cobra.Command, args []string, toComplete st
 // ---------------------------------------------------------------------------
 
 // getCompletionDataStore gets a DataStore from context or creates a default one.
-// Used by completion functions that query the DataStore directly (e.g. GitRepo).
+// Used by completion functions that query the DataStore directly.
+// Handles both *db.DataStore (production: main.go passes pointer-to-interface)
+// and db.DataStore (tests that store the interface directly).
 func getCompletionDataStore(cmd *cobra.Command) (db.DataStore, error) {
 	ctx := cmd.Context()
-	if dataStore := ctx.Value(CtxKeyDataStore); dataStore != nil {
-		if ds, ok := dataStore.(db.DataStore); ok {
+	if val := ctx.Value(CtxKeyDataStore); val != nil {
+		switch ds := val.(type) {
+		case *db.DataStore:
+			if ds != nil && *ds != nil {
+				return *ds, nil
+			}
+		case db.DataStore:
 			return ds, nil
 		}
 	}
