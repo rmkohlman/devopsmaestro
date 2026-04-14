@@ -411,3 +411,488 @@ func TestDetectPythonSystemDeps(t *testing.T) {
 		})
 	}
 }
+
+func TestDetectDotnetPrivateRepos(t *testing.T) {
+	tests := []struct {
+		name                  string
+		nugetConfigContent    string // empty string means no NuGet.config
+		wantRequiredBuildArgs []string
+	}{
+		{
+			name: "Private feed detected",
+			nugetConfigContent: `<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
+    <add key="PrivateFeed" value="https://pkgs.dev.azure.com/myorg/_packaging/myfeed/nuget/v3/index.json" />
+  </packageSources>
+</configuration>`,
+			wantRequiredBuildArgs: []string{"NUGET_API_KEY"},
+		},
+		{
+			name: "Only public nuget.org — no private feeds",
+			nugetConfigContent: `<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
+  </packageSources>
+</configuration>`,
+			wantRequiredBuildArgs: []string{},
+		},
+		{
+			name:                  "No NuGet.config file",
+			nugetConfigContent:    "",
+			wantRequiredBuildArgs: []string{},
+		},
+		{
+			name: "GitHub Packages private feed",
+			nugetConfigContent: `<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <add key="github" value="https://nuget.pkg.github.com/myorg/index.json" />
+  </packageSources>
+</configuration>`,
+			wantRequiredBuildArgs: []string{"NUGET_API_KEY"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+
+			if tt.nugetConfigContent != "" {
+				nugetPath := filepath.Join(tmpDir, "NuGet.config")
+				if err := os.WriteFile(nugetPath, []byte(tt.nugetConfigContent), 0644); err != nil {
+					t.Fatalf("failed to write NuGet.config: %v", err)
+				}
+			}
+
+			got := DetectPrivateRepos(tmpDir, "dotnet")
+
+			if len(got.RequiredBuildArgs) != len(tt.wantRequiredBuildArgs) {
+				t.Errorf("RequiredBuildArgs = %v (len %d), want %v (len %d)",
+					got.RequiredBuildArgs, len(got.RequiredBuildArgs),
+					tt.wantRequiredBuildArgs, len(tt.wantRequiredBuildArgs))
+			} else {
+				wantSet := make(map[string]bool, len(tt.wantRequiredBuildArgs))
+				for _, a := range tt.wantRequiredBuildArgs {
+					wantSet[a] = true
+				}
+				for _, a := range got.RequiredBuildArgs {
+					if !wantSet[a] {
+						t.Errorf("RequiredBuildArgs contains unexpected entry %q; got %v, want %v",
+							a, got.RequiredBuildArgs, tt.wantRequiredBuildArgs)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestDetectPhpPrivateRepos(t *testing.T) {
+	tests := []struct {
+		name                  string
+		composerContent       string // empty means no composer.json
+		wantNeedsGit          bool
+		wantNeedsSSH          bool
+		wantGitURLType        string
+		wantRequiredBuildArgs []string
+	}{
+		{
+			name: "Private VCS repo via HTTPS",
+			composerContent: `{
+				"repositories": [
+					{"type": "vcs", "url": "https://github.com/myorg/private-package"}
+				],
+				"require": {"myorg/private-package": "^1.0"}
+			}`,
+			wantNeedsGit:          true,
+			wantNeedsSSH:          false,
+			wantGitURLType:        "https",
+			wantRequiredBuildArgs: []string{"COMPOSER_AUTH"},
+		},
+		{
+			name: "Private VCS repo via SSH",
+			composerContent: `{
+				"repositories": [
+					{"type": "vcs", "url": "git@github.com:myorg/private-package.git"}
+				],
+				"require": {"myorg/private-package": "^1.0"}
+			}`,
+			wantNeedsGit:          true,
+			wantNeedsSSH:          true,
+			wantGitURLType:        "ssh",
+			wantRequiredBuildArgs: []string{"COMPOSER_AUTH"},
+		},
+		{
+			name: "Mixed HTTPS and SSH repos",
+			composerContent: `{
+				"repositories": [
+					{"type": "vcs", "url": "https://github.com/myorg/package-a"},
+					{"type": "vcs", "url": "git@github.com:myorg/package-b.git"}
+				],
+				"require": {"myorg/package-a": "^1.0", "myorg/package-b": "^2.0"}
+			}`,
+			wantNeedsGit:          true,
+			wantNeedsSSH:          true,
+			wantGitURLType:        "mixed",
+			wantRequiredBuildArgs: []string{"COMPOSER_AUTH"},
+		},
+		{
+			name: "No repositories key — public packages only",
+			composerContent: `{
+				"require": {"laravel/framework": "^11.0"}
+			}`,
+			wantNeedsGit:          false,
+			wantNeedsSSH:          false,
+			wantGitURLType:        "",
+			wantRequiredBuildArgs: []string{},
+		},
+		{
+			name:                  "No composer.json file",
+			composerContent:       "",
+			wantNeedsGit:          false,
+			wantNeedsSSH:          false,
+			wantGitURLType:        "",
+			wantRequiredBuildArgs: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+
+			if tt.composerContent != "" {
+				composerPath := filepath.Join(tmpDir, "composer.json")
+				if err := os.WriteFile(composerPath, []byte(tt.composerContent), 0644); err != nil {
+					t.Fatalf("failed to write composer.json: %v", err)
+				}
+			}
+
+			got := DetectPrivateRepos(tmpDir, "php")
+
+			if got.NeedsGit != tt.wantNeedsGit {
+				t.Errorf("NeedsGit = %v, want %v", got.NeedsGit, tt.wantNeedsGit)
+			}
+			if got.NeedsSSH != tt.wantNeedsSSH {
+				t.Errorf("NeedsSSH = %v, want %v", got.NeedsSSH, tt.wantNeedsSSH)
+			}
+			if got.GitURLType != tt.wantGitURLType {
+				t.Errorf("GitURLType = %q, want %q", got.GitURLType, tt.wantGitURLType)
+			}
+
+			if len(got.RequiredBuildArgs) != len(tt.wantRequiredBuildArgs) {
+				t.Errorf("RequiredBuildArgs = %v (len %d), want %v (len %d)",
+					got.RequiredBuildArgs, len(got.RequiredBuildArgs),
+					tt.wantRequiredBuildArgs, len(tt.wantRequiredBuildArgs))
+			} else {
+				wantSet := make(map[string]bool, len(tt.wantRequiredBuildArgs))
+				for _, a := range tt.wantRequiredBuildArgs {
+					wantSet[a] = true
+				}
+				for _, a := range got.RequiredBuildArgs {
+					if !wantSet[a] {
+						t.Errorf("RequiredBuildArgs contains unexpected entry %q; got %v, want %v",
+							a, got.RequiredBuildArgs, tt.wantRequiredBuildArgs)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestDetectElixirPrivateRepos(t *testing.T) {
+	tests := []struct {
+		name                  string
+		mixContent            string // empty means no mix.exs
+		wantNeedsGit          bool
+		wantNeedsSSH          bool
+		wantGitURLType        string
+		wantRequiredBuildArgs []string
+	}{
+		{
+			name: "Private git dep via HTTPS",
+			mixContent: `defmodule MyApp.MixProject do
+  defp deps do
+    [{:private_lib, git: "https://github.com/myorg/private_lib.git", tag: "v1.0"}]
+  end
+end`,
+			wantNeedsGit:          true,
+			wantNeedsSSH:          false,
+			wantGitURLType:        "https",
+			wantRequiredBuildArgs: []string{"GITHUB_TOKEN"},
+		},
+		{
+			name: "Private git dep via SSH",
+			mixContent: `defmodule MyApp.MixProject do
+  defp deps do
+    [{:private_lib, git: "git@github.com:myorg/private_lib.git"}]
+  end
+end`,
+			wantNeedsGit:          true,
+			wantNeedsSSH:          true,
+			wantGitURLType:        "ssh",
+			wantRequiredBuildArgs: []string{},
+		},
+		{
+			name: "Mixed HTTPS and SSH git deps",
+			mixContent: `defmodule MyApp.MixProject do
+  defp deps do
+    [
+      {:lib_a, git: "https://github.com/myorg/lib_a.git"},
+      {:lib_b, git: "git@github.com:myorg/lib_b.git"}
+    ]
+  end
+end`,
+			wantNeedsGit:          true,
+			wantNeedsSSH:          true,
+			wantGitURLType:        "mixed",
+			wantRequiredBuildArgs: []string{"GITHUB_TOKEN"},
+		},
+		{
+			name: "No private deps — public Hex packages only",
+			mixContent: `defmodule MyApp.MixProject do
+  defp deps do
+    [{:phoenix, "~> 1.7"}, {:ecto, "~> 3.11"}]
+  end
+end`,
+			wantNeedsGit:          false,
+			wantNeedsSSH:          false,
+			wantGitURLType:        "",
+			wantRequiredBuildArgs: []string{},
+		},
+		{
+			name:                  "No mix.exs file",
+			mixContent:            "",
+			wantNeedsGit:          false,
+			wantNeedsSSH:          false,
+			wantGitURLType:        "",
+			wantRequiredBuildArgs: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+
+			if tt.mixContent != "" {
+				mixPath := filepath.Join(tmpDir, "mix.exs")
+				if err := os.WriteFile(mixPath, []byte(tt.mixContent), 0644); err != nil {
+					t.Fatalf("failed to write mix.exs: %v", err)
+				}
+			}
+
+			got := DetectPrivateRepos(tmpDir, "elixir")
+
+			if got.NeedsGit != tt.wantNeedsGit {
+				t.Errorf("NeedsGit = %v, want %v", got.NeedsGit, tt.wantNeedsGit)
+			}
+			if got.NeedsSSH != tt.wantNeedsSSH {
+				t.Errorf("NeedsSSH = %v, want %v", got.NeedsSSH, tt.wantNeedsSSH)
+			}
+			if got.GitURLType != tt.wantGitURLType {
+				t.Errorf("GitURLType = %q, want %q", got.GitURLType, tt.wantGitURLType)
+			}
+
+			if len(got.RequiredBuildArgs) != len(tt.wantRequiredBuildArgs) {
+				t.Errorf("RequiredBuildArgs = %v (len %d), want %v (len %d)",
+					got.RequiredBuildArgs, len(got.RequiredBuildArgs),
+					tt.wantRequiredBuildArgs, len(tt.wantRequiredBuildArgs))
+			} else {
+				wantSet := make(map[string]bool, len(tt.wantRequiredBuildArgs))
+				for _, a := range tt.wantRequiredBuildArgs {
+					wantSet[a] = true
+				}
+				for _, a := range got.RequiredBuildArgs {
+					if !wantSet[a] {
+						t.Errorf("RequiredBuildArgs contains unexpected entry %q; got %v, want %v",
+							a, got.RequiredBuildArgs, tt.wantRequiredBuildArgs)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestDetectScalaPrivateRepos(t *testing.T) {
+	tests := []struct {
+		name                  string
+		buildSbtContent       string
+		wantRequiredBuildArgs []string
+	}{
+		{
+			name: "build.sbt with resolvers — private repo detected",
+			buildSbtContent: `name := "myapp"
+scalaVersion := "3.6.4"
+resolvers += "My Private Repo" at "https://nexus.example.com/repository/maven/"`,
+			wantRequiredBuildArgs: []string{"MAVEN_USERNAME", "MAVEN_PASSWORD"},
+		},
+		{
+			name: "build.sbt without resolvers — no private repos",
+			buildSbtContent: `name := "myapp"
+scalaVersion := "3.6.4"
+libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.18" % Test`,
+			wantRequiredBuildArgs: []string{},
+		},
+		{
+			name:                  "no build.sbt — no private repos",
+			buildSbtContent:       "",
+			wantRequiredBuildArgs: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+
+			if tt.buildSbtContent != "" {
+				sbtPath := filepath.Join(tmpDir, "build.sbt")
+				if err := os.WriteFile(sbtPath, []byte(tt.buildSbtContent), 0644); err != nil {
+					t.Fatalf("failed to write build.sbt: %v", err)
+				}
+			}
+
+			got := DetectPrivateRepos(tmpDir, "scala")
+
+			if len(got.RequiredBuildArgs) != len(tt.wantRequiredBuildArgs) {
+				t.Errorf("RequiredBuildArgs = %v (len %d), want %v (len %d)",
+					got.RequiredBuildArgs, len(got.RequiredBuildArgs),
+					tt.wantRequiredBuildArgs, len(tt.wantRequiredBuildArgs))
+			} else {
+				wantSet := make(map[string]bool, len(tt.wantRequiredBuildArgs))
+				for _, a := range tt.wantRequiredBuildArgs {
+					wantSet[a] = true
+				}
+				for _, a := range got.RequiredBuildArgs {
+					if !wantSet[a] {
+						t.Errorf("RequiredBuildArgs contains unexpected entry %q; got %v, want %v",
+							a, got.RequiredBuildArgs, tt.wantRequiredBuildArgs)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestDetectSwiftPrivateRepos(t *testing.T) {
+	tests := []struct {
+		name                  string
+		packageSwiftContent   string // empty means no Package.swift
+		wantNeedsGit          bool
+		wantNeedsSSH          bool
+		wantGitURLType        string
+		wantRequiredBuildArgs []string
+	}{
+		{
+			name: "Private package via HTTPS",
+			packageSwiftContent: `// swift-tools-version:6.1
+import PackageDescription
+let package = Package(
+    name: "MyApp",
+    dependencies: [
+        .package(url: "https://github.com/myorg/private-lib.git", from: "1.0.0"),
+    ]
+)`,
+			wantNeedsGit:          true,
+			wantNeedsSSH:          false,
+			wantGitURLType:        "https",
+			wantRequiredBuildArgs: []string{"GITHUB_TOKEN"},
+		},
+		{
+			name: "Private package via SSH",
+			packageSwiftContent: `// swift-tools-version:6.1
+import PackageDescription
+let package = Package(
+    name: "MyApp",
+    dependencies: [
+        .package(url: "git@github.com:myorg/private-lib.git", from: "1.0.0"),
+    ]
+)`,
+			wantNeedsGit:          true,
+			wantNeedsSSH:          true,
+			wantGitURLType:        "ssh",
+			wantRequiredBuildArgs: []string{},
+		},
+		{
+			name: "Mixed HTTPS and SSH packages",
+			packageSwiftContent: `// swift-tools-version:6.1
+import PackageDescription
+let package = Package(
+    name: "MyApp",
+    dependencies: [
+        .package(url: "https://github.com/myorg/lib-a.git", from: "1.0.0"),
+        .package(url: "git@github.com:myorg/lib-b.git", from: "2.0.0"),
+    ]
+)`,
+			wantNeedsGit:          true,
+			wantNeedsSSH:          true,
+			wantGitURLType:        "mixed",
+			wantRequiredBuildArgs: []string{"GITHUB_TOKEN"},
+		},
+		{
+			name: "No private deps — no git package URLs",
+			packageSwiftContent: `// swift-tools-version:6.1
+import PackageDescription
+let package = Package(
+    name: "MyApp",
+    targets: [
+        .executableTarget(name: "MyApp"),
+    ]
+)`,
+			wantNeedsGit:          false,
+			wantNeedsSSH:          false,
+			wantGitURLType:        "",
+			wantRequiredBuildArgs: []string{},
+		},
+		{
+			name:                  "No Package.swift file",
+			packageSwiftContent:   "",
+			wantNeedsGit:          false,
+			wantNeedsSSH:          false,
+			wantGitURLType:        "",
+			wantRequiredBuildArgs: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+
+			if tt.packageSwiftContent != "" {
+				pkgPath := filepath.Join(tmpDir, "Package.swift")
+				if err := os.WriteFile(pkgPath, []byte(tt.packageSwiftContent), 0644); err != nil {
+					t.Fatalf("failed to write Package.swift: %v", err)
+				}
+			}
+
+			got := DetectPrivateRepos(tmpDir, "swift")
+
+			if got.NeedsGit != tt.wantNeedsGit {
+				t.Errorf("NeedsGit = %v, want %v", got.NeedsGit, tt.wantNeedsGit)
+			}
+			if got.NeedsSSH != tt.wantNeedsSSH {
+				t.Errorf("NeedsSSH = %v, want %v", got.NeedsSSH, tt.wantNeedsSSH)
+			}
+			if got.GitURLType != tt.wantGitURLType {
+				t.Errorf("GitURLType = %q, want %q", got.GitURLType, tt.wantGitURLType)
+			}
+
+			if len(got.RequiredBuildArgs) != len(tt.wantRequiredBuildArgs) {
+				t.Errorf("RequiredBuildArgs = %v (len %d), want %v (len %d)",
+					got.RequiredBuildArgs, len(got.RequiredBuildArgs),
+					tt.wantRequiredBuildArgs, len(tt.wantRequiredBuildArgs))
+			} else {
+				wantSet := make(map[string]bool, len(tt.wantRequiredBuildArgs))
+				for _, a := range tt.wantRequiredBuildArgs {
+					wantSet[a] = true
+				}
+				for _, a := range got.RequiredBuildArgs {
+					if !wantSet[a] {
+						t.Errorf("RequiredBuildArgs contains unexpected entry %q; got %v, want %v",
+							a, got.RequiredBuildArgs, tt.wantRequiredBuildArgs)
+					}
+				}
+			}
+		})
+	}
+}

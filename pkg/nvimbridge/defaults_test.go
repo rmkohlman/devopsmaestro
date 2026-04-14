@@ -39,6 +39,15 @@ func TestGetLanguagePackage(t *testing.T) {
 		{"gleam maps to maestro-gleam", "gleam", "maestro-gleam"},
 		{"dotnet maps to maestro-dotnet", "dotnet", "maestro-dotnet"},
 		{"ruby maps to base maestro", "ruby", "maestro"},
+		{"php maps to maestro-php", "php", "maestro-php"},
+		{"kotlin maps to maestro-kotlin", "kotlin", "maestro-kotlin"},
+		{"scala maps to maestro-scala", "scala", "maestro-scala"},
+		{"elixir maps to maestro-elixir", "elixir", "maestro-elixir"},
+		{"zig maps to maestro-zig", "zig", "maestro-zig"},
+		{"dart maps to maestro-dart", "dart", "maestro-dart"},
+		{"r maps to maestro-r", "r", "maestro-r"},
+		{"haskell maps to maestro-haskell", "haskell", "maestro-haskell"},
+		{"perl maps to maestro-perl", "perl", "maestro-perl"},
 		{"unknown language returns empty", "cobol", ""},
 		{"empty string returns empty", "", ""},
 	}
@@ -53,7 +62,7 @@ func TestGetLanguagePackage(t *testing.T) {
 
 func TestLanguagePackageMap_AllExpectedLanguages(t *testing.T) {
 	// Verify every expected language has a mapping
-	expectedLanguages := []string{"golang", "python", "rust", "nodejs", "java", "gleam", "dotnet", "ruby"}
+	expectedLanguages := []string{"golang", "python", "rust", "nodejs", "java", "gleam", "dotnet", "ruby", "php", "kotlin", "scala", "elixir", "swift", "zig", "dart", "lua", "r", "haskell", "perl"}
 	for _, lang := range expectedLanguages {
 		_, ok := LanguagePackageMap[lang]
 		assert.True(t, ok, "LanguagePackageMap should contain mapping for %q", lang)

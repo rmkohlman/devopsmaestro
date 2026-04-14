@@ -439,6 +439,681 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 			}
 		}
 
+	case "dotnet":
+		version := g.effectiveVersion()
+		g.isAlpine = true
+		baseImage := fmt.Sprintf("mcr.microsoft.com/dotnet/sdk:%s-alpine", version)
+		dockerfile.WriteString(pinnedImageComment(baseImage))
+		dockerfile.WriteString(fmt.Sprintf("FROM %s AS base\n\n", pinnedImage(baseImage)))
+
+		// Declare build args after FROM so they're available in RUN commands
+		if len(privateRepoInfo.RequiredBuildArgs) > 0 {
+			dockerfile.WriteString("# Build arguments for private NuGet feeds\n")
+			for _, arg := range privateRepoInfo.RequiredBuildArgs {
+				dockerfile.WriteString(fmt.Sprintf("ARG %s\n", arg))
+			}
+			dockerfile.WriteString("\n")
+		}
+
+		// Emit additional build args (de-duplicated with RequiredBuildArgs)
+		g.emitAdditionalBuildArgs(dockerfile, privateRepoInfo.RequiredBuildArgs)
+
+		// Install basic dependencies (Alpine-based image)
+		dockerfile.WriteString("# Install basic dependencies\n")
+		dockerfile.WriteString(g.apkCacheMounts())
+		dockerfile.WriteString("    apk add git ca-certificates\n\n")
+
+		// CA certificate injection
+		g.emitCACertSection(dockerfile)
+
+		// Configure NuGet for private feeds
+		if len(privateRepoInfo.RequiredBuildArgs) > 0 {
+			for _, arg := range privateRepoInfo.RequiredBuildArgs {
+				if arg == "NUGET_API_KEY" {
+					dockerfile.WriteString("# Configure NuGet for private feeds\n")
+					dockerfile.WriteString(fmt.Sprintf("ARG %s\n", arg))
+					dockerfile.WriteString("RUN dotnet nuget update source \"PrivateFeed\" --store-password-in-clear-text --password \"${NUGET_API_KEY}\" || true\n\n")
+				}
+			}
+		}
+
+		// Copy dependency files and restore with BuildKit cache
+		dockerfile.WriteString("WORKDIR /app\n")
+		g.emitDotnetCopyAndRestore(dockerfile)
+
+	case "php":
+		version := g.effectiveVersion()
+		g.isAlpine = true
+		baseImage := fmt.Sprintf("php:%s-cli-alpine", version)
+		dockerfile.WriteString(pinnedImageComment(baseImage))
+		dockerfile.WriteString(fmt.Sprintf("FROM %s AS base\n\n", pinnedImage(baseImage)))
+
+		// Declare build args after FROM so they're available in RUN commands
+		if len(privateRepoInfo.RequiredBuildArgs) > 0 {
+			dockerfile.WriteString("# Build arguments for private Composer packages\n")
+			for _, arg := range privateRepoInfo.RequiredBuildArgs {
+				dockerfile.WriteString(fmt.Sprintf("ARG %s\n", arg))
+			}
+			dockerfile.WriteString("\n")
+		}
+
+		// Emit additional build args (de-duplicated with RequiredBuildArgs)
+		g.emitAdditionalBuildArgs(dockerfile, privateRepoInfo.RequiredBuildArgs)
+
+		// Install basic dependencies (Alpine-based image)
+		dockerfile.WriteString("# Install basic dependencies\n")
+		dockerfile.WriteString(g.apkCacheMounts())
+		dockerfile.WriteString("    apk add git curl ca-certificates unzip\n\n")
+
+		// Install Composer from the official image
+		dockerfile.WriteString("# Install Composer\n")
+		dockerfile.WriteString("COPY --from=composer:latest /usr/bin/composer /usr/bin/composer\n\n")
+
+		// CA certificate injection
+		g.emitCACertSection(dockerfile)
+
+		// Configure Composer auth for private packages
+		if len(privateRepoInfo.RequiredBuildArgs) > 0 {
+			for _, arg := range privateRepoInfo.RequiredBuildArgs {
+				if arg == "COMPOSER_AUTH" {
+					dockerfile.WriteString("# Configure Composer authentication for private packages\n")
+					dockerfile.WriteString(fmt.Sprintf("ARG %s\n", arg))
+					dockerfile.WriteString(fmt.Sprintf("ENV %s=${%s}\n\n", arg, arg))
+				}
+			}
+		}
+
+		// Setup SSH for git if needed
+		if privateRepoInfo.NeedsSSH {
+			dockerfile.WriteString("# Setup SSH for git operations\n")
+			dockerfile.WriteString("RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh\n")
+			dockerfile.WriteString("RUN --mount=type=ssh \\\n")
+			dockerfile.WriteString("    ssh-keyscan github.com >> /root/.ssh/known_hosts && \\\n")
+			dockerfile.WriteString("    ssh-keyscan gitlab.com >> /root/.ssh/known_hosts\n\n")
+		}
+
+		// Copy dependency files and install with BuildKit cache
+		composerCheckDir := g.appPath
+		if sd := g.effectiveStagingDir(); sd != "" {
+			composerCheckDir = sd
+		}
+		composerPath := filepath.Join(composerCheckDir, "composer.json")
+		if _, err := os.Stat(composerPath); err == nil {
+			dockerfile.WriteString("WORKDIR /app\n")
+			dockerfile.WriteString("COPY composer.json composer.lock* /app/\n")
+			dockerfile.WriteString("RUN --mount=type=cache,target=/root/.composer \\\n")
+			dockerfile.WriteString("    composer install --no-dev --no-interaction --prefer-dist \\\n")
+			dockerfile.WriteString("    || (unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy \\\n")
+			dockerfile.WriteString("    && composer install --no-dev --no-interaction --prefer-dist)\n\n")
+		} else {
+			dockerfile.WriteString("# No composer.json found — skipping composer install\n\n")
+		}
+
+	case "kotlin":
+		version := g.effectiveVersion()
+		g.isAlpine = false
+		baseImage := fmt.Sprintf("eclipse-temurin:%s-jdk-noble", version)
+		dockerfile.WriteString(pinnedImageComment(baseImage))
+		dockerfile.WriteString(fmt.Sprintf("FROM %s AS base\n\n", pinnedImage(baseImage)))
+
+		// Declare build args after FROM so they're available in RUN commands
+		if len(privateRepoInfo.RequiredBuildArgs) > 0 {
+			dockerfile.WriteString("# Build arguments for private Maven repositories\n")
+			for _, arg := range privateRepoInfo.RequiredBuildArgs {
+				dockerfile.WriteString(fmt.Sprintf("ARG %s\n", arg))
+			}
+			dockerfile.WriteString("\n")
+		}
+
+		// Emit additional build args (de-duplicated with RequiredBuildArgs)
+		g.emitAdditionalBuildArgs(dockerfile, privateRepoInfo.RequiredBuildArgs)
+
+		// Install basic dependencies (Debian-based image)
+		dockerfile.WriteString("# Install basic dependencies\n")
+		dockerfile.WriteString(g.aptCacheMounts())
+		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
+		dockerfile.WriteString("    git ca-certificates curl\n\n")
+
+		// CA certificate injection
+		g.emitCACertSection(dockerfile)
+
+		// Copy dependency files and install with BuildKit cache (Gradle Kotlin DSL)
+		gradleKtsCheckDir := g.appPath
+		if sd := g.effectiveStagingDir(); sd != "" {
+			gradleKtsCheckDir = sd
+		}
+		gradleKtsPath := filepath.Join(gradleKtsCheckDir, "build.gradle.kts")
+		if _, err := os.Stat(gradleKtsPath); err == nil {
+			dockerfile.WriteString("WORKDIR /app\n")
+			dockerfile.WriteString("COPY build.gradle.kts settings.gradle.kts* gradlew* /app/\n")
+			dockerfile.WriteString("COPY gradle/ /app/gradle/\n")
+			dockerfile.WriteString("RUN --mount=type=cache,target=/root/.gradle \\\n")
+			dockerfile.WriteString("    if [ -f gradlew ]; then chmod +x gradlew && ./gradlew dependencies --no-daemon; \\\n")
+			dockerfile.WriteString("    else gradle dependencies --no-daemon; fi \\\n")
+			dockerfile.WriteString("    || true\n\n")
+		} else {
+			dockerfile.WriteString("# No build.gradle.kts found — skipping Gradle dependency install\n\n")
+		}
+
+	case "scala":
+		version := g.effectiveVersion()
+		g.isAlpine = false
+		baseImage := fmt.Sprintf("eclipse-temurin:%s-jdk-noble", version)
+		dockerfile.WriteString(pinnedImageComment(baseImage))
+		dockerfile.WriteString(fmt.Sprintf("FROM %s AS base\n\n", pinnedImage(baseImage)))
+
+		// Declare build args after FROM so they're available in RUN commands
+		if len(privateRepoInfo.RequiredBuildArgs) > 0 {
+			dockerfile.WriteString("# Build arguments for private Maven/sbt repositories\n")
+			for _, arg := range privateRepoInfo.RequiredBuildArgs {
+				dockerfile.WriteString(fmt.Sprintf("ARG %s\n", arg))
+			}
+			dockerfile.WriteString("\n")
+		}
+
+		// Emit additional build args (de-duplicated with RequiredBuildArgs)
+		g.emitAdditionalBuildArgs(dockerfile, privateRepoInfo.RequiredBuildArgs)
+
+		// Install basic dependencies + sbt (Debian-based image)
+		dockerfile.WriteString("# Install basic dependencies and sbt\n")
+		dockerfile.WriteString(g.aptCacheMounts())
+		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
+		dockerfile.WriteString("    git ca-certificates curl gnupg && \\\n")
+		dockerfile.WriteString("    echo \"deb https://repo.scala-sbt.org/scalasbt/debian all main\" > /etc/apt/sources.list.d/sbt.list && \\\n")
+		dockerfile.WriteString("    curl -sL \"https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x2EE0EA64E40A89B84B2DF73499E82A75642AC823\" | apt-key add && \\\n")
+		dockerfile.WriteString("    apt-get update && apt-get install -y sbt\n\n")
+
+		// CA certificate injection
+		g.emitCACertSection(dockerfile)
+
+		// Copy dependency files and install with BuildKit cache (sbt)
+		sbtCheckDir := g.appPath
+		if sd := g.effectiveStagingDir(); sd != "" {
+			sbtCheckDir = sd
+		}
+		buildSbtPath := filepath.Join(sbtCheckDir, "build.sbt")
+		if _, err := os.Stat(buildSbtPath); err == nil {
+			dockerfile.WriteString("WORKDIR /app\n")
+			dockerfile.WriteString("COPY build.sbt /app/\n")
+			dockerfile.WriteString("COPY project/ /app/project/\n")
+			dockerfile.WriteString("RUN --mount=type=cache,target=/root/.sbt \\\n")
+			dockerfile.WriteString("    --mount=type=cache,target=/root/.ivy2 \\\n")
+			dockerfile.WriteString("    sbt update || true\n\n")
+		} else {
+			// Check for Maven (pom.xml) as fallback — some Scala projects use Maven
+			pomPath := filepath.Join(sbtCheckDir, "pom.xml")
+			if _, err := os.Stat(pomPath); err == nil {
+				dockerfile.WriteString("WORKDIR /app\n")
+				dockerfile.WriteString("COPY pom.xml /app/\n")
+				dockerfile.WriteString("RUN --mount=type=cache,target=/root/.m2 \\\n")
+				dockerfile.WriteString("    mvn dependency:resolve || true\n\n")
+			} else {
+				dockerfile.WriteString("# No build.sbt or pom.xml found — skipping dependency install\n\n")
+			}
+		}
+
+	case "elixir":
+		version := g.effectiveVersion()
+		g.isAlpine = false
+		baseImage := fmt.Sprintf("elixir:%s-slim", version)
+		dockerfile.WriteString(pinnedImageComment(baseImage))
+		dockerfile.WriteString(fmt.Sprintf("FROM %s AS base\n\n", pinnedImage(baseImage)))
+
+		// Declare build args after FROM so they're available in RUN commands
+		if len(privateRepoInfo.RequiredBuildArgs) > 0 {
+			dockerfile.WriteString("# Build arguments for private Hex packages\n")
+			for _, arg := range privateRepoInfo.RequiredBuildArgs {
+				dockerfile.WriteString(fmt.Sprintf("ARG %s\n", arg))
+			}
+			dockerfile.WriteString("\n")
+		}
+
+		// Emit additional build args (de-duplicated with RequiredBuildArgs)
+		g.emitAdditionalBuildArgs(dockerfile, privateRepoInfo.RequiredBuildArgs)
+
+		// Install basic dependencies (Debian-based image)
+		dockerfile.WriteString("# Install basic dependencies\n")
+		dockerfile.WriteString(g.aptCacheMounts())
+		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
+		dockerfile.WriteString("    git curl ca-certificates build-essential\n\n")
+
+		// CA certificate injection
+		g.emitCACertSection(dockerfile)
+
+		// Setup Hex and Rebar
+		dockerfile.WriteString("# Setup Hex package manager and Rebar build tool\n")
+		dockerfile.WriteString("RUN mix local.hex --force && mix local.rebar --force\n\n")
+
+		// Setup SSH for git if needed
+		if privateRepoInfo.NeedsSSH {
+			dockerfile.WriteString("# Setup SSH for git operations\n")
+			dockerfile.WriteString("RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh\n")
+			dockerfile.WriteString("RUN --mount=type=ssh \\\n")
+			dockerfile.WriteString("    ssh-keyscan github.com >> /root/.ssh/known_hosts && \\\n")
+			dockerfile.WriteString("    ssh-keyscan gitlab.com >> /root/.ssh/known_hosts\n\n")
+		}
+
+		// Copy dependency files and install with BuildKit cache
+		mixCheckDir := g.appPath
+		if sd := g.effectiveStagingDir(); sd != "" {
+			mixCheckDir = sd
+		}
+		mixPath := filepath.Join(mixCheckDir, "mix.exs")
+		if _, err := os.Stat(mixPath); err == nil {
+			dockerfile.WriteString("WORKDIR /app\n")
+			dockerfile.WriteString("COPY mix.exs mix.lock* /app/\n")
+			dockerfile.WriteString("RUN --mount=type=cache,target=/root/.hex \\\n")
+			dockerfile.WriteString("    --mount=type=cache,target=/root/.mix \\\n")
+			dockerfile.WriteString("    mix deps.get \\\n")
+			dockerfile.WriteString("    || (unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy \\\n")
+			dockerfile.WriteString("    && mix deps.get)\n\n")
+		} else {
+			dockerfile.WriteString("# No mix.exs found — skipping mix deps.get\n\n")
+		}
+
+	case "swift":
+		version := g.effectiveVersion()
+		g.isAlpine = false
+		baseImage := fmt.Sprintf("swift:%s-slim", version)
+		dockerfile.WriteString(pinnedImageComment(baseImage))
+		dockerfile.WriteString(fmt.Sprintf("FROM %s AS base\n\n", pinnedImage(baseImage)))
+
+		// Declare build args after FROM so they're available in RUN commands
+		if len(privateRepoInfo.RequiredBuildArgs) > 0 {
+			dockerfile.WriteString("# Build arguments for private Swift packages\n")
+			for _, arg := range privateRepoInfo.RequiredBuildArgs {
+				dockerfile.WriteString(fmt.Sprintf("ARG %s\n", arg))
+			}
+			dockerfile.WriteString("\n")
+		}
+
+		// Emit additional build args (de-duplicated with RequiredBuildArgs)
+		g.emitAdditionalBuildArgs(dockerfile, privateRepoInfo.RequiredBuildArgs)
+
+		// Install basic dependencies (Debian-based image)
+		dockerfile.WriteString("# Install basic dependencies\n")
+		dockerfile.WriteString(g.aptCacheMounts())
+		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
+		dockerfile.WriteString("    git curl ca-certificates\n\n")
+
+		// CA certificate injection
+		g.emitCACertSection(dockerfile)
+
+		// Setup SSH for git if needed
+		if privateRepoInfo.NeedsSSH {
+			dockerfile.WriteString("# Setup SSH for git operations\n")
+			dockerfile.WriteString("RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh\n")
+			dockerfile.WriteString("RUN --mount=type=ssh \\\n")
+			dockerfile.WriteString("    ssh-keyscan github.com >> /root/.ssh/known_hosts && \\\n")
+			dockerfile.WriteString("    ssh-keyscan gitlab.com >> /root/.ssh/known_hosts\n\n")
+		}
+
+		// Copy dependency files and install with BuildKit cache
+		swiftCheckDir := g.appPath
+		if sd := g.effectiveStagingDir(); sd != "" {
+			swiftCheckDir = sd
+		}
+		packagePath := filepath.Join(swiftCheckDir, "Package.swift")
+		if _, err := os.Stat(packagePath); err == nil {
+			dockerfile.WriteString("WORKDIR /app\n")
+			dockerfile.WriteString("COPY Package.swift Package.resolved* /app/\n")
+			dockerfile.WriteString("RUN --mount=type=cache,target=/root/.swiftpm \\\n")
+			dockerfile.WriteString("    swift package resolve \\\n")
+			dockerfile.WriteString("    || (unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy \\\n")
+			dockerfile.WriteString("    && swift package resolve)\n\n")
+		} else {
+			dockerfile.WriteString("# No Package.swift found — skipping swift package resolve\n\n")
+		}
+
+	case "zig":
+		version := g.effectiveVersion()
+		g.isAlpine = false
+		baseImage := "ubuntu:22.04"
+		dockerfile.WriteString(pinnedImageComment(baseImage))
+		dockerfile.WriteString(fmt.Sprintf("FROM %s AS base\n\n", pinnedImage(baseImage)))
+
+		// Declare build args after FROM so they're available in RUN commands
+		if len(privateRepoInfo.RequiredBuildArgs) > 0 {
+			dockerfile.WriteString("# Build arguments for private Zig packages\n")
+			for _, arg := range privateRepoInfo.RequiredBuildArgs {
+				dockerfile.WriteString(fmt.Sprintf("ARG %s\n", arg))
+			}
+			dockerfile.WriteString("\n")
+		}
+
+		// Emit additional build args (de-duplicated with RequiredBuildArgs)
+		g.emitAdditionalBuildArgs(dockerfile, privateRepoInfo.RequiredBuildArgs)
+
+		// Install basic dependencies and Zig from official tarball (Debian-based image)
+		dockerfile.WriteString("# Install basic dependencies\n")
+		dockerfile.WriteString(g.aptCacheMounts())
+		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
+		dockerfile.WriteString("    git curl ca-certificates xz-utils\n\n")
+
+		// CA certificate injection
+		g.emitCACertSection(dockerfile)
+
+		// Install Zig from official tarball (architecture-aware)
+		dockerfile.WriteString("# Install Zig from official tarball\n")
+		dockerfile.WriteString(fmt.Sprintf("ARG ZIG_VERSION=%s\n", version))
+		dockerfile.WriteString("RUN ARCH=$(dpkg --print-architecture) && \\\n")
+		dockerfile.WriteString("    if [ \"$ARCH\" = \"arm64\" ]; then ZIG_ARCH=\"aarch64\"; else ZIG_ARCH=\"x86_64\"; fi && \\\n")
+		dockerfile.WriteString("    curl -fsSL https://ziglang.org/download/${ZIG_VERSION}/zig-linux-${ZIG_ARCH}-${ZIG_VERSION}.tar.xz \\\n")
+		dockerfile.WriteString("    | tar -xJ -C /usr/local --strip-components=1\n\n")
+
+		// Setup SSH for git if needed
+		if privateRepoInfo.NeedsSSH {
+			dockerfile.WriteString("# Setup SSH for git operations\n")
+			dockerfile.WriteString("RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh\n")
+			dockerfile.WriteString("RUN --mount=type=ssh \\\n")
+			dockerfile.WriteString("    ssh-keyscan github.com >> /root/.ssh/known_hosts && \\\n")
+			dockerfile.WriteString("    ssh-keyscan gitlab.com >> /root/.ssh/known_hosts\n\n")
+		}
+
+		// Copy dependency files and install with BuildKit cache
+		zigCheckDir := g.appPath
+		if sd := g.effectiveStagingDir(); sd != "" {
+			zigCheckDir = sd
+		}
+		buildZigPath := filepath.Join(zigCheckDir, "build.zig")
+		if _, err := os.Stat(buildZigPath); err == nil {
+			dockerfile.WriteString("WORKDIR /app\n")
+			dockerfile.WriteString("COPY build.zig build.zig.zon* /app/\n")
+			dockerfile.WriteString("RUN zig build --fetch \\\n")
+			dockerfile.WriteString("    || (unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy \\\n")
+			dockerfile.WriteString("    && zig build --fetch)\n\n")
+		} else {
+			dockerfile.WriteString("# No build.zig found — skipping zig build --fetch\n\n")
+		}
+
+	case "dart":
+		version := g.effectiveVersion()
+		g.isAlpine = false
+		baseImage := fmt.Sprintf("dart:%s", version)
+		dockerfile.WriteString(pinnedImageComment(baseImage))
+		dockerfile.WriteString(fmt.Sprintf("FROM %s AS base\n\n", pinnedImage(baseImage)))
+
+		// Declare build args after FROM so they're available in RUN commands
+		if len(privateRepoInfo.RequiredBuildArgs) > 0 {
+			dockerfile.WriteString("# Build arguments for private Dart packages\n")
+			for _, arg := range privateRepoInfo.RequiredBuildArgs {
+				dockerfile.WriteString(fmt.Sprintf("ARG %s\n", arg))
+			}
+			dockerfile.WriteString("\n")
+		}
+
+		// Emit additional build args (de-duplicated with RequiredBuildArgs)
+		g.emitAdditionalBuildArgs(dockerfile, privateRepoInfo.RequiredBuildArgs)
+
+		// Install basic dependencies (Debian-based image)
+		dockerfile.WriteString("# Install basic dependencies\n")
+		dockerfile.WriteString(g.aptCacheMounts())
+		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
+		dockerfile.WriteString("    git curl ca-certificates\n\n")
+
+		// CA certificate injection
+		g.emitCACertSection(dockerfile)
+
+		// Setup SSH for git if needed
+		if privateRepoInfo.NeedsSSH {
+			dockerfile.WriteString("# Setup SSH for git operations\n")
+			dockerfile.WriteString("RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh\n")
+			dockerfile.WriteString("RUN --mount=type=ssh \\\n")
+			dockerfile.WriteString("    ssh-keyscan github.com >> /root/.ssh/known_hosts && \\\n")
+			dockerfile.WriteString("    ssh-keyscan gitlab.com >> /root/.ssh/known_hosts\n\n")
+		}
+
+		// Copy dependency files and install with BuildKit cache
+		dartCheckDir := g.appPath
+		if sd := g.effectiveStagingDir(); sd != "" {
+			dartCheckDir = sd
+		}
+		pubspecPath := filepath.Join(dartCheckDir, "pubspec.yaml")
+		if _, err := os.Stat(pubspecPath); err == nil {
+			dockerfile.WriteString("WORKDIR /app\n")
+			dockerfile.WriteString("COPY pubspec.yaml pubspec.lock* /app/\n")
+			dockerfile.WriteString("RUN --mount=type=cache,target=/root/.pub-cache \\\n")
+			dockerfile.WriteString("    dart pub get \\\n")
+			dockerfile.WriteString("    || (unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy \\\n")
+			dockerfile.WriteString("    && dart pub get)\n\n")
+		} else {
+			dockerfile.WriteString("# No pubspec.yaml found — skipping dart pub get\n\n")
+		}
+
+	case "lua":
+		version := g.effectiveVersion()
+		g.isAlpine = false
+		baseImage := "ubuntu:22.04"
+		dockerfile.WriteString(pinnedImageComment(baseImage))
+		dockerfile.WriteString(fmt.Sprintf("FROM %s AS base\n\n", pinnedImage(baseImage)))
+
+		// Declare build args after FROM so they're available in RUN commands
+		if len(privateRepoInfo.RequiredBuildArgs) > 0 {
+			dockerfile.WriteString("# Build arguments for private Lua packages\n")
+			for _, arg := range privateRepoInfo.RequiredBuildArgs {
+				dockerfile.WriteString(fmt.Sprintf("ARG %s\n", arg))
+			}
+			dockerfile.WriteString("\n")
+		}
+
+		// Emit additional build args (de-duplicated with RequiredBuildArgs)
+		g.emitAdditionalBuildArgs(dockerfile, privateRepoInfo.RequiredBuildArgs)
+
+		// Install basic dependencies and Lua via apt (Debian-based image)
+		dockerfile.WriteString("# Install basic dependencies and Lua\n")
+		dockerfile.WriteString(g.aptCacheMounts())
+		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
+		dockerfile.WriteString(fmt.Sprintf("    git curl ca-certificates lua%s luarocks\n\n", version))
+
+		// CA certificate injection
+		g.emitCACertSection(dockerfile)
+
+		// Setup SSH for git if needed
+		if privateRepoInfo.NeedsSSH {
+			dockerfile.WriteString("# Setup SSH for git operations\n")
+			dockerfile.WriteString("RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh\n")
+			dockerfile.WriteString("RUN --mount=type=ssh \\\n")
+			dockerfile.WriteString("    ssh-keyscan github.com >> /root/.ssh/known_hosts && \\\n")
+			dockerfile.WriteString("    ssh-keyscan gitlab.com >> /root/.ssh/known_hosts\n\n")
+		}
+
+		// Copy dependency files and install with LuaRocks if rockspec present
+		luaCheckDir := g.appPath
+		if sd := g.effectiveStagingDir(); sd != "" {
+			luaCheckDir = sd
+		}
+		hasRockspec := false
+		if entries, err := os.ReadDir(luaCheckDir); err == nil {
+			for _, e := range entries {
+				if !e.IsDir() && strings.HasSuffix(e.Name(), ".rockspec") {
+					hasRockspec = true
+					break
+				}
+			}
+		}
+		if hasRockspec {
+			dockerfile.WriteString("WORKDIR /app\n")
+			dockerfile.WriteString("COPY *.rockspec /app/\n")
+			dockerfile.WriteString("RUN luarocks install --deps-only *.rockspec \\\n")
+			dockerfile.WriteString("    || (unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy \\\n")
+			dockerfile.WriteString("    && luarocks install --deps-only *.rockspec)\n\n")
+		} else {
+			dockerfile.WriteString("# No rockspec found — skipping luarocks install\n\n")
+		}
+
+	case "r":
+		version := g.effectiveVersion()
+		g.isAlpine = false
+		baseImage := fmt.Sprintf("r-base:%s", version)
+		dockerfile.WriteString(pinnedImageComment(baseImage))
+		dockerfile.WriteString(fmt.Sprintf("FROM %s AS base\n\n", pinnedImage(baseImage)))
+
+		// Declare build args after FROM so they're available in RUN commands
+		if len(privateRepoInfo.RequiredBuildArgs) > 0 {
+			dockerfile.WriteString("# Build arguments for private R packages\n")
+			for _, arg := range privateRepoInfo.RequiredBuildArgs {
+				dockerfile.WriteString(fmt.Sprintf("ARG %s\n", arg))
+			}
+			dockerfile.WriteString("\n")
+		}
+
+		// Emit additional build args (de-duplicated with RequiredBuildArgs)
+		g.emitAdditionalBuildArgs(dockerfile, privateRepoInfo.RequiredBuildArgs)
+
+		// Install basic dependencies and common R system deps (Debian-based image)
+		dockerfile.WriteString("# Install basic dependencies and common R system deps\n")
+		dockerfile.WriteString(g.aptCacheMounts())
+		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
+		dockerfile.WriteString("    git curl ca-certificates libcurl4-openssl-dev libssl-dev libxml2-dev\n\n")
+
+		// CA certificate injection
+		g.emitCACertSection(dockerfile)
+
+		// Setup SSH for git if needed
+		if privateRepoInfo.NeedsSSH {
+			dockerfile.WriteString("# Setup SSH for git operations\n")
+			dockerfile.WriteString("RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh\n")
+			dockerfile.WriteString("RUN --mount=type=ssh \\\n")
+			dockerfile.WriteString("    ssh-keyscan github.com >> /root/.ssh/known_hosts && \\\n")
+			dockerfile.WriteString("    ssh-keyscan gitlab.com >> /root/.ssh/known_hosts\n\n")
+		}
+
+		// Copy dependency files and restore with renv if renv.lock present
+		rCheckDir := g.appPath
+		if sd := g.effectiveStagingDir(); sd != "" {
+			rCheckDir = sd
+		}
+		renvLockPath := filepath.Join(rCheckDir, "renv.lock")
+		if _, err := os.Stat(renvLockPath); err == nil {
+			dockerfile.WriteString("WORKDIR /app\n")
+			dockerfile.WriteString("COPY DESCRIPTION* renv.lock /app/\n")
+			dockerfile.WriteString("RUN --mount=type=cache,target=/usr/local/lib/R/site-library \\\n")
+			dockerfile.WriteString("    Rscript -e 'install.packages(\"renv\"); renv::restore()' \\\n")
+			dockerfile.WriteString("    || (unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy \\\n")
+			dockerfile.WriteString("    && Rscript -e 'install.packages(\"renv\"); renv::restore()')\n\n")
+		} else {
+			dockerfile.WriteString("# No renv.lock found — skipping renv::restore()\n\n")
+		}
+
+	case "haskell":
+		version := g.effectiveVersion()
+		g.isAlpine = false
+		baseImage := fmt.Sprintf("haskell:%s-slim", version)
+		dockerfile.WriteString(pinnedImageComment(baseImage))
+		dockerfile.WriteString(fmt.Sprintf("FROM %s AS base\n\n", pinnedImage(baseImage)))
+
+		// Declare build args after FROM so they're available in RUN commands
+		if len(privateRepoInfo.RequiredBuildArgs) > 0 {
+			dockerfile.WriteString("# Build arguments for private Haskell packages\n")
+			for _, arg := range privateRepoInfo.RequiredBuildArgs {
+				dockerfile.WriteString(fmt.Sprintf("ARG %s\n", arg))
+			}
+			dockerfile.WriteString("\n")
+		}
+
+		// Emit additional build args (de-duplicated with RequiredBuildArgs)
+		g.emitAdditionalBuildArgs(dockerfile, privateRepoInfo.RequiredBuildArgs)
+
+		// Install basic dependencies (Debian-based image — Haskell image includes GHC and Cabal)
+		dockerfile.WriteString("# Install basic dependencies\n")
+		dockerfile.WriteString(g.aptCacheMounts())
+		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
+		dockerfile.WriteString("    git curl ca-certificates\n\n")
+
+		// CA certificate injection
+		g.emitCACertSection(dockerfile)
+
+		// Setup SSH for git if needed
+		if privateRepoInfo.NeedsSSH {
+			dockerfile.WriteString("# Setup SSH for git operations\n")
+			dockerfile.WriteString("RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh\n")
+			dockerfile.WriteString("RUN --mount=type=ssh \\\n")
+			dockerfile.WriteString("    ssh-keyscan github.com >> /root/.ssh/known_hosts && \\\n")
+			dockerfile.WriteString("    ssh-keyscan gitlab.com >> /root/.ssh/known_hosts\n\n")
+		}
+
+		// Copy dependency files and install with Cabal if *.cabal present
+		haskellCheckDir := g.appPath
+		if sd := g.effectiveStagingDir(); sd != "" {
+			haskellCheckDir = sd
+		}
+		hasCabalFile := false
+		if entries, err := os.ReadDir(haskellCheckDir); err == nil {
+			for _, e := range entries {
+				if !e.IsDir() && strings.HasSuffix(e.Name(), ".cabal") {
+					hasCabalFile = true
+					break
+				}
+			}
+		}
+		if hasCabalFile {
+			dockerfile.WriteString("WORKDIR /app\n")
+			dockerfile.WriteString("COPY *.cabal cabal.project* /app/\n")
+			dockerfile.WriteString("RUN --mount=type=cache,target=/root/.cabal \\\n")
+			dockerfile.WriteString("    cabal update && cabal build --only-dependencies \\\n")
+			dockerfile.WriteString("    || (unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy \\\n")
+			dockerfile.WriteString("    && cabal update && cabal build --only-dependencies)\n\n")
+		} else {
+			dockerfile.WriteString("# No *.cabal found — skipping cabal build --only-dependencies\n\n")
+		}
+
+	case "perl":
+		version := g.effectiveVersion()
+		g.isAlpine = false
+		baseImage := fmt.Sprintf("perl:%s-slim", version)
+		dockerfile.WriteString(pinnedImageComment(baseImage))
+		dockerfile.WriteString(fmt.Sprintf("FROM %s AS base\n\n", pinnedImage(baseImage)))
+
+		// Declare build args after FROM so they're available in RUN commands
+		if len(privateRepoInfo.RequiredBuildArgs) > 0 {
+			dockerfile.WriteString("# Build arguments for private Perl packages\n")
+			for _, arg := range privateRepoInfo.RequiredBuildArgs {
+				dockerfile.WriteString(fmt.Sprintf("ARG %s\n", arg))
+			}
+			dockerfile.WriteString("\n")
+		}
+
+		// Emit additional build args (de-duplicated with RequiredBuildArgs)
+		g.emitAdditionalBuildArgs(dockerfile, privateRepoInfo.RequiredBuildArgs)
+
+		// Install cpanminus and build-essential (Debian-based image)
+		dockerfile.WriteString("# Install cpanminus and build dependencies\n")
+		dockerfile.WriteString(g.aptCacheMounts())
+		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
+		dockerfile.WriteString("    cpanminus build-essential git curl ca-certificates\n\n")
+
+		// CA certificate injection
+		g.emitCACertSection(dockerfile)
+
+		// Setup SSH for git if needed
+		if privateRepoInfo.NeedsSSH {
+			dockerfile.WriteString("# Setup SSH for git operations\n")
+			dockerfile.WriteString("RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh\n")
+			dockerfile.WriteString("RUN --mount=type=ssh \\\n")
+			dockerfile.WriteString("    ssh-keyscan github.com >> /root/.ssh/known_hosts && \\\n")
+			dockerfile.WriteString("    ssh-keyscan gitlab.com >> /root/.ssh/known_hosts\n\n")
+		}
+
+		// Copy dependency files and install with cpanm if cpanfile present
+		perlCheckDir := g.appPath
+		if sd := g.effectiveStagingDir(); sd != "" {
+			perlCheckDir = sd
+		}
+		hasCpanfile := false
+		if _, err := os.Stat(filepath.Join(perlCheckDir, "cpanfile")); err == nil {
+			hasCpanfile = true
+		}
+		if hasCpanfile {
+			dockerfile.WriteString("WORKDIR /app\n")
+			dockerfile.WriteString("COPY cpanfile* /app/\n")
+			dockerfile.WriteString("RUN --mount=type=cache,target=/root/.cpanm \\\n")
+			dockerfile.WriteString("    cpanm --installdeps . \\\n")
+			dockerfile.WriteString("    || (unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy \\\n")
+			dockerfile.WriteString("    && cpanm --installdeps .)\n\n")
+		} else {
+			dockerfile.WriteString("# No cpanfile found — skipping cpanm --installdeps\n\n")
+		}
+
 	default:
 		// Generic Ubuntu base
 		g.isAlpine = false
@@ -812,6 +1487,25 @@ func (g *DefaultDockerfileGenerator) emitCopyFromBuilders(dockerfile *strings.Bu
 	dockerfile.WriteString("\n")
 }
 
+// emitDotnetCopyAndRestore writes Dockerfile instructions for .NET dependency restoration.
+// Copies project files (*.csproj, *.sln, NuGet.config) and runs dotnet restore with
+// BuildKit cache mount for the NuGet package cache.
+func (g *DefaultDockerfileGenerator) emitDotnetCopyAndRestore(dockerfile *strings.Builder) {
+	dockerfile.WriteString("COPY *.csproj *.sln /app/\n")
+
+	// Check if NuGet.config exists in the staging directory or app path
+	nugetCheckDir := g.appPath
+	if sd := g.effectiveStagingDir(); sd != "" {
+		nugetCheckDir = sd
+	}
+	if _, err := os.Stat(filepath.Join(nugetCheckDir, "NuGet.config")); err == nil {
+		dockerfile.WriteString("COPY NuGet.config /app/\n")
+	}
+
+	dockerfile.WriteString("RUN --mount=type=cache,target=/root/.nuget \\\n")
+	dockerfile.WriteString("    dotnet restore || true\n\n")
+}
+
 // effectiveVersion returns the language-appropriate version to use, falling back
 // to a sensible default when the user hasn't specified one. This is the single
 // source of truth for version defaulting, replacing per-language inline logic.
@@ -826,6 +1520,30 @@ func (g *DefaultDockerfileGenerator) effectiveVersion() string {
 		return "1.22"
 	case "nodejs":
 		return "20"
+	case "dotnet":
+		return "9.0"
+	case "php":
+		return "8.4"
+	case "kotlin":
+		return "21"
+	case "scala":
+		return "21"
+	case "elixir":
+		return "1.18"
+	case "swift":
+		return "6.1"
+	case "zig":
+		return "0.14"
+	case "dart":
+		return "3.7"
+	case "lua":
+		return "5.4"
+	case "r":
+		return "4.5"
+	case "haskell":
+		return "9.12"
+	case "perl":
+		return "5.40"
 	default:
 		return ""
 	}
@@ -1210,6 +1928,30 @@ func (g *DefaultDockerfileGenerator) getDefaultLanguageTools() []string {
 		return []string{"gopls", "delve", "golangci-lint"}
 	case "nodejs":
 		return []string{"typescript", "ts-node"}
+	case "dotnet":
+		return []string{} // dotnet-format built into SDK 6+; tools handled via Mason
+	case "php":
+		return []string{"phpunit"}
+	case "kotlin":
+		return []string{} // Tools handled via Mason
+	case "scala":
+		return []string{} // Tools handled via Mason (metals)
+	case "elixir":
+		return []string{} // Tools handled via Mason (elixir-ls)
+	case "swift":
+		return []string{} // Tools handled via Mason (sourcekit-lsp bundled with Swift)
+	case "zig":
+		return []string{} // Tools handled via Mason (zls)
+	case "dart":
+		return []string{} // Tools handled via Mason (dart analysis server bundled with Dart SDK)
+	case "lua":
+		return []string{} // Tools handled via Mason (lua-language-server, stylua)
+	case "r":
+		return []string{} // Tools handled via Mason (r-languageserver installed via R)
+	case "haskell":
+		return []string{} // Tools handled via Mason (haskell-language-server)
+	case "perl":
+		return []string{} // Tools handled via Mason (perlnavigator)
 	default:
 		return []string{}
 	}
@@ -1237,6 +1979,57 @@ func (g *DefaultDockerfileGenerator) installLanguageTools(dockerfile *strings.Bu
 		dockerfile.WriteString(fmt.Sprintf("    npm install -g %s || \\\n", toolsList))
 		dockerfile.WriteString("    (unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry \\\n")
 		dockerfile.WriteString(fmt.Sprintf("    && npm install -g %s)\n\n", toolsList))
+
+	case "dotnet":
+		// .NET dev tools (dotnet-format) are built into SDK 6+; LSP handled via Mason
+		dockerfile.WriteString("# .NET dev tools built into SDK; LSP installed via Mason (omnisharp, netcoredbg)\n\n")
+
+	case "php":
+		toolsList := strings.Join(tools, " ")
+		dockerfile.WriteString("RUN --mount=type=cache,target=/root/.composer \\\n")
+		dockerfile.WriteString(fmt.Sprintf("    composer global require %s \\\n", toolsList))
+		dockerfile.WriteString("    || (unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy \\\n")
+		dockerfile.WriteString(fmt.Sprintf("    && composer global require %s)\n\n", toolsList))
+
+	case "kotlin":
+		// Kotlin dev tools handled via Gradle and Mason — no separate install needed
+		dockerfile.WriteString("# Kotlin dev tools handled via Gradle and Mason (kotlin-language-server, ktlint)\n\n")
+
+	case "scala":
+		// Scala dev tools handled via Mason — no separate install needed
+		dockerfile.WriteString("# Scala dev tools handled via Mason (metals)\n\n")
+
+	case "elixir":
+		// Elixir dev tools handled via Mason — no separate install needed
+		dockerfile.WriteString("# Elixir dev tools handled via Mason (elixir-ls)\n\n")
+
+	case "swift":
+		// Swift dev tools handled via Mason — sourcekit-lsp is bundled with Swift toolchain
+		dockerfile.WriteString("# Swift dev tools handled via Mason (sourcekit-lsp bundled with Swift)\n\n")
+
+	case "zig":
+		// Zig dev tools handled via Mason — zig fmt is built into the compiler
+		dockerfile.WriteString("# Zig dev tools handled via Mason (zls); zig fmt is built-in\n\n")
+
+	case "dart":
+		// Dart dev tools handled via Mason — dart analysis server is bundled with Dart SDK
+		dockerfile.WriteString("# Dart dev tools handled via Mason (dart analysis server bundled with Dart SDK)\n\n")
+
+	case "lua":
+		// Lua dev tools handled via Mason — lua-language-server and stylua
+		dockerfile.WriteString("# Lua dev tools handled via Mason (lua-language-server, stylua)\n\n")
+
+	case "r":
+		// R dev tools handled via Mason — r-languageserver typically installed via R itself
+		dockerfile.WriteString("# R dev tools handled via Mason (r-languageserver)\n\n")
+
+	case "haskell":
+		// Haskell dev tools handled via Mason — haskell-language-server
+		dockerfile.WriteString("# Haskell dev tools handled via Mason (haskell-language-server)\n\n")
+
+	case "perl":
+		// Perl dev tools handled via Mason — perlnavigator
+		dockerfile.WriteString("# Perl dev tools handled via Mason (perlnavigator)\n\n")
 	}
 }
 
@@ -1392,8 +2185,32 @@ func (g *DefaultDockerfileGenerator) getMasonToolsForLanguage() []string {
 		return []string{"solargraph", "rubocop"}
 	case "java":
 		return []string{"jdtls", "google-java-format"}
+	case "dotnet":
+		return []string{"omnisharp", "netcoredbg"}
 	case "gleam":
 		return []string{"gleam"} // Gleam LSP is installed via Mason
+	case "php":
+		return []string{"intelephense", "php-cs-fixer"}
+	case "kotlin":
+		return []string{"kotlin-language-server", "ktlint"}
+	case "scala":
+		return []string{"metals"}
+	case "elixir":
+		return []string{"elixir-ls"}
+	case "swift":
+		return []string{"sourcekit-lsp"}
+	case "zig":
+		return []string{"zls"}
+	case "dart":
+		return []string{"dart-debug-adapter"}
+	case "lua":
+		return []string{"lua-language-server", "stylua"}
+	case "r":
+		return []string{"r-languageserver"}
+	case "haskell":
+		return []string{"haskell-language-server"}
+	case "perl":
+		return []string{"perlnavigator"}
 	default:
 		return []string{}
 	}
@@ -1558,8 +2375,32 @@ func (g *DefaultDockerfileGenerator) getTreesitterParsersForLanguage() []string 
 		return append(base, "ruby", "dockerfile", "gitignore")
 	case "java":
 		return append(base, "java", "xml", "dockerfile", "gitignore")
+	case "dotnet":
+		return append(base, "c_sharp", "xml", "dockerfile", "gitignore")
 	case "gleam":
 		return append(base, "gleam", "erlang", "elixir", "toml", "dockerfile", "gitignore")
+	case "php":
+		return append(base, "php", "phpdoc", "html", "css", "javascript", "dockerfile", "gitignore")
+	case "kotlin":
+		return append(base, "kotlin", "xml", "toml", "dockerfile", "gitignore")
+	case "scala":
+		return append(base, "scala", "xml", "dockerfile", "gitignore")
+	case "elixir":
+		return append(base, "elixir", "erlang", "heex", "eex", "dockerfile", "gitignore")
+	case "swift":
+		return append(base, "swift", "dockerfile", "gitignore")
+	case "zig":
+		return append(base, "zig", "dockerfile", "gitignore")
+	case "dart":
+		return append(base, "dart", "dockerfile", "gitignore")
+	case "lua":
+		return append(base, "lua", "luadoc", "luap", "dockerfile", "gitignore")
+	case "r":
+		return append(base, "r", "rnoweb", "rmd", "dockerfile", "gitignore")
+	case "haskell":
+		return append(base, "haskell", "dockerfile", "gitignore")
+	case "perl":
+		return append(base, "perl", "pod", "dockerfile", "gitignore")
 	default:
 		return base
 	}

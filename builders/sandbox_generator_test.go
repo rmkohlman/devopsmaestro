@@ -69,6 +69,30 @@ func TestGenerateSandboxDockerfile_Cpp(t *testing.T) {
 	assertContains(t, df, "FROM gcc:14-bookworm")
 }
 
+func TestGenerateSandboxDockerfile_Dotnet(t *testing.T) {
+	preset, ok := models.GetPreset("dotnet")
+	if !ok {
+		t.Fatal("dotnet preset not found")
+	}
+
+	df := GenerateSandboxDockerfile(preset, "9.0", "")
+
+	assertContains(t, df, "FROM mcr.microsoft.com/dotnet/sdk:9.0")
+	assertContains(t, df, "WORKDIR /sandbox")
+	assertContains(t, df, "USER dev")
+}
+
+func TestGenerateSandboxDockerfile_DotnetAlias(t *testing.T) {
+	preset, ok := models.GetPreset("csharp")
+	if !ok {
+		t.Fatal("csharp alias should resolve to dotnet preset")
+	}
+
+	if preset.Language != "dotnet" {
+		t.Errorf("csharp alias resolved to %q, want %q", preset.Language, "dotnet")
+	}
+}
+
 func TestGenerateSandboxDockerfile_WithDepsFile(t *testing.T) {
 	preset, ok := models.GetPreset("python")
 	if !ok {

@@ -17,8 +17,13 @@ type SandboxPreset struct {
 }
 
 // BaseImage returns the base image for a given version.
+// If the template contains %s, it is substituted with the version.
+// Otherwise, the template is returned as-is (for languages without versioned Docker images).
 func (p SandboxPreset) BaseImage(version string) string {
-	return fmt.Sprintf(p.BaseImageTemplate, version)
+	if strings.Contains(p.BaseImageTemplate, "%s") {
+		return fmt.Sprintf(p.BaseImageTemplate, version)
+	}
+	return p.BaseImageTemplate
 }
 
 // builtinPresets contains the built-in language sandbox presets.
@@ -63,6 +68,102 @@ var builtinPresets = map[string]SandboxPreset{
 		DepsFiles:         []string{"CMakeLists.txt", "Makefile"},
 		DepsInstallCmd:    "make -f %s",
 	},
+	"dotnet": {
+		Language:          "dotnet",
+		Versions:          []string{"9.0", "8.0"},
+		DefaultVersion:    "9.0",
+		BaseImageTemplate: "mcr.microsoft.com/dotnet/sdk:%s",
+		DepsFiles:         []string{"*.csproj", "*.sln", "NuGet.config"},
+		DepsInstallCmd:    "dotnet restore",
+	},
+	"php": {
+		Language:          "php",
+		Versions:          []string{"8.4", "8.3", "8.2"},
+		DefaultVersion:    "8.4",
+		BaseImageTemplate: "php:%s-cli-alpine",
+		DepsFiles:         []string{"composer.json", "composer.lock"},
+		DepsInstallCmd:    "composer install",
+	},
+	"kotlin": {
+		Language:          "kotlin",
+		Versions:          []string{"21", "17"},
+		DefaultVersion:    "21",
+		BaseImageTemplate: "eclipse-temurin:%s-jdk-noble",
+		DepsFiles:         []string{"build.gradle.kts", "settings.gradle.kts"},
+		DepsInstallCmd:    "./gradlew dependencies --no-daemon",
+	},
+	"scala": {
+		Language:          "scala",
+		Versions:          []string{"21", "17"},
+		DefaultVersion:    "21",
+		BaseImageTemplate: "eclipse-temurin:%s-jdk-noble",
+		DepsFiles:         []string{"build.sbt", "project/build.properties"},
+		DepsInstallCmd:    "sbt update",
+	},
+	"elixir": {
+		Language:          "elixir",
+		Versions:          []string{"1.18", "1.17", "1.16"},
+		DefaultVersion:    "1.18",
+		BaseImageTemplate: "elixir:%s-slim",
+		DepsFiles:         []string{"mix.exs", "mix.lock"},
+		DepsInstallCmd:    "mix deps.get",
+	},
+	"swift": {
+		Language:          "swift",
+		Versions:          []string{"6.1", "6.0", "5.10"},
+		DefaultVersion:    "6.1",
+		BaseImageTemplate: "swift:%s-slim",
+		DepsFiles:         []string{"Package.swift", "Package.resolved"},
+		DepsInstallCmd:    "swift package resolve",
+	},
+	"zig": {
+		Language:          "zig",
+		Versions:          []string{"0.14", "0.13"},
+		DefaultVersion:    "0.14",
+		BaseImageTemplate: "ubuntu:22.04", // No official Zig Docker image; Zig installed at build time
+		DepsFiles:         []string{"build.zig", "build.zig.zon"},
+		DepsInstallCmd:    "zig build --fetch",
+	},
+	"dart": {
+		Language:          "dart",
+		Versions:          []string{"3.7", "3.6"},
+		DefaultVersion:    "3.7",
+		BaseImageTemplate: "dart:%s",
+		DepsFiles:         []string{"pubspec.yaml", "pubspec.lock"},
+		DepsInstallCmd:    "dart pub get",
+	},
+	"lua": {
+		Language:          "lua",
+		Versions:          []string{"5.4", "5.3"},
+		DefaultVersion:    "5.4",
+		BaseImageTemplate: "ubuntu:22.04", // No official Lua Docker image; Lua installed at build time
+		DepsFiles:         []string{"*.rockspec"},
+		DepsInstallCmd:    "luarocks install --deps-only",
+	},
+	"r": {
+		Language:          "r",
+		Versions:          []string{"4.5", "4.4"},
+		DefaultVersion:    "4.5",
+		BaseImageTemplate: "r-base:%s",
+		DepsFiles:         []string{"DESCRIPTION", "renv.lock"},
+		DepsInstallCmd:    "Rscript -e 'renv::restore()'",
+	},
+	"haskell": {
+		Language:          "haskell",
+		Versions:          []string{"9.12", "9.10", "9.8"},
+		DefaultVersion:    "9.12",
+		BaseImageTemplate: "haskell:%s-slim",
+		DepsFiles:         []string{"*.cabal", "stack.yaml", "cabal.project"},
+		DepsInstallCmd:    "cabal update && cabal build --only-dependencies",
+	},
+	"perl": {
+		Language:          "perl",
+		Versions:          []string{"5.40", "5.38"},
+		DefaultVersion:    "5.40",
+		BaseImageTemplate: "perl:%s-slim",
+		DepsFiles:         []string{"cpanfile", "Makefile.PL", "Build.PL"},
+		DepsInstallCmd:    "cpanm --installdeps .",
+	},
 }
 
 // presetAliases maps alternative language names to canonical preset keys.
@@ -77,6 +178,20 @@ var presetAliases = map[string]string{
 	"c++":        "cpp",
 	"c":          "cpp",
 	"gcc":        "cpp",
+	"csharp":     "dotnet",
+	"cs":         "dotnet",
+	"fsharp":     "dotnet",
+	"fs":         "dotnet",
+	"kt":         "kotlin",
+	"sbt":        "scala",
+	"ex":         "elixir",
+	"flutter":    "dart",
+	"luajit":     "lua",
+	"rlang":      "r",
+	"rmd":        "r",
+	"hs":         "haskell",
+	"ghc":        "haskell",
+	"pl":         "perl",
 }
 
 // GetPreset returns the sandbox preset for the given language name.

@@ -6,6 +6,34 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ---
 
+## v0.88.0 (2026-04-14)
+
+**New Features**
+
+- **Multi-language support expansion (7 → 22 languages)** — Comprehensive expansion of language detection, Dockerfile generation, sandbox presets, and Neovim integration across 22 languages. Adds 15 new languages while significantly improving support for all existing ones ([#295](https://github.com/rmkohlman/devopsmaestro/issues/295)).
+
+- **Tier 1 languages: Rust, Ruby, Java, .NET/C#, PHP, Kotlin** — Full Dockerfile generation, sandbox presets, private repository detection, and Neovim package mappings ([#299](https://github.com/rmkohlman/devopsmaestro/issues/299), [#300](https://github.com/rmkohlman/devopsmaestro/issues/300), [#301](https://github.com/rmkohlman/devopsmaestro/issues/301), [#304](https://github.com/rmkohlman/devopsmaestro/issues/304), [#305](https://github.com/rmkohlman/devopsmaestro/issues/305), [#306](https://github.com/rmkohlman/devopsmaestro/issues/306)).
+
+- **Tier 2 languages: Elixir, Scala, Swift, Zig** — Enhanced detection, Dockerfile generation, and sandbox presets ([#307](https://github.com/rmkohlman/devopsmaestro/issues/307), [#308](https://github.com/rmkohlman/devopsmaestro/issues/308), [#309](https://github.com/rmkohlman/devopsmaestro/issues/309), [#310](https://github.com/rmkohlman/devopsmaestro/issues/310)).
+
+- **Tier 3 languages: Dart, Lua, R, Haskell, Perl** — Detection, Dockerfile generation, sandbox presets, and Neovim integration ([#311](https://github.com/rmkohlman/devopsmaestro/issues/311), [#312](https://github.com/rmkohlman/devopsmaestro/issues/312), [#313](https://github.com/rmkohlman/devopsmaestro/issues/313), [#314](https://github.com/rmkohlman/devopsmaestro/issues/314), [#315](https://github.com/rmkohlman/devopsmaestro/issues/315)).
+
+**Language Improvements**
+
+- **Go**: default updated to 1.24, pinned digest added ([#297](https://github.com/rmkohlman/devopsmaestro/issues/297)).
+- **Node.js**: default updated to 22, `.node-version` detection, package manager detection (yarn/pnpm/bun) ([#298](https://github.com/rmkohlman/devopsmaestro/issues/298)).
+- **Python**: default updated to 3.13, `pyproject.toml`/`Pipfile` version detection, Poetry/Pipenv support, `ruff` replaces `ruff-lsp` ([#296](https://github.com/rmkohlman/devopsmaestro/issues/296)).
+- **Gleam**: version detection from `gleam.toml`, sandbox preset added ([#302](https://github.com/rmkohlman/devopsmaestro/issues/302)).
+- **C/C++**: language detection, Mason tools (clangd), Treesitter parsers, nvim package ([#303](https://github.com/rmkohlman/devopsmaestro/issues/303)).
+- **Sandbox generator**: Alpine detection for correct `apk` vs `apt` package manager selection ([#294](https://github.com/rmkohlman/devopsmaestro/issues/294)).
+
+**Bug Fixes**
+
+- **Python base image uses pinned `slim-bookworm` tag** — Fixed floating `slim` tag for reproducible builds ([#293](https://github.com/rmkohlman/devopsmaestro/issues/293)).
+- **Sandbox presets use pinned `-bookworm` tags** — Fixed floating tags in sandbox preset base images ([#294](https://github.com/rmkohlman/devopsmaestro/issues/294)).
+
+---
+
 ## v0.87.4 (2026-04-13)
 
 **Bug Fixes**

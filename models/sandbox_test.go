@@ -6,7 +6,7 @@ import (
 )
 
 func TestGetPreset_AllLanguages(t *testing.T) {
-	languages := []string{"python", "golang", "rust", "node", "cpp"}
+	languages := []string{"python", "golang", "rust", "node", "cpp", "dotnet", "php", "kotlin", "scala", "elixir", "swift", "zig", "dart", "lua", "r", "haskell", "perl"}
 	for _, lang := range languages {
 		preset, ok := GetPreset(lang)
 		if !ok {
@@ -43,6 +43,20 @@ func TestGetPreset_Aliases(t *testing.T) {
 		{"c++", "cpp"},
 		{"c", "cpp"},
 		{"gcc", "cpp"},
+		{"csharp", "dotnet"},
+		{"cs", "dotnet"},
+		{"fsharp", "dotnet"},
+		{"fs", "dotnet"},
+		{"kt", "kotlin"},
+		{"sbt", "scala"},
+		{"ex", "elixir"},
+		{"flutter", "dart"},
+		{"luajit", "lua"},
+		{"rlang", "r"},
+		{"rmd", "r"},
+		{"hs", "haskell"},
+		{"ghc", "haskell"},
+		{"pl", "perl"},
 	}
 
 	for _, tt := range tests {
@@ -82,6 +96,155 @@ func TestBaseImage(t *testing.T) {
 	}
 }
 
+func TestBaseImage_Dotnet(t *testing.T) {
+	preset, _ := GetPreset("dotnet")
+	img := preset.BaseImage("9.0")
+	if img != "mcr.microsoft.com/dotnet/sdk:9.0" {
+		t.Errorf("BaseImage(\"9.0\") = %q, want \"mcr.microsoft.com/dotnet/sdk:9.0\"", img)
+	}
+}
+
+func TestBaseImage_Php(t *testing.T) {
+	preset, ok := GetPreset("php")
+	if !ok {
+		t.Fatal("GetPreset(\"php\") returned false")
+	}
+	img := preset.BaseImage("8.3")
+	if img != "php:8.3-cli-alpine" {
+		t.Errorf("BaseImage(\"8.3\") = %q, want \"php:8.3-cli-alpine\"", img)
+	}
+}
+
+func TestBaseImage_Kotlin(t *testing.T) {
+	preset, ok := GetPreset("kotlin")
+	if !ok {
+		t.Fatal("GetPreset(\"kotlin\") returned false")
+	}
+	img := preset.BaseImage("21")
+	if img != "eclipse-temurin:21-jdk-noble" {
+		t.Errorf("BaseImage(\"21\") = %q, want \"eclipse-temurin:21-jdk-noble\"", img)
+	}
+}
+
+func TestBaseImage_Kotlin_Alias(t *testing.T) {
+	preset, ok := GetPreset("kt")
+	if !ok {
+		t.Fatal("GetPreset(\"kt\") returned false")
+	}
+	if preset.Language != "kotlin" {
+		t.Errorf("GetPreset(\"kt\").Language = %q, want \"kotlin\"", preset.Language)
+	}
+}
+
+func TestBaseImage_Elixir(t *testing.T) {
+	preset, ok := GetPreset("elixir")
+	if !ok {
+		t.Fatal("GetPreset(\"elixir\") returned false")
+	}
+	img := preset.BaseImage("1.17")
+	if img != "elixir:1.17-slim" {
+		t.Errorf("BaseImage(\"1.17\") = %q, want \"elixir:1.17-slim\"", img)
+	}
+}
+
+func TestBaseImage_Elixir_Alias(t *testing.T) {
+	preset, ok := GetPreset("ex")
+	if !ok {
+		t.Fatal("GetPreset(\"ex\") returned false")
+	}
+	if preset.Language != "elixir" {
+		t.Errorf("GetPreset(\"ex\").Language = %q, want \"elixir\"", preset.Language)
+	}
+}
+
+func TestBaseImage_Scala(t *testing.T) {
+	preset, ok := GetPreset("scala")
+	if !ok {
+		t.Fatal("GetPreset(\"scala\") returned false")
+	}
+	img := preset.BaseImage("21")
+	if img != "eclipse-temurin:21-jdk-noble" {
+		t.Errorf("BaseImage(\"21\") = %q, want \"eclipse-temurin:21-jdk-noble\"", img)
+	}
+}
+
+func TestBaseImage_Scala_Alias(t *testing.T) {
+	preset, ok := GetPreset("sbt")
+	if !ok {
+		t.Fatal("GetPreset(\"sbt\") returned false")
+	}
+	if preset.Language != "scala" {
+		t.Errorf("GetPreset(\"sbt\").Language = %q, want \"scala\"", preset.Language)
+	}
+}
+
+func TestBaseImage_Swift(t *testing.T) {
+	preset, ok := GetPreset("swift")
+	if !ok {
+		t.Fatal("GetPreset(\"swift\") returned false")
+	}
+	img := preset.BaseImage("6.0")
+	if img != "swift:6.0-slim" {
+		t.Errorf("BaseImage(\"6.0\") = %q, want \"swift:6.0-slim\"", img)
+	}
+}
+
+func TestBaseImage_Zig(t *testing.T) {
+	preset, ok := GetPreset("zig")
+	if !ok {
+		t.Fatal("GetPreset(\"zig\") returned false")
+	}
+	// Zig has no official Docker image; BaseImageTemplate is a fixed string
+	img := preset.BaseImage("0.14")
+	if img != "ubuntu:22.04" {
+		t.Errorf("BaseImage(\"0.14\") = %q, want \"ubuntu:22.04\"", img)
+	}
+}
+
+func TestBaseImage_Dart(t *testing.T) {
+	preset, ok := GetPreset("dart")
+	if !ok {
+		t.Fatal("GetPreset(\"dart\") returned false")
+	}
+	img := preset.BaseImage("3.7")
+	if img != "dart:3.7" {
+		t.Errorf("BaseImage(\"3.7\") = %q, want \"dart:3.7\"", img)
+	}
+}
+
+func TestBaseImage_R(t *testing.T) {
+	preset, ok := GetPreset("r")
+	if !ok {
+		t.Fatal("GetPreset(\"r\") returned false")
+	}
+	img := preset.BaseImage("4.5")
+	if img != "r-base:4.5" {
+		t.Errorf("BaseImage(\"4.5\") = %q, want \"r-base:4.5\"", img)
+	}
+}
+
+func TestBaseImage_Haskell(t *testing.T) {
+	preset, ok := GetPreset("haskell")
+	if !ok {
+		t.Fatal("GetPreset(\"haskell\") returned false")
+	}
+	img := preset.BaseImage("9.12")
+	if img != "haskell:9.12-slim" {
+		t.Errorf("BaseImage(\"9.12\") = %q, want \"haskell:9.12-slim\"", img)
+	}
+}
+
+func TestBaseImage_Perl(t *testing.T) {
+	preset, ok := GetPreset("perl")
+	if !ok {
+		t.Fatal("GetPreset(\"perl\") returned false")
+	}
+	img := preset.BaseImage("5.40")
+	if img != "perl:5.40-slim" {
+		t.Errorf("BaseImage(\"5.40\") = %q, want \"perl:5.40-slim\"", img)
+	}
+}
+
 func TestDefaultVersionInVersionList(t *testing.T) {
 	for _, lang := range ListPresets() {
 		preset, _ := GetPreset(lang)
@@ -100,12 +263,12 @@ func TestDefaultVersionInVersionList(t *testing.T) {
 
 func TestListPresets(t *testing.T) {
 	presets := ListPresets()
-	if len(presets) < 5 {
-		t.Errorf("ListPresets() returned %d presets, expected at least 5", len(presets))
+	if len(presets) < 10 {
+		t.Errorf("ListPresets() returned %d presets, expected at least 10", len(presets))
 	}
 
 	sort.Strings(presets)
-	expected := []string{"cpp", "golang", "node", "python", "rust"}
+	expected := []string{"cpp", "dart", "dotnet", "elixir", "golang", "haskell", "kotlin", "lua", "node", "perl", "php", "python", "r", "rust", "scala", "swift", "zig"}
 	sort.Strings(expected)
 	for _, e := range expected {
 		found := false

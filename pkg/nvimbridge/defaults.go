@@ -25,14 +25,25 @@ func DefaultNvimConfig() models.NvimConfig {
 // LanguagePackageMap maps detected language names to their recommended maestro nvim package.
 // Used during workspace builds to auto-select the right package when no explicit default is set.
 var LanguagePackageMap = map[string]string{
-	"golang": "maestro-go",
-	"python": "maestro-python",
-	"rust":   "maestro-rust",
-	"nodejs": "maestro-node",
-	"java":   "maestro-java",
-	"gleam":  "maestro-gleam",
-	"dotnet": "maestro-dotnet",
-	"ruby":   "maestro", // No Ruby-specific package yet, use base maestro
+	"golang":  "maestro-go",
+	"python":  "maestro-python",
+	"rust":    "maestro-rust",
+	"nodejs":  "maestro-node",
+	"java":    "maestro-java",
+	"gleam":   "maestro-gleam",
+	"dotnet":  "maestro-dotnet",
+	"ruby":    "maestro", // No Ruby-specific package yet, use base maestro
+	"php":     "maestro-php",
+	"kotlin":  "maestro-kotlin",
+	"scala":   "maestro-scala",
+	"elixir":  "maestro-elixir",
+	"swift":   "maestro-swift",
+	"zig":     "maestro-zig",
+	"dart":    "maestro-dart",
+	"lua":     "maestro-lua",
+	"r":       "maestro-r",
+	"haskell": "maestro-haskell",
+	"perl":    "maestro-perl",
 }
 
 // GetLanguagePackage returns the recommended nvim package for a detected language.

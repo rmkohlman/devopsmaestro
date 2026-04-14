@@ -200,6 +200,63 @@ func TestDockerfileGenerator_GenerateBaseStage_NodeJS(t *testing.T) {
 	}
 }
 
+func TestDockerfileGenerator_GenerateBaseStage_Dotnet(t *testing.T) {
+	tests := []struct {
+		name        string
+		version     string
+		wantContain []string
+	}{
+		{
+			name:    "dotnet default version",
+			version: "",
+			wantContain: []string{
+				"mcr.microsoft.com/dotnet/sdk:9.0-alpine",
+				"AS base",
+				"apk add git ca-certificates",
+				"dotnet restore",
+			},
+		},
+		{
+			name:    "dotnet specific version",
+			version: "8.0",
+			wantContain: []string{
+				"mcr.microsoft.com/dotnet/sdk:8.0-alpine",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws := &models.Workspace{
+				ID:        1,
+				Name:      "test-ws",
+				ImageName: "test:latest",
+			}
+			wsYAML := models.WorkspaceSpec{}
+
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: wsYAML,
+				Language:      "dotnet",
+				Version:       tt.version,
+				AppPath:       "/tmp/test",
+				PathConfig:    paths.New(t.TempDir()),
+			})
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			for _, want := range tt.wantContain {
+				if !strings.Contains(dockerfile, want) {
+					t.Errorf("Generate() missing expected content: %q", want)
+				}
+			}
+		})
+	}
+}
+
 func TestDockerfileGenerator_GenerateBaseStage_Unknown(t *testing.T) {
 	ws := &models.Workspace{
 		ID:        1,
@@ -534,6 +591,33 @@ func TestDockerfileGenerator_LanguageVersionTable(t *testing.T) {
 		{"nodejs", "18", "node:18-alpine"},
 		{"nodejs", "20", "node:20-alpine"},
 		{"nodejs", "21", "node:21-alpine"},
+
+		// Elixir versions
+		{"elixir", "", "elixir:1.18-slim"},
+		{"elixir", "1.16", "elixir:1.16-slim"},
+		{"elixir", "1.17", "elixir:1.17-slim"},
+		{"elixir", "1.18", "elixir:1.18-slim"},
+
+		// Swift versions
+		{"swift", "", "swift:6.1-slim"},
+		{"swift", "5.10", "swift:5.10-slim"},
+		{"swift", "6.0", "swift:6.0-slim"},
+		{"swift", "6.1", "swift:6.1-slim"},
+
+		// Dart versions
+		{"dart", "", "dart:3.7"},
+		{"dart", "3.6", "dart:3.6"},
+		{"dart", "3.7", "dart:3.7"},
+
+		// Haskell versions
+		{"haskell", "", "haskell:9.12-slim"},
+		{"haskell", "9.10", "haskell:9.10-slim"},
+		{"haskell", "9.8", "haskell:9.8-slim"},
+
+		// Perl versions
+		{"perl", "", "perl:5.40-slim"},
+		{"perl", "5.38", "perl:5.38-slim"},
+		{"perl", "5.40", "perl:5.40-slim"},
 
 		// Unknown language
 		{"unknown", "", "ubuntu:22.04"},
@@ -4850,6 +4934,48 @@ func TestGetMasonToolsForLanguage_AllLanguages(t *testing.T) {
 			},
 		},
 		{
+			name:     "dotnet includes omnisharp and netcoredbg",
+			language: "dotnet",
+			wantTools: []string{
+				"omnisharp", "netcoredbg",
+			},
+		},
+		{
+			name:     "php includes intelephense and php-cs-fixer",
+			language: "php",
+			wantTools: []string{
+				"intelephense", "php-cs-fixer",
+			},
+		},
+		{
+			name:     "swift includes sourcekit-lsp",
+			language: "swift",
+			wantTools: []string{
+				"sourcekit-lsp",
+			},
+		},
+		{
+			name:     "dart includes dart-debug-adapter",
+			language: "dart",
+			wantTools: []string{
+				"dart-debug-adapter",
+			},
+		},
+		{
+			name:     "haskell includes haskell-language-server",
+			language: "haskell",
+			wantTools: []string{
+				"haskell-language-server",
+			},
+		},
+		{
+			name:     "perl includes perlnavigator",
+			language: "perl",
+			wantTools: []string{
+				"perlnavigator",
+			},
+		},
+		{
 			name:      "unknown language returns empty",
 			language:  "cobol",
 			wantTools: []string{},
@@ -5096,10 +5222,35 @@ func TestGetTreesitterParsersForLanguage_AllLanguages(t *testing.T) {
 			wantLangSpecific: []string{"gleam", "erlang", "elixir", "toml", "dockerfile", "gitignore"},
 		},
 		{
+			name:             "dotnet includes c_sharp and xml",
+			language:         "dotnet",
+			wantLangSpecific: []string{"c_sharp", "xml", "dockerfile", "gitignore"},
+		},
+		{
+			name:             "php includes php, phpdoc, html, css, javascript",
+			language:         "php",
+			wantLangSpecific: []string{"php", "phpdoc", "html", "css", "javascript", "dockerfile", "gitignore"},
+		},
+		{
+			name:             "swift includes swift",
+			language:         "swift",
+			wantLangSpecific: []string{"swift", "dockerfile", "gitignore"},
+		},
+		{
+			name:             "dart includes dart",
+			language:         "dart",
+			wantLangSpecific: []string{"dart", "dockerfile", "gitignore"},
+		},
+		{
+			name:             "perl includes perl and pod",
+			language:         "perl",
+			wantLangSpecific: []string{"perl", "pod", "dockerfile", "gitignore"},
+		},
+		{
 			name:             "unknown language returns only base parsers",
 			language:         "unknown",
 			wantLangSpecific: nil,
-			wantNotPresent:   []string{"python", "go", "javascript", "rust", "ruby", "java", "gleam"},
+			wantNotPresent:   []string{"python", "go", "javascript", "rust", "ruby", "java", "gleam", "swift", "dart"},
 		},
 		{
 			name:             "empty language returns only base parsers",

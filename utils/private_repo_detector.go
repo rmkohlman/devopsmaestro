@@ -35,8 +35,20 @@ func DetectPrivateRepos(appPath, language string) *PrivateRepoInfo {
 		detectNodePrivateRepos(appPath, info)
 	case "java":
 		detectJavaPrivateRepos(appPath, info)
+	case "kotlin":
+		detectKotlinPrivateRepos(appPath, info)
+	case "scala":
+		detectScalaPrivateRepos(appPath, info)
 	case "rust":
 		detectRustPrivateRepos(appPath, info)
+	case "dotnet":
+		detectDotnetPrivateRepos(appPath, info)
+	case "php":
+		detectPhpPrivateRepos(appPath, info)
+	case "elixir":
+		detectElixirPrivateRepos(appPath, info)
+	case "swift":
+		detectSwiftPrivateRepos(appPath, info)
 	}
 
 	return info
@@ -212,6 +224,42 @@ func detectJavaPrivateRepos(appPath string, info *PrivateRepoInfo) {
 	}
 }
 
+// detectKotlinPrivateRepos scans Kotlin project files for private Maven repositories.
+// Kotlin projects use Gradle (Kotlin DSL) and Maven, sharing Java's build infrastructure.
+func detectKotlinPrivateRepos(appPath string, info *PrivateRepoInfo) {
+	// Check build.gradle.kts (Kotlin DSL)
+	gradleKtsFile := filepath.Join(appPath, "build.gradle.kts")
+	if _, err := os.Stat(gradleKtsFile); err == nil {
+		content, err := os.ReadFile(gradleKtsFile)
+		if err == nil && strings.Contains(string(content), "maven {") {
+			info.DetectedInFiles = append(info.DetectedInFiles, "build.gradle.kts")
+			info.RequiredBuildArgs = append(info.RequiredBuildArgs, "MAVEN_USERNAME", "MAVEN_PASSWORD")
+			return
+		}
+	}
+
+	// Fall back to Java's detection for pom.xml and build.gradle
+	detectJavaPrivateRepos(appPath, info)
+}
+
+// detectScalaPrivateRepos scans Scala project files for private Maven/sbt repositories.
+// Scala projects use sbt and Maven, sharing Java's build infrastructure.
+func detectScalaPrivateRepos(appPath string, info *PrivateRepoInfo) {
+	// Check build.sbt for resolvers pointing to private repos
+	buildSbt := filepath.Join(appPath, "build.sbt")
+	if _, err := os.Stat(buildSbt); err == nil {
+		content, err := os.ReadFile(buildSbt)
+		if err == nil && strings.Contains(string(content), "resolvers") {
+			info.DetectedInFiles = append(info.DetectedInFiles, "build.sbt")
+			info.RequiredBuildArgs = append(info.RequiredBuildArgs, "MAVEN_USERNAME", "MAVEN_PASSWORD")
+			return
+		}
+	}
+
+	// Fall back to Java's detection for pom.xml and build.gradle
+	detectJavaPrivateRepos(appPath, info)
+}
+
 func detectRustPrivateRepos(appPath string, info *PrivateRepoInfo) {
 	cargoFile := filepath.Join(appPath, "Cargo.toml")
 	content, err := os.ReadFile(cargoFile)
@@ -252,6 +300,166 @@ func detectRustPrivateRepos(appPath string, info *PrivateRepoInfo) {
 
 // pepNormRe matches runs of [-_.] for PEP 503 package name normalization.
 var pepNormRe = regexp.MustCompile(`[-_.]+`)
+
+// composerPrivateRepoRegex matches VCS repository URLs in composer.json that point to
+// private GitHub/GitLab repos: { "type": "vcs", "url": "https://github.com/..." }
+var composerPrivateRepoRegex = regexp.MustCompile(`"url"\s*:\s*"((?:https?://|git@)[^"]*github\.com[^"]*|(?:https?://|git@)[^"]*gitlab\.com[^"]*)"`)
+
+func detectPhpPrivateRepos(appPath string, info *PrivateRepoInfo) {
+	composerFile := filepath.Join(appPath, "composer.json")
+	content, err := os.ReadFile(composerFile)
+	if err != nil {
+		return
+	}
+
+	text := string(content)
+
+	// Check for "repositories" with VCS URLs pointing to private GitHub/GitLab repos
+	if !strings.Contains(text, `"repositories"`) {
+		return
+	}
+
+	matches := composerPrivateRepoRegex.FindAllStringSubmatch(text, -1)
+	if len(matches) == 0 {
+		return
+	}
+
+	info.DetectedInFiles = append(info.DetectedInFiles, "composer.json")
+
+	hasHTTPS := false
+	hasSSH := false
+	for _, match := range matches {
+		if len(match) >= 2 {
+			url := match[1]
+			if strings.HasPrefix(url, "git@") {
+				hasSSH = true
+			} else {
+				hasHTTPS = true
+			}
+		}
+	}
+
+	info.NeedsGit = true
+	if hasSSH {
+		info.NeedsSSH = true
+		if hasHTTPS {
+			info.GitURLType = "mixed"
+		} else {
+			info.GitURLType = "ssh"
+		}
+	} else {
+		info.GitURLType = "https"
+	}
+
+	// Add COMPOSER_AUTH build arg for private packages
+	if !contains(info.RequiredBuildArgs, "COMPOSER_AUTH") {
+		info.RequiredBuildArgs = append(info.RequiredBuildArgs, "COMPOSER_AUTH")
+	}
+}
+
+// elixirGitDepRegex matches Elixir git dependencies in mix.exs:
+//
+//	{:dep, git: "https://github.com/..."}
+//	{:dep, git: "git@github.com:..."}
+var elixirGitDepRegex = regexp.MustCompile(`git:\s*"((?:https?://|git@)[^"]+)"`)
+
+func detectElixirPrivateRepos(appPath string, info *PrivateRepoInfo) {
+	mixFile := filepath.Join(appPath, "mix.exs")
+	content, err := os.ReadFile(mixFile)
+	if err != nil {
+		return
+	}
+
+	text := string(content)
+
+	matches := elixirGitDepRegex.FindAllStringSubmatch(text, -1)
+	if len(matches) == 0 {
+		return
+	}
+
+	info.DetectedInFiles = append(info.DetectedInFiles, "mix.exs")
+
+	hasHTTPS := false
+	hasSSH := false
+	for _, match := range matches {
+		if len(match) >= 2 {
+			url := match[1]
+			if strings.HasPrefix(url, "git@") {
+				hasSSH = true
+			} else {
+				hasHTTPS = true
+			}
+		}
+	}
+
+	info.NeedsGit = true
+	if hasSSH {
+		info.NeedsSSH = true
+		if hasHTTPS {
+			info.GitURLType = "mixed"
+		} else {
+			info.GitURLType = "ssh"
+		}
+	} else {
+		info.GitURLType = "https"
+	}
+
+	// Add GITHUB_TOKEN build arg for HTTPS private repos
+	if hasHTTPS && !contains(info.RequiredBuildArgs, "GITHUB_TOKEN") {
+		info.RequiredBuildArgs = append(info.RequiredBuildArgs, "GITHUB_TOKEN")
+	}
+}
+
+// swiftPackageURLRegex matches .package(url: "...") in Package.swift.
+// Captures the URL inside the quotes.
+var swiftPackageURLRegex = regexp.MustCompile(`\.package\s*\(\s*url:\s*"((?:https?://|git@)[^"]+)"`)
+
+func detectSwiftPrivateRepos(appPath string, info *PrivateRepoInfo) {
+	packageSwift := filepath.Join(appPath, "Package.swift")
+	content, err := os.ReadFile(packageSwift)
+	if err != nil {
+		return
+	}
+
+	text := string(content)
+
+	matches := swiftPackageURLRegex.FindAllStringSubmatch(text, -1)
+	if len(matches) == 0 {
+		return
+	}
+
+	info.DetectedInFiles = append(info.DetectedInFiles, "Package.swift")
+
+	hasHTTPS := false
+	hasSSH := false
+	for _, match := range matches {
+		if len(match) >= 2 {
+			url := match[1]
+			if strings.HasPrefix(url, "git@") {
+				hasSSH = true
+			} else {
+				hasHTTPS = true
+			}
+		}
+	}
+
+	info.NeedsGit = true
+	if hasSSH {
+		info.NeedsSSH = true
+		if hasHTTPS {
+			info.GitURLType = "mixed"
+		} else {
+			info.GitURLType = "ssh"
+		}
+	} else {
+		info.GitURLType = "https"
+	}
+
+	// Add GITHUB_TOKEN build arg for HTTPS private repos
+	if hasHTTPS && !contains(info.RequiredBuildArgs, "GITHUB_TOKEN") {
+		info.RequiredBuildArgs = append(info.RequiredBuildArgs, "GITHUB_TOKEN")
+	}
+}
 
 // normalizePythonPkgName normalizes a Python package name per PEP 503:
 // lowercase and replace all runs of [-_.] with a single dash.
@@ -339,6 +547,38 @@ func detectPythonSystemDeps(appPath string, info *PrivateRepoInfo) {
 					info.SystemDepSources[dep] = normalized
 				}
 			}
+		}
+	}
+}
+
+// nugetPrivateFeedRegex matches <add key="..." value="https://..." entries in NuGet.config.
+// Used to detect private NuGet feed URLs that require authentication.
+var nugetPrivateFeedRegex = regexp.MustCompile(`<add\s+key="[^"]*"\s+value="(https?://[^"]+)"`)
+
+func detectDotnetPrivateRepos(appPath string, info *PrivateRepoInfo) {
+	nugetConfig := filepath.Join(appPath, "NuGet.config")
+	content, err := os.ReadFile(nugetConfig)
+	if err != nil {
+		return
+	}
+
+	text := string(content)
+
+	// Look for package source entries that point to non-standard feeds
+	matches := nugetPrivateFeedRegex.FindAllStringSubmatch(text, -1)
+	for _, match := range matches {
+		if len(match) >= 2 {
+			url := match[1]
+			// Skip the official NuGet feed — it's public
+			if strings.Contains(url, "nuget.org") || strings.Contains(url, "api.nuget.org") {
+				continue
+			}
+			// Found a private feed
+			info.DetectedInFiles = append(info.DetectedInFiles, "NuGet.config")
+			if !contains(info.RequiredBuildArgs, "NUGET_API_KEY") {
+				info.RequiredBuildArgs = append(info.RequiredBuildArgs, "NUGET_API_KEY")
+			}
+			return // One private feed is enough to trigger
 		}
 	}
 }
