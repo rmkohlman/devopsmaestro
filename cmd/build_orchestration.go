@@ -234,21 +234,23 @@ func buildSingleWorkspaceForParallel(ds db.DataStore, ws *models.WorkspaceWithHi
 	if bc.builder != nil {
 		defer bc.builder.Close()
 	}
+
+	// Always propagate the image tag (even on failure) so the build session
+	// records which tag was attempted. Without this, failed builds show stale
+	// tags from previous sessions instead of the current attempt's tag.
+	if bc.imageName != "" {
+		ws.Workspace.ImageName = bc.imageName
+	}
+
 	if err != nil {
 		return fmt.Errorf("%s/%s: %w", ws.App.Name, ws.Workspace.Name, err)
 	}
 	if skipped {
-		// Image already existed — still update the workspace record
-		ws.Workspace.ImageName = bc.imageName
 		return nil
 	}
 
 	// Phase 7: Post-build (DB update, registry push, summary)
 	bc.postBuild()
-
-	// Propagate built image tag back to the hierarchy struct so the
-	// engine can persist it in the build session workspace entry.
-	ws.Workspace.ImageName = bc.imageName
 
 	return nil
 }

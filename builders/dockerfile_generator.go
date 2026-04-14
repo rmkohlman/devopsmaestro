@@ -1560,11 +1560,11 @@ func (g *DefaultDockerfileGenerator) effectiveGoVersion() string {
 }
 
 // goToolsBuilderVersion returns the Go version for the go-tools-builder stage.
-// gopls@latest requires Go >= 1.24, so we enforce a minimum floor. The workspace
+// gopls@latest requires Go >= 1.25, so we enforce a minimum floor. The workspace
 // base image may use an older Go version (e.g., 1.21) for application compatibility,
 // but the tools builder only compiles developer tools — the binaries are copied
 // into the final image via COPY --from and don't require matching Go versions.
-// See issue #247.
+// See issue #220.
 const goToolsMinGoVersion = "1.25"
 
 func (g *DefaultDockerfileGenerator) goToolsBuilderVersion() string {

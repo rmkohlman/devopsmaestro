@@ -66,13 +66,17 @@ func main() {
 	cmd.Commit = Commit
 
 	// Check if this is a command that doesn't need database
-	// (completion, version, help)
+	// (completion, version, help, and Cobra's hidden __complete commands)
 	// Only match actual command names — never flags like -v or --help,
 	// which could be combined with commands that DO need the database.
+	// NOTE: __complete and __completeNoDesc are Cobra's hidden commands
+	// invoked by shell completion (e.g., zsh runs "dvm __complete <args>"
+	// on every TAB press). These must skip DB init to avoid errors on
+	// stdout that corrupt completion output and break tab completion.
 	skipDB := false
 	if len(os.Args) > 1 && !strings.HasPrefix(os.Args[1], "-") {
 		switch os.Args[1] {
-		case "completion", "version", "help":
+		case "completion", "version", "help", "__complete", "__completeNoDesc":
 			skipDB = true
 		}
 	}

@@ -7004,3 +7004,113 @@ func TestTreeSitterBuilder_BinaryVerified(t *testing.T) {
 // ---------------------------------------------------------------------------
 // End Issue #332 / #333 / #334 tests
 // ---------------------------------------------------------------------------
+
+// =============================================================================
+// Issue #220: go-tools-builder stage must use a sufficiently recent Go version
+// =============================================================================
+
+// TestCompareGoVersions verifies the helper that compares Go version strings.
+func TestCompareGoVersions(t *testing.T) {
+	tests := []struct {
+		a, b string
+		want int
+	}{
+		{"1.21", "1.25", -1},
+		{"1.25", "1.21", 1},
+		{"1.25", "1.25", 0},
+		{"1.22", "1.25", -1},
+		{"1.30", "1.25", 1},
+		{"2.0", "1.25", 1},
+		{"1.25", "2.0", -1},
+		{"1.9", "1.10", -1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.a+"_vs_"+tt.b, func(t *testing.T) {
+			got := compareGoVersions(tt.a, tt.b)
+			if got != tt.want {
+				t.Errorf("compareGoVersions(%q, %q) = %d, want %d", tt.a, tt.b, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestGoToolsBuilderVersion_MinimumFloor verifies that the go-tools-builder
+// stage uses at least Go 1.25, even when the project targets an older version.
+// This prevents build failures from gopls@latest requiring Go >= 1.25.
+func TestGoToolsBuilderVersion_MinimumFloor(t *testing.T) {
+	tests := []struct {
+		name        string
+		version     string
+		wantToolsGo string
+	}{
+		{"old version 1.20 gets floor", "1.20", goToolsMinGoVersion},
+		{"old version 1.21 gets floor", "1.21", goToolsMinGoVersion},
+		{"old version 1.22 gets floor", "1.22", goToolsMinGoVersion},
+		{"old version 1.24 gets floor", "1.24", goToolsMinGoVersion},
+		{"exact minimum stays", "1.25", "1.25"},
+		{"newer version kept", "1.26", "1.26"},
+		{"much newer version kept", "1.30", "1.30"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gen := &DefaultDockerfileGenerator{
+				language: "golang",
+				version:  tt.version,
+			}
+			got := gen.goToolsBuilderVersion()
+			if got != tt.wantToolsGo {
+				t.Errorf("goToolsBuilderVersion() = %q, want %q", got, tt.wantToolsGo)
+			}
+		})
+	}
+}
+
+// TestGoToolsBuilderStage_UsesMinGoVersion verifies the generated Dockerfile
+// contains golang:<min>-alpine in the go-tools-builder FROM line when the
+// project uses an older Go version, while the base stage still uses the
+// project's Go version. End-to-end test for issue #220.
+func TestGoToolsBuilderStage_UsesMinGoVersion(t *testing.T) {
+	ws := &models.Workspace{
+		ID:        1,
+		Name:      "test-ws",
+		ImageName: "test:latest",
+	}
+	wsYAML := models.WorkspaceSpec{}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "golang",
+		Version:       "1.21",
+		AppPath:       "/tmp/test",
+		PathConfig:    paths.New(t.TempDir()),
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// Base stage should use the project's Go version (1.21)
+	if !strings.Contains(dockerfile, "FROM golang:1.21-alpine") {
+		t.Error("base stage should use golang:1.21-alpine for the project")
+	}
+
+	// go-tools-builder stage should use the minimum floor version
+	wantToolsFrom := fmt.Sprintf("golang:%s-alpine", goToolsMinGoVersion)
+	if !strings.Contains(dockerfile, wantToolsFrom+" AS go-tools-builder") &&
+		!strings.Contains(dockerfile, wantToolsFrom+"@sha256:") {
+		t.Errorf("go-tools-builder should use %s, got:\n%s",
+			wantToolsFrom, extractGoToolsBuilderLine(dockerfile))
+	}
+}
+
+// extractGoToolsBuilderLine returns the FROM line for go-tools-builder.
+func extractGoToolsBuilderLine(dockerfile string) string {
+	for _, line := range strings.Split(dockerfile, "\n") {
+		if strings.Contains(line, "AS go-tools-builder") {
+			return line
+		}
+	}
+	return "<go-tools-builder FROM line not found>"
+}

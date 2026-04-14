@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"database/sql"
 	"devopsmaestro/config"
 	"devopsmaestro/models"
 	"fmt"
@@ -9,7 +10,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
 
@@ -60,27 +63,116 @@ func buildWorkspace(cmd *cobra.Command) error {
 	bc.renderBlank()
 	slog.Debug("app details", "path", bc.app.Path, "id", bc.app.ID)
 
+	// --- Session persistence: create session for single-workspace build ---
+	// This ensures `dvm build status` always reflects the latest build attempt,
+	// whether it was a single-workspace or parallel build.
+	sessionID := uuid.New().String()
+	buildStart := time.Now().UTC()
+	cleanupBuildSessions(sqlDS)
+
+	session := &models.BuildSession{
+		ID:              sessionID,
+		StartedAt:       buildStart,
+		Status:          "running",
+		TotalWorkspaces: 1,
+	}
+	if err := sqlDS.CreateBuildSession(session); err != nil {
+		slog.Warn("failed to create build session", "error", err)
+	}
+
+	bsw := &models.BuildSessionWorkspace{
+		SessionID:   sessionID,
+		WorkspaceID: bc.workspace.ID,
+		Status:      "building",
+		StartedAt:   sql.NullTime{Time: buildStart, Valid: true},
+	}
+	if err := sqlDS.CreateBuildSessionWorkspace(bsw); err != nil {
+		slog.Warn("failed to create build session workspace entry", "error", err)
+	}
+	// Read back the assigned ID for later updates
+	entries, _ := sqlDS.GetBuildSessionWorkspaces(sessionID)
+	var bswID int
+	if len(entries) > 0 {
+		bswID = entries[0].ID
+	}
+
+	// finalizeBuildSession updates the session and workspace entry on exit.
+	// Uses named return so deferred func captures final buildErr.
+	var buildErr error
+	defer func() {
+		completedAt := time.Now().UTC()
+		duration := int64(completedAt.Sub(buildStart).Seconds())
+
+		wsStatus := "succeeded"
+		var errMsg string
+		if buildErr != nil {
+			wsStatus = "failed"
+			errMsg = buildErr.Error()
+		}
+
+		if bswID > 0 {
+			upd := &models.BuildSessionWorkspace{
+				ID:              bswID,
+				SessionID:       sessionID,
+				WorkspaceID:     bc.workspace.ID,
+				Status:          wsStatus,
+				StartedAt:       sql.NullTime{Time: buildStart, Valid: true},
+				CompletedAt:     sql.NullTime{Time: completedAt, Valid: true},
+				DurationSeconds: sql.NullInt64{Int64: duration, Valid: true},
+				ImageTag:        sql.NullString{String: bc.imageName, Valid: bc.imageName != ""},
+				ErrorMessage:    sql.NullString{String: errMsg, Valid: errMsg != ""},
+			}
+			if err := sqlDS.UpdateBuildSessionWorkspace(upd); err != nil {
+				slog.Warn("failed to update build session workspace", "error", err)
+			}
+		}
+
+		sessStatus := "completed"
+		succeeded, failed := 1, 0
+		if buildErr != nil {
+			sessStatus = "failed"
+			succeeded, failed = 0, 1
+		}
+		sess := &models.BuildSession{
+			ID:              sessionID,
+			StartedAt:       buildStart,
+			CompletedAt:     sql.NullTime{Time: completedAt, Valid: true},
+			Status:          sessStatus,
+			TotalWorkspaces: 1,
+			Succeeded:       succeeded,
+			Failed:          failed,
+		}
+		if err := sqlDS.UpdateBuildSession(sess); err != nil {
+			slog.Warn("failed to update build session", "error", err)
+		}
+	}()
+
 	if err := bc.validateAppPath(); err != nil {
-		return err
+		buildErr = err
+		return buildErr
 	}
 
 	// Phase 2: Platform & registry
 	if err := bc.detectBuildPlatform(); err != nil {
-		return err
+		buildErr = err
+		return buildErr
 	}
 	if err := bc.prepareRegistry(); err != nil {
-		return err
+		buildErr = err
+		return buildErr
 	}
 
 	// Phase 3: Dockerfile detection & workspace spec
 	bc.checkDockerfile()
 	if err := bc.prepareWorkspaceSpec(); err != nil {
-		return err
+		buildErr = err
+		return buildErr
 	}
 
 	// Phase 4: Source, staging, language detection
 	if err := bc.prepareSourceAndStaging(); err != nil {
-		return err
+		buildErr = err
+		return buildErr
 	}
 	defer func() {
 		if err := os.RemoveAll(bc.stagingDir); err != nil {
@@ -92,20 +184,24 @@ func buildWorkspace(cmd *cobra.Command) error {
 
 	// Phase 5: CA certs & nvim config
 	if err := bc.resolveCACerts(); err != nil {
-		return err
+		buildErr = err
+		return buildErr
 	}
 	if err := bc.generateNvimConfiguration(); err != nil {
-		return err
+		buildErr = err
+		return buildErr
 	}
 
 	// Phase 6: Dockerfile generation & build
 	if err := bc.generateDockerfileAndResolveArgs(); err != nil {
-		return err
+		buildErr = err
+		return buildErr
 	}
 
 	// Phase 6b: Validate staging directory (warn on missing COPY sources)
 	if err := bc.validateStagingDirectory(); err != nil {
-		return err
+		buildErr = err
+		return buildErr
 	}
 
 	skipped, err := bc.buildImage()
@@ -113,7 +209,8 @@ func buildWorkspace(cmd *cobra.Command) error {
 		defer bc.builder.Close()
 	}
 	if err != nil {
-		return err
+		buildErr = err
+		return buildErr
 	}
 	if skipped {
 		return nil

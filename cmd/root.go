@@ -14,6 +14,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -120,6 +121,13 @@ func Execute(dataStore *db.DataStore, executor *Executor, migrationsFS fs.FS) {
 func shouldSkipAutoMigration(cmd *cobra.Command) bool {
 	cmdPath := cmd.CommandPath()
 
+	// Skip for Cobra's hidden completion commands (__complete, __completeNoDesc).
+	// These are invoked by the shell on every TAB press and must not trigger
+	// database migrations or any other side effects.
+	if strings.HasPrefix(cmdPath, "dvm __complete") {
+		return true
+	}
+
 	// Skip for commands that don't need database
 	skipCommands := []string{
 		"dvm completion",
@@ -134,6 +142,9 @@ func shouldSkipAutoMigration(cmd *cobra.Command) bool {
 		"dvm sandbox get",
 		"dvm sandbox attach",
 		"dvm sandbox delete",
+		"dvm system info",  // system maintenance: runtime-only, no database needed
+		"dvm system df",    // system maintenance: runtime-only, no database needed
+		"dvm system prune", // system maintenance: runtime-only, no database needed
 	}
 
 	for _, skipCmd := range skipCommands {
@@ -146,6 +157,14 @@ func shouldSkipAutoMigration(cmd *cobra.Command) bool {
 }
 
 func init() {
+	// Disable Cobra's auto-generated completion command — we provide our own
+	// custom completionCmd (in completion.go) that fixes zsh autoload
+	// compatibility by stripping the bare "compdef" line from the output.
+	rootCmd.CompletionOptions.DisableDefaultCmd = true
+
+	// Register our custom completion command
+	rootCmd.AddCommand(completionCmd)
+
 	// Global flags available to all commands
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable debug logging (shortcut for --log-level=debug)")
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "warn", "Set log level (debug, info, warn, error)")

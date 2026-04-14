@@ -20,6 +20,7 @@ import (
 	wsresolver "devopsmaestro/pkg/resolver"
 	"devopsmaestro/utils"
 
+	"github.com/google/uuid"
 	"github.com/rmkohlman/MaestroSDK/paths"
 )
 
@@ -232,12 +233,13 @@ func (bc *buildContext) prepareSourceAndStaging() error {
 	bc.renderProgress("Detecting app language...")
 	bc.languageName, bc.version, _ = bc.detectLanguageAndReport()
 
-	// Use the workspace slug (ecosystem-domain-system-app-workspace) to
-	// ensure each parallel workspace build gets its own isolated staging
-	// directory. The slug encodes the full hierarchy including system,
-	// preventing collisions when multiple apps share the same name across
-	// different systems or domains.
-	stagingKey := bc.buildKey()
+	// Use the workspace slug (ecosystem-domain-system-app-workspace) plus a
+	// per-invocation UUID to ensure each concurrent build gets its own
+	// isolated staging directory.  The slug encodes the full hierarchy
+	// (preventing collisions across different apps/domains — issue #227),
+	// and the UUID suffix prevents races when two processes build overlapping
+	// workspaces simultaneously (issue #256).
+	stagingKey := bc.buildKey() + "-" + uuid.New().String()[:8]
 	bc.stagingDir = paths.New(bc.homeDir).BuildStagingDir(stagingKey)
 	if err := prepareStagingDirectory(bc.stagingDir, bc.sourcePath, bc.appName, bc.workspaceName, bc.ds, bc.workspace, bc.out()); err != nil {
 		return err

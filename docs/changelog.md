@@ -6,6 +6,22 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ---
 
+## v0.94.0 (2026-04-14)
+
+**Bug Fixes**
+- **Go tools builder enforces Go >= 1.25 minimum** — The Go tools builder stage now enforces a minimum Go version of 1.25 for gopls and delve compatibility, regardless of the project's configured Go version. Older project versions are silently upgraded to 1.25 to prevent toolchain incompatibilities ([#220](https://github.com/rmkohlman/devopsmaestro/issues/220))
+- **Tab completion broken after running dvm commands** — Fixed zsh completion by switching to the correct `autoload -Uz compinit && compinit` format and adding a guard to skip database initialization for `__complete` subcommands, preventing side-effects during shell completion ([#292](https://github.com/rmkohlman/devopsmaestro/issues/292))
+- **`dvm build status` shows stale image tags** — Fixed tag propagation so build results (including tags) are preserved on failure paths, and added a session lifecycle for single-workspace builds so the latest tag is always reflected in `dvm build status` output ([#323](https://github.com/rmkohlman/devopsmaestro/issues/323))
+- **Concurrent builds race on staging directories** — Builds for apps sharing a workspace no longer collide on staging directories; each build run now appends a UUID suffix to its staging path, providing full isolation under concurrent load ([#256](https://github.com/rmkohlman/devopsmaestro/issues/256))
+
+**New Features**
+- **`dvm system` maintenance commands (Phase 1)** — New top-level command group for system inspection and cleanup ([#257](https://github.com/rmkohlman/devopsmaestro/issues/257)):
+  - `dvm system info` — displays platform details, current version, and disk usage overview
+  - `dvm system df` — Docker-style breakdown of resource usage (BuildKit cache, workspace images, volumes)
+  - `dvm system prune` — cleans up BuildKit cache and unused workspace images; supports `--dry-run`, `--force`, `--buildkit`, `--images`, and `--all` flags
+
+---
+
 ## v0.93.0 (2026-04-14)
 
 **Bug Fixes**
