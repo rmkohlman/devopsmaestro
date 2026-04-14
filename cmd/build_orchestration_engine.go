@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -34,6 +35,13 @@ func buildWorkspacesInParallel(
 	}
 	if concurrency < 1 {
 		concurrency = 1
+	}
+	maxConcurrency := runtime.NumCPU() * 2
+	if maxConcurrency < 8 {
+		maxConcurrency = 8 // minimum ceiling of 8
+	}
+	if concurrency > maxConcurrency {
+		concurrency = maxConcurrency
 	}
 
 	// Extract optional DataStore (first variadic arg)

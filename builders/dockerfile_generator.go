@@ -627,12 +627,14 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 		g.emitAdditionalBuildArgs(dockerfile, privateRepoInfo.RequiredBuildArgs)
 
 		// Install basic dependencies + sbt (Debian-based image)
+		// Uses modern signed-by pattern instead of deprecated apt-key (see issue #321).
 		dockerfile.WriteString("# Install basic dependencies and sbt\n")
 		dockerfile.WriteString(g.aptCacheMounts())
 		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
 		dockerfile.WriteString("    git ca-certificates curl gnupg && \\\n")
-		dockerfile.WriteString("    echo \"deb https://repo.scala-sbt.org/scalasbt/debian all main\" > /etc/apt/sources.list.d/sbt.list && \\\n")
-		dockerfile.WriteString("    curl -sL \"https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x2EE0EA64E40A89B84B2DF73499E82A75642AC823\" | apt-key add && \\\n")
+		dockerfile.WriteString("    curl -fsSL \"https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x2EE0EA64E40A89B84B2DF73499E82A75642AC823\" | \\\n")
+		dockerfile.WriteString("    gpg --dearmor -o /usr/share/keyrings/sbt-archive-keyring.gpg && \\\n")
+		dockerfile.WriteString("    echo \"deb [signed-by=/usr/share/keyrings/sbt-archive-keyring.gpg] https://repo.scala-sbt.org/scalasbt/debian all main\" > /etc/apt/sources.list.d/sbt.list && \\\n")
 		dockerfile.WriteString("    apt-get update && apt-get install -y sbt\n\n")
 
 		// CA certificate injection
@@ -1889,7 +1891,7 @@ func (g *DefaultDockerfileGenerator) aptCacheMounts() string {
 func (g *DefaultDockerfileGenerator) aptCacheMountsLocked() string {
 	id := g.cacheID()
 	return fmt.Sprintf("RUN --mount=type=cache,target=/var/cache/apt,id=apt-cache-%s,sharing=locked "+
-		"--mount=type=cache,target=/var/lib/apt,id=apt-lists-%s,sharing=locked \\\n", id, id)
+		"--mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-%s,sharing=locked \\\n", id, id)
 }
 
 // apkCacheMounts returns the apk cache mount directive with a workspace-scoped ID
@@ -1902,6 +1904,15 @@ func (g *DefaultDockerfileGenerator) apkCacheMounts() string {
 // ID and sharing=locked (used in parallel builder stages).
 func (g *DefaultDockerfileGenerator) apkCacheMountsLocked() string {
 	return fmt.Sprintf("RUN --mount=type=cache,target=/var/cache/apk,id=apk-cache-%s,sharing=locked \\\n", g.cacheID())
+}
+
+// nvimCacheMount returns a cache mount directive for Neovim's bytecode/data cache.
+// The mount uses uid=1000 because nvim steps run as the non-root dev user, and without
+// explicit uid the cache mount would be owned by root, causing ENOSPC when the dev user
+// writes Lua bytecode (.luac) files during plugin sync. See issue #251.
+func (g *DefaultDockerfileGenerator) nvimCacheMount() string {
+	user := g.effectiveUser()
+	return fmt.Sprintf("RUN --mount=type=cache,target=/home/%s/.cache/nvim,id=nvim-cache-%s,uid=1000 \\\n", user, g.cacheID())
 }
 
 // effectiveStagingDir returns the staging directory to use for file existence checks.
@@ -2167,7 +2178,8 @@ func (g *DefaultDockerfileGenerator) generateNvimSection(dockerfile *strings.Bui
 	// Install lazy.nvim and plugins as dev user with proper error handling
 	dockerfile.WriteString(fmt.Sprintf("USER %s\n", user))
 	dockerfile.WriteString("# Bootstrap lazy.nvim and install plugins\n")
-	dockerfile.WriteString("RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \\\n")
+	dockerfile.WriteString(g.nvimCacheMount())
+	dockerfile.WriteString("    unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \\\n")
 	dockerfile.WriteString("    nvim --headless \"+Lazy! sync\" +qa 2>&1 | tee /tmp/nvim-install.log || \\\n")
 	dockerfile.WriteString("    (cat /tmp/nvim-install.log && exit 1)\n\n")
 
@@ -2282,7 +2294,8 @@ func (g *DefaultDockerfileGenerator) installMasonTools(dockerfile *strings.Build
 	// Proxy vars are unset to avoid interference with Mason's package downloads.
 	// Note: we don't rm the temp file — it's in /tmp and gets cleaned up anyway,
 	// and removing it caused permission errors when COPY ran as root (issue #222).
-	dockerfile.WriteString("RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \\\n")
+	dockerfile.WriteString(g.nvimCacheMount())
+	dockerfile.WriteString("    unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \\\n")
 	dockerfile.WriteString("    nvim --headless \\\n")
 	dockerfile.WriteString("      -c \"Lazy! load mason.nvim\" \\\n")
 	dockerfile.WriteString("      +\"luafile /tmp/mason-install.lua\" +qa 2>&1 | tee /tmp/mason-install.log || \\\n")
@@ -2460,7 +2473,8 @@ func (g *DefaultDockerfileGenerator) installTreesitterParsers(dockerfile *string
 	// Proxy vars are unset to avoid interference with parser git clones.
 	// NOTE: No +qa on the command line — the script exits after verification.
 	dockerfile.WriteString("# Install Treesitter parsers at build time (master branch: configs.setup API)\n")
-	dockerfile.WriteString("RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \\\n")
+	dockerfile.WriteString(g.nvimCacheMount())
+	dockerfile.WriteString("    unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \\\n")
 	dockerfile.WriteString("    nvim --headless \\\n")
 	dockerfile.WriteString("      -c \"luafile /tmp/treesitter-install.lua\" 2>&1 | tee /tmp/treesitter-install.log || \\\n")
 	dockerfile.WriteString("    (cat /tmp/treesitter-install.log && exit 1)\n\n")

@@ -6177,6 +6177,403 @@ func TestDockerfileGenerator_PythonBaseImage_NoBookworm(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Issue #251 — nvim cache mount tests
+// ---------------------------------------------------------------------------
+
+// makeNvimStagingDir creates a staging dir with an init.lua so that
+// generateNvimSection() is triggered. Returns the stagingDir path and a
+// cleanup func.
+func makeNvimStagingDir(t *testing.T, repoName string) (stagingDir string, cleanup func()) {
+	t.Helper()
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("failed to get home dir: %v", err)
+	}
+	stagingDir = filepath.Join(homeDir, ".devopsmaestro", "build-staging", repoName)
+	nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
+	if err := os.MkdirAll(nvimConfigPath, 0755); err != nil {
+		t.Fatalf("failed to create nvim config dir: %v", err)
+	}
+	initLua := filepath.Join(nvimConfigPath, "init.lua")
+	if err := os.WriteFile(initLua, []byte("-- test"), 0644); err != nil {
+		t.Fatalf("failed to create init.lua: %v", err)
+	}
+	return stagingDir, func() { os.RemoveAll(stagingDir) }
+}
+
+// TestNvimCacheMount_LazySync verifies the Lazy! sync RUN step carries the
+// nvim cache mount directive (issue #251).
+func TestNvimCacheMount_LazySync(t *testing.T) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("failed to get home dir: %v", err)
+	}
+	_, cleanup := makeNvimStagingDir(t, "nvim-cache-lazy-test")
+	defer cleanup()
+
+	ws := &models.Workspace{ID: 1, Name: "myws", ImageName: "test:latest"}
+	wsYAML := models.WorkspaceSpec{Nvim: models.NvimConfig{Structure: "custom"}}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "python",
+		Version:       "3.11",
+		AppPath:       filepath.Join("/tmp", "dvm-clone", "nvim-cache-lazy-test"),
+		PathConfig:    paths.New(homeDir),
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// Locate the Lazy! sync command
+	lazyIdx := strings.Index(dockerfile, `"+Lazy! sync"`)
+	if lazyIdx < 0 {
+		t.Fatal("Generate() missing '+Lazy! sync' command — required for this test")
+	}
+
+	// Walk back up to 300 chars to find the enclosing RUN block
+	start := lazyIdx - 300
+	if start < 0 {
+		start = 0
+	}
+	block := dockerfile[strings.LastIndex(dockerfile[start:lazyIdx], "RUN ")+start : lazyIdx+len(`"+Lazy! sync"`)]
+
+	for _, want := range []string{
+		"--mount=type=cache,target=/home/dev/.cache/nvim",
+		"id=nvim-cache-myws",
+		"uid=1000",
+	} {
+		if !strings.Contains(block, want) {
+			t.Errorf("Lazy! sync RUN block missing nvim cache mount fragment %q\n"+
+				"Expected the RUN --mount=type=cache,target=/home/<user>/.cache/nvim,id=nvim-cache-<ws>,uid=1000 directive.\n"+
+				"RUN block:\n%s", want, block)
+		}
+	}
+}
+
+// TestNvimCacheMount_TreesitterInstall verifies the Treesitter install RUN step
+// carries the nvim cache mount directive (issue #251).
+func TestNvimCacheMount_TreesitterInstall(t *testing.T) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("failed to get home dir: %v", err)
+	}
+	_, cleanup := makeNvimStagingDir(t, "nvim-cache-ts-test")
+	defer cleanup()
+
+	ws := &models.Workspace{ID: 1, Name: "myws", ImageName: "test:latest"}
+	wsYAML := models.WorkspaceSpec{Nvim: models.NvimConfig{Structure: "custom"}}
+	manifest := &plugin.PluginManifest{
+		Features: plugin.PluginFeatures{HasTreesitter: true, HasMason: false},
+	}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "python",
+		Version:       "3.11",
+		AppPath:       filepath.Join("/tmp", "dvm-clone", "nvim-cache-ts-test"),
+		PathConfig:    paths.New(homeDir),
+	})
+	gen.SetPluginManifest(manifest)
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// Treesitter install uses "luafile /tmp/treesitter-install.lua"
+	marker := "luafile /tmp/treesitter-install.lua"
+	tsIdx := strings.Index(dockerfile, marker)
+	if tsIdx < 0 {
+		t.Fatal("Generate() missing 'luafile /tmp/treesitter-install.lua' — required for this test")
+	}
+
+	start := tsIdx - 300
+	if start < 0 {
+		start = 0
+	}
+	segment := dockerfile[start:tsIdx]
+	lastRunOff := strings.LastIndex(segment, "RUN ")
+	if lastRunOff < 0 {
+		t.Fatalf("no RUN keyword found before treesitter lua marker; context:\n%s", segment)
+	}
+	block := dockerfile[start+lastRunOff : tsIdx+len(marker)]
+
+	for _, want := range []string{
+		"--mount=type=cache,target=/home/dev/.cache/nvim",
+		"id=nvim-cache-myws",
+		"uid=1000",
+	} {
+		if !strings.Contains(block, want) {
+			t.Errorf("Treesitter install RUN block missing nvim cache mount fragment %q\n"+
+				"RUN block:\n%s", want, block)
+		}
+	}
+}
+
+// TestNvimCacheMount_MasonInstall verifies the Mason install RUN step carries
+// the nvim cache mount directive (issue #251).
+func TestNvimCacheMount_MasonInstall(t *testing.T) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("failed to get home dir: %v", err)
+	}
+	_, cleanup := makeNvimStagingDir(t, "nvim-cache-mason-test")
+	defer cleanup()
+
+	ws := &models.Workspace{ID: 1, Name: "myws", ImageName: "test:latest"}
+	wsYAML := models.WorkspaceSpec{Nvim: models.NvimConfig{Structure: "custom"}}
+	manifest := &plugin.PluginManifest{
+		Features: plugin.PluginFeatures{HasMason: true, HasTreesitter: false},
+	}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "python",
+		Version:       "3.11",
+		AppPath:       filepath.Join("/tmp", "dvm-clone", "nvim-cache-mason-test"),
+		PathConfig:    paths.New(homeDir),
+	})
+	gen.SetPluginManifest(manifest)
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// Mason install contains "luafile /tmp/mason-install.lua"
+	masonIdx := strings.Index(dockerfile, "luafile /tmp/mason-install.lua")
+	if masonIdx < 0 {
+		t.Fatal("Generate() missing 'luafile /tmp/mason-install.lua' — required for this test")
+	}
+
+	start := masonIdx - 300
+	if start < 0 {
+		start = 0
+	}
+	segment := dockerfile[start:masonIdx]
+	lastRunOff := strings.LastIndex(segment, "RUN ")
+	if lastRunOff < 0 {
+		t.Fatalf("no RUN keyword found before 'luafile /tmp/mason-install.lua'; context:\n%s", segment)
+	}
+	block := dockerfile[start+lastRunOff : masonIdx+len("luafile /tmp/mason-install.lua")]
+
+	for _, want := range []string{
+		"--mount=type=cache,target=/home/dev/.cache/nvim",
+		"id=nvim-cache-myws",
+		"uid=1000",
+	} {
+		if !strings.Contains(block, want) {
+			t.Errorf("Mason install RUN block missing nvim cache mount fragment %q\n"+
+				"RUN block:\n%s", want, block)
+		}
+	}
+}
+
+// TestNvimCacheMount_NotPresent_NoNvimConfig verifies that when no nvim config
+// directory exists the nvim cache mount does not appear in the Dockerfile.
+func TestNvimCacheMount_NotPresent_NoNvimConfig(t *testing.T) {
+	ws := &models.Workspace{ID: 1, Name: "myws", ImageName: "test:latest"}
+	wsYAML := models.WorkspaceSpec{} // no nvim config
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "python",
+		Version:       "3.11",
+		AppPath:       "/tmp/no-nvim-config-path",
+		PathConfig:    paths.New(t.TempDir()),
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	if strings.Contains(dockerfile, "nvim-cache-") {
+		t.Errorf("Dockerfile must not contain 'nvim-cache-' when nvim is not configured;\n"+
+			"found it in output (means nvimCacheMount() was emitted unexpectedly).\n"+
+			"Relevant fragment:\n%s",
+			extractFragment(dockerfile, "nvim-cache-", 200))
+	}
+}
+
+// TestNvimCacheMount_WorkspaceScoped verifies that different workspace names
+// produce different cache mount IDs (e.g., nvim-cache-dev vs nvim-cache-staging).
+func TestNvimCacheMount_WorkspaceScoped(t *testing.T) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("failed to get home dir: %v", err)
+	}
+
+	tests := []struct {
+		wsName      string
+		wantCacheID string
+	}{
+		{"dev", "nvim-cache-dev"},
+		{"staging", "nvim-cache-staging"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.wsName, func(t *testing.T) {
+			repoName := "nvim-cache-scope-" + tt.wsName
+			_, cleanup := makeNvimStagingDir(t, repoName)
+			defer cleanup()
+
+			ws := &models.Workspace{ID: 1, Name: tt.wsName, ImageName: "test:latest"}
+			wsYAML := models.WorkspaceSpec{Nvim: models.NvimConfig{Structure: "custom"}}
+
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: wsYAML,
+				Language:      "python",
+				Version:       "3.11",
+				AppPath:       filepath.Join("/tmp", "dvm-clone", repoName),
+				PathConfig:    paths.New(homeDir),
+			})
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			if !strings.Contains(dockerfile, tt.wantCacheID) {
+				t.Errorf("expected cache mount ID %q not found in Dockerfile for workspace %q",
+					tt.wantCacheID, tt.wsName)
+			}
+
+			// Ensure the other workspace's ID is NOT present
+			for _, other := range tests {
+				if other.wsName == tt.wsName {
+					continue
+				}
+				if strings.Contains(dockerfile, other.wantCacheID) {
+					t.Errorf("unexpected cache mount ID %q found in Dockerfile for workspace %q — IDs must be workspace-scoped",
+						other.wantCacheID, tt.wsName)
+				}
+			}
+		})
+	}
+}
+
+// extractFragment returns up to `chars` characters surrounding the first
+// occurrence of `needle` in `s`, useful for error messages.
+func extractFragment(s, needle string, chars int) string {
+	idx := strings.Index(s, needle)
+	if idx < 0 {
+		return "(not found)"
+	}
+	start := idx - chars/2
+	if start < 0 {
+		start = 0
+	}
+	end := idx + chars/2
+	if end > len(s) {
+		end = len(s)
+	}
+	return s[start:end]
+}
+
+// ---------------------------------------------------------------------------
+// Issue #251 — APT lists path consistency (aptCacheMountsLocked)
+// ---------------------------------------------------------------------------
+
+// TestAptCacheMountsLocked_UsesListsPath verifies aptCacheMountsLocked() targets
+// /var/lib/apt/lists (not the shorter /var/lib/apt). The missing /lists suffix
+// caused the apt lock to target the wrong directory, breaking parallel builds.
+func TestAptCacheMountsLocked_UsesListsPath(t *testing.T) {
+	ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: models.WorkspaceSpec{},
+		Language:      "python",
+		Version:       "3.11",
+		AppPath:       "/tmp/test",
+		PathConfig:    paths.New(t.TempDir()),
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// Must use /var/lib/apt/lists (with /lists)
+	if !strings.Contains(dockerfile, "target=/var/lib/apt/lists") {
+		t.Errorf("aptCacheMountsLocked() must use 'target=/var/lib/apt/lists' but it was not found in Dockerfile")
+	}
+
+	// Regression guard: must NOT have /var/lib/apt without /lists as a cache target
+	// Check that no mount targets exactly /var/lib/apt (i.e., not followed by /lists)
+	if strings.Contains(dockerfile, "target=/var/lib/apt,") || strings.Contains(dockerfile, "target=/var/lib/apt ") {
+		t.Errorf("aptCacheMountsLocked() must NOT target '/var/lib/apt' (missing '/lists') — regression detected")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Issue #321 — Scala signed-by GPG key pattern
+// ---------------------------------------------------------------------------
+
+// buildScalaDockerfile is a helper that generates a Dockerfile for a Scala
+// workspace and returns its content.
+func buildScalaDockerfile(t *testing.T) string {
+	t.Helper()
+	ws := &models.Workspace{ID: 1, Name: "scala-ws", ImageName: "test:latest"}
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: models.WorkspaceSpec{},
+		Language:      "scala",
+		Version:       "21",
+		AppPath:       "/tmp/scala-test",
+		PathConfig:    paths.New(t.TempDir()),
+	})
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	return dockerfile
+}
+
+// TestScalaBaseStage_UsesSignedBy verifies that the Scala base stage uses the
+// modern signed-by pattern for the sbt APT repository (issue #321).
+func TestScalaBaseStage_UsesSignedBy(t *testing.T) {
+	dockerfile := buildScalaDockerfile(t)
+
+	wants := []string{
+		"signed-by=/usr/share/keyrings/sbt-archive-keyring.gpg",
+		"gpg --dearmor -o /usr/share/keyrings/sbt-archive-keyring.gpg",
+		"repo.scala-sbt.org/scalasbt/debian",
+	}
+	for _, want := range wants {
+		if !strings.Contains(dockerfile, want) {
+			t.Errorf("Scala Dockerfile missing expected signed-by pattern fragment: %q\n"+
+				"The sbt APT source must use the modern 'signed-by' approach (issue #321).", want)
+		}
+	}
+}
+
+// TestScalaBaseStage_NoAptKeyAdd is a regression guard ensuring the deprecated
+// 'apt-key add' command never appears in a Scala Dockerfile (issue #321).
+func TestScalaBaseStage_NoAptKeyAdd(t *testing.T) {
+	dockerfile := buildScalaDockerfile(t)
+
+	if strings.Contains(dockerfile, "apt-key add") {
+		t.Errorf("Scala Dockerfile must NOT use 'apt-key add' (deprecated, see issue #321).\n"+
+			"Use 'gpg --dearmor' with 'signed-by=' in the sources.list entry instead.\n"+
+			"Fragment with 'apt-key add':\n%s",
+			extractFragment(dockerfile, "apt-key add", 300))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// End Issue #251 / #321 tests
+// ---------------------------------------------------------------------------
+
 // TestUVSetup_PythonVersions verifies UV is injected across all supported Python versions.
 func TestUVSetup_PythonVersions(t *testing.T) {
 	versions := []string{"3.9", "3.10", "3.11", "3.12", "3.13"}

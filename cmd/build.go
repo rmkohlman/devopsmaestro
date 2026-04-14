@@ -95,6 +95,6 @@ func init() {
 	AddDryRunFlag(buildCmd, &buildDryRun)
 	AddAllFlag(buildCmd, "Build all matching workspaces (use with -e/-d/-a to scope)")
 	buildCmd.Flags().BoolVar(&buildDetach, "detach", false, "Run in background; monitor with 'dvm build status'")
-	buildCmd.Flags().IntVar(&buildConcurrency, "concurrency", 4, "Max parallel builds")
+	buildCmd.Flags().IntVar(&buildConcurrency, "concurrency", 8, "Max parallel builds (capped at 2x CPU cores)")
 	buildCmd.AddCommand(buildStatusCmd)
 }

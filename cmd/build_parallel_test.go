@@ -8,7 +8,7 @@ package cmd
 //
 // Key behaviors under test:
 //   - --detach flag runs build in background and returns session ID
-//   - --concurrency <n> controls worker pool size (default 4)
+//   - --concurrency <n> controls worker pool size (default 8)
 //   - --all / -A builds all workspaces in parallel
 //   - Scope flags (-e, -d, -a) are NOT mutually exclusive with --all
 //   - --dry-run previews workspaces without building
@@ -55,8 +55,8 @@ func TestBuildCommandHasConcurrencyFlag(t *testing.T) {
 		"buildCmd must have --concurrency flag (not yet registered in build.go)")
 	assert.Equal(t, "int", flag.Value.Type(),
 		"--concurrency must be an integer flag")
-	assert.Equal(t, "4", flag.DefValue,
-		"--concurrency default must be 4")
+	assert.Equal(t, "8", flag.DefValue,
+		"--concurrency default must be 8")
 }
 
 // TestBuildCommandHasAllFlag verifies that --all / -A is registered on buildCmd.
@@ -144,14 +144,14 @@ func TestBuildParallelNoMutualExclusion(t *testing.T) {
 // =============================================================================
 
 // TestBuildParallelDefaultConcurrency verifies that the default worker pool
-// size is 4 when --concurrency is not specified.
+// size is 8 when --concurrency is not specified.
 //
 // RED: buildConcurrency variable and --concurrency flag don't exist yet.
 func TestBuildParallelDefaultConcurrency(t *testing.T) {
 	flag := buildCmd.Flags().Lookup("concurrency")
 	require.NotNil(t, flag, "buildCmd must have --concurrency flag")
-	assert.Equal(t, "4", flag.DefValue,
-		"default concurrency must be 4 workers")
+	assert.Equal(t, "8", flag.DefValue,
+		"default concurrency must be 8 workers")
 }
 
 // TestBuildParallelConcurrencyFlagValue verifies that the --concurrency flag
@@ -164,7 +164,7 @@ func TestBuildParallelConcurrencyFlagValue(t *testing.T) {
 
 	require.NoError(t, buildCmd.Flags().Set("concurrency", "8"))
 	t.Cleanup(func() {
-		_ = buildCmd.Flags().Set("concurrency", "4")
+		_ = buildCmd.Flags().Set("concurrency", "8")
 	})
 
 	val, err := buildCmd.Flags().GetInt("concurrency")

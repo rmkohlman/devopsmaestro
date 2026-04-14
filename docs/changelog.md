@@ -6,6 +6,18 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ---
 
+## v0.92.0 (2026-04-14)
+
+**Bug Fixes**
+- Fix ENOSPC during parallel Docker builds — added BuildKit cache mounts (`--mount=type=cache`) for Neovim Lazy sync, Treesitter parser compilation, and Mason tool installation ([#251](https://github.com/rmkohlman/devopsmaestro/issues/251))
+- Fix APT lists cache path inconsistency in locked cache mounts (`/var/lib/apt` → `/var/lib/apt/lists`) ([#321](https://github.com/rmkohlman/devopsmaestro/issues/321))
+- Replace deprecated `apt-key add` with modern `signed-by` GPG keyring pattern for Scala/sbt ([#321](https://github.com/rmkohlman/devopsmaestro/issues/321))
+
+**Enhancements**
+- Bump default `--concurrency` from 4 to 8, with adaptive upper bound guard at 2× CPU cores ([#330](https://github.com/rmkohlman/devopsmaestro/issues/330))
+
+---
+
 ## v0.91.0 (2026-04-14)
 
 ### Features
