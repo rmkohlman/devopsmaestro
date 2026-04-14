@@ -43,6 +43,10 @@ var imageDigests = map[string]string{
 	"golang:1.23-alpine": "sha256:383395b794dffa5b53012a212365d40c8e37109a626ca30d6151c8348d380b5f",
 	"node:20-alpine":     "sha256:b88333c42c23fbd91596ebd7fd10de239cedab9617de04142dde7315e3bc0afa",
 	"node:22-alpine":     "sha256:8094c002d08262dba12645a3b4a15cd6cd627d30bc782f53229a2ec13ee22a00",
+
+	// Rust builder images (for building tree-sitter from source — see #334)
+	"rust:1-slim-bookworm": "sha256:cf9dd0ec73e75f827fe59123fff9dc65af1a1c8363c3c31ee8d7f8ad0b6a5fb2",
+	"rust:1-alpine3.20":    "sha256:6b1a8a05a7d4863f87c383ceb645bf038c5dba41e5a43fb7c7cc4a252b313a35",
 }
 
 // pinnedImage returns a digest-pinned image reference if a known digest exists for the
@@ -276,7 +280,7 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 				dockerfile.WriteString("# Install git for private repositories\n")
 			}
 			dockerfile.WriteString(g.aptCacheMounts())
-			dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
+			dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
 			for _, pkg := range packages {
 				dockerfile.WriteString(fmt.Sprintf("    %s \\\n", pkg))
 			}
@@ -309,7 +313,7 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 				dockerfile.WriteString("# Install build dependencies\n")
 			}
 			dockerfile.WriteString(g.aptCacheMounts())
-			dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
+			dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
 			for _, pkg := range packages {
 				dockerfile.WriteString(fmt.Sprintf("    %s \\\n", pkg))
 			}
@@ -583,7 +587,7 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 		// Install basic dependencies (Debian-based image)
 		dockerfile.WriteString("# Install basic dependencies\n")
 		dockerfile.WriteString(g.aptCacheMounts())
-		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
+		dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
 		dockerfile.WriteString("    git ca-certificates curl\n\n")
 
 		// CA certificate injection
@@ -630,12 +634,12 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 		// Uses modern signed-by pattern instead of deprecated apt-key (see issue #321).
 		dockerfile.WriteString("# Install basic dependencies and sbt\n")
 		dockerfile.WriteString(g.aptCacheMounts())
-		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
+		dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
 		dockerfile.WriteString("    git ca-certificates curl gnupg && \\\n")
 		dockerfile.WriteString("    curl -fsSL \"https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x2EE0EA64E40A89B84B2DF73499E82A75642AC823\" | \\\n")
 		dockerfile.WriteString("    gpg --dearmor -o /usr/share/keyrings/sbt-archive-keyring.gpg && \\\n")
 		dockerfile.WriteString("    echo \"deb [signed-by=/usr/share/keyrings/sbt-archive-keyring.gpg] https://repo.scala-sbt.org/scalasbt/debian all main\" > /etc/apt/sources.list.d/sbt.list && \\\n")
-		dockerfile.WriteString("    apt-get update && apt-get install -y sbt\n\n")
+		dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y sbt\n\n")
 
 		// CA certificate injection
 		g.emitCACertSection(dockerfile)
@@ -688,7 +692,7 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 		// Install basic dependencies (Debian-based image)
 		dockerfile.WriteString("# Install basic dependencies\n")
 		dockerfile.WriteString(g.aptCacheMounts())
-		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
+		dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
 		dockerfile.WriteString("    git curl ca-certificates build-essential\n\n")
 
 		// CA certificate injection
@@ -747,7 +751,7 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 		// Install basic dependencies (Debian-based image)
 		dockerfile.WriteString("# Install basic dependencies\n")
 		dockerfile.WriteString(g.aptCacheMounts())
-		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
+		dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
 		dockerfile.WriteString("    git curl ca-certificates\n\n")
 
 		// CA certificate injection
@@ -801,7 +805,7 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 		// Install basic dependencies and Zig from official tarball (Debian-based image)
 		dockerfile.WriteString("# Install basic dependencies\n")
 		dockerfile.WriteString(g.aptCacheMounts())
-		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
+		dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
 		dockerfile.WriteString("    git curl ca-certificates xz-utils\n\n")
 
 		// CA certificate injection
@@ -862,7 +866,7 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 		// Install basic dependencies (Debian-based image)
 		dockerfile.WriteString("# Install basic dependencies\n")
 		dockerfile.WriteString(g.aptCacheMounts())
-		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
+		dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
 		dockerfile.WriteString("    git curl ca-certificates\n\n")
 
 		// CA certificate injection
@@ -916,7 +920,7 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 		// Install basic dependencies and Lua via apt (Debian-based image)
 		dockerfile.WriteString("# Install basic dependencies and Lua\n")
 		dockerfile.WriteString(g.aptCacheMounts())
-		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
+		dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
 		dockerfile.WriteString(fmt.Sprintf("    git curl ca-certificates lua%s luarocks\n\n", version))
 
 		// CA certificate injection
@@ -977,7 +981,7 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 		// Install basic dependencies and common R system deps (Debian-based image)
 		dockerfile.WriteString("# Install basic dependencies and common R system deps\n")
 		dockerfile.WriteString(g.aptCacheMounts())
-		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
+		dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
 		dockerfile.WriteString("    git curl ca-certificates libcurl4-openssl-dev libssl-dev libxml2-dev\n\n")
 
 		// CA certificate injection
@@ -1031,7 +1035,7 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 		// Install basic dependencies (Debian-based image — Haskell image includes GHC and Cabal)
 		dockerfile.WriteString("# Install basic dependencies\n")
 		dockerfile.WriteString(g.aptCacheMounts())
-		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
+		dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
 		dockerfile.WriteString("    git curl ca-certificates\n\n")
 
 		// CA certificate injection
@@ -1093,7 +1097,7 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 		// Install cpanminus and build-essential (Debian-based image)
 		dockerfile.WriteString("# Install cpanminus and build dependencies\n")
 		dockerfile.WriteString(g.aptCacheMounts())
-		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
+		dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
 		dockerfile.WriteString("    cpanminus build-essential git curl ca-certificates\n\n")
 
 		// CA certificate injection
@@ -1143,7 +1147,7 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 		}
 
 		dockerfile.WriteString(g.aptCacheMounts())
-		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
+		dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
 		for i, pkg := range packages {
 			if i < len(packages)-1 {
 				dockerfile.WriteString(fmt.Sprintf("    %s \\\n", pkg))
@@ -1274,7 +1278,7 @@ func (g *DefaultDockerfileGenerator) generateNeovimBuilder(dockerfile *strings.B
 	dockerfile.WriteString(fmt.Sprintf("FROM %s AS neovim-builder\n", pinnedImage("debian:bookworm-slim")))
 	dockerfile.WriteString(g.aptCacheMountsLocked())
 	dockerfile.WriteString("    set -e && \\\n")
-	dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
+	dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
 	dockerfile.WriteString("    ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m) && \\\n")
 	dockerfile.WriteString("    if [ \"$ARCH\" = \"arm64\" ] || [ \"$ARCH\" = \"aarch64\" ]; then \\\n")
 	dockerfile.WriteString(fmt.Sprintf("        NVIM_ARCH=\"nvim-linux-arm64\"; NVIM_SHA256=\"%s\"; \\\n", neovimChecksumArm64))
@@ -1312,7 +1316,7 @@ func (g *DefaultDockerfileGenerator) generateLazygitBuilder(dockerfile *strings.
 		dockerfile.WriteString(fmt.Sprintf("FROM %s AS lazygit-builder\n", pinnedImage("debian:bookworm-slim")))
 		dockerfile.WriteString(g.aptCacheMountsLocked())
 		dockerfile.WriteString("    set -e && \\\n")
-		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
+		dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
 		dockerfile.WriteString("    ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m) && \\\n")
 		dockerfile.WriteString("    if [ \"$ARCH\" = \"arm64\" ] || [ \"$ARCH\" = \"aarch64\" ]; then \\\n")
 		dockerfile.WriteString(fmt.Sprintf("        LG_ARCH=\"arm64\"; LG_SHA256=\"%s\"; \\\n", lazygitChecksumArm64))
@@ -1339,7 +1343,7 @@ func (g *DefaultDockerfileGenerator) generateStarshipBuilder(dockerfile *strings
 	dockerfile.WriteString(fmt.Sprintf("FROM %s AS starship-builder\n", pinnedImage("debian:bookworm-slim")))
 	dockerfile.WriteString(g.aptCacheMountsLocked())
 	dockerfile.WriteString("    set -e && \\\n")
-	dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
+	dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
 	dockerfile.WriteString("    ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m) && \\\n")
 	dockerfile.WriteString("    if [ \"$ARCH\" = \"arm64\" ] || [ \"$ARCH\" = \"aarch64\" ]; then \\\n")
 	dockerfile.WriteString(fmt.Sprintf("        STARSHIP_ARCH=\"aarch64-unknown-linux-musl\"; STARSHIP_SHA256=\"%s\"; \\\n", starshipChecksumArm64))
@@ -1355,38 +1359,24 @@ func (g *DefaultDockerfileGenerator) generateStarshipBuilder(dockerfile *strings
 	dockerfile.WriteString("    test -x /usr/local/bin/starship\n\n")
 }
 
-// generateTreeSitterBuilder creates a parallel stage to download tree-sitter CLI.
-// Pinned to a specific version with SHA256 checksum verification (see checksums.go).
+// generateTreeSitterBuilder creates a parallel stage to build tree-sitter CLI from source.
+// Uses Cargo to compile tree-sitter-cli, avoiding GLIBC version mismatches with pre-built
+// binaries (see #334). Pinned to a specific version (see checksums.go).
 func (g *DefaultDockerfileGenerator) generateTreeSitterBuilder(dockerfile *strings.Builder, isAlpine bool) {
 	dockerfile.WriteString("# --- Parallel builder: tree-sitter CLI ---\n")
 	if isAlpine {
-		dockerfile.WriteString(fmt.Sprintf("FROM %s AS treesitter-builder\n", pinnedImage("alpine:3.20")))
-		dockerfile.WriteString(g.apkCacheMountsLocked())
-		dockerfile.WriteString("    set -e && \\\n")
-		dockerfile.WriteString("    apk add --no-cache curl && \\\n")
-		dockerfile.WriteString("    ARCH=$(uname -m) && \\\n")
-		dockerfile.WriteString("    if [ \"$ARCH\" = \"aarch64\" ]; then \\\n")
-		dockerfile.WriteString(fmt.Sprintf("        TS_ARCH=\"arm64\"; TS_SHA256=\"%s\"; \\\n", treeSitterChecksumArm64))
-		dockerfile.WriteString("    elif [ \"$ARCH\" = \"x86_64\" ]; then \\\n")
-		dockerfile.WriteString(fmt.Sprintf("        TS_ARCH=\"x64\"; TS_SHA256=\"%s\"; \\\n", treeSitterChecksumX64))
-		dockerfile.WriteString("    else echo \"ERROR: Unsupported architecture: $ARCH\"; exit 1; fi && \\\n")
+		dockerfile.WriteString(fmt.Sprintf("FROM %s AS treesitter-builder\n", pinnedImage("rust:1-alpine3.20")))
+		dockerfile.WriteString("RUN set -e && \\\n")
+		dockerfile.WriteString("    cargo install tree-sitter-cli@" + treeSitterVersion + " && \\\n")
+		dockerfile.WriteString("    cp /root/.cargo/bin/tree-sitter /usr/local/bin/tree-sitter && \\\n")
+		dockerfile.WriteString("    test -x /usr/local/bin/tree-sitter\n\n")
 	} else {
-		dockerfile.WriteString(fmt.Sprintf("FROM %s AS treesitter-builder\n", pinnedImage("debian:bookworm-slim")))
-		dockerfile.WriteString(g.aptCacheMountsLocked())
-		dockerfile.WriteString("    set -e && \\\n")
-		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
-		dockerfile.WriteString("    ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m) && \\\n")
-		dockerfile.WriteString("    if [ \"$ARCH\" = \"arm64\" ] || [ \"$ARCH\" = \"aarch64\" ]; then \\\n")
-		dockerfile.WriteString(fmt.Sprintf("        TS_ARCH=\"arm64\"; TS_SHA256=\"%s\"; \\\n", treeSitterChecksumArm64))
-		dockerfile.WriteString("    elif [ \"$ARCH\" = \"amd64\" ] || [ \"$ARCH\" = \"x86_64\" ]; then \\\n")
-		dockerfile.WriteString(fmt.Sprintf("        TS_ARCH=\"x64\"; TS_SHA256=\"%s\"; \\\n", treeSitterChecksumX64))
-		dockerfile.WriteString("    else echo \"ERROR: Unsupported architecture: $ARCH\"; exit 1; fi && \\\n")
+		dockerfile.WriteString(fmt.Sprintf("FROM %s AS treesitter-builder\n", pinnedImage("rust:1-slim-bookworm")))
+		dockerfile.WriteString("RUN set -e && \\\n")
+		dockerfile.WriteString("    cargo install tree-sitter-cli@" + treeSitterVersion + " && \\\n")
+		dockerfile.WriteString("    cp /root/.cargo/bin/tree-sitter /usr/local/bin/tree-sitter && \\\n")
+		dockerfile.WriteString("    test -x /usr/local/bin/tree-sitter\n\n")
 	}
-	// Shared download + verify logic (identical for Alpine and Debian)
-	dockerfile.WriteString(fmt.Sprintf("    curl %s -o /tmp/ts.gz \"https://github.com/tree-sitter/tree-sitter/releases/download/v%s/tree-sitter-linux-${TS_ARCH}.gz\" && \\\n", curlFlags, treeSitterVersion))
-	dockerfile.WriteString("    echo \"${TS_SHA256}  /tmp/ts.gz\" | sha256sum -c - && \\\n")
-	dockerfile.WriteString("    gunzip /tmp/ts.gz && chmod +x /tmp/ts && mv /tmp/ts /usr/local/bin/tree-sitter && \\\n")
-	dockerfile.WriteString("    test -x /usr/local/bin/tree-sitter\n\n")
 }
 
 // generateOpencodeBuilder creates a parallel stage to download the opencode CLI.
@@ -1414,7 +1404,7 @@ func (g *DefaultDockerfileGenerator) generateOpencodeBuilder(dockerfile *strings
 		dockerfile.WriteString(fmt.Sprintf("FROM %s AS opencode-builder\n", pinnedImage("debian:bookworm-slim")))
 		dockerfile.WriteString(g.aptCacheMountsLocked())
 		dockerfile.WriteString("    set -e && \\\n")
-		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
+		dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
 		dockerfile.WriteString("    ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m) && \\\n")
 		dockerfile.WriteString("    if [ \"$ARCH\" = \"arm64\" ] || [ \"$ARCH\" = \"aarch64\" ]; then \\\n")
 		dockerfile.WriteString(fmt.Sprintf("        OC_ARCH=\"arm64\"; OC_SHA256=\"%s\"; \\\n", opencodeChecksumArm64))
@@ -1658,7 +1648,7 @@ func (g *DefaultDockerfileGenerator) generateDevStage(dockerfile *strings.Builde
 		dockerfile.WriteString("    apk add \\\n")
 	} else {
 		dockerfile.WriteString(g.aptCacheMounts())
-		dockerfile.WriteString("    apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
+		dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
 	}
 
 	for i, pkg := range allPackages {
@@ -1862,13 +1852,23 @@ func (g *DefaultDockerfileGenerator) isAlpineImage() bool {
 	return g.isAlpine
 }
 
-// cacheID returns a workspace-scoped identifier for Docker cache mounts.
-// When multiple workspaces build in parallel, shared cache mounts cause apt lock
-// conflicts (E: Could not get lock /var/lib/apt/lists/lock). Scoping the cache
-// mount ID to the workspace name ensures each parallel build uses its own cache,
-// eliminating lock file contention. See issue #233.
+// cacheID returns a globally-unique identifier for Docker cache mounts.
+// When multiple workspaces share the same name (e.g., several apps all have a
+// "dev" workspace), using the workspace name alone causes BuildKit cache mount
+// ID collisions (apt-cache-dev, nvim-cache-dev, etc.). With sharing=locked the
+// builds serialize on the same mount; when one fills the cache, every concurrent
+// build fails with ENOSPC. The Slug field (format: ecosystem-domain-system-app-ws)
+// is globally unique per workspace and eliminates collisions. See issues #233, #332.
 func (g *DefaultDockerfileGenerator) cacheID() string {
-	if g.workspace != nil && g.workspace.Name != "" {
+	if g.workspace == nil {
+		return "default"
+	}
+	// Prefer Slug — it is globally unique across the hierarchy.
+	if g.workspace.Slug != "" {
+		return g.workspace.Slug
+	}
+	// Fallback: workspace name (legacy callers / tests without Slug).
+	if g.workspace.Name != "" {
 		return g.workspace.Name
 	}
 	return "default"
@@ -1909,10 +1909,11 @@ func (g *DefaultDockerfileGenerator) apkCacheMountsLocked() string {
 // nvimCacheMount returns a cache mount directive for Neovim's bytecode/data cache.
 // The mount uses uid=1000 because nvim steps run as the non-root dev user, and without
 // explicit uid the cache mount would be owned by root, causing ENOSPC when the dev user
-// writes Lua bytecode (.luac) files during plugin sync. See issue #251.
+// writes Lua bytecode (.luac) files during plugin sync. sharing=locked prevents
+// corruption during parallel builds, consistent with APT cache mounts. See issues #251, #332.
 func (g *DefaultDockerfileGenerator) nvimCacheMount() string {
 	user := g.effectiveUser()
-	return fmt.Sprintf("RUN --mount=type=cache,target=/home/%s/.cache/nvim,id=nvim-cache-%s,uid=1000 \\\n", user, g.cacheID())
+	return fmt.Sprintf("RUN --mount=type=cache,target=/home/%s/.cache/nvim,id=nvim-cache-%s,uid=1000,sharing=locked \\\n", user, g.cacheID())
 }
 
 // effectiveStagingDir returns the staging directory to use for file existence checks.

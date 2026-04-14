@@ -11,6 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.93.0] — 2026-04-14
+
+### Bug Fixes
+- **BuildKit cache mounts exhaust disk during concurrent builds** — `cacheID()` now derives the cache mount ID from `workspace.Slug`, guaranteeing globally unique cache IDs across parallel builds and preventing cross-workspace collisions that filled the disk ([#332](https://github.com/rmkohlman/devopsmaestro/issues/332))
+- **APT GPG signature corruption in generated Dockerfiles** — added `rm -rf /var/lib/apt/lists/*` before every `apt-get update` to ensure a clean package list state and eliminate stale or corrupt signature errors ([#333](https://github.com/rmkohlman/devopsmaestro/issues/333))
+- **tree-sitter GLIBC 2.39 incompatibility** — replaced pre-built `tree-sitter-cli` binary download with a Cargo-based source build (`cargo install tree-sitter-cli@0.24.7`), resolving GLIBC version mismatch on Ubuntu 22.04 and earlier ([#334](https://github.com/rmkohlman/devopsmaestro/issues/334))
+
+### Enhancements
+- Added `sharing=locked` to the Neovim cache mount for consistency with all other BuildKit cache mounts
+
+### Tests
+- 11 new tests covering cache ID isolation, APT list cleanup, and cargo-based tree-sitter installation
+
+---
+
 ## [v0.92.0] — 2026-04-14
 
 ### Bug Fixes

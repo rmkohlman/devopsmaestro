@@ -1,6 +1,7 @@
 package builders
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1487,10 +1488,8 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 // =============================================================================
 
 // TestDockerfileGenerator_TreeSitterBuilder_DynamicVersion verifies that the tree-sitter
-// builder stage uses a pinned version with SHA256 checksum verification instead of
-// querying the GitHub Releases API at build time.
-//
-// Updated for Phase 3: pinned versions with checksum verification.
+// builder stage uses cargo to build from source with a pinned version instead of
+// downloading pre-built binaries (which had GLIBC version mismatches — see #334).
 func TestDockerfileGenerator_TreeSitterBuilder_DynamicVersion(t *testing.T) {
 	ws := &models.Workspace{
 		ID:        1,
@@ -1513,10 +1512,8 @@ func TestDockerfileGenerator_TreeSitterBuilder_DynamicVersion(t *testing.T) {
 
 	// Extract the tree-sitter builder section
 	tsStart := strings.Index(dockerfile, "# --- Parallel builder: tree-sitter CLI ---")
-	// The tree-sitter builder is the last builder stage before the dev stage
 	devStageStart := strings.Index(dockerfile, "# Development stage with additional tools")
 	if devStageStart <= tsStart {
-		// Fall back: search for go-tools-builder or FROM base AS dev
 		devStageStart = strings.Index(dockerfile, "FROM base AS dev")
 	}
 	var tsSection string
@@ -1526,66 +1523,67 @@ func TestDockerfileGenerator_TreeSitterBuilder_DynamicVersion(t *testing.T) {
 		tsSection = dockerfile[tsStart:]
 	}
 
-	// MUST NOT contain the OLD hardcoded version
-	if strings.Contains(tsSection, "v0.24.6") {
-		t.Errorf("tree-sitter builder hardcodes old version 'v0.24.6'.\n"+
-			"Must use pinned version from checksums.go.\n"+
-			"tree-sitter section:\n%s", tsSection)
-	}
-
-	// MUST have pinned version in download URL
-	if !strings.Contains(tsSection, "tree-sitter/releases/download/v"+treeSitterVersion) {
-		t.Errorf("tree-sitter builder missing pinned version %q in download URL.\n"+
+	// MUST use cargo install with pinned version
+	if !strings.Contains(tsSection, "cargo install tree-sitter-cli@"+treeSitterVersion) {
+		t.Errorf("tree-sitter builder must use 'cargo install tree-sitter-cli@%s'.\n"+
 			"tree-sitter section:\n%s", treeSitterVersion, tsSection)
 	}
 
-	// MUST have SHA256 checksum verification
-	if !strings.Contains(tsSection, "sha256sum -c -") {
-		t.Errorf("tree-sitter builder missing SHA256 checksum verification.\n"+
+	// MUST use a Rust base image
+	if !strings.Contains(tsSection, "FROM rust:") {
+		t.Errorf("tree-sitter builder must use a Rust base image.\n"+
 			"tree-sitter section:\n%s", tsSection)
 	}
 
-	// MUST NOT query GitHub API dynamically (pinned versions are more secure and reproducible)
+	// MUST NOT download pre-built binaries (the old approach — see #334)
+	if strings.Contains(tsSection, "tree-sitter/releases/download") {
+		t.Errorf("tree-sitter builder should NOT download pre-built binaries.\n"+
+			"Must build from source via cargo to avoid GLIBC mismatches.\n"+
+			"tree-sitter section:\n%s", tsSection)
+	}
+
+	// MUST NOT use sha256sum (no binary checksums needed when building from source)
+	if strings.Contains(tsSection, "sha256sum") {
+		t.Errorf("tree-sitter builder should NOT use sha256sum (builds from source now).\n"+
+			"tree-sitter section:\n%s", tsSection)
+	}
+
+	// MUST NOT query GitHub API dynamically
 	if strings.Contains(tsSection, "api.github.com") {
 		t.Errorf("tree-sitter builder queries GitHub API for version at build time.\n"+
-			"Should use pinned version with checksum verification instead.\n"+
-			"tree-sitter section:\n%s", tsSection)
-	}
-
-	// MUST use hardened curl flags
-	if !strings.Contains(tsSection, "curl -fsSL --retry 3 --connect-timeout 30") {
-		t.Errorf("tree-sitter builder missing hardened curl flags.\n"+
+			"Should use pinned version via cargo install instead.\n"+
 			"tree-sitter section:\n%s", tsSection)
 	}
 }
 
 // TestDockerfileGenerator_TreeSitterBuilder_DebianPath verifies that for Debian-based
-// builds (e.g., Python), the tree-sitter builder uses debian:bookworm-slim with apt-get
-// and ca-certificates, while Alpine-based builds (e.g., Go) use alpine:3.20 with apk.
+// builds (e.g., Python), the tree-sitter builder uses rust:1-slim-bookworm, while
+// Alpine-based builds (e.g., Go) use rust:1-alpine3.20. Both build from source via cargo
+// to avoid GLIBC version mismatches with pre-built binaries (see #334).
 func TestDockerfileGenerator_TreeSitterBuilder_DebianPath(t *testing.T) {
 	tests := []struct {
 		name         string
 		language     string
 		version      string
 		wantImage    string
-		wantPkgMgr   string
+		wantCargo    string
 		notWantImage string
 	}{
 		{
-			name:         "python uses debian tree-sitter builder",
+			name:         "python uses debian rust tree-sitter builder",
 			language:     "python",
 			version:      "3.11",
-			wantImage:    "FROM debian:bookworm-slim@sha256:",
-			wantPkgMgr:   "apt-get update && apt-get install -y --no-install-recommends curl ca-certificates",
-			notWantImage: "FROM alpine:3.20",
+			wantImage:    "FROM rust:1-slim-bookworm@sha256:",
+			wantCargo:    "cargo install tree-sitter-cli@",
+			notWantImage: "FROM rust:1-alpine3.20",
 		},
 		{
-			name:         "golang uses alpine tree-sitter builder",
+			name:         "golang uses alpine rust tree-sitter builder",
 			language:     "golang",
 			version:      "1.22",
-			wantImage:    "FROM alpine:3.20@sha256:",
-			wantPkgMgr:   "apk add --no-cache curl",
-			notWantImage: "FROM debian:bookworm-slim",
+			wantImage:    "FROM rust:1-alpine3.20@sha256:",
+			wantCargo:    "cargo install tree-sitter-cli@",
+			notWantImage: "FROM rust:1-slim-bookworm",
 		},
 	}
 
@@ -1631,8 +1629,8 @@ func TestDockerfileGenerator_TreeSitterBuilder_DebianPath(t *testing.T) {
 			if strings.Contains(tsSection, tt.notWantImage) {
 				t.Errorf("tree-sitter builder should NOT use %q for %s builds.\nGot section:\n%s", tt.notWantImage, tt.language, tsSection)
 			}
-			if !strings.Contains(tsSection, tt.wantPkgMgr) {
-				t.Errorf("tree-sitter builder should use %q for %s builds.\nGot section:\n%s", tt.wantPkgMgr, tt.language, tsSection)
+			if !strings.Contains(tsSection, tt.wantCargo) {
+				t.Errorf("tree-sitter builder should use %q for %s builds.\nGot section:\n%s", tt.wantCargo, tt.language, tsSection)
 			}
 		})
 	}
@@ -6169,9 +6167,15 @@ func TestDockerfileGenerator_PythonBaseImage_NoBookworm(t *testing.T) {
 				t.Errorf("Generate() expected base image %q not found in dockerfile", tt.want)
 			}
 
-			// Regression guard: ensure slim-bookworm is NEVER used for Python
-			if strings.Contains(dockerfile, "slim-bookworm") {
-				t.Errorf("Generate() python %s must not use 'slim-bookworm' tag (issue #324); found it in Dockerfile", tt.version)
+			// Regression guard: ensure slim-bookworm is NEVER used for the Python base stage.
+			// NOTE: we scan only the base stage FROM line, not the whole Dockerfile, because
+			// the treesitter-builder parallel stage legitimately uses rust:1-slim-bookworm
+			// (fix #334).  Checking the whole file would produce a false positive.
+			baseFromPrefix := fmt.Sprintf("FROM python:%s", tt.version)
+			for _, line := range strings.Split(dockerfile, "\n") {
+				if strings.HasPrefix(line, baseFromPrefix) && strings.Contains(line, "slim-bookworm") {
+					t.Errorf("Generate() python %s base FROM must not use 'slim-bookworm' tag (issue #324); got: %s", tt.version, line)
+				}
 			}
 		})
 	}
@@ -6604,3 +6608,399 @@ func TestUVSetup_PythonVersions(t *testing.T) {
 		})
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Issue #332 — cacheID() uniqueness: workspace Slug eliminates collisions
+// ---------------------------------------------------------------------------
+
+// TestCacheID_UsesSlug_WhenAvailable verifies that when a Workspace has a non-empty
+// Slug, the generated Dockerfile uses the slug (not just the workspace name) as the
+// cache mount ID. Two workspaces with the same name but different apps must produce
+// different cache IDs.
+func TestCacheID_UsesSlug_WhenAvailable(t *testing.T) {
+	// Simulate two workspaces both named "dev" but belonging to different apps.
+	// The Slug is globally unique (ecosystem-domain-system-app-ws format).
+	tests := []struct {
+		name      string
+		wsName    string
+		slug      string
+		wantID    string
+		notWantID string
+	}{
+		{
+			name:      "app-a dev workspace uses slug",
+			wsName:    "dev",
+			slug:      "myeco-core-mysys-app-a-dev",
+			wantID:    "myeco-core-mysys-app-a-dev",
+			notWantID: "myeco-core-mysys-app-b-dev",
+		},
+		{
+			name:      "app-b dev workspace uses slug",
+			wsName:    "dev",
+			slug:      "myeco-core-mysys-app-b-dev",
+			wantID:    "myeco-core-mysys-app-b-dev",
+			notWantID: "myeco-core-mysys-app-a-dev",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws := &models.Workspace{ID: 1, Name: tt.wsName, Slug: tt.slug, ImageName: "test:latest"}
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: models.WorkspaceSpec{},
+				Language:      "python",
+				Version:       "3.11",
+				AppPath:       "/tmp/test",
+				PathConfig:    paths.New(t.TempDir()),
+			})
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			if !strings.Contains(dockerfile, tt.wantID) {
+				t.Errorf("cache mount must use slug %q as ID, but it was not found in Dockerfile", tt.wantID)
+			}
+			if strings.Contains(dockerfile, tt.notWantID) {
+				t.Errorf("cache mount must NOT contain %q (cross-app ID leak, issue #332)", tt.notWantID)
+			}
+		})
+	}
+}
+
+// TestCacheID_FallsBackToName_WhenSlugEmpty verifies that when Slug is empty the
+// cache mount ID degrades gracefully to the workspace Name (legacy behaviour).
+func TestCacheID_FallsBackToName_WhenSlugEmpty(t *testing.T) {
+	ws := &models.Workspace{ID: 1, Name: "dev", Slug: "", ImageName: "test:latest"}
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: models.WorkspaceSpec{},
+		Language:      "python",
+		Version:       "3.11",
+		AppPath:       "/tmp/test",
+		PathConfig:    paths.New(t.TempDir()),
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	if !strings.Contains(dockerfile, "apt-cache-dev") {
+		t.Errorf("without Slug, cache mount should use workspace name 'dev' (id=apt-cache-dev), not found in Dockerfile")
+	}
+}
+
+// TestCacheID_TwoApps_SameWorkspaceName_DifferentIDs is a table-driven regression
+// guard for issue #332: two workspaces that share the same name ("dev") but belong
+// to different apps must generate *different* apt-cache mount IDs.
+func TestCacheID_TwoApps_SameWorkspaceName_DifferentIDs(t *testing.T) {
+	makeGen := func(slug string) string {
+		ws := &models.Workspace{ID: 1, Name: "dev", Slug: slug, ImageName: "test:latest"}
+		gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+			Workspace:     ws,
+			WorkspaceSpec: models.WorkspaceSpec{},
+			Language:      "python",
+			Version:       "3.11",
+			AppPath:       "/tmp/test",
+			PathConfig:    paths.New(t.TempDir()),
+		})
+		dockerfile, err := gen.Generate()
+		if err != nil {
+			t.Fatalf("Generate() error = %v", err)
+		}
+		return dockerfile
+	}
+
+	slugA := "eco-domain-sys-app-a-dev"
+	slugB := "eco-domain-sys-app-b-dev"
+
+	dfA := makeGen(slugA)
+	dfB := makeGen(slugB)
+
+	// Each Dockerfile must contain its own slug-based cache ID
+	if !strings.Contains(dfA, fmt.Sprintf("apt-cache-%s", slugA)) {
+		t.Errorf("app-a Dockerfile should contain apt-cache-%s (issue #332)", slugA)
+	}
+	if !strings.Contains(dfB, fmt.Sprintf("apt-cache-%s", slugB)) {
+		t.Errorf("app-b Dockerfile should contain apt-cache-%s (issue #332)", slugB)
+	}
+
+	// Neither Dockerfile should contain the other app's cache ID
+	if strings.Contains(dfA, fmt.Sprintf("apt-cache-%s", slugB)) {
+		t.Errorf("app-a Dockerfile must NOT contain app-b cache ID apt-cache-%s (cross-app pollution)", slugB)
+	}
+	if strings.Contains(dfB, fmt.Sprintf("apt-cache-%s", slugA)) {
+		t.Errorf("app-b Dockerfile must NOT contain app-a cache ID apt-cache-%s (cross-app pollution)", slugA)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Issue #333 — APT lists cleanup: rm -rf before apt-get update
+// ---------------------------------------------------------------------------
+
+// TestAptGetUpdate_AlwaysPrecededByCleanup verifies that every apt-get update
+// call in generated Dockerfiles is immediately preceded by
+// "rm -rf /var/lib/apt/lists/*" on the same logical command line.
+// This prevents stale/corrupted partial InRelease files from causing GPG
+// signature failures on subsequent builds (issue #333).
+func TestAptGetUpdate_AlwaysPrecededByCleanup(t *testing.T) {
+	tests := []struct {
+		name     string
+		language string
+		version  string
+	}{
+		{"python debian", "python", "3.11"},
+		{"golang alpine", "golang", "1.22"},
+		{"nodejs", "node", "20"},
+		{"scala", "scala", "21"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: models.WorkspaceSpec{},
+				Language:      tt.language,
+				Version:       tt.version,
+				AppPath:       "/tmp/test",
+				PathConfig:    paths.New(t.TempDir()),
+			})
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			// Find every occurrence of "apt-get update" and assert it's preceded
+			// by the cleanup command on the same line (or combined with &&).
+			remaining := dockerfile
+			for {
+				idx := strings.Index(remaining, "apt-get update")
+				if idx < 0 {
+					break
+				}
+				// Look at up to 60 chars before "apt-get update" for the cleanup
+				start := idx - 60
+				if start < 0 {
+					start = 0
+				}
+				context := remaining[start:idx]
+				if !strings.Contains(context, "rm -rf /var/lib/apt/lists/*") {
+					// Show the surrounding line for debugging
+					lineStart := strings.LastIndex(remaining[:idx], "\n")
+					if lineStart < 0 {
+						lineStart = 0
+					}
+					lineEnd := strings.Index(remaining[idx:], "\n")
+					if lineEnd < 0 {
+						lineEnd = len(remaining) - idx
+					}
+					line := remaining[lineStart : idx+lineEnd]
+					t.Errorf("%s: found 'apt-get update' not preceded by 'rm -rf /var/lib/apt/lists/*' (issue #333).\nLine: %s", tt.name, line)
+				}
+				remaining = remaining[idx+len("apt-get update"):]
+			}
+		})
+	}
+}
+
+// TestAptGetUpdate_NoOrphanUpdate is a strict regression guard: any apt-get update
+// that is NOT preceded by the cache-clearing rm -rf is a latent corruption risk.
+// This test generates a Python Dockerfile and asserts the pattern holds for every
+// line containing apt-get update.
+func TestAptGetUpdate_NoOrphanUpdate(t *testing.T) {
+	ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: models.WorkspaceSpec{},
+		Language:      "python",
+		Version:       "3.11",
+		AppPath:       "/tmp/test",
+		PathConfig:    paths.New(t.TempDir()),
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	for i, line := range strings.Split(dockerfile, "\n") {
+		if strings.Contains(line, "apt-get update") {
+			if !strings.Contains(line, "rm -rf /var/lib/apt/lists/*") {
+				t.Errorf("line %d: apt-get update without preceding 'rm -rf /var/lib/apt/lists/*' (issue #333):\n  %s", i+1, line)
+			}
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Issue #334 — tree-sitter built from source (cargo install, not binary download)
+// ---------------------------------------------------------------------------
+
+// TestTreeSitterBuilder_UsesCargoInstall verifies that the treesitter-builder
+// stage uses "cargo install" instead of downloading a pre-built binary from
+// GitHub releases. Pre-built binaries require GLIBC 2.39 which is not available
+// on Debian Bookworm (GLIBC 2.36) — see issue #334.
+func TestTreeSitterBuilder_UsesCargoInstall(t *testing.T) {
+	ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: models.WorkspaceSpec{},
+		Language:      "python",
+		Version:       "3.11",
+		AppPath:       "/tmp/test",
+		PathConfig:    paths.New(t.TempDir()),
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	tsStart := strings.Index(dockerfile, "# --- Parallel builder: tree-sitter CLI ---")
+	if tsStart < 0 {
+		t.Fatal("Generate() missing tree-sitter builder stage")
+	}
+	// Extract through the next blank-line-separated paragraph
+	tsSection := dockerfile[tsStart:]
+	if end := strings.Index(tsSection[50:], "\n\n"); end >= 0 {
+		tsSection = tsSection[:end+50]
+	}
+
+	if !strings.Contains(tsSection, "cargo install tree-sitter-cli@") {
+		t.Errorf("tree-sitter builder must use 'cargo install tree-sitter-cli@<version>' (issue #334).\nSection:\n%s", tsSection)
+	}
+}
+
+// TestTreeSitterBuilder_NoPrebuiltBinaryURL asserts that no GitHub releases
+// download URL for tree-sitter appears anywhere in the Dockerfile. The old
+// approach downloaded a pre-built binary that required GLIBC 2.39 (issue #334).
+func TestTreeSitterBuilder_NoPrebuiltBinaryURL(t *testing.T) {
+	ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: models.WorkspaceSpec{},
+		Language:      "python",
+		Version:       "3.11",
+		AppPath:       "/tmp/test",
+		PathConfig:    paths.New(t.TempDir()),
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// The old pattern was: https://github.com/tree-sitter/tree-sitter/releases/download/...
+	if strings.Contains(dockerfile, "tree-sitter/releases/download") {
+		t.Errorf("Dockerfile must NOT download pre-built tree-sitter binary (GLIBC mismatch, issue #334).\n"+
+			"Found 'tree-sitter/releases/download' in Dockerfile — use 'cargo install' instead.\n%s",
+			extractFragment(dockerfile, "tree-sitter/releases/download", 300))
+	}
+}
+
+// TestTreeSitterBuilder_AlpineAndDebian_BothUseCargo verifies that both the
+// Alpine variant (golang) and the Debian variant (python) build tree-sitter
+// from source via cargo, not from pre-built binaries (issue #334).
+func TestTreeSitterBuilder_AlpineAndDebian_BothUseCargo(t *testing.T) {
+	tests := []struct {
+		name      string
+		language  string
+		version   string
+		wantImage string
+		wantCargo string
+	}{
+		{
+			name:      "debian variant (python)",
+			language:  "python",
+			version:   "3.11",
+			wantImage: "rust:1-slim-bookworm",
+			wantCargo: "cargo install tree-sitter-cli@",
+		},
+		{
+			name:      "alpine variant (golang)",
+			language:  "golang",
+			version:   "1.22",
+			wantImage: "rust:1-alpine3.20",
+			wantCargo: "cargo install tree-sitter-cli@",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: models.WorkspaceSpec{},
+				Language:      tt.language,
+				Version:       tt.version,
+				AppPath:       "/tmp/test",
+				PathConfig:    paths.New(t.TempDir()),
+			})
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			tsStart := strings.Index(dockerfile, "# --- Parallel builder: tree-sitter CLI ---")
+			if tsStart < 0 {
+				t.Fatal("Generate() missing tree-sitter builder stage")
+			}
+			tsSection := dockerfile[tsStart:]
+			if end := strings.Index(tsSection[50:], "\n\n"); end >= 0 {
+				tsSection = tsSection[:end+50]
+			}
+
+			if !strings.Contains(tsSection, tt.wantImage) {
+				t.Errorf("%s: tree-sitter builder should use Rust base image %q.\nSection:\n%s", tt.name, tt.wantImage, tsSection)
+			}
+			if !strings.Contains(tsSection, tt.wantCargo) {
+				t.Errorf("%s: tree-sitter builder should use %q.\nSection:\n%s", tt.name, tt.wantCargo, tsSection)
+			}
+			if strings.Contains(tsSection, "tree-sitter/releases/download") {
+				t.Errorf("%s: tree-sitter builder must NOT download pre-built binary (GLIBC mismatch, issue #334).\nSection:\n%s", tt.name, tsSection)
+			}
+		})
+	}
+}
+
+// TestTreeSitterBuilder_BinaryVerified asserts that the builder stage includes a
+// verification step (test -x) to confirm the installed binary is executable.
+func TestTreeSitterBuilder_BinaryVerified(t *testing.T) {
+	ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: models.WorkspaceSpec{},
+		Language:      "python",
+		Version:       "3.11",
+		AppPath:       "/tmp/test",
+		PathConfig:    paths.New(t.TempDir()),
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	tsStart := strings.Index(dockerfile, "# --- Parallel builder: tree-sitter CLI ---")
+	if tsStart < 0 {
+		t.Fatal("Generate() missing tree-sitter builder stage")
+	}
+	tsSection := dockerfile[tsStart:]
+	if end := strings.Index(tsSection[50:], "\n\n"); end >= 0 {
+		tsSection = tsSection[:end+50]
+	}
+
+	if !strings.Contains(tsSection, "test -x /usr/local/bin/tree-sitter") {
+		t.Errorf("tree-sitter builder stage should verify binary is executable with 'test -x /usr/local/bin/tree-sitter'.\nSection:\n%s", tsSection)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// End Issue #332 / #333 / #334 tests
+// ---------------------------------------------------------------------------
