@@ -37,12 +37,12 @@ var imageDigests = map[string]string{
 	"ubuntu:22.04":         "sha256:ce4a593b4e323dcc3dd728e397e0a866a1bf516a1b7c31d6aa06991baec4f2e0",
 
 	// Versioned language base images (common defaults)
-	"python:3.11-slim-bookworm": "sha256:420310dd2ff7895895f0f1f9d15cae5a95dabceb8f1d6b9a23ef33c2c1c542c3",
-	"python:3.12-slim-bookworm": "sha256:31c0807da611e2e377a2e9b566ad4eb038ac5a5838cbbbe6f2262259b5dc77a0",
-	"golang:1.22-alpine":        "sha256:1699c10032ca2582ec89a24a1312d986a3f094aed3d5c1147b19880afe40e052",
-	"golang:1.23-alpine":        "sha256:383395b794dffa5b53012a212365d40c8e37109a626ca30d6151c8348d380b5f",
-	"node:20-alpine":            "sha256:b88333c42c23fbd91596ebd7fd10de239cedab9617de04142dde7315e3bc0afa",
-	"node:22-alpine":            "sha256:8094c002d08262dba12645a3b4a15cd6cd627d30bc782f53229a2ec13ee22a00",
+	"python:3.11-slim":   "sha256:420310dd2ff7895895f0f1f9d15cae5a95dabceb8f1d6b9a23ef33c2c1c542c3",
+	"python:3.12-slim":   "sha256:31c0807da611e2e377a2e9b566ad4eb038ac5a5838cbbbe6f2262259b5dc77a0",
+	"golang:1.22-alpine": "sha256:1699c10032ca2582ec89a24a1312d986a3f094aed3d5c1147b19880afe40e052",
+	"golang:1.23-alpine": "sha256:383395b794dffa5b53012a212365d40c8e37109a626ca30d6151c8348d380b5f",
+	"node:20-alpine":     "sha256:b88333c42c23fbd91596ebd7fd10de239cedab9617de04142dde7315e3bc0afa",
+	"node:22-alpine":     "sha256:8094c002d08262dba12645a3b4a15cd6cd627d30bc782f53229a2ec13ee22a00",
 }
 
 // pinnedImage returns a digest-pinned image reference if a known digest exists for the
@@ -52,7 +52,7 @@ var imageDigests = map[string]string{
 // Examples:
 //
 //	pinnedImage("debian:bookworm-slim")       → "debian:bookworm-slim@sha256:f065..."
-//	pinnedImage("python:3.11-slim-bookworm")  → "python:3.11-slim-bookworm@sha256:4203..."
+//	pinnedImage("python:3.11-slim")           → "python:3.11-slim@sha256:4203..."
 //	pinnedImage("myregistry/custom:v1")       → "myregistry/custom:v1"  (no digest known)
 func pinnedImage(image string) string {
 	if digest, ok := imageDigests[image]; ok {
@@ -234,7 +234,7 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 	case "python":
 		version := g.effectiveVersion()
 		g.isAlpine = false
-		baseImage := fmt.Sprintf("python:%s-slim-bookworm", version)
+		baseImage := fmt.Sprintf("python:%s-slim", version)
 		dockerfile.WriteString(pinnedImageComment(baseImage))
 		dockerfile.WriteString(fmt.Sprintf("FROM %s AS base\n\n", pinnedImage(baseImage)))
 

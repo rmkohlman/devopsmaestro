@@ -22,7 +22,7 @@ func TestDockerfileGenerator_GenerateBaseStage_Python(t *testing.T) {
 			name:    "python default version",
 			version: "",
 			wantContain: []string{
-				"FROM python:3.11-slim-bookworm@sha256:",
+				"FROM python:3.11-slim@sha256:",
 				"AS base",
 				"apt-get update",
 				"build-essential",
@@ -32,14 +32,14 @@ func TestDockerfileGenerator_GenerateBaseStage_Python(t *testing.T) {
 			name:    "python specific version",
 			version: "3.10",
 			wantContain: []string{
-				"FROM python:3.10-slim-bookworm",
+				"FROM python:3.10-slim",
 			},
 		},
 		{
 			name:    "python 3.12",
 			version: "3.12",
 			wantContain: []string{
-				"FROM python:3.12-slim-bookworm@sha256:",
+				"FROM python:3.12-slim@sha256:",
 			},
 		},
 	}
@@ -572,11 +572,13 @@ func TestDockerfileGenerator_LanguageVersionTable(t *testing.T) {
 		want     string
 	}{
 		// Python versions
-		{"python", "", "python:3.11-slim-bookworm"},
-		{"python", "3.9", "python:3.9-slim-bookworm"},
-		{"python", "3.10", "python:3.10-slim-bookworm"},
-		{"python", "3.11", "python:3.11-slim-bookworm"},
-		{"python", "3.12", "python:3.12-slim-bookworm"},
+		{"python", "", "python:3.11-slim"},
+		{"python", "3.9", "python:3.9-slim"},
+		{"python", "3.9.9", "python:3.9.9-slim"},
+		{"python", "3.10", "python:3.10-slim"},
+		{"python", "3.11", "python:3.11-slim"},
+		{"python", "3.12", "python:3.12-slim"},
+		{"python", "3.13", "python:3.13-slim"},
 
 		// Go versions
 		{"golang", "", "golang:1.22-alpine"},
@@ -6126,9 +6128,58 @@ func TestUVSetup_OrderBeforeRequirementsInstall(t *testing.T) {
 	}
 }
 
+// TestDockerfileGenerator_PythonBaseImage_NoBookworm is a regression test for
+// issue #324: Python base image must use "-slim" (not "-slim-bookworm") so that
+// older patch versions like 3.9.9 resolve to a valid Docker Hub tag.
+func TestDockerfileGenerator_PythonBaseImage_NoBookworm(t *testing.T) {
+	tests := []struct {
+		name    string
+		version string
+		want    string
+	}{
+		// Exact reproduction from the bug report
+		{"python 3.9.9 patch version", "3.9.9", "FROM python:3.9.9-slim"},
+		{"python 3.10.4 patch version", "3.10.4", "FROM python:3.10.4-slim"},
+		{"python 3.11.0 patch version", "3.11.0", "FROM python:3.11.0-slim"},
+		{"python 3.12.1 patch version", "3.12.1", "FROM python:3.12.1-slim"},
+		{"python 3.13.0 patch version", "3.13.0", "FROM python:3.13.0-slim"},
+		// Minor-only versions
+		{"python 3.9 minor", "3.9", "FROM python:3.9-slim"},
+		{"python 3.13 minor", "3.13", "FROM python:3.13-slim"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: models.WorkspaceSpec{},
+				Language:      "python",
+				Version:       tt.version,
+				AppPath:       "/tmp/test",
+				PathConfig:    paths.New(t.TempDir()),
+			})
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			if !strings.Contains(dockerfile, tt.want) {
+				t.Errorf("Generate() expected base image %q not found in dockerfile", tt.want)
+			}
+
+			// Regression guard: ensure slim-bookworm is NEVER used for Python
+			if strings.Contains(dockerfile, "slim-bookworm") {
+				t.Errorf("Generate() python %s must not use 'slim-bookworm' tag (issue #324); found it in Dockerfile", tt.version)
+			}
+		})
+	}
+}
+
 // TestUVSetup_PythonVersions verifies UV is injected across all supported Python versions.
 func TestUVSetup_PythonVersions(t *testing.T) {
-	versions := []string{"3.10", "3.11", "3.12", "3.13"}
+	versions := []string{"3.9", "3.10", "3.11", "3.12", "3.13"}
 
 	for _, version := range versions {
 		t.Run("python-"+version, func(t *testing.T) {

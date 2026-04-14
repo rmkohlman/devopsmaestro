@@ -6,6 +6,14 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ---
 
+## v0.90.1 (2026-04-14)
+
+**Bug Fixes**
+
+- **Python base image tag corrected for older versions** — Changed Python base image from `python:<ver>-slim-bookworm` to `python:<ver>-slim` to fix build failures with Python 3.9.x and other older versions where the `slim-bookworm` variant tag does not exist ([#324](https://github.com/rmkohlman/devopsmaestro/issues/324)).
+
+---
+
 ## v0.90.0 (2026-04-14)
 
 **New Features**
