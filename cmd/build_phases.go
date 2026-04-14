@@ -155,11 +155,17 @@ func (bc *buildContext) prepareRegistry() error {
 	bc.registryEndpoint = regResult.OCIEndpoint
 	bc.registryEnvVars = regResult.EnvVars
 	bc.cacheReadiness = &regResult.CacheReadiness
+	bc.buildKitConfigPath = regResult.BuildKitConfigPath
+	bc.containerdCertsDir = regResult.ContainerdCertsDir
 	for _, w := range regResult.Warnings {
 		bc.renderWarning(w)
 	}
 	if len(regResult.Managers) > 0 {
 		bc.renderInfof("Started %d registry cache(s)", len(regResult.Managers))
+	}
+	if regResult.BuildKitConfigPath != "" {
+		bc.renderInfo("BuildKit registry mirrors configured")
+		slog.Info("buildkit mirror config", "path", regResult.BuildKitConfigPath)
 	}
 	return nil
 }
@@ -499,10 +505,12 @@ func (bc *buildContext) buildImage() (skipped bool, err error) {
 	// across builds, surviving docker system prune. This sidesteps the HTTP/HTTPS
 	// mismatch that blocked registry-based caching via Zot (see #225).
 	buildOpts := builders.BuildOptions{
-		BuildArgs: buildArgs,
-		Target:    buildTarget,
-		NoCache:   buildNocache,
-		Output:    bc.output,
+		BuildArgs:          buildArgs,
+		Target:             buildTarget,
+		NoCache:            buildNocache,
+		Output:             bc.output,
+		BuildKitConfigPath: bc.buildKitConfigPath,
+		RegistryMirrorsDir: bc.containerdCertsDir,
 	}
 
 	if !buildNocache {

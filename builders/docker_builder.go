@@ -71,6 +71,14 @@ func (b *DockerBuilder) Build(ctx context.Context, opts BuildOptions) error {
 	// Build docker buildx build command (buildx supports --cache-from/--cache-to)
 	args := []string{"buildx", "build"}
 
+	// Use dvm-builder with registry mirror config if available
+	dockerHost := "unix://" + b.platform.SocketPath
+	if builderName := EnsureDVMBuilder(opts.BuildKitConfigPath, dockerHost); builderName != "" {
+		args = append(args, "--builder", builderName)
+		render.MsgTo(out, "", render.Message{Level: render.LevelInfo, Content: fmt.Sprintf("Builder: %s (registry mirrors enabled)", builderName)})
+		WriteConfigHash(opts.BuildKitConfigPath)
+	}
+
 	// Add dockerfile flag if specified
 	dockerfilePath := b.dockerfile
 	if dockerfilePath != "" {

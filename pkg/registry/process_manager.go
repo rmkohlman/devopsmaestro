@@ -45,6 +45,11 @@ func (p *DefaultProcessManager) Start(ctx context.Context, binary string, args [
 		if err := p.cleanStalePIDFile(config.PIDFile); err != nil {
 			return fmt.Errorf("failed to clean stale PID file: %w", err)
 		}
+		// cleanStalePIDFile may have adopted a running process —
+		// re-check before spawning a duplicate.
+		if p.pid > 0 && isProcessAlive(p.pid) {
+			return fmt.Errorf("%w", ErrProcessAlreadyRunning)
+		}
 	}
 
 	// Update config
@@ -359,6 +364,10 @@ func (p *DefaultProcessManager) writePIDFile(path string, pid int) error {
 }
 
 // cleanStalePIDFile removes a PID file if the process is no longer running.
+// If the process IS running, it adopts it (stores the PID and config) rather
+// than returning an error. The caller (Zot/Athens/etc. manager) is responsible
+// for deciding whether the running process is the correct service via port
+// availability and health probes.
 func (p *DefaultProcessManager) cleanStalePIDFile(path string) error {
 	// Read PID file
 	data, err := os.ReadFile(path)
@@ -378,19 +387,15 @@ func (p *DefaultProcessManager) cleanStalePIDFile(path string) error {
 	}
 
 	// Check if process is running
-	proc, err := os.FindProcess(pid)
-	if err != nil {
+	if !isProcessAlive(pid) {
 		// Process doesn't exist, remove stale file
 		return os.Remove(path)
 	}
 
-	// Send signal 0 to check if process exists
-	err = proc.Signal(syscall.Signal(0))
-	if err != nil {
-		// Process doesn't exist, remove stale file
-		return os.Remove(path)
-	}
-
-	// Process exists - this is a problem
-	return fmt.Errorf("process %d is already running", pid)
+	// Process exists — adopt it by recording the PID so that IsRunning()
+	// returns true and the manager layer can short-circuit before trying
+	// to spawn a duplicate.
+	p.pid = pid
+	p.config.PIDFile = path
+	return nil
 }

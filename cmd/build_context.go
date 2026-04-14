@@ -31,10 +31,12 @@ type buildContext struct {
 	workspaceName string
 
 	// Platform & registry
-	platform         *operators.Platform
-	registryEndpoint string
-	registryEnvVars  map[string]string
-	cacheReadiness   *registry.CacheReadiness
+	platform           *operators.Platform
+	registryEndpoint   string
+	registryEnvVars    map[string]string
+	cacheReadiness     *registry.CacheReadiness
+	buildKitConfigPath string
+	containerdCertsDir string
 
 	// Dockerfile detection
 	hasDockerfile  bool

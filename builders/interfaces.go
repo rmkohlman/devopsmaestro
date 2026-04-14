@@ -65,6 +65,17 @@ type BuildOptions struct {
 	// CacheTo specifies external cache destinations (e.g., "type=registry,ref=localhost:5001/dvm-cache/img,mode=max")
 	CacheTo string
 
+	// BuildKitConfigPath is the path to a buildkitd.toml file that configures
+	// registry mirrors (e.g., routing docker.io pulls through a local Zot cache).
+	// When set, the Docker builder creates/uses a buildx builder with this config.
+	// When empty, the default builder is used.
+	BuildKitConfigPath string
+
+	// RegistryMirrorsDir is the path to a containerd certs.d directory that
+	// configures registry mirrors for nerdctl/containerd pulls.
+	// Used by the BuildKit builder for containerd-based environments.
+	RegistryMirrorsDir string
+
 	// Output is the writer for build output (stdout from subprocess, progress).
 	// When nil, defaults to os.Stdout.
 	Output io.Writer

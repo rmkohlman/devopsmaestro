@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/registry/envinjector"
+
+	"github.com/rmkohlman/MaestroSDK/paths"
 )
 
 // ManagerFactory creates ServiceManager instances from Registry models.
@@ -31,6 +34,16 @@ type BuildRegistryResult struct {
 	OCIEndpoint    string
 	Warnings       []string
 	CacheReadiness CacheReadiness
+
+	// BuildKitConfigPath is the path to a generated buildkitd.toml that
+	// configures the Zot registry as a pull-through mirror for buildx builds.
+	// Empty if Zot is not running or config generation failed.
+	BuildKitConfigPath string
+
+	// ContainerdCertsDir is the path to a generated certs.d directory that
+	// configures the Zot registry as a pull-through mirror for containerd/nerdctl.
+	// Empty if Zot is not running or config generation failed.
+	ContainerdCertsDir string
 }
 
 // CacheReadiness reports aggregate health status of build cache registries.
@@ -109,7 +122,53 @@ func (c *BuildRegistryCoordinator) Prepare(ctx context.Context) (*BuildRegistryR
 
 	result.CacheReadiness.AllHealthy = result.CacheReadiness.HealthyCount == result.CacheReadiness.TotalEnabled
 
+	// Generate BuildKit and containerd mirror configs if Zot is available
+	if result.OCIEndpoint != "" {
+		c.generateMirrorConfigs(result)
+	}
+
 	return result, nil
+}
+
+// generateMirrorConfigs generates BuildKit and containerd mirror configuration
+// files so that image pulls are routed through the local Zot registry.
+// Failures are non-fatal — warnings are appended to the result.
+func (c *BuildRegistryCoordinator) generateMirrorConfigs(result *BuildRegistryResult) {
+	endpoint := EndpointFromURL(result.OCIEndpoint)
+	mirrors := defaultMirrors()
+
+	// Resolve output base dir from paths
+	var outputBase string
+	if pc, err := paths.Default(); err == nil {
+		outputBase = pc.Root()
+	} else {
+		slog.Warn("mirror config: cannot resolve paths, skipping config generation", "error", err)
+		return
+	}
+
+	// Generate buildkitd.toml
+	bkGen := NewBuildKitConfigGenerator()
+	bkDir := filepath.Join(outputBase, "buildkit")
+	bkPath, err := bkGen.Generate(endpoint, mirrors, bkDir)
+	if err != nil {
+		slog.Warn("failed to generate buildkitd.toml", "error", err)
+		result.Warnings = append(result.Warnings, fmt.Sprintf("buildkitd.toml generation failed: %v", err))
+	} else {
+		result.BuildKitConfigPath = bkPath
+		slog.Info("generated buildkitd.toml", "path", bkPath)
+	}
+
+	// Generate containerd hosts.toml files
+	ctGen := NewContainerdConfigGenerator()
+	ctDir := filepath.Join(outputBase, "containerd")
+	ctPath, err := ctGen.Generate(endpoint, mirrors, ctDir)
+	if err != nil {
+		slog.Warn("failed to generate containerd hosts.toml", "error", err)
+		result.Warnings = append(result.Warnings, fmt.Sprintf("containerd hosts.toml generation failed: %v", err))
+	} else {
+		result.ContainerdCertsDir = ctPath
+		slog.Info("generated containerd hosts.toml", "path", ctPath)
+	}
 }
 
 // EnsureCachesReady returns the readiness status of all enabled registries.

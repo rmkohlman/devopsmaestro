@@ -93,6 +93,11 @@ func (b *BuildKitBuilder) Build(ctx context.Context, opts BuildOptions) error {
 	render.MsgTo(out, "", render.Message{Level: render.LevelInfo, Content: fmt.Sprintf("Namespace: %s", b.namespace)})
 	fmt.Fprintln(out)
 
+	// Log registry mirror config if available
+	if opts.RegistryMirrorsDir != "" {
+		render.MsgTo(out, "", render.Message{Level: render.LevelInfo, Content: fmt.Sprintf("Registry mirrors: %s", opts.RegistryMirrorsDir)})
+	}
+
 	// Determine dockerfile path
 	dockerfilePath := b.dockerfile
 	if dockerfilePath == "" {

@@ -11,6 +11,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.91.0] — 2026-04-14
+
+### Features
+- Integrate Zot registry as BuildKit mirror for faster image pulls (#328)
+- BuildKit now configured to use Zot as a pull-through cache for docker.io and ghcr.io
+- Containerd hosts.toml generated for nerdctl pull-through cache
+- Buildx builder manager with hash-based config change detection
+
+### Fixes
+- Process manager now adopts already-running registry processes (no more 'address in use' errors)
+
+---
+
 ## [v0.90.1] - 2026-04-14
 
 ### Fixed
