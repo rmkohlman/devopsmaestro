@@ -6,6 +6,22 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ---
 
+## v0.90.0 (2026-04-14)
+
+**New Features**
+
+- **UV as default Python package manager in generated Dockerfiles** — `ghcr.io/astral-sh/uv:0.7.2` is now installed in Python Docker builds, providing up to 10x faster dependency installation compared to pip ([#273](https://github.com/rmkohlman/devopsmaestro/issues/273)).
+
+- **3-tier UV fallback strategy** — Python dependency installation uses a robust fallback chain: `uv pip install` → `uv pip install` (no proxy) → `pip install`, ensuring compatibility across all network environments ([#273](https://github.com/rmkohlman/devopsmaestro/issues/273)).
+
+- **UV environment variables** — Generated Dockerfiles set `UV_LINK_MODE=copy`, `UV_COMPILE_BYTECODE=1`, and `UV_SYSTEM_PYTHON=1` for optimal performance and compatibility in containerized environments ([#273](https://github.com/rmkohlman/devopsmaestro/issues/273)).
+
+- **UV cache mount** — Docker layer cache mount updated from `/root/.cache/pip` to `/root/.cache/uv` to maximize cache reuse with UV-based builds ([#273](https://github.com/rmkohlman/devopsmaestro/issues/273)).
+
+- **Python and Jupyter sandbox presets updated for UV** — Both the `python` and `jupyter` sandbox presets now use UV for dependency installation, consistent with Dockerfile generation ([#273](https://github.com/rmkohlman/devopsmaestro/issues/273)).
+
+---
+
 ## v0.89.0 (2026-04-14)
 
 **New Features**

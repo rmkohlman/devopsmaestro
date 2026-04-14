@@ -5896,3 +5896,263 @@ func TestInstallMasonTools_NoUnknownDockerfileInstructions(t *testing.T) {
 		t.Error("Test setup issue: generated Dockerfile missing nvim mason-install execution")
 	}
 }
+
+// =============================================================================
+// UV Python integration tests (#273)
+// Verify that UV is correctly wired into generated Python Dockerfiles.
+// =============================================================================
+
+// TestUVSetup_PythonBaseStage verifies that the UV binary COPY and all three
+// ENV configuration variables are present in the base stage of Python Dockerfiles.
+func TestUVSetup_PythonBaseStage(t *testing.T) {
+	ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
+	wsYAML := models.WorkspaceSpec{}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "python",
+		Version:       "3.11",
+		AppPath:       "/tmp/test",
+		PathConfig:    paths.New(t.TempDir()),
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	uvLines := []string{
+		"COPY --from=ghcr.io/astral-sh/uv:0.7.2 /uv /uvx /bin/",
+		"ENV UV_LINK_MODE=copy",
+		"ENV UV_COMPILE_BYTECODE=1",
+		"ENV UV_SYSTEM_PYTHON=1",
+	}
+	for _, want := range uvLines {
+		if !strings.Contains(dockerfile, want) {
+			t.Errorf("Python base stage missing UV setup line: %q\nDockerfile:\n%s", want, dockerfile)
+		}
+	}
+}
+
+// TestUVSetup_NotPresentForNonPythonLanguages verifies that UV binary COPY is
+// NOT injected into Golang or Node.js Dockerfiles.
+func TestUVSetup_NotPresentForNonPythonLanguages(t *testing.T) {
+	tests := []struct {
+		name     string
+		language string
+		version  string
+	}{
+		{name: "golang", language: "golang", version: "1.22"},
+		{name: "nodejs", language: "nodejs", version: "20"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
+			wsYAML := models.WorkspaceSpec{}
+
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: wsYAML,
+				Language:      tt.language,
+				Version:       tt.version,
+				AppPath:       "/tmp/test",
+				PathConfig:    paths.New(t.TempDir()),
+			})
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			uvLines := []string{
+				"ghcr.io/astral-sh/uv",
+				"UV_LINK_MODE",
+				"UV_COMPILE_BYTECODE",
+				"UV_SYSTEM_PYTHON",
+			}
+			for _, notWant := range uvLines {
+				if strings.Contains(dockerfile, notWant) {
+					t.Errorf("%s Dockerfile should NOT contain UV line: %q", tt.language, notWant)
+				}
+			}
+		})
+	}
+}
+
+// TestUVInstall_CacheMount_UsesUVCache verifies that Python requirements.txt installation
+// uses /root/.cache/uv (not /root/.cache/pip) for the BuildKit cache mount.
+func TestUVInstall_CacheMount_UsesUVCache(t *testing.T) {
+	appPath := t.TempDir()
+	if err := os.WriteFile(filepath.Join(appPath, "requirements.txt"), []byte("flask==3.0.0\n"), 0644); err != nil {
+		t.Fatalf("failed to write requirements.txt: %v", err)
+	}
+
+	ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: models.WorkspaceSpec{},
+		Language:      "python",
+		Version:       "3.11",
+		AppPath:       appPath,
+		PathConfig:    paths.New(t.TempDir()),
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	if !strings.Contains(dockerfile, "target=/root/.cache/uv") {
+		t.Errorf("Python Dockerfile should use /root/.cache/uv cache mount, got:\n%s", dockerfile)
+	}
+	if strings.Contains(dockerfile, "target=/root/.cache/pip") {
+		t.Errorf("Python Dockerfile must NOT use legacy /root/.cache/pip cache mount\nDockerfile:\n%s", dockerfile)
+	}
+}
+
+// TestUVInstall_ThreeTierFallback verifies the 3-tier install strategy:
+// uv pip install → uv pip install (no proxy) → pip install (final fallback)
+func TestUVInstall_ThreeTierFallback(t *testing.T) {
+	appPath := t.TempDir()
+	if err := os.WriteFile(filepath.Join(appPath, "requirements.txt"), []byte("flask==3.0.0\n"), 0644); err != nil {
+		t.Fatalf("failed to write requirements.txt: %v", err)
+	}
+
+	ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: models.WorkspaceSpec{},
+		Language:      "python",
+		Version:       "3.11",
+		AppPath:       appPath,
+		PathConfig:    paths.New(t.TempDir()),
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// Tier 1: uv pip install with cache mount
+	if !strings.Contains(dockerfile, "uv pip install -r /tmp/requirements.txt") {
+		t.Error("missing tier-1: uv pip install -r /tmp/requirements.txt")
+	}
+	// Tier 2: uv pip install after proxy unset
+	if !strings.Contains(dockerfile, "unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy") {
+		t.Error("missing proxy unset for tier-2 uv pip fallback")
+	}
+	// Tier 3: final pip fallback
+	if !strings.Contains(dockerfile, "|| pip install -r /tmp/requirements.txt") {
+		t.Error("missing tier-3 pip fallback: || pip install -r /tmp/requirements.txt")
+	}
+}
+
+// TestUVInstall_DevTools_UsesUVWithPipFallback verifies that Python dev tools
+// (e.g., ruff, mypy) installed in the dev stage use uv pip install with a pip fallback.
+func TestUVInstall_DevTools_UsesUVWithPipFallback(t *testing.T) {
+	ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
+	wsYAML := models.WorkspaceSpec{
+		Build: models.DevBuildConfig{
+			DevStage: models.DevStageConfig{
+				DevTools: []string{"ruff", "mypy"},
+			},
+		},
+	}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "python",
+		Version:       "3.11",
+		AppPath:       "/tmp/test",
+		PathConfig:    paths.New(t.TempDir()),
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// Dev tools must use uv pip install (not bare pip)
+	if !strings.Contains(dockerfile, "uv pip install ruff mypy") {
+		t.Error("dev tools install should use: uv pip install ruff mypy")
+	}
+	// Must still have pip fallback for dev tools
+	if !strings.Contains(dockerfile, "|| pip install ruff mypy") {
+		t.Error("dev tools install missing pip fallback: || pip install ruff mypy")
+	}
+	// UV cache mount for dev tool install
+	if !strings.Contains(dockerfile, "target=/root/.cache/uv") {
+		t.Error("dev tools uv install missing /root/.cache/uv cache mount")
+	}
+}
+
+// TestUVSetup_OrderBeforeRequirementsInstall verifies that the UV COPY and ENV
+// lines appear in the Dockerfile before any requirements.txt installation.
+func TestUVSetup_OrderBeforeRequirementsInstall(t *testing.T) {
+	appPath := t.TempDir()
+	if err := os.WriteFile(filepath.Join(appPath, "requirements.txt"), []byte("flask==3.0.0\n"), 0644); err != nil {
+		t.Fatalf("failed to write requirements.txt: %v", err)
+	}
+
+	ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: models.WorkspaceSpec{},
+		Language:      "python",
+		Version:       "3.11",
+		AppPath:       appPath,
+		PathConfig:    paths.New(t.TempDir()),
+	})
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	uvCopyIdx := strings.Index(dockerfile, "COPY --from=ghcr.io/astral-sh/uv")
+	uvInstallIdx := strings.Index(dockerfile, "uv pip install -r /tmp/requirements.txt")
+
+	if uvCopyIdx == -1 {
+		t.Fatal("missing UV COPY --from line")
+	}
+	if uvInstallIdx == -1 {
+		t.Fatal("missing uv pip install line")
+	}
+	if uvCopyIdx >= uvInstallIdx {
+		t.Errorf("UV COPY (idx %d) must appear before uv pip install (idx %d)", uvCopyIdx, uvInstallIdx)
+	}
+}
+
+// TestUVSetup_PythonVersions verifies UV is injected across all supported Python versions.
+func TestUVSetup_PythonVersions(t *testing.T) {
+	versions := []string{"3.10", "3.11", "3.12", "3.13"}
+
+	for _, version := range versions {
+		t.Run("python-"+version, func(t *testing.T) {
+			ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: models.WorkspaceSpec{},
+				Language:      "python",
+				Version:       version,
+				AppPath:       "/tmp/test",
+				PathConfig:    paths.New(t.TempDir()),
+			})
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			if !strings.Contains(dockerfile, "COPY --from=ghcr.io/astral-sh/uv:0.7.2 /uv /uvx /bin/") {
+				t.Errorf("python %s missing UV COPY line", version)
+			}
+			if !strings.Contains(dockerfile, "ENV UV_SYSTEM_PYTHON=1") {
+				t.Errorf("python %s missing ENV UV_SYSTEM_PYTHON=1", version)
+			}
+		})
+	}
+}

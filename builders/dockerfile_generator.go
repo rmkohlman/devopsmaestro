@@ -250,6 +250,14 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 		// Emit additional build args (de-duplicated with RequiredBuildArgs)
 		g.emitAdditionalBuildArgs(dockerfile, privateRepoInfo.RequiredBuildArgs)
 
+		// Install UV — fast Python package manager (10-100x faster than pip)
+		dockerfile.WriteString("# Install UV (fast Python package manager)\n")
+		dockerfile.WriteString("COPY --from=ghcr.io/astral-sh/uv:0.7.2 /uv /uvx /bin/\n\n")
+		dockerfile.WriteString("# Configure UV for container usage\n")
+		dockerfile.WriteString("ENV UV_LINK_MODE=copy\n")
+		dockerfile.WriteString("ENV UV_COMPILE_BYTECODE=1\n")
+		dockerfile.WriteString("ENV UV_SYSTEM_PYTHON=1\n\n")
+
 		// Install git if needed for private repos
 		if privateRepoInfo.NeedsGit {
 			packages := []string{"git", "build-essential"}
@@ -329,41 +337,45 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 			switch privateRepoInfo.GitURLType {
 			case "https":
 				dockerfile.WriteString("# Install dependencies (pip expands ${VAR} from build args)\n")
-				dockerfile.WriteString("# Falls back to direct PyPI access if HTTP proxy is unreachable\n")
+				dockerfile.WriteString("# Falls back to direct PyPI access if HTTP proxy is unreachable, then to pip\n")
 				dockerfile.WriteString("COPY requirements.txt /tmp/\n")
-				dockerfile.WriteString("RUN --mount=type=cache,target=/root/.cache/pip \\\n")
-				dockerfile.WriteString("    pip install -r /tmp/requirements.txt \\\n")
+				dockerfile.WriteString("RUN --mount=type=cache,target=/root/.cache/uv \\\n")
+				dockerfile.WriteString("    uv pip install -r /tmp/requirements.txt \\\n")
 				dockerfile.WriteString("    || (unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy \\\n")
-				dockerfile.WriteString("    && pip install -r /tmp/requirements.txt)\n\n")
+				dockerfile.WriteString("    && uv pip install -r /tmp/requirements.txt) \\\n")
+				dockerfile.WriteString("    || pip install -r /tmp/requirements.txt\n\n")
 
 			case "ssh":
 				dockerfile.WriteString("# Install dependencies with SSH key mount\n")
-				dockerfile.WriteString("# Falls back to direct PyPI access if HTTP proxy is unreachable\n")
+				dockerfile.WriteString("# Falls back to direct PyPI access if HTTP proxy is unreachable, then to pip\n")
 				dockerfile.WriteString("COPY requirements.txt /tmp/\n")
 				dockerfile.WriteString("RUN --mount=type=ssh \\\n")
-				dockerfile.WriteString("    --mount=type=cache,target=/root/.cache/pip \\\n")
-				dockerfile.WriteString("    pip install -r /tmp/requirements.txt \\\n")
+				dockerfile.WriteString("    --mount=type=cache,target=/root/.cache/uv \\\n")
+				dockerfile.WriteString("    uv pip install -r /tmp/requirements.txt \\\n")
 				dockerfile.WriteString("    || (unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy \\\n")
-				dockerfile.WriteString("    && pip install -r /tmp/requirements.txt)\n\n")
+				dockerfile.WriteString("    && uv pip install -r /tmp/requirements.txt) \\\n")
+				dockerfile.WriteString("    || pip install -r /tmp/requirements.txt\n\n")
 
 			case "mixed":
 				dockerfile.WriteString("# Install dependencies with SSH mount (pip expands ${VAR} from build args)\n")
-				dockerfile.WriteString("# Falls back to direct PyPI access if HTTP proxy is unreachable\n")
+				dockerfile.WriteString("# Falls back to direct PyPI access if HTTP proxy is unreachable, then to pip\n")
 				dockerfile.WriteString("COPY requirements.txt /tmp/\n")
 				dockerfile.WriteString("RUN --mount=type=ssh \\\n")
-				dockerfile.WriteString("    --mount=type=cache,target=/root/.cache/pip \\\n")
-				dockerfile.WriteString("    pip install -r /tmp/requirements.txt \\\n")
+				dockerfile.WriteString("    --mount=type=cache,target=/root/.cache/uv \\\n")
+				dockerfile.WriteString("    uv pip install -r /tmp/requirements.txt \\\n")
 				dockerfile.WriteString("    || (unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy \\\n")
-				dockerfile.WriteString("    && pip install -r /tmp/requirements.txt)\n\n")
+				dockerfile.WriteString("    && uv pip install -r /tmp/requirements.txt) \\\n")
+				dockerfile.WriteString("    || pip install -r /tmp/requirements.txt\n\n")
 
 			default:
 				dockerfile.WriteString("# Copy requirements and install\n")
-				dockerfile.WriteString("# Falls back to direct PyPI access if HTTP proxy is unreachable\n")
+				dockerfile.WriteString("# Falls back to direct PyPI access if HTTP proxy is unreachable, then to pip\n")
 				dockerfile.WriteString("COPY requirements.txt /tmp/\n")
-				dockerfile.WriteString("RUN --mount=type=cache,target=/root/.cache/pip \\\n")
-				dockerfile.WriteString("    pip install -r /tmp/requirements.txt \\\n")
+				dockerfile.WriteString("RUN --mount=type=cache,target=/root/.cache/uv \\\n")
+				dockerfile.WriteString("    uv pip install -r /tmp/requirements.txt \\\n")
 				dockerfile.WriteString("    || (unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy \\\n")
-				dockerfile.WriteString("    && pip install -r /tmp/requirements.txt)\n\n")
+				dockerfile.WriteString("    && uv pip install -r /tmp/requirements.txt) \\\n")
+				dockerfile.WriteString("    || pip install -r /tmp/requirements.txt\n\n")
 			}
 		} else {
 			dockerfile.WriteString("# No requirements.txt found — skipping pip install\n\n")
@@ -1963,10 +1975,11 @@ func (g *DefaultDockerfileGenerator) installLanguageTools(dockerfile *strings.Bu
 	switch g.language {
 	case "python":
 		toolsList := strings.Join(tools, " ")
-		dockerfile.WriteString("RUN --mount=type=cache,target=/root/.cache/pip \\\n")
-		dockerfile.WriteString(fmt.Sprintf("    pip install %s \\\n", toolsList))
+		dockerfile.WriteString("RUN --mount=type=cache,target=/root/.cache/uv \\\n")
+		dockerfile.WriteString(fmt.Sprintf("    uv pip install %s \\\n", toolsList))
 		dockerfile.WriteString("    || (unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy \\\n")
-		dockerfile.WriteString(fmt.Sprintf("    && pip install %s)\n\n", toolsList))
+		dockerfile.WriteString(fmt.Sprintf("    && uv pip install %s) \\\n", toolsList))
+		dockerfile.WriteString(fmt.Sprintf("    || pip install %s\n\n", toolsList))
 
 	case "golang":
 		// Go tools are installed in the parallel go-tools-builder stage

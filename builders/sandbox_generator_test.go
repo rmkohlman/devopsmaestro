@@ -20,7 +20,12 @@ func TestGenerateSandboxDockerfile_Python(t *testing.T) {
 	assertContains(t, df, "WORKDIR /sandbox")
 	assertContains(t, df, "USER dev")
 	assertContains(t, df, `CMD ["/bin/bash"]`)
-	assertNotContains(t, df, "COPY")
+	// UV COPY --from is expected for Python presets; only assert no deps COPY
+	assertContains(t, df, "COPY --from=ghcr.io/astral-sh/uv:0.7.2 /uv /uvx /bin/")
+	assertContains(t, df, "ENV UV_LINK_MODE=copy")
+	assertContains(t, df, "ENV UV_COMPILE_BYTECODE=1")
+	assertContains(t, df, "ENV UV_SYSTEM_PYTHON=1")
+	assertNotContains(t, df, "COPY requirements.txt")
 }
 
 func TestGenerateSandboxDockerfile_Golang(t *testing.T) {
@@ -102,7 +107,7 @@ func TestGenerateSandboxDockerfile_WithDepsFile(t *testing.T) {
 	df := GenerateSandboxDockerfile(preset, "3.12", "/home/user/project/requirements.txt")
 
 	assertContains(t, df, "COPY requirements.txt /sandbox/requirements.txt")
-	assertContains(t, df, "RUN pip install -r requirements.txt")
+	assertContains(t, df, "RUN uv pip install -r requirements.txt || pip install -r requirements.txt")
 }
 
 func TestGenerateSandboxDockerfile_WithGoDeps(t *testing.T) {
