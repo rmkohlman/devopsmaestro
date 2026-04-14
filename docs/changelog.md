@@ -6,6 +6,16 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ---
 
+## v0.94.1 (2026-04-14)
+
+**Bug Fixes**
+- **tree-sitter builder uses hardcoded `/root/.cargo` path** — replaced `/root/.cargo/bin/tree-sitter` with `$CARGO_HOME/bin/tree-sitter` in both the Alpine (`rust:1-alpine3.20`) and Debian (`rust:1-slim-bookworm`) tree-sitter builder stages; the fix respects non-root and custom Cargo installs where `CARGO_HOME` differs from `/root/.cargo` ([#338](https://github.com/rmkohlman/devopsmaestro/issues/338))
+
+**Tests**
+- Added `TestGenerateTreeSitterBuilder_UsesCargoHomeEnvVar` — regression test asserting `$CARGO_HOME/bin/tree-sitter` is used (and `/root/.cargo` is absent) for both Alpine and Debian builder variants ([#338](https://github.com/rmkohlman/devopsmaestro/issues/338))
+
+---
+
 ## v0.94.0 (2026-04-14)
 
 **Bug Fixes**

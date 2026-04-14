@@ -7114,3 +7114,86 @@ func extractGoToolsBuilderLine(dockerfile string) string {
 	}
 	return "<go-tools-builder FROM line not found>"
 }
+
+// =============================================================================
+// Issue #338 Regression Test: tree-sitter builder uses $CARGO_HOME (not /root/.cargo)
+// =============================================================================
+
+// TestGenerateTreeSitterBuilder_UsesCargoHomeEnvVar verifies that the tree-sitter builder
+// stage copies the compiled binary using $CARGO_HOME/bin/tree-sitter rather than the
+// hardcoded path /root/.cargo/bin/tree-sitter (which breaks non-root Cargo installs).
+// Regression test for the fix in generateTreeSitterBuilder() — Issue #338.
+func TestGenerateTreeSitterBuilder_UsesCargoHomeEnvVar(t *testing.T) {
+	tests := []struct {
+		name     string
+		language string
+		version  string
+		variant  string // "alpine" or "debian"
+	}{
+		{
+			name:     "alpine variant (golang workspace)",
+			language: "golang",
+			version:  "1.22",
+			variant:  "alpine",
+		},
+		{
+			name:     "debian variant (python workspace)",
+			language: "python",
+			version:  "3.11",
+			variant:  "debian",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws := &models.Workspace{
+				ID:        1,
+				Name:      "test-ws",
+				ImageName: "test:latest",
+			}
+			wsYAML := models.WorkspaceSpec{}
+
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: wsYAML,
+				Language:      tt.language,
+				Version:       tt.version,
+				AppPath:       "/tmp/test",
+				PathConfig:    paths.New(t.TempDir()),
+			})
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			// Extract the tree-sitter builder section
+			tsStart := strings.Index(dockerfile, "# --- Parallel builder: tree-sitter CLI ---")
+			if tsStart < 0 {
+				t.Fatalf("Generate() missing tree-sitter builder stage")
+			}
+			devStart := strings.Index(dockerfile, "FROM base AS dev")
+			var tsSection string
+			if devStart > tsStart {
+				tsSection = dockerfile[tsStart:devStart]
+			} else {
+				tsSection = dockerfile[tsStart:]
+			}
+
+			// MUST use $CARGO_HOME env var (respects non-root and custom Cargo installs)
+			if !strings.Contains(tsSection, "$CARGO_HOME/bin/tree-sitter") {
+				t.Errorf("[%s] tree-sitter builder should use '$CARGO_HOME/bin/tree-sitter'.\n"+
+					"Regression guard for Issue #338: $CARGO_HOME must be used instead of hardcoded path.\n"+
+					"tree-sitter section:\n%s", tt.variant, tsSection)
+			}
+
+			// MUST NOT use the old hardcoded root-only path
+			if strings.Contains(tsSection, "/root/.cargo/bin/tree-sitter") {
+				t.Errorf("[%s] tree-sitter builder must NOT hardcode '/root/.cargo/bin/tree-sitter'.\n"+
+					"Regression guard for Issue #338: hardcoded path breaks non-root Cargo installs.\n"+
+					"Use '$CARGO_HOME/bin/tree-sitter' instead.\n"+
+					"tree-sitter section:\n%s", tt.variant, tsSection)
+			}
+		})
+	}
+}

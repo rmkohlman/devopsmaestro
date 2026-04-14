@@ -1368,13 +1368,13 @@ func (g *DefaultDockerfileGenerator) generateTreeSitterBuilder(dockerfile *strin
 		dockerfile.WriteString(fmt.Sprintf("FROM %s AS treesitter-builder\n", pinnedImage("rust:1-alpine3.20")))
 		dockerfile.WriteString("RUN set -e && \\\n")
 		dockerfile.WriteString("    cargo install tree-sitter-cli@" + treeSitterVersion + " && \\\n")
-		dockerfile.WriteString("    cp /root/.cargo/bin/tree-sitter /usr/local/bin/tree-sitter && \\\n")
+		dockerfile.WriteString("    cp $CARGO_HOME/bin/tree-sitter /usr/local/bin/tree-sitter && \\\n")
 		dockerfile.WriteString("    test -x /usr/local/bin/tree-sitter\n\n")
 	} else {
 		dockerfile.WriteString(fmt.Sprintf("FROM %s AS treesitter-builder\n", pinnedImage("rust:1-slim-bookworm")))
 		dockerfile.WriteString("RUN set -e && \\\n")
 		dockerfile.WriteString("    cargo install tree-sitter-cli@" + treeSitterVersion + " && \\\n")
-		dockerfile.WriteString("    cp /root/.cargo/bin/tree-sitter /usr/local/bin/tree-sitter && \\\n")
+		dockerfile.WriteString("    cp $CARGO_HOME/bin/tree-sitter /usr/local/bin/tree-sitter && \\\n")
 		dockerfile.WriteString("    test -x /usr/local/bin/tree-sitter\n\n")
 	}
 }
