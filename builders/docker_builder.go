@@ -167,6 +167,14 @@ func (b *DockerBuilder) Build(ctx context.Context, opts BuildOptions) error {
 		cfg = DefaultWatchdogConfig()
 	}
 
+	// Override watchdog timeout with BuildOptions.Timeout when the caller
+	// passes an explicit value (e.g., from the --timeout CLI flag).
+	// Without this, the watchdog's hardcoded default fires before the
+	// context deadline, making the --timeout flag ineffective (#252).
+	if opts.Timeout > 0 {
+		cfg.Timeout = opts.Timeout
+	}
+
 	// Use injected watchdog runner or default
 	runner := b.WatchdogRunner
 	if runner == nil {

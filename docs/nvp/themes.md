@@ -1,317 +1,258 @@
-# Themes
+# Built-in Themes
 
-Managing Neovim themes with nvp. **Library themes are automatically available** - no installation needed for 34+ embedded themes including 21 CoolNight variants!
-
----
-
-## Quick Start
-
-```bash
-# Library themes work out of the box
-nvp theme list                        # Shows all available themes
-dvm get nvim theme coolnight-ocean    # Use with dvm integration
-nvp theme use coolnight-synthwave     # Direct nvp usage
-
-# Parametric generator for CoolNight variants
-nvp theme create --from "210" --name my-blue-theme
-nvp theme create --from "350" --name my-rose-theme
-```
+DevOpsMaestro ships with **34+ built-in themes** embedded in the binary. No installation required — every theme is available immediately.
 
 ---
 
-## Theme Availability
-
-DevOpsMaestro now includes **34+ embedded library themes** that are automatically available without installation:
-
-- **21 CoolNight Variants** - Parametric theme generator with customizable hues
-- **13+ Popular Themes** - TokyoNight, Catppuccin, Dracula, Gruvbox, Nord, and more
-- **Automatic access** - Use any library theme directly: `nvp theme use <name>`
-- **No installation required** - Library themes work out of the box
-- **Parametric generator** - Create custom CoolNight variants with `nvp theme create`
-- **User override** - Save a theme with the same name to override library version
-- **Combined listing** - `nvp theme list` shows both user and library themes
-
-### Library vs User Themes
-
-| Type | Location | Access | Customizable |
-|------|----------|--------|--------------|
-| **Library** | Embedded in binary | Automatic | No (read-only) |  
-| **User** | `~/.nvp/themes/` | Manual install | Yes (full control) |
-
-**Override behavior**: User themes with the same name take precedence over library themes.
-
----
-
-## Installing Themes
-
-### From Library (Automatic)
+## Browsing the Library
 
 ```bash
-# Library themes work immediately - no installation needed
-nvp theme list                     # List all available themes
-nvp theme use coolnight-ocean      # Use a theme
-nvp theme use tokyonight-night
-nvp theme use catppuccin-mocha
+# List all built-in themes
+dvm library get themes
 
-# Parametric generator for CoolNight variants
-nvp theme create --from "210" --name ocean-blue
-nvp theme create --from "280" --name synthwave-purple
-nvp theme create --from "120" --name matrix-green
+# Short alias
+dvm lib ls nt
+
+# Show details for a specific theme
+dvm library describe theme <name>
 ```
 
-### From Library (Manual Install)
+To see themes alongside any user-defined themes you've created:
 
 ```bash
-# See available themes
-nvp theme list
-
-# Apply from file for customization
-nvp apply -f my-theme.yaml
-```
-
-### From File
-
-```bash
-nvp apply -f my-theme.yaml
+dvm get nvim themes
 ```
 
 ---
 
-## Using Themes
+## CoolNight Collection (21 Themes)
 
-### Set Active Theme
+The CoolNight Collection is a set of parametrically generated themes using calibrated HSL color relationships. Every variant maintains consistent contrast ratios and semantic color mapping, so switching between them feels natural.
+
+**→ [Full CoolNight Documentation](coolnight.md)**
+
+### Blue Family
+
+| Theme | Description | Best For |
+|-------|-------------|----------|
+| `coolnight-arctic` | Ice-cold crisp blue (190°) | TypeScript, Go, documentation |
+| `coolnight-ocean` | Deep professional blue (210°) — **default** | General development, Python |
+| `coolnight-midnight` | Dark intense blue (240°) | Late-night coding, C++ |
 
 ```bash
-nvp theme use coolnight-ocean
-nvp theme use tokyonight-night
+dvm set theme coolnight-ocean
+dvm set theme coolnight-arctic
+dvm set theme coolnight-midnight
 ```
 
-### View Active Theme
+### Purple Family
+
+| Theme | Description | Best For |
+|-------|-------------|----------|
+| `coolnight-violet` | Soft violet (270°) | Web development, CSS |
+| `coolnight-synthwave` | Neon cyberpunk purple (280°) | JavaScript, creative coding |
+| `coolnight-grape` | Rich sophisticated grape (290°) | Rust, systems programming |
 
 ```bash
-nvp theme get
+dvm set theme coolnight-synthwave
+dvm set theme coolnight-violet
+dvm set theme coolnight-grape
 ```
 
-### Generate Theme Files
+### Green Family
+
+| Theme | Description | Best For |
+|-------|-------------|----------|
+| `coolnight-forest` | Earthy forest green (110°) | Bash scripts, DevOps |
+| `coolnight-matrix` | High-contrast Matrix green (120°) | Terminal work, security |
+| `coolnight-mint` | Fresh modern mint (150°) | React, Vue.js, modern JS |
 
 ```bash
-nvp generate
-# or just theme:
-nvp theme generate
+dvm set theme coolnight-matrix
+dvm set theme coolnight-forest
+dvm set theme coolnight-mint
+```
+
+### Warm Family
+
+| Theme | Description | Best For |
+|-------|-------------|----------|
+| `coolnight-ember` | Glowing energetic ember (20°) | Java, Spring Boot |
+| `coolnight-sunset` | Warm inviting orange (30°) | HTML, markup languages |
+| `coolnight-gold` | Premium golden yellow (45°) | Configuration files, YAML |
+
+```bash
+dvm set theme coolnight-sunset
+dvm set theme coolnight-ember
+dvm set theme coolnight-gold
+```
+
+### Red/Pink Family
+
+| Theme | Description | Best For |
+|-------|-------------|----------|
+| `coolnight-crimson` | Bold deep crimson (0°) | Debugging, error-heavy work |
+| `coolnight-sakura` | Elegant cherry blossom (320°) | Design systems |
+| `coolnight-rose` | Soft rose pink (350°) | Personal projects |
+
+```bash
+dvm set theme coolnight-rose
+dvm set theme coolnight-crimson
+dvm set theme coolnight-sakura
+```
+
+### Monochrome Family
+
+| Theme | Description | Best For |
+|-------|-------------|----------|
+| `coolnight-mono-charcoal` | Dark charcoal, minimalist | Distraction-free coding |
+| `coolnight-mono-slate` | Blue-gray, professional | Enterprise development |
+| `coolnight-mono-warm` | Warm gray, comfortable | Long coding sessions |
+
+```bash
+dvm set theme coolnight-mono-slate
+dvm set theme coolnight-mono-charcoal
+dvm set theme coolnight-mono-warm
+```
+
+### Special Variants
+
+| Theme | Inspiration | Description |
+|-------|-------------|-------------|
+| `coolnight-nord` | Nord | Arctic blue-gray Nordic aesthetic |
+| `coolnight-dracula` | Dracula | Rich gothic purple |
+| `coolnight-solarized` | Solarized | Scientific precision blue-green |
+
+```bash
+dvm set theme coolnight-nord
+dvm set theme coolnight-dracula
+dvm set theme coolnight-solarized
 ```
 
 ---
 
-## Theme Library
+## Popular Themes (13+ others)
 
-**34+ embedded themes** are automatically available without installation, including parametric CoolNight variants and popular themes.
+In addition to CoolNight, the library includes 13+ popular community themes:
 
-### CoolNight Collection (21 themes)
+| Theme | Plugin | Style | Description |
+|-------|--------|-------|-------------|
+| `tokyonight-night` | folke/tokyonight.nvim | night | Dark blue, popular choice |
+| `tokyonight-storm` | folke/tokyonight.nvim | storm | Stormy dark blue |
+| `tokyonight-day` | folke/tokyonight.nvim | day | Light blue variant |
+| `catppuccin-mocha` | catppuccin/nvim | mocha | Dark pastel, very popular |
+| `catppuccin-latte` | catppuccin/nvim | latte | Light pastel |
+| `catppuccin-frappe` | catppuccin/nvim | frappe | Medium pastel |
+| `catppuccin-macchiato` | catppuccin/nvim | macchiato | Dark warm pastel |
+| `gruvbox-dark` | ellisonleao/gruvbox.nvim | dark | Classic warm retro dark |
+| `gruvbox-light` | ellisonleao/gruvbox.nvim | light | Classic warm retro light |
+| `nord` | shaunsingh/nord.nvim | — | Arctic blue-gray |
+| `dracula` | Mofiqul/dracula.nvim | — | Dark purple gothic |
+| `one-dark` | navarasu/onedark.nvim | — | Dark blue (Atom-inspired) |
+| `solarized-dark` | ishan9299/nvim-solarized-lua | — | Scientific blue-green dark |
 
-The **CoolNight Collection** features 21 parametrically generated themes optimized for extended coding sessions. Each variant uses scientifically calibrated color relationships for consistent readability and reduced eye strain.
+---
 
-**Popular variants:**
-- `coolnight-ocean` (210°) - Professional blue, great default
-- `coolnight-synthwave` (280°) - Retro neon purple  
-- `coolnight-matrix` (120°) - High-contrast green
-- `coolnight-sunset` (30°) - Warm orange
-- `coolnight-mono-slate` - Minimalist grayscale
+## Custom CoolNight Variants
 
-**Quick usage:**
+Generate your own CoolNight variant using any hue angle, hex color, or preset name:
+
 ```bash
-# Try popular variants
-nvp theme use coolnight-ocean
-nvp theme use coolnight-synthwave
-nvp theme use coolnight-matrix
-
-# Create custom variant with a hue angle, hex color, or preset name
+# From a hue angle (0–360)
 nvp theme create --from "165" --name coolnight-teal
-nvp theme create --from "#8B00FF" --name coolnight-violet
-nvp theme create --from "synthwave" --name my-synth
-```
+nvp theme create --from "315" --name coolnight-magenta
 
-**→ [Complete CoolNight Documentation](coolnight.md)** - See all 21 variants, color science, and usage recommendations
+# From a hex color
+nvp theme create --from "#8B00FF" --name my-violet
 
-### Popular Themes (13+ others)
-
-| Theme | Style | Plugin |
-|-------|-------|--------|
-| `tokyonight-night` | Dark blue | folke/tokyonight.nvim |
-| `tokyonight-storm` | Stormy blue | folke/tokyonight.nvim |
-| `tokyonight-day` | Light blue | folke/tokyonight.nvim |
-| `catppuccin-mocha` | Dark pastel | catppuccin/nvim |
-| `catppuccin-latte` | Light pastel | catppuccin/nvim |
-| `catppuccin-frappe` | Medium pastel | catppuccin/nvim |
-| `catppuccin-macchiato` | Dark warm pastel | catppuccin/nvim |
-| `gruvbox-dark` | Warm retro | ellisonleao/gruvbox.nvim |
-| `gruvbox-light` | Light retro | ellisonleao/gruvbox.nvim |
-| `nord` | Arctic blue | shaunsingh/nord.nvim |
-| `dracula` | Dark purple | Mofiqul/dracula.nvim |
-| `one-dark` | Dark blue | navarasu/onedark.nvim |
-| `solarized-dark` | Dark blue-green | ishan9299/nvim-solarized-lua |
-
-### Parametric Generator
-
-Create custom CoolNight variants using a hue angle (0–360), a hex color, or a preset name:
-
-```bash
-# Create custom themes
-nvp theme create --from "210" --name my-blue-theme
-nvp theme create --from "350" --name my-rose-theme
-nvp theme create --from "#8B00FF" --name my-violet-theme
+# From a preset name
 nvp theme create --from "synthwave" --name my-synth
 
-# Use immediately
-nvp theme use my-blue-theme
-```
-
-**All themes work immediately** - no installation required!
-
-```bash
-# Use any theme directly
-nvp theme use coolnight-ocean
-nvp theme use dracula
-nvp theme use catppuccin-mocha
-
-# Create custom CoolNight variants
-nvp theme create --from "280" --name my-synthwave --use
-```
-
-View details:
-
-```bash
-nvp theme get coolnight-ocean       # Theme details
-nvp theme list                      # All available themes
+# Create and use immediately
+nvp theme create --from "280" --name custom-purple --use
 ```
 
 ---
 
-## Theme YAML Format
+## Applying Themes
+
+### Via CLI
+
+```bash
+# Global default (no flags = global)
+dvm set theme coolnight-ocean
+
+# Specific scope
+dvm set theme coolnight-synthwave --workspace dev
+dvm set theme tokyonight-night --app my-api
+dvm set theme gruvbox-dark --domain backend
+dvm set theme catppuccin-mocha --ecosystem my-platform
+```
+
+### Via YAML
+
+Themes can be embedded directly in resource YAML:
+
+```yaml
+# In a Workspace YAML
+spec:
+  nvim:
+    theme: coolnight-synthwave
+
+# In an App YAML
+spec:
+  theme: tokyonight-night
+
+# In a Domain YAML
+spec:
+  theme: gruvbox-dark
+```
+
+Apply with:
+
+```bash
+dvm apply -f workspace.yaml
+```
+
+---
+
+## Creating Custom Themes
+
+Define a custom theme as a YAML resource:
 
 ```yaml
 apiVersion: devopsmaestro.io/v1
 kind: NvimTheme
 metadata:
   name: my-custom-theme
-  description: My personal colorscheme
-  author: Your Name
+  description: My personalized colorscheme
   category: dark
 spec:
   plugin:
-    repo: folke/tokyonight.nvim
-  style: night                    # Theme variant
-  transparent: false              # Transparent background
+    repo: "folke/tokyonight.nvim"
+  style: "night"
   colors:
     bg: "#1a1b26"
     fg: "#c0caf5"
     accent: "#7aa2f7"
-    comment: "#565f89"
-    keyword: "#bb9af7"
-    string: "#9ece6a"
-    function: "#7aa2f7"
-    variable: "#c0caf5"
-    type: "#2ac3de"
-    constant: "#ff9e64"
-    error: "#f7768e"
-    warning: "#e0af68"
-    info: "#7dcfff"
-    hint: "#1abc9c"
-    selection: "#33467c"
-    border: "#29a4bd"
-  options:                        # Plugin-specific options
-    dim_inactive: true
-    styles:
-      comments: italic
-      keywords: bold
 ```
+
+```bash
+dvm apply -f my-custom-theme.yaml
+
+# Export an existing theme to customize
+dvm get nvim theme coolnight-ocean -o yaml > my-ocean.yaml
+# Edit my-ocean.yaml, then:
+dvm apply -f my-ocean.yaml
+```
+
+User-defined themes with the same name as a built-in theme override the library version.
 
 ---
 
-## Exported Palette
+## Related
 
-Themes export a color palette that other plugins can use:
-
-```lua
--- In your Neovim config
-local palette = require("theme").palette
-
--- Use colors
-vim.api.nvim_set_hl(0, "MyHighlight", {
-  fg = palette.colors.accent,
-  bg = palette.colors.bg,
-})
-
--- Built-in helpers
-local lualine_theme = require("theme").lualine_theme()
-```
-
----
-
-## Generated Files
-
-When you run `nvp generate`, theme files are created at `~/.config/nvim/lua/theme/`. The generated configuration includes the color palette module and theme setup helpers that integrate with lualine, highlight groups, and other plugins automatically.
-
----
-
-## Managing Themes
-
-### List Installed Themes
-
-```bash
-nvp theme list
-```
-
-### Browse the Theme Library
-
-```bash
-# List themes available in the remote library
-nvp theme library list
-nvp theme library list --category dark
-
-# Show details of a library theme
-nvp theme library show catppuccin-mocha
-
-# Install from the library
-nvp theme library install catppuccin-mocha --use
-```
-
-### Preview a Theme
-
-```bash
-nvp theme preview coolnight-ocean
-nvp theme preview catppuccin-mocha
-```
-
-### View Theme Details
-
-```bash
-nvp theme get my-theme
-nvp theme get my-theme -o yaml
-```
-
-### Delete a Theme
-
-```bash
-nvp theme delete my-theme
-```
-
----
-
-## Switching Themes
-
-```bash
-# Switch to a different theme
-nvp theme use gruvbox-dark
-
-# Regenerate Lua files
-nvp generate
-
-# Restart Neovim to see changes
-```
-
----
-
-## Next Steps
-
-- [Plugins](plugins.md) - Manage plugins
-- [Commands Reference](commands.md) - Full command list
+- **[Quick Start: Themes](quick-start-themes.md)** — Step-by-step guide to changing themes
+- **[CoolNight Collection](coolnight.md)** — All 21 CoolNight variants in detail
+- **[NvimTheme YAML Reference](../reference/nvim-theme.md)** — Full YAML schema
+- **[Theme Hierarchy](../advanced/theme-hierarchy.md)** — How themes cascade through the hierarchy

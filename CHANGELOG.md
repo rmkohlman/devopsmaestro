@@ -7,7 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [v0.98.0] — 2026-04-15
+
+### Bug Fixes
+- **Fix APT timeout accumulation** — reduced per-package APT install timeout from 60s to 10s with proxy health check fail-fast; prevents multi-package installs from stalling for minutes on a dead proxy ([#354](https://github.com/rmkohlman/devopsmaestro/issues/354))
+- **Fix `--timeout` flag not respected** — user-supplied timeout is now plumbed through from the CLI flag down to the build watchdog; previously the watchdog always used the default timeout regardless of what was passed ([#252](https://github.com/rmkohlman/devopsmaestro/issues/252))
+- **Add auto-sync of embedded library to DB at build time** — library contents are now fingerprinted via SHA-256 and synced to the database automatically on every `dvm build`; eliminates stale-library errors after upgrades without requiring a manual `dvm library sync` ([#255](https://github.com/rmkohlman/devopsmaestro/issues/255))
+- **Scope filters now auto-build all matching workspaces** — `--ecosystem`, `--domain`, and `--app` filters on `dvm build` now resolve and build all matching workspaces in batch; previously only the first match was built ([#215](https://github.com/rmkohlman/devopsmaestro/issues/215))
+
+### Added
+- **Theme discoverability docs** — new `docs/nvp/quick-start-themes.md` quick-start guide covering `dvm library get themes`, `dvm library describe theme <name>`, `dvm set theme` at all hierarchy levels, cascade visualization, and common workflows ([#191](https://github.com/rmkohlman/devopsmaestro/issues/191))
+- **Built-in themes reference** — rewrote `docs/nvp/themes.md` with complete catalog of all 34+ built-in themes organized by family (CoolNight 21 variants, plus 13+ popular themes), `dvm library get themes` / `dvm lib ls nt` commands, and custom theme creation ([#191](https://github.com/rmkohlman/devopsmaestro/issues/191))
+- **Built-in packages reference** — rewrote `docs/nvp/packages.md` with built-in package catalog (`core`, `lazyvim`, `maestro-python`, `maestro-go`), full 38+ plugin library listing organized by category, `dvm library get nvim packages`, `dvm library describe nvim-package <name>`, and custom package authoring ([#191](https://github.com/rmkohlman/devopsmaestro/issues/191))
+
+### Tests
+- Added `TestAPTTimeout_ReducedDefault` and `TestAPTTimeout_ProxyHealthCheckFailFast` — assert 10s timeout and fail-fast behavior on proxy health check ([#354](https://github.com/rmkohlman/devopsmaestro/issues/354))
+- Added `TestWatchdog_RespectsUserTimeout` — asserts watchdog uses the CLI-supplied timeout value ([#252](https://github.com/rmkohlman/devopsmaestro/issues/252))
+- Added `TestLibrarySync_SHA256Fingerprint` and 6 additional library sync tests — assert sync triggers on fingerprint mismatch and no-ops on match ([#255](https://github.com/rmkohlman/devopsmaestro/issues/255))
+- Added `TestBuildScope_BatchAllMatchingWorkspaces` and 8 additional batch scope tests — assert all matching workspaces are built when scope filters are applied ([#215](https://github.com/rmkohlman/devopsmaestro/issues/215))
 
 ---
 

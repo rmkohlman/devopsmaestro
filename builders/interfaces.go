@@ -27,6 +27,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"time"
 )
 
 // ImageBuilder defines the interface for building container images.
@@ -75,6 +76,11 @@ type BuildOptions struct {
 	// configures registry mirrors for nerdctl/containerd pulls.
 	// Used by the BuildKit builder for containerd-based environments.
 	RegistryMirrorsDir string
+
+	// Timeout is the maximum duration for the build operation.
+	// When set, overrides the default watchdog timeout in DockerBuilder.
+	// When zero, the builder's default timeout is used.
+	Timeout time.Duration
 
 	// Output is the writer for build output (stdout from subprocess, progress).
 	// When nil, defaults to os.Stdout.
