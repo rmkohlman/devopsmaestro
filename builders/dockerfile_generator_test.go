@@ -1494,8 +1494,8 @@ func TestDockerfileGenerator_PluginManifest(t *testing.T) {
 // =============================================================================
 
 // TestDockerfileGenerator_TreeSitterBuilder_DynamicVersion verifies that the tree-sitter
-// builder stage uses cargo to build from source with a pinned version instead of
-// downloading pre-built binaries (which had GLIBC version mismatches — see #334).
+// builder stage uses pre-built binaries from GitHub releases for Debian builds (see #348)
+// with SHA256 checksum verification. Alpine builds still use cargo (not tested here).
 func TestDockerfileGenerator_TreeSitterBuilder_DynamicVersion(t *testing.T) {
 	ws := &models.Workspace{
 		ID:        1,
@@ -1529,58 +1529,58 @@ func TestDockerfileGenerator_TreeSitterBuilder_DynamicVersion(t *testing.T) {
 		tsSection = dockerfile[tsStart:]
 	}
 
-	// MUST use cargo install with pinned version
-	if !strings.Contains(tsSection, "cargo install tree-sitter-cli@"+treeSitterVersion) {
-		t.Errorf("tree-sitter builder must use 'cargo install tree-sitter-cli@%s'.\n"+
+	// Debian path: MUST download pre-built binary from GitHub releases (#348)
+	if !strings.Contains(tsSection, "tree-sitter/tree-sitter/releases/download/v"+treeSitterVersion) {
+		t.Errorf("tree-sitter builder must download from GitHub releases v%s.\n"+
 			"tree-sitter section:\n%s", treeSitterVersion, tsSection)
 	}
 
-	// MUST use a Rust base image
-	if !strings.Contains(tsSection, "FROM rust:") {
-		t.Errorf("tree-sitter builder must use a Rust base image.\n"+
+	// MUST use Debian base image (not Rust)
+	if !strings.Contains(tsSection, "FROM debian:bookworm-slim") {
+		t.Errorf("tree-sitter builder must use debian:bookworm-slim base image for Debian builds.\n"+
 			"tree-sitter section:\n%s", tsSection)
 	}
 
-	// MUST NOT download pre-built binaries (the old approach — see #334)
-	if strings.Contains(tsSection, "tree-sitter/releases/download") {
-		t.Errorf("tree-sitter builder should NOT download pre-built binaries.\n"+
-			"Must build from source via cargo to avoid GLIBC mismatches.\n"+
+	// MUST use sha256sum for checksum verification
+	if !strings.Contains(tsSection, "sha256sum") {
+		t.Errorf("tree-sitter builder must verify download with sha256sum.\n"+
 			"tree-sitter section:\n%s", tsSection)
 	}
 
-	// MUST NOT use sha256sum (no binary checksums needed when building from source)
-	if strings.Contains(tsSection, "sha256sum") {
-		t.Errorf("tree-sitter builder should NOT use sha256sum (builds from source now).\n"+
+	// MUST NOT use cargo install for Debian builds (#348 — eliminates crates.io dependency)
+	if strings.Contains(tsSection, "cargo install") {
+		t.Errorf("tree-sitter builder should NOT use cargo install for Debian builds.\n"+
+			"Should download pre-built binary from GitHub releases (#348).\n"+
 			"tree-sitter section:\n%s", tsSection)
 	}
 
 	// MUST NOT query GitHub API dynamically
 	if strings.Contains(tsSection, "api.github.com") {
 		t.Errorf("tree-sitter builder queries GitHub API for version at build time.\n"+
-			"Should use pinned version via cargo install instead.\n"+
+			"Should use pinned version from checksums.go instead.\n"+
 			"tree-sitter section:\n%s", tsSection)
 	}
 }
 
 // TestDockerfileGenerator_TreeSitterBuilder_DebianPath verifies that for Debian-based
-// builds (e.g., Python), the tree-sitter builder uses rust:1-slim-bookworm, while
-// Alpine-based builds (e.g., Go) use rust:1-alpine3.20. Both build from source via cargo
-// to avoid GLIBC version mismatches with pre-built binaries (see #334).
+// builds (e.g., Python), the tree-sitter builder downloads a pre-built binary from
+// GitHub releases with SHA256 verification (see #348), while Alpine-based builds
+// (e.g., Go) still build from source via cargo (pre-built binaries require glibc).
 func TestDockerfileGenerator_TreeSitterBuilder_DebianPath(t *testing.T) {
 	tests := []struct {
 		name         string
 		language     string
 		version      string
 		wantImage    string
-		wantCargo    string
+		wantContent  string
 		notWantImage string
 	}{
 		{
-			name:         "python uses debian rust tree-sitter builder",
+			name:         "python uses debian pre-built tree-sitter binary",
 			language:     "python",
 			version:      "3.11",
-			wantImage:    "FROM rust:1-slim-bookworm@sha256:",
-			wantCargo:    "cargo install tree-sitter-cli@",
+			wantImage:    "FROM debian:bookworm-slim@sha256:",
+			wantContent:  "tree-sitter/tree-sitter/releases/download/v",
 			notWantImage: "FROM rust:1-alpine3.20",
 		},
 		{
@@ -1588,7 +1588,7 @@ func TestDockerfileGenerator_TreeSitterBuilder_DebianPath(t *testing.T) {
 			language:     "golang",
 			version:      "1.22",
 			wantImage:    "FROM rust:1-alpine3.20@sha256:",
-			wantCargo:    "cargo install tree-sitter-cli@",
+			wantContent:  "cargo install tree-sitter-cli@",
 			notWantImage: "FROM rust:1-slim-bookworm",
 		},
 	}
@@ -1635,8 +1635,8 @@ func TestDockerfileGenerator_TreeSitterBuilder_DebianPath(t *testing.T) {
 			if strings.Contains(tsSection, tt.notWantImage) {
 				t.Errorf("tree-sitter builder should NOT use %q for %s builds.\nGot section:\n%s", tt.notWantImage, tt.language, tsSection)
 			}
-			if !strings.Contains(tsSection, tt.wantCargo) {
-				t.Errorf("tree-sitter builder should use %q for %s builds.\nGot section:\n%s", tt.wantCargo, tt.language, tsSection)
+			if !strings.Contains(tsSection, tt.wantContent) {
+				t.Errorf("tree-sitter builder should contain %q for %s builds.\nGot section:\n%s", tt.wantContent, tt.language, tsSection)
 			}
 		})
 	}
@@ -6183,8 +6183,8 @@ func TestDockerfileGenerator_PythonBaseImage_NoBookworm(t *testing.T) {
 
 			// Regression guard: ensure slim-bookworm is NEVER used for the Python base stage.
 			// NOTE: we scan only the base stage FROM line, not the whole Dockerfile, because
-			// the treesitter-builder parallel stage legitimately uses rust:1-slim-bookworm
-			// (fix #334).  Checking the whole file would produce a false positive.
+			// parallel builder stages (neovim, treesitter, etc.) legitimately use
+			// debian:bookworm-slim.  Checking the whole file would produce a false positive.
 			baseFromPrefix := fmt.Sprintf("FROM python:%s", tt.version)
 			for _, line := range strings.Split(dockerfile, "\n") {
 				if strings.HasPrefix(line, baseFromPrefix) && strings.Contains(line, "slim-bookworm") {
@@ -6855,11 +6855,11 @@ func TestAptGetUpdate_NoOrphanUpdate(t *testing.T) {
 // Issue #334 — tree-sitter built from source (cargo install, not binary download)
 // ---------------------------------------------------------------------------
 
-// TestTreeSitterBuilder_UsesCargoInstall verifies that the treesitter-builder
-// stage uses "cargo install" instead of downloading a pre-built binary from
-// GitHub releases. Pre-built binaries require GLIBC 2.39 which is not available
-// on Debian Bookworm (GLIBC 2.36) — see issue #334.
-func TestTreeSitterBuilder_UsesCargoInstall(t *testing.T) {
+// TestTreeSitterBuilder_DebianUsesPrebuiltBinary verifies that the treesitter-builder
+// stage for Debian downloads a pre-built binary from GitHub releases with SHA256
+// checksum verification (#348). The v0.24.7 pre-built binary requires GLIBC_2.29
+// which is available on Bookworm (2.36) and Bullseye (2.31).
+func TestTreeSitterBuilder_DebianUsesPrebuiltBinary(t *testing.T) {
 	ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
 	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
 		Workspace:     ws,
@@ -6885,21 +6885,23 @@ func TestTreeSitterBuilder_UsesCargoInstall(t *testing.T) {
 		tsSection = tsSection[:end+50]
 	}
 
-	if !strings.Contains(tsSection, "cargo install tree-sitter-cli@") {
-		t.Errorf("tree-sitter builder must use 'cargo install tree-sitter-cli@<version>' (issue #334).\nSection:\n%s", tsSection)
+	if !strings.Contains(tsSection, "tree-sitter/tree-sitter/releases/download/v"+treeSitterVersion) {
+		t.Errorf("Debian tree-sitter builder must download from GitHub releases v%s (#348).\nSection:\n%s", treeSitterVersion, tsSection)
+	}
+	if !strings.Contains(tsSection, "sha256sum") {
+		t.Errorf("Debian tree-sitter builder must verify checksum with sha256sum.\nSection:\n%s", tsSection)
 	}
 }
 
-// TestTreeSitterBuilder_NoPrebuiltBinaryURL asserts that no GitHub releases
-// download URL for tree-sitter appears anywhere in the Dockerfile. The old
-// approach downloaded a pre-built binary that required GLIBC 2.39 (issue #334).
-func TestTreeSitterBuilder_NoPrebuiltBinaryURL(t *testing.T) {
+// TestTreeSitterBuilder_AlpineUsesCargoInstall verifies that the Alpine variant
+// of the treesitter-builder still uses cargo install (pre-built binary requires glibc).
+func TestTreeSitterBuilder_AlpineUsesCargoInstall(t *testing.T) {
 	ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
 	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
 		Workspace:     ws,
 		WorkspaceSpec: models.WorkspaceSpec{},
-		Language:      "python",
-		Version:       "3.11",
+		Language:      "golang",
+		Version:       "1.22",
 		AppPath:       "/tmp/test",
 		PathConfig:    paths.New(t.TempDir()),
 	})
@@ -6909,38 +6911,47 @@ func TestTreeSitterBuilder_NoPrebuiltBinaryURL(t *testing.T) {
 		t.Fatalf("Generate() error = %v", err)
 	}
 
-	// The old pattern was: https://github.com/tree-sitter/tree-sitter/releases/download/...
-	if strings.Contains(dockerfile, "tree-sitter/releases/download") {
-		t.Errorf("Dockerfile must NOT download pre-built tree-sitter binary (GLIBC mismatch, issue #334).\n"+
-			"Found 'tree-sitter/releases/download' in Dockerfile — use 'cargo install' instead.\n%s",
-			extractFragment(dockerfile, "tree-sitter/releases/download", 300))
+	tsStart := strings.Index(dockerfile, "# --- Parallel builder: tree-sitter CLI ---")
+	if tsStart < 0 {
+		t.Fatal("Generate() missing tree-sitter builder stage")
+	}
+	tsSection := dockerfile[tsStart:]
+	if end := strings.Index(tsSection[50:], "\n\n"); end >= 0 {
+		tsSection = tsSection[:end+50]
+	}
+
+	if !strings.Contains(tsSection, "cargo install tree-sitter-cli@") {
+		t.Errorf("Alpine tree-sitter builder must use 'cargo install tree-sitter-cli@<version>'.\nSection:\n%s", tsSection)
 	}
 }
 
-// TestTreeSitterBuilder_AlpineAndDebian_BothUseCargo verifies that both the
-// Alpine variant (golang) and the Debian variant (python) build tree-sitter
-// from source via cargo, not from pre-built binaries (issue #334).
-func TestTreeSitterBuilder_AlpineAndDebian_BothUseCargo(t *testing.T) {
+// TestTreeSitterBuilder_AlpineAndDebian verifies that:
+// - Alpine variant (golang) builds tree-sitter from source via cargo.
+// - Debian variant (python) downloads pre-built binary from GitHub releases (#348).
+func TestTreeSitterBuilder_AlpineAndDebian(t *testing.T) {
 	tests := []struct {
-		name      string
-		language  string
-		version   string
-		wantImage string
-		wantCargo string
+		name        string
+		language    string
+		version     string
+		wantImage   string
+		wantContent string
+		notWant     string // content that must NOT appear
 	}{
 		{
-			name:      "debian variant (python)",
-			language:  "python",
-			version:   "3.11",
-			wantImage: "rust:1-slim-bookworm",
-			wantCargo: "cargo install tree-sitter-cli@",
+			name:        "debian variant (python) — pre-built binary",
+			language:    "python",
+			version:     "3.11",
+			wantImage:   "debian:bookworm-slim",
+			wantContent: "tree-sitter/tree-sitter/releases/download/v",
+			notWant:     "cargo install",
 		},
 		{
-			name:      "alpine variant (golang)",
-			language:  "golang",
-			version:   "1.22",
-			wantImage: "rust:1-alpine3.20",
-			wantCargo: "cargo install tree-sitter-cli@",
+			name:        "alpine variant (golang) — cargo build",
+			language:    "golang",
+			version:     "1.22",
+			wantImage:   "rust:1-alpine3.20",
+			wantContent: "cargo install tree-sitter-cli@",
+			notWant:     "",
 		},
 	}
 
@@ -6971,13 +6982,13 @@ func TestTreeSitterBuilder_AlpineAndDebian_BothUseCargo(t *testing.T) {
 			}
 
 			if !strings.Contains(tsSection, tt.wantImage) {
-				t.Errorf("%s: tree-sitter builder should use Rust base image %q.\nSection:\n%s", tt.name, tt.wantImage, tsSection)
+				t.Errorf("%s: tree-sitter builder should use base image %q.\nSection:\n%s", tt.name, tt.wantImage, tsSection)
 			}
-			if !strings.Contains(tsSection, tt.wantCargo) {
-				t.Errorf("%s: tree-sitter builder should use %q.\nSection:\n%s", tt.name, tt.wantCargo, tsSection)
+			if !strings.Contains(tsSection, tt.wantContent) {
+				t.Errorf("%s: tree-sitter builder should contain %q.\nSection:\n%s", tt.name, tt.wantContent, tsSection)
 			}
-			if strings.Contains(tsSection, "tree-sitter/releases/download") {
-				t.Errorf("%s: tree-sitter builder must NOT download pre-built binary (GLIBC mismatch, issue #334).\nSection:\n%s", tt.name, tsSection)
+			if tt.notWant != "" && strings.Contains(tsSection, tt.notWant) {
+				t.Errorf("%s: tree-sitter builder must NOT contain %q.\nSection:\n%s", tt.name, tt.notWant, tsSection)
 			}
 		})
 	}
@@ -7137,6 +7148,7 @@ func extractGoToolsBuilderLine(dockerfile string) string {
 // stage copies the compiled binary using $CARGO_HOME/bin/tree-sitter rather than the
 // hardcoded path /root/.cargo/bin/tree-sitter (which breaks non-root Cargo installs).
 // Regression test for the fix in generateTreeSitterBuilder() — Issue #338.
+// Note: Only Alpine uses cargo; Debian uses pre-built binary from GitHub releases (#348).
 func TestGenerateTreeSitterBuilder_UsesCargoHomeEnvVar(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -7151,7 +7163,7 @@ func TestGenerateTreeSitterBuilder_UsesCargoHomeEnvVar(t *testing.T) {
 			variant:  "alpine",
 		},
 		{
-			name:     "debian variant (python workspace)",
+			name:     "debian variant (python workspace) — uses pre-built binary",
 			language: "python",
 			version:  "3.11",
 			variant:  "debian",
@@ -7194,19 +7206,40 @@ func TestGenerateTreeSitterBuilder_UsesCargoHomeEnvVar(t *testing.T) {
 				tsSection = dockerfile[tsStart:]
 			}
 
-			// MUST use $CARGO_HOME env var (respects non-root and custom Cargo installs)
-			if !strings.Contains(tsSection, "$CARGO_HOME/bin/tree-sitter") {
-				t.Errorf("[%s] tree-sitter builder should use '$CARGO_HOME/bin/tree-sitter'.\n"+
-					"Regression guard for Issue #338: $CARGO_HOME must be used instead of hardcoded path.\n"+
-					"tree-sitter section:\n%s", tt.variant, tsSection)
-			}
+			if tt.variant == "alpine" {
+				// Alpine: MUST use $CARGO_HOME env var (respects non-root and custom Cargo installs)
+				if !strings.Contains(tsSection, "$CARGO_HOME/bin/tree-sitter") {
+					t.Errorf("[%s] tree-sitter builder should use '$CARGO_HOME/bin/tree-sitter'.\n"+
+						"Regression guard for Issue #338: $CARGO_HOME must be used instead of hardcoded path.\n"+
+						"tree-sitter section:\n%s", tt.variant, tsSection)
+				}
 
-			// MUST NOT use the old hardcoded root-only path
-			if strings.Contains(tsSection, "/root/.cargo/bin/tree-sitter") {
-				t.Errorf("[%s] tree-sitter builder must NOT hardcode '/root/.cargo/bin/tree-sitter'.\n"+
-					"Regression guard for Issue #338: hardcoded path breaks non-root Cargo installs.\n"+
-					"Use '$CARGO_HOME/bin/tree-sitter' instead.\n"+
-					"tree-sitter section:\n%s", tt.variant, tsSection)
+				// MUST NOT use the old hardcoded root-only path
+				if strings.Contains(tsSection, "/root/.cargo/bin/tree-sitter") {
+					t.Errorf("[%s] tree-sitter builder must NOT hardcode '/root/.cargo/bin/tree-sitter'.\n"+
+						"Regression guard for Issue #338: hardcoded path breaks non-root Cargo installs.\n"+
+						"Use '$CARGO_HOME/bin/tree-sitter' instead.\n"+
+						"tree-sitter section:\n%s", tt.variant, tsSection)
+				}
+			} else {
+				// Debian: MUST use pre-built binary from GitHub releases (#348)
+				if !strings.Contains(tsSection, "tree-sitter/tree-sitter/releases/download") {
+					t.Errorf("[%s] tree-sitter builder should download pre-built binary from GitHub releases.\n"+
+						"See #348: Debian builds no longer use cargo.\n"+
+						"tree-sitter section:\n%s", tt.variant, tsSection)
+				}
+
+				// MUST have SHA256 checksum verification
+				if !strings.Contains(tsSection, "sha256sum") {
+					t.Errorf("[%s] tree-sitter builder must verify download with sha256sum.\n"+
+						"tree-sitter section:\n%s", tt.variant, tsSection)
+				}
+
+				// MUST NOT use cargo (no longer needed for Debian)
+				if strings.Contains(tsSection, "cargo install") {
+					t.Errorf("[%s] tree-sitter builder should NOT use cargo for Debian builds (#348).\n"+
+						"tree-sitter section:\n%s", tt.variant, tsSection)
+				}
 			}
 		})
 	}

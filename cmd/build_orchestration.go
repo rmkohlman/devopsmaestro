@@ -85,6 +85,9 @@ func runParallelBuild(cmd *cobra.Command) error {
 	// Determine scope label for the progress header
 	scopeLabel, scopeValue := parallelBuildScopeLabel(buildFlags)
 	render.Plain(FormatParallelBuildHeader(len(workspaces), scopeLabel, scopeValue, buildConcurrency))
+	if buildTimeout > 0 {
+		render.Plain(fmt.Sprintf("Per-workspace timeout: %s", buildTimeout))
+	}
 
 	// Shared mutex for serializing buffer flushes to stdout
 	var outputMu sync.Mutex

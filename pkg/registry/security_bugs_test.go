@@ -6,7 +6,7 @@
 // Bug list:
 //   B3  - ZotManager.GetEndpoint() missing http:// prefix
 //   B4  - DefaultProcessManager has no mutex (race detector)
-//   B8  - All config generators bind to 0.0.0.0 instead of 127.0.0.1
+//   B8  - Config generators bind to 0.0.0.0 instead of 127.0.0.1 (except squid — see #346)
 //   B10 - waitForReady uses http.Get (no timeout, not context-aware)
 
 package registry
@@ -127,8 +127,8 @@ func TestDefaultProcessManager_ConcurrentReadWrite(t *testing.T) {
 //   B8a - GenerateZotConfig http.address == "127.0.0.1"
 //   B8b - GenerateAthensConfig Port field == "127.0.0.1:{port}"
 //   B8c - GenerateVerdaccioConfig listen field == "127.0.0.1:{port}"
-//   B8d - GenerateSquidConfig http_port directive == "127.0.0.1:{port}"
-//   B8e - Generated configs do NOT contain "0.0.0.0"
+//   B8d - GenerateSquidConfig http_port binds 0.0.0.0 (required for BuildKit access, ACL-protected — see #346)
+//   B8e - Non-squid configs do NOT contain "0.0.0.0"
 // =============================================================================
 
 // B8a — Zot config.go: http.address must be "127.0.0.1"
@@ -285,10 +285,12 @@ func TestGenerateVerdaccioConfig_ListenField_IsLoopback(t *testing.T) {
 	}
 }
 
-// B8d — Squid squid_manager.go: http_port directive must specify 127.0.0.1
-// Currently generates: `http_port 3128`     (binds 0.0.0.0)
-// Required:            `http_port 127.0.0.1:3128`
-func TestGenerateSquidConfig_BindsToLoopback(t *testing.T) {
+// B8d — Squid squid_manager.go: http_port binds to all interfaces
+// Unlike other registries, squid MUST listen on 0.0.0.0 because BuildKit
+// containers inside Colima access it via host.docker.internal which resolves
+// to the VM's gateway IP (e.g. 192.168.5.2), NOT 127.0.0.1 (see #346).
+// Security is enforced by ACL rules that restrict access to RFC1918 subnets.
+func TestGenerateSquidConfig_BindsToAllInterfaces(t *testing.T) {
 	cfg := HttpProxyConfig{
 		Port:            3128,
 		CacheDir:        "/tmp/squid/cache",
@@ -304,42 +306,19 @@ func TestGenerateSquidConfig_BindsToLoopback(t *testing.T) {
 		t.Fatalf("GenerateSquidConfig() error = %v", err)
 	}
 
-	if !strings.Contains(squidConfig, "127.0.0.1") {
-		t.Errorf(
-			"GenerateSquidConfig() squid.conf does not contain 127.0.0.1 "+
-				"(security: http_port must bind to loopback only).\nConfig:\n%s",
-			squidConfig,
-		)
-	}
-}
-
-func TestGenerateSquidConfig_HTTPPort_IsLoopback(t *testing.T) {
-	cfg := HttpProxyConfig{
-		Port:            3128,
-		CacheDir:        "/tmp/squid/cache",
-		LogDir:          "/tmp/squid/logs",
-		PidFile:         "/tmp/squid/squid.pid",
-		CacheSizeMB:     1000,
-		MaxObjectSizeMB: 100,
-		MemoryCacheMB:   256,
-	}
-
-	squidConfig, err := GenerateSquidConfig(cfg)
-	if err != nil {
-		t.Fatalf("GenerateSquidConfig() error = %v", err)
-	}
-
-	// The correct directive form after the fix.
-	want := "http_port 127.0.0.1:3128"
+	// Squid uses bare port form (http_port 3128) which binds 0.0.0.0.
+	// This is intentional for container accessibility — see #346.
+	want := "http_port 3128"
 	if !strings.Contains(squidConfig, want) {
 		t.Errorf(
-			"GenerateSquidConfig() http_port directive = (see config), want %q.\nConfig:\n%s",
+			"GenerateSquidConfig() http_port directive does not contain %q.\n"+
+				"Squid must bind to all interfaces for BuildKit container access (see #346).\nConfig:\n%s",
 			want, squidConfig,
 		)
 	}
 }
 
-func TestGenerateSquidConfig_DoesNotBindAllInterfaces(t *testing.T) {
+func TestGenerateSquidConfig_ACLRestrictsToPrivateSubnets(t *testing.T) {
 	cfg := HttpProxyConfig{
 		Port:            3128,
 		CacheDir:        "/tmp/squid/cache",
@@ -355,14 +334,48 @@ func TestGenerateSquidConfig_DoesNotBindAllInterfaces(t *testing.T) {
 		t.Fatalf("GenerateSquidConfig() error = %v", err)
 	}
 
-	// The bare `http_port 3128` form implicitly binds 0.0.0.0.
-	// After the fix this exact pattern must not appear.
-	barePort := "http_port 3128\n"
-	if strings.Contains(squidConfig, barePort) {
+	// Since squid binds to all interfaces, ACLs must restrict access
+	requiredACLs := []string{
+		"acl localnet src 127.0.0.0/8",
+		"acl localnet src 10.0.0.0/8",
+		"acl localnet src 172.16.0.0/12",
+		"acl localnet src 192.168.0.0/16",
+		"http_access allow localnet",
+		"http_access deny all",
+	}
+	for _, acl := range requiredACLs {
+		if !strings.Contains(squidConfig, acl) {
+			t.Errorf("GenerateSquidConfig() missing required ACL %q.\n"+
+				"Since squid binds to 0.0.0.0, ACLs must restrict to private subnets.\nConfig:\n%s",
+				acl, squidConfig)
+		}
+	}
+}
+
+func TestGenerateSquidConfig_DoesNotBindLoopbackOnly(t *testing.T) {
+	cfg := HttpProxyConfig{
+		Port:            3128,
+		CacheDir:        "/tmp/squid/cache",
+		LogDir:          "/tmp/squid/logs",
+		PidFile:         "/tmp/squid/squid.pid",
+		CacheSizeMB:     1000,
+		MaxObjectSizeMB: 100,
+		MemoryCacheMB:   256,
+	}
+
+	squidConfig, err := GenerateSquidConfig(cfg)
+	if err != nil {
+		t.Fatalf("GenerateSquidConfig() error = %v", err)
+	}
+
+	// Squid must NOT bind to 127.0.0.1 only — that prevents BuildKit
+	// containers from reaching the proxy via host.docker.internal (see #346).
+	loopbackOnly := "http_port 127.0.0.1:3128"
+	if strings.Contains(squidConfig, loopbackOnly) {
 		t.Errorf(
-			"GenerateSquidConfig() contains bare %q which binds 0.0.0.0; "+
-				"use \"http_port 127.0.0.1:3128\" instead.\nConfig:\n%s",
-			strings.TrimRight(barePort, "\n"), squidConfig,
+			"GenerateSquidConfig() contains %q which prevents BuildKit container access.\n"+
+				"Squid must bind to all interfaces (bare port form). See #346.\nConfig:\n%s",
+			loopbackOnly, squidConfig,
 		)
 	}
 }

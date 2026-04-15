@@ -508,7 +508,7 @@ func TestSquidManager_GenerateSquidConf_Basic(t *testing.T) {
 	assert.NotEmpty(t, squidConf, "Generated config should not be empty")
 
 	// Config should contain key settings
-	assert.Contains(t, squidConf, "http_port 3128", "Config should contain port")
+	assert.Contains(t, squidConf, "http_port 3128", "Config should contain port (bare form for container access)")
 	assert.Contains(t, squidConf, "/tmp/squid/cache", "Config should contain cache dir")
 	assert.Contains(t, squidConf, "cache_dir", "Config should have cache_dir directive")
 }
