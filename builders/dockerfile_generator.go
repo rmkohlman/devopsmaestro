@@ -1132,6 +1132,63 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 			dockerfile.WriteString("# No cpanfile found — skipping cpanm --installdeps\n\n")
 		}
 
+	case "ruby":
+		version := g.effectiveVersion()
+		g.isAlpine = false
+		baseImage := fmt.Sprintf("ruby:%s-slim", version)
+		dockerfile.WriteString(pinnedImageComment(baseImage))
+		dockerfile.WriteString(fmt.Sprintf("FROM %s AS base\n\n", pinnedImage(baseImage)))
+
+		// Declare build args after FROM so they're available in RUN commands
+		if len(privateRepoInfo.RequiredBuildArgs) > 0 {
+			dockerfile.WriteString("# Build arguments for private Ruby gems\n")
+			for _, arg := range privateRepoInfo.RequiredBuildArgs {
+				dockerfile.WriteString(fmt.Sprintf("ARG %s\n", arg))
+			}
+			dockerfile.WriteString("\n")
+		}
+
+		// Emit additional build args (de-duplicated with RequiredBuildArgs)
+		g.emitAdditionalBuildArgs(dockerfile, privateRepoInfo.RequiredBuildArgs)
+
+		// Install build-essential for native gem extensions (Debian-based image)
+		dockerfile.WriteString("# Install build dependencies for native gem extensions\n")
+		dockerfile.WriteString(g.aptCacheMounts())
+		dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
+		dockerfile.WriteString("    build-essential git curl ca-certificates\n\n")
+
+		// CA certificate injection
+		g.emitCACertSection(dockerfile)
+
+		// Setup SSH for git if needed
+		if privateRepoInfo.NeedsSSH {
+			dockerfile.WriteString("# Setup SSH for git operations\n")
+			dockerfile.WriteString("RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh\n")
+			dockerfile.WriteString("RUN --mount=type=ssh \\\n")
+			dockerfile.WriteString("    ssh-keyscan github.com >> /root/.ssh/known_hosts && \\\n")
+			dockerfile.WriteString("    ssh-keyscan gitlab.com >> /root/.ssh/known_hosts\n\n")
+		}
+
+		// Copy dependency files and install with bundler if Gemfile present
+		rubyCheckDir := g.appPath
+		if sd := g.effectiveStagingDir(); sd != "" {
+			rubyCheckDir = sd
+		}
+		hasGemfile := false
+		if _, err := os.Stat(filepath.Join(rubyCheckDir, "Gemfile")); err == nil {
+			hasGemfile = true
+		}
+		if hasGemfile {
+			dockerfile.WriteString("WORKDIR /app\n")
+			dockerfile.WriteString("COPY Gemfile Gemfile.lock* ./\n")
+			dockerfile.WriteString("RUN --mount=type=cache,target=/usr/local/bundle/cache \\\n")
+			dockerfile.WriteString("    bundle install \\\n")
+			dockerfile.WriteString("    || (unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy \\\n")
+			dockerfile.WriteString("    && bundle install)\n\n")
+		} else {
+			dockerfile.WriteString("# No Gemfile found — skipping bundle install\n\n")
+		}
+
 	default:
 		// Generic Ubuntu base
 		g.isAlpine = false
@@ -1176,13 +1233,14 @@ func (g *DefaultDockerfileGenerator) activeBuilderStages() []builderStage {
 	var stages []builderStage
 
 	// Neovim builder (only for Debian — Alpine uses apk)
+	// Uses AppImage extraction — binary is at /opt/nvim/usr/bin/nvim (see #342)
 	if !isAlpine {
 		stages = append(stages, builderStage{
 			name:     "neovim-builder",
 			emitFunc: g.generateNeovimBuilder,
 			copyLines: []string{
 				"COPY --from=neovim-builder /opt/nvim/ /opt/nvim/",
-				"RUN ln -sf /opt/nvim/bin/nvim /usr/local/bin/nvim",
+				"RUN ln -sf /opt/nvim/usr/bin/nvim /usr/local/bin/nvim",
 			},
 		})
 	}
@@ -1251,8 +1309,8 @@ func (g *DefaultDockerfileGenerator) activeBuilderStages() []builderStage {
 // BuildKit runs these concurrently since they have no dependencies on each other.
 //
 // Builder image selection rationale:
-//   - Neovim (Debian only): GitHub releases are glibc-linked, won't work on Alpine musl.
-//     Alpine gets neovim via apk in the merged package install instead.
+//   - Neovim (Debian only): Uses AppImage extraction to avoid GLIBC version mismatches
+//     (see #342). The AppImage bundles all shared libraries. Alpine uses apk instead.
 //   - Lazygit: Uses matching base (Alpine for Alpine targets, Debian for Debian) because
 //     the binary is statically linked but download tools (curl vs wget, sed behavior) differ.
 //   - Starship: Always Debian for consistency with Neovim builder (install script uses POSIX sh).
@@ -1271,8 +1329,11 @@ func (g *DefaultDockerfileGenerator) emitBuilderStages(dockerfile *strings.Build
 	}
 }
 
-// generateNeovimBuilder creates a parallel stage to download Neovim (Debian only).
-// Pinned to a specific version with SHA256 checksum verification (see checksums.go).
+// generateNeovimBuilder creates a parallel stage to install Neovim via AppImage (Debian only).
+// Uses AppImage extraction to avoid GLIBC version mismatches with workspace base images
+// (see #342). The extracted AppImage bundles all shared libraries, so it works with any
+// glibc version in the target image. Pinned to a specific version with SHA256 checksum
+// verification (see checksums.go).
 func (g *DefaultDockerfileGenerator) generateNeovimBuilder(dockerfile *strings.Builder) {
 	dockerfile.WriteString("# --- Parallel builder: Neovim ---\n")
 	dockerfile.WriteString(fmt.Sprintf("FROM %s AS neovim-builder\n", pinnedImage("debian:bookworm-slim")))
@@ -1281,18 +1342,19 @@ func (g *DefaultDockerfileGenerator) generateNeovimBuilder(dockerfile *strings.B
 	dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
 	dockerfile.WriteString("    ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m) && \\\n")
 	dockerfile.WriteString("    if [ \"$ARCH\" = \"arm64\" ] || [ \"$ARCH\" = \"aarch64\" ]; then \\\n")
-	dockerfile.WriteString(fmt.Sprintf("        NVIM_ARCH=\"nvim-linux-arm64\"; NVIM_SHA256=\"%s\"; \\\n", neovimChecksumArm64))
+	dockerfile.WriteString(fmt.Sprintf("        NVIM_ARCH=\"nvim-linux-arm64\"; NVIM_SHA256=\"%s\"; \\\n", neovimAppImageChecksumArm64))
 	dockerfile.WriteString("    elif [ \"$ARCH\" = \"amd64\" ] || [ \"$ARCH\" = \"x86_64\" ]; then \\\n")
-	dockerfile.WriteString(fmt.Sprintf("        NVIM_ARCH=\"nvim-linux-x86_64\"; NVIM_SHA256=\"%s\"; \\\n", neovimChecksumX86_64))
+	dockerfile.WriteString(fmt.Sprintf("        NVIM_ARCH=\"nvim-linux-x86_64\"; NVIM_SHA256=\"%s\"; \\\n", neovimAppImageChecksumX86_64))
 	dockerfile.WriteString("    else \\\n")
 	dockerfile.WriteString("        echo \"ERROR: Unsupported architecture: $ARCH\"; exit 1; \\\n")
 	dockerfile.WriteString("    fi && \\\n")
-	dockerfile.WriteString(fmt.Sprintf("    curl %s -o \"${NVIM_ARCH}.tar.gz\" \"https://github.com/neovim/neovim/releases/download/v%s/${NVIM_ARCH}.tar.gz\" && \\\n", curlFlags, neovimVersion))
-	dockerfile.WriteString("    echo \"${NVIM_SHA256}  ${NVIM_ARCH}.tar.gz\" | sha256sum -c - && \\\n")
-	dockerfile.WriteString("    tar -C /opt -xzf \"${NVIM_ARCH}.tar.gz\" && \\\n")
-	dockerfile.WriteString("    mv /opt/${NVIM_ARCH} /opt/nvim && \\\n")
-	dockerfile.WriteString("    rm \"${NVIM_ARCH}.tar.gz\" && \\\n")
-	dockerfile.WriteString("    test -x /opt/nvim/bin/nvim\n\n")
+	dockerfile.WriteString(fmt.Sprintf("    curl %s -o \"${NVIM_ARCH}.appimage\" \"https://github.com/neovim/neovim/releases/download/v%s/${NVIM_ARCH}.appimage\" && \\\n", curlFlags, neovimVersion))
+	dockerfile.WriteString("    echo \"${NVIM_SHA256}  ${NVIM_ARCH}.appimage\" | sha256sum -c - && \\\n")
+	dockerfile.WriteString("    chmod +x \"${NVIM_ARCH}.appimage\" && \\\n")
+	dockerfile.WriteString("    \"${NVIM_ARCH}.appimage\" --appimage-extract && \\\n")
+	dockerfile.WriteString("    mv squashfs-root /opt/nvim && \\\n")
+	dockerfile.WriteString("    rm \"${NVIM_ARCH}.appimage\" && \\\n")
+	dockerfile.WriteString("    test -x /opt/nvim/usr/bin/nvim\n\n")
 }
 
 // generateLazygitBuilder creates a parallel stage to download lazygit.
@@ -1548,6 +1610,8 @@ func (g *DefaultDockerfileGenerator) effectiveVersion() string {
 		return "9.12"
 	case "perl":
 		return "5.40"
+	case "ruby":
+		return "3.3"
 	default:
 		return ""
 	}
@@ -1976,6 +2040,8 @@ func (g *DefaultDockerfileGenerator) getDefaultLanguageTools() []string {
 		return []string{} // Tools handled via Mason (haskell-language-server)
 	case "perl":
 		return []string{} // Tools handled via Mason (perlnavigator)
+	case "ruby":
+		return []string{} // Tools handled via Mason (solargraph, rubocop)
 	default:
 		return []string{}
 	}
@@ -2055,6 +2121,10 @@ func (g *DefaultDockerfileGenerator) installLanguageTools(dockerfile *strings.Bu
 	case "perl":
 		// Perl dev tools handled via Mason — perlnavigator
 		dockerfile.WriteString("# Perl dev tools handled via Mason (perlnavigator)\n\n")
+
+	case "ruby":
+		// Ruby dev tools handled via Mason — solargraph, rubocop
+		dockerfile.WriteString("# Ruby dev tools handled via Mason (solargraph, rubocop)\n\n")
 	}
 }
 
@@ -2200,7 +2270,7 @@ func (g *DefaultDockerfileGenerator) generateNvimSection(dockerfile *strings.Bui
 func (g *DefaultDockerfileGenerator) getMasonToolsForLanguage() []string {
 	switch g.language {
 	case "python":
-		return []string{"pyright", "ruff-lsp", "black", "isort", "pylint"}
+		return []string{"pyright", "ruff", "black", "isort", "pylint"}
 	case "golang":
 		return []string{"gopls", "golangci-lint-langserver", "goimports"}
 	case "nodejs":
@@ -2375,7 +2445,7 @@ func (g *DefaultDockerfileGenerator) writeMasonLuaScript(dockerfile *strings.Bui
 // were actually installed by checking the Mason packages directory.
 func (g *DefaultDockerfileGenerator) writeMasonVerification(dockerfile *strings.Builder, user string, toolCount int) {
 	dockerfile.WriteString("# Verify Mason tools were installed\n")
-	dockerfile.WriteString(fmt.Sprintf("RUN pkg_count=$(ls -1d /home/%s/.local/share/nvim/mason/packages/*/ 2>/dev/null | wc -l) && \\\n", user))
+	dockerfile.WriteString(fmt.Sprintf("RUN pkg_count=$(ls -1 /home/%s/.local/share/nvim/mason/bin/ 2>/dev/null | wc -l) && \\\n", user))
 	dockerfile.WriteString("    if [ \"$pkg_count\" -lt 1 ]; then \\\n")
 	dockerfile.WriteString("      echo \"ERROR: No Mason packages found after install step\" && \\\n")
 	dockerfile.WriteString("      cat /tmp/mason-install.log 2>/dev/null && \\\n")

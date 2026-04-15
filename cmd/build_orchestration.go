@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -119,10 +120,10 @@ func runParallelBuild(cmd *cobra.Command) error {
 	// Foreground mode: wait for all builds to complete
 	buildErr := buildWorkspacesInParallel(workspaces, buildConcurrency, buildFn, ds)
 
-	// Read accurate succeeded/failed counts from the persisted build session.
-	// The engine writes per-workspace results to the DB; querying here avoids
-	// the broken placeholder counter that always returned 0 failures.
-	succeeded, failed := getBuildSessionCounts(ds, len(workspaces), buildErr)
+	// Extract accurate succeeded/failed counts directly from the BuildError
+	// returned by the engine. This avoids a DB round-trip that could return
+	// stale data from a concurrent or previous session.
+	succeeded, failed := getBuildCounts(len(workspaces), buildErr)
 	render.Plain(FormatBuildSummaryLine(succeeded, failed, len(workspaces)))
 
 	return buildErr
@@ -142,15 +143,16 @@ func parallelBuildScopeLabel(flags HierarchyFlags) (string, string) {
 	return "", ""
 }
 
-// getBuildSessionCounts retrieves succeeded/failed counts from the most
-// recent persisted build session. Falls back to inferring from the total
-// workspace count and whether an error was returned when the DB query fails.
-func getBuildSessionCounts(ds db.DataStore, total int, buildErr error) (succeeded, failed int) {
-	session, err := ds.GetLatestBuildSession()
-	if err == nil && session != nil {
-		return session.Succeeded, session.Failed
+// getBuildCounts extracts succeeded/failed counts from a BuildError returned
+// by buildWorkspacesInParallel. This uses the in-memory counts from the engine
+// directly, avoiding a database round-trip that could return stale data from a
+// concurrent or previous build session.
+func getBuildCounts(total int, buildErr error) (succeeded, failed int) {
+	var be *BuildError
+	if errors.As(buildErr, &be) {
+		return be.Succeeded, be.Failed
 	}
-	// Fallback: if no session available, use error presence as signal
+	// No BuildError: either all succeeded or the error is from another source
 	if buildErr != nil {
 		return 0, total
 	}

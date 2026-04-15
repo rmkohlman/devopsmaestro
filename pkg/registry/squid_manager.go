@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -85,8 +86,13 @@ func (m *SquidManager) Start(ctx context.Context) error {
 	default:
 	}
 
-	// Check if already running - idempotent
+	// Check if already running - idempotent.
+	// Record start time if not yet set so Status() reports correctly
+	// when adopting a process from a previous CLI invocation.
 	if m.processManager.IsRunning() {
+		if m.startTime.IsZero() {
+			m.RecordStartLocked()
+		}
 		return nil
 	}
 
@@ -254,12 +260,18 @@ func (m *SquidManager) generateConfig(configPath string) error {
 
 // initializeCacheDir initializes squid cache directories with `squid -z`.
 func (m *SquidManager) initializeCacheDir(ctx context.Context, binaryPath, configPath string) error {
-	// Run squid -z -f <config> to initialize cache directories
-	// This creates the swap directories for the disk cache
-	cmd := exec.CommandContext(ctx, binaryPath, "-z", "-f", configPath)
+	// Run squid -z -f <config> to initialize cache directories.
+	// This creates the swap directories for the disk cache.
+	cmd := exec.CommandContext(ctx, binaryPath, "-z", "-N", "-f", configPath)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("squid -z failed: %w (output: %s)", err, string(output))
+		outputStr := string(output)
+		// If Squid reports it's already running, the cache dirs are already
+		// initialized from the previous run — safe to proceed.
+		if strings.Contains(outputStr, "already running") {
+			return nil
+		}
+		return fmt.Errorf("squid -z failed: %w (output: %s)", err, outputStr)
 	}
 	return nil
 }
@@ -310,9 +322,6 @@ http_access deny CONNECT !SSL_ports
 http_access allow localhost
 http_access allow localnet
 http_access deny all
-
-# DNS settings
-dns_v4_first on
 
 # Privacy/security settings
 forwarded_for delete

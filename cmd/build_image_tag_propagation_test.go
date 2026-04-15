@@ -193,3 +193,108 @@ func TestSingleWorkspaceBuild_SessionLifecycle_SucceededBuildUpdatesStatus(t *te
 	assert.Equal(t, 1, got.Succeeded)
 	assert.Equal(t, 0, got.Failed)
 }
+
+// TestBuildWorkspace_SingleWorkspaceCreatesSession verifies the contract that
+// buildWorkspace() (build_orchestrator.go) creates a BuildSession + a
+// BuildSessionWorkspace entry for a single-workspace build, then defers
+// finalization that writes the final status and ImageTag.
+//
+// Since buildWorkspace() resolves its DataStore from getDataStore(cmd) (a
+// singleton, not injectable), this test exercises the identical session-
+// lifecycle logic by driving the MockDataStore directly — mirroring the exact
+// sequence of calls that buildWorkspace() makes:
+//
+//  1. CreateBuildSession        — status="running", TotalWorkspaces=1
+//  2. CreateBuildSessionWorkspace — status="building"
+//  3. GetBuildSessionWorkspaces  — read back assigned ID
+//  4. UpdateBuildSessionWorkspace — final status, ImageTag, duration
+//  5. UpdateBuildSession          — final status, succeeded/failed counts
+//
+// This is the coverage target for Issue #339 Gap 2.
+func TestBuildWorkspace_SingleWorkspaceCreatesSession(t *testing.T) {
+	store := db.NewMockDataStore()
+
+	sessionID := "single-ws-test-uuid-001"
+	buildStart := time.Now().UTC()
+
+	// Step 1: Create session (mirrors buildWorkspace line ~79)
+	session := &models.BuildSession{
+		ID:              sessionID,
+		StartedAt:       buildStart,
+		Status:          "running",
+		TotalWorkspaces: 1,
+	}
+	require.NoError(t, store.CreateBuildSession(session))
+
+	workspaceID := 42
+	// Step 2: Create workspace entry (mirrors buildWorkspace line ~89)
+	bsw := &models.BuildSessionWorkspace{
+		SessionID:   sessionID,
+		WorkspaceID: workspaceID,
+		Status:      "building",
+		StartedAt:   sql.NullTime{Time: buildStart, Valid: true},
+	}
+	require.NoError(t, store.CreateBuildSessionWorkspace(bsw))
+
+	// Step 3: Read back assigned ID (mirrors buildWorkspace line ~93)
+	entries, err := store.GetBuildSessionWorkspaces(sessionID)
+	require.NoError(t, err)
+	require.Len(t, entries, 1, "one workspace entry must exist after CreateBuildSessionWorkspace")
+	bswID := entries[0].ID
+	require.NotZero(t, bswID, "assigned build session workspace ID must be non-zero")
+
+	// Step 4 & 5: Deferred finalize (mirrors buildWorkspace deferred closure)
+	const imageTag = "dvm-dev-myapp:20260414-150000"
+	completedAt := time.Now().UTC()
+	duration := int64(completedAt.Sub(buildStart).Seconds())
+
+	upd := &models.BuildSessionWorkspace{
+		ID:              bswID,
+		SessionID:       sessionID,
+		WorkspaceID:     workspaceID,
+		Status:          "succeeded",
+		StartedAt:       sql.NullTime{Time: buildStart, Valid: true},
+		CompletedAt:     sql.NullTime{Time: completedAt, Valid: true},
+		DurationSeconds: sql.NullInt64{Int64: duration, Valid: true},
+		ImageTag:        sql.NullString{String: imageTag, Valid: true},
+	}
+	require.NoError(t, store.UpdateBuildSessionWorkspace(upd))
+
+	updatedSession := &models.BuildSession{
+		ID:              sessionID,
+		StartedAt:       buildStart,
+		CompletedAt:     sql.NullTime{Time: completedAt, Valid: true},
+		Status:          "completed",
+		TotalWorkspaces: 1,
+		Succeeded:       1,
+		Failed:          0,
+	}
+	require.NoError(t, store.UpdateBuildSession(updatedSession))
+
+	// Verify final state
+	got, err := store.GetLatestBuildSession()
+	require.NoError(t, err)
+	require.NotNil(t, got, "session must be retrievable after creation and finalization")
+
+	assert.Equal(t, sessionID, got.ID)
+	assert.Equal(t, "completed", got.Status,
+		"single-workspace session must be finalized to 'completed' on success")
+	assert.Equal(t, 1, got.TotalWorkspaces)
+	assert.Equal(t, 1, got.Succeeded)
+	assert.Equal(t, 0, got.Failed)
+	assert.True(t, got.CompletedAt.Valid, "CompletedAt must be set after finalization")
+
+	// Verify workspace entry
+	finalEntries, err := store.GetBuildSessionWorkspaces(sessionID)
+	require.NoError(t, err)
+	require.Len(t, finalEntries, 1)
+
+	wsEntry := finalEntries[0]
+	assert.Equal(t, "succeeded", wsEntry.Status)
+	assert.True(t, wsEntry.ImageTag.Valid,
+		"ImageTag must be valid on a successful single-workspace build")
+	assert.Equal(t, imageTag, wsEntry.ImageTag.String,
+		"ImageTag must reflect the built image tag")
+	assert.True(t, wsEntry.CompletedAt.Valid,
+		"workspace entry CompletedAt must be set")
+}

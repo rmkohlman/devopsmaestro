@@ -403,3 +403,61 @@ func isBuildStatusDataStoreAware() bool {
 func mockNullTimeNow() sql.NullTime {
 	return sql.NullTime{Time: time.Now().UTC(), Valid: true}
 }
+
+// =============================================================================
+// 9. Failed build still records the attempted image tag — Issue #323
+// =============================================================================
+
+// TestBuildSessionPersistence_FailedBuildRecordsImageTag verifies that when
+// a build function sets ws.Workspace.ImageName and then returns an error,
+// the BuildSessionWorkspace entry's ImageTag is still populated with the
+// attempted tag (not empty).
+//
+// This tests the fix from #323 where buildSingleWorkspaceForParallel was
+// updated to propagate bc.imageName to ws.Workspace.ImageName BEFORE the
+// error check so that even failing builds record which tag was attempted.
+//
+// The integration point:
+//
+//	buildWorkspacesInParallel() reads w.Workspace.ImageName after buildFn
+//	returns and writes it to ImageTag on the BuildSessionWorkspace entry
+//	(build_orchestration_engine.go line 171).
+func TestBuildSessionPersistence_FailedBuildRecordsImageTag(t *testing.T) {
+	store := setupPersistenceTestStore(t, 1)
+
+	flags := HierarchyFlags{}
+	workspaces, err := resolveWorkspacesForParallelBuild(store, flags, true)
+	require.NoError(t, err)
+	require.Len(t, workspaces, 1)
+
+	const attemptedTag = "dvm-dev-persist-app-a:20260414-120000"
+
+	// buildFn simulates a build that computes an image name (the fix in
+	// buildSingleWorkspaceForParallel sets ws.Workspace.ImageName BEFORE
+	// returning the error). We replicate that exact contract here.
+	failingBuildFn := func(ws *models.WorkspaceWithHierarchy) error {
+		ws.Workspace.ImageName = attemptedTag // fix: set BEFORE error return
+		return assert.AnError                 // simulate Docker build failure
+	}
+
+	// The build fails overall — that's expected and intentional.
+	_ = buildWorkspacesInParallel(workspaces, 1, failingBuildFn, store)
+
+	// A session must exist.
+	session, err := store.GetLatestBuildSession()
+	require.NoError(t, err)
+	require.NotNil(t, session, "build session must be created even when the build fails")
+
+	// Retrieve the workspace entries for this session.
+	entries, err := store.GetBuildSessionWorkspaces(session.ID)
+	require.NoError(t, err)
+	require.Len(t, entries, 1, "one BuildSessionWorkspace entry must exist")
+
+	entry := entries[0]
+	assert.Equal(t, "failed", entry.Status,
+		"workspace entry status must be 'failed' when buildFn returns an error")
+	assert.True(t, entry.ImageTag.Valid,
+		"ImageTag must be valid (non-NULL) even for a failed build — fix from #323")
+	assert.Equal(t, attemptedTag, entry.ImageTag.String,
+		"ImageTag must equal the attempted tag set by buildFn before returning the error")
+}

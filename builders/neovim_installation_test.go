@@ -73,6 +73,30 @@ func TestNeovimInstallation_PythonSlim(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("uses_appimage_not_tarball", func(t *testing.T) {
+		// Issue #342: AppImage bundles all shared libraries, avoiding GLIBC version mismatches
+		if !strings.Contains(dockerfile, ".appimage") {
+			t.Error("Dockerfile should download Neovim AppImage (not tarball) to avoid GLIBC issues (#342)")
+		}
+		if strings.Contains(dockerfile, "nvim-linux-arm64.tar.gz") || strings.Contains(dockerfile, "nvim-linux-x86_64.tar.gz") {
+			t.Error("Dockerfile should NOT use Neovim tarball (GLIBC incompatibility, see #342)")
+		}
+	})
+
+	t.Run("extracts_appimage", func(t *testing.T) {
+		// AppImage must be extracted with --appimage-extract (no FUSE needed in Docker)
+		if !strings.Contains(dockerfile, "--appimage-extract") {
+			t.Error("Dockerfile should extract AppImage with --appimage-extract")
+		}
+	})
+
+	t.Run("appimage_binary_path", func(t *testing.T) {
+		// Extracted AppImage places nvim at squashfs-root/usr/bin/nvim → /opt/nvim/usr/bin/nvim
+		if !strings.Contains(dockerfile, "/opt/nvim/usr/bin/nvim") {
+			t.Error("Dockerfile should reference /opt/nvim/usr/bin/nvim (AppImage extraction path)")
+		}
+	})
 }
 
 func TestNeovimInstallation_GolangAlpine(t *testing.T) {

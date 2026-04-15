@@ -11,6 +11,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.95.0] — 2026-04-14
+
+### New Features
+- **Ruby language support** — `generateBaseStage` now supports `ruby:{ver}-slim` as the base image; Gemfile/bundler dependency installation is generated automatically when a Gemfile is present ([#344](https://github.com/rmkohlman/devopsmaestro/issues/344))
+- **Neovim uses AppImage extraction** — Neovim is now installed via AppImage extraction (`--appimage-extract`) rather than a pre-built binary download, eliminating GLIBC incompatibility across all base images and architectures ([#342](https://github.com/rmkohlman/devopsmaestro/issues/342))
+
+### Bug Fixes
+- **Build summary reports incorrect success/failure counts** — the build summary now correctly counts successes and failures using unique `app/workspace` identifiers, preventing double-counting across retries and reporting the accurate totals ([#343](https://github.com/rmkohlman/devopsmaestro/issues/343))
+- **Deprecated `ruff-lsp` in Mason Python tools** — replaced `ruff-lsp` with `ruff` in the Mason Python tool list; `ruff-lsp` was removed from Mason in favour of the bundled LSP in `ruff` itself ([#326](https://github.com/rmkohlman/devopsmaestro/issues/326))
+- **Mason verification uses wrong package count** — Mason verification now counts executable entries in `mason/bin/` instead of the top-level `mason/` directory, giving an accurate installed-package count that matches what Mason actually reports ([#327](https://github.com/rmkohlman/devopsmaestro/issues/327))
+- **Squid `dns_v4_first` directive removed** — the obsolete `dns_v4_first on` directive (removed in Squid 6) is no longer emitted; additionally, the PID file adoption error for already-running Squid processes is now suppressed via `--foreground` startup ([#335](https://github.com/rmkohlman/devopsmaestro/issues/335))
+- **Verdaccio upgraded from deprecated v5.28.0 to v6.1.2** — Verdaccio is now pinned to v6.1.2; the install step runs `npm uninstall -g verdaccio` before installing the new version to clear stale v5 artifacts that caused startup failures ([#336](https://github.com/rmkohlman/devopsmaestro/issues/336))
+
+### Tests
+- **Failed-build image tag propagation** — new regression tests assert that build results (including image tags) are preserved on the failure path and correctly surfaced by `dvm build status` ([#339](https://github.com/rmkohlman/devopsmaestro/issues/339))
+- **Single-workspace session creation** — new tests verify that a build session is created and torn down correctly when only one workspace is in scope ([#339](https://github.com/rmkohlman/devopsmaestro/issues/339))
+- **Ruby LanguageVersionTable and isAlpine consistency** — new table-driven tests cover Ruby version/image resolution and assert `isAlpine` returns correct results for all supported base image patterns ([#316](https://github.com/rmkohlman/devopsmaestro/issues/316))
+- **Neovim AppImage extraction** — new tests assert the AppImage extraction path is used (and the old binary-download path is absent) across both Alpine and Debian Neovim builder variants ([#342](https://github.com/rmkohlman/devopsmaestro/issues/342))
+
+---
+
 ## [v0.94.1] — 2026-04-14
 
 ### Bug Fixes

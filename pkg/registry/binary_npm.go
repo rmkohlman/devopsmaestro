@@ -111,7 +111,7 @@ func (m *NpmBinaryManager) GetVersion(ctx context.Context) (string, error) {
 	}
 
 	// Parse version from output
-	// Example: verdaccio@5.28.0
+	// Example: verdaccio@6.1.2
 	version := m.parseVersionFromList(string(output))
 	if version == "" {
 		return "", fmt.Errorf("failed to parse version from npm list output")
@@ -144,6 +144,14 @@ func (m *NpmBinaryManager) Update(ctx context.Context) error {
 	// Ensure npm is installed
 	if err := m.ensureNpmInstalled(ctx); err != nil {
 		return fmt.Errorf("npm not available: %w", err)
+	}
+
+	// Clean up previous installation to prevent ENOTEMPTY errors
+	globalDir := filepath.Join(m.binDir, "..", "lib", "node_modules", m.packageName)
+	if _, err := os.Stat(globalDir); err == nil {
+		if err := os.RemoveAll(globalDir); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to clean up previous installation at %s: %v\n", globalDir, err)
+		}
 	}
 
 	// Update package via npm
@@ -208,6 +216,17 @@ func (m *NpmBinaryManager) installPackage(ctx context.Context) error {
 		return fmt.Errorf("failed to create bin directory: %w", err)
 	}
 
+	// Clean up any previous installation to prevent ENOTEMPTY errors.
+	// A partial or corrupted previous install can leave directories in an
+	// inconsistent state that causes npm's rmdir to fail with ENOTEMPTY.
+	globalDir := filepath.Join(m.binDir, "..", "lib", "node_modules", m.packageName)
+	if _, err := os.Stat(globalDir); err == nil {
+		if err := os.RemoveAll(globalDir); err != nil {
+			// Non-fatal: log and continue — npm may still succeed
+			fmt.Fprintf(os.Stderr, "warning: failed to clean up previous installation at %s: %v\n", globalDir, err)
+		}
+	}
+
 	// Install package
 	packageSpec := m.packageName
 	if m.version != "" {
@@ -224,7 +243,7 @@ func (m *NpmBinaryManager) installPackage(ctx context.Context) error {
 }
 
 // parseVersionFromList extracts version from npm list output.
-// Example output: "verdaccio@5.28.0"
+// Example output: "verdaccio@6.1.2"
 func (m *NpmBinaryManager) parseVersionFromList(output string) string {
 	// Pattern: packageName@version
 	pattern := regexp.MustCompile(m.packageName + `@([\d\.]+)`)

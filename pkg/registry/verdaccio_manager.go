@@ -31,14 +31,14 @@ func NewVerdaccioManager(config NpmProxyConfig, binary BinaryManager, process Pr
 }
 
 // NewVerdaccioManagerDefault creates a VerdaccioManager with default production
-// dependencies (NpmBinaryManager for verdaccio v5.28.0, ProcessManager with
+// dependencies (NpmBinaryManager for verdaccio v6.1.2, ProcessManager with
 // standard PID/log paths). Prefer NewVerdaccioManager for testability.
 func NewVerdaccioManagerDefault(config NpmProxyConfig) (*VerdaccioManager, error) {
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid verdaccio config: %w", err)
 	}
 
-	binaryManager := NewNpmBinaryManager("verdaccio", "5.28.0")
+	binaryManager := NewNpmBinaryManager("verdaccio", "6.1.2")
 	processManager := NewProcessManager(ProcessConfig{
 		PIDFile: filepath.Join(config.Storage, "verdaccio.pid"),
 		LogFile: filepath.Join(config.Storage, "verdaccio.log"),

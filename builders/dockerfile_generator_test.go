@@ -622,6 +622,12 @@ func TestDockerfileGenerator_LanguageVersionTable(t *testing.T) {
 		{"perl", "5.38", "perl:5.38-slim"},
 		{"perl", "5.40", "perl:5.40-slim"},
 
+		// Ruby versions
+		{"ruby", "", "ruby:3.3-slim"},
+		{"ruby", "3.2", "ruby:3.2-slim"},
+		{"ruby", "3.3", "ruby:3.3-slim"},
+		{"ruby", "3.4", "ruby:3.4-slim"},
+
 		// Unknown language
 		{"unknown", "", "ubuntu:22.04"},
 		{"rust", "", "ubuntu:22.04"},
@@ -1179,7 +1185,7 @@ func TestDockerfileGenerator_BuilderStage_BinaryVerification(t *testing.T) {
 					stageName:   "neovim",
 					stageHeader: "# --- Parallel builder: Neovim ---",
 					nextHeader:  "# --- Parallel builder: lazygit ---",
-					binaryPath:  "test -x /opt/nvim/bin/nvim",
+					binaryPath:  "test -x /opt/nvim/usr/bin/nvim",
 				},
 				{
 					stageName:   "lazygit",
@@ -2108,6 +2114,13 @@ func TestIsAlpine_ComputedPerLanguage(t *testing.T) {
 			alpineAbsent: "apt-get",
 		},
 		{
+			language:     "ruby",
+			version:      "3.3",
+			expectAlpine: false,
+			debianMarker: "apt-get",
+			debianAbsent: "apk add",
+		},
+		{
 			language:     "", // default/ubuntu
 			version:      "",
 			expectAlpine: false,
@@ -2188,6 +2201,7 @@ func TestIsAlpine_FieldMatchesGeneratedImage(t *testing.T) {
 		{"golang", "1.22"},
 		{"python", "3.11"},
 		{"nodejs", "18"},
+		{"ruby", "3.3"},
 		{"", ""},     // default/ubuntu
 		{"rust", ""}, // unknown → ubuntu
 	}
@@ -2765,11 +2779,11 @@ func TestGetMasonToolsForLanguage_IncludesLinters(t *testing.T) {
 		notWantTools []string // tools that must NOT be present (sanity check)
 	}{
 		{
-			name:     "python includes pyright, ruff-lsp, black, isort, and pylint",
+			name:     "python includes pyright, ruff, black, isort, and pylint",
 			language: "python",
 			wantTools: []string{
 				"pyright",
-				"ruff-lsp",
+				"ruff",
 				"black",
 				"isort",
 				"pylint", // WI-4: new addition
@@ -3014,7 +3028,7 @@ func TestInstallMasonLSPs_IncludesBaseTools(t *testing.T) {
 	}
 
 	// MUST include language-specific tools for Python
-	pythonTools := []string{"pyright", "ruff-lsp", "black", "isort"}
+	pythonTools := []string{"pyright", "ruff", "black", "isort"}
 	for _, tool := range pythonTools {
 		if !strings.Contains(toolsLine, tool) {
 			t.Errorf("Mason install missing Python tool %q.\n"+
@@ -4888,7 +4902,7 @@ func TestGetMasonToolsForLanguage_AllLanguages(t *testing.T) {
 			name:     "python",
 			language: "python",
 			wantTools: []string{
-				"pyright", "ruff-lsp", "black", "isort", "pylint",
+				"pyright", "ruff", "black", "isort", "pylint",
 			},
 		},
 		{
@@ -5125,7 +5139,7 @@ func TestInstallMasonTools_ExtraToolsFromConfig(t *testing.T) {
 	}
 
 	// Language tools must still be present
-	langTools := []string{"pyright", "ruff-lsp"}
+	langTools := []string{"pyright", "ruff"}
 	for _, tool := range langTools {
 		if !strings.Contains(toolsLine, tool) {
 			t.Errorf("Mason install missing language tool %q when extra tools are configured.\n"+

@@ -15,6 +15,20 @@ import (
 	"github.com/google/uuid"
 )
 
+// BuildError is returned by buildWorkspacesInParallel when one or more
+// workspaces fail. It carries the succeeded/failed counts so callers can
+// display an accurate summary without a round-trip through the database.
+type BuildError struct {
+	Succeeded   int
+	Failed      int
+	FailedNames []string
+}
+
+func (e *BuildError) Error() string {
+	return fmt.Sprintf("build failed for %d workspace(s): %s",
+		len(e.FailedNames), strings.Join(e.FailedNames, ", "))
+}
+
 // buildWorkspacesInParallel executes the given build function for each
 // workspace using a bounded worker pool. Concurrency controls the maximum
 // number of simultaneous builds. All workspaces are attempted regardless
@@ -143,7 +157,7 @@ func buildWorkspacesInParallel(
 			duration := int64(wsEnd.Sub(wsStart).Seconds())
 
 			res := workspaceResult{
-				name:      w.Workspace.Name,
+				name:      w.ShortPath(),
 				wsID:      w.Workspace.ID,
 				startedAt: wsStart,
 			}
@@ -234,8 +248,11 @@ func buildWorkspacesInParallel(
 	}
 
 	if len(failedNames) > 0 {
-		return fmt.Errorf("build failed for %d workspace(s): %s",
-			len(failedNames), strings.Join(failedNames, ", "))
+		return &BuildError{
+			Succeeded:   succeeded,
+			Failed:      failed,
+			FailedNames: failedNames,
+		}
 	}
 	return nil
 }
