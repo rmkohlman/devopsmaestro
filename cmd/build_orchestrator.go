@@ -110,6 +110,16 @@ func buildWorkspace(cmd *cobra.Command) error {
 			errMsg = buildErr.Error()
 		}
 
+		// Always persist the workspace image tag if one was generated,
+		// regardless of build outcome. This ensures `dvm attach` can find
+		// the image even if postBuild() was never reached (#367).
+		if bc.imageName != "" {
+			if err := sqlDS.UpdateWorkspaceImage(bc.workspace.ID, bc.imageName); err != nil {
+				slog.Warn("failed to persist workspace image tag",
+					"workspace_id", bc.workspace.ID, "image", bc.imageName, "error", err)
+			}
+		}
+
 		if bswID > 0 {
 			upd := &models.BuildSessionWorkspace{
 				ID:              bswID,

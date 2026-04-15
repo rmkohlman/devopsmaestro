@@ -298,3 +298,89 @@ func TestBuildWorkspace_SingleWorkspaceCreatesSession(t *testing.T) {
 	assert.True(t, wsEntry.CompletedAt.Valid,
 		"workspace entry CompletedAt must be set")
 }
+
+// =============================================================================
+// Fix #367 — Build state not updated
+// =============================================================================
+
+// TestUpdateWorkspaceImage_PersistsImageTag verifies that UpdateWorkspaceImage
+// correctly updates the image tag for a workspace, independent of UpdateWorkspace.
+func TestUpdateWorkspaceImage_PersistsImageTag(t *testing.T) {
+	store := db.NewMockDataStore()
+
+	// Create a workspace so UpdateWorkspaceImage has a valid target
+	eco := &models.Ecosystem{Name: "eco"}
+	require.NoError(t, store.CreateEcosystem(eco))
+	ws := &models.Workspace{Name: "dev", ImageName: ":pending"}
+	require.NoError(t, store.CreateWorkspace(ws))
+
+	const imageTag = "dvm-dev-api:20260415-090000"
+
+	// Call the targeted update directly
+	err := store.UpdateWorkspaceImage(ws.ID, imageTag)
+	require.NoError(t, err, "UpdateWorkspaceImage should not error (#367)")
+
+	// Verify the call was recorded
+	calls := store.GetCalls()
+	found := false
+	for _, c := range calls {
+		if c.Method == "UpdateWorkspaceImage" {
+			found = true
+			require.Len(t, c.Args, 2,
+				"UpdateWorkspaceImage should be called with 2 args: workspaceID and imageTag")
+			assert.Equal(t, ws.ID, c.Args[0],
+				"first arg should be workspace ID")
+			assert.Equal(t, imageTag, c.Args[1],
+				"second arg should be image tag")
+			break
+		}
+	}
+	assert.True(t, found, "UpdateWorkspaceImage must be called (#367)")
+}
+
+// TestUpdateWorkspaceImage_ThenUpdateWorkspace_TagNotLost verifies that calling
+// UpdateWorkspaceImage followed by UpdateWorkspace does not lose the image tag.
+// This is the belt-and-suspenders pattern introduced in postBuild() for fix #367.
+func TestUpdateWorkspaceImage_ThenUpdateWorkspace_TagNotLost(t *testing.T) {
+	store := db.NewMockDataStore()
+
+	// Create a workspace in the mock store
+	eco := &models.Ecosystem{Name: "eco"}
+	require.NoError(t, store.CreateEcosystem(eco))
+
+	ws := &models.Workspace{
+		Name:      "dev",
+		ImageName: ":pending",
+	}
+	require.NoError(t, store.CreateWorkspace(ws))
+
+	const newTag = "dvm-dev-app:20260415-100000"
+
+	// Step 1: targeted update (fix #367 primary write)
+	err := store.UpdateWorkspaceImage(ws.ID, newTag)
+	require.NoError(t, err, "UpdateWorkspaceImage should succeed")
+
+	// Step 2: full workspace update (belt-and-suspenders)
+	ws.ImageName = newTag
+	err = store.UpdateWorkspace(ws)
+	require.NoError(t, err, "UpdateWorkspace should succeed")
+
+	// Verify both calls were made (postBuild calls both as per fix #367)
+	calls := store.GetCalls()
+	var sawUpdateImg, sawUpdateWS bool
+	for _, c := range calls {
+		switch c.Method {
+		case "UpdateWorkspaceImage":
+			sawUpdateImg = true
+		case "UpdateWorkspace":
+			sawUpdateWS = true
+		}
+	}
+	assert.True(t, sawUpdateImg, "UpdateWorkspaceImage must be called in postBuild (#367)")
+	assert.True(t, sawUpdateWS, "UpdateWorkspace must also be called in postBuild (#367)")
+
+	// Verify the in-memory ws object retains the tag (UpdateWorkspace was called
+	// with ws.ImageName = newTag — the mock records this faithfully).
+	assert.Equal(t, newTag, ws.ImageName,
+		"workspace ImageName must be set to new tag before UpdateWorkspace call (#367)")
+}

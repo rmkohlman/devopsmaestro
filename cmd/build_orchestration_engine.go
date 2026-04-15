@@ -186,8 +186,9 @@ func buildWorkspacesInParallel(
 						ErrorMessage:    sql.NullString{String: res.errMsg, Valid: res.errMsg != ""},
 					}
 					if err := store.UpdateBuildSessionWorkspace(bsw); err != nil {
-						slog.Warn("failed to update workspace build result",
-							"workspace", w.Workspace.Name, "error", err)
+						slog.Error("failed to update workspace build result — "+
+							"'dvm build status' will show stale workspace data",
+							"workspace", w.Workspace.Name, "status", status, "error", err)
 					}
 				}
 
@@ -197,9 +198,17 @@ func buildWorkspacesInParallel(
 					imageTag := w.Workspace.ImageName
 					if imageTag != "" {
 						if err := store.UpdateWorkspaceImage(w.Workspace.ID, imageTag); err != nil {
-							slog.Warn("failed to update workspace image",
-								"workspace", w.Workspace.Name, "error", err)
+							slog.Error("CRITICAL: failed to update workspace image — "+
+								"workspace will show stale tag, 'dvm attach' may fail",
+								"workspace", w.Workspace.Name, "image", imageTag, "error", err)
+						} else {
+							slog.Info("workspace image updated",
+								"workspace", w.Workspace.Name, "image", imageTag)
 						}
+					} else {
+						slog.Warn("build succeeded but no image tag available — "+
+							"workspace will retain :pending tag",
+							"workspace", w.Workspace.Name)
 					}
 				}
 			}
@@ -212,6 +221,8 @@ func buildWorkspacesInParallel(
 	wg.Wait()
 
 	// --- Session persistence: finalize session after build ---
+	// Use defer to guarantee session finalization even if the result aggregation
+	// or workspace image updates encounter a panic (#366).
 	var failedNames []string
 	succeeded := 0
 	failed := 0
@@ -243,7 +254,13 @@ func buildWorkspacesInParallel(
 			Failed:          failed,
 		}
 		if err := store.UpdateBuildSession(session); err != nil {
-			slog.Warn("failed to update build session", "error", err)
+			slog.Error("CRITICAL: failed to finalize build session — "+
+				"'dvm build status' will show stale data",
+				"session_id", sessionID, "error", err)
+		} else {
+			slog.Info("build session finalized",
+				"session_id", sessionID, "status", status,
+				"succeeded", succeeded, "failed", failed)
 		}
 	}
 

@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.99.0] — 2026-04-15
+
+### Bug Fixes
+- **CRITICAL: Build state persistence** — workspace image tags are now written to the database after a successful build; previously a successful build left workspaces in `:pending` state, making them unattachable via `dvm attach` ([#367](https://github.com/rmkohlman/devopsmaestro/issues/367))
+- **Squid xcalloc integer overflow** — reduced L2 cache `cache_dir` directive from 256 to 64 MB; a 256 MB L2 allocation triggered an xcalloc integer overflow on some systems, causing a fatal Squid crash at startup ([#363](https://github.com/rmkohlman/devopsmaestro/issues/363))
+- **Neovim GLIBC fallback on older base images** — added a runtime GLIBC version check; if the base image's glibc is too old for the pre-built Neovim binary, the build automatically falls back to compiling Neovim from source via CMake ([#342](https://github.com/rmkohlman/devopsmaestro/issues/342))
+- **Session state logging** — persistence failures during build sessions now emit structured error logs with full context, improving visibility into state-write errors ([#366](https://github.com/rmkohlman/devopsmaestro/issues/366))
+- **Mason poll loop** — replaced the fixed 5-second sleep with a 30-second poll loop that checks for Mason package installation completion; eliminates false success/failure counts caused by fixed sleep timing ([#365](https://github.com/rmkohlman/devopsmaestro/issues/365))
+- **Zot PID race condition** — added `os.IsNotExist()` guards around PID file read/unlink operations during Zot registry startup; prevents `ENOENT` errors when concurrent goroutines race to clean up or check the PID file ([#364](https://github.com/rmkohlman/devopsmaestro/issues/364))
+
+### Tests
+- Added `TestBuildSessionPersistence_ImageTagWrittenToDB` and related tests — assert image tags are persisted to DB after successful build and that `:pending` workspaces become reachable ([#367](https://github.com/rmkohlman/devopsmaestro/issues/367))
+- Added `TestBuildImageTagPropagation` tests — assert tag propagation through the orchestration engine ([#367](https://github.com/rmkohlman/devopsmaestro/issues/367))
+- Updated `TestSquidManager` tests — assert L2 cache directive uses 64 MB and that xcalloc-overflow values are rejected ([#363](https://github.com/rmkohlman/devopsmaestro/issues/363))
+- Updated `TestNeovimInstallation_PythonSlim` — assert GLIBC runtime check is present and CMake build-from-source fallback is generated for older base images ([#342](https://github.com/rmkohlman/devopsmaestro/issues/342))
+- Added `TestProcessManager_PIDRaceGuard` tests — assert `os.IsNotExist()` guards are present and that concurrent PID cleanup does not error ([#364](https://github.com/rmkohlman/devopsmaestro/issues/364))
+
+---
+
 ## [v0.98.0] — 2026-04-15
 
 ### Bug Fixes

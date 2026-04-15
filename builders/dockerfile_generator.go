@@ -1239,13 +1239,14 @@ func (g *DefaultDockerfileGenerator) activeBuilderStages() []builderStage {
 
 	// Neovim builder (only for Debian — Alpine uses apk)
 	// Uses pre-built tarball targeting GLIBC 2.17+ — binary is at /opt/nvim/bin/nvim (see #356)
+	// If the pre-built binary fails (GLIBC too old), fall back to building from source (#342)
 	if !isAlpine {
 		stages = append(stages, builderStage{
 			name:     "neovim-builder",
 			emitFunc: g.generateNeovimBuilder,
 			copyLines: []string{
 				"COPY --from=neovim-builder /opt/nvim/ /opt/nvim/",
-				"RUN ln -sf /opt/nvim/bin/nvim /usr/local/bin/nvim",
+				g.neovimGlibcFallbackRun(),
 			},
 		})
 	}
@@ -1361,6 +1362,30 @@ func (g *DefaultDockerfileGenerator) generateNeovimBuilder(dockerfile *strings.B
 	dockerfile.WriteString("    tar xzf \"${NVIM_ARCH}.tar.gz\" --strip-components=1 -C /opt/nvim && \\\n")
 	dockerfile.WriteString("    rm \"${NVIM_ARCH}.tar.gz\" && \\\n")
 	dockerfile.WriteString("    test -x /opt/nvim/bin/nvim\n\n")
+}
+
+// neovimGlibcFallbackRun returns a Dockerfile RUN instruction that:
+//  1. Tests if the pre-built nvim binary works (GLIBC compatible).
+//  2. If it works, creates a symlink and exits.
+//  3. If it fails (GLIBC too old), builds Neovim from source via cmake (#342).
+//
+// This handles workspaces whose base images ship an older GLIBC (< 2.35),
+// where the neovim/neovim release tarball (compiled on Ubuntu 22.04) fails
+// with "GLIBC_2.32/2.33/2.34 not found".
+func (g *DefaultDockerfileGenerator) neovimGlibcFallbackRun() string {
+	return fmt.Sprintf(`RUN if /opt/nvim/bin/nvim --version > /dev/null 2>&1; then \
+      echo "Neovim pre-built binary OK"; \
+    else \
+      echo "Neovim pre-built binary incompatible (GLIBC too old), building from source..."; \
+      rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends \
+        git cmake make gcc g++ gettext unzip curl ca-certificates && \
+      git clone --depth 1 --branch v%s https://github.com/neovim/neovim.git /tmp/nvim-src && \
+      cd /tmp/nvim-src && \
+      make CMAKE_BUILD_TYPE=Release CMAKE_INSTALL_PREFIX=/opt/nvim && \
+      make install && \
+      rm -rf /tmp/nvim-src; \
+    fi && \
+    ln -sf /opt/nvim/bin/nvim /usr/local/bin/nvim`, neovimVersion)
 }
 
 // generateLazygitBuilder creates a parallel stage to download lazygit.
@@ -2499,18 +2524,39 @@ func (g *DefaultDockerfileGenerator) writeMasonLuaScript(dockerfile *strings.Bui
 	dockerfile.WriteString("end\n\n")
 	// Allow async finalization (binary linking, shim creation) to settle before exit.
 	// Mason's pkg:is_installed() returns true before background tasks like binary
-	// linking fully complete (issue #358). A short settle period prevents the race.
-	dockerfile.WriteString("-- Allow Mason async finalization to complete before exit (issue #358)\n")
-	dockerfile.WriteString("vim.wait(5000, function() return false end, 500)\n")
+	// linking fully complete (issue #358). Use a poll loop that checks the actual
+	// binary count in the Mason bin/ directory rather than a fixed sleep (#365).
+	dockerfile.WriteString("-- Poll Mason bin/ directory until all tools are linked (issue #358, #365)\n")
+	dockerfile.WriteString("local expected = #tools\n")
+	dockerfile.WriteString("local max_wait_ms = 30000\n")
+	dockerfile.WriteString("local poll_ms = 1000\n")
+	dockerfile.WriteString("local home = os.getenv('HOME') or '/home/dev'\n")
+	dockerfile.WriteString("local bin_dir = home .. '/.local/share/nvim/mason/bin'\n")
+	dockerfile.WriteString("vim.wait(max_wait_ms, function()\n")
+	dockerfile.WriteString("  local handle = io.popen('ls -1 \"' .. bin_dir .. '\" 2>/dev/null | wc -l')\n")
+	dockerfile.WriteString("  if not handle then return false end\n")
+	dockerfile.WriteString("  local count = tonumber(handle:read('*a'):match('%d+')) or 0\n")
+	dockerfile.WriteString("  handle:close()\n")
+	dockerfile.WriteString("  return count >= expected\n")
+	dockerfile.WriteString("end, poll_ms)\n")
 	dockerfile.WriteString("vim.cmd('qa!')\n")
 	dockerfile.WriteString("LUAEOF\n\n")
 }
 
 // writeMasonVerification writes a Dockerfile RUN step that verifies Mason packages
-// were actually installed by checking the Mason packages directory.
+// were actually installed by checking the Mason bin/ directory.
+// Uses a brief poll loop to handle any final async linking (#365).
 func (g *DefaultDockerfileGenerator) writeMasonVerification(dockerfile *strings.Builder, user string, toolCount int) {
 	dockerfile.WriteString("# Verify Mason tools were installed\n")
-	dockerfile.WriteString(fmt.Sprintf("RUN pkg_count=$(ls -1 /home/%s/.local/share/nvim/mason/bin/ 2>/dev/null | wc -l) && \\\n", user))
+	dockerfile.WriteString(fmt.Sprintf("RUN MASON_BIN=\"/home/%s/.local/share/nvim/mason/bin\" && \\\n", user))
+	dockerfile.WriteString(fmt.Sprintf("    EXPECTED=%d && \\\n", toolCount))
+	// Poll up to 15 seconds for stragglers
+	dockerfile.WriteString("    for i in $(seq 1 15); do \\\n")
+	dockerfile.WriteString("      pkg_count=$(ls -1 \"$MASON_BIN\" 2>/dev/null | wc -l | tr -d ' ') && \\\n")
+	dockerfile.WriteString("      if [ \"$pkg_count\" -ge \"$EXPECTED\" ]; then break; fi && \\\n")
+	dockerfile.WriteString("      sleep 1; \\\n")
+	dockerfile.WriteString("    done && \\\n")
+	dockerfile.WriteString("    pkg_count=$(ls -1 \"$MASON_BIN\" 2>/dev/null | wc -l | tr -d ' ') && \\\n")
 	dockerfile.WriteString("    if [ \"$pkg_count\" -lt 1 ]; then \\\n")
 	dockerfile.WriteString("      echo \"ERROR: No Mason packages found after install step\" && \\\n")
 	dockerfile.WriteString("      cat /tmp/mason-install.log 2>/dev/null && \\\n")

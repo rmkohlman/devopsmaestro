@@ -639,10 +639,19 @@ func (bc *buildContext) assembleBuildArgs() map[string]string {
 // postBuild updates the workspace in the database, pushes to registry if requested,
 // and prints the build summary.
 func (bc *buildContext) postBuild() {
-	// Update workspace image name in database
+	// Update workspace image name in database.
+	// Use the targeted UpdateWorkspaceImage first (only updates image_name column),
+	// then fall back to the full UpdateWorkspace. This ensures the image tag is
+	// persisted even if the full row update fails due to concurrent access (#367).
 	bc.workspace.ImageName = bc.imageName
+	if err := bc.ds.UpdateWorkspaceImage(bc.workspace.ID, bc.imageName); err != nil {
+		slog.Warn("targeted workspace image update failed, trying full update",
+			"workspace_id", bc.workspace.ID, "image", bc.imageName, "error", err)
+	}
 	if err := bc.ds.UpdateWorkspace(bc.workspace); err != nil {
-		bc.renderWarningf("Failed to update workspace image name: %v", err)
+		bc.renderWarningf("Failed to update workspace: %v", err)
+		slog.Warn("full workspace update failed",
+			"workspace_id", bc.workspace.ID, "image", bc.imageName, "error", err)
 	}
 
 	// Push to registry if --push flag is set and registry is available
