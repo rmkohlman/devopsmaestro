@@ -9,14 +9,16 @@ import (
 	ws "devopsmaestro/pkg/workspace"
 	"devopsmaestro/utils"
 	"fmt"
-	"github.com/rmkohlman/MaestroSDK/paths"
-	"github.com/rmkohlman/MaestroSDK/render"
 	"io"
 	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/google/uuid"
+	"github.com/rmkohlman/MaestroSDK/paths"
+	"github.com/rmkohlman/MaestroSDK/render"
 )
 
 // getBuildSourcePath determines the source path for building a workspace.
@@ -247,8 +249,25 @@ func copyFile(src, dst string, mode os.FileMode) error {
 	return os.Chmod(dst, mode)
 }
 
-// copyImageToNamespace copies the built image from buildkit namespace to devopsmaestro namespace
-// This is needed because BuildKit creates images in its own namespace
+// imageNameToSafeSlug converts an image name (e.g. "dvm-dev-daa-agents:20260414-230555")
+// to a filesystem-safe slug by replacing non-alphanumeric characters with hyphens.
+func imageNameToSafeSlug(imageName string) string {
+	var b strings.Builder
+	for _, c := range imageName {
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' {
+			b.WriteRune(c)
+		} else {
+			b.WriteRune('-')
+		}
+	}
+	return b.String()
+}
+
+// copyImageToNamespace copies the built image from buildkit namespace to devopsmaestro namespace.
+// This is needed because BuildKit creates images in its own namespace.
+//
+// The temp file uses a unique name per image (slug + 8-char UUID) to prevent
+// collisions when multiple builds run concurrently under the same PID (#359).
 func copyImageToNamespace(platform *operators.Platform, imageName string, out io.Writer) error {
 	fmt.Fprintln(out)
 	render.MsgTo(out, "", render.Message{Level: render.LevelProgress, Content: "Copying image to devopsmaestro namespace..."})
@@ -258,7 +277,9 @@ func copyImageToNamespace(platform *operators.Platform, imageName string, out io
 		profile = "default"
 	}
 
-	tmpFile := fmt.Sprintf("/tmp/dvm-image-%d.tar", os.Getpid())
+	slug := imageNameToSafeSlug(imageName)
+	tmpFile := fmt.Sprintf("/tmp/dvm-image-%s-%s.tar", slug, uuid.New().String()[:8])
+	slog.Debug("image copy temp file", "path", tmpFile, "image", imageName)
 
 	// Save image from buildkit namespace
 	saveCmd := exec.Command("colima", "--profile", profile, "ssh", "--",
@@ -266,7 +287,15 @@ func copyImageToNamespace(platform *operators.Platform, imageName string, out io
 	saveCmd.Stdout = out
 	saveCmd.Stderr = out
 	if err := saveCmd.Run(); err != nil {
-		return fmt.Errorf("failed to save image: %w", err)
+		return fmt.Errorf("failed to save image %s: %w", imageName, err)
+	}
+
+	// Verify the tar file exists before attempting to load it.
+	// This catches silent export failures early with a clear message (#359).
+	verifyCmd := exec.Command("colima", "--profile", profile, "ssh", "--",
+		"sudo", "test", "-f", tmpFile)
+	if err := verifyCmd.Run(); err != nil {
+		return fmt.Errorf("image save reported success but tar file %s does not exist (image: %s)", tmpFile, imageName)
 	}
 
 	// Load image into devopsmaestro namespace
@@ -275,7 +304,7 @@ func copyImageToNamespace(platform *operators.Platform, imageName string, out io
 	loadCmd.Stdout = out
 	loadCmd.Stderr = out
 	if err := loadCmd.Run(); err != nil {
-		return fmt.Errorf("failed to load image: %w", err)
+		return fmt.Errorf("failed to load image %s: %w", imageName, err)
 	}
 
 	// Clean up temp file

@@ -6,6 +6,18 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ---
 
+## v0.97.0 (2026-04-14)
+
+**Bug Fixes**
+- **Fix Mason package installation race condition** — packages now fully finalize before Neovim exits; removed `+qa` from the Mason nvim command, added a 5-second settle period and an explicit `vim.cmd('qa!')` call in the Lua install script ([#358](https://github.com/rmkohlman/devopsmaestro/issues/358))
+- **Fix image copy failure under concurrency** — temp files now use unique slug+UUID names instead of a shared PID-based name, eliminating collisions when multiple workspaces copy images concurrently ([#359](https://github.com/rmkohlman/devopsmaestro/issues/359))
+
+**Tests**
+- Added `TestMasonInstallation_SettlePeriodAndQuit` — asserts settle period and `vim.cmd('qa!')` are present and that `+qa` is absent from the Mason nvim invocation ([#358](https://github.com/rmkohlman/devopsmaestro/issues/358))
+- Added `TestBuildTarName_UniquePerWorkspace`, `TestBuildTarName_ContainsSlug`, and `TestBuildTarName_NoSharedPID` — assert that temp tar files use unique slug+UUID names and do not collide across concurrent builds ([#359](https://github.com/rmkohlman/devopsmaestro/issues/359))
+
+---
+
 ## v0.96.3 (2026-04-14)
 
 **Bug Fixes**

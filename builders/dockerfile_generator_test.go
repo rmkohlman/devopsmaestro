@@ -4889,6 +4889,93 @@ func TestInstallMasonTools_SynchronousLuaScript(t *testing.T) {
 	}
 }
 
+// TestMasonInstall_ScriptControlsExitTiming verifies that the Mason install
+// Lua script controls Neovim exit timing (vim.cmd('qa!')) rather than relying
+// on +qa on the nvim command line. Issue #358: +qa causes a race condition
+// where Mason's async finalization (binary linking, shim creation) is aborted
+// because Neovim exits within 2ms of the last "OK" message.
+func TestMasonInstall_ScriptControlsExitTiming(t *testing.T) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("failed to get home dir: %v", err)
+	}
+
+	repoName := "test-mason-exit-timing"
+	stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", repoName)
+	nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
+	if err := os.MkdirAll(nvimConfigPath, 0755); err != nil {
+		t.Fatalf("failed to create nvim config dir: %v", err)
+	}
+	defer os.RemoveAll(stagingDir)
+
+	initLuaPath := filepath.Join(nvimConfigPath, "init.lua")
+	if err := os.WriteFile(initLuaPath, []byte("-- test"), 0644); err != nil {
+		t.Fatalf("failed to create init.lua: %v", err)
+	}
+
+	ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
+	wsYAML := models.WorkspaceSpec{Nvim: models.NvimConfig{Structure: "custom"}}
+	manifest := &plugin.PluginManifest{
+		Features: plugin.PluginFeatures{HasMason: true, HasTreesitter: false},
+	}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "python",
+		Version:       "3.11",
+		AppPath:       filepath.Join("/tmp", "dvm-clone-xyz", repoName),
+		PathConfig:    paths.New(homeDir),
+	})
+	gen.SetPluginManifest(manifest)
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	// 1. Verify +qa is NOT on the nvim command line for Mason install.
+	//    The Lua script must control exit timing to prevent the race condition.
+	if strings.Contains(dockerfile, "mason-install.lua\" +qa") {
+		t.Error("Issue #358: Mason nvim command should NOT have +qa — " +
+			"the Lua script must control exit timing via vim.cmd('qa!')")
+	}
+
+	// 2. Verify the Lua script contains vim.cmd('qa!') for controlled exit.
+	//    Locate the Mason heredoc specifically (not treesitter or other heredocs).
+	masonHeredocMarker := "mason-install.lua"
+	masonCopyIdx := strings.Index(dockerfile, masonHeredocMarker)
+	if masonCopyIdx < 0 {
+		t.Fatal("cannot locate mason-install.lua COPY heredoc in Dockerfile")
+	}
+	// Find the LUAEOF that closes this specific heredoc (after the COPY line)
+	luaEofIdx := strings.Index(dockerfile[masonCopyIdx:], "\nLUAEOF\n")
+	if luaEofIdx < 0 {
+		t.Fatal("cannot locate LUAEOF closing the Mason Lua heredoc")
+	}
+	luaScript := dockerfile[masonCopyIdx : masonCopyIdx+luaEofIdx]
+	if !strings.Contains(luaScript, "vim.cmd('qa!')") {
+		t.Error("Issue #358: Mason Lua script must call vim.cmd('qa!') to control exit timing")
+	}
+
+	// 3. Verify the Lua script has a settle/wait period before exit.
+	//    This ensures Mason's background finalization tasks complete.
+	if !strings.Contains(luaScript, "vim.wait(5000") {
+		t.Error("Issue #358: Mason Lua script must include a settle period " +
+			"(vim.wait) before vim.cmd('qa!') for async finalization")
+	}
+
+	// 4. Verify vim.cmd('qa!') comes AFTER the final verification block.
+	verifyIdx := strings.Index(luaScript, "-- Final verification")
+	qaIdx := strings.Index(luaScript, "vim.cmd('qa!')")
+	if verifyIdx < 0 || qaIdx < 0 {
+		t.Fatal("cannot locate final verification or qa! in Lua script")
+	}
+	if qaIdx < verifyIdx {
+		t.Error("Issue #358: vim.cmd('qa!') must come AFTER the final verification block")
+	}
+}
+
 // TestGetMasonToolsForLanguage_AllLanguages is a table-driven test verifying the
 // exact Mason tool list for every supported language, including the expanded
 // ruby (rubocop) and java (google-java-format) lists.

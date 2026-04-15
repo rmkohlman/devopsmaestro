@@ -239,3 +239,96 @@ func TestLoadBuildCredentials_UsesDataStoreInterface(t *testing.T) {
 	var _ db.DataStore = (*db.MockDataStore)(nil) // compile-time check
 	var _ config.CredentialScope = config.CredentialScope{}
 }
+
+// ---------------------------------------------------------------------------
+// Section: imageNameToSafeSlug Tests (#359)
+// ---------------------------------------------------------------------------
+
+// TestImageNameToSafeSlug verifies that image names are converted to
+// filesystem-safe slugs for use in temp file paths.
+func TestImageNameToSafeSlug(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "simple image name",
+			input:    "my-image",
+			expected: "my-image",
+		},
+		{
+			name:     "image with tag colon",
+			input:    "dvm-dev-daa-agents:20260414-230555",
+			expected: "dvm-dev-daa-agents-20260414-230555",
+		},
+		{
+			name:     "image with registry slash",
+			input:    "registry.io/my-image:latest",
+			expected: "registry-io-my-image-latest",
+		},
+		{
+			name:     "image with underscores",
+			input:    "my_image_name",
+			expected: "my-image-name",
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "image with dots",
+			input:    "registry.example.com/org/image:v1.2.3",
+			expected: "registry-example-com-org-image-v1-2-3",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := imageNameToSafeSlug(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestImageNameToSafeSlug_ConcurrentUniqueness verifies that different image
+// names produce different slugs, ensuring concurrent builds don't collide.
+func TestImageNameToSafeSlug_ConcurrentUniqueness(t *testing.T) {
+	images := []string{
+		"dvm-dev-daa-agents:20260414-230555",
+		"dvm-dev-daa-data-collector:20260414-230554",
+		"dvm-dev-daa-northbound-api:20260414-230556",
+		"dvm-dev-daa-frontend:20260414-230557",
+	}
+
+	slugs := make(map[string]string) // slug → original image name
+	for _, img := range images {
+		slug := imageNameToSafeSlug(img)
+		if existing, ok := slugs[slug]; ok {
+			t.Errorf("slug collision: %q and %q both produce slug %q", existing, img, slug)
+		}
+		slugs[slug] = img
+	}
+}
+
+// TestImageNameToSafeSlug_OnlyContainsSafeChars ensures the slug output
+// contains only alphanumeric characters and hyphens — safe for file paths.
+func TestImageNameToSafeSlug_OnlyContainsSafeChars(t *testing.T) {
+	inputs := []string{
+		"dvm-dev-daa-agents:20260414-230555",
+		"registry.io/org/my_image:v1.2.3-rc1",
+		"image@sha256:abc123",
+		"a/b/c:d/e/f",
+	}
+
+	for _, input := range inputs {
+		slug := imageNameToSafeSlug(input)
+		for _, c := range slug {
+			isSafe := (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-'
+			if !isSafe {
+				t.Errorf("slug for %q contains unsafe char %q: %s", input, string(c), slug)
+			}
+		}
+	}
+}
