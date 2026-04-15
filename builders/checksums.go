@@ -31,9 +31,12 @@ const starshipChecksumArm64 = "56b9ff412bbf374d29b99e5ac09a849124cb37a0a13121e84
 const starshipChecksumX86_64 = "00ff3c1f8ffb59b5c15d4b44c076bcca04d92cf0055c86b916248c14f3ae714a"
 
 // --- Tree-sitter CLI ---
-// Built from source via Cargo to avoid GLIBC version mismatches (see #334).
-// Only the version is needed; no binary checksums since we compile from crates.io.
+// https://github.com/tree-sitter/tree-sitter/releases
+// Debian: uses pre-built binary from GitHub releases (faster than cargo install).
+// Alpine: still built from source via Cargo (pre-built binary requires glibc).
 const treeSitterVersion = "0.24.7"
+const treeSitterChecksumArm64 = "bad9cd53adcbd18df33084bb811b8cf7868fffd79437acfc83ac1025e7574c78"
+const treeSitterChecksumX86_64 = "628fa0e1c4d78b5d4f7de64b6ab42fc050e3bee14cb92a076beb82d762d76d69"
 
 // --- golangci-lint ---
 // https://github.com/golangci/golangci-lint/releases

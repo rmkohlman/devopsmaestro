@@ -90,7 +90,7 @@ func init() {
 	buildCmd.Flags().StringVar(&buildTarget, "target", "dev", "Build target stage (default: dev)")
 	buildCmd.Flags().BoolVar(&buildPush, "push", false, "Push built image to local registry")
 	buildCmd.Flags().StringVar(&buildRegistry, "registry", "", "Override registry endpoint (default: from config)")
-	buildCmd.Flags().DurationVar(&buildTimeout, "timeout", 30*time.Minute, "Timeout for the build operation (e.g., 30m, 1h)")
+	buildCmd.Flags().DurationVar(&buildTimeout, "timeout", 45*time.Minute, "Timeout for the build operation (e.g., 30m, 1h)")
 	AddHierarchyFlags(buildCmd, &buildFlags)
 	AddDryRunFlag(buildCmd, &buildDryRun)
 	AddAllFlag(buildCmd, "Build all matching workspaces (use with -e/-d/-a to scope)")

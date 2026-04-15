@@ -1421,22 +1421,41 @@ func (g *DefaultDockerfileGenerator) generateStarshipBuilder(dockerfile *strings
 	dockerfile.WriteString("    test -x /usr/local/bin/starship\n\n")
 }
 
-// generateTreeSitterBuilder creates a parallel stage to build tree-sitter CLI from source.
-// Uses Cargo to compile tree-sitter-cli, avoiding GLIBC version mismatches with pre-built
-// binaries (see #334). Pinned to a specific version (see checksums.go).
+// generateTreeSitterBuilder creates a parallel stage to install the tree-sitter CLI.
+//   - Alpine: builds from source via Cargo (pre-built binaries require glibc).
+//   - Debian: downloads pre-built binary from GitHub releases with SHA256 checksum
+//     verification. This eliminates the crates.io dependency and Rust compilation
+//     time entirely, reducing build time from ~90s to ~5s per workspace (see #348).
+//     Pre-built binary requires GLIBC_2.29+; Bullseye (2.31) and Bookworm (2.36)
+//     both satisfy this. Pinned to a specific version (see checksums.go).
 func (g *DefaultDockerfileGenerator) generateTreeSitterBuilder(dockerfile *strings.Builder, isAlpine bool) {
 	dockerfile.WriteString("# --- Parallel builder: tree-sitter CLI ---\n")
 	if isAlpine {
+		// Alpine: compile from source since pre-built binaries require glibc
 		dockerfile.WriteString(fmt.Sprintf("FROM %s AS treesitter-builder\n", pinnedImage("rust:1-alpine3.20")))
 		dockerfile.WriteString("RUN set -e && \\\n")
 		dockerfile.WriteString("    cargo install tree-sitter-cli@" + treeSitterVersion + " && \\\n")
 		dockerfile.WriteString("    cp $CARGO_HOME/bin/tree-sitter /usr/local/bin/tree-sitter && \\\n")
 		dockerfile.WriteString("    test -x /usr/local/bin/tree-sitter\n\n")
 	} else {
-		dockerfile.WriteString(fmt.Sprintf("FROM %s AS treesitter-builder\n", pinnedImage("rust:1-slim-bookworm")))
-		dockerfile.WriteString("RUN set -e && \\\n")
-		dockerfile.WriteString("    cargo install tree-sitter-cli@" + treeSitterVersion + " && \\\n")
-		dockerfile.WriteString("    cp $CARGO_HOME/bin/tree-sitter /usr/local/bin/tree-sitter && \\\n")
+		// Debian: download pre-built binary from GitHub releases (see #348)
+		dockerfile.WriteString(fmt.Sprintf("FROM %s AS treesitter-builder\n", pinnedImage("debian:bookworm-slim")))
+		dockerfile.WriteString(g.aptCacheMountsLocked())
+		dockerfile.WriteString("    set -e && \\\n")
+		dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
+		dockerfile.WriteString("    ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m) && \\\n")
+		dockerfile.WriteString("    if [ \"$ARCH\" = \"arm64\" ] || [ \"$ARCH\" = \"aarch64\" ]; then \\\n")
+		dockerfile.WriteString(fmt.Sprintf("        TS_ARCH=\"linux-arm64\"; TS_SHA256=\"%s\"; \\\n", treeSitterChecksumArm64))
+		dockerfile.WriteString("    elif [ \"$ARCH\" = \"amd64\" ] || [ \"$ARCH\" = \"x86_64\" ]; then \\\n")
+		dockerfile.WriteString(fmt.Sprintf("        TS_ARCH=\"linux-x64\"; TS_SHA256=\"%s\"; \\\n", treeSitterChecksumX86_64))
+		dockerfile.WriteString("    else \\\n")
+		dockerfile.WriteString("        echo \"ERROR: Unsupported architecture: $ARCH\"; exit 1; \\\n")
+		dockerfile.WriteString("    fi && \\\n")
+		dockerfile.WriteString(fmt.Sprintf("    curl %s -o /tmp/tree-sitter.gz \"https://github.com/tree-sitter/tree-sitter/releases/download/v%s/tree-sitter-${TS_ARCH}.gz\" && \\\n", curlFlags, treeSitterVersion))
+		dockerfile.WriteString("    echo \"${TS_SHA256}  /tmp/tree-sitter.gz\" | sha256sum -c - && \\\n")
+		dockerfile.WriteString("    gunzip /tmp/tree-sitter.gz && \\\n")
+		dockerfile.WriteString("    mv /tmp/tree-sitter /usr/local/bin/tree-sitter && \\\n")
+		dockerfile.WriteString("    chmod +x /usr/local/bin/tree-sitter && \\\n")
 		dockerfile.WriteString("    test -x /usr/local/bin/tree-sitter\n\n")
 	}
 }
