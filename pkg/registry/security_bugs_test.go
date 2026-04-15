@@ -127,7 +127,7 @@ func TestDefaultProcessManager_ConcurrentReadWrite(t *testing.T) {
 //   B8a - GenerateZotConfig http.address == "127.0.0.1"
 //   B8b - GenerateAthensConfig Port field == "127.0.0.1:{port}"
 //   B8c - GenerateVerdaccioConfig listen field == "127.0.0.1:{port}"
-//   B8d - GenerateSquidConfig http_port binds 0.0.0.0 (required for BuildKit access, ACL-protected — see #346)
+//   B8d - GenerateSquidConfig http_port explicitly binds 0.0.0.0 (required for BuildKit access, ACL-protected — see #346, #353)
 //   B8e - Non-squid configs do NOT contain "0.0.0.0"
 // =============================================================================
 
@@ -288,8 +288,10 @@ func TestGenerateVerdaccioConfig_ListenField_IsLoopback(t *testing.T) {
 // B8d — Squid squid_manager.go: http_port binds to all interfaces
 // Unlike other registries, squid MUST listen on 0.0.0.0 because BuildKit
 // containers inside Colima access it via host.docker.internal which resolves
-// to the VM's gateway IP (e.g. 192.168.5.2), NOT 127.0.0.1 (see #346).
+// to the VM's gateway IP (e.g. 192.168.5.2), NOT 127.0.0.1 (see #346, #353).
 // Security is enforced by ACL rules that restrict access to RFC1918 subnets.
+// We use explicit "0.0.0.0:port" form rather than bare port to guarantee
+// binding behaviour regardless of squid version or platform defaults.
 func TestGenerateSquidConfig_BindsToAllInterfaces(t *testing.T) {
 	cfg := HttpProxyConfig{
 		Port:            3128,
@@ -306,13 +308,13 @@ func TestGenerateSquidConfig_BindsToAllInterfaces(t *testing.T) {
 		t.Fatalf("GenerateSquidConfig() error = %v", err)
 	}
 
-	// Squid uses bare port form (http_port 3128) which binds 0.0.0.0.
-	// This is intentional for container accessibility — see #346.
-	want := "http_port 3128"
+	// Squid must explicitly bind 0.0.0.0 to guarantee all-interface
+	// binding regardless of squid version/platform (see #353).
+	want := "http_port 0.0.0.0:3128"
 	if !strings.Contains(squidConfig, want) {
 		t.Errorf(
 			"GenerateSquidConfig() http_port directive does not contain %q.\n"+
-				"Squid must bind to all interfaces for BuildKit container access (see #346).\nConfig:\n%s",
+				"Squid must explicitly bind 0.0.0.0 for BuildKit container access (see #346, #353).\nConfig:\n%s",
 			want, squidConfig,
 		)
 	}
@@ -369,7 +371,7 @@ func TestGenerateSquidConfig_DoesNotBindLoopbackOnly(t *testing.T) {
 	}
 
 	// Squid must NOT bind to 127.0.0.1 only — that prevents BuildKit
-	// containers from reaching the proxy via host.docker.internal (see #346).
+	// containers from reaching the proxy via host.docker.internal (see #346, #353).
 	loopbackOnly := "http_port 127.0.0.1:3128"
 	if strings.Contains(squidConfig, loopbackOnly) {
 		t.Errorf(

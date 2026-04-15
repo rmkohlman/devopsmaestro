@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.96.2] - 2026-04-14
+
+### Fixed
+- **Squid proxy binding**: Use explicit `0.0.0.0` binding address instead of ambiguous bare port form that defaulted to localhost on some platforms (#353)
+- **Stale proxy config**: Detect and restart squid processes running with outdated configuration from previous dvm versions (#353)
+
+---
+
 ## [v0.96.1] — 2026-04-14
 
 ### Bug Fixes

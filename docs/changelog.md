@@ -6,6 +6,14 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ---
 
+## v0.96.2 (2026-04-14)
+
+**Bug Fixes**
+- **Squid proxy binding**: Use explicit `0.0.0.0` binding address instead of ambiguous bare port form that defaulted to localhost on some platforms ([#353](https://github.com/rmkohlman/devopsmaestro/issues/353))
+- **Stale proxy config**: Detect and restart squid processes running with outdated configuration from previous dvm versions ([#353](https://github.com/rmkohlman/devopsmaestro/issues/353))
+
+---
+
 ## v0.96.1 (2026-04-14)
 
 **Bug Fixes**
