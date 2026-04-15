@@ -6,6 +6,21 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ---
 
+## v0.96.0 (2026-04-14)
+
+**Bug Fixes**
+- **Squid proxy binding fixed for container network access** — squid now listens on `0.0.0.0` instead of `127.0.0.1`; BuildKit containers connect via `host.docker.internal` which resolves to the VM gateway IP (e.g. `192.168.5.2`), not loopback; RFC1918 ACL comment documents the security model ([#346](https://github.com/rmkohlman/devopsmaestro/issues/346))
+- **Default build timeout increased from 30m to 45m** — reduces timeout-related build failures on slower machines or large workspaces; per-workspace timeout is now logged at parallel build start for visibility ([#347](https://github.com/rmkohlman/devopsmaestro/issues/347))
+- **tree-sitter-cli switched to pre-built GitHub binary on Debian** — eliminates the Rust/Cargo compilation step (~85s) by downloading the pre-built binary from GitHub releases with SHA256 checksum verification; Alpine still builds from source via Cargo since pre-built binaries require glibc ([#348](https://github.com/rmkohlman/devopsmaestro/issues/348))
+- **Neovim AppImage extraction validated** — confirmed already correct; no changes needed ([#349](https://github.com/rmkohlman/devopsmaestro/issues/349))
+
+**Tests**
+- Updated tree-sitter builder tests to assert pre-built binary download path for Debian and cargo-based path for Alpine ([#348](https://github.com/rmkohlman/devopsmaestro/issues/348))
+- Updated squid manager tests to reflect `0.0.0.0` binding and RFC1918 ACL comment ([#346](https://github.com/rmkohlman/devopsmaestro/issues/346))
+- Updated timeout flag test to reflect new 45m default ([#347](https://github.com/rmkohlman/devopsmaestro/issues/347))
+
+---
+
 ## v0.95.0 (2026-04-14)
 
 **New Features**
