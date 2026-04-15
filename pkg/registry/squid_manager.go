@@ -86,14 +86,21 @@ func (m *SquidManager) Start(ctx context.Context) error {
 	default:
 	}
 
-	// Check if already running - idempotent.
-	// Record start time if not yet set so Status() reports correctly
-	// when adopting a process from a previous CLI invocation.
+	// Check if already running.
+	// If running, verify the on-disk config matches what we would generate.
+	// A stale process (from a previous dvm version) might be listening on
+	// 127.0.0.1 instead of 0.0.0.0 — we must restart it. (see #353)
 	if m.processManager.IsRunning() {
-		if m.startTime.IsZero() {
-			m.RecordStartLocked()
+		configPath := filepath.Join(m.config.LogDir, "squid.conf")
+		if needsRestart, _ := m.configStale(configPath); needsRestart {
+			// Stop the stale process so we can restart with the new config.
+			m.processManager.Stop(ctx)
+		} else {
+			if m.startTime.IsZero() {
+				m.RecordStartLocked()
+			}
+			return nil
 		}
-		return nil
 	}
 
 	// Validate config
@@ -258,6 +265,26 @@ func (m *SquidManager) generateConfig(configPath string) error {
 	return nil
 }
 
+// configStale returns true when the on-disk squid.conf differs from what
+// GenerateSquidConfig would produce for the current HttpProxyConfig.
+// This detects processes started by older dvm versions that bound
+// 127.0.0.1 instead of 0.0.0.0 (see #353).
+func (m *SquidManager) configStale(configPath string) (bool, error) {
+	existing, err := os.ReadFile(configPath)
+	if err != nil {
+		// Config file missing or unreadable — treat as stale so we
+		// regenerate it before (re)starting squid.
+		return true, err
+	}
+
+	desired, err := GenerateSquidConfig(m.config)
+	if err != nil {
+		return false, err
+	}
+
+	return strings.TrimSpace(string(existing)) != strings.TrimSpace(desired), nil
+}
+
 // initializeCacheDir initializes squid cache directories with `squid -z`.
 func (m *SquidManager) initializeCacheDir(ctx context.Context, binaryPath, configPath string) error {
 	// Run squid -z -f <config> to initialize cache directories.
@@ -305,8 +332,10 @@ func GenerateSquidConfig(cfg HttpProxyConfig) (string, error) {
 
 # Listen on all interfaces so BuildKit containers can connect via
 # host.docker.internal (resolves to VM gateway, not 127.0.0.1).
-# ACLs below restrict access to private subnets only. (see #346)
-http_port %d
+# ACLs below restrict access to private subnets only. (see #346, #353)
+# IMPORTANT: We explicitly bind 0.0.0.0 rather than using bare port form
+# because bare port behaviour varies across squid versions and platforms.
+http_port 0.0.0.0:%d
 
 # Cache settings
 cache_dir ufs %s %d 16 256
