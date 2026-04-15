@@ -301,8 +301,38 @@ func (m *BrewBinaryManager) ensureBrewInstalled(ctx context.Context) error {
 // BinaryManager Interface Implementation
 // =============================================================================
 
+// IsAvailable checks whether the binary exists on the system without attempting
+// auto-install. Use this as a pre-flight check to provide user-friendly messages
+// when a binary is missing, before falling back to EnsureBinary (which tries
+// to install it).
+func (m *BrewBinaryManager) IsAvailable(ctx context.Context) (bool, error) {
+	// Quick path check first (avoid calling brew at all if possible)
+	candidates := m.getBinaryPathCandidates()
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			return true, nil
+		}
+	}
+
+	// Fallback: check PATH
+	if _, err := exec.LookPath(m.binaryName); err == nil {
+		return true, nil
+	}
+
+	// Not found on disk — ask brew if it's installed
+	installed, err := m.IsInstalled(ctx)
+	if err != nil {
+		// Brew itself might not be installed; that's still "not available"
+		return false, nil
+	}
+	return installed, nil
+}
+
 // EnsureBinary ensures the binary exists, installing via Homebrew if necessary.
 // Returns the path to the binary.
+//
+// If the binary is not installed, the returned error wraps ErrBinaryNotInstalled
+// so callers can distinguish "not installed" from "installed but broken".
 func (m *BrewBinaryManager) EnsureBinary(ctx context.Context) (string, error) {
 	// Check if already installed
 	installed, err := m.IsInstalled(ctx)
@@ -313,7 +343,8 @@ func (m *BrewBinaryManager) EnsureBinary(ctx context.Context) (string, error) {
 	if !installed {
 		// Install via Homebrew
 		if err := m.Install(ctx); err != nil {
-			return "", fmt.Errorf("failed to install: %w", err)
+			return "", fmt.Errorf("%w: %s (install with: brew install %s)",
+				ErrBinaryNotInstalled, m.formulaName, m.formulaName)
 		}
 	}
 

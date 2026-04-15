@@ -15,6 +15,12 @@ var (
 	// ErrBinaryNotFound indicates the Zot binary was not found
 	ErrBinaryNotFound = errors.New("binary not found")
 
+	// ErrBinaryNotInstalled indicates a brew-managed binary is not installed.
+	// This is distinct from ErrBinaryNotFound: the package manager (brew) is
+	// available but the formula has not been installed. The error message
+	// includes the install command for the user.
+	ErrBinaryNotInstalled = errors.New("binary not installed")
+
 	// ErrDownloadFailed indicates binary download failed
 	ErrDownloadFailed = errors.New("download failed")
 

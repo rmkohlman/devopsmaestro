@@ -2,6 +2,7 @@ package registry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -98,9 +99,21 @@ func (c *BuildRegistryCoordinator) Prepare(ctx context.Context) (*BuildRegistryR
 		}
 
 		if err := manager.Start(ctx); err != nil {
-			slog.Warn("registry failed to start",
-				"registry", reg.Name, "type", reg.Type, "error", err)
-			result.Warnings = append(result.Warnings, fmt.Sprintf("registry '%s' failed to start: %v", reg.Name, err))
+			// Distinguish "binary not installed" from "binary installed but failed to start".
+			// ErrBinaryNotInstalled = user needs to install; use slog.Info (actionable, not alarming).
+			// Other errors = binary exists but something else failed; use slog.Warn (unexpected).
+			if errors.Is(err, ErrBinaryNotInstalled) {
+				slog.Info("registry binary not installed",
+					"registry", reg.Name, "type", reg.Type, "error", err)
+				result.Warnings = append(result.Warnings,
+					fmt.Sprintf("⚠️  %s proxy not available. Install with: brew install %s for faster builds",
+						reg.Name, reg.Type))
+			} else {
+				slog.Warn("registry failed to start",
+					"registry", reg.Name, "type", reg.Type, "error", err)
+				result.Warnings = append(result.Warnings,
+					fmt.Sprintf("registry '%s' installed but failed to start: %v", reg.Name, err))
+			}
 			result.CacheReadiness.Unhealthy = append(result.CacheReadiness.Unhealthy, reg.Name)
 			continue
 		}
@@ -232,14 +245,16 @@ func (r *CacheReadiness) IsTypeStarted(regType string) bool {
 
 // FormatSummary returns a human-readable cache readiness summary line.
 // Example: "Cache: 4/5 registries active (devpi failed)"
+// When registries are unhealthy, the message includes a warning emoji
+// to make the degraded state visually prominent in build output.
 func (r *CacheReadiness) FormatSummary() string {
 	if r.TotalEnabled == 0 {
 		return "Cache: no registries enabled"
 	}
 	if r.AllHealthy {
-		return fmt.Sprintf("Cache: %d/%d registries active", r.HealthyCount, r.TotalEnabled)
+		return fmt.Sprintf("✅ Cache: %d/%d registries active", r.HealthyCount, r.TotalEnabled)
 	}
-	return fmt.Sprintf("Cache: %d/%d registries active (%s failed)",
+	return fmt.Sprintf("⚠️  Cache: %d/%d registries active (%s failed)",
 		r.HealthyCount, r.TotalEnabled, joinNames(r.Unhealthy))
 }
 

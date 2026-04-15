@@ -111,6 +111,18 @@ func (bc *buildContext) renderWarningf(format string, args ...any) {
 	render.MsgTo(bc.out(), "", render.Message{Level: render.LevelWarning, Content: fmt.Sprintf(format, args...)})
 }
 
+// renderError writes an error-level message to the build output.
+// Use this for non-fatal but prominent warnings that should stand out
+// (e.g., missing cache proxies that degrade build performance).
+func (bc *buildContext) renderError(msg string) {
+	render.MsgTo(bc.out(), "", render.Message{Level: render.LevelError, Content: msg})
+}
+
+// renderErrorf writes a formatted error-level message to the build output.
+func (bc *buildContext) renderErrorf(format string, args ...any) {
+	render.MsgTo(bc.out(), "", render.Message{Level: render.LevelError, Content: fmt.Sprintf(format, args...)})
+}
+
 // renderSuccess writes a success-level message to the build output.
 func (bc *buildContext) renderSuccess(msg string) {
 	render.MsgTo(bc.out(), "", render.Message{Level: render.LevelSuccess, Content: msg})

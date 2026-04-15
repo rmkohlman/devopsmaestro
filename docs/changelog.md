@@ -2,6 +2,15 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.99.1 (2026-04-15)
+
+**Bug Fixes**
+- **Squid proxy silent fallback on fresh machine** — added `IsAvailable()` pre-flight check to `BrewBinaryManager`; builds now emit a clear, prominent actionable message ("Squid proxy not available. Install with: `brew install squid` for faster builds") instead of silently continuing without proxy caching ([#371](https://github.com/rmkohlman/devopsmaestro/issues/371))
+- **Distinguish binary-not-installed from binary-failed-to-start** — introduced `ErrBinaryNotInstalled` sentinel error; `Prepare()` now distinguishes missing-binary errors from binary-present-but-failed-to-start errors with different log levels and messages ([#371](https://github.com/rmkohlman/devopsmaestro/issues/371))
+- **CacheReadiness.Unhealthy warnings more prominent** — elevated registry warning rendering levels in build output; added emoji and color to `FormatSummary()` so proxy cache failures are visually distinct ([#371](https://github.com/rmkohlman/devopsmaestro/issues/371))
+
+---
+
 ## v0.99.0 (2026-04-15)
 
 **Bug Fixes**

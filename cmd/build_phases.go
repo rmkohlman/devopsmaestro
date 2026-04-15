@@ -159,7 +159,10 @@ func (bc *buildContext) prepareRegistry() error {
 	bc.buildKitConfigPath = regResult.BuildKitConfigPath
 	bc.containerdCertsDir = regResult.ContainerdCertsDir
 	for _, w := range regResult.Warnings {
-		bc.renderWarning(w)
+		// Render registry warnings as errors for visual prominence —
+		// these indicate missing or broken cache proxies that degrade
+		// build performance. (Still non-fatal, but the user should see them.)
+		bc.renderError(w)
 	}
 	if len(regResult.Managers) > 0 {
 		bc.renderInfof("Started %d registry cache(s)", len(regResult.Managers))
@@ -670,7 +673,12 @@ func (bc *buildContext) postBuild() {
 		bc.renderInfof("Registry cache: %s", bc.registryEndpoint)
 	}
 	if bc.cacheReadiness != nil {
-		bc.renderInfo(bc.cacheReadiness.FormatSummary())
+		summary := bc.cacheReadiness.FormatSummary()
+		if bc.cacheReadiness.AllHealthy {
+			bc.renderInfo(summary)
+		} else {
+			bc.renderWarning(summary)
+		}
 	}
 	bc.renderBlank()
 	bc.renderInfo("Next: Attach to your workspace with: dvm attach")

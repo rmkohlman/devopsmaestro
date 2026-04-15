@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.99.1] — 2026-04-15
+
+### Bug Fixes
+- **Squid proxy silent fallback on fresh machine** — added `IsAvailable()` pre-flight check to `BrewBinaryManager`; builds now emit a clear, prominent actionable message ("Squid proxy not available. Install with: `brew install squid` for faster builds") instead of silently continuing without proxy caching ([#371](https://github.com/rmkohlman/devopsmaestro/issues/371))
+- **Distinguish binary-not-installed from binary-failed-to-start** — introduced `ErrBinaryNotInstalled` sentinel error; `Prepare()` now distinguishes missing-binary errors (non-fatal, prominent warning) from binary-present-but-failed-to-start errors (different log level and message) ([#371](https://github.com/rmkohlman/devopsmaestro/issues/371))
+- **CacheReadiness.Unhealthy warnings more prominent** — elevated registry warning rendering levels in `build_phases.go`; added emoji and color to `FormatSummary()` output so proxy cache failures are visually distinct in build output ([#371](https://github.com/rmkohlman/devopsmaestro/issues/371))
+
+### Tests
+- Added `TestErrBinaryNotInstalled` and 5 sentinel error tests — assert `ErrBinaryNotInstalled` is exported, unwrappable via `errors.Is`, and distinct from other registry errors ([#371](https://github.com/rmkohlman/devopsmaestro/issues/371))
+- Added `TestIsAvailable_ReturnsFalse_WhenBinaryMissing`, `TestIsAvailable_ReturnsTrue_WhenBinaryPresent`, and 2 additional `IsAvailable()` tests — assert pre-flight check correctness without triggering auto-install ([#371](https://github.com/rmkohlman/devopsmaestro/issues/371))
+- Added `TestPrepare_DistinguishesMissingBinary` and 3 `Prepare()` error-distinction tests — assert `ErrBinaryNotInstalled` path vs. start-failure path produce different messages and log levels ([#371](https://github.com/rmkohlman/devopsmaestro/issues/371))
+- Added `TestFormatSummary_IncludesEmoji` and 5 `FormatSummary()` tests — assert emoji and actionable text are present in unhealthy cache readiness output ([#371](https://github.com/rmkohlman/devopsmaestro/issues/371))
+
+---
+
 ## [v0.99.0] — 2026-04-15
 
 ### Bug Fixes
