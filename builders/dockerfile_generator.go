@@ -1334,12 +1334,16 @@ func (g *DefaultDockerfileGenerator) emitBuilderStages(dockerfile *strings.Build
 // (see #342). The extracted AppImage bundles all shared libraries, so it works with any
 // glibc version in the target image. Pinned to a specific version with SHA256 checksum
 // verification (see checksums.go).
+//
+// Extraction uses unsquashfs instead of executing the AppImage binary directly, because
+// ARM64 AppImages fail with exit code 127 in minimal containers (debian:bookworm-slim)
+// that lack FUSE and compatible dynamic linkers (see #351).
 func (g *DefaultDockerfileGenerator) generateNeovimBuilder(dockerfile *strings.Builder) {
 	dockerfile.WriteString("# --- Parallel builder: Neovim ---\n")
 	dockerfile.WriteString(fmt.Sprintf("FROM %s AS neovim-builder\n", pinnedImage("debian:bookworm-slim")))
 	dockerfile.WriteString(g.aptCacheMountsLocked())
 	dockerfile.WriteString("    set -e && \\\n")
-	dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
+	dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends curl ca-certificates squashfs-tools && \\\n")
 	dockerfile.WriteString("    ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m) && \\\n")
 	dockerfile.WriteString("    if [ \"$ARCH\" = \"arm64\" ] || [ \"$ARCH\" = \"aarch64\" ]; then \\\n")
 	dockerfile.WriteString(fmt.Sprintf("        NVIM_ARCH=\"nvim-linux-arm64\"; NVIM_SHA256=\"%s\"; \\\n", neovimAppImageChecksumArm64))
@@ -1350,9 +1354,8 @@ func (g *DefaultDockerfileGenerator) generateNeovimBuilder(dockerfile *strings.B
 	dockerfile.WriteString("    fi && \\\n")
 	dockerfile.WriteString(fmt.Sprintf("    curl %s -o \"${NVIM_ARCH}.appimage\" \"https://github.com/neovim/neovim/releases/download/v%s/${NVIM_ARCH}.appimage\" && \\\n", curlFlags, neovimVersion))
 	dockerfile.WriteString("    echo \"${NVIM_SHA256}  ${NVIM_ARCH}.appimage\" | sha256sum -c - && \\\n")
-	dockerfile.WriteString("    chmod +x \"${NVIM_ARCH}.appimage\" && \\\n")
-	dockerfile.WriteString("    \"${NVIM_ARCH}.appimage\" --appimage-extract && \\\n")
-	dockerfile.WriteString("    mv squashfs-root /opt/nvim && \\\n")
+	dockerfile.WriteString("    OFFSET=$(LC_ALL=C grep -abom1 'hsqs' \"${NVIM_ARCH}.appimage\" | cut -d: -f1) && \\\n")
+	dockerfile.WriteString("    unsquashfs -offset \"$OFFSET\" -dest /opt/nvim \"${NVIM_ARCH}.appimage\" && \\\n")
 	dockerfile.WriteString("    rm \"${NVIM_ARCH}.appimage\" && \\\n")
 	dockerfile.WriteString("    test -x /opt/nvim/usr/bin/nvim\n\n")
 }
