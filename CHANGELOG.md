@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.96.3] — 2026-04-14
+
+### Bug Fixes
+- **Neovim switched from AppImage to tarball download** — `neovim-builder` stage now downloads the official Neovim Linux tarball and extracts it with `tar xzf --strip-components=1`; removes the `squashfs-tools` dependency and `unsquashfs` extraction step; binary path is now `/opt/nvim/bin/nvim` instead of `/opt/nvim/usr/bin/nvim` ([#356](https://github.com/rmkohlman/devopsmaestro/issues/356))
+
+### Tests
+- Updated `TestNeovimInstallation_PythonSlim` and `TestDockerfileGenerator` to assert tarball download and `tar xzf` extraction; binary path assertions updated to `/opt/nvim/bin/nvim`; asserts that `squashfs-tools` and `unsquashfs` are absent ([#356](https://github.com/rmkohlman/devopsmaestro/issues/356))
+
+---
+
 ## [v0.96.2] - 2026-04-14
 
 ### Fixed
