@@ -2383,13 +2383,15 @@ func (g *DefaultDockerfileGenerator) installMasonTools(dockerfile *strings.Build
 	// Force-load mason.nvim via Lazy! so Mason is available in headless mode
 	// (same pattern as treesitter fix — see issues #232, #234).
 	// Proxy vars are unset to avoid interference with Mason's package downloads.
-	// Note: we don't rm the temp file — it's in /tmp and gets cleaned up anyway,
-	// and removing it caused permission errors when COPY ran as root (issue #222).
+	// NOTE: No +qa on the command line — the Lua script controls exit timing
+	// via vim.cmd('qa!') after all Mason installations have fully completed.
+	// This prevents the race condition where +qa fires before Mason's async
+	// installations finish their finalization (issue #358).
 	dockerfile.WriteString(g.nvimCacheMount())
 	dockerfile.WriteString("    unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NPM_CONFIG_REGISTRY npm_config_registry && \\\n")
 	dockerfile.WriteString("    nvim --headless \\\n")
 	dockerfile.WriteString("      -c \"Lazy! load mason.nvim\" \\\n")
-	dockerfile.WriteString("      +\"luafile /tmp/mason-install.lua\" +qa 2>&1 | tee /tmp/mason-install.log || \\\n")
+	dockerfile.WriteString("      +\"luafile /tmp/mason-install.lua\" 2>&1 | tee /tmp/mason-install.log || \\\n")
 	dockerfile.WriteString("    (echo '--- Mason install log ---' && cat /tmp/mason-install.log && exit 1)\n\n")
 
 	// Verification: ensure Mason packages directory was populated
@@ -2457,7 +2459,13 @@ func (g *DefaultDockerfileGenerator) writeMasonLuaScript(dockerfile *strings.Bui
 	dockerfile.WriteString("if #failed > 0 then\n")
 	dockerfile.WriteString("  print('[Mason] FAILED tools: ' .. table.concat(failed, ', '))\n")
 	dockerfile.WriteString("  vim.cmd('cq')\n")
-	dockerfile.WriteString("end\n")
+	dockerfile.WriteString("end\n\n")
+	// Allow async finalization (binary linking, shim creation) to settle before exit.
+	// Mason's pkg:is_installed() returns true before background tasks like binary
+	// linking fully complete (issue #358). A short settle period prevents the race.
+	dockerfile.WriteString("-- Allow Mason async finalization to complete before exit (issue #358)\n")
+	dockerfile.WriteString("vim.wait(5000, function() return false end, 500)\n")
+	dockerfile.WriteString("vim.cmd('qa!')\n")
 	dockerfile.WriteString("LUAEOF\n\n")
 }
 
