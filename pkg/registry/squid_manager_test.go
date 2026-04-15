@@ -752,3 +752,51 @@ func TestGenerateSquidConfig_NoBarePortForm(t *testing.T) {
 	assert.NotContains(t, config, "http_port 3128\n",
 		"Config must NOT use bare port form — it has platform-dependent binding behavior")
 }
+
+// =============================================================================
+// Fix #363 — Squid xcalloc integer overflow
+// =============================================================================
+
+// TestGenerateSquidConfig_CacheDirL2Is64 verifies that the cache_dir directive
+// uses L2=64 (not 256) to avoid the xcalloc integer overflow in Squid 7.x (#363).
+func TestGenerateSquidConfig_CacheDirL2Is64(t *testing.T) {
+	cfg := HttpProxyConfig{
+		Port:            3128,
+		CacheDir:        "/tmp/squid/cache",
+		LogDir:          "/tmp/squid/logs",
+		PidFile:         "/tmp/squid/squid.pid",
+		CacheSizeMB:     1000,
+		MaxObjectSizeMB: 100,
+		MemoryCacheMB:   256,
+	}
+
+	config, err := GenerateSquidConfig(cfg)
+	require.NoError(t, err, "GenerateSquidConfig should not error")
+
+	// Fix: L2 must be 64, not 256 — 256 causes xcalloc overflow in Squid 7.x
+	assert.Contains(t, config, "16 64",
+		"cache_dir must use L2=64 to avoid xcalloc integer overflow in Squid 7.x (#363)")
+	assert.NotContains(t, config, "16 256",
+		"cache_dir must NOT use L2=256 (causes xcalloc overflow in Squid 7.x, see #363)")
+}
+
+// TestGenerateSquidConfig_CacheDirFormat verifies the complete cache_dir line
+// format: "cache_dir ufs <path> <size> 16 64".
+func TestGenerateSquidConfig_CacheDirFormat(t *testing.T) {
+	cfg := HttpProxyConfig{
+		Port:            3128,
+		CacheDir:        "/var/cache/squid",
+		LogDir:          "/var/log/squid",
+		PidFile:         "/run/squid.pid",
+		CacheSizeMB:     500,
+		MaxObjectSizeMB: 50,
+		MemoryCacheMB:   128,
+	}
+
+	config, err := GenerateSquidConfig(cfg)
+	require.NoError(t, err)
+
+	// Verify the full cache_dir directive structure
+	assert.Contains(t, config, "cache_dir ufs /var/cache/squid 500 16 64",
+		"cache_dir must use format: ufs <path> <size_mb> 16 64 (#363)")
+}

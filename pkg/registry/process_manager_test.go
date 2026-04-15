@@ -764,3 +764,81 @@ func TestProcessManager_ReadPIDFileLocked(t *testing.T) {
 		})
 	}
 }
+
+// =============================================================================
+// Fix #364 — Zot PID file race condition
+// =============================================================================
+
+// TestCleanStalePIDFile_NonExistentPath verifies that cleanStalePIDFile returns
+// nil when the PID file does not exist — ENOENT must be tolerated (#364).
+func TestCleanStalePIDFile_NonExistentPath(t *testing.T) {
+	pm := &DefaultProcessManager{}
+	nonExistentPath := filepath.Join(t.TempDir(), "does-not-exist.pid")
+
+	err := pm.cleanStalePIDFile(nonExistentPath)
+	assert.NoError(t, err, "cleanStalePIDFile should return nil for non-existent file (#364)")
+}
+
+// TestCleanStalePIDFile_InvalidPIDAlreadyRemoved verifies that cleanStalePIDFile
+// tolerates ENOENT when the file disappears between ReadFile and Remove.
+// Simulated by writing an invalid PID ("not-a-pid"), deleting the file manually,
+// then calling cleanStalePIDFile — which reads the file successfully but then
+// sees the file is gone when os.Remove is called (race condition, #364).
+func TestCleanStalePIDFile_InvalidPIDAlreadyRemoved(t *testing.T) {
+	dir := t.TempDir()
+	pidFile := filepath.Join(dir, "stale.pid")
+
+	// Write an invalid PID (non-numeric) then remove to simulate the race
+	require.NoError(t, os.WriteFile(pidFile, []byte("not-a-pid\n"), 0600))
+	require.NoError(t, os.Remove(pidFile))
+
+	pm := &DefaultProcessManager{}
+	err := pm.cleanStalePIDFile(pidFile)
+	assert.NoError(t, err,
+		"cleanStalePIDFile must tolerate ENOENT on os.Remove for invalid PID file (#364)")
+}
+
+// TestCleanStalePIDFile_DeadProcessPID verifies that a PID file referencing a
+// dead (non-existent) process is cleaned up with no error.
+func TestCleanStalePIDFile_DeadProcessPID(t *testing.T) {
+	dir := t.TempDir()
+	pidFile := filepath.Join(dir, "dead.pid")
+
+	// Use a PID that is virtually guaranteed to not be alive
+	require.NoError(t, os.WriteFile(pidFile, []byte("99999999\n"), 0600))
+
+	pm := &DefaultProcessManager{}
+	err := pm.cleanStalePIDFile(pidFile)
+	assert.NoError(t, err, "cleanStalePIDFile should return nil for a dead process PID (#364)")
+
+	_, statErr := os.Stat(pidFile)
+	assert.True(t, os.IsNotExist(statErr),
+		"cleanStalePIDFile should remove the stale PID file for a dead process")
+}
+
+// TestCleanStalePIDFile_ConcurrentCallers verifies that concurrent goroutines
+// calling cleanStalePIDFile on the same PID file do not panic or return errors.
+// This directly exercises the race condition described in issue #364.
+func TestCleanStalePIDFile_ConcurrentCallers(t *testing.T) {
+	dir := t.TempDir()
+	pidFile := filepath.Join(dir, "concurrent.pid")
+
+	// Write a dead process PID
+	require.NoError(t, os.WriteFile(pidFile, []byte("99999998\n"), 0600))
+
+	const goroutines = 8
+	errCh := make(chan error, goroutines)
+
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			pm := &DefaultProcessManager{}
+			errCh <- pm.cleanStalePIDFile(pidFile)
+		}()
+	}
+
+	for i := 0; i < goroutines; i++ {
+		err := <-errCh
+		assert.NoError(t, err,
+			"concurrent cleanStalePIDFile callers must not return errors (#364)")
+	}
+}

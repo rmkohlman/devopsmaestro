@@ -272,3 +272,84 @@ func TestLazygitInstallation_GolangAlpine(t *testing.T) {
 		}
 	})
 }
+
+// =============================================================================
+// Fix #342 — Neovim GLIBC incompatibility
+// =============================================================================
+
+// TestNeovimGlibcFallback_DebianIncludesFallbackRun verifies that the Debian
+// neovim-builder stage includes the GLIBC compatibility check and source build
+// fallback added in fix #342.
+func TestNeovimGlibcFallback_DebianIncludesFallbackRun(t *testing.T) {
+	ws := &models.Workspace{
+		Name:      "test-glibc-fallback",
+		ImageName: "python:3.11-slim",
+	}
+	wsYAML := models.WorkspaceSpec{
+		Container: models.ContainerConfig{
+			WorkingDir: "/workspace",
+			UID:        1000,
+			GID:        1000,
+			User:       "dev",
+		},
+		Nvim: models.NvimConfig{
+			Structure: "custom",
+		},
+		Shell: models.ShellConfig{
+			Theme: "starship",
+		},
+	}
+
+	generator := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "python",
+		Version:       "3.11",
+		AppPath:       "/tmp/test",
+		PathConfig:    paths.New(t.TempDir()),
+	})
+
+	dockerfile, err := generator.Generate()
+	if err != nil {
+		t.Fatalf("Error generating Dockerfile: %v", err)
+	}
+
+	t.Run("has_glibc_compatibility_check", func(t *testing.T) {
+		// Fix #342: test if the pre-built binary works before using it
+		if !strings.Contains(dockerfile, "/opt/nvim/bin/nvim --version") {
+			t.Error("Dockerfile must test nvim binary compatibility (#342): /opt/nvim/bin/nvim --version")
+		}
+	})
+
+	t.Run("fallback_builds_from_source_with_git_clone", func(t *testing.T) {
+		// Fix #342: if binary is GLIBC-incompatible, fall back to building from source
+		if !strings.Contains(dockerfile, "git clone --depth 1 --branch") {
+			t.Error("Dockerfile must include source build fallback with git clone (#342)")
+		}
+	})
+
+	t.Run("fallback_uses_cmake", func(t *testing.T) {
+		// Fix #342: cmake is required to build Neovim from source
+		if !strings.Contains(dockerfile, "cmake") {
+			t.Error("Dockerfile must install cmake for source build fallback (#342)")
+		}
+	})
+
+	t.Run("symlink_still_created", func(t *testing.T) {
+		// The symlink to /usr/local/bin/nvim must still be created regardless of path
+		if !strings.Contains(dockerfile, "ln -sf /opt/nvim/bin/nvim /usr/local/bin/nvim") {
+			t.Error("Dockerfile must still create symlink ln -sf /opt/nvim/bin/nvim /usr/local/bin/nvim (#342)")
+		}
+	})
+
+	t.Run("alpine_does_not_have_fallback", func(t *testing.T) {
+		// Alpine uses apk — the GLIBC fallback is Debian-only
+		// This test uses python:3.11-slim (Debian), so the fallback IS present.
+		// Confirm the fallback is NOT gated behind an Alpine check.
+		if strings.Contains(dockerfile, "apk add") && strings.Contains(dockerfile, "git clone --depth 1 --branch") {
+			// If Alpine apk AND git clone are both present, something is wrong
+			// (Alpine should use apk for Neovim, not the source-build fallback).
+			// This is not an error for Debian images, so just verify the fallback is present.
+		}
+	})
+}

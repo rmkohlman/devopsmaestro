@@ -4960,9 +4960,10 @@ func TestMasonInstall_ScriptControlsExitTiming(t *testing.T) {
 
 	// 3. Verify the Lua script has a settle/wait period before exit.
 	//    This ensures Mason's background finalization tasks complete.
-	if !strings.Contains(luaScript, "vim.wait(5000") {
-		t.Error("Issue #358: Mason Lua script must include a settle period " +
-			"(vim.wait) before vim.cmd('qa!') for async finalization")
+	//    Issue #365 replaced the fixed 5s sleep with a poll loop using max_wait_ms.
+	if !strings.Contains(luaScript, "vim.wait(max_wait_ms") {
+		t.Error("Issue #358/#365: Mason Lua script must include a settle period " +
+			"(vim.wait poll loop) before vim.cmd('qa!') for async finalization")
 	}
 
 	// 4. Verify vim.cmd('qa!') comes AFTER the final verification block.
@@ -7330,4 +7331,112 @@ func TestGenerateTreeSitterBuilder_UsesCargoHomeEnvVar(t *testing.T) {
 			}
 		})
 	}
+}
+
+// =============================================================================
+// Fix #365 — Mason verification count mismatch
+// =============================================================================
+
+// setupMasonTestDockerfile generates a Dockerfile with Mason tools for use in
+// Fix #365 tests. Uses a python:3.11-slim workspace with a mason-enabled plugin.
+func setupMasonTestDockerfile(t *testing.T) string {
+	t.Helper()
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("failed to get home dir: %v", err)
+	}
+
+	repoName := "test-mason-fix365"
+	stagingDir := filepath.Join(homeDir, ".devopsmaestro", "build-staging", repoName)
+	nvimConfigPath := filepath.Join(stagingDir, ".config", "nvim")
+	if err := os.MkdirAll(nvimConfigPath, 0755); err != nil {
+		t.Fatalf("failed to create nvim config dir: %v", err)
+	}
+	t.Cleanup(func() { os.RemoveAll(stagingDir) })
+
+	initLuaPath := filepath.Join(nvimConfigPath, "init.lua")
+	if err := os.WriteFile(initLuaPath, []byte("-- test"), 0644); err != nil {
+		t.Fatalf("failed to create init.lua: %v", err)
+	}
+
+	ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
+	wsYAML := models.WorkspaceSpec{
+		Nvim: models.NvimConfig{Structure: "custom"},
+		Container: models.ContainerConfig{
+			User: "dev",
+			UID:  1000,
+			GID:  1000,
+		},
+	}
+	manifest := &plugin.PluginManifest{
+		Features: plugin.PluginFeatures{HasMason: true, HasTreesitter: false},
+	}
+
+	gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+		Workspace:     ws,
+		WorkspaceSpec: wsYAML,
+		Language:      "python",
+		Version:       "3.11",
+		AppPath:       filepath.Join("/tmp", "dvm-clone-xyz", repoName),
+		PathConfig:    paths.New(homeDir),
+	})
+	gen.SetPluginManifest(manifest)
+
+	dockerfile, err := gen.Generate()
+	if err != nil {
+		t.Fatalf("Generate() error: %v", err)
+	}
+	return dockerfile
+}
+
+// TestMasonInstall_PollLoopReplacesSleep verifies that the Mason Lua install
+// script uses vim.wait(max_wait_ms, ...) instead of a fixed sleep (#365).
+func TestMasonInstall_PollLoopReplacesSleep(t *testing.T) {
+	dockerfile := setupMasonTestDockerfile(t)
+
+	t.Run("uses_vim_wait_poll_loop", func(t *testing.T) {
+		if !strings.Contains(dockerfile, "vim.wait(max_wait_ms") {
+			t.Error("Mason Lua script must use vim.wait(max_wait_ms, ...) poll loop instead of fixed sleep (#365)")
+		}
+	})
+
+	t.Run("has_max_wait_ms_variable", func(t *testing.T) {
+		if !strings.Contains(dockerfile, "local max_wait_ms") {
+			t.Error("Mason Lua script must declare local max_wait_ms variable (#365)")
+		}
+	})
+
+	t.Run("does_not_use_fixed_sleep", func(t *testing.T) {
+		// The old fixed 5s sleep should be replaced with the poll loop
+		// Note: vim.wait(5000 is still present for individual pkg:is_installed() calls
+		// but the *finalization* sleep must use the poll loop
+		if strings.Contains(dockerfile, "sleep 5") {
+			t.Error("Mason install must NOT use 'sleep 5' fixed wait — use poll loop (#365)")
+		}
+	})
+}
+
+// TestMasonVerification_PollLoopBeforeCount verifies that the verification RUN
+// step uses a poll loop (seq 1 15) before checking the final count (#365).
+func TestMasonVerification_PollLoopBeforeCount(t *testing.T) {
+	dockerfile := setupMasonTestDockerfile(t)
+
+	t.Run("verification_has_poll_loop", func(t *testing.T) {
+		if !strings.Contains(dockerfile, "for i in $(seq 1 15)") {
+			t.Error("Mason verification step must include poll loop 'for i in $(seq 1 15)' (#365)")
+		}
+	})
+
+	t.Run("verification_checks_bin_directory", func(t *testing.T) {
+		if !strings.Contains(dockerfile, "MASON_BIN") {
+			t.Error("Mason verification must check the MASON_BIN directory (#365)")
+		}
+	})
+
+	t.Run("verification_uses_expected_count", func(t *testing.T) {
+		if !strings.Contains(dockerfile, "EXPECTED=") {
+			t.Error("Mason verification must set EXPECTED count from tool list length (#365)")
+		}
+	})
 }

@@ -382,14 +382,23 @@ func (p *DefaultProcessManager) cleanStalePIDFile(path string) error {
 	pidStr := strings.TrimSpace(string(data))
 	pid, err := strconv.Atoi(pidStr)
 	if err != nil {
-		// Invalid PID file, remove it
-		return os.Remove(path)
+		// Invalid PID file, remove it.
+		// Tolerate ENOENT — concurrent goroutine may have already removed it (#364).
+		if rmErr := os.Remove(path); rmErr != nil && !os.IsNotExist(rmErr) {
+			return rmErr
+		}
+		return nil
 	}
 
 	// Check if process is running
 	if !isProcessAlive(pid) {
-		// Process doesn't exist, remove stale file
-		return os.Remove(path)
+		// Process doesn't exist, remove stale file.
+		// Tolerate ENOENT — a concurrent goroutine may have already removed
+		// the same PID file (race condition under high parallelism, see #364).
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
 	}
 
 	// Process exists — adopt it by recording the PID so that IsRunning()

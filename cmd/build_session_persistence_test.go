@@ -461,3 +461,73 @@ func TestBuildSessionPersistence_FailedBuildRecordsImageTag(t *testing.T) {
 	assert.Equal(t, attemptedTag, entry.ImageTag.String,
 		"ImageTag must equal the attempted tag set by buildFn before returning the error")
 }
+
+// =============================================================================
+// Fix #366 — Build session status stale
+// =============================================================================
+
+// TestBuildSessionStatus_CompletedAfterAllWorkspacesSucceed verifies that
+// after buildWorkspacesInParallel completes with all successes, the session
+// status is "completed" (not "running"). This is the core of fix #366.
+func TestBuildSessionStatus_CompletedAfterAllWorkspacesSucceed(t *testing.T) {
+	store := setupPersistenceTestStore(t, 2)
+
+	flags := HierarchyFlags{}
+	workspaces, err := resolveWorkspacesForParallelBuild(store, flags, true)
+	require.NoError(t, err)
+	require.Len(t, workspaces, 2)
+
+	nopBuildFn := func(ws *models.WorkspaceWithHierarchy) error {
+		return nil
+	}
+
+	buildErr := buildWorkspacesInParallel(workspaces, 2, nopBuildFn, store)
+	require.NoError(t, buildErr)
+
+	session, err := store.GetLatestBuildSession()
+	require.NoError(t, err)
+	require.NotNil(t, session, "build session must exist after successful parallel build (#366)")
+
+	assert.Equal(t, "completed", session.Status,
+		"session status must be 'completed' after all workspaces succeed — not 'running' (#366)")
+	assert.Equal(t, 2, session.Succeeded,
+		"succeeded count must equal the number of workspaces that were built")
+	assert.Equal(t, 0, session.Failed,
+		"failed count must be 0 when all workspaces succeed")
+	assert.True(t, session.CompletedAt.Valid,
+		"CompletedAt must be set when the session is finalized (#366)")
+}
+
+// TestBuildSessionStatus_CountsCorrectAfterMixedResults verifies that succeeded
+// and failed counts are correct when some workspaces fail.
+func TestBuildSessionStatus_CountsCorrectAfterMixedResults(t *testing.T) {
+	store := setupPersistenceTestStore(t, 3)
+
+	flags := HierarchyFlags{}
+	workspaces, err := resolveWorkspacesForParallelBuild(store, flags, true)
+	require.NoError(t, err)
+	require.Len(t, workspaces, 3)
+
+	callCount := int32(0)
+	// First workspace fails, the other two succeed
+	mixedBuildFn := func(ws *models.WorkspaceWithHierarchy) error {
+		if atomic.AddInt32(&callCount, 1) == 1 {
+			return assert.AnError
+		}
+		return nil
+	}
+
+	_ = buildWorkspacesInParallel(workspaces, 3, mixedBuildFn, store)
+
+	session, err := store.GetLatestBuildSession()
+	require.NoError(t, err)
+	require.NotNil(t, session, "build session must be created even on mixed results (#366)")
+
+	// With 1 failure and 2 successes, status should be "partial"
+	assert.NotEqual(t, "running", session.Status,
+		"session status must NOT remain 'running' after build completes (#366)")
+	assert.Equal(t, 1, session.Failed,
+		"failed count must be 1 (#366)")
+	assert.Equal(t, 2, session.Succeeded,
+		"succeeded count must be 2 (#366)")
+}

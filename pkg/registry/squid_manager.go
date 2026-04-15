@@ -338,7 +338,11 @@ func GenerateSquidConfig(cfg HttpProxyConfig) (string, error) {
 http_port 0.0.0.0:%d
 
 # Cache settings
-cache_dir ufs %s %d 16 256
+# Squid 7.x changed internal hash-table allocation for ufs stores.
+# L1=16 L2=256 caused an xcalloc integer overflow (UINT64_MAX blocks,
+# see #363). Using L1=16 L2=64 avoids the overflow while still
+# providing 1024 second-level directories for cache distribution.
+cache_dir ufs %s %d 16 64
 maximum_object_size %d MB
 cache_mem %d MB
 
