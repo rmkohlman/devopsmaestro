@@ -188,6 +188,11 @@ func (g *DefaultDockerfileGenerator) Generate() (string, error) {
 	// would not be available to RUN commands in the dev stage (e.g., npm install -g neovim).
 	g.emitAdditionalBuildArgs(&dockerfile, privateRepoInfo.RequiredBuildArgs)
 
+	// APT timeout resilience: reduce timeouts + check proxy health before apt operations.
+	// This prevents builds from appearing hung when the squid proxy is unreachable (issue #354).
+	g.emitAPTTimeoutConfig(&dockerfile)
+	g.emitProxyHealthCheck(&dockerfile)
+
 	// Copy binaries from parallel builder stages
 	g.emitCopyFromBuilders(&dockerfile, stages)
 
@@ -1998,6 +2003,38 @@ func (g *DefaultDockerfileGenerator) apkCacheMountsLocked() string {
 func (g *DefaultDockerfileGenerator) nvimCacheMount() string {
 	user := g.effectiveUser()
 	return fmt.Sprintf("RUN --mount=type=cache,target=/home/%s/.cache/nvim,id=nvim-cache-%s,uid=1000,sharing=locked \\\n", user, g.cacheID())
+}
+
+// emitAPTTimeoutConfig writes a RUN command that creates an APT configuration file
+// reducing HTTP/HTTPS timeouts from 60s (default) to 10s and enabling retries.
+// This prevents builds from appearing hung when the squid proxy is unreachable,
+// reducing worst-case timeout accumulation from ~5 minutes to ~30 seconds per
+// workspace. Only emitted for Debian-based images (no-op for Alpine). See issue #354.
+func (g *DefaultDockerfileGenerator) emitAPTTimeoutConfig(dockerfile *strings.Builder) {
+	if g.isAlpine {
+		return
+	}
+	dockerfile.WriteString("# Reduce APT timeouts to prevent builds from hanging on unreachable proxy (issue #354)\n")
+	dockerfile.WriteString("RUN printf 'Acquire::http::Timeout \"10\";\\nAcquire::https::Timeout \"10\";\\nAcquire::Retries \"2\";\\n' > /etc/apt/apt.conf.d/99-dvm-timeout\n\n")
+}
+
+// emitProxyHealthCheck writes a RUN command that tests proxy connectivity and
+// unsets proxy environment variables if the proxy is unreachable. This allows
+// APT and other tools to fall back to direct connections instead of waiting for
+// timeout on every operation. Only emitted for Debian-based images when proxy
+// build args might be set. See issue #354.
+func (g *DefaultDockerfileGenerator) emitProxyHealthCheck(dockerfile *strings.Builder) {
+	if g.isAlpine {
+		return
+	}
+	dockerfile.WriteString("# Proxy health check: unset proxy vars early if proxy is unreachable (issue #354)\n")
+	dockerfile.WriteString("# This allows APT to fall back to direct connections instead of timing out\n")
+	dockerfile.WriteString("RUN if [ -n \"$http_proxy\" ]; then \\\n")
+	dockerfile.WriteString("      timeout 5 curl -sf -o /dev/null \"$http_proxy\" 2>/dev/null \\\n")
+	dockerfile.WriteString("      || timeout 5 wget -q --spider \"$http_proxy\" 2>/dev/null \\\n")
+	dockerfile.WriteString("      || (echo 'WARNING: Proxy unreachable, unsetting proxy vars for direct access' \\\n")
+	dockerfile.WriteString("          && printf 'Acquire::http::Proxy \"DIRECT\";\\nAcquire::https::Proxy \"DIRECT\";\\n' > /etc/apt/apt.conf.d/99-dvm-no-proxy); \\\n")
+	dockerfile.WriteString("    fi\n\n")
 }
 
 // effectiveStagingDir returns the staging directory to use for file existence checks.

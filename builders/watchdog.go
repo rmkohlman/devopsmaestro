@@ -14,7 +14,7 @@ type WatchdogConfig struct {
 	PollInterval time.Duration
 
 	// Timeout is the maximum time to wait for the process to complete.
-	// Default: 30 minutes
+	// Default: 45 minutes (matches --timeout CLI flag default)
 	Timeout time.Duration
 
 	// CleanupWait is how long to wait for process cleanup after cancellation.
@@ -26,7 +26,7 @@ type WatchdogConfig struct {
 func DefaultWatchdogConfig() WatchdogConfig {
 	return WatchdogConfig{
 		PollInterval: 2 * time.Second,
-		Timeout:      30 * time.Minute,
+		Timeout:      45 * time.Minute,
 		CleanupWait:  5 * time.Second,
 	}
 }
@@ -69,7 +69,7 @@ func RunWithWatchdog(
 		cfg.PollInterval = 2 * time.Second
 	}
 	if cfg.Timeout == 0 {
-		cfg.Timeout = 30 * time.Minute
+		cfg.Timeout = 45 * time.Minute
 	}
 	if cfg.CleanupWait == 0 {
 		cfg.CleanupWait = 5 * time.Second

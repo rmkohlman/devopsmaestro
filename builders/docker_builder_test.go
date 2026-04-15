@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"devopsmaestro/operators"
 )
@@ -372,5 +373,107 @@ func TestDockerBuilder_BuildArgLogRedaction(t *testing.T) {
 	// Verify redaction marker is present
 	if !strings.Contains(argsStr, "***") {
 		t.Error("buildDockerArgsForLog() should use *** as redaction marker for --build-arg values")
+	}
+}
+
+// TestDockerBuilder_Build_TimeoutOverride verifies that BuildOptions.Timeout
+// overrides the watchdog's default timeout. This is the fix for #252 where
+// the --timeout flag value was ignored because the watchdog had its own
+// hardcoded 30m timeout that fired first.
+func TestDockerBuilder_Build_TimeoutOverride(t *testing.T) {
+	tests := []struct {
+		name            string
+		optsTimeout     time.Duration
+		watchdogTimeout time.Duration
+		wantTimeout     time.Duration
+	}{
+		{
+			name:            "BuildOptions.Timeout overrides watchdog default",
+			optsTimeout:     1 * time.Hour,
+			watchdogTimeout: 0, // zero = use default
+			wantTimeout:     1 * time.Hour,
+		},
+		{
+			name:            "BuildOptions.Timeout overrides explicit watchdog config",
+			optsTimeout:     2 * time.Hour,
+			watchdogTimeout: 30 * time.Minute,
+			wantTimeout:     2 * time.Hour,
+		},
+		{
+			name:            "zero BuildOptions.Timeout uses watchdog default",
+			optsTimeout:     0,
+			watchdogTimeout: 0,
+			wantTimeout:     45 * time.Minute, // DefaultWatchdogConfig
+		},
+		{
+			name:            "zero BuildOptions.Timeout uses explicit watchdog config",
+			optsTimeout:     0,
+			watchdogTimeout: 20 * time.Minute,
+			wantTimeout:     20 * time.Minute,
+		},
+		{
+			name:            "short timeout (5m) overrides default",
+			optsTimeout:     5 * time.Minute,
+			watchdogTimeout: 0,
+			wantTimeout:     5 * time.Minute,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var capturedCfg WatchdogConfig
+
+			// Create a DockerBuilder with a mock watchdog runner that
+			// captures the WatchdogConfig passed to it.
+			builder := &DockerBuilder{
+				platform:  &operators.Platform{Name: "test", SocketPath: "/tmp/fake.sock"},
+				appPath:   t.TempDir(),
+				imageName: "test:latest",
+			}
+
+			if tt.watchdogTimeout > 0 {
+				builder.WatchdogConfig = WatchdogConfig{
+					PollInterval: 1 * time.Second,
+					Timeout:      tt.watchdogTimeout,
+					CleanupWait:  5 * time.Second,
+				}
+			}
+
+			// Inject a mock watchdog runner that captures the config
+			// and returns immediately (no actual build needed).
+			builder.WatchdogRunner = func(
+				ctx context.Context,
+				cmd *exec.Cmd,
+				checkCondition func(ctx context.Context) bool,
+				cfg WatchdogConfig,
+			) (WatchdogResult, error) {
+				capturedCfg = cfg
+				// Kill the process we started so it doesn't leak
+				if cmd.Process != nil {
+					_ = cmd.Process.Kill()
+				}
+				return WatchdogCompleted, nil
+			}
+
+			// Write a minimal Dockerfile so docker buildx doesn't fail
+			// before reaching the watchdog (though our mock intercepts).
+			dockerfile := filepath.Join(builder.appPath, "Dockerfile")
+			_ = os.WriteFile(dockerfile, []byte("FROM scratch\n"), 0644)
+
+			opts := BuildOptions{
+				Timeout: tt.optsTimeout,
+			}
+
+			// Build will fail because we have a fake socket, but the
+			// watchdog runner is called before the docker command starts
+			// in the real flow. However, with our mock, it captures the
+			// config. We need to handle the docker command start error.
+			_ = builder.Build(context.Background(), opts)
+
+			if capturedCfg.Timeout != tt.wantTimeout {
+				t.Errorf("watchdog timeout = %v, want %v",
+					capturedCfg.Timeout, tt.wantTimeout)
+			}
+		})
 	}
 }

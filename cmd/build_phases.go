@@ -307,10 +307,19 @@ func (bc *buildContext) resolveCACerts() error {
 
 // generateNvimConfiguration generates nvim config if a structure is configured.
 // Sets bc.pluginManifest.
+// Before generating config, it auto-syncs embedded libraries to the DB
+// if the library fingerprint has changed (issue #255).
 func (bc *buildContext) generateNvimConfiguration() error {
 	if bc.workspaceYAML.Spec.Nvim.Structure == "" || bc.workspaceYAML.Spec.Nvim.Structure == "none" {
 		return nil
 	}
+
+	// Auto-sync embedded libraries to DB if fingerprint changed (#255).
+	// This ensures builds always use the latest embedded plugin definitions.
+	if err := EnsureLibrarySynced(bc.ds); err != nil {
+		slog.Warn("library auto-sync failed, continuing with existing DB data", "error", err)
+	}
+
 	manifest, err := generateNvimConfig(
 		bc.workspaceYAML.Spec.Nvim.Plugins, bc.stagingDir, bc.homeDir, bc.ds,
 		bc.app, bc.workspace, bc.appName, bc.workspaceName, bc.languageName, bc.out(),
@@ -510,6 +519,7 @@ func (bc *buildContext) buildImage() (skipped bool, err error) {
 		BuildArgs:          buildArgs,
 		Target:             buildTarget,
 		NoCache:            buildNocache,
+		Timeout:            buildTimeout,
 		Output:             bc.output,
 		BuildKitConfigPath: bc.buildKitConfigPath,
 		RegistryMirrorsDir: bc.containerdCertsDir,

@@ -83,6 +83,7 @@ nav:
     - Plugins: nvp/plugins.md
     - Plugin Packages: nvp/packages.md
     - Themes: nvp/themes.md
+    - Quick Start - Themes: nvp/quick-start-themes.md
     - CoolNight Collection: nvp/coolnight.md
     - opencode.nvim Plugin: nvp/opencode.md
     - Commands Reference: nvp/commands.md

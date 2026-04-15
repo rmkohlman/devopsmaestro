@@ -36,6 +36,12 @@ This command:
 - Tags as dvm-<workspace>-<app>:latest
 - Optionally pushes to local registry cache
 
+Batch Builds:
+  Scope filters (-e, -d, -a, -w) automatically build ALL matching workspaces
+  in parallel. For example, if --ecosystem matches 5 workspaces, all 5 are built.
+  Use --all / -A to build every workspace, optionally narrowed by scope filters.
+  Use --concurrency to control parallelism (default: 8).
+
 Supports multiple platforms:
 - OrbStack (uses Docker API)
 - Docker Desktop (uses Docker API)
@@ -50,21 +56,25 @@ Registry Integration:
   image caching to speed up builds and reduce network usage.
 
 Flags:
-  -e, --ecosystem   Filter by ecosystem name
-  -d, --domain      Filter by domain name  
-  -a, --app         Filter by app name
+  -e, --ecosystem   Filter by ecosystem — builds ALL workspaces in ecosystem
+  -d, --domain      Filter by domain — builds ALL workspaces in domain
+  -a, --app         Filter by app — builds ALL workspaces for app
   -w, --workspace   Filter by workspace name
+  -A, --all         Build all workspaces (combine with scope flags to narrow)
   --no-cache        Build without using registry cache (pull fresh from upstream)
   --push            Push built image to local registry after build
   --registry        Override registry endpoint (default: from config)
 
 Examples:
-  dvm build
+  dvm build                               # Build active workspace
   dvm build --force
   dvm build --no-cache
   dvm build --push                        # Push to local registry
-  dvm build -a portal                     # Build workspace in 'portal' app
-  dvm build -e healthcare -a portal       # Specify ecosystem and app
+  dvm build -a portal                     # Build all workspaces in 'portal' app
+  dvm build -e healthcare                 # Build all workspaces in ecosystem
+  dvm build -e healthcare -d payments     # Build all workspaces in domain
+  dvm build -A                            # Build every workspace
+  dvm build -A -e healthcare              # Build all in ecosystem (same as -e alone)
   DVM_PLATFORM=colima dvm build
 `,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -74,7 +84,12 @@ Examples:
 			return err
 		}
 
-		// Route to parallel build path when --all or scope flags are set
+		// Route to parallel build path when --all or scope flags are set.
+		// Issue #215: scope filters (--ecosystem, --domain, --app) auto-build
+		// ALL matching workspaces instead of erroring with "ambiguous workspace
+		// selection". This routes through resolveWorkspacesForParallelBuild
+		// (which returns all matches) rather than resolveFromHierarchyFlags
+		// (which throws AmbiguousError on multi-match).
 		if shouldRouteToParallelBuild(buildFlags, allSet) {
 			return runParallelBuild(cmd)
 		}

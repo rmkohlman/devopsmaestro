@@ -1,61 +1,169 @@
-# Plugin Packages
+# Built-in Nvim Packages
 
-The nvp library contains curated collections of Neovim plugins organized into reusable sets. Instead of installing plugins one by one, you can browse the library and install plugins that work well together.
-
----
-
-## What Are Plugin Packages?
-
-The nvp library provides pre-configured plugin definitions with:
-
-- **Complete setups** - Tested configurations that work together
-- **Consistent experience** - Uniform key bindings and behavior across plugins
-- **Quick setup** - Install individual plugins or entire sets from the library
+Nvim packages are curated plugin bundles. Instead of selecting plugins one by one, choose a package that fits your workflow and get a complete, tested configuration immediately.
 
 ---
 
-## Available Library Plugins
+## What Is a Package?
+
+A **package** bundles multiple related plugins into a single unit:
+
+- **Built-in packages** — embedded in the binary, available without installation
+- **User packages** — created with `dvm apply -f package.yaml`
+- **Inheritance** — packages can extend other packages (`spec.extends: core`)
+
+New workspaces automatically use the `core` package by default.
+
+---
+
+## Browsing the Library
+
+```bash
+# List all built-in packages
+dvm library get nvim packages
+
+# Short alias (multi-word form)
+dvm lib ls "nvim packages"
+
+# Show details for a specific package
+dvm library describe nvim-package core
+dvm library describe nvim-package lazyvim
+```
+
+To list packages you've imported into your database alongside library packages:
+
+```bash
+dvm get nvim packages
+dvm get nvim package core    # Details for one package
+```
+
+---
+
+## Built-in Packages
+
+### `core`
+
+The foundation package. Every new workspace starts with this.
+
+**Includes (6 essential plugins):**
+
+| Plugin | Role |
+|--------|------|
+| `nvim-telescope/telescope.nvim` | Fuzzy finder for files, text, and symbols |
+| `nvim-treesitter/nvim-treesitter` | Modern syntax highlighting and parsing |
+| `neovim/nvim-lspconfig` | Language Server Protocol (LSP) support |
+| `hrsh7th/nvim-cmp` | Intelligent autocompletion |
+| `lewis6991/gitsigns.nvim` | Git decorations and inline diff |
+| `folke/which-key.nvim` | Keybinding hints and discovery |
+
+```bash
+dvm library describe nvim-package core
+```
+
+### `lazyvim`
+
+LazyVim-based distribution. Provides a full IDE-like experience built on the LazyVim framework.
+
+```bash
+dvm library describe nvim-package lazyvim
+```
+
+### `maestro-python`
+
+Python development package. Automatically selected for Python workspaces during `dvm build`.
+
+**Extends:** `core`
+
+**Adds:**
+
+| Plugin | Role |
+|--------|------|
+| `nvim-neotest/neotest` | Test runner framework |
+| `nvim-neotest/neotest-python` | Python test adapter |
+| `mfussenegger/nvim-dap-python` | Python debugging |
+| `stevearc/conform.nvim` | Formatting (black, isort) |
+
+```bash
+dvm library describe nvim-package maestro-python
+```
+
+### `maestro-go`
+
+Go development package. Automatically selected for Go workspaces during `dvm build`.
+
+**Extends:** `core`
+
+**Adds:**
+
+| Plugin | Role |
+|--------|------|
+| `ray-x/go.nvim` | Go tools integration |
+| `leoluz/nvim-dap-go` | Go debugging (Delve) |
+| `nvim-neotest/neotest-go` | Go test runner |
+| `stevearc/conform.nvim` | Formatting (gofmt, goimports) |
+
+```bash
+dvm library describe nvim-package maestro-go
+```
+
+---
+
+## Library Plugins (38+ available)
+
+Individual plugins can be browsed and used to build custom packages:
+
+```bash
+# List all available library plugins
+dvm library get plugins
+
+# Short alias
+dvm lib ls np
+
+# Show details for a specific plugin
+dvm library describe plugin telescope
+dvm library describe plugin treesitter
+```
 
 ### Core Dependencies
 
 | Plugin | Description |
 |--------|-------------|
-| `plenary` | Lua utility functions (dependency for many plugins) |
-| `nvim-web-devicons` | File icons |
+| `plenary` | Lua utility functions (required by many plugins) |
+| `nvim-web-devicons` | File type icons |
 
 ### Fuzzy Finding & Navigation
 
 | Plugin | Description |
 |--------|-------------|
-| `telescope` | Fuzzy finder for everything |
-| `harpoon` | Quick file navigation |
+| `telescope` | Fuzzy finder for files, grep, LSP symbols |
+| `harpoon` | Quick file marks and navigation |
 
 ### Syntax & Parsing
 
 | Plugin | Description |
 |--------|-------------|
 | `treesitter` | Advanced syntax highlighting |
-| `treesitter-textobjects` | Text objects based on syntax |
+| `treesitter-textobjects` | Syntax-aware text objects |
 
 ### LSP & Completion
 
 | Plugin | Description |
 |--------|-------------|
-| `lspconfig` | LSP configuration |
-| `mason` | LSP/DAP/Linter installer |
-| `nvim-cmp` | Autocompletion |
+| `lspconfig` | LSP client configuration |
+| `mason` | LSP/DAP/linter installer |
+| `nvim-cmp` | Autocompletion engine |
 | `cmp-nvim-lsp` | LSP completion source |
-| `cmp-buffer` | Buffer completion source |
-| `cmp-path` | Path completion source |
+| `cmp-buffer` | Buffer word completion |
+| `cmp-path` | Filesystem path completion |
 | `luasnip` | Snippet engine |
 
 ### Git Integration
 
 | Plugin | Description |
 |--------|-------------|
-| `gitsigns` | Git decorations and hunks |
-| `fugitive` | Git commands |
-| `diffview` | Git diff viewer |
+| `gitsigns` | Git decorations and hunk navigation |
+| `fugitive` | Git commands in Neovim |
+| `diffview` | Side-by-side git diff viewer |
 
 ### UI & Interface
 
@@ -64,250 +172,170 @@ The nvp library provides pre-configured plugin definitions with:
 | `lualine` | Status line |
 | `bufferline` | Buffer/tab line |
 | `which-key` | Keybinding hints |
-| `alpha-nvim` | Dashboard |
-| `neo-tree` | File tree |
-| `dressing` | Better UI for inputs/selects |
-| `notify` | Better notifications |
+| `alpha-nvim` | Dashboard / start screen |
+| `neo-tree` | File tree explorer |
+| `dressing` | Improved input and select UI |
+| `notify` | Notification system |
 
 ### Editing & Text Manipulation
 
 | Plugin | Description |
 |--------|-------------|
-| `comment` | Easy commenting |
-| `surround` | Surround text with pairs |
-| `autopairs` | Auto-close brackets |
-| `conform` | Formatting |
-| `nvim-lint` | Linting |
+| `comment` | Quick comment/uncomment |
+| `surround` | Surround text with brackets, quotes |
+| `autopairs` | Auto-close brackets and quotes |
+| `conform` | Code formatting |
+| `nvim-lint` | Linting integration |
 
 ### Terminal & AI
 
 | Plugin | Description |
 |--------|-------------|
-| `toggleterm` | Terminal management |
-| `copilot` | GitHub Copilot |
-| `copilot-cmp` | Copilot completion source |
-| `snacks` | QoL utility library (input, picker, opencode integration) |
+| `toggleterm` | Terminal panel management |
+| `copilot` | GitHub Copilot integration |
+| `copilot-cmp` | Copilot as a completion source |
+| `snacks` | QoL utilities (input, picker, opencode) |
 | `opencode` | opencode AI assistant integration |
 
 ### Language-Specific
 
 | Plugin | Description |
 |--------|-------------|
-| `rust-tools` | Rust development |
-| `go` | Go development |
-| `typescript-tools` | TypeScript/JavaScript |
+| `rust-tools` | Rust development tools |
+| `go` | Go tools integration |
+| `typescript-tools` | TypeScript/JavaScript support |
 
 ---
 
-## Installing from the Library
+## Setting the Default Package
 
-### Browse and Install
-
-```bash
-# See all available plugins
-nvp library list
-
-# Filter by category
-nvp library list --category lsp
-nvp library list --category fuzzy-finder
-
-# See categories
-nvp library categories
-
-# See tags
-nvp library tags
-
-# Show details about a plugin
-nvp library show telescope
-
-# Install individual plugins
-nvp library install telescope
-nvp library install treesitter
-nvp library install lspconfig
-```
-
-### Install from a YAML File or URL
-
-If you have custom plugin definitions or want to install from GitHub:
+Set which package new workspaces use automatically:
 
 ```bash
-# From local file
-nvp apply -f my-plugin.yaml
+# Set default package for all new workspaces
+dvm use nvim package core
 
-# From URL
-nvp apply -f https://example.com/plugin.yaml
+# Set a different default
+dvm use nvim package lazyvim
 
-# From GitHub
-nvp apply -f github:rmkohlman/nvim-yaml-plugins/plugins/telescope.yaml
+# Clear default (no package for new workspaces)
+dvm use nvim package none
 
-# From stdin
-cat plugin.yaml | nvp apply -f -
+# Show current default
+dvm get nvim defaults
 ```
 
 ---
 
-## Managing Installed Plugins
-
-### List, Inspect, Enable/Disable, and Delete
+## Applying a Package to a Workspace
 
 ```bash
-# List installed plugins
-nvp list
+# Set the nvim package for a specific workspace
+dvm set nvim package --workspace dev maestro-python
 
-# Get plugin details
-nvp get telescope
-nvp get telescope -o yaml
-
-# Enable or disable without deleting
-nvp enable telescope
-nvp disable copilot
-
-# Delete a plugin
-nvp delete telescope
-```
-
-### Override a Plugin Configuration
-
-Apply a customized YAML to override a plugin's settings:
-
-```bash
-cat > my-telescope.yaml << 'EOF'
-apiVersion: devopsmaestro.io/v1
-kind: NvimPlugin
-metadata:
-  name: telescope
-spec:
-  repo: nvim-telescope/telescope.nvim
-  config: |
-    require("telescope").setup({
-      defaults = {
-        layout_strategy = "horizontal",
-        layout_config = {
-          width = 0.9,
-          height = 0.8,
-        },
-      },
-    })
-EOF
-
-nvp apply -f my-telescope.yaml
+# Set the package and app-scope the workspace lookup
+dvm set nvim package --app my-api --workspace dev maestro-go
 ```
 
 ---
 
-## Plugin YAML Format
+## Creating a Custom Package
+
+Define a package as a YAML resource and apply it:
 
 ```yaml
 apiVersion: devopsmaestro.io/v1
-kind: NvimPlugin
+kind: NvimPackage
 metadata:
-  name: telescope
-  category: fuzzy-finder
-  description: Highly extendable fuzzy finder
+  name: my-python-stack
+  description: Full Python development setup
+  category: language
+  tags: ["python", "fastapi", "testing"]
 spec:
-  repo: nvim-telescope/telescope.nvim
-  branch: master                    # Optional
-  version: "0.1.5"                  # Optional (tag)
-  enabled: true                     # Default: true
-  lazy: true                        # Default: true
-  event:                            # Lazy-load triggers
-    - VimEnter
-  cmd:                              # Commands that trigger load
-    - Telescope
-  dependencies:
-    - nvim-lua/plenary.nvim
-    - nvim-tree/nvim-web-devicons
-  config: |
-    require("telescope").setup({
-      defaults = {
-        file_ignore_patterns = { "node_modules", ".git" },
-      },
-    })
-  keys:
-    - key: "<leader>ff"
-      action: "<cmd>Telescope find_files<cr>"
-      desc: "Find files"
-    - key: "<leader>fg"
-      action: "<cmd>Telescope live_grep<cr>"
-      desc: "Live grep"
+  extends: core         # Inherits all core plugins
+  plugins:
+    - nvim-neotest/neotest
+    - nvim-neotest/neotest-python
+    - mfussenegger/nvim-dap-python
+    - stevearc/conform.nvim
+    - github/copilot.vim
+```
+
+```bash
+dvm apply -f my-python-stack.yaml
+
+# Apply from URL
+dvm apply -f https://example.com/packages/my-stack.yaml
+
+# Apply from GitHub
+dvm apply -f github:user/repo/packages/my-stack.yaml
 ```
 
 ---
 
-## Generating Lua Files
+## Package Inheritance
 
-After installing plugins, generate the Lua configuration files:
+Packages can extend other packages, adding plugins without duplication:
 
-```bash
-nvp generate
+```
+core
+├── maestro-go      (adds Go tools)
+├── maestro-python  (adds Python tools)
+└── lazyvim         (full LazyVim distribution)
 ```
 
-This creates files in `~/.config/nvim/lua/plugins/nvp/`.
-
-### Custom Output Directory
-
-```bash
-nvp generate --output ~/my-config/lua/plugins
-```
+When a package specifies `extends: core`, it gets all of `core`'s plugins plus its own.
 
 ---
 
-## Performance Considerations
-
-### Lazy Loading
-
-All library plugins come pre-configured with lazy loading:
-
-- **Event-based triggers** - Load on file types, commands, or events
-- **Dependency management** - Load dependencies in correct order
-- **Startup optimization** - Only essential plugins load on startup
+## Using a Package in Workspace YAML
 
 ```yaml
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: dev
+  app: my-api
 spec:
-  lazy: true          # Don't load on startup
-  event:              # Load on these events
-    - BufReadPost
-    - BufNewFile
-  cmd:                # Load when these commands run
-    - Telescope
-  ft:                 # Load for these filetypes
-    - python
-    - go
-  keys:               # Load when these keys are pressed
-    - key: "<leader>ff"
-      action: "<cmd>Telescope find_files<cr>"
+  nvim:
+    pluginPackage: maestro-go    # Built-in or custom package
+    plugins:                     # Additional plugins on top
+      - github/copilot.vim
+    mergeMode: append            # append (default) or replace
+```
+
+**Merge modes:**
+
+| Mode | Behavior |
+|------|----------|
+| `append` | Package plugins + workspace plugins (default) |
+| `replace` | Only workspace plugins, ignore package |
+
+---
+
+## Terminal Packages
+
+Terminal packages bundle shell plugins and prompts. Use the same discovery pattern:
+
+```bash
+# List built-in terminal packages
+dvm library get terminal packages
+
+# Show details
+dvm library describe terminal-package core
+
+# List terminal prompts
+dvm library get terminal prompts
+
+# List terminal plugins (shell plugins)
+dvm library get terminal plugins
 ```
 
 ---
 
-## Troubleshooting
+## Related
 
-### Plugin errors
-
-```bash
-# Check Neovim's health
-nvim --headless -c 'checkhealth' -c 'quit'
-
-# Regenerate clean configuration
-rm -rf ~/.config/nvim/lua/plugins/nvp
-nvp generate
-```
-
-### Check what is installed
-
-```bash
-# List all installed plugins
-nvp list
-
-# Get details on a specific plugin
-nvp get telescope -o yaml
-```
-
----
-
-## Next Steps
-
-- [Plugin Documentation](plugins.md) - Individual plugin management commands
-- [Themes](themes.md) - Theme system integration
-- [Commands Reference](commands.md) - Full nvp command list
-- [Configuration](../configuration/yaml-schema.md) - YAML format details
+- **[Quick Start: Themes](quick-start-themes.md)** — How to apply themes to your workspace
+- **[Plugin Packages](packages.md)** — Full package management guide
+- **[NvimPackage YAML Reference](../reference/nvim-package.md)** — Full YAML schema
+- **[Workspace Reference](../reference/workspace.md)** — Using packages in workspace YAML

@@ -15,7 +15,7 @@ func TestDefaultWatchdogConfig(t *testing.T) {
 	cfg := DefaultWatchdogConfig()
 
 	assert.Equal(t, 2*time.Second, cfg.PollInterval, "PollInterval should be 2 seconds")
-	assert.Equal(t, 30*time.Minute, cfg.Timeout, "Timeout should be 30 minutes")
+	assert.Equal(t, 45*time.Minute, cfg.Timeout, "Timeout should be 45 minutes")
 	assert.Equal(t, 5*time.Second, cfg.CleanupWait, "CleanupWait should be 5 seconds")
 }
 
