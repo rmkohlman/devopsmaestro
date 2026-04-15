@@ -6,6 +6,16 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 ---
 
+## v0.96.1 (2026-04-14)
+
+**Bug Fixes**
+- **Neovim AppImage extraction fixed on ARM64** — replaced direct AppImage execution (`--appimage-extract`) with `unsquashfs` extraction; ARM64 AppImages fail with exit code 127 in minimal containers (`debian:bookworm-slim`) that lack FUSE and compatible dynamic linkers; `squashfs-tools` is now installed in the `neovim-builder` stage and the squashfs payload offset is detected via the `hsqs` magic bytes before extraction ([#351](https://github.com/rmkohlman/devopsmaestro/issues/351))
+
+**Tests**
+- Updated `TestNeovimInstallation_PythonSlim` to assert `unsquashfs` extraction and `squashfs-tools` installation, and assert that `--appimage-extract` is absent; added `does_not_execute_appimage_directly` and `detects_squashfs_offset` sub-tests ([#351](https://github.com/rmkohlman/devopsmaestro/issues/351))
+
+---
+
 ## v0.96.0 (2026-04-14)
 
 **Bug Fixes**
