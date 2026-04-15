@@ -1233,14 +1233,14 @@ func (g *DefaultDockerfileGenerator) activeBuilderStages() []builderStage {
 	var stages []builderStage
 
 	// Neovim builder (only for Debian — Alpine uses apk)
-	// Uses AppImage extraction — binary is at /opt/nvim/usr/bin/nvim (see #342)
+	// Uses pre-built tarball targeting GLIBC 2.17+ — binary is at /opt/nvim/bin/nvim (see #356)
 	if !isAlpine {
 		stages = append(stages, builderStage{
 			name:     "neovim-builder",
 			emitFunc: g.generateNeovimBuilder,
 			copyLines: []string{
 				"COPY --from=neovim-builder /opt/nvim/ /opt/nvim/",
-				"RUN ln -sf /opt/nvim/usr/bin/nvim /usr/local/bin/nvim",
+				"RUN ln -sf /opt/nvim/bin/nvim /usr/local/bin/nvim",
 			},
 		})
 	}
@@ -1329,35 +1329,33 @@ func (g *DefaultDockerfileGenerator) emitBuilderStages(dockerfile *strings.Build
 	}
 }
 
-// generateNeovimBuilder creates a parallel stage to install Neovim via AppImage (Debian only).
-// Uses AppImage extraction to avoid GLIBC version mismatches with workspace base images
-// (see #342). The extracted AppImage bundles all shared libraries, so it works with any
-// glibc version in the target image. Pinned to a specific version with SHA256 checksum
-// verification (see checksums.go).
-//
-// Extraction uses unsquashfs instead of executing the AppImage binary directly, because
-// ARM64 AppImages fail with exit code 127 in minimal containers (debian:bookworm-slim)
-// that lack FUSE and compatible dynamic linkers (see #351).
+// generateNeovimBuilder creates a parallel stage to install Neovim via tarball (Debian only).
+// Downloads the pre-built tarball from neovim/neovim releases, which targets GLIBC 2.17+
+// and is compatible with virtually all Linux base images (see #356).
+// Previous approaches used AppImage (#342) and unsquashfs extraction (#351), but AppImages
+// do NOT bundle glibc — the extracted nvim binary still dynamically links to the system
+// glibc, causing failures on images with GLIBC < 2.35.
+// Pinned to a specific version with SHA256 checksum verification (see checksums.go).
 func (g *DefaultDockerfileGenerator) generateNeovimBuilder(dockerfile *strings.Builder) {
 	dockerfile.WriteString("# --- Parallel builder: Neovim ---\n")
 	dockerfile.WriteString(fmt.Sprintf("FROM %s AS neovim-builder\n", pinnedImage("debian:bookworm-slim")))
 	dockerfile.WriteString(g.aptCacheMountsLocked())
 	dockerfile.WriteString("    set -e && \\\n")
-	dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends curl ca-certificates squashfs-tools && \\\n")
+	dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \\\n")
 	dockerfile.WriteString("    ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m) && \\\n")
 	dockerfile.WriteString("    if [ \"$ARCH\" = \"arm64\" ] || [ \"$ARCH\" = \"aarch64\" ]; then \\\n")
-	dockerfile.WriteString(fmt.Sprintf("        NVIM_ARCH=\"nvim-linux-arm64\"; NVIM_SHA256=\"%s\"; \\\n", neovimAppImageChecksumArm64))
+	dockerfile.WriteString(fmt.Sprintf("        NVIM_ARCH=\"nvim-linux-arm64\"; NVIM_SHA256=\"%s\"; \\\n", neovimTarballChecksumArm64))
 	dockerfile.WriteString("    elif [ \"$ARCH\" = \"amd64\" ] || [ \"$ARCH\" = \"x86_64\" ]; then \\\n")
-	dockerfile.WriteString(fmt.Sprintf("        NVIM_ARCH=\"nvim-linux-x86_64\"; NVIM_SHA256=\"%s\"; \\\n", neovimAppImageChecksumX86_64))
+	dockerfile.WriteString(fmt.Sprintf("        NVIM_ARCH=\"nvim-linux-x86_64\"; NVIM_SHA256=\"%s\"; \\\n", neovimTarballChecksumX86_64))
 	dockerfile.WriteString("    else \\\n")
 	dockerfile.WriteString("        echo \"ERROR: Unsupported architecture: $ARCH\"; exit 1; \\\n")
 	dockerfile.WriteString("    fi && \\\n")
-	dockerfile.WriteString(fmt.Sprintf("    curl %s -o \"${NVIM_ARCH}.appimage\" \"https://github.com/neovim/neovim/releases/download/v%s/${NVIM_ARCH}.appimage\" && \\\n", curlFlags, neovimVersion))
-	dockerfile.WriteString("    echo \"${NVIM_SHA256}  ${NVIM_ARCH}.appimage\" | sha256sum -c - && \\\n")
-	dockerfile.WriteString("    OFFSET=$(LC_ALL=C grep -abom1 'hsqs' \"${NVIM_ARCH}.appimage\" | cut -d: -f1) && \\\n")
-	dockerfile.WriteString("    unsquashfs -offset \"$OFFSET\" -dest /opt/nvim \"${NVIM_ARCH}.appimage\" && \\\n")
-	dockerfile.WriteString("    rm \"${NVIM_ARCH}.appimage\" && \\\n")
-	dockerfile.WriteString("    test -x /opt/nvim/usr/bin/nvim\n\n")
+	dockerfile.WriteString(fmt.Sprintf("    curl %s -o \"${NVIM_ARCH}.tar.gz\" \"https://github.com/neovim/neovim/releases/download/v%s/${NVIM_ARCH}.tar.gz\" && \\\n", curlFlags, neovimVersion))
+	dockerfile.WriteString("    echo \"${NVIM_SHA256}  ${NVIM_ARCH}.tar.gz\" | sha256sum -c - && \\\n")
+	dockerfile.WriteString("    mkdir -p /opt/nvim && \\\n")
+	dockerfile.WriteString("    tar xzf \"${NVIM_ARCH}.tar.gz\" --strip-components=1 -C /opt/nvim && \\\n")
+	dockerfile.WriteString("    rm \"${NVIM_ARCH}.tar.gz\" && \\\n")
+	dockerfile.WriteString("    test -x /opt/nvim/bin/nvim\n\n")
 }
 
 // generateLazygitBuilder creates a parallel stage to download lazygit.

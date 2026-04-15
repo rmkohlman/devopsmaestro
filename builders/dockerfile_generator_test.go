@@ -1185,7 +1185,7 @@ func TestDockerfileGenerator_BuilderStage_BinaryVerification(t *testing.T) {
 					stageName:   "neovim",
 					stageHeader: "# --- Parallel builder: Neovim ---",
 					nextHeader:  "# --- Parallel builder: lazygit ---",
-					binaryPath:  "test -x /opt/nvim/usr/bin/nvim",
+					binaryPath:  "test -x /opt/nvim/bin/nvim",
 				},
 				{
 					stageName:   "lazygit",

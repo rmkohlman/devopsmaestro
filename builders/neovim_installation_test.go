@@ -74,46 +74,41 @@ func TestNeovimInstallation_PythonSlim(t *testing.T) {
 		}
 	})
 
-	t.Run("uses_appimage_not_tarball", func(t *testing.T) {
-		// Issue #342: AppImage bundles all shared libraries, avoiding GLIBC version mismatches
-		if !strings.Contains(dockerfile, ".appimage") {
-			t.Error("Dockerfile should download Neovim AppImage (not tarball) to avoid GLIBC issues (#342)")
+	t.Run("uses_tarball_not_appimage", func(t *testing.T) {
+		// Issue #356: Tarball from neovim/neovim avoids AppImage extraction issues.
+		// AppImage approach (#342) failed because AppImages do NOT bundle glibc.
+		if !strings.Contains(dockerfile, ".tar.gz") {
+			t.Error("Dockerfile should download Neovim tarball (.tar.gz) for GLIBC 2.17+ compat (#356)")
 		}
-		if strings.Contains(dockerfile, "nvim-linux-arm64.tar.gz") || strings.Contains(dockerfile, "nvim-linux-x86_64.tar.gz") {
-			t.Error("Dockerfile should NOT use Neovim tarball (GLIBC incompatibility, see #342)")
-		}
-	})
-
-	t.Run("extracts_appimage_with_unsquashfs", func(t *testing.T) {
-		// Issue #351: AppImage is extracted with unsquashfs instead of --appimage-extract
-		// because ARM64 AppImages fail with exit code 127 in minimal containers.
-		if !strings.Contains(dockerfile, "unsquashfs") {
-			t.Error("Dockerfile should extract AppImage with unsquashfs (see #351)")
-		}
-		if !strings.Contains(dockerfile, "squashfs-tools") {
-			t.Error("Dockerfile should install squashfs-tools for unsquashfs extraction")
+		if strings.Contains(dockerfile, ".appimage") {
+			t.Error("Dockerfile should NOT use Neovim AppImage (GLIBC incompatibility, see #356)")
 		}
 	})
 
-	t.Run("appimage_binary_path", func(t *testing.T) {
-		// Extracted AppImage places nvim at squashfs-root/usr/bin/nvim → /opt/nvim/usr/bin/nvim
-		if !strings.Contains(dockerfile, "/opt/nvim/usr/bin/nvim") {
-			t.Error("Dockerfile should reference /opt/nvim/usr/bin/nvim (AppImage extraction path)")
+	t.Run("extracts_tarball_with_tar", func(t *testing.T) {
+		// Issue #356: Tarball extracted with tar, replacing unsquashfs-based AppImage extraction (#351).
+		if !strings.Contains(dockerfile, "tar xzf") {
+			t.Error("Dockerfile should extract Neovim tarball with tar xzf (see #356)")
+		}
+		if strings.Contains(dockerfile, "unsquashfs") {
+			t.Error("Dockerfile should NOT use unsquashfs (AppImage extraction removed, see #356)")
+		}
+		if strings.Contains(dockerfile, "squashfs-tools") {
+			t.Error("Dockerfile should NOT install squashfs-tools (no longer needed, see #356)")
 		}
 	})
 
-	t.Run("does_not_execute_appimage_directly", func(t *testing.T) {
-		// Issue #351: AppImage binary must NOT be executed directly — fails on ARM64
-		// with exit code 127 in minimal Docker containers lacking FUSE/compatible linker.
-		if strings.Contains(dockerfile, "--appimage-extract") {
-			t.Error("Dockerfile should NOT use --appimage-extract (fails on ARM64, see #351)")
+	t.Run("tarball_binary_path", func(t *testing.T) {
+		// Tarball extracts as nvim-linux-{arch}/bin/nvim → /opt/nvim/bin/nvim with --strip-components=1
+		if !strings.Contains(dockerfile, "/opt/nvim/bin/nvim") {
+			t.Error("Dockerfile should reference /opt/nvim/bin/nvim (tarball extraction path)")
 		}
 	})
 
-	t.Run("detects_squashfs_offset", func(t *testing.T) {
-		// unsquashfs needs the offset of the squashfs payload within the AppImage
-		if !strings.Contains(dockerfile, "hsqs") {
-			t.Error("Dockerfile should detect squashfs magic ('hsqs') offset for extraction")
+	t.Run("does_not_detect_squashfs_offset", func(t *testing.T) {
+		// unsquashfs offset detection no longer needed with tarball approach
+		if strings.Contains(dockerfile, "hsqs") {
+			t.Error("Dockerfile should NOT detect squashfs magic ('hsqs') — tarballs don't need offset detection")
 		}
 	})
 }

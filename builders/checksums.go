@@ -11,11 +11,13 @@ package builders
 
 // --- Neovim ---
 // https://github.com/neovim/neovim/releases
-// Uses AppImage to avoid GLIBC version mismatches with workspace base images (see #342).
-// AppImages are self-contained and bundle all required shared libraries.
+// Uses pre-built tarball from neovim/neovim releases. These tarballs target GLIBC 2.17+,
+// making them compatible with virtually all Linux base images (see #356).
+// Previous AppImage approach (#342) failed because AppImages do NOT bundle glibc —
+// the extracted nvim binary still dynamically links to the system glibc.
 const neovimVersion = "0.11.6"
-const neovimAppImageChecksumArm64 = "ed34c4d8eb79eb2d111987f57cce9ba87c31a97524d602752ce1b0cd35e6a554"
-const neovimAppImageChecksumX86_64 = "77dd16d86e6549a0bbbbfbc18636d434ffe5b0ac8b9854a7669e35cc4b93dda0"
+const neovimTarballChecksumArm64 = "8ddc0c101846145e830b17bbca50782ca9307eee4fab539d9e2ddaf8793c06f1"
+const neovimTarballChecksumX86_64 = "2fc90b962327f73a78afbfb8203fd19db8db9cdf4ee5e2bef84704339add89cc"
 
 // --- Lazygit ---
 // https://github.com/jesseduffield/lazygit/releases
