@@ -2,6 +2,13 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.100.3 (2026-04-16)
+
+**Bug Fixes**
+- **Lazygit inside container tries to connect to remote git server instead of using local bare git repositories** — `cmd/attach.go` now mounts git mirror volumes and rewrites remotes so bare git repos are accessible inside containers, allowing lazygit to function correctly without network access ([#379](https://github.com/rmkohlman/devopsmaestro/issues/379))
+
+---
+
 ## v0.100.2 (2026-04-16)
 
 **Bug Fixes**
