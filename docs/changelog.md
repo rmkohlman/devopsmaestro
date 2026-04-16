@@ -2,6 +2,16 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.100.2 (2026-04-16)
+
+**Bug Fixes**
+- **Auto-detect and recover from BuildKit cache corruption** — `BuildKitBuilder` now detects BuildKit cache corruption errors during build and automatically clears the cache and retries; `build_phases.go` surfaces actionable diagnostics when corruption is detected; `build_errors.go` expanded with BuildKit-specific error classification and recovery guidance ([#378](https://github.com/rmkohlman/devopsmaestro/issues/378))
+
+**Tests**
+- Added `build_errors_test.go` coverage for BuildKit cache corruption detection and error classification ([#378](https://github.com/rmkohlman/devopsmaestro/issues/378))
+
+---
+
 ## v0.100.1 (2026-04-16)
 
 **Bug Fixes**
