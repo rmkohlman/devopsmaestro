@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.100.5] — 2026-04-16
+
+### Bug Fixes
+- **Lazygit "Git version must be at least 2.32.0" — install git unconditionally from backports** — `builders/dockerfile_generator.go` now adds the Debian backports apt source before the merged package install and pins git to the backports target, guaranteeing git >= 2.32.0 is always installed without a conditional post-install step; replaces the version-check approach from #380 with a simpler, more reliable unconditional install ([#382](https://github.com/rmkohlman/devopsmaestro/issues/382))
+
+---
+
 ## [v0.100.4] — 2026-04-16
 
 ### Bug Fixes
