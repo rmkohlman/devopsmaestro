@@ -2,6 +2,13 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.99.2 (2026-04-15)
+
+**Bug Fixes**
+- **Squid registry incorrectly reported as stopped when running** — set `pid_filename none` in the generated `squid.conf` template; squid running in foreground mode (`-N`) would otherwise skip writing or actively remove the PID file that dvm's `ProcessManager` writes, causing `dvm` to report the process as `stopped` even though it was running ([#373](https://github.com/rmkohlman/devopsmaestro/issues/373))
+
+---
+
 ## v0.99.1 (2026-04-15)
 
 **Bug Fixes**

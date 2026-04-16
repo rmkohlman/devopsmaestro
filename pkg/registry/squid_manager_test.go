@@ -780,6 +780,31 @@ func TestGenerateSquidConfig_CacheDirL2Is64(t *testing.T) {
 		"cache_dir must NOT use L2=256 (causes xcalloc overflow in Squid 7.x, see #363)")
 }
 
+// TestGenerateSquidConfig_PidFilenameIsNone verifies that the generated squid.conf
+// uses "pid_filename none" so that squid does not interfere with the PID file that
+// dvm's DefaultProcessManager writes. Regression test for #373.
+func TestGenerateSquidConfig_PidFilenameIsNone(t *testing.T) {
+	cfg := HttpProxyConfig{
+		Port:            3128,
+		CacheDir:        "/tmp/squid/cache",
+		LogDir:          "/tmp/squid/logs",
+		PidFile:         "/tmp/squid/squid.pid",
+		CacheSizeMB:     1000,
+		MaxObjectSizeMB: 100,
+		MemoryCacheMB:   256,
+	}
+
+	config, err := GenerateSquidConfig(cfg)
+	require.NoError(t, err, "GenerateSquidConfig should not error")
+
+	// Fix #373: pid_filename must be "none" so squid does not overwrite or remove
+	// the PID file that dvm's ProcessManager writes after starting the process.
+	assert.Contains(t, config, "pid_filename none",
+		"squid.conf must set pid_filename none to avoid interfering with dvm PID tracking (#373)")
+	assert.NotContains(t, config, "pid_filename /",
+		"squid.conf must NOT set a pid_filename path — dvm owns the PID file (#373)")
+}
+
 // TestGenerateSquidConfig_CacheDirFormat verifies the complete cache_dir line
 // format: "cache_dir ufs <path> <size> 16 64".
 func TestGenerateSquidConfig_CacheDirFormat(t *testing.T) {

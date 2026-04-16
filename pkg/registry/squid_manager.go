@@ -349,7 +349,12 @@ cache_mem %d MB
 # Logging
 access_log %s/access.log squid
 cache_log %s/cache.log
-pid_filename %s
+# PID file is managed by dvm's ProcessManager, not squid.
+# Setting pid_filename to "none" prevents squid from interfering with
+# the PID file dvm writes — squid -N (foreground mode) would otherwise
+# skip writing or actively remove the pid_filename path, causing dvm
+# to report the process as "stopped" even though it is running (#373).
+pid_filename none
 
 # ACLs — restrict to localhost and RFC1918 private subnets
 acl localnet src 127.0.0.0/8
@@ -380,7 +385,6 @@ shutdown_lifetime 3 seconds
 		cfg.MemoryCacheMB,
 		cfg.LogDir,
 		cfg.LogDir,
-		cfg.PidFile,
 	)
 
 	return config, nil
