@@ -2,6 +2,13 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.99.3 (2026-04-15)
+
+**Bug Fixes**
+- **Git credential mounting for workspace containers** — mounts `~/.ssh` (read-only) and `~/.gitconfig` (read-only) into workspace containers at runtime; developers can now use their host SSH keys and git identity inside containers without manual setup or credential copy ([#374](https://github.com/rmkohlman/devopsmaestro/issues/374))
+
+---
+
 ## v0.99.2 (2026-04-15)
 
 **Bug Fixes**
