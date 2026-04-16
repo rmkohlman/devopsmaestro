@@ -224,6 +224,21 @@ func (b *BuildKitBuilder) Build(ctx context.Context, opts BuildOptions) error {
 	return nil
 }
 
+// PruneBuildKitCache prunes the BuildKit build cache via the gRPC API.
+// This is used to recover from cache corruption (#378).
+func (b *BuildKitBuilder) PruneBuildKitCache(ctx context.Context) error {
+	if b.buildkitClient == nil {
+		return fmt.Errorf("buildkit client not connected")
+	}
+	ch := make(chan bkclient.UsageInfo)
+	// Drain usage info in background
+	go func() {
+		for range ch {
+		}
+	}()
+	return b.buildkitClient.Prune(ctx, ch, bkclient.PruneAll)
+}
+
 // ImageExists checks if an image already exists using containerd API.
 func (b *BuildKitBuilder) ImageExists(ctx context.Context) (bool, error) {
 	ctx = namespaces.WithNamespace(ctx, b.namespace)

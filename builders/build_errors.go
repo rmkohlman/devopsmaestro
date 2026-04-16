@@ -15,6 +15,15 @@ func EnhanceBuildError(err error) error {
 
 	msg := err.Error()
 
+	// Detect BuildKit/containerd cache corruption (#378).
+	if isCacheCorruptionMsg(msg) {
+		return fmt.Errorf("build failed: %w\n\n"+
+			"  Hint: BuildKit cache corruption detected (blob not found / snapshot missing).\n"+
+			"  Try: dvm build --clean-cache    (prune BuildKit cache and retry)\n"+
+			"  Or:  dvm cache clear --buildkit  (manual cache cleanup)\n"+
+			"  Last resort: delete the Colima disk and recreate the VM.", err)
+	}
+
 	// Detect network timeout during image pull — likely squid proxy is down (#377).
 	if isNetworkTimeout(msg) {
 		return fmt.Errorf("build failed: %w\n\n"+
@@ -24,6 +33,35 @@ func EnhanceBuildError(err error) error {
 	}
 
 	return fmt.Errorf("build failed: %w", err)
+}
+
+// IsCacheCorruption returns true if the error message indicates BuildKit/containerd
+// cache corruption — typically "blob not found" or "parent snapshot does not exist"
+// errors that make all subsequent builds fail until the cache is wiped (#378).
+func IsCacheCorruption(err error) bool {
+	if err == nil {
+		return false
+	}
+	return isCacheCorruptionMsg(err.Error())
+}
+
+func isCacheCorruptionMsg(msg string) bool {
+	corruptionPatterns := []string{
+		"blob not found",
+		"parent snapshot does not exist",
+		"failed to get reader from content store",
+		"missing content",
+		"failed to verify",
+		"unexpected end of json input",
+		"index.json: no such file or directory",
+	}
+	lower := strings.ToLower(msg)
+	for _, p := range corruptionPatterns {
+		if strings.Contains(lower, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // isNetworkTimeout returns true if the error message indicates a network

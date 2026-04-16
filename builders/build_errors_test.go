@@ -54,6 +54,109 @@ func TestEnhanceBuildError_WrapsOriginalError(t *testing.T) {
 	}
 }
 
+func TestIsCacheCorruption_NilError(t *testing.T) {
+	if IsCacheCorruption(nil) {
+		t.Error("expected false for nil error")
+	}
+}
+
+func TestIsCacheCorruption_PositiveCases(t *testing.T) {
+	positives := []string{
+		"blob not found: not found",
+		"ERROR: failed to get reader from content store: blob sha256:abc123: blob not found",
+		"parent snapshot does not exist",
+		"failed to get reader from content store",
+		"missing content for digest sha256:deadbeef",
+		"failed to verify sha256 checksum",
+		"index.json: no such file or directory",
+		// Case-insensitive variants
+		"BLOB NOT FOUND",
+		"Parent Snapshot Does Not Exist",
+	}
+	for _, msg := range positives {
+		t.Run(msg, func(t *testing.T) {
+			if !IsCacheCorruption(errors.New(msg)) {
+				t.Errorf("IsCacheCorruption(%q) = false, want true", msg)
+			}
+		})
+	}
+}
+
+func TestIsCacheCorruption_NegativeCases(t *testing.T) {
+	negatives := []string{
+		"exit status 1",
+		"permission denied",
+		"i/o timeout",
+		"dial tcp 1.2.3.4:443: connection refused",
+		"context deadline exceeded",
+		"",
+	}
+	for _, msg := range negatives {
+		t.Run(msg, func(t *testing.T) {
+			if IsCacheCorruption(errors.New(msg)) {
+				t.Errorf("IsCacheCorruption(%q) = true, want false", msg)
+			}
+		})
+	}
+}
+
+func TestIsCacheCorruptionMsg_AllPatterns(t *testing.T) {
+	tests := []struct {
+		name string
+		msg  string
+		want bool
+	}{
+		{"blob not found", "blob not found", true},
+		{"parent snapshot does not exist", "parent snapshot does not exist", true},
+		{"failed to get reader from content store", "failed to get reader from content store", true},
+		{"missing content", "missing content", true},
+		{"failed to verify", "failed to verify", true},
+		{"unexpected end of json input", "unexpected end of json input", true},
+		{"index.json no such file", "index.json: no such file or directory", true},
+		{"case insensitive", "BLOB NOT FOUND", true},
+		{"unrelated error", "something else entirely", false},
+		{"empty", "", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := isCacheCorruptionMsg(tc.msg)
+			if got != tc.want {
+				t.Errorf("isCacheCorruptionMsg(%q) = %v, want %v", tc.msg, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestEnhanceBuildError_CacheCorruption(t *testing.T) {
+	corruptionErrors := []string{
+		"blob not found: not found",
+		"parent snapshot does not exist",
+		"failed to get reader from content store: blob sha256:abc: blob not found",
+	}
+	for _, msg := range corruptionErrors {
+		t.Run(msg, func(t *testing.T) {
+			orig := errors.New(msg)
+			enhanced := EnhanceBuildError(orig)
+			if enhanced == nil {
+				t.Fatal("expected non-nil error")
+			}
+			enhanced_str := enhanced.Error()
+			if !strings.HasPrefix(enhanced_str, "build failed:") {
+				t.Errorf("expected 'build failed:' prefix, got: %v", enhanced_str)
+			}
+			if !strings.Contains(enhanced_str, "clean-cache") {
+				t.Errorf("expected '--clean-cache' hint in error, got: %v", enhanced_str)
+			}
+			if !strings.Contains(enhanced_str, "BuildKit cache corruption") {
+				t.Errorf("expected cache corruption hint in error, got: %v", enhanced_str)
+			}
+			if !errors.Is(enhanced, orig) {
+				t.Error("expected enhanced error to wrap original via errors.Is chain")
+			}
+		})
+	}
+}
+
 func TestIsNetworkTimeout(t *testing.T) {
 	tests := []struct {
 		msg  string

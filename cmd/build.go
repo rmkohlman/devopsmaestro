@@ -18,6 +18,7 @@ var (
 	buildAll         bool
 	buildDetach      bool
 	buildConcurrency int
+	buildCleanCache  bool
 )
 
 // buildCmd represents the build command
@@ -111,5 +112,6 @@ func init() {
 	AddAllFlag(buildCmd, "Build all matching workspaces (use with -e/-d/-a to scope)")
 	buildCmd.Flags().BoolVar(&buildDetach, "detach", false, "Run in background; monitor with 'dvm build status'")
 	buildCmd.Flags().IntVar(&buildConcurrency, "concurrency", 8, "Max parallel builds (capped at 2x CPU cores)")
+	buildCmd.Flags().BoolVar(&buildCleanCache, "clean-cache", false, "Prune BuildKit cache before building (fixes cache corruption)")
 	buildCmd.AddCommand(buildStatusCmd)
 }

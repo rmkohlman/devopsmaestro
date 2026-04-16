@@ -12,6 +12,7 @@ import (
 	"devopsmaestro/builders"
 	"devopsmaestro/config"
 	"devopsmaestro/models"
+	"devopsmaestro/operators"
 	"devopsmaestro/pkg/buildargs/resolver"
 	cacertsresolver "devopsmaestro/pkg/cacerts/resolver"
 	"devopsmaestro/pkg/envvalidation"
@@ -545,7 +546,39 @@ func (bc *buildContext) buildImage() (skipped bool, err error) {
 		slog.Info("build cache disabled (--no-cache)")
 	}
 
+	// Pre-build cache cleanup if --clean-cache flag is set (#378)
+	if buildCleanCache {
+		bc.renderProgress("Pruning BuildKit cache before build (--clean-cache)...")
+		if pruneErr := bc.pruneBuildKitCache(); pruneErr != nil {
+			slog.Warn("pre-build cache prune failed (continuing anyway)", "error", pruneErr)
+			bc.renderWarning("Cache prune failed (continuing with build)")
+		} else {
+			bc.renderSuccess("BuildKit cache pruned successfully")
+		}
+		bc.renderBlank()
+	}
+
 	if err := bc.builder.Build(bc.ctx, buildOpts); err != nil {
+		// Check for BuildKit cache corruption (#378). If detected, attempt
+		// automatic recovery: prune the BuildKit cache and retry once.
+		if builders.IsCacheCorruption(err) {
+			bc.renderWarning("BuildKit cache corruption detected — attempting automatic recovery...")
+			slog.Warn("cache corruption detected, attempting prune and retry", "error", err)
+			if pruneErr := bc.pruneBuildKitCache(); pruneErr != nil {
+				slog.Warn("automatic cache prune failed", "error", pruneErr)
+				bc.renderWarning("Automatic cache cleanup failed. Try: dvm cache clear --buildkit --force")
+			} else {
+				bc.renderInfo("Cache pruned successfully, retrying build...")
+				// Retry the build once after pruning
+				if retryErr := bc.builder.Build(bc.ctx, buildOpts); retryErr != nil {
+					slog.Error("build failed after cache prune", "image", bc.imageName, "error", retryErr)
+					return false, builders.EnhanceBuildError(retryErr)
+				}
+				slog.Info("build succeeded after cache prune", "image", bc.imageName)
+				goto buildSuccess
+			}
+		}
+
 		// Defense-in-depth: the builder reported failure, but the image may
 		// have been built successfully (e.g., Docker buildx on Colima exits
 		// non-zero after completing image export). Verify the image exists
@@ -563,7 +596,7 @@ func (bc *buildContext) buildImage() (skipped bool, err error) {
 		slog.Info("build completed", "image", bc.imageName)
 	}
 
-	// For Colima/BuildKit, copy image to devopsmaestro namespace
+buildSuccess:
 	if bc.platform.IsContainerd() {
 		if err := copyImageToNamespace(bc.platform, bc.imageName, bc.out()); err != nil {
 			return false, err
@@ -595,6 +628,21 @@ func (bc *buildContext) createBuilder() error {
 		return fmt.Errorf("failed to create builder: %w", err)
 	}
 	return nil
+}
+
+// pruneBuildKitCache attempts to prune the BuildKit cache via the builder's API.
+// Falls back to CLI-based prune if the builder doesn't support direct pruning.
+func (bc *buildContext) pruneBuildKitCache() error {
+	if bkBuilder, ok := bc.builder.(*builders.BuildKitBuilder); ok {
+		return bkBuilder.PruneBuildKitCache(bc.ctx)
+	}
+	// Fallback: use system cleaner for Docker-based platforms
+	if bc.platform != nil {
+		cleaner := operators.NewSystemCleaner(bc.platform)
+		_, err := cleaner.PruneBuildKit(bc.ctx, false)
+		return err
+	}
+	return fmt.Errorf("no builder available for cache prune")
 }
 
 // assembleBuildArgs layers build args from registry, cascade resolver, and credentials.
