@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"database/sql"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"devopsmaestro/db"
@@ -139,24 +141,50 @@ func showBuildHistory(ds db.DataStore) error {
 
 // renderBuildSession displays a single build session with workspace details.
 func renderBuildSession(ds db.DataStore, session *models.BuildSession) error {
+	// Show workspace details (fetched first so we can derive accurate status/counters)
+	entries, err := ds.GetBuildSessionWorkspaces(session.ID)
+	if err != nil {
+		entries = nil // proceed with session-level data only
+	}
+
+	// Compute counters from actual workspace entries (source of truth).
+	// The denormalized session.Succeeded/Failed fields may be stale if session
+	// finalization failed or was interrupted (#366, #375).
+	succeeded, failed := session.Succeeded, session.Failed
+	if stats, statsF, statsErr := ds.GetBuildSessionStats(session.ID); statsErr == nil {
+		succeeded, failed = stats, statsF
+	}
+
+	// Derive session status from workspace entries when the session record
+	// is stale (e.g., still "running" after all workspaces completed).
+	status := session.Status
+	if status == "running" && len(entries) > 0 && allWorkspacesTerminal(entries) {
+		if failed > 0 && succeeded == 0 {
+			status = "failed"
+		} else if failed > 0 {
+			status = "partial"
+		} else {
+			status = "completed"
+		}
+		// Self-heal: persist the corrected session state so future queries
+		// don't need to recompute. Errors are non-fatal.
+		healSession(ds, session, status, succeeded, failed)
+	}
+
 	duration := "in progress"
 	if session.CompletedAt.Valid {
 		duration = session.CompletedAt.Time.Sub(session.StartedAt).Round(time.Second).String()
+	} else if status != "running" {
+		// Session finalization missed setting CompletedAt; estimate from entries
+		duration = estimateDurationFromEntries(session.StartedAt, entries)
 	}
 
 	render.Plain(fmt.Sprintf("Build Session: %s", session.ID))
-	render.Plain(fmt.Sprintf("  Status:    %s", session.Status))
+	render.Plain(fmt.Sprintf("  Status:    %s", status))
 	render.Plain(fmt.Sprintf("  Started:   %s", session.StartedAt.Format("2006-01-02 15:04:05")))
 	render.Plain(fmt.Sprintf("  Duration:  %s", duration))
 	render.Plain(fmt.Sprintf("  Result:    %d succeeded, %d failed (%d total)",
-		session.Succeeded, session.Failed, session.TotalWorkspaces))
-
-	// Show workspace details
-	entries, err := ds.GetBuildSessionWorkspaces(session.ID)
-	if err != nil {
-		render.Warning(fmt.Sprintf("Failed to query workspace details: %v", err))
-		return nil
-	}
+		succeeded, failed, session.TotalWorkspaces))
 
 	if len(entries) > 0 {
 		render.Plain("")
@@ -196,4 +224,56 @@ func resolveWorkspaceLabel(ds db.DataStore, wsID int) string {
 		return ws.Name
 	}
 	return fmt.Sprintf("%s/%s", app.Name, ws.Name)
+}
+
+// allWorkspacesTerminal returns true if every workspace entry is in a terminal
+// state (succeeded, failed, or skipped). "queued" and "building" are non-terminal.
+func allWorkspacesTerminal(entries []*models.BuildSessionWorkspace) bool {
+	for _, e := range entries {
+		switch e.Status {
+		case "succeeded", "failed", "skipped":
+			continue
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// healSession persists corrected session state back to the database so future
+// queries return accurate data. Errors are logged but never propagated.
+func healSession(ds db.DataStore, session *models.BuildSession, status string, succeeded, failed int) {
+	completedAt := time.Now().UTC()
+	healed := &models.BuildSession{
+		ID:              session.ID,
+		StartedAt:       session.StartedAt,
+		CompletedAt:     sql.NullTime{Time: completedAt, Valid: true},
+		Status:          status,
+		TotalWorkspaces: session.TotalWorkspaces,
+		Succeeded:       succeeded,
+		Failed:          failed,
+	}
+	if err := ds.UpdateBuildSession(healed); err != nil {
+		slog.Warn("failed to self-heal stale build session",
+			"session_id", session.ID, "error", err)
+	} else {
+		slog.Info("self-healed stale build session",
+			"session_id", session.ID, "status", status,
+			"succeeded", succeeded, "failed", failed)
+	}
+}
+
+// estimateDurationFromEntries derives a duration string from the latest
+// workspace CompletedAt when the session itself has no CompletedAt.
+func estimateDurationFromEntries(startedAt time.Time, entries []*models.BuildSessionWorkspace) string {
+	var latest time.Time
+	for _, e := range entries {
+		if e.CompletedAt.Valid && e.CompletedAt.Time.After(latest) {
+			latest = e.CompletedAt.Time
+		}
+	}
+	if latest.IsZero() {
+		return "unknown"
+	}
+	return latest.Sub(startedAt).Round(time.Second).String()
 }
