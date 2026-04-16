@@ -7478,7 +7478,7 @@ func TestDockerfileGenerator_GitUpgradeFromBackports(t *testing.T) {
 				t.Fatalf("Generate() error = %v", err)
 			}
 
-			hasUpgrade := strings.Contains(dockerfile, "backports") && strings.Contains(dockerfile, "git_ver")
+			hasUpgrade := strings.Contains(dockerfile, "backports") && strings.Contains(dockerfile, "backports git")
 			if tt.wantUpgrade && !hasUpgrade {
 				t.Errorf("%s: expected git backports upgrade block but not found (#380)", tt.name)
 			}
@@ -7540,12 +7540,12 @@ func TestDockerfileGenerator_GitUpgradeFromBackports(t *testing.T) {
 			t.Fatalf("Generate() error = %v", err)
 		}
 
-		// The upgrade must be guarded by a version check (not always run)
-		if !strings.Contains(dockerfile, "git_major") || !strings.Contains(dockerfile, "git_minor") {
-			t.Error("git upgrade block must conditionally check version before upgrading (#380)")
+		// Backports repo must be added and git installed from backports (#382)
+		if !strings.Contains(dockerfile, "backports main") {
+			t.Error("Dockerfile must add backports repo for git (#382)")
 		}
-		if !strings.Contains(dockerfile, "32") {
-			t.Error("git upgrade block must check for minor version 32 (>= 2.32.0) (#380)")
+		if !strings.Contains(dockerfile, "backports git") {
+			t.Error("Dockerfile must install git from backports (#382)")
 		}
 	})
 }

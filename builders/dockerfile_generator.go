@@ -1755,6 +1755,15 @@ func (g *DefaultDockerfileGenerator) generateDevStage(dockerfile *strings.Builde
 		}
 	}
 
+	// Add Debian backports repo for git >= 2.32.0 (required by lazygit v0.60+, #382).
+	// Older Debian bases (e.g., Bullseye / python:3.9-slim) ship git 2.30 which is too old.
+	// Adding backports before the main install ensures git is pulled from backports directly.
+	if !isAlpine {
+		dockerfile.WriteString("# Enable backports for git >= 2.32.0 (required by lazygit v0.60+)\n")
+		dockerfile.WriteString("RUN codename=$(. /etc/os-release && echo \"$VERSION_CODENAME\") && \\\n")
+		dockerfile.WriteString("    echo \"deb http://deb.debian.org/debian ${codename}-backports main\" > /etc/apt/sources.list.d/backports.list\n\n")
+	}
+
 	// Install all packages in one shot with cache mounts
 	dockerfile.WriteString("# Install all dev tools, nvim dependencies, and Mason toolchains (merged)\n")
 	if isAlpine {
@@ -1762,7 +1771,9 @@ func (g *DefaultDockerfileGenerator) generateDevStage(dockerfile *strings.Builde
 		dockerfile.WriteString("    apk add \\\n")
 	} else {
 		dockerfile.WriteString(g.aptCacheMounts())
-		dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && apt-get install -y --no-install-recommends --fix-broken \\\n")
+		dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && \\\n")
+		dockerfile.WriteString("    apt-get install -y --no-install-recommends -t $(. /etc/os-release && echo \"$VERSION_CODENAME\")-backports git && \\\n")
+		dockerfile.WriteString("    apt-get install -y --no-install-recommends --fix-broken \\\n")
 	}
 
 	for i, pkg := range allPackages {
@@ -1773,22 +1784,6 @@ func (g *DefaultDockerfileGenerator) generateDevStage(dockerfile *strings.Builde
 		}
 	}
 	dockerfile.WriteString("\n")
-
-	// Ensure git >= 2.32.0 for lazygit compatibility (#380).
-	// Older Debian bases (e.g., Bullseye / python:3.9-slim) ship git 2.30 which is too old.
-	// If the installed git is below 2.32, upgrade from backports or build from source.
-	if !isAlpine {
-		dockerfile.WriteString("# Ensure git >= 2.32.0 (required by lazygit v0.60+)\n")
-		dockerfile.WriteString("RUN git_ver=$(git --version | awk '{print $3}') && \\\n")
-		dockerfile.WriteString("    git_major=$(echo \"$git_ver\" | cut -d. -f1) && \\\n")
-		dockerfile.WriteString("    git_minor=$(echo \"$git_ver\" | cut -d. -f2) && \\\n")
-		dockerfile.WriteString("    if [ \"$git_major\" -lt 2 ] || { [ \"$git_major\" -eq 2 ] && [ \"$git_minor\" -lt 32 ]; }; then \\\n")
-		dockerfile.WriteString("      codename=$(. /etc/os-release && echo \"$VERSION_CODENAME\") && \\\n")
-		dockerfile.WriteString("      echo \"deb http://deb.debian.org/debian ${codename}-backports main\" > /etc/apt/sources.list.d/backports.list && \\\n")
-		dockerfile.WriteString("      rm -rf /var/lib/apt/lists/* && apt-get update && \\\n")
-		dockerfile.WriteString("      apt-get install -y -t \"${codename}-backports\" git; \\\n")
-		dockerfile.WriteString("    fi\n\n")
-	}
 
 	// Install Node.js 22 from NodeSource for Debian when nvim is enabled.
 	// Runs AFTER the merged apt-get install so that curl is available.
