@@ -665,6 +665,9 @@ func (bc *buildContext) postBuild() {
 		bc.renderInfo("Start the registry with: dvm registry start")
 	}
 
+	// Prune old images for this workspace (auto-cleanup after successful build).
+	bc.pruneOldImages()
+
 	bc.renderBlank()
 	bc.renderSuccess("Build complete!")
 	bc.renderInfof("Image: %s", bc.imageName)
