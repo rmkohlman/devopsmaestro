@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.101.0] — 2026-04-16
+
+### Features
+- **`--clean-cache` now aggressively leverages registries for Docker layer caching and minimises Colima/BuildKit disk footprint** — new `cmd/build_clean_cache.go` adds pre/post build cleanup helpers: prune BuildKit cache, delete old workspace images, prune dangling images; `cmd/build_phases.go` injects a registry layer cache (`type=registry`) into `CacheFrom`/`CacheTo` when a local zot registry endpoint is available, keeping layers in the registry rather than in BuildKit; `builders/buildkit_builder.go` and `builders/docker_builder.go` split newline-delimited multi-value `CacheFrom` so both BuildKit and docker CLI can consume multiple cache sources in parallel ([#383](https://github.com/rmkohlman/devopsmaestro/issues/383))
+
+### Tests
+- Added `build_clean_cache_test.go` — 11 table-driven tests covering nil-platform guards, registry ref format, multi-value `CacheFrom` splitting, and local+registry cache combination ([#383](https://github.com/rmkohlman/devopsmaestro/issues/383))
+
+---
+
 ## [v0.100.5] — 2026-04-16
 
 ### Bug Fixes

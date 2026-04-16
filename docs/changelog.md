@@ -2,6 +2,16 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.101.0 (2026-04-16)
+
+**Features**
+- **`--clean-cache` now aggressively leverages registries for Docker layer caching and minimises Colima/BuildKit disk footprint** — new pre/post build cleanup helpers prune BuildKit cache, delete old workspace images, and prune dangling images; registry layer cache (`type=registry`) is injected into `CacheFrom`/`CacheTo` when a local zot registry is available; both BuildKit and docker CLI now support multiple cache sources via newline-separated `CacheFrom` values ([#383](https://github.com/rmkohlman/devopsmaestro/issues/383))
+
+**Tests**
+- Added `build_clean_cache_test.go` — 11 tests covering nil-platform guards, registry ref format, multi-value `CacheFrom` splitting, and local+registry cache combination ([#383](https://github.com/rmkohlman/devopsmaestro/issues/383))
+
+---
+
 ## v0.100.5 (2026-04-16)
 
 **Bug Fixes**
