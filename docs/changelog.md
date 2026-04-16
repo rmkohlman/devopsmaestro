@@ -2,6 +2,13 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.101.1 (2026-04-16)
+
+**Bug Fixes**
+- **Registry cache not leveraged during builds — fix cache ref format and startup race condition** — `cmd/build_phases.go` strips the `http://` prefix from registry endpoints so the `type=registry` cache ref is correctly formatted and accepted by BuildKit; adds post-build light cache pruning; `pkg/registry/verdaccio_manager.go` fixes a startup race condition with a health probe; `builders/buildkit_builder.go` adds `PruneBuildKitCacheLight()` for targeted post-build pruning ([#384](https://github.com/rmkohlman/devopsmaestro/issues/384))
+
+---
+
 ## v0.101.0 (2026-04-16)
 
 **Features**

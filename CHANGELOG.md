@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.101.1] — 2026-04-16
+
+### Bug Fixes
+- **Registry cache not leveraged during builds — fix cache ref format and startup race condition** — `cmd/build_phases.go` strips the `http://` prefix from registry endpoints so the `type=registry` cache ref is correctly formatted; adds post-build light BuildKit cache pruning via a new `PruneBuildKitCacheLight()` helper; `pkg/registry/verdaccio_manager.go` fixes a startup race condition by adding a health probe before declaring the registry ready; `builders/buildkit_builder.go` implements `PruneBuildKitCacheLight()` for targeted post-build pruning without evicting reusable layers ([#384](https://github.com/rmkohlman/devopsmaestro/issues/384))
+
+---
+
 ## [v0.101.0] — 2026-04-16
 
 ### Features
