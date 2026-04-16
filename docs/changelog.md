@@ -2,6 +2,13 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.99.4 (2026-04-15)
+
+**Bug Fixes**
+- **`dvm build status` showed stale "running" state and incorrect counters after build completion** — recompute succeeded/failed counters from `GetBuildSessionStats` (source of truth) instead of denormalized session fields; detect sessions stuck in "running" when all workspace entries are terminal and derive corrected status (`completed`/`partial`/`failed`) from actual workspace data; self-heal by persisting corrected state via `UpdateBuildSession`; estimate duration from latest workspace `CompletedAt` when session `CompletedAt` is missing due to interrupted finalization ([#375](https://github.com/rmkohlman/devopsmaestro/issues/375))
+
+---
+
 ## v0.99.3 (2026-04-15)
 
 **Bug Fixes**
