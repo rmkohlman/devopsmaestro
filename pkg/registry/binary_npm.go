@@ -10,8 +10,44 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"syscall"
+	"time"
 
 	"github.com/rmkohlman/MaestroSDK/paths"
+)
+
+// npmInstallMu serialises npm install operations across all NpmBinaryManager
+// instances within the same process. Each VerdaccioManager creates its own
+// NpmBinaryManager, so the per-instance mutex does not prevent concurrent
+// installs when --concurrency > 1 launches multiple goroutines. This
+// package-level map keyed by package name ensures only one goroutine runs
+// npm install for a given package at a time.
+//
+// For cross-process protection, installPackage also acquires a file lock
+// (see acquireInstallLock).
+var (
+	npmInstallMuMap   = make(map[string]*sync.Mutex)
+	npmInstallMuMapMu sync.Mutex
+)
+
+// npmInstallMutex returns the process-wide mutex for the given npm package name.
+func npmInstallMutex(packageName string) *sync.Mutex {
+	npmInstallMuMapMu.Lock()
+	defer npmInstallMuMapMu.Unlock()
+	if mu, ok := npmInstallMuMap[packageName]; ok {
+		return mu
+	}
+	mu := &sync.Mutex{}
+	npmInstallMuMap[packageName] = mu
+	return mu
+}
+
+const (
+	// npmInstallMaxRetries is the maximum number of attempts for npm install.
+	npmInstallMaxRetries = 3
+
+	// npmInstallBaseDelay is the initial delay between retries (doubled each attempt).
+	npmInstallBaseDelay = 2 * time.Second
 )
 
 // NpmBinaryManager manages binaries installed via npm global install.
@@ -44,11 +80,18 @@ func NewNpmBinaryManager(packageName, version string) *NpmBinaryManager {
 
 // EnsureBinary ensures the binary exists, installing via npm if necessary.
 // Returns the path to the binary.
+//
+// Concurrency safety: this method is safe to call from multiple goroutines
+// and across multiple NpmBinaryManager instances for the same package.
+// A process-level mutex serialises npm install attempts per package name,
+// and a file-based lock prevents cross-process races (e.g. parallel dvm
+// invocations). After acquiring the install lock, the method re-checks
+// whether another caller already completed the installation.
 func (m *NpmBinaryManager) EnsureBinary(ctx context.Context) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Check if binary is already available
+	// Fast path: binary is already cached and still exists on disk.
 	if m.binaryPath != "" {
 		if _, err := os.Stat(m.binaryPath); err == nil {
 			return m.binaryPath, nil
@@ -60,20 +103,34 @@ func (m *NpmBinaryManager) EnsureBinary(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("npm not available: %w", err)
 	}
 
-	// Check if package is already installed
-	if installed, err := m.isPackageInstalled(ctx); err != nil {
-		return "", fmt.Errorf("failed to check package status: %w", err)
-	} else if installed {
-		// Package is installed, find the binary
-		binaryPath := filepath.Join(m.binDir, m.packageName)
-		if _, err := os.Stat(binaryPath); err == nil {
-			m.binaryPath = binaryPath
-			return m.binaryPath, nil
-		}
+	// Check if package is already installed and binary exists on disk.
+	if binaryPath, ok, err := m.checkExistingInstallation(ctx); err != nil {
+		return "", err
+	} else if ok {
+		m.binaryPath = binaryPath
+		return m.binaryPath, nil
 	}
 
-	// Install package via npm
-	if err := m.installPackage(ctx); err != nil {
+	// Acquire the process-level mutex so only one goroutine installs at a time.
+	installMu := npmInstallMutex(m.packageName)
+	// Release per-instance lock while waiting for the install mutex to avoid
+	// holding it for the duration of a potentially long npm install.
+	m.mu.Unlock()
+	installMu.Lock()
+	defer installMu.Unlock()
+	m.mu.Lock()
+
+	// Re-check after acquiring the install lock — another goroutine may have
+	// completed the installation while we were waiting.
+	if binaryPath, ok, err := m.checkExistingInstallation(ctx); err != nil {
+		return "", err
+	} else if ok {
+		m.binaryPath = binaryPath
+		return m.binaryPath, nil
+	}
+
+	// Install package via npm (with file lock, cleanup, and retry).
+	if err := m.installPackageWithRetry(ctx); err != nil {
 		return "", fmt.Errorf("failed to install package: %w", err)
 	}
 
@@ -85,6 +142,26 @@ func (m *NpmBinaryManager) EnsureBinary(ctx context.Context) (string, error) {
 
 	m.binaryPath = binaryPath
 	return m.binaryPath, nil
+}
+
+// checkExistingInstallation returns the binary path and true if the package
+// is already installed and the binary exists on disk. Returns a non-nil error
+// if isPackageInstalled fails with a fatal error (e.g. npm exits with code 2),
+// which must be propagated to the caller rather than silently falling through
+// to the install path (see BUG B7).
+func (m *NpmBinaryManager) checkExistingInstallation(ctx context.Context) (string, bool, error) {
+	installed, err := m.isPackageInstalled(ctx)
+	if err != nil {
+		return "", false, fmt.Errorf("failed to check package status: %w", err)
+	}
+	if !installed {
+		return "", false, nil
+	}
+	binaryPath := filepath.Join(m.binDir, m.packageName)
+	if _, err := os.Stat(binaryPath); err != nil {
+		return "", false, nil
+	}
+	return binaryPath, true, nil
 }
 
 // GetVersion returns the version of the currently installed binary.
@@ -209,7 +286,101 @@ func (m *NpmBinaryManager) isPackageInstalled(ctx context.Context) (bool, error)
 	return strings.Contains(string(output), m.packageName), nil
 }
 
+// installPackageWithRetry wraps installPackage with file-based locking and
+// exponential-backoff retries. The file lock prevents cross-process races
+// (e.g. multiple dvm processes); the retry loop handles transient npm/tar
+// errors caused by stale caches or partially-written node_modules trees.
+func (m *NpmBinaryManager) installPackageWithRetry(ctx context.Context) error {
+	lockPath := filepath.Join(m.binDir, "..", "lib", fmt.Sprintf(".%s-install.lock", m.packageName))
+
+	// Acquire file-based lock (blocks until lock is available or ctx is cancelled).
+	unlock, err := acquireInstallLock(ctx, lockPath)
+	if err != nil {
+		return fmt.Errorf("failed to acquire install lock: %w", err)
+	}
+	defer unlock()
+
+	// After acquiring the file lock, another process may have already
+	// completed the installation — check one more time.
+	if binaryPath, ok, err := m.checkExistingInstallation(ctx); err != nil {
+		return err
+	} else if ok {
+		m.binaryPath = binaryPath
+		return nil
+	}
+
+	var lastErr error
+	delay := npmInstallBaseDelay
+
+	for attempt := 1; attempt <= npmInstallMaxRetries; attempt++ {
+		if err := m.installPackage(ctx); err != nil {
+			lastErr = fmt.Errorf("attempt %d/%d: %w", attempt, npmInstallMaxRetries, err)
+
+			// Don't sleep after the last attempt.
+			if attempt < npmInstallMaxRetries {
+				select {
+				case <-ctx.Done():
+					return fmt.Errorf("install cancelled during retry: %w", ctx.Err())
+				case <-time.After(delay):
+				}
+				delay *= 2 // exponential backoff
+			}
+			continue
+		}
+		return nil // success
+	}
+
+	return fmt.Errorf("npm install failed after %d attempts: %w", npmInstallMaxRetries, lastErr)
+}
+
+// acquireInstallLock acquires an exclusive file lock on lockPath, creating the
+// file if necessary. Returns an unlock function that must be called when done.
+// The lock uses flock(2) which is automatically released if the process crashes.
+func acquireInstallLock(ctx context.Context, lockPath string) (func(), error) {
+	// Ensure parent directory exists.
+	if err := os.MkdirAll(filepath.Dir(lockPath), 0755); err != nil {
+		return nil, fmt.Errorf("failed to create lock directory: %w", err)
+	}
+
+	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open lock file: %w", err)
+	}
+
+	// Attempt to acquire the lock in a loop, respecting context cancellation.
+	// We use non-blocking flock with polling rather than blocking flock so that
+	// context cancellation is honoured.
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		if err == nil {
+			// Lock acquired.
+			return func() {
+				syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+				f.Close()
+			}, nil
+		}
+
+		// EWOULDBLOCK means another process holds the lock — wait and retry.
+		if !errors.Is(err, syscall.EWOULDBLOCK) {
+			f.Close()
+			return nil, fmt.Errorf("flock failed: %w", err)
+		}
+
+		select {
+		case <-ctx.Done():
+			f.Close()
+			return nil, fmt.Errorf("context cancelled while waiting for install lock: %w", ctx.Err())
+		case <-ticker.C:
+			// retry
+		}
+	}
+}
+
 // installPackage installs the package via npm global install.
+// Caller must hold the process-level install mutex and file lock.
 func (m *NpmBinaryManager) installPackage(ctx context.Context) error {
 	// Ensure bin directory exists
 	if err := os.MkdirAll(m.binDir, 0755); err != nil {
