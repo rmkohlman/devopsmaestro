@@ -147,10 +147,17 @@ func (b *BuildKitBuilder) Build(ctx context.Context, opts BuildOptions) error {
 	}
 
 	// Add cache import if specified (e.g., "type=registry,ref=localhost:5001/dvm-cache/img")
+	// Multiple sources can be separated by newlines (#383).
 	if opts.CacheFrom != "" {
-		cacheImport := parseCacheSpec(opts.CacheFrom)
-		if cacheImport.Type != "" {
-			solveOpts.CacheImports = []bkclient.CacheOptionsEntry{cacheImport}
+		for _, cf := range strings.Split(opts.CacheFrom, "\n") {
+			cf = strings.TrimSpace(cf)
+			if cf == "" {
+				continue
+			}
+			cacheImport := parseCacheSpec(cf)
+			if cacheImport.Type != "" {
+				solveOpts.CacheImports = append(solveOpts.CacheImports, cacheImport)
+			}
 		}
 	}
 

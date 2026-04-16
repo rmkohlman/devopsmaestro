@@ -542,11 +542,31 @@ func (bc *buildContext) buildImage() (skipped bool, err error) {
 			buildOpts.CacheTo = fmt.Sprintf("type=local,dest=%s,mode=max", cacheDir)
 			slog.Info("build cache enabled", "cache_dir", cacheDir)
 		}
+
+		// Registry-based cache: use local zot registry for Docker layer
+		// caching when available (#383). This keeps layers in the registry
+		// rather than in BuildKit/Colima, minimizing disk footprint.
+		if bc.registryEndpoint != "" {
+			regCacheRef := fmt.Sprintf("%s/dvm-cache/%s-%s:buildcache",
+				bc.registryEndpoint, bc.workspaceName, bc.appName)
+			regCacheFrom := fmt.Sprintf("type=registry,ref=%s", regCacheRef)
+			regCacheTo := fmt.Sprintf("type=registry,ref=%s,mode=max", regCacheRef)
+
+			if buildOpts.CacheFrom != "" {
+				// Combine local + registry cache sources
+				buildOpts.CacheFrom = buildOpts.CacheFrom + "\n" + regCacheFrom
+			} else {
+				buildOpts.CacheFrom = regCacheFrom
+			}
+			buildOpts.CacheTo = regCacheTo // Prefer pushing to registry
+			slog.Info("registry cache enabled", "ref", regCacheRef)
+			bc.renderInfof("Registry layer cache: %s", regCacheRef)
+		}
 	} else {
 		slog.Info("build cache disabled (--no-cache)")
 	}
 
-	// Pre-build cache cleanup if --clean-cache flag is set (#378)
+	// Pre-build cache cleanup if --clean-cache flag is set (#378, #383)
 	if buildCleanCache {
 		bc.renderProgress("Pruning BuildKit cache before build (--clean-cache)...")
 		if pruneErr := bc.pruneBuildKitCache(); pruneErr != nil {
@@ -555,6 +575,10 @@ func (bc *buildContext) buildImage() (skipped bool, err error) {
 		} else {
 			bc.renderSuccess("BuildKit cache pruned successfully")
 		}
+
+		// Extended cleanup: remove old workspace images, prune dangling,
+		// and verify registry health (#383).
+		bc.preCleanCacheCleanup()
 		bc.renderBlank()
 	}
 
@@ -715,6 +739,12 @@ func (bc *buildContext) postBuild() {
 
 	// Prune old images for this workspace (auto-cleanup after successful build).
 	bc.pruneOldImages()
+
+	// Post-build cleanup when --clean-cache: prune dangling images and
+	// BuildKit cache to minimize Colima footprint (#383).
+	if buildCleanCache {
+		bc.postCleanCacheCleanup()
+	}
 
 	bc.renderBlank()
 	bc.renderSuccess("Build complete!")

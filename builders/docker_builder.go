@@ -113,8 +113,14 @@ func (b *DockerBuilder) Build(ctx context.Context, opts BuildOptions) error {
 	}
 
 	// Add cache-from if specified (e.g., "type=registry,ref=localhost:5001/dvm-cache/img")
+	// Multiple sources can be separated by newlines (#383).
 	if opts.CacheFrom != "" {
-		args = append(args, "--cache-from", opts.CacheFrom)
+		for _, cf := range strings.Split(opts.CacheFrom, "\n") {
+			cf = strings.TrimSpace(cf)
+			if cf != "" {
+				args = append(args, "--cache-from", cf)
+			}
+		}
 	}
 
 	// Add cache-to if specified (e.g., "type=registry,ref=localhost:5001/dvm-cache/img,mode=max")
