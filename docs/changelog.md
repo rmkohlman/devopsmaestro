@@ -2,6 +2,13 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.100.4 (2026-04-16)
+
+**Bug Fixes**
+- **Lazygit inside container fails with "Git version must be 2.32.0 please upgrade your git version"** — `builders/dockerfile_generator.go` now conditionally upgrades git from Debian backports when the installed version is below 2.32.0; older Debian base images (e.g., `python:3.9-slim` / Bullseye) ship git 2.30 which is too old for lazygit v0.60+; Alpine images are unaffected ([#380](https://github.com/rmkohlman/devopsmaestro/issues/380))
+
+---
+
 ## v0.100.3 (2026-04-16)
 
 **Bug Fixes**
