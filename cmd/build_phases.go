@@ -547,8 +547,10 @@ func (bc *buildContext) buildImage() (skipped bool, err error) {
 		// caching when available (#383). This keeps layers in the registry
 		// rather than in BuildKit/Colima, minimizing disk footprint.
 		if bc.registryEndpoint != "" {
+			// Strip scheme — BuildKit registry refs use host:port, not URLs (#384).
+			regHost := registry.EndpointFromURL(bc.registryEndpoint)
 			regCacheRef := fmt.Sprintf("%s/dvm-cache/%s-%s:buildcache",
-				bc.registryEndpoint, bc.workspaceName, bc.appName)
+				regHost, bc.workspaceName, bc.appName)
 			regCacheFrom := fmt.Sprintf("type=registry,ref=%s", regCacheRef)
 			regCacheTo := fmt.Sprintf("type=registry,ref=%s,mode=max", regCacheRef)
 
@@ -669,6 +671,17 @@ func (bc *buildContext) pruneBuildKitCache() error {
 	return fmt.Errorf("no builder available for cache prune")
 }
 
+// pruneBuildKitCacheLight prunes only unused BuildKit cache entries (#384).
+// This is safe to call after every build — it preserves recently-used layers.
+func (bc *buildContext) pruneBuildKitCacheLight() error {
+	if bkBuilder, ok := bc.builder.(*builders.BuildKitBuilder); ok {
+		return bkBuilder.PruneBuildKitCacheLight(bc.ctx)
+	}
+	// For Docker-based platforms, the light prune is the same as regular prune
+	// (docker buildx prune doesn't have a "light" mode).
+	return nil
+}
+
 // assembleBuildArgs layers build args from registry, cascade resolver, and credentials.
 // Priority (lowest to highest): registry env vars → cascade → credentials.
 func (bc *buildContext) assembleBuildArgs() map[string]string {
@@ -739,6 +752,14 @@ func (bc *buildContext) postBuild() {
 
 	// Prune old images for this workspace (auto-cleanup after successful build).
 	bc.pruneOldImages()
+
+	// Light BuildKit cache prune after every build to reclaim orphaned layers
+	// without removing recently-used cache (#384).
+	if !buildCleanCache {
+		if pruneErr := bc.pruneBuildKitCacheLight(); pruneErr != nil {
+			slog.Warn("post-build light cache prune failed (non-fatal)", "error", pruneErr)
+		}
+	}
 
 	// Post-build cleanup when --clean-cache: prune dangling images and
 	// BuildKit cache to minimize Colima footprint (#383).

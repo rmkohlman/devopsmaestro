@@ -246,6 +246,22 @@ func (b *BuildKitBuilder) PruneBuildKitCache(ctx context.Context) error {
 	return b.buildkitClient.Prune(ctx, ch, bkclient.PruneAll)
 }
 
+// PruneBuildKitCacheLight prunes only unused BuildKit cache entries (#384).
+// Unlike PruneBuildKitCache, this preserves recently-used layers so subsequent
+// builds remain fast while still reclaiming space from orphaned layers.
+func (b *BuildKitBuilder) PruneBuildKitCacheLight(ctx context.Context) error {
+	if b.buildkitClient == nil {
+		return fmt.Errorf("buildkit client not connected")
+	}
+	ch := make(chan bkclient.UsageInfo)
+	go func() {
+		for range ch {
+		}
+	}()
+	// Default prune (no PruneAll) only removes unused cache entries.
+	return b.buildkitClient.Prune(ctx, ch)
+}
+
 // ImageExists checks if an image already exists using containerd API.
 func (b *BuildKitBuilder) ImageExists(ctx context.Context) (bool, error) {
 	ctx = namespaces.WithNamespace(ctx, b.namespace)
