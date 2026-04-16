@@ -12,10 +12,13 @@ import (
 	"devopsmaestro/pkg/resolver"
 	ws "devopsmaestro/pkg/workspace"
 	"fmt"
+	"github.com/rmkohlman/MaestroSDK/paths"
 	"github.com/rmkohlman/MaestroSDK/render"
 	"github.com/rmkohlman/MaestroTheme/library"
 	"log/slog"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -254,6 +257,20 @@ func runAttach(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to get mount path: %w", err)
 	}
 
+	// Mount bare git repos into container and rewrite git remote to local path (#379)
+	var extraMounts []operators.MountConfig
+	if workspace.GitRepoID.Valid {
+		gitRepo, err := ds.GetGitRepoByID(workspace.GitRepoID.Int64)
+		if err == nil && gitRepo != nil {
+			mounts, rewriteErr := setupGitMirrorMounts(gitRepo.Slug, mountPath)
+			if rewriteErr != nil {
+				slog.Warn("failed to setup git mirror mounts", "error", rewriteErr)
+			} else {
+				extraMounts = mounts
+			}
+		}
+	}
+
 	// Get workspace container config for UID/GID
 	workspaceYAML := workspace.ToYAML(appName, "")
 	containerUID := workspaceYAML.Spec.Container.UID
@@ -288,6 +305,7 @@ func runAttach(cmd *cobra.Command) error {
 		NetworkMode:           attachNetworkMode,
 		CPUs:                  attachCPUs,
 		Memory:                attachMemory,
+		Mounts:                extraMounts,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to start workspace: %w", err)
@@ -432,6 +450,62 @@ func getMountPath(ds db.DataStore, workspace *models.Workspace, appPath string) 
 		return repoPath, nil
 	}
 	return appPath, nil
+}
+
+// containerMirrorPath is the well-known path where bare git mirrors are
+// mounted inside workspace containers.
+const containerMirrorBasePath = "/home/dev/.devopsmaestro/repos"
+
+// setupGitMirrorMounts prepares volume mounts and rewrites the git remote
+// so that lazygit/git inside the container uses the local bare mirror
+// instead of trying to reach the remote server. (#379)
+//
+// It returns the extra MountConfig entries to add to StartOptions.Mounts
+// and rewrites origin in the workspace repo's .git/config to point to
+// the container-local mirror path.
+func setupGitMirrorMounts(mirrorSlug, workspaceRepoPath string) ([]operators.MountConfig, error) {
+	pc, err := paths.Default()
+	if err != nil {
+		return nil, fmt.Errorf("cannot determine home directory: %w", err)
+	}
+
+	hostReposDir := pc.ReposDir()
+	hostMirrorPath := filepath.Join(hostReposDir, mirrorSlug)
+
+	// Verify the mirror exists on the host
+	if _, err := os.Stat(hostMirrorPath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("mirror not found at %s", hostMirrorPath)
+	}
+
+	// Rewrite origin remote in the workspace repo to point to the
+	// container-local mirror path so git fetch/pull work offline.
+	containerMirrorPath := filepath.Join(containerMirrorBasePath, mirrorSlug)
+	if err := rewriteGitRemote(workspaceRepoPath, containerMirrorPath); err != nil {
+		return nil, fmt.Errorf("failed to rewrite git remote: %w", err)
+	}
+
+	// Mount the entire repos dir (read-only) so all mirrors are available.
+	mounts := []operators.MountConfig{
+		{
+			Type:        "bind",
+			Source:      hostReposDir,
+			Destination: containerMirrorBasePath,
+			ReadOnly:    true,
+		},
+	}
+
+	return mounts, nil
+}
+
+// rewriteGitRemote sets the origin remote URL in a git repository.
+func rewriteGitRemote(repoPath, newURL string) error {
+	cmd := exec.Command("git", "-C", repoPath, "remote", "set-url", "origin", "--", newURL)
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git remote set-url failed: %w: %s", err, string(output))
+	}
+	return nil
 }
 
 // buildRuntimeEnv assembles the environment variable map for a workspace shell session.

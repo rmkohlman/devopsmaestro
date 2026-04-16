@@ -135,6 +135,7 @@ func createTestSchema(driver db.Driver) error {
 			git_repo_id INTEGER,
 			env TEXT NOT NULL DEFAULT '{}',
 			build_config TEXT,
+			git_credential_mounting BOOLEAN NOT NULL DEFAULT 0,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (app_id) REFERENCES apps(id),
