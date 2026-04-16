@@ -7440,3 +7440,112 @@ func TestMasonVerification_PollLoopBeforeCount(t *testing.T) {
 		}
 	})
 }
+
+// ---------------------------------------------------------------------------
+// Issue #380 — git upgrade from backports for lazygit compatibility
+// ---------------------------------------------------------------------------
+
+// TestDockerfileGenerator_GitUpgradeFromBackports verifies that Debian-based
+// Dockerfiles include a conditional git upgrade block that upgrades git to
+// >= 2.32.0 when the installed version is too old (required by lazygit v0.60+).
+func TestDockerfileGenerator_GitUpgradeFromBackports(t *testing.T) {
+	tests := []struct {
+		name        string
+		language    string
+		version     string
+		wantUpgrade bool
+	}{
+		{"python debian", "python", "3.11", true},
+		{"nodejs debian", "node", "20", true},
+		{"golang alpine (default)", "golang", "1.22", false},
+		{"scala debian", "scala", "21", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: models.WorkspaceSpec{},
+				Language:      tt.language,
+				Version:       tt.version,
+				AppPath:       "/tmp/test",
+				PathConfig:    paths.New(t.TempDir()),
+			})
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			hasUpgrade := strings.Contains(dockerfile, "backports") && strings.Contains(dockerfile, "git_ver")
+			if tt.wantUpgrade && !hasUpgrade {
+				t.Errorf("%s: expected git backports upgrade block but not found (#380)", tt.name)
+			}
+			if !tt.wantUpgrade && hasUpgrade {
+				t.Errorf("%s: alpine image should NOT have git backports upgrade block (#380)", tt.name)
+			}
+		})
+	}
+
+	t.Run("backports_apt_get_update_preceded_by_cleanup", func(t *testing.T) {
+		ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
+		gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+			Workspace:     ws,
+			WorkspaceSpec: models.WorkspaceSpec{},
+			Language:      "python",
+			Version:       "3.11",
+			AppPath:       "/tmp/test",
+			PathConfig:    paths.New(t.TempDir()),
+		})
+
+		dockerfile, err := gen.Generate()
+		if err != nil {
+			t.Fatalf("Generate() error = %v", err)
+		}
+
+		// Find the backports apt-get update and ensure it's preceded by cleanup (#333)
+		backportsIdx := strings.Index(dockerfile, "backports")
+		if backportsIdx < 0 {
+			t.Fatal("backports block not found in Dockerfile")
+		}
+		backportsSection := dockerfile[backportsIdx:]
+		updateIdx := strings.Index(backportsSection, "apt-get update")
+		if updateIdx < 0 {
+			t.Fatal("apt-get update not found in backports section")
+		}
+		start := updateIdx - 60
+		if start < 0 {
+			start = 0
+		}
+		context := backportsSection[start:updateIdx]
+		if !strings.Contains(context, "rm -rf /var/lib/apt/lists/*") {
+			t.Errorf("backports apt-get update must be preceded by 'rm -rf /var/lib/apt/lists/*' (#333/#380)")
+		}
+	})
+
+	t.Run("upgrade_conditional_on_version_check", func(t *testing.T) {
+		ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
+		gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+			Workspace:     ws,
+			WorkspaceSpec: models.WorkspaceSpec{},
+			Language:      "python",
+			Version:       "3.11",
+			AppPath:       "/tmp/test",
+			PathConfig:    paths.New(t.TempDir()),
+		})
+
+		dockerfile, err := gen.Generate()
+		if err != nil {
+			t.Fatalf("Generate() error = %v", err)
+		}
+
+		// The upgrade must be guarded by a version check (not always run)
+		if !strings.Contains(dockerfile, "git_major") || !strings.Contains(dockerfile, "git_minor") {
+			t.Error("git upgrade block must conditionally check version before upgrading (#380)")
+		}
+		if !strings.Contains(dockerfile, "32") {
+			t.Error("git upgrade block must check for minor version 32 (>= 2.32.0) (#380)")
+		}
+	})
+}
