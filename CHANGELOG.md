@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.100.1] — 2026-04-16
+
+### Bug Fixes
+- **Squid proxy cache corruption recovery causing build failures with network timeouts** — added cache corruption detection and recovery with automatic retry logic in `squid_manager.go`; enhanced build error messages in new `build_errors.go` module to surface actionable diagnostics for network timeout failures; `BuildKitBuilder` and `DockerBuilder` now use `EnhanceBuildError` for consistent error enrichment ([#377](https://github.com/rmkohlman/devopsmaestro/issues/377))
+
+### Tests
+- Added `squid_cache_recovery_test.go` — covers cache corruption detection, recovery, and retry logic ([#377](https://github.com/rmkohlman/devopsmaestro/issues/377))
+- Added `build_errors_test.go` — covers enhanced build error message generation for network timeout scenarios ([#377](https://github.com/rmkohlman/devopsmaestro/issues/377))
+
+---
+
 ## [v0.100.0] — 2026-04-16
 
 ### Features

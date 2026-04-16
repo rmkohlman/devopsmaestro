@@ -216,7 +216,7 @@ func (b *BuildKitBuilder) Build(ctx context.Context, opts BuildOptions) error {
 		return fmt.Errorf("progress display error: %w", displayErr)
 	}
 	if solveErr != nil {
-		return fmt.Errorf("build failed: %w", solveErr)
+		return EnhanceBuildError(solveErr)
 	}
 
 	fmt.Fprintln(out)

@@ -191,7 +191,7 @@ func (b *DockerBuilder) Build(ctx context.Context, opts BuildOptions) error {
 	switch result {
 	case WatchdogCompleted:
 		if err != nil {
-			return fmt.Errorf("failed to build image: %w", err)
+			return EnhanceBuildError(fmt.Errorf("failed to build image: %w", err))
 		}
 		render.MsgTo(out, "", render.Message{Level: render.LevelInfo, Content: ""})
 		render.MsgTo(out, "", render.Message{Level: render.LevelSuccess, Content: fmt.Sprintf("Image built successfully: %s", b.imageName)})

@@ -162,6 +162,43 @@ func (m *SquidManager) Start(ctx context.Context) error {
 	// Wait for proxy to be ready
 	if err := m.waitForReady(ctx); err != nil {
 		m.processManager.Stop(ctx)
+
+		// Check squid log for xcalloc crash — corrupted swap.state (#363, #377).
+		// If detected, wipe cache and retry once.
+		logPath := filepath.Join(m.config.LogDir, "squid.log")
+		if logData, readErr := os.ReadFile(logPath); readErr == nil && isXCallocError(string(logData)) {
+			if clearErr := m.clearCacheDir(); clearErr != nil {
+				return fmt.Errorf("proxy crashed (xcalloc overflow) and cache cleanup failed: %w", clearErr)
+			}
+			// Re-initialize cache and retry start
+			configPath := filepath.Join(m.config.LogDir, "squid.conf")
+			binaryPath, binErr := m.binaryManager.EnsureBinary(ctx)
+			if binErr != nil {
+				return fmt.Errorf("proxy crashed (xcalloc overflow), cache cleared but binary not found: %w", binErr)
+			}
+			if initErr := m.initializeCacheDir(ctx, binaryPath, configPath); initErr != nil {
+				return fmt.Errorf("proxy crashed (xcalloc overflow), cache cleared but reinit failed: %w", initErr)
+			}
+			// Truncate stale log before retry
+			_ = os.Truncate(logPath, 0)
+			args := []string{"-N", "-f", configPath}
+			procConfig := ProcessConfig{
+				PIDFile:         m.config.PidFile,
+				LogFile:         logPath,
+				WorkingDir:      m.config.LogDir,
+				ShutdownTimeout: 10 * time.Second,
+			}
+			if startErr := m.processManager.Start(ctx, binaryPath, args, procConfig); startErr != nil {
+				return fmt.Errorf("proxy retry after cache cleanup failed: %w", startErr)
+			}
+			m.RecordStartLocked()
+			if retryErr := m.waitForReady(ctx); retryErr != nil {
+				m.processManager.Stop(ctx)
+				return fmt.Errorf("proxy failed to become ready after cache cleanup: %w", retryErr)
+			}
+			return nil
+		}
+
 		return fmt.Errorf("proxy failed to become ready: %w", err)
 	}
 
@@ -285,6 +322,32 @@ func (m *SquidManager) configStale(configPath string) (bool, error) {
 	return strings.TrimSpace(string(existing)) != strings.TrimSpace(desired), nil
 }
 
+// clearCacheDir removes squid cache files (especially swap.state) to recover
+// from cache corruption. The xcalloc overflow (UINT64_MAX blocks) occurs when
+// swap.state is corrupted — wiping the cache allows squid to rebuild cleanly.
+func (m *SquidManager) clearCacheDir() error {
+	entries, err := os.ReadDir(m.config.CacheDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to read cache directory: %w", err)
+	}
+	for _, entry := range entries {
+		path := filepath.Join(m.config.CacheDir, entry.Name())
+		if err := os.RemoveAll(path); err != nil {
+			return fmt.Errorf("failed to remove %s: %w", path, err)
+		}
+	}
+	return nil
+}
+
+// isXCallocError checks if output contains the xcalloc integer overflow that
+// indicates a corrupted swap.state file (see #363, #377).
+func isXCallocError(output string) bool {
+	return strings.Contains(output, "xcalloc") || strings.Contains(output, "Unable to allocate")
+}
+
 // initializeCacheDir initializes squid cache directories with `squid -z`.
 func (m *SquidManager) initializeCacheDir(ctx context.Context, binaryPath, configPath string) error {
 	// Run squid -z -f <config> to initialize cache directories.
@@ -296,6 +359,19 @@ func (m *SquidManager) initializeCacheDir(ctx context.Context, binaryPath, confi
 		// If Squid reports it's already running, the cache dirs are already
 		// initialized from the previous run — safe to proceed.
 		if strings.Contains(outputStr, "already running") {
+			return nil
+		}
+		// xcalloc overflow means corrupted swap.state — wipe cache and retry once (#363, #377).
+		if isXCallocError(outputStr) {
+			if clearErr := m.clearCacheDir(); clearErr != nil {
+				return fmt.Errorf("squid -z failed with cache corruption and cleanup failed: %w (original: %s)", clearErr, outputStr)
+			}
+			// Retry after cache wipe
+			retryCmd := exec.CommandContext(ctx, binaryPath, "-z", "-N", "-f", configPath)
+			retryOutput, retryErr := retryCmd.CombinedOutput()
+			if retryErr != nil {
+				return fmt.Errorf("squid -z failed after cache cleanup: %w (output: %s)", retryErr, string(retryOutput))
+			}
 			return nil
 		}
 		return fmt.Errorf("squid -z failed: %w (output: %s)", err, outputStr)
