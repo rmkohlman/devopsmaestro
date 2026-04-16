@@ -687,3 +687,133 @@ func TestWorkspace_BuildConfig_Empty_OmittedFromYAML(t *testing.T) {
 		"RED: 'build:' should NOT appear in YAML when BuildConfig is empty — FAILS until WI-1 (ToYAML must read BuildConfig and DevBuildConfig needs omitempty)")
 	// ─────────────────────────────────────────────────────────────────────────
 }
+
+// =============================================================================
+// GitCredentialMounting YAML serialization tests (#374)
+// =============================================================================
+
+func TestWorkspace_GitCredentialMounting_FromYAML_True(t *testing.T) {
+	yamlContent := `
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: dev
+  app: myapp
+  ecosystem: go
+spec:
+  image:
+    name: golang:1.21
+  container:
+    gitCredentialMounting: true
+`
+	var wsYAML WorkspaceYAML
+	err := yaml.Unmarshal([]byte(yamlContent), &wsYAML)
+	require.NoError(t, err)
+
+	ws := &Workspace{AppID: 1}
+	ws.FromYAML(wsYAML)
+
+	assert.True(t, ws.GitCredentialMounting, "GitCredentialMounting should be true when set in YAML")
+}
+
+func TestWorkspace_GitCredentialMounting_FromYAML_False(t *testing.T) {
+	yamlContent := `
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: dev
+  app: myapp
+  ecosystem: go
+spec:
+  image:
+    name: golang:1.21
+  container:
+    gitCredentialMounting: false
+`
+	var wsYAML WorkspaceYAML
+	err := yaml.Unmarshal([]byte(yamlContent), &wsYAML)
+	require.NoError(t, err)
+
+	ws := &Workspace{AppID: 1}
+	ws.FromYAML(wsYAML)
+
+	assert.False(t, ws.GitCredentialMounting, "GitCredentialMounting should be false when set to false in YAML")
+}
+
+func TestWorkspace_GitCredentialMounting_DefaultsFalse(t *testing.T) {
+	yamlContent := `
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: dev
+  app: myapp
+  ecosystem: go
+spec:
+  image:
+    name: golang:1.21
+`
+	var wsYAML WorkspaceYAML
+	err := yaml.Unmarshal([]byte(yamlContent), &wsYAML)
+	require.NoError(t, err)
+
+	ws := &Workspace{AppID: 1}
+	ws.FromYAML(wsYAML)
+
+	assert.False(t, ws.GitCredentialMounting, "GitCredentialMounting should default to false when omitted")
+}
+
+func TestWorkspace_GitCredentialMounting_ToYAML_OmittedWhenFalse(t *testing.T) {
+	ws := &Workspace{
+		Name:                  "dev",
+		ImageName:             "golang:1.21",
+		Status:                "created",
+		GitCredentialMounting: false,
+	}
+
+	result := ws.ToYAML("myapp", "")
+	data, err := yaml.Marshal(result)
+	require.NoError(t, err)
+
+	assert.NotContains(t, string(data), "gitCredentialMounting",
+		"gitCredentialMounting should be omitted from YAML when false (omitempty)")
+}
+
+func TestWorkspace_GitCredentialMounting_ToYAML_PresentWhenTrue(t *testing.T) {
+	ws := &Workspace{
+		Name:                  "dev",
+		ImageName:             "golang:1.21",
+		Status:                "created",
+		GitCredentialMounting: true,
+	}
+
+	result := ws.ToYAML("myapp", "")
+	data, err := yaml.Marshal(result)
+	require.NoError(t, err)
+
+	assert.Contains(t, string(data), "gitCredentialMounting",
+		"gitCredentialMounting should appear in YAML when true")
+}
+
+func TestWorkspace_GitCredentialMounting_RoundTrip(t *testing.T) {
+	ws := &Workspace{
+		Name:                  "dev",
+		AppID:                 1,
+		ImageName:             "golang:1.21",
+		Status:                "created",
+		GitCredentialMounting: true,
+	}
+
+	result := ws.ToYAML("myapp", "")
+	data, err := yaml.Marshal(result)
+	require.NoError(t, err)
+
+	var parsed WorkspaceYAML
+	err = yaml.Unmarshal(data, &parsed)
+	require.NoError(t, err)
+
+	ws2 := &Workspace{AppID: 1}
+	ws2.FromYAML(parsed)
+
+	assert.Equal(t, ws.GitCredentialMounting, ws2.GitCredentialMounting,
+		"GitCredentialMounting should survive a YAML round-trip")
+}

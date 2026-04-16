@@ -14,27 +14,28 @@ import (
 
 // Workspace represents a workspace entity associated with an app.
 type Workspace struct {
-	ID                 int            `db:"id" json:"id" yaml:"-"`
-	AppID              int            `db:"app_id" json:"app_id" yaml:"-"`
-	Name               string         `db:"name" json:"name" yaml:"name"`
-	Slug               string         `db:"slug" json:"slug" yaml:"slug"`
-	Description        sql.NullString `db:"description" json:"description,omitempty" yaml:"description,omitempty"`
-	ImageName          string         `db:"image_name" json:"image_name" yaml:"image_name"`
-	ContainerID        sql.NullString `db:"container_id" json:"container_id,omitempty" yaml:"-"`
-	Status             string         `db:"status" json:"status" yaml:"status"`
-	SSHAgentForwarding bool           `db:"ssh_agent_forwarding" json:"ssh_agent_forwarding" yaml:"ssh_agent_forwarding"`
-	Theme              sql.NullString `db:"theme" json:"theme,omitempty" yaml:"theme,omitempty"`
-	NvimStructure      sql.NullString `db:"nvim_structure" json:"nvim_structure,omitempty" yaml:"-"`
-	NvimPlugins        sql.NullString `db:"nvim_plugins" json:"nvim_plugins,omitempty" yaml:"-"` // Comma-separated plugin names
-	TerminalPrompt     sql.NullString `db:"terminal_prompt" json:"terminal_prompt,omitempty" yaml:"-"`
-	TerminalPlugins    sql.NullString `db:"terminal_plugins" json:"terminal_plugins,omitempty" yaml:"-"` // JSON array
-	TerminalPackage    sql.NullString `db:"terminal_package" json:"terminal_package,omitempty" yaml:"-"`
-	NvimPackage        sql.NullString `db:"nvim_package" json:"nvim_package,omitempty" yaml:"-"`
-	BuildConfig        sql.NullString `db:"build_config" json:"build_config,omitempty" yaml:"-"` // JSON: DevBuildConfig
-	GitRepoID          sql.NullInt64  `db:"git_repo_id" json:"git_repo_id,omitempty" yaml:"-"`
-	Env                sql.NullString `db:"env" json:"env,omitempty" yaml:"-"`
-	CreatedAt          time.Time      `db:"created_at" json:"created_at" yaml:"-"`
-	UpdatedAt          time.Time      `db:"updated_at" json:"updated_at" yaml:"-"`
+	ID                    int            `db:"id" json:"id" yaml:"-"`
+	AppID                 int            `db:"app_id" json:"app_id" yaml:"-"`
+	Name                  string         `db:"name" json:"name" yaml:"name"`
+	Slug                  string         `db:"slug" json:"slug" yaml:"slug"`
+	Description           sql.NullString `db:"description" json:"description,omitempty" yaml:"description,omitempty"`
+	ImageName             string         `db:"image_name" json:"image_name" yaml:"image_name"`
+	ContainerID           sql.NullString `db:"container_id" json:"container_id,omitempty" yaml:"-"`
+	Status                string         `db:"status" json:"status" yaml:"status"`
+	SSHAgentForwarding    bool           `db:"ssh_agent_forwarding" json:"ssh_agent_forwarding" yaml:"ssh_agent_forwarding"`
+	GitCredentialMounting bool           `db:"git_credential_mounting" json:"git_credential_mounting" yaml:"git_credential_mounting"`
+	Theme                 sql.NullString `db:"theme" json:"theme,omitempty" yaml:"theme,omitempty"`
+	NvimStructure         sql.NullString `db:"nvim_structure" json:"nvim_structure,omitempty" yaml:"-"`
+	NvimPlugins           sql.NullString `db:"nvim_plugins" json:"nvim_plugins,omitempty" yaml:"-"` // Comma-separated plugin names
+	TerminalPrompt        sql.NullString `db:"terminal_prompt" json:"terminal_prompt,omitempty" yaml:"-"`
+	TerminalPlugins       sql.NullString `db:"terminal_plugins" json:"terminal_plugins,omitempty" yaml:"-"` // JSON array
+	TerminalPackage       sql.NullString `db:"terminal_package" json:"terminal_package,omitempty" yaml:"-"`
+	NvimPackage           sql.NullString `db:"nvim_package" json:"nvim_package,omitempty" yaml:"-"`
+	BuildConfig           sql.NullString `db:"build_config" json:"build_config,omitempty" yaml:"-"` // JSON: DevBuildConfig
+	GitRepoID             sql.NullInt64  `db:"git_repo_id" json:"git_repo_id,omitempty" yaml:"-"`
+	Env                   sql.NullString `db:"env" json:"env,omitempty" yaml:"-"`
+	CreatedAt             time.Time      `db:"created_at" json:"created_at" yaml:"-"`
+	UpdatedAt             time.Time      `db:"updated_at" json:"updated_at" yaml:"-"`
 }
 
 // WorkspaceYAML represents the YAML serialization format for a workspace
@@ -201,15 +202,16 @@ type SSHKeyConfig struct {
 // ContainerConfig defines container runtime settings for the dev environment.
 // Port exposure is handled at the App level, not here.
 type ContainerConfig struct {
-	User               string         `yaml:"user,omitempty"`
-	UID                int            `yaml:"uid,omitempty"`
-	GID                int            `yaml:"gid,omitempty"`
-	WorkingDir         string         `yaml:"workingDir,omitempty"`
-	Command            []string       `yaml:"command,omitempty"`
-	Entrypoint         []string       `yaml:"entrypoint,omitempty"`
-	Resources          ResourceLimits `yaml:"resources,omitempty"`
-	SSHAgentForwarding bool           `yaml:"sshAgentForwarding,omitempty"`
-	NetworkMode        string         `yaml:"networkMode,omitempty"`
+	User                  string         `yaml:"user,omitempty"`
+	UID                   int            `yaml:"uid,omitempty"`
+	GID                   int            `yaml:"gid,omitempty"`
+	WorkingDir            string         `yaml:"workingDir,omitempty"`
+	Command               []string       `yaml:"command,omitempty"`
+	Entrypoint            []string       `yaml:"entrypoint,omitempty"`
+	Resources             ResourceLimits `yaml:"resources,omitempty"`
+	SSHAgentForwarding    bool           `yaml:"sshAgentForwarding,omitempty"`
+	GitCredentialMounting bool           `yaml:"gitCredentialMounting,omitempty"`
+	NetworkMode           string         `yaml:"networkMode,omitempty"`
 }
 
 // ResourceLimits defines container resource limits
@@ -297,12 +299,13 @@ func (w *Workspace) ToYAML(appName string, gitRepoName string) WorkspaceYAML {
 		Terminal: terminalConfig,
 		Env:      envMap,
 		Container: ContainerConfig{
-			User:               "dev",
-			UID:                1000,
-			GID:                1000,
-			WorkingDir:         "/workspace",
-			Command:            []string{"/bin/zsh", "-l"},
-			SSHAgentForwarding: w.SSHAgentForwarding,
+			User:                  "dev",
+			UID:                   1000,
+			GID:                   1000,
+			WorkingDir:            "/workspace",
+			Command:               []string{"/bin/zsh", "-l"},
+			SSHAgentForwarding:    w.SSHAgentForwarding,
+			GitCredentialMounting: w.GitCredentialMounting,
 		},
 	}
 
@@ -370,6 +373,9 @@ func (w *Workspace) FromYAML(yaml WorkspaceYAML) {
 
 	// SSHAgentForwarding — stored as a dedicated bool column (#132)
 	w.SSHAgentForwarding = yaml.Spec.Container.SSHAgentForwarding
+
+	// GitCredentialMounting — stored as a dedicated bool column (#374)
+	w.GitCredentialMounting = yaml.Spec.Container.GitCredentialMounting
 
 	// Persist build config (args, caCerts, baseStage, devStage, tools, shell) as JSON.
 	// Tools and Shell are embedded in the BuildConfig JSON blob to avoid

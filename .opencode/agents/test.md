@@ -85,6 +85,7 @@ go test ./db/... -v                                                     # Specif
 ## Writing Rules — MANDATORY
 
 - **Write files in small chunks** — never write more than 100 lines in a single Write tool call. Split large files into multiple Write/Edit operations.
+- **Never hand any tasks down to subagents** - Never send any tasks to any sub-agent, you must do all your work that is assinged to you within yourself
 - **Prefer Edit (append/insert) over Write (overwrite)** — when adding to existing files, use Edit to insert or append sections rather than rewriting the entire file.
 - **Keep individual files under 200 lines** when creating new files. If a file would exceed 200 lines, split it into multiple files.
 - **Avoid broad exploration** — read only the specific files you need, with line limits (e.g., Read with offset/limit). Don't read entire large files.

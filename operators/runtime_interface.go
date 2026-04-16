@@ -117,26 +117,27 @@ type MountConfig struct {
 
 // StartOptions contains options for starting a workspace
 type StartOptions struct {
-	ImageName          string            // Image to run
-	WorkspaceName      string            // Logical workspace name (used in labels)
-	ContainerName      string            // Physical container name (if empty, uses WorkspaceName)
-	AppName            string            // App name for labeling
-	EcosystemName      string            // Ecosystem name for hierarchical naming
-	DomainName         string            // Domain name for hierarchical naming
-	SystemName         string            // System name for hierarchical naming (optional)
-	AppPath            string            // Host path to mount at /workspace
-	WorkingDir         string            // Container working directory (default: /workspace)
-	Command            []string          // Command to run (default: /bin/sleep infinity for keep-alive)
-	Env                map[string]string // Environment variables
-	SSHAgentForwarding bool              // Enable SSH agent forwarding (opt-in, default: false)
-	WorkspaceSlug      string            // Workspace slug for path computation (v0.19.0)
-	Mounts             []MountConfig     // Additional volume mounts (v0.19.0)
-	UID                int               // Container user ID (default: 1000)
-	GID                int               // Container group ID (default: 1000)
-	NetworkMode        string            // Network mode: "bridge" (default), "none", "host", or custom name
-	CPUs               float64           // CPU limit (e.g., 1.5 for 1.5 cores; 0 = no limit)
-	Memory             string            // Memory limit (e.g., "512m", "2g"; "" = no limit)
-	Labels             map[string]string // Additional container labels (merged with DVM defaults)
+	ImageName             string            // Image to run
+	WorkspaceName         string            // Logical workspace name (used in labels)
+	ContainerName         string            // Physical container name (if empty, uses WorkspaceName)
+	AppName               string            // App name for labeling
+	EcosystemName         string            // Ecosystem name for hierarchical naming
+	DomainName            string            // Domain name for hierarchical naming
+	SystemName            string            // System name for hierarchical naming (optional)
+	AppPath               string            // Host path to mount at /workspace
+	WorkingDir            string            // Container working directory (default: /workspace)
+	Command               []string          // Command to run (default: /bin/sleep infinity for keep-alive)
+	Env                   map[string]string // Environment variables
+	SSHAgentForwarding    bool              // Enable SSH agent forwarding (opt-in, default: false)
+	GitCredentialMounting bool              // Mount ~/.ssh and ~/.gitconfig read-only (opt-in, default: false)
+	WorkspaceSlug         string            // Workspace slug for path computation (v0.19.0)
+	Mounts                []MountConfig     // Additional volume mounts (v0.19.0)
+	UID                   int               // Container user ID (default: 1000)
+	GID                   int               // Container group ID (default: 1000)
+	NetworkMode           string            // Network mode: "bridge" (default), "none", "host", or custom name
+	CPUs                  float64           // CPU limit (e.g., 1.5 for 1.5 cores; 0 = no limit)
+	Memory                string            // Memory limit (e.g., "512m", "2g"; "" = no limit)
+	Labels                map[string]string // Additional container labels (merged with DVM defaults)
 }
 
 // ContainerNamingStrategy defines the interface for generating and parsing container names

@@ -273,20 +273,21 @@ func runAttach(cmd *cobra.Command) error {
 	}
 
 	containerID, err := runtime.StartWorkspace(ctx, operators.StartOptions{
-		ImageName:          imageName,
-		WorkspaceName:      workspaceName,
-		ContainerName:      containerName,
-		AppName:            appName,
-		EcosystemName:      ecosystemName,
-		DomainName:         domainName,
-		SystemName:         systemName,
-		AppPath:            mountPath,
-		UID:                containerUID,
-		GID:                containerGID,
-		SSHAgentForwarding: workspace.SSHAgentForwarding,
-		NetworkMode:        attachNetworkMode,
-		CPUs:               attachCPUs,
-		Memory:             attachMemory,
+		ImageName:             imageName,
+		WorkspaceName:         workspaceName,
+		ContainerName:         containerName,
+		AppName:               appName,
+		EcosystemName:         ecosystemName,
+		DomainName:            domainName,
+		SystemName:            systemName,
+		AppPath:               mountPath,
+		UID:                   containerUID,
+		GID:                   containerGID,
+		SSHAgentForwarding:    workspace.SSHAgentForwarding,
+		GitCredentialMounting: workspace.GitCredentialMounting,
+		NetworkMode:           attachNetworkMode,
+		CPUs:                  attachCPUs,
+		Memory:                attachMemory,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to start workspace: %w", err)

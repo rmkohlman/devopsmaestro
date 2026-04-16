@@ -177,6 +177,13 @@ func (r *ContainerdRuntimeV2) startWorkspaceViaColima(ctx context.Context, opts 
 		nerdctlArgs = append(nerdctlArgs, "-e", fmt.Sprintf("SSH_AUTH_SOCK=%s", containerSocket))
 	}
 
+	// Git credential mounting (opt-in, read-only)
+	if opts.GitCredentialMounting {
+		for _, m := range GetGitCredentialMounts() {
+			nerdctlArgs = append(nerdctlArgs, "-v", fmt.Sprintf("%s:%s:ro", m.Source, m.Destination))
+		}
+	}
+
 	// Add environment variables
 	for k, v := range opts.Env {
 		nerdctlArgs = append(nerdctlArgs, "-e", fmt.Sprintf("%s=%s", k, v))
@@ -354,6 +361,18 @@ func (r *ContainerdRuntimeV2) startWorkspaceDirectAPI(ctx context.Context, opts 
 
 		// Add SSH_AUTH_SOCK environment variable
 		envSlice = append(envSlice, fmt.Sprintf("SSH_AUTH_SOCK=%s", containerSocket))
+	}
+
+	// Git credential mounting (opt-in, read-only)
+	if opts.GitCredentialMounting {
+		for _, m := range GetGitCredentialMounts() {
+			mounts = append(mounts, specs.Mount{
+				Source:      m.Source,
+				Destination: m.Destination,
+				Type:        "bind",
+				Options:     []string{"rbind", "ro"},
+			})
+		}
 	}
 
 	// Compute effective UID/GID (default to 1000 if not set)

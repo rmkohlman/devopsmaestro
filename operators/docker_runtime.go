@@ -242,6 +242,13 @@ func (d *DockerRuntime) StartWorkspace(ctx context.Context, opts StartOptions) (
 		env = append(env, fmt.Sprintf("SSH_AUTH_SOCK=%s", containerSocket))
 	}
 
+	// Git credential mounting (opt-in, read-only)
+	if opts.GitCredentialMounting {
+		for _, m := range GetGitCredentialMounts() {
+			binds = append(binds, fmt.Sprintf("%s:%s:ro", m.Source, m.Destination))
+		}
+	}
+
 	// Create host configuration
 	hostConfig := &container.HostConfig{
 		Binds: binds,
