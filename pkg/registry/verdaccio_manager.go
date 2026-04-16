@@ -56,8 +56,8 @@ func (m *VerdaccioManager) Start(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Check if already running - idempotent
-	if m.processManager.IsRunning() {
+	// Check if already running - idempotent (includes port-based fallback, #386)
+	if m.processManager.IsRunning() || !IsPortAvailable(m.config.Port) {
 		return nil
 	}
 
@@ -153,14 +153,14 @@ func (m *VerdaccioManager) Stop(ctx context.Context) error {
 
 // Status returns the current status of the verdaccio proxy.
 func (m *VerdaccioManager) Status(ctx context.Context) (*NpmProxyStatus, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	running := m.processManager.IsRunning()
+	running := m.IsRunning(ctx)
 	state := "stopped"
 	if running {
 		state = "running"
 	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
 	var uptime time.Duration
 	if running && !m.startTime.IsZero() {
@@ -200,10 +200,15 @@ func (m *VerdaccioManager) EnsureRunning(ctx context.Context) error {
 }
 
 // IsRunning checks if the verdaccio proxy is currently running.
+// Falls back to a port check if the PID file is missing/stale (#386).
 func (m *VerdaccioManager) IsRunning(ctx context.Context) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.processManager.IsRunning()
+	if m.processManager.IsRunning() {
+		return true
+	}
+	// PID file may be missing (crash, external start) — check port as fallback.
+	return !IsPortAvailable(m.config.Port)
 }
 
 // GetEndpoint returns the verdaccio proxy endpoint.

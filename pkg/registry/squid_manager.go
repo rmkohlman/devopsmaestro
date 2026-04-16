@@ -86,11 +86,11 @@ func (m *SquidManager) Start(ctx context.Context) error {
 	default:
 	}
 
-	// Check if already running.
+	// Check if already running (includes port-based fallback, #386).
 	// If running, verify the on-disk config matches what we would generate.
 	// A stale process (from a previous dvm version) might be listening on
 	// 127.0.0.1 instead of 0.0.0.0 — we must restart it. (see #353)
-	if m.processManager.IsRunning() {
+	if m.processManager.IsRunning() || !IsPortAvailable(m.config.Port) {
 		configPath := filepath.Join(m.config.LogDir, "squid.conf")
 		if needsRestart, _ := m.configStale(configPath); needsRestart {
 			// Stop the stale process so we can restart with the new config.
@@ -221,14 +221,14 @@ func (m *SquidManager) Stop(ctx context.Context) error {
 
 // Status returns the current status of the squid proxy.
 func (m *SquidManager) Status(ctx context.Context) (*HttpProxyStatus, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	running := m.processManager.IsRunning()
+	running := m.IsRunning(ctx)
 	state := "stopped"
 	if running {
 		state = "running"
 	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
 	var uptime time.Duration
 	if running && !m.startTime.IsZero() {
@@ -257,10 +257,15 @@ func (m *SquidManager) EnsureRunning(ctx context.Context) error {
 }
 
 // IsRunning checks if the squid proxy is currently running.
+// Falls back to a port check if the PID file is missing/stale (#386).
 func (m *SquidManager) IsRunning(ctx context.Context) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.processManager.IsRunning()
+	if m.processManager.IsRunning() {
+		return true
+	}
+	// PID file may be missing (crash, external start) — check port as fallback.
+	return !IsPortAvailable(m.config.Port)
 }
 
 // GetEndpoint returns the squid proxy endpoint.

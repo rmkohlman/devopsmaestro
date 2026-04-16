@@ -82,3 +82,14 @@ func EndpointFromURL(urlStr string) string {
 	s = strings.TrimSuffix(s, "/")
 	return s
 }
+
+// EndpointForVM rewrites a registry URL so it is reachable from inside a
+// Colima/Docker VM. BuildKit and containerd run inside the VM where
+// "localhost" refers to the VM itself, not the macOS host. We replace
+// localhost/127.0.0.1 with host.docker.internal which Colima resolves to
+// the host gateway IP (e.g. 192.168.5.2). See issue #386.
+func EndpointForVM(endpoint string) string {
+	endpoint = strings.Replace(endpoint, "localhost", "host.docker.internal", 1)
+	endpoint = strings.Replace(endpoint, "127.0.0.1", "host.docker.internal", 1)
+	return endpoint
+}

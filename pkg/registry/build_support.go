@@ -129,7 +129,9 @@ func (c *BuildRegistryCoordinator) Prepare(ctx context.Context) (*BuildRegistryR
 		}
 
 		if reg.Type == "zot" {
-			result.OCIEndpoint = manager.GetEndpoint()
+			// Rewrite localhost → host.docker.internal so BuildKit inside
+			// the Colima VM can reach Zot on the macOS host (#386).
+			result.OCIEndpoint = EndpointForVM(manager.GetEndpoint())
 		}
 	}
 
