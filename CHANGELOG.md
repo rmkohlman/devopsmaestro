@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.101.3] — 2026-04-16
+
+### Bug Fixes
+- **zot networking: BuildKit uses host.docker.internal for VM-accessible registry URLs** — `pkg/registry/buildkit_config.go` and `pkg/registry/build_support.go` updated so BuildKit resolves the zot registry via `host.docker.internal` instead of `localhost`, fixing connectivity inside Docker VMs ([#386](https://github.com/rmkohlman/devopsmaestro/issues/386))
+- **Squid state detection: port-based fallback when PID file check fails** — `pkg/registry/squid_manager.go` now falls back to a port liveness check when the PID file is missing or stale, preventing false "not running" reports ([#386](https://github.com/rmkohlman/devopsmaestro/issues/386))
+- **Verdaccio state detection: port-based fallback when PID file check fails** — `pkg/registry/verdaccio_manager.go` applies the same port-based fallback as Squid for consistent state detection ([#386](https://github.com/rmkohlman/devopsmaestro/issues/386))
+
+### Tests
+- Added `pkg/registry/issue386_test.go` — tests covering zot `host.docker.internal` URL generation and port-based state detection fallback for Squid and Verdaccio ([#386](https://github.com/rmkohlman/devopsmaestro/issues/386))
+
+---
+
 ## [v0.101.2] — 2026-04-16
 
 ### Bug Fixes
