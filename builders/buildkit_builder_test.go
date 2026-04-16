@@ -404,3 +404,27 @@ RUN echo "custom dockerfile for buildkit"
 		t.Fatalf("Build() error = %v", err)
 	}
 }
+
+// TestIsRegistryReachable_UnreachableHost verifies isRegistryReachable
+// returns false for hosts that are not listening (#385).
+func TestIsRegistryReachable_UnreachableHost(t *testing.T) {
+	if isRegistryReachable("127.0.0.1:19999") {
+		t.Skip("port 19999 appears to be open on this machine — skipping")
+	}
+}
+
+// TestIsRegistryReachable_InvalidAddress verifies isRegistryReachable
+// returns false for malformed or unresolvable addresses (#385).
+func TestIsRegistryReachable_InvalidAddress(t *testing.T) {
+	cases := []string{
+		"invalid-host-that-does-not-exist.local:5000",
+		"",
+	}
+	for _, addr := range cases {
+		t.Run(addr, func(t *testing.T) {
+			if isRegistryReachable(addr) {
+				t.Errorf("isRegistryReachable(%q) = true, want false", addr)
+			}
+		})
+	}
+}

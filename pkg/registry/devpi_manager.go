@@ -2,6 +2,7 @@ package registry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -108,7 +109,21 @@ func (m *DevpiManager) Start(ctx context.Context) error {
 
 	// Start devpi process
 	if err := m.processManager.Start(ctx, binaryPath, args, procConfig); err != nil {
-		return fmt.Errorf("failed to start proxy: %w", err)
+		// If the process is already running (adopted from stale PID), verify
+		// it's actually serving before returning an error (#385).
+		if errors.Is(err, ErrProcessAlreadyRunning) {
+			if ProbeServiceHealth(m.config.Port, "/", []int{200, 302}) {
+				m.RecordStartLocked()
+				return nil // Adopt the running instance
+			}
+			// PID exists but service not healthy — kill and retry
+			m.processManager.Stop(ctx)
+			if retryErr := m.processManager.Start(ctx, binaryPath, args, procConfig); retryErr != nil {
+				return fmt.Errorf("failed to start proxy after cleanup: %w", retryErr)
+			}
+		} else {
+			return fmt.Errorf("failed to start proxy: %w", err)
+		}
 	}
 
 	// Record start time

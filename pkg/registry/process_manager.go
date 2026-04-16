@@ -46,9 +46,16 @@ func (p *DefaultProcessManager) Start(ctx context.Context, binary string, args [
 			return fmt.Errorf("failed to clean stale PID file: %w", err)
 		}
 		// cleanStalePIDFile may have adopted a running process —
-		// re-check before spawning a duplicate.
-		if p.pid > 0 && isProcessAlive(p.pid) {
-			return fmt.Errorf("%w", ErrProcessAlreadyRunning)
+		// re-check before spawning a duplicate. However, verify the
+		// adopted process is actually alive with a fresh signal check
+		// to avoid false positives from PID reuse (#385).
+		if p.pid > 0 {
+			if isProcessAlive(p.pid) {
+				return fmt.Errorf("%w", ErrProcessAlreadyRunning)
+			}
+			// Process died between adoption and check — clean up and continue
+			p.pid = 0
+			os.Remove(config.PIDFile)
 		}
 	}
 

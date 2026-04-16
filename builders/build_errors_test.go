@@ -157,6 +157,110 @@ func TestEnhanceBuildError_CacheCorruption(t *testing.T) {
 	}
 }
 
+// TestIsBuildKitConnectionError covers IsBuildKitConnectionError (#385).
+func TestIsBuildKitConnectionError_NilError(t *testing.T) {
+	if IsBuildKitConnectionError(nil) {
+		t.Error("expected false for nil error")
+	}
+}
+
+func TestIsBuildKitConnectionError_PositiveCases(t *testing.T) {
+	positives := []string{
+		"rpc error: code = Unavailable desc = error reading from server: EOF",
+		"failed to receive status: rpc error: code = Unavailable desc = error reading from server: EOF",
+		"error reading from server: EOF",
+		"transport is closing",
+		"connection reset by peer",
+		"broken pipe",
+		// Case-insensitive variants
+		"RPC ERROR: CODE = UNAVAILABLE",
+		"ERROR READING FROM SERVER: EOF",
+		"Transport Is Closing",
+	}
+	for _, msg := range positives {
+		t.Run(msg, func(t *testing.T) {
+			if !IsBuildKitConnectionError(errors.New(msg)) {
+				t.Errorf("IsBuildKitConnectionError(%q) = false, want true", msg)
+			}
+		})
+	}
+}
+
+func TestIsBuildKitConnectionError_NegativeCases(t *testing.T) {
+	negatives := []string{
+		"exit status 1",
+		"permission denied",
+		"blob not found",
+		"parent snapshot does not exist",
+		"i/o timeout",
+		"context deadline exceeded",
+		"",
+	}
+	for _, msg := range negatives {
+		t.Run(msg, func(t *testing.T) {
+			if IsBuildKitConnectionError(errors.New(msg)) {
+				t.Errorf("IsBuildKitConnectionError(%q) = true, want false", msg)
+			}
+		})
+	}
+}
+
+func TestEnhanceBuildError_BuildKitConnection(t *testing.T) {
+	connectionErrors := []string{
+		"failed to receive status: rpc error: code = Unavailable desc = error reading from server: EOF",
+		"rpc error: code = Unavailable desc = transport is closing",
+		"error reading from server: EOF",
+	}
+	for _, msg := range connectionErrors {
+		t.Run(msg, func(t *testing.T) {
+			orig := errors.New(msg)
+			enhanced := EnhanceBuildError(orig)
+			if enhanced == nil {
+				t.Fatal("expected non-nil error")
+			}
+			enhanced_str := enhanced.Error()
+			if !strings.HasPrefix(enhanced_str, "build failed:") {
+				t.Errorf("expected 'build failed:' prefix, got: %v", enhanced_str)
+			}
+			if !strings.Contains(enhanced_str, "BuildKit connection lost") {
+				t.Errorf("expected BuildKit connection hint in error, got: %v", enhanced_str)
+			}
+			if !strings.Contains(enhanced_str, "retried automatically") {
+				t.Errorf("expected retry hint in error, got: %v", enhanced_str)
+			}
+			if !errors.Is(enhanced, orig) {
+				t.Error("expected enhanced error to wrap original via errors.Is chain")
+			}
+		})
+	}
+}
+
+func TestIsBuildKitConnectionMsg_AllPatterns(t *testing.T) {
+	tests := []struct {
+		name string
+		msg  string
+		want bool
+	}{
+		{"eof from server", "error reading from server: eof", true},
+		{"rpc unavailable", "rpc error: code = unavailable", true},
+		{"failed to receive status", "failed to receive status", true},
+		{"transport closing", "transport is closing", true},
+		{"connection reset", "connection reset by peer", true},
+		{"broken pipe", "broken pipe", true},
+		{"case insensitive eof", "ERROR READING FROM SERVER: EOF", true},
+		{"unrelated error", "something else entirely", false},
+		{"empty", "", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := isBuildKitConnectionMsg(tc.msg)
+			if got != tc.want {
+				t.Errorf("isBuildKitConnectionMsg(%q) = %v, want %v", tc.msg, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestIsNetworkTimeout(t *testing.T) {
 	tests := []struct {
 		msg  string

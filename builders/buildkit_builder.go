@@ -3,10 +3,12 @@ package builders
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/rmkohlman/MaestroSDK/render"
 
@@ -148,6 +150,8 @@ func (b *BuildKitBuilder) Build(ctx context.Context, opts BuildOptions) error {
 
 	// Add cache import if specified (e.g., "type=registry,ref=localhost:5001/dvm-cache/img")
 	// Multiple sources can be separated by newlines (#383).
+	// Pre-check registry connectivity to avoid build failures when cache
+	// registry is unavailable — gracefully degrade to no cache (#385).
 	if opts.CacheFrom != "" {
 		for _, cf := range strings.Split(opts.CacheFrom, "\n") {
 			cf = strings.TrimSpace(cf)
@@ -155,9 +159,21 @@ func (b *BuildKitBuilder) Build(ctx context.Context, opts BuildOptions) error {
 				continue
 			}
 			cacheImport := parseCacheSpec(cf)
-			if cacheImport.Type != "" {
-				solveOpts.CacheImports = append(solveOpts.CacheImports, cacheImport)
+			if cacheImport.Type == "" {
+				continue
 			}
+			// For registry-type cache, verify the registry is reachable
+			if cacheImport.Type == "registry" {
+				if ref, ok := cacheImport.Attrs["ref"]; ok {
+					host := strings.SplitN(ref, "/", 2)[0]
+					if !isRegistryReachable(host) {
+						render.MsgTo(out, "", render.Message{Level: render.LevelWarning,
+							Content: fmt.Sprintf("Cache registry %s unreachable, building without cache import", host)})
+						continue
+					}
+				}
+			}
+			solveOpts.CacheImports = append(solveOpts.CacheImports, cacheImport)
 		}
 	}
 
@@ -318,4 +334,16 @@ func parseCacheSpec(spec string) bkclient.CacheOptionsEntry {
 		}
 	}
 	return entry
+}
+
+// isRegistryReachable checks if a registry host:port is reachable via TCP.
+// Used to pre-check cache registry availability before including it in build
+// options, avoiding build failures when the registry is down (#385).
+func isRegistryReachable(host string) bool {
+	conn, err := net.DialTimeout("tcp", host, 2*time.Second)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
 }

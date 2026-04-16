@@ -2,6 +2,17 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.101.2 (2026-04-16)
+
+**Bug Fixes**
+- **BuildKit crashes with EOF errors during parallel builds — add retry logic and registry proxy resilience** — `builders/build_errors.go` adds BuildKit connection error detection; `cmd/build_phases.go` adds retry logic for BuildKit EOF crashes; `builders/buildkit_builder.go` implements graceful cache import degradation; `pkg/registry/process_manager.go` fixes stale PID race; `pkg/registry/devpi_manager.go` and `pkg/registry/verdaccio_manager.go` add graceful "already running" handling ([#385](https://github.com/rmkohlman/devopsmaestro/issues/385))
+
+**Tests**
+- Added `builders/build_errors_test.go` — tests for BuildKit connection error detection ([#385](https://github.com/rmkohlman/devopsmaestro/issues/385))
+- Added `builders/buildkit_builder_test.go` — tests for registry reachability ([#385](https://github.com/rmkohlman/devopsmaestro/issues/385))
+
+---
+
 ## v0.101.1 (2026-04-16)
 
 **Bug Fixes**

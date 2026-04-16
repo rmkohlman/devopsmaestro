@@ -24,6 +24,14 @@ func EnhanceBuildError(err error) error {
 			"  Last resort: delete the Colima disk and recreate the VM.", err)
 	}
 
+	// Detect BuildKit daemon crash / RPC EOF (#385).
+	if isBuildKitConnectionMsg(msg) {
+		return fmt.Errorf("build failed: %w\n\n"+
+			"  Hint: BuildKit connection lost (daemon crash or overload).\n"+
+			"  This often happens with high concurrency. Try reducing --concurrency.\n"+
+			"  The build will be retried automatically.", err)
+	}
+
 	// Detect network timeout during image pull — likely squid proxy is down (#377).
 	if isNetworkTimeout(msg) {
 		return fmt.Errorf("build failed: %w\n\n"+
@@ -57,6 +65,35 @@ func isCacheCorruptionMsg(msg string) bool {
 	}
 	lower := strings.ToLower(msg)
 	for _, p := range corruptionPatterns {
+		if strings.Contains(lower, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// IsBuildKitConnectionError returns true if the error indicates a BuildKit
+// daemon crash or RPC connection drop — typically "error reading from server: EOF"
+// or gRPC "Unavailable" errors that occur when BuildKit is overwhelmed by
+// concurrent builds (#385).
+func IsBuildKitConnectionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return isBuildKitConnectionMsg(err.Error())
+}
+
+func isBuildKitConnectionMsg(msg string) bool {
+	connectionPatterns := []string{
+		"error reading from server: eof",
+		"rpc error: code = unavailable",
+		"failed to receive status",
+		"transport is closing",
+		"connection reset by peer",
+		"broken pipe",
+	}
+	lower := strings.ToLower(msg)
+	for _, p := range connectionPatterns {
 		if strings.Contains(lower, p) {
 			return true
 		}

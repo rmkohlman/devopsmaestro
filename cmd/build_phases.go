@@ -585,6 +585,41 @@ func (bc *buildContext) buildImage() (skipped bool, err error) {
 	}
 
 	if err := bc.builder.Build(bc.ctx, buildOpts); err != nil {
+		// Check for BuildKit RPC connection errors (#385). These indicate the
+		// BuildKit daemon crashed or dropped connections under load. Retry with
+		// exponential backoff before giving up.
+		if builders.IsBuildKitConnectionError(err) {
+			slog.Warn("BuildKit connection error, retrying with backoff", "error", err)
+			bc.renderWarning("BuildKit connection lost — retrying build...")
+			retried := false
+			for attempt := 1; attempt <= 2; attempt++ {
+				backoff := time.Duration(attempt*5) * time.Second
+				slog.Info("waiting before retry", "attempt", attempt, "backoff", backoff)
+				select {
+				case <-bc.ctx.Done():
+					return false, bc.ctx.Err()
+				case <-time.After(backoff):
+				}
+				bc.renderInfof("Retry attempt %d/2...", attempt)
+				if retryErr := bc.builder.Build(bc.ctx, buildOpts); retryErr != nil {
+					if builders.IsBuildKitConnectionError(retryErr) {
+						slog.Warn("BuildKit connection error on retry", "attempt", attempt, "error", retryErr)
+						continue
+					}
+					slog.Error("build failed on retry", "attempt", attempt, "error", retryErr)
+					return false, builders.EnhanceBuildError(retryErr)
+				}
+				retried = true
+				slog.Info("build succeeded on retry", "image", bc.imageName, "attempt", attempt)
+				break
+			}
+			if !retried {
+				slog.Error("build failed after all retries", "image", bc.imageName, "error", err)
+				return false, builders.EnhanceBuildError(err)
+			}
+			goto buildSuccess
+		}
+
 		// Check for BuildKit cache corruption (#378). If detected, attempt
 		// automatic recovery: prune the BuildKit cache and retry once.
 		if builders.IsCacheCorruption(err) {
