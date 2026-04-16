@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.100.0] — 2026-04-16
+
+### Features
+- **Auto-prune old workspace images after successful rebuild** — after every successful `dvm build`, automatically removes all older tagged images for the workspace, keeping only the freshly-built image; prune failures are non-fatal and never block the build result ([#376](https://github.com/rmkohlman/devopsmaestro/issues/376))
+
+---
+
 ## [v0.99.4] — 2026-04-15
 
 ### Bug Fixes
