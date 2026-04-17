@@ -118,6 +118,9 @@ func (f *ServiceFactory) DetectVersion(ctx context.Context, reg *models.Registry
 	if err != nil {
 		return ""
 	}
+	if cleaned := sanitizeVersion(version); cleaned != "" {
+		return cleaned
+	}
 	return version
 }
 

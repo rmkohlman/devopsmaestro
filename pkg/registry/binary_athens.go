@@ -65,11 +65,11 @@ func (b *AthensBinaryManager) GetVersion(ctx context.Context) (string, error) {
 		return b.version, nil
 	}
 
-	// Parse version from output
-	version := strings.TrimSpace(string(output))
-	version = strings.TrimPrefix(version, "athens")
-	version = strings.TrimSpace(version)
-	version = strings.TrimPrefix(version, "v")
+	// Parse version from output — Athens may return multi-line build details
+	version := sanitizeVersion(string(output))
+	if version == "" {
+		return b.version, nil
+	}
 
 	return version, nil
 }
