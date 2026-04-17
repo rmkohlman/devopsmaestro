@@ -1756,12 +1756,13 @@ func (g *DefaultDockerfileGenerator) generateDevStage(dockerfile *strings.Builde
 	}
 
 	// Add Debian backports repo for git >= 2.32.0 (required by lazygit v0.60+, #382).
-	// Older Debian bases (e.g., Bullseye / python:3.9-slim) ship git 2.30 which is too old.
-	// Adding backports before the main install ensures git is pulled from backports directly.
+	// Skip backports for EOL Debian releases whose backports repos return 404 (#390).
 	if !isAlpine {
 		dockerfile.WriteString("# Enable backports for git >= 2.32.0 (required by lazygit v0.60+)\n")
+		dockerfile.WriteString("# Skip EOL Debian releases (jessie/stretch/buster/bullseye) whose backports are gone (#390)\n")
 		dockerfile.WriteString("RUN codename=$(. /etc/os-release && echo \"$VERSION_CODENAME\") && \\\n")
-		dockerfile.WriteString("    echo \"deb http://deb.debian.org/debian ${codename}-backports main\" > /etc/apt/sources.list.d/backports.list\n\n")
+		dockerfile.WriteString("    case \"$codename\" in jessie|stretch|buster|bullseye) echo \"Skipping backports for EOL $codename\" ;; \\\n")
+		dockerfile.WriteString("    *) echo \"deb http://deb.debian.org/debian ${codename}-backports main\" > /etc/apt/sources.list.d/backports.list ;; esac\n\n")
 	}
 
 	// Install all packages in one shot with cache mounts
@@ -1772,7 +1773,9 @@ func (g *DefaultDockerfileGenerator) generateDevStage(dockerfile *strings.Builde
 	} else {
 		dockerfile.WriteString(g.aptCacheMounts())
 		dockerfile.WriteString("    rm -rf /var/lib/apt/lists/* && apt-get update && \\\n")
-		dockerfile.WriteString("    apt-get install -y --no-install-recommends -t $(. /etc/os-release && echo \"$VERSION_CODENAME\")-backports git && \\\n")
+		dockerfile.WriteString("    if [ -f /etc/apt/sources.list.d/backports.list ]; then \\\n")
+		dockerfile.WriteString("      apt-get install -y --no-install-recommends -t $(. /etc/os-release && echo \"$VERSION_CODENAME\")-backports git; \\\n")
+		dockerfile.WriteString("    fi && \\\n")
 		dockerfile.WriteString("    apt-get install -y --no-install-recommends --fix-broken \\\n")
 	}
 

@@ -7549,3 +7549,127 @@ func TestDockerfileGenerator_GitUpgradeFromBackports(t *testing.T) {
 		}
 	})
 }
+
+// Issue #390 — EOL Debian codenames must skip backports (bullseye-backports returns 404)
+// ---------------------------------------------------------------------------
+
+// TestDockerfileGenerator_EOLDebianSkipsBackports verifies that the generated
+// Dockerfile shell logic skips adding backports for EOL Debian codenames
+// (jessie, stretch, buster, bullseye) and still enables backports for active
+// releases (bookworm, trixie).
+func TestDockerfileGenerator_EOLDebianSkipsBackports(t *testing.T) {
+	// EOL codenames must appear in the case-statement skip list
+	eolCodenames := []string{"jessie", "stretch", "buster", "bullseye"}
+	for _, codename := range eolCodenames {
+		t.Run("eol_codename_"+codename, func(t *testing.T) {
+			ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
+			gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+				Workspace:     ws,
+				WorkspaceSpec: models.WorkspaceSpec{},
+				Language:      "python",
+				Version:       "3.11",
+				AppPath:       "/tmp/test",
+				PathConfig:    paths.New(t.TempDir()),
+			})
+
+			dockerfile, err := gen.Generate()
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+
+			// The shell case-statement must list this codename as a skip target
+			if !strings.Contains(dockerfile, codename) {
+				t.Errorf("EOL codename %q must appear in the backports skip list (#390)", codename)
+			}
+		})
+	}
+
+	t.Run("eol_case_statement_present", func(t *testing.T) {
+		ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
+		gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+			Workspace:     ws,
+			WorkspaceSpec: models.WorkspaceSpec{},
+			Language:      "python",
+			Version:       "3.11",
+			AppPath:       "/tmp/test",
+			PathConfig:    paths.New(t.TempDir()),
+		})
+
+		dockerfile, err := gen.Generate()
+		if err != nil {
+			t.Fatalf("Generate() error = %v", err)
+		}
+
+		// The case statement must skip all four EOL codenames in one block
+		if !strings.Contains(dockerfile, "jessie|stretch|buster|bullseye") {
+			t.Error("Dockerfile must contain EOL codename case-statement to skip backports (#390)")
+		}
+	})
+
+	t.Run("non_eol_codename_gets_backports_list", func(t *testing.T) {
+		ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
+		gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+			Workspace:     ws,
+			WorkspaceSpec: models.WorkspaceSpec{},
+			Language:      "python",
+			Version:       "3.11",
+			AppPath:       "/tmp/test",
+			PathConfig:    paths.New(t.TempDir()),
+		})
+
+		dockerfile, err := gen.Generate()
+		if err != nil {
+			t.Fatalf("Generate() error = %v", err)
+		}
+
+		// The wildcard branch must write the backports.list file for active releases
+		if !strings.Contains(dockerfile, "backports.list") {
+			t.Error("Dockerfile must write backports.list for non-EOL Debian releases (#390)")
+		}
+	})
+
+	t.Run("git_install_conditional_on_backports_list", func(t *testing.T) {
+		ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
+		gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+			Workspace:     ws,
+			WorkspaceSpec: models.WorkspaceSpec{},
+			Language:      "python",
+			Version:       "3.11",
+			AppPath:       "/tmp/test",
+			PathConfig:    paths.New(t.TempDir()),
+		})
+
+		dockerfile, err := gen.Generate()
+		if err != nil {
+			t.Fatalf("Generate() error = %v", err)
+		}
+
+		// Git from backports must be gated on the .list file existing so EOL releases
+		// don't try to install from a repo that was never added (#390)
+		if !strings.Contains(dockerfile, "if [ -f /etc/apt/sources.list.d/backports.list ]") {
+			t.Error("git backports install must be gated on backports.list existing (#390)")
+		}
+	})
+
+	t.Run("alpine_has_no_backports_block", func(t *testing.T) {
+		ws := &models.Workspace{ID: 1, Name: "test-ws", ImageName: "test:latest"}
+		gen := NewDockerfileGenerator(DockerfileGeneratorOptions{
+			Workspace:     ws,
+			WorkspaceSpec: models.WorkspaceSpec{},
+			Language:      "golang",
+			Version:       "1.22",
+			AppPath:       "/tmp/test",
+			PathConfig:    paths.New(t.TempDir()),
+		})
+
+		dockerfile, err := gen.Generate()
+		if err != nil {
+			t.Fatalf("Generate() error = %v", err)
+		}
+
+		// Alpine uses apk, not apt — the EOL case-statement must not appear
+		if strings.Contains(dockerfile, "jessie|stretch|buster|bullseye") {
+			t.Error("Alpine Dockerfile must NOT contain Debian EOL backports case-statement (#390)")
+		}
+	})
+}
