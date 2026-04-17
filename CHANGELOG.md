@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.101.8] — 2026-04-17
+
+### Bug Fixes
+- **System column empty in `dvm get all -A` apps output** — `pkg/resource/handlers/app.go` updates `NewAppResource` to accept a `systemName` parameter; `cmd/get_all.go` passes the system name when building AppResources; `cmd/app.go` resolves the system name for YAML export, ensuring the System column is correctly populated in all apps table output ([#391](https://github.com/rmkohlman/devopsmaestro/issues/391))
+
+### Tests
+- Added `TestGetAll_AppSystemColumn` in `cmd/get_all_test.go` — verifies the System column is populated correctly in `dvm get all -A` output ([#391](https://github.com/rmkohlman/devopsmaestro/issues/391))
+
+---
+
 ## [v0.101.7] — 2026-04-17
 
 ### Bug Fixes

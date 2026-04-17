@@ -210,6 +210,10 @@ func getAll(cmd *cobra.Command) error {
 		}
 
 		// GitRepo name lookup (for workspace export)
+		sysNames := make(map[int]string)
+		for _, s := range systems {
+			sysNames[s.ID] = s.Name
+		}
 		gitRepoNames := make(map[int64]string)
 		for i := range gitRepos {
 			gitRepoNames[int64(gitRepos[i].ID)] = gitRepos[i].Name
@@ -290,7 +294,12 @@ func getAll(cmd *cobra.Command) error {
 			if a.GitRepoID.Valid {
 				gitRepoName = gitRepoNames[a.GitRepoID.Int64]
 			}
-			allResources = append(allResources, handlers.NewAppResource(a, domName, ecoName, gitRepoName))
+			// Resolve system name if associated
+			sysName := ""
+			if a.SystemID.Valid {
+				sysName = sysNames[int(a.SystemID.Int64)]
+			}
+			allResources = append(allResources, handlers.NewAppResource(a, domName, ecoName, gitRepoName, sysName))
 		}
 
 		// Workspaces (need parent app name + resolve domain/gitrepo/ecosystem names)

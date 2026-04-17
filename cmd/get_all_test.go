@@ -284,7 +284,7 @@ func TestGetAll_WithData(t *testing.T) {
 	app := &models.App{
 		Name:        "api",
 		Path:        "/srv/api",
-		DomainID: sql.NullInt64{Int64: int64(domain.ID), Valid: true},
+		DomainID:    sql.NullInt64{Int64: int64(domain.ID), Valid: true},
 		Description: sql.NullString{String: "REST API", Valid: true},
 		Language:    sql.NullString{String: "go", Valid: true},
 	}
@@ -2345,4 +2345,60 @@ func TestGetAll_EcosystemScoped_WorkspacesNotLeaked(t *testing.T) {
 		"workspace belonging to scoped ecosystem should appear")
 	assert.NotContains(t, output, "ws-in-beta",
 		"workspace belonging to out-of-scope ecosystem must NOT appear (Bug #149 cascade)")
+}
+
+// ---------------------------------------------------------------------------
+// TestGetAll_AppSystemColumn (Issue #391)
+// ---------------------------------------------------------------------------
+
+// TestGetAll_AppSystemColumn verifies that when an app is associated with a
+// system, the system name appears in the SYSTEM column of the Apps table in
+// the output of `dvm get all -A`. This was the bug reported in issue #391.
+func TestGetAll_AppSystemColumn(t *testing.T) {
+	dataStore := createTestDataStore(t)
+	defer dataStore.Close()
+
+	// Seed ecosystem → domain → system → app
+	eco := &models.Ecosystem{Name: "sys-col-eco"}
+	require.NoError(t, dataStore.CreateEcosystem(eco))
+
+	dom := &models.Domain{
+		Name:        "sys-col-domain",
+		EcosystemID: sql.NullInt64{Int64: int64(eco.ID), Valid: true},
+	}
+	require.NoError(t, dataStore.CreateDomain(dom))
+
+	sys := &models.System{
+		Name:     "my-system",
+		DomainID: sql.NullInt64{Int64: int64(dom.ID), Valid: true},
+	}
+	require.NoError(t, dataStore.CreateSystem(sys))
+
+	app := &models.App{
+		Name:     "sys-col-app",
+		Path:     "/apps/sys-col-app",
+		DomainID: sql.NullInt64{Int64: int64(dom.ID), Valid: true},
+		SystemID: sql.NullInt64{Int64: int64(sys.ID), Valid: true},
+	}
+	require.NoError(t, dataStore.CreateApp(app))
+
+	cmd := newGetAllTestCmd(t, dataStore)
+
+	var buf bytes.Buffer
+	origWriter := render.GetWriter()
+	render.SetWriter(&buf)
+	defer render.SetWriter(origWriter)
+
+	origFormat := getOutputFormat
+	defer func() { getOutputFormat = origFormat }()
+	getOutputFormat = "table"
+
+	err := getAll(cmd)
+	require.NoError(t, err)
+
+	output := buf.String()
+
+	assert.Contains(t, output, "sys-col-app", "app name should appear in output")
+	assert.Contains(t, output, "my-system",
+		"system name should appear in the SYSTEM column of the apps table (bug #391)")
 }

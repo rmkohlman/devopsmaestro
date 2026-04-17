@@ -413,7 +413,14 @@ func getApps(cmd *cobra.Command) error {
 					gitRepoName = gr.Name
 				}
 			}
-			appResources[i] = handlers.NewAppResource(a, domName, ecoName, gitRepoName)
+			// Resolve system name if associated
+			sysName := ""
+			if a.SystemID.Valid {
+				if sys, sErr := ds.GetSystemByID(int(a.SystemID.Int64)); sErr == nil && sys != nil {
+					sysName = sys.Name
+				}
+			}
+			appResources[i] = handlers.NewAppResource(a, domName, ecoName, gitRepoName, sysName)
 		}
 		resCtx := resource.Context{DataStore: ds}
 		list, err := resource.BuildList(resCtx, appResources)

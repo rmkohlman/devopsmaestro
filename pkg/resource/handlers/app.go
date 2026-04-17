@@ -343,13 +343,17 @@ func (r *AppResource) DomainName() string {
 
 // NewAppResource creates a new AppResource from a model.
 // ecosystemName is needed for context-free YAML round-trip. Pass "" if unknown.
-// gitRepoName is optional — pass as extra[0] if available.
+// extra[0] = gitRepoName (optional), extra[1] = systemName (optional).
 func NewAppResource(app *models.App, domainName, ecosystemName string, extra ...string) *AppResource {
 	gitRepoName := ""
 	if len(extra) > 0 {
 		gitRepoName = extra[0]
 	}
-	return &AppResource{app: app, domainName: domainName, ecosystemName: ecosystemName, gitRepoName: gitRepoName}
+	sysName := ""
+	if len(extra) > 1 {
+		sysName = extra[1]
+	}
+	return &AppResource{app: app, domainName: domainName, ecosystemName: ecosystemName, gitRepoName: gitRepoName, systemName: sysName}
 }
 
 // NewAppFromModel creates an App model from parameters.
