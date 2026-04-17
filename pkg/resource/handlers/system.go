@@ -39,21 +39,37 @@ func (h *SystemHandler) Apply(ctx resource.Context, data []byte) (resource.Resou
 
 	// Resolve domain from YAML metadata (optional for systems)
 	domainName := systemYAML.Metadata.Domain
+	ecosystemName := systemYAML.Metadata.Ecosystem
 	var domainID sql.NullInt64
 	if domainName != "" {
-		ecosystemName := systemYAML.Metadata.Ecosystem
-		if ecosystemName == "" {
-			return nil, fmt.Errorf("system YAML with domain must also specify metadata.ecosystem")
+		if ecosystemName != "" {
+			// Ecosystem explicitly provided — look up directly
+			ecosystem, err := ds.GetEcosystemByName(ecosystemName)
+			if err != nil {
+				return nil, fmt.Errorf("ecosystem '%s' not found: %w", ecosystemName, err)
+			}
+			domain, err := ds.GetDomainByName(sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true}, domainName)
+			if err != nil {
+				return nil, fmt.Errorf("domain '%s' not found in ecosystem '%s': %w", domainName, ecosystemName, err)
+			}
+			domainID = sql.NullInt64{Int64: int64(domain.ID), Valid: true}
+		} else {
+			// Ecosystem not provided — infer from domain name
+			matches, err := ds.FindDomainsByName(domainName)
+			if err != nil {
+				return nil, fmt.Errorf("failed to look up domain '%s': %w", domainName, err)
+			}
+			if len(matches) == 0 {
+				return nil, fmt.Errorf("domain '%s' not found", domainName)
+			}
+			if len(matches) > 1 {
+				return nil, fmt.Errorf("domain '%s' exists in multiple ecosystems; specify metadata.ecosystem to disambiguate", domainName)
+			}
+			domainID = sql.NullInt64{Int64: int64(matches[0].Domain.ID), Valid: true}
+			if matches[0].Ecosystem != nil {
+				ecosystemName = matches[0].Ecosystem.Name
+			}
 		}
-		ecosystem, err := ds.GetEcosystemByName(ecosystemName)
-		if err != nil {
-			return nil, fmt.Errorf("ecosystem '%s' not found: %w", ecosystemName, err)
-		}
-		domain, err := ds.GetDomainByName(sql.NullInt64{Int64: int64(ecosystem.ID), Valid: true}, domainName)
-		if err != nil {
-			return nil, fmt.Errorf("domain '%s' not found in ecosystem '%s': %w", domainName, ecosystemName, err)
-		}
-		domainID = sql.NullInt64{Int64: int64(domain.ID), Valid: true}
 	}
 
 	system := &models.System{
@@ -78,7 +94,7 @@ func (h *SystemHandler) Apply(ctx resource.Context, data []byte) (resource.Resou
 		}
 	}
 
-	return NewSystemResource(system, domainName, systemYAML.Metadata.Ecosystem), nil
+	return NewSystemResource(system, domainName, ecosystemName), nil
 }
 
 // Get retrieves a system by name.

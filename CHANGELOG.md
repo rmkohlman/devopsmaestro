@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.101.9] — 2026-04-17
+
+### Bug Fixes
+- **System apply silently drops ecosystem when not explicitly set** — `pkg/resource/handlers/system.go` now auto-infers the ecosystem from the active domain when no ecosystem is provided on `dvm apply` for a System resource, preventing silent misconfiguration ([#392](https://github.com/rmkohlman/devopsmaestro/issues/392))
+
+### Tests
+- Added `system_test.go` with 7 tests covering ecosystem inference from domain, explicit ecosystem, no-domain/no-ecosystem, domain-not-found, ambiguous domain, and idempotency scenarios ([#392](https://github.com/rmkohlman/devopsmaestro/issues/392))
+
+---
+
 ## [v0.101.8] — 2026-04-17
 
 ### Bug Fixes
