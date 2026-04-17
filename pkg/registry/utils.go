@@ -44,23 +44,25 @@ func ProbeServiceHealth(port int, path string, acceptedStatuses []int) bool {
 	return false
 }
 
-// IsPortAvailable checks if a TCP port is available for binding.
+// IsPortAvailable checks if a TCP port is available (nothing is listening).
+// It uses a connect check rather than a bind check to avoid IPv4/IPv6
+// dual-stack issues on macOS where net.Listen on [::] can succeed even
+// when a service is bound to 127.0.0.1 (#387).
 func IsPortAvailable(port int) bool {
-	// Validate port range - exclude privileged ports (< 1024)
-	if port < 1024 || port > 65535 {
+	// Validate port range
+	if port < 1 || port > 65535 {
 		return false
 	}
 
-	// Try to bind to the port
-	addr := ":" + strconv.Itoa(port)
-	listener, err := net.Listen("tcp", addr)
+	// Try to connect — if something is listening, the port is NOT available.
+	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
+	conn, err := net.DialTimeout("tcp", addr, 1*time.Second)
 	if err != nil {
-		return false
+		// Connection refused or timeout → port is available
+		return true
 	}
-
-	// Port is available, release it
-	listener.Close()
-	return true
+	conn.Close()
+	return false
 }
 
 // WaitForReady polls an HTTP endpoint until it returns an accepted status code.

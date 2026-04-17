@@ -305,12 +305,21 @@ func (p *DefaultProcessManager) isRunningLocked() bool {
 }
 
 // isRunningFromPIDFile checks if a process is alive by reading the PID file.
+// If the PID file exists but the process is dead, it removes the stale file (#387).
 func (p *DefaultProcessManager) isRunningFromPIDFile() bool {
 	pid := p.readPIDFileLocked()
 	if pid <= 0 {
 		return false
 	}
-	return isProcessAlive(pid)
+	if isProcessAlive(pid) {
+		return true
+	}
+	// Stale PID file — process is dead, clean up
+	if p.config.PIDFile != "" {
+		os.Remove(p.config.PIDFile)
+	}
+	p.pid = 0
+	return false
 }
 
 // readPIDFileLocked reads the PID from the configured PID file. Returns 0 if not found/invalid.

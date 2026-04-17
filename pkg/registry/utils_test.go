@@ -42,11 +42,11 @@ func TestIsPortAvailable(t *testing.T) {
 			description:   "IsPortAvailable should return false for port in use",
 		},
 		{
-			name:          "privileged port",
+			name:          "privileged port not listening",
 			port:          80,
 			bindFirst:     false,
-			wantAvailable: false,
-			description:   "IsPortAvailable should handle privileged ports",
+			wantAvailable: true,
+			description:   "IsPortAvailable should check privileged ports via connect (not reject them)",
 		},
 		{
 			name:          "negative port",
