@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.101.5] — 2026-04-16
+
+### Bug Fixes
+- **BuildKit cache export/import fails with HTTPS→HTTP protocol mismatch against local zot registry** — `cmd/build_phases.go` adds `registry.insecure=true` to both the cache-from and cache-to BuildKit format strings, allowing BuildKit to communicate with the local zot registry over HTTP ([#388](https://github.com/rmkohlman/devopsmaestro/issues/388))
+
+---
+
 ## [v0.101.4] — 2026-04-16
 
 ### Bug Fixes
