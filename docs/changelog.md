@@ -2,6 +2,16 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.101.12 (2026-04-17)
+
+**Bug Fixes**
+- **Messy multi-line version output in `dvm get registries`** — `pkg/registry/version_sanitize.go` adds a `sanitizeVersion()` helper that strips build metadata, extra lines, and whitespace from raw version strings; `pkg/registry/binary_athens.go` and `pkg/registry/service_factory.go` apply it so the VERSION column always shows a clean semver string ([#395](https://github.com/rmkohlman/devopsmaestro/issues/395))
+
+**Tests**
+- Added `pkg/registry/version_sanitize_test.go` with 9 table-driven tests covering multi-line input, build metadata stripping, whitespace normalization, and passthrough of already-clean versions ([#395](https://github.com/rmkohlman/devopsmaestro/issues/395))
+
+---
+
 ## v0.101.11 (2026-04-17)
 
 **Bug Fixes**
