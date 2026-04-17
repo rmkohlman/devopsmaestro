@@ -247,6 +247,10 @@ func (g *DefaultDockerfileGenerator) generateBaseStage(dockerfile *strings.Build
 		dockerfile.WriteString(pinnedImageComment(baseImage))
 		dockerfile.WriteString(fmt.Sprintf("FROM %s AS base\n\n", pinnedImage(baseImage)))
 
+		// Apply APT timeout + EOL sources fix before any apt-get (#393)
+		g.emitAPTTimeoutConfig(dockerfile)
+		g.emitEOLDebianSourcesFix(dockerfile)
+
 		// Declare build args after FROM so they're available in RUN commands
 		if len(privateRepoInfo.RequiredBuildArgs) > 0 {
 			dockerfile.WriteString("# Build arguments for private repositories\n")
@@ -2074,6 +2078,26 @@ func (g *DefaultDockerfileGenerator) emitProxyHealthCheck(dockerfile *strings.Bu
 	dockerfile.WriteString("      || (echo 'WARNING: Proxy unreachable, unsetting proxy vars for direct access' \\\n")
 	dockerfile.WriteString("          && printf 'Acquire::http::Proxy \"DIRECT\";\\nAcquire::https::Proxy \"DIRECT\";\\n' > /etc/apt/apt.conf.d/99-dvm-no-proxy); \\\n")
 	dockerfile.WriteString("    fi\n\n")
+}
+
+// emitEOLDebianSourcesFix writes a RUN command that rewrites /etc/apt/sources.list
+// for EOL Debian codenames (jessie, stretch, buster, bullseye) to use archive.debian.org.
+// The default sources.list in EOL images points to deb.debian.org which may redirect
+// or hang, causing BuildKit builds to stall indefinitely (#393).
+// Only emitted for Debian-based images (no-op for Alpine).
+func (g *DefaultDockerfileGenerator) emitEOLDebianSourcesFix(dockerfile *strings.Builder) {
+	if g.isAlpine {
+		return
+	}
+	dockerfile.WriteString("# Fix apt sources for EOL Debian releases to prevent builds from hanging (#393)\n")
+	dockerfile.WriteString("RUN codename=$(. /etc/os-release && echo \"$VERSION_CODENAME\") && \\\n")
+	dockerfile.WriteString("    case \"$codename\" in \\\n")
+	dockerfile.WriteString("      jessie|stretch|buster|bullseye) \\\n")
+	dockerfile.WriteString("        echo \"Switching EOL $codename to archive.debian.org\" && \\\n")
+	dockerfile.WriteString("        sed -i 's|deb.debian.org/debian|archive.debian.org/debian|g' /etc/apt/sources.list && \\\n")
+	dockerfile.WriteString("        sed -i 's|security.debian.org|archive.debian.org|g' /etc/apt/sources.list && \\\n")
+	dockerfile.WriteString("        sed -i '/-updates/d' /etc/apt/sources.list ;; \\\n")
+	dockerfile.WriteString("    esac\n\n")
 }
 
 // effectiveStagingDir returns the staging directory to use for file existence checks.

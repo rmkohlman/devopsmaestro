@@ -17,7 +17,7 @@ func TestBuildCmd_HasTimeoutFlag(t *testing.T) {
 	require.NotNil(t, flag, "build command should have --timeout flag")
 
 	assert.Equal(t, "duration", flag.Value.Type(), "timeout flag should be duration type")
-	assert.Equal(t, (45 * time.Minute).String(), flag.DefValue, "build timeout should default to 45m")
+	assert.Equal(t, (10 * time.Minute).String(), flag.DefValue, "build timeout should default to 10m")
 }
 
 func TestAttachCmd_HasTimeoutFlag(t *testing.T) {

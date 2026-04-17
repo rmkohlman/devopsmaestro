@@ -2,6 +2,17 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.101.10 (2026-04-17)
+
+**Bug Fixes**
+- **Build hangs indefinitely for Python 3.9 apps** — `builders/dockerfile_generator.go` now rewrites EOL Debian apt sources to use `archive.debian.org` in the base stage and adds an APT timeout (`Acquire::http::Timeout`) to prevent indefinite hangs; `cmd/build.go` reduces the default build timeout from 45 minutes to 10 minutes ([#393](https://github.com/rmkohlman/devopsmaestro/issues/393))
+
+**Tests**
+- Added `builders/eol_debian_sources_fix_test.go` with 5 tests covering EOL Debian sources rewriting, APT timeout injection, and Python 3.9 Dockerfile generation ([#393](https://github.com/rmkohlman/devopsmaestro/issues/393))
+- Updated `cmd/timeout_flag_test.go` to reflect new default build timeout of 10 minutes ([#393](https://github.com/rmkohlman/devopsmaestro/issues/393))
+
+---
+
 ## v0.101.9 (2026-04-17)
 
 **Bug Fixes**
