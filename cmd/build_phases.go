@@ -551,8 +551,8 @@ func (bc *buildContext) buildImage() (skipped bool, err error) {
 			regHost := registry.EndpointFromURL(bc.registryEndpoint)
 			regCacheRef := fmt.Sprintf("%s/dvm-cache/%s-%s:buildcache",
 				regHost, bc.workspaceName, bc.appName)
-			regCacheFrom := fmt.Sprintf("type=registry,ref=%s", regCacheRef)
-			regCacheTo := fmt.Sprintf("type=registry,ref=%s,mode=max", regCacheRef)
+			regCacheFrom := fmt.Sprintf("type=registry,ref=%s,registry.insecure=true", regCacheRef)
+			regCacheTo := fmt.Sprintf("type=registry,ref=%s,mode=max,registry.insecure=true", regCacheRef)
 
 			if buildOpts.CacheFrom != "" {
 				// Combine local + registry cache sources
