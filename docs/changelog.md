@@ -2,6 +2,17 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.101.11 (2026-04-17)
+
+**Bug Fixes**
+- **Empty VERSION and UPTIME columns in `dvm get registries` output** — `pkg/registry/service_factory.go` adds `DetectVersion()`, `GetUptime()`, `createBinaryManager()`, and `resolveSquidStoragePath()`; `cmd/get_registry.go` wires version detection and uptime into the table output with a `formatDuration()` helper, so the VERSION and UPTIME columns are now correctly populated ([#394](https://github.com/rmkohlman/devopsmaestro/issues/394))
+
+**Tests**
+- Added `pkg/registry/service_factory_394_test.go` with tests covering `DetectVersion` and `GetUptime` ([#394](https://github.com/rmkohlman/devopsmaestro/issues/394))
+- Added `cmd/get_registry_394_test.go` with tests covering `formatDuration` ([#394](https://github.com/rmkohlman/devopsmaestro/issues/394))
+
+---
+
 ## v0.101.10 (2026-04-17)
 
 **Bug Fixes**
