@@ -2,6 +2,16 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.101.7 (2026-04-17)
+
+**Bug Fixes**
+- **Build fails on Python 3.9 apps due to bullseye-backports being EOL** — `builders/dockerfile_generator.go` skips adding the `bullseye-backports` apt repository when the Debian base version is EOL, preventing build failures for Python 3.9 apps ([#390](https://github.com/rmkohlman/devopsmaestro/issues/390))
+
+**Tests**
+- Updated `builders/dockerfile_generator_test.go` — test cases cover EOL Debian version detection and backports-skip logic ([#390](https://github.com/rmkohlman/devopsmaestro/issues/390))
+
+---
+
 ## v0.101.6 (2026-04-17)
 
 **Bug Fixes**
