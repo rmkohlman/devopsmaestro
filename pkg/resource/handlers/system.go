@@ -193,7 +193,7 @@ func (h *SystemHandler) ToYAML(res resource.Resource) ([]byte, error) {
 		return nil, fmt.Errorf("expected SystemResource, got %T", res)
 	}
 
-	yamlDoc := sr.system.ToYAML(sr.domainName, nil)
+	yamlDoc := sr.system.ToYAML(sr.domainName, sr.ecosystemName, nil)
 	return yaml.Marshal(yamlDoc)
 }
 

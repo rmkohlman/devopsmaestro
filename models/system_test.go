@@ -45,7 +45,7 @@ func TestSystem_BuildArgs_RoundTrip(t *testing.T) {
 	require.True(t, system.BuildArgs.Valid,
 		"System.BuildArgs.Valid should be true after FromYAML with spec.build.args")
 
-	result := system.ToYAML("billing", nil)
+	result := system.ToYAML("billing", "", nil)
 	require.NotNil(t, result.Spec.Build.Args,
 		"ToYAML should populate Spec.Build.Args from BuildArgs")
 	assert.Equal(t, "stripe", result.Spec.Build.Args["PAYMENT_GATEWAY"])
@@ -73,7 +73,7 @@ func TestSystem_BuildArgs_MultipleKeys(t *testing.T) {
 
 	require.True(t, system.BuildArgs.Valid)
 
-	result := system.ToYAML("my-domain", nil)
+	result := system.ToYAML("my-domain", "", nil)
 	require.Len(t, result.Spec.Build.Args, 3)
 	assert.Equal(t, "sys-val-1", result.Spec.Build.Args["SYS_ARG_1"])
 	assert.Equal(t, "sys-val-2", result.Spec.Build.Args["SYS_ARG_2"])
@@ -87,7 +87,7 @@ func TestSystem_BuildArgs_Empty_OmittedFromYAML(t *testing.T) {
 	assert.False(t, system.BuildArgs.Valid,
 		"System.BuildArgs.Valid should be false when not set")
 
-	result := system.ToYAML("my-domain", nil)
+	result := system.ToYAML("my-domain", "", nil)
 	data, err := yaml.Marshal(result)
 	require.NoError(t, err, "should marshal system YAML without error")
 
@@ -157,7 +157,7 @@ func TestSystem_BuildArgs_PreservesExistingFields(t *testing.T) {
 
 	require.True(t, system.BuildArgs.Valid)
 
-	result := system.ToYAML("backend", []string{"api-service", "worker"})
+	result := system.ToYAML("backend", "", []string{"api-service", "worker"})
 	assert.Equal(t, "full-system", result.Metadata.Name)
 	assert.Equal(t, "catppuccin-mocha", result.Spec.Theme)
 	assert.Equal(t, "spark", result.Spec.Build.Args["DATA_BACKEND"])
@@ -206,7 +206,7 @@ func TestSystem_CACerts_RoundTrip(t *testing.T) {
 	require.True(t, system.CACerts.Valid,
 		"System.CACerts.Valid should be true after FromYAML with caCerts")
 
-	result := system.ToYAML("infra", nil)
+	result := system.ToYAML("infra", "", nil)
 	require.Len(t, result.Spec.CACerts, 1)
 	assert.Equal(t, "internal-ca", result.Spec.CACerts[0].Name)
 	assert.Equal(t, "pki/internal-ca", result.Spec.CACerts[0].VaultSecret)
@@ -214,7 +214,7 @@ func TestSystem_CACerts_RoundTrip(t *testing.T) {
 
 func TestSystem_ToYAML_Kind(t *testing.T) {
 	system := &System{Name: "test-system"}
-	result := system.ToYAML("my-domain", nil)
+	result := system.ToYAML("my-domain", "", nil)
 
 	assert.Equal(t, "devopsmaestro.io/v1", result.APIVersion)
 	assert.Equal(t, "System", result.Kind)
@@ -244,7 +244,7 @@ func TestSystem_ToYAML_AllFields(t *testing.T) {
 	system := &System{}
 	system.FromYAML(sysYAML)
 
-	result := system.ToYAML("platform", []string{"app-a", "app-b"})
+	result := system.ToYAML("platform", "", []string{"app-a", "app-b"})
 
 	assert.Equal(t, "complete-system", result.Metadata.Name)
 	assert.Equal(t, "platform", result.Metadata.Domain)

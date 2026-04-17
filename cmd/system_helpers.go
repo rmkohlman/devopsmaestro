@@ -263,7 +263,7 @@ func getSystem(cmd *cobra.Command, name string) error {
 
 	// JSON/YAML
 	if getOutputFormat == "json" || getOutputFormat == "yaml" {
-		return render.OutputWith(getOutputFormat, system.ToYAML(domName, nil), render.Options{})
+		return render.OutputWith(getOutputFormat, system.ToYAML(domName, ecoName, nil), render.Options{})
 	}
 
 	// Human output — detail view

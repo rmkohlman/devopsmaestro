@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.101.6] — 2026-04-17
+
+### Bug Fixes
+- **System YAML export missing metadata.ecosystem** — `models/system.go` adds `ecosystemName` parameter to `ToYAML()`, `pkg/resource/handlers/system.go` and `cmd/system_helpers.go` updated to pass the ecosystem name, ensuring the `metadata.ecosystem` field is populated in all System YAML exports ([#389](https://github.com/rmkohlman/devopsmaestro/issues/389))
+
+### Tests
+- Updated `models/system_test.go` — test call sites updated to pass `ecosystemName` to `ToYAML()` ([#389](https://github.com/rmkohlman/devopsmaestro/issues/389))
+
+---
+
 ## [v0.101.5] — 2026-04-16
 
 ### Bug Fixes

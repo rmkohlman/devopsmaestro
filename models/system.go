@@ -55,7 +55,7 @@ type SystemSpec struct {
 // ToYAML converts a System to YAML format.
 // domainName is the parent domain name (pass "" if none).
 // appNames should contain the names of child apps (pass nil for empty).
-func (s *System) ToYAML(domainName string, appNames []string) SystemYAML {
+func (s *System) ToYAML(domainName string, ecosystemName string, appNames []string) SystemYAML {
 	description := ""
 	if s.Description.Valid {
 		description = s.Description.String
@@ -105,6 +105,7 @@ func (s *System) ToYAML(domainName string, appNames []string) SystemYAML {
 		Metadata: SystemMetadata{
 			Name:        s.Name,
 			Domain:      domainName,
+			Ecosystem:   ecosystemName,
 			Labels:      make(map[string]string),
 			Annotations: annotations,
 		},
