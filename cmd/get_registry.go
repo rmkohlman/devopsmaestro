@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"devopsmaestro/models"
 	"devopsmaestro/pkg/registry"
@@ -111,20 +112,30 @@ func getRegistries(cmd *cobra.Command) error {
 		Rows:    make([][]string, len(registries)),
 	}
 
+	factory := registry.NewServiceFactory()
+
 	for i, r := range registries {
 		// Live status check via ServiceManager (reads PID file, not just DB)
 		status := registryLiveStatus(context.Background(), r)
 
-		// Uptime placeholder (would be from runtime status)
+		// Detect version from binary if not set on model
+		version := r.Version
+		if version == "" {
+			version = factory.DetectVersion(context.Background(), r)
+		}
+
+		// Calculate uptime from PID file modification time
 		uptime := "-"
 		if status == "running" {
-			uptime = "-" // Runtime status would provide actual uptime
+			if d := factory.GetUptime(r); d > 0 {
+				uptime = formatDuration(d)
+			}
 		}
 
 		row := []string{
 			r.Name,
 			r.Type,
-			r.Version,
+			version,
 			fmt.Sprintf("%d", r.Port),
 			r.Lifecycle,
 			status,
@@ -232,4 +243,25 @@ func registryLiveStatus(ctx context.Context, reg *models.Registry) string {
 		return "running"
 	}
 	return "stopped"
+}
+
+// formatDuration formats a time.Duration into a human-readable string.
+// Examples: "5s", "3m", "2h", "1d", "3d 2h".
+func formatDuration(d time.Duration) string {
+	if d < time.Minute {
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	}
+	if d < time.Hour {
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	}
+	hours := int(d.Hours())
+	if hours < 24 {
+		return fmt.Sprintf("%dh", hours)
+	}
+	days := hours / 24
+	remainHours := hours % 24
+	if remainHours == 0 {
+		return fmt.Sprintf("%dd", days)
+	}
+	return fmt.Sprintf("%dd %dh", days, remainHours)
 }

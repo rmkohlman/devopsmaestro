@@ -1,9 +1,15 @@
 package registry
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"time"
 
 	"devopsmaestro/models"
+
+	"github.com/rmkohlman/MaestroSDK/paths"
 )
 
 // ServiceFactory creates ServiceManager instances based on registry type.
@@ -84,4 +90,120 @@ func (f *ServiceFactory) SupportedTypes() []string {
 		types = append(types, t)
 	}
 	return types
+}
+
+// DetectVersion returns the installed version for a registry.
+// It first checks reg.Version, then the strategy default, then detects from the binary.
+func (f *ServiceFactory) DetectVersion(ctx context.Context, reg *models.Registry) string {
+	// If version is already set on the model, use it
+	if reg.Version != "" {
+		return reg.Version
+	}
+
+	// Check strategy default
+	strategy, err := f.GetStrategy(reg.Type)
+	if err != nil {
+		return ""
+	}
+	if v := strategy.GetDefaultVersion(); v != "" {
+		return v
+	}
+
+	// Detect from binary manager based on registry type
+	bm := f.createBinaryManager(reg)
+	if bm == nil {
+		return ""
+	}
+	version, err := bm.GetVersion(ctx)
+	if err != nil {
+		return ""
+	}
+	return version
+}
+
+// createBinaryManager creates the appropriate BinaryManager for a registry type.
+func (f *ServiceFactory) createBinaryManager(reg *models.Registry) BinaryManager {
+	storagePath, err := resolveStoragePath(reg, "storage")
+	if err != nil {
+		return nil
+	}
+	binDir := filepath.Join(storagePath, "bin")
+
+	switch reg.Type {
+	case "zot":
+		version := reg.Version
+		if version == "" {
+			if s, err := f.GetStrategy("zot"); err == nil {
+				version = s.GetDefaultVersion()
+			}
+		}
+		return NewBinaryManager(binDir, version)
+	case "athens":
+		return NewAthensBinaryManager(storagePath, "0.14.1")
+	case "devpi":
+		return NewPipxBinaryManager("devpi-server", "")
+	case "verdaccio":
+		return NewNpmBinaryManager("verdaccio", "")
+	case "squid":
+		return NewSquidBinaryManager()
+	default:
+		return nil
+	}
+}
+
+// pidFileNames maps registry types to their PID file names.
+var pidFileNames = map[string]string{
+	"zot":       "zot.pid",
+	"athens":    "athens.pid",
+	"devpi":     "devpi.pid",
+	"verdaccio": "verdaccio.pid",
+	"squid":     "squid.pid",
+}
+
+// GetUptime returns the uptime for a running registry by checking the PID file modification time.
+// Returns 0 if the PID file cannot be found or stat'd.
+func (f *ServiceFactory) GetUptime(reg *models.Registry) time.Duration {
+	pidName, ok := pidFileNames[reg.Type]
+	if !ok {
+		return 0
+	}
+
+	// Resolve storage path — mirrors the logic in each strategy's CreateManager.
+	// For most registries, the PID file is at {storage}/{type}.pid.
+	// For squid, storage resolution uses "cacheDir" key and may need parent dir.
+	var storagePath string
+	var err error
+	if reg.Type == "squid" {
+		storagePath, err = resolveSquidStoragePath(reg)
+	} else {
+		storagePath, err = resolveStoragePath(reg, "storage")
+	}
+	if err != nil {
+		return 0
+	}
+
+	pidFile := filepath.Join(storagePath, pidName)
+	info, err := os.Stat(pidFile)
+	if err != nil {
+		return 0
+	}
+	return time.Since(info.ModTime())
+}
+
+// resolveSquidStoragePath resolves the storage path for squid, mirroring SquidStrategy.CreateManager.
+func resolveSquidStoragePath(reg *models.Registry) (string, error) {
+	pc, err := paths.Default()
+	if err != nil {
+		return "", err
+	}
+	defaultPath := pc.RegistryDir(reg.Name)
+	storagePath, err := resolveStoragePath(reg, "cacheDir")
+	if err != nil {
+		return "", err
+	}
+	if storagePath != defaultPath {
+		// cacheDir was found in config — use its parent as storage root
+		storagePath = filepath.Dir(storagePath)
+	}
+	return storagePath, nil
 }
