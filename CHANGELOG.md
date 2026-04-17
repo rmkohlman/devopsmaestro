@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.101.4] — 2026-04-16
+
+### Bug Fixes
+- **Registry state detection broken due to stale PID files — connect-based port check and stale PID cleanup** — `pkg/registry/utils.go` changes `IsPortAvailable` from a bind-based check to a connect-based check, correctly detecting whether a port is in use by an active listener; `pkg/registry/process_manager.go` adds stale PID file cleanup so dead processes no longer cause false "already running" reports ([#387](https://github.com/rmkohlman/devopsmaestro/issues/387))
+
+### Tests
+- Updated `pkg/registry/utils_test.go` — test cases updated to reflect the new connect-based `IsPortAvailable` behavior ([#387](https://github.com/rmkohlman/devopsmaestro/issues/387))
+
+---
+
 ## [v0.101.3] — 2026-04-16
 
 ### Bug Fixes
