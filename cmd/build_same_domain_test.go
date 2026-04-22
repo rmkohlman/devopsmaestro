@@ -19,6 +19,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -166,7 +167,7 @@ func TestSameDomain_ParallelBuild_AllWorkspacesBuilt(t *testing.T) {
 	var mu sync.Mutex
 	built := make([]string, 0, len(apps))
 
-	operator := func(ws *models.WorkspaceWithHierarchy) error {
+	operator := func(ws *models.WorkspaceWithHierarchy, _ io.Writer) error {
 		mu.Lock()
 		built = append(built, ws.App.Name)
 		mu.Unlock()
@@ -193,7 +194,7 @@ func TestSameDomain_ParallelBuild_IsActuallyParallel(t *testing.T) {
 	apps := []string{"api", "worker", "scheduler"}
 	workspaces := makeSameDomainWorkspaces(apps, "dev")
 
-	operator := func(ws *models.WorkspaceWithHierarchy) error {
+	operator := func(ws *models.WorkspaceWithHierarchy, _ io.Writer) error {
 		time.Sleep(workDuration)
 		return nil
 	}
@@ -222,7 +223,7 @@ func TestSameDomain_ParallelBuild_FailureIsolation(t *testing.T) {
 	var mu sync.Mutex
 	succeeded := make([]string, 0)
 
-	operator := func(ws *models.WorkspaceWithHierarchy) error {
+	operator := func(ws *models.WorkspaceWithHierarchy, _ io.Writer) error {
 		attempted.Add(1)
 		if ws.App.Name == failingApp {
 			return fmt.Errorf("build failed: container error for %s", failingApp)
@@ -298,7 +299,7 @@ func TestSameDomain_ParallelBuild_NoStagingKeyCollision(t *testing.T) {
 	var mu sync.Mutex
 	seenKeys := make(map[string]int) // key → count
 
-	operator := func(ws *models.WorkspaceWithHierarchy) error {
+	operator := func(ws *models.WorkspaceWithHierarchy, _ io.Writer) error {
 		key := makeStagingKey(ws.App.Name, ws.Workspace.Name)
 		mu.Lock()
 		seenKeys[key]++
@@ -334,7 +335,7 @@ func TestSameDomain_EcosystemAndDomainNames_PreservedDuringParallelBuild(t *test
 	var mu sync.Mutex
 	records := make([]buildRecord, 0, len(apps))
 
-	operator := func(ws *models.WorkspaceWithHierarchy) error {
+	operator := func(ws *models.WorkspaceWithHierarchy, _ io.Writer) error {
 		mu.Lock()
 		records = append(records, buildRecord{
 			app:       ws.App.Name,

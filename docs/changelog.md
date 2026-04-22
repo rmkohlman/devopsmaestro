@@ -2,6 +2,13 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.103.0 (2026-04-22)
+
+**Added**
+- **Dedicated build log file with rotation** — `dvm build` writes a structured log to `~/.devopsmaestro/logs/builds/<session-uuid>.log` with an atomic `latest.log` symlink always pointing to the most recent session. Logs are flushed/closed on success, failure, and interrupt (SIGINT/Ctrl-C). Files are created `0o600`, directory `0o700`. Configurable via the new `buildLogs:` block in `~/.devopsmaestro/config.yaml` (enabled by default; 100 MB max size, 7-day retention, 10 backup files, gzip compression) ([#400](https://github.com/rmkohlman/devopsmaestro/issues/400))
+
+---
+
 ## v0.102.2 (2026-04-22)
 
 **Bug Fixes**

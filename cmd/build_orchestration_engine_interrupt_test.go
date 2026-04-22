@@ -23,6 +23,7 @@ package cmd
 import (
 	"context"
 	"database/sql"
+	"io"
 	"testing"
 	"time"
 
@@ -87,7 +88,7 @@ func TestBuildSession_MarkedInterruptedOnContextCancel(t *testing.T) {
 	defer cancel()
 
 	buildStarted := make(chan struct{}, len(workspaces))
-	slowBuildFn := func(ws *models.WorkspaceWithHierarchy) error {
+	slowBuildFn := func(ws *models.WorkspaceWithHierarchy, _ io.Writer) error {
 		buildStarted <- struct{}{}
 		select {
 		case <-ctx.Done():
@@ -151,7 +152,7 @@ func TestBuildSession_WorkspacesMarkedInterruptedOnContextCancel(t *testing.T) {
 	defer cancel()
 
 	buildStarted := make(chan struct{}, len(workspaces))
-	slowBuildFn := func(ws *models.WorkspaceWithHierarchy) error {
+	slowBuildFn := func(ws *models.WorkspaceWithHierarchy, _ io.Writer) error {
 		buildStarted <- struct{}{}
 		select {
 		case <-ctx.Done():
@@ -216,7 +217,7 @@ func TestBuildSession_QueuedWorkspacesMarkedCancelledOnContextCancel(t *testing.
 	defer cancel()
 
 	firstStarted := make(chan struct{}, 1)
-	slowBuildFn := func(ws *models.WorkspaceWithHierarchy) error {
+	slowBuildFn := func(ws *models.WorkspaceWithHierarchy, _ io.Writer) error {
 		select {
 		case firstStarted <- struct{}{}:
 		default:

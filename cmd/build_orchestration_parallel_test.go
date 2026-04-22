@@ -14,6 +14,7 @@ package cmd
 import (
 	"database/sql"
 	"errors"
+	"io"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -27,7 +28,7 @@ import (
 
 // buildOperatorFunc is a function type that simulates building one workspace.
 // Tests inject this to observe and control build behavior without real Docker.
-type buildOperatorFunc func(ws *models.WorkspaceWithHierarchy) error
+type buildOperatorFunc func(ws *models.WorkspaceWithHierarchy, logWriter io.Writer) error
 
 // =============================================================================
 // (c) Parallel Execution — Concurrency Bounded by --concurrency
@@ -42,7 +43,7 @@ func TestBuildOrchestration_ParallelExecution_CallsOperatorForEachWorkspace(t *t
 	workspaces := makeTestWorkspaceList(3)
 
 	var callCount atomic.Int32
-	operator := func(ws *models.WorkspaceWithHierarchy) error {
+	operator := func(ws *models.WorkspaceWithHierarchy, _ io.Writer) error {
 		callCount.Add(1)
 		return nil
 	}
@@ -68,7 +69,7 @@ func TestBuildOrchestration_ParallelExecution_BoundedByConcurrency(t *testing.T)
 	activeConcurrent := 0
 	peakConcurrent := 0
 
-	operator := func(ws *models.WorkspaceWithHierarchy) error {
+	operator := func(ws *models.WorkspaceWithHierarchy, _ io.Writer) error {
 		mu.Lock()
 		activeConcurrent++
 		if activeConcurrent > peakConcurrent {
@@ -106,7 +107,7 @@ func TestBuildOrchestration_ParallelExecution_IsActuallyParallel(t *testing.T) {
 
 	workspaces := makeTestWorkspaceList(numWorkspaces)
 
-	operator := func(ws *models.WorkspaceWithHierarchy) error {
+	operator := func(ws *models.WorkspaceWithHierarchy, _ io.Writer) error {
 		time.Sleep(workDuration)
 		return nil
 	}
@@ -140,7 +141,7 @@ func TestBuildOrchestration_FailureIsolation_OtherWorkspacesContinue(t *testing.
 	var builtWorkspaces []string
 	var mu sync.Mutex
 
-	operator := func(ws *models.WorkspaceWithHierarchy) error {
+	operator := func(ws *models.WorkspaceWithHierarchy, _ io.Writer) error {
 		if ws.Workspace.Name == failingWorkspace {
 			return errors.New("build failed: container error")
 		}
@@ -170,7 +171,7 @@ func TestBuildOrchestration_FailureIsolation_AllThreeFail(t *testing.T) {
 	workspaces := makeTestWorkspaceList(3)
 	var attemptCount atomic.Int32
 
-	operator := func(ws *models.WorkspaceWithHierarchy) error {
+	operator := func(ws *models.WorkspaceWithHierarchy, _ io.Writer) error {
 		attemptCount.Add(1)
 		return errors.New("build failed")
 	}
@@ -194,7 +195,7 @@ func TestBuildOrchestration_FailureIsolation_AllThreeFail(t *testing.T) {
 func TestBuildOrchestration_ExitCode_ZeroWhenAllSucceed(t *testing.T) {
 	workspaces := makeTestWorkspaceList(4)
 
-	operator := func(ws *models.WorkspaceWithHierarchy) error {
+	operator := func(ws *models.WorkspaceWithHierarchy, _ io.Writer) error {
 		return nil // all succeed
 	}
 
@@ -228,7 +229,7 @@ func TestBuildOrchestration_ExitCode_NonZeroOnPartialFailure(t *testing.T) {
 			}
 
 			i := 0
-			operator := func(ws *models.WorkspaceWithHierarchy) error {
+			operator := func(ws *models.WorkspaceWithHierarchy, _ io.Writer) error {
 				// Note: parallel execution means we can't rely on index ordering,
 				// but for this test we use workspace name as identity
 				if ws.Workspace.Name == workspaces[tt.failIndexes[0]].Workspace.Name {
@@ -259,7 +260,7 @@ func TestBuildOrchestration_DetachMode_ReturnsImmediately(t *testing.T) {
 	workspaces := makeTestWorkspaceList(3)
 
 	// Operator with significant delay — if detach doesn't work, test will be slow
-	slowOperator := func(ws *models.WorkspaceWithHierarchy) error {
+	slowOperator := func(ws *models.WorkspaceWithHierarchy, _ io.Writer) error {
 		time.Sleep(200 * time.Millisecond)
 		return nil
 	}
@@ -284,7 +285,7 @@ func TestBuildOrchestration_DetachMode_ReturnsImmediately(t *testing.T) {
 // RED: buildWorkspacesInParallelDetached does not exist yet.
 func TestBuildOrchestration_DetachMode_SessionIDIsUnique(t *testing.T) {
 	workspaces := makeTestWorkspaceList(1)
-	noop := func(ws *models.WorkspaceWithHierarchy) error { return nil }
+	noop := func(ws *models.WorkspaceWithHierarchy, _ io.Writer) error { return nil }
 
 	id1, err1 := buildWorkspacesInParallelDetached(workspaces, 1, noop)
 	id2, err2 := buildWorkspacesInParallelDetached(workspaces, 1, noop)

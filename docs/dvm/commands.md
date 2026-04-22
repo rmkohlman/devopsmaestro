@@ -548,6 +548,7 @@ The build command:
 - Sets the `USER` directive to the value of `container.user` (defaults to `dev` if unset)
 - Builds the image using the detected container platform and tags it as `dvm-<workspace>-<app>:<timestamp>`
 - Optionally pushes to local registry cache after build
+- Writes a **per-session build log** to `~/.devopsmaestro/logs/builds/<session-uuid>.log`; `latest.log` in that directory always symlinks to the most recent session (see [Build Logs](../build-architecture.md#build-logs))
 
 **Supported platforms:** OrbStack, Docker Desktop, Podman (Docker API); Colima with containerd (BuildKit API). Use the `DVM_PLATFORM` environment variable to select a specific platform.
 

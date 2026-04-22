@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"devopsmaestro/config"
 	"devopsmaestro/models"
+	"devopsmaestro/pkg/buildlog"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -42,7 +44,6 @@ func buildWorkspace(cmd *cobra.Command) error {
 	if err := bc.resolveWorkspaceTarget(); err != nil {
 		return err
 	}
-
 	// Dry-run: preview what would be built
 	if buildDryRun {
 		bc.renderPlain(fmt.Sprintf("Would build image for workspace %q in app %q", bc.workspaceName, bc.appName))
@@ -69,6 +70,38 @@ func buildWorkspace(cmd *cobra.Command) error {
 	sessionID := uuid.New().String()
 	buildStart := time.Now().UTC()
 	cleanupBuildSessions(sqlDS)
+
+	// --- Build log file (per-session, rotating) ---
+	// Open at session start; defer Close() so output flushes even on
+	// context cancellation. Tee bc.output (stdout) into the per-workspace
+	// log writer so every byte sent to the build's output sink is also
+	// captured in <dir>/<sessionID>.log.
+	cfg := config.GetConfig()
+	bl, blErr := buildlog.New(buildlog.Options{
+		Enabled:    cfg.BuildLogs.Enabled,
+		Directory:  cfg.BuildLogs.Directory,
+		MaxSizeMB:  cfg.BuildLogs.MaxSizeMB,
+		MaxAgeDays: cfg.BuildLogs.MaxAgeDays,
+		MaxBackups: cfg.BuildLogs.MaxBackups,
+		Compress:   cfg.BuildLogs.Compress,
+	})
+	if blErr != nil {
+		slog.Warn("buildlog init failed; build will run without file logging",
+			"session_id", sessionID, "error", blErr)
+		bl, _ = buildlog.New(buildlog.Options{Enabled: false})
+	}
+	if err := bl.Open(sessionID); err != nil {
+		slog.Warn("buildlog open failed; build will run without file logging",
+			"session_id", sessionID, "error", err)
+	}
+	defer func() {
+		if cerr := bl.Close(); cerr != nil {
+			slog.Warn("buildlog close failed", "session_id", sessionID, "error", cerr)
+		}
+	}()
+	if logWriter := bl.Writer(bc.workspace.Name); logWriter != nil {
+		bc.output = io.MultiWriter(os.Stdout, logWriter)
+	}
 
 	session := &models.BuildSession{
 		ID:              sessionID,

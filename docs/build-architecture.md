@@ -181,6 +181,65 @@ See [`dvm cache clear`](../dvm/commands.md#dvm-cache-clear) for the full flag re
 
 ---
 
+## Build Logs
+
+Every `dvm build` run writes a structured log file in addition to its terminal output.
+
+### File Layout
+
+```
+~/.devopsmaestro/logs/builds/
+├── latest.log -> 550e8400-e29b-41d4-a716-446655440000.log   # atomic symlink
+├── 550e8400-e29b-41d4-a716-446655440000.log                 # current session
+├── 3f2a1b00-c3d2-4e5f-a617-335566221100.log.gz              # rotated (compressed)
+└── ...
+```
+
+- Each session gets its own file named after the **build session UUID** (matching `dvm build status`)
+- `latest.log` is an atomic symlink updated at the start of every build — always points to the most recent session
+- Files are created with mode **`0o600`** (user-only read/write); the parent directory is **`0o700`**
+- Logs are flushed and closed cleanly on success, failure, **and** interrupt (Ctrl-C / SIGTERM)
+
+### Rotation
+
+Log rotation is handled by [lumberjack](https://github.com/natefinish/lumberjack). Old sessions are rotated when the file exceeds `maxSizeMB` and compressed in the background.
+
+### Configuration
+
+Add a `buildLogs:` block to `~/.devopsmaestro/config.yaml` to customise behaviour:
+
+```yaml
+buildLogs:
+  enabled: true                                    # set false to disable file logging
+  directory: ~/.devopsmaestro/logs/builds          # where log files are written
+  maxSizeMB: 100                                   # rotate when file exceeds this size
+  maxAgeDays: 7                                    # delete rotated files older than N days
+  maxBackups: 10                                   # keep at most N rotated files
+  compress: true                                   # gzip rotated files
+```
+
+All keys are optional — defaults are shown above.
+
+### Quick access
+
+```bash
+# Tail the current build log live
+tail -f ~/.devopsmaestro/logs/builds/latest.log
+
+# Open the log for a specific session
+cat ~/.devopsmaestro/logs/builds/<session-uuid>.log
+
+# List all stored build logs
+ls -lh ~/.devopsmaestro/logs/builds/
+```
+
+> ⚠️ **Security notice:** Build logs may contain sensitive data — environment variable values,
+> build args, tokens echoed by Makefiles, and other secrets passed to the build process.
+> Log files are stored `0o600` (owner read/write only), but **do not share raw build log files**
+> with others or upload them to public issue trackers without redacting secret values first.
+
+---
+
 ## SSH Agent Forwarding
 
 If your build needs SSH access (e.g., to clone private repos), attach with SSH agent forwarding:

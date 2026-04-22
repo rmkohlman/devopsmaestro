@@ -5,14 +5,17 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
 
+	"devopsmaestro/config"
 	"devopsmaestro/db"
 	"devopsmaestro/models"
+	"devopsmaestro/pkg/buildlog"
 
 	"github.com/google/uuid"
 )
@@ -37,13 +40,17 @@ func (e *BuildError) Error() string {
 // of individual failures (failure isolation). Returns nil if all succeed,
 // or an aggregate error describing which workspaces failed.
 //
+// buildFn receives the workspace and a per-workspace io.Writer that is
+// teed into the rotating build log file (see pkg/buildlog). When the
+// build log is disabled, the writer is io.Discard.
+//
 // When ds is non-nil, the function persists a BuildSession and per-workspace
 // entries to the DataStore. DB write failures are logged as warnings and
 // never abort the build (fire-and-forget).
 func buildWorkspacesInParallel(
 	workspaces []*models.WorkspaceWithHierarchy,
 	concurrency int,
-	buildFn func(ws *models.WorkspaceWithHierarchy) error,
+	buildFn func(ws *models.WorkspaceWithHierarchy, logWriter io.Writer) error,
 	ds ...db.DataStore,
 ) error {
 	if len(workspaces) == 0 {
@@ -69,6 +76,33 @@ func buildWorkspacesInParallel(
 	// --- Session persistence: create session before build ---
 	sessionID := uuid.New().String()
 	now := time.Now().UTC()
+
+	// --- Build log file (per-session, rotating) ---
+	// Open at session start; Close in defer below so the file flushes even
+	// when the build is interrupted via context cancellation (#399).
+	cfg := config.GetConfig()
+	bl, blErr := buildlog.New(buildlog.Options{
+		Enabled:    cfg.BuildLogs.Enabled,
+		Directory:  cfg.BuildLogs.Directory,
+		MaxSizeMB:  cfg.BuildLogs.MaxSizeMB,
+		MaxAgeDays: cfg.BuildLogs.MaxAgeDays,
+		MaxBackups: cfg.BuildLogs.MaxBackups,
+		Compress:   cfg.BuildLogs.Compress,
+	})
+	if blErr != nil {
+		slog.Warn("buildlog init failed; build will run without file logging",
+			"session_id", sessionID, "error", blErr)
+		bl, _ = buildlog.New(buildlog.Options{Enabled: false})
+	}
+	if err := bl.Open(sessionID); err != nil {
+		slog.Warn("buildlog open failed; build will run without file logging",
+			"session_id", sessionID, "error", err)
+	}
+	defer func() {
+		if cerr := bl.Close(); cerr != nil {
+			slog.Warn("buildlog close failed", "session_id", sessionID, "error", cerr)
+		}
+	}()
 
 	if store != nil {
 		// GC: clean up sessions older than 30 days
@@ -154,8 +188,11 @@ func buildWorkspacesInParallel(
 				}
 			}
 
-			// Execute the build
-			buildErr := buildFn(w)
+			// Execute the build, passing a per-workspace writer that is
+			// teed into the rotating build log file. Callers can MultiWriter
+			// this with their own stdout sink.
+			logWriter := bl.Writer(w.Workspace.Name)
+			buildErr := buildFn(w, logWriter)
 			wsEnd := time.Now().UTC()
 			duration := int64(wsEnd.Sub(wsStart).Seconds())
 
@@ -296,7 +333,7 @@ func buildWorkspacesInParallel(
 func buildWorkspacesInParallelDetached(
 	workspaces []*models.WorkspaceWithHierarchy,
 	concurrency int,
-	buildFn func(ws *models.WorkspaceWithHierarchy) error,
+	buildFn func(ws *models.WorkspaceWithHierarchy, logWriter io.Writer) error,
 ) (string, error) {
 	sessionID := uuid.New().String()
 

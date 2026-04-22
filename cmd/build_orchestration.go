@@ -103,7 +103,7 @@ func runParallelBuild(cmd *cobra.Command) error {
 	// with context.Canceled, which the orchestration engine maps to the
 	// "interrupted"/"cancelled" workspace statuses and an "interrupted" session.
 	ctx := cmd.Context()
-	buildFn := func(ws *models.WorkspaceWithHierarchy) error {
+	buildFn := func(ws *models.WorkspaceWithHierarchy, logWriter io.Writer) error {
 		if ctx != nil {
 			if err := ctx.Err(); err != nil {
 				return err
@@ -111,7 +111,18 @@ func runParallelBuild(cmd *cobra.Command) error {
 		}
 		var buf bytes.Buffer
 		buf.WriteString(fmt.Sprintf("\n─── Building: %s/%s ───\n", ws.App.Name, ws.Workspace.Name))
-		err := buildSingleWorkspaceForParallel(ds, ws, &buf)
+
+		// Tee per-workspace output into the rotating build log file. The
+		// orchestration engine supplies logWriter (io.Discard when build
+		// logging is disabled). buildSingleWorkspaceForParallel writes its
+		// output to a single sink; we wrap the workspace buffer + the log
+		// writer so both receive every byte without coupling the per-build
+		// pipeline to the logger.
+		var sink io.Writer = &buf
+		if logWriter != nil {
+			sink = io.MultiWriter(&buf, logWriter)
+		}
+		err := buildSingleWorkspaceForParallel(ds, ws, sink)
 
 		// Flush the entire workspace output atomically
 		outputMu.Lock()

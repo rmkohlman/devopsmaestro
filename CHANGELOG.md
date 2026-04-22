@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.103.0] - 2026-04-22
+
+### Added
+- **Dedicated build log file with rotation** (`pkg/buildlog/`)  — every `dvm build` run writes a structured log to `~/.devopsmaestro/logs/builds/<session-uuid>.log`; an atomic `latest.log` symlink always points to the current session. Powered by [lumberjack](https://github.com/natefinish/lumberjack) with configurable rotation ([#400](https://github.com/rmkohlman/devopsmaestro/issues/400))
+  - Log files are created with mode `0o600`, the parent directory with `0o700`
+  - Logs are flushed and closed on success, failure, **and** interrupt (SIGINT)
+  - New `buildLogs:` block in `~/.devopsmaestro/config.yaml`:
+    - `enabled` (default: `true`)
+    - `directory` (default: `~/.devopsmaestro/logs/builds`)
+    - `maxSizeMB` (default: `100`)
+    - `maxAgeDays` (default: `7`)
+    - `maxBackups` (default: `10`)
+    - `compress` (default: `true` — gzip rotate files)
+
+---
+
 ## [v0.102.2] - 2026-04-22
 
 ### Bug Fixes

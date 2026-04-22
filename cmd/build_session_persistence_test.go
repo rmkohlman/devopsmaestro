@@ -29,6 +29,7 @@ package cmd
 
 import (
 	"database/sql"
+	"io"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -94,7 +95,7 @@ func TestBuildSessionPersistence_SessionCreatedAfterBuild(t *testing.T) {
 
 	// Simulate runParallelBuild by calling the engine directly.
 	// A real implementation would call CreateBuildSession before this.
-	nopBuildFn := func(ws *models.WorkspaceWithHierarchy) error {
+	nopBuildFn := func(ws *models.WorkspaceWithHierarchy, _ io.Writer) error {
 		return nil
 	}
 	buildErr := buildWorkspacesInParallel(workspaces, 2, nopBuildFn, store)
@@ -137,7 +138,7 @@ func TestBuildSessionPersistence_WorkspaceEntriesCreated(t *testing.T) {
 	workspaces, err := resolveWorkspacesForParallelBuild(store, flags, true)
 	require.NoError(t, err)
 
-	nopBuildFn := func(ws *models.WorkspaceWithHierarchy) error {
+	nopBuildFn := func(ws *models.WorkspaceWithHierarchy, _ io.Writer) error {
 		return nil
 	}
 	require.NoError(t, buildWorkspacesInParallel(workspaces, 2, nopBuildFn, store))
@@ -170,7 +171,7 @@ func TestBuildSessionPersistence_WorkspaceEntriesShowSuccessStatus(t *testing.T)
 	workspaces, err := resolveWorkspacesForParallelBuild(store, flags, true)
 	require.NoError(t, err)
 
-	nopBuildFn := func(ws *models.WorkspaceWithHierarchy) error {
+	nopBuildFn := func(ws *models.WorkspaceWithHierarchy, _ io.Writer) error {
 		return nil
 	}
 	require.NoError(t, buildWorkspacesInParallel(workspaces, 2, nopBuildFn, store))
@@ -206,7 +207,7 @@ func TestBuildSessionPersistence_FailedBuildTracked(t *testing.T) {
 
 	callCount := int32(0)
 	// First workspace fails, rest succeed
-	failingBuildFn := func(ws *models.WorkspaceWithHierarchy) error {
+	failingBuildFn := func(ws *models.WorkspaceWithHierarchy, _ io.Writer) error {
 		if atomic.AddInt32(&callCount, 1) == 1 {
 			return assert.AnError // simulate build failure
 		}
@@ -253,7 +254,7 @@ func TestBuildSessionPersistence_WorkspaceImageUpdatedAfterBuild(t *testing.T) {
 
 	// After build, images should be updated (real buildFn would set imageTag)
 	// For test purposes, we verify the orchestration calls UpdateWorkspaceImage.
-	nopBuildFn := func(ws *models.WorkspaceWithHierarchy) error {
+	nopBuildFn := func(ws *models.WorkspaceWithHierarchy, _ io.Writer) error {
 		return nil
 	}
 	require.NoError(t, buildWorkspacesInParallel(workspaces, 2, nopBuildFn, store))
@@ -334,7 +335,7 @@ func TestBuildSessionPersistence_SessionHasValidUUID(t *testing.T) {
 	workspaces, err := resolveWorkspacesForParallelBuild(store, flags, true)
 	require.NoError(t, err)
 
-	nopBuildFn := func(ws *models.WorkspaceWithHierarchy) error {
+	nopBuildFn := func(ws *models.WorkspaceWithHierarchy, _ io.Writer) error {
 		return nil
 	}
 	require.NoError(t, buildWorkspacesInParallel(workspaces, 1, nopBuildFn, store))
@@ -369,7 +370,7 @@ func TestBuildSessionPersistence_SessionStartedAtIsSet(t *testing.T) {
 	workspaces, err := resolveWorkspacesForParallelBuild(store, flags, true)
 	require.NoError(t, err)
 
-	nopBuildFn := func(ws *models.WorkspaceWithHierarchy) error {
+	nopBuildFn := func(ws *models.WorkspaceWithHierarchy, _ io.Writer) error {
 		return nil
 	}
 	require.NoError(t, buildWorkspacesInParallel(workspaces, 1, nopBuildFn, store))
@@ -435,7 +436,7 @@ func TestBuildSessionPersistence_FailedBuildRecordsImageTag(t *testing.T) {
 	// buildFn simulates a build that computes an image name (the fix in
 	// buildSingleWorkspaceForParallel sets ws.Workspace.ImageName BEFORE
 	// returning the error). We replicate that exact contract here.
-	failingBuildFn := func(ws *models.WorkspaceWithHierarchy) error {
+	failingBuildFn := func(ws *models.WorkspaceWithHierarchy, _ io.Writer) error {
 		ws.Workspace.ImageName = attemptedTag // fix: set BEFORE error return
 		return assert.AnError                 // simulate Docker build failure
 	}
@@ -477,7 +478,7 @@ func TestBuildSessionStatus_CompletedAfterAllWorkspacesSucceed(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, workspaces, 2)
 
-	nopBuildFn := func(ws *models.WorkspaceWithHierarchy) error {
+	nopBuildFn := func(ws *models.WorkspaceWithHierarchy, _ io.Writer) error {
 		return nil
 	}
 
@@ -510,7 +511,7 @@ func TestBuildSessionStatus_CountsCorrectAfterMixedResults(t *testing.T) {
 
 	callCount := int32(0)
 	// First workspace fails, the other two succeed
-	mixedBuildFn := func(ws *models.WorkspaceWithHierarchy) error {
+	mixedBuildFn := func(ws *models.WorkspaceWithHierarchy, _ io.Writer) error {
 		if atomic.AddInt32(&callCount, 1) == 1 {
 			return assert.AnError
 		}

@@ -13,11 +13,23 @@ type VaultConfig struct {
 	Token string `mapstructure:"token"` // Vault token (can also be set via MAV_TOKEN env or .vault_token file)
 }
 
+// BuildLogsConfig controls per-session build log file capture and rotation.
+// See pkg/buildlog for the implementation.
+type BuildLogsConfig struct {
+	Enabled    bool   `mapstructure:"enabled"`    // default true
+	Directory  string `mapstructure:"directory"`  // default ~/.devopsmaestro/logs/builds
+	MaxSizeMB  int    `mapstructure:"maxSizeMB"`  // default 100
+	MaxAgeDays int    `mapstructure:"maxAgeDays"` // default 7
+	MaxBackups int    `mapstructure:"maxBackups"` // default 10
+	Compress   bool   `mapstructure:"compress"`   // default true
+}
+
 // Config represents the application configuration
 type Config struct {
-	Theme       string      `mapstructure:"theme"`       // UI theme (auto, catppuccin-mocha, etc.)
-	Credentials Credentials `mapstructure:"credentials"` // Global credentials for builds
-	Vault       VaultConfig `mapstructure:"vault"`       // MaestroVault configuration
+	Theme       string          `mapstructure:"theme"`       // UI theme (auto, catppuccin-mocha, etc.)
+	Credentials Credentials     `mapstructure:"credentials"` // Global credentials for builds
+	Vault       VaultConfig     `mapstructure:"vault"`       // MaestroVault configuration
+	BuildLogs   BuildLogsConfig `mapstructure:"buildLogs"`   // Build log capture / rotation
 }
 
 // GetConfig returns the current configuration
@@ -72,6 +84,12 @@ func LoadConfig(configPath string) {
 
 	// Set defaults
 	viper.SetDefault("theme", "auto")
+	viper.SetDefault("buildLogs.enabled", true)
+	viper.SetDefault("buildLogs.directory", "~/.devopsmaestro/logs/builds")
+	viper.SetDefault("buildLogs.maxSizeMB", 100)
+	viper.SetDefault("buildLogs.maxAgeDays", 7)
+	viper.SetDefault("buildLogs.maxBackups", 10)
+	viper.SetDefault("buildLogs.compress", true)
 
 	err := viper.ReadInConfig()
 	if err != nil {
