@@ -2,6 +2,18 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.104.0 (2026-04-22)
+
+**Added**
+- **AppKind auto-detection for YAML/CICD apps** — a new `AppKind` axis (`CICD` / `Language` / `Unknown`) runs before language detection. CICD apps are identified by `Chart.yaml`, `kustomization.yaml/yml/Kustomization`, `.argocd/`, `Application`/`HelmRelease` resource kinds, app-name heuristics, or a yaml-only repo. Detection signals follow a defined precedence order ([#404](https://github.com/rmkohlman/devopsmaestro/issues/404))
+- **Minimal CICD Dockerfile path** — CICD apps build from `alpine:3.20` (pinned digest) with kubectl, helm, and kustomize via SHA256-checksummed builder stages. ArgoCD CLI is included only when `.argocd/` is present. Runs as non-root; skips Neovim/Tree-sitter/Go-tools/opencode builders; retains Lazygit and Starship ([#404](https://github.com/rmkohlman/devopsmaestro/issues/404))
+- **`spec.build.kind` App config field** — enum `cicd | language | auto` (default: `auto`). Force the CICD image path with `cicd`, or force language detection with `language` ([#404](https://github.com/rmkohlman/devopsmaestro/issues/404))
+
+**Fixed**
+- **Build no longer fails for YAML-only apps** — apps that previously fell into the generic `ubuntu+backports` path (causing `apt-get` exit code 100) are now correctly routed to the minimal CICD image path when CICD signals are detected ([#404](https://github.com/rmkohlman/devopsmaestro/issues/404))
+
+---
+
 ## v0.103.1 (2026-04-22)
 
 **Bug Fixes**

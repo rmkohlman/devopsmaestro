@@ -234,6 +234,40 @@ Build sessions older than 30 days are cleaned up automatically. Query the most r
 
 ---
 
+## AppKind Detection (`utils/appkind/`)
+
+**AppKind runs before language detection and selects the Dockerfile path**
+
+```
+  cmd/build.go               utils/appkind/
+ ┌──────────────────┐    ┌──────────────────────────────────┐
+ │  Detect AppKind  │───►│  Detect(appPath, spec) AppKind   │
+ └──────────────────┘    └──────────────┬───────────────────┘
+                                        │
+              ┌─────────────────────────┼─────────────────────────┐
+              ▼                         ▼                         ▼
+       ┌────────────┐           ┌────────────────┐         ┌────────────┐
+       │   CICD     │           │    Language    │         │  Unknown   │
+       │            │           │                │         │            │
+       │ alpine:3.20│           │ language-spec  │         │  fallback  │
+       │ kubectl    │           │ Dockerfile     │         │  path      │
+       │ helm       │           └────────────────┘         └────────────┘
+       │ kustomize  │
+       │ [argocd]   │
+       └────────────┘
+```
+
+**Detection signal precedence (highest → lowest):**
+1. `spec.build.kind: cicd` — explicit App YAML override
+2. `.argocd/` directory present
+3. `Chart.yaml` (Helm chart)
+4. `kustomization.yaml` / `kustomization.yml` / `Kustomization`
+5. `Application` or `HelmRelease` resource kinds in YAML files
+6. App-name heuristic (contains `argocd`, `flux`, `gitops`, etc.)
+7. YAML-only repo (no source code files)
+
+Set `spec.build.kind: language` to force language detection even when CICD signals are present. Set `spec.build.kind: auto` (default) to let detection run automatically.
+
 ## NvimOps Layer
 
 **Standalone package for Neovim plugin management**
@@ -269,6 +303,7 @@ Build sessions older than 30 days are cleaned up automatically. Query the most r
 | `db/` | `Driver` | `NewDriver()` | `MemoryDriver` |
 | `operators/` | `ContainerRuntime` | `NewContainerRuntime()` | `MockRuntime` |
 | `builders/` | `ImageBuilder` | `NewImageBuilder()` | - |
+| `utils/appkind/` | — | `Detect(path, spec)` | - |
 | `pkg/nvimops/store/` | `PluginStore` | per-type constructor | `MemoryStore` |
 | `pkg/secrets/` | `SecretProvider` | `NewSecretProviderFactory()` | `MockSecretProvider` |
 | `pkg/resource/` | `Handler` | `resource.Register()` | - |
@@ -304,6 +339,10 @@ builders/
 ├── factory.go            # NewImageBuilder()
 ├── docker_builder.go     # DockerBuilder impl
 └── buildkit_builder.go   # BuildKitBuilder impl
+
+utils/appkind/
+└── appkind.go            # Detect(appPath, spec) → AppKind (CICD / Language / Unknown)
+                          # Signal checkers: chart, kustomize, argocd, resource kinds, yaml-only heuristic
 
 pkg/nvimops/store/
 ├── interface.go          # PluginStore interface

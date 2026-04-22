@@ -77,6 +77,11 @@ type AppBuildConfig struct {
 	CACerts    []CACertConfig    `yaml:"caCerts,omitempty" json:"caCerts,omitempty"`       // CA certificates to inject
 	Target     string            `yaml:"target,omitempty" json:"target,omitempty"`         // Build target stage
 	Context    string            `yaml:"context,omitempty" json:"context,omitempty"`       // Build context path
+	// Kind overrides AppKind detection (#404). Values: "cicd", "language", "auto" (default).
+	// "cicd"     → force CICD build path (alpine + kubectl/helm/kustomize)
+	// "language" → force language detection (legacy ubuntu/alpine path)
+	// "auto" (or empty) → run signal-based detection
+	Kind string `yaml:"kind,omitempty" json:"kind,omitempty"`
 }
 
 // IsEmpty returns true if all fields of AppBuildConfig are zero/empty.
@@ -86,7 +91,19 @@ func (c AppBuildConfig) IsEmpty() bool {
 		len(c.Args) == 0 &&
 		len(c.CACerts) == 0 &&
 		c.Target == "" &&
-		c.Context == ""
+		c.Context == "" &&
+		c.Kind == ""
+}
+
+// GetKind returns the app's build-kind override from spec.build.kind (#404).
+// Returns "auto" if unset, allowing appkind.Detect() to use signal-based detection.
+// Valid values: "cicd", "language", "auto".
+func (a *App) GetKind() string {
+	cfg := a.GetBuildConfig()
+	if cfg == nil || cfg.Kind == "" {
+		return "auto"
+	}
+	return cfg.Kind
 }
 
 // AppDependencies defines where the app's dependencies come from

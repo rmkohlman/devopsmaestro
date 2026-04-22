@@ -54,6 +54,11 @@ type buildContext struct {
 	languageName string
 	version      string
 
+	// AppKind detection (#404). appKind ∈ {"cicd","language","unknown"}.
+	// argoCDDetected is true when the .argocd/ directory was found at the app root.
+	appKind        string
+	argoCDDetected bool
+
 	// Nvim
 	pluginManifest *plugin.PluginManifest
 

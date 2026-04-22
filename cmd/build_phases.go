@@ -20,6 +20,7 @@ import (
 	"devopsmaestro/pkg/registry/envinjector"
 	wsresolver "devopsmaestro/pkg/resolver"
 	"devopsmaestro/utils"
+	"devopsmaestro/utils/appkind"
 
 	"github.com/google/uuid"
 	"github.com/rmkohlman/MaestroSDK/paths"
@@ -232,10 +233,26 @@ func (bc *buildContext) prepareSourceAndStaging() error {
 		return fmt.Errorf("failed to determine build source path: %w", err)
 	}
 
-	// Detect language (use App.Language if set, fall back to auto-detection)
-	bc.renderBlank()
-	bc.renderProgress("Detecting app language...")
-	bc.languageName, bc.version, _ = bc.detectLanguageAndReport()
+	// Detect AppKind first (#404). For CICD apps we skip language detection
+	// entirely and use the alpine + kubectl/helm/kustomize build path.
+	kind, evidence, _ := appkind.Detect(bc.sourcePath, bc.app, bc.app.GetKind())
+	bc.appKind = string(kind)
+	for _, s := range evidence.Signals {
+		if strings.HasPrefix(s, "signal3:") {
+			bc.argoCDDetected = true
+			break
+		}
+	}
+
+	if kind == appkind.KindCICD {
+		bc.renderBlank()
+		bc.renderProgress("Detected CICD app (YAML/Helm/Kustomize/Argo/Flux) — skipping language detection")
+	} else {
+		// Detect language (use App.Language if set, fall back to auto-detection)
+		bc.renderBlank()
+		bc.renderProgress("Detecting app language...")
+		bc.languageName, bc.version, _ = bc.detectLanguageAndReport()
+	}
 
 	// Use the workspace slug (ecosystem-domain-system-app-workspace) plus a
 	// per-invocation UUID to ensure each concurrent build gets its own
@@ -366,6 +383,8 @@ func (bc *buildContext) generateDockerfileAndResolveArgs() error {
 		PathConfig:          paths.New(bc.homeDir),
 		PrivateRepoInfo:     privateRepoInfo,
 		AdditionalBuildArgs: additionalBuildArgNames,
+		AppKind:             bc.appKind,
+		ArgoCDDetected:      bc.argoCDDetected,
 	})
 
 	if bc.pluginManifest != nil {

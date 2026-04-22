@@ -15,6 +15,51 @@ Each workspace has a Dockerfile generated from its YAML configuration. The build
 
 ---
 
+## App Kinds
+
+Every build begins with an **AppKind** determination, which runs *before* language detection. AppKind classifies the app into one of three buckets and selects the Dockerfile path accordingly.
+
+| AppKind | Dockerfile path | Triggered by |
+|---------|----------------|--------------|
+| `CICD` | Minimal Alpine image — kubectl + helm + kustomize | Detection signals (see below) or `spec.build.kind: cicd` |
+| `Language` | Language-specific image (Go, Python, Node, …) | Explicit `spec.language.name` or language files detected |
+| `Unknown` | Generic fallback image | No signals found; falls back to language detection |
+
+AppKind is a **parallel axis** to language detection — it answers "what kind of app is this?" before asking "what language does it use?". When AppKind resolves to `CICD`, language detection is skipped entirely.
+
+### CICD Detection Signals (precedence order)
+
+1. **`spec.build.kind: cicd`** — explicit override in App YAML (highest priority)
+2. **`.argocd/` directory** — ArgoCD application directory present
+3. **`Chart.yaml`** — Helm chart root
+4. **`kustomization.yaml` / `kustomization.yml` / `Kustomization`** — Kustomize overlay root
+5. **`Application` or `HelmRelease` resource kinds** — GitOps CRD manifests found in YAML files
+6. **App-name heuristic** — app name contains `argocd`, `flux`, `gitops`, or similar tokens
+7. **YAML-only repo** — the repository contains only `.yaml`/`.yml` files (no source code files)
+
+When multiple signals are present, the highest-priority signal wins. `spec.build.kind: language` forces language detection even when CICD signals are present.
+
+### CICD Image Contents
+
+The CICD Dockerfile path builds from `alpine:3.20` (pinned by digest) and includes:
+
+| Tool | Source |
+|------|--------|
+| `kubectl` | SHA256-checksummed builder stage |
+| `helm` | SHA256-checksummed builder stage |
+| `kustomize` | SHA256-checksummed builder stage |
+| `argocd` CLI | SHA256-checksummed builder stage — **only when `.argocd/` is present** |
+| `lazygit` | Standard builder stage |
+| `starship` | Standard builder stage |
+
+The following builder stages are **skipped** for CICD apps: `neovim-builder`, `treesitter-builder`, `go-tools-builder`, `opencode-builder`.
+
+The final image runs as a non-root user. Build cache mounts are preserved for the `apk` package manager via `--mount=type=cache`.
+
+> **Override:** Set `spec.build.kind: language` in the App YAML to force language detection even when CICD signals are present. Set `spec.build.kind: cicd` to force the CICD path regardless of signals. See [App YAML Reference — spec.build.kind](../reference/app.md#specbuildkind-optional).
+
+---
+
 ## Build Commands
 
 ```bash

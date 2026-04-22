@@ -105,6 +105,9 @@ type DefaultDockerfileGenerator struct {
 	isAlpine            bool // computed in generateBaseStage() based on the actual image chosen
 	privateRepoInfo     *utils.PrivateRepoInfo
 	additionalBuildArgs []string // Extra ARG names to declare in the Dockerfile (names only, not values)
+	// appKind drives top-level dispatch; see #404.
+	appKind        string
+	argoCDDetected bool
 }
 
 // DockerfileGeneratorOptions contains all configuration for creating a DockerfileGenerator.
@@ -119,6 +122,13 @@ type DockerfileGeneratorOptions struct {
 	PathConfig          *paths.PathConfig      // Injected for filesystem operations (nil = fallback to os.UserHomeDir)
 	PrivateRepoInfo     *utils.PrivateRepoInfo // Injected for system dep detection (nil = auto-detect at build time)
 	AdditionalBuildArgs []string               // Extra ARG names to declare in the Dockerfile (names only, not values)
+	// AppKind drives the top-level dispatch: KindCICD routes to generateCICDStage(),
+	// KindLanguage routes to the existing language switch, KindUnknown falls back to ubuntu.
+	// Populated by the caller after running utils/appkind.Detect(). See #404.
+	AppKind string
+	// ArgoCDDetected is true when .argocd/ directory is present in the source tree.
+	// When true, the KindCICD path includes the argocd CLI builder stage. See #404.
+	ArgoCDDetected bool
 }
 
 // NewDockerfileGenerator creates a new Dockerfile generator.
@@ -135,6 +145,8 @@ func NewDockerfileGenerator(opts DockerfileGeneratorOptions) DockerfileGenerator
 		pathConfig:          opts.PathConfig,
 		privateRepoInfo:     opts.PrivateRepoInfo,
 		additionalBuildArgs: opts.AdditionalBuildArgs,
+		appKind:             opts.AppKind,
+		argoCDDetected:      opts.ArgoCDDetected,
 	}
 }
 
@@ -149,6 +161,13 @@ func (g *DefaultDockerfileGenerator) SetPluginManifest(manifest *plugin.PluginMa
 func (g *DefaultDockerfileGenerator) Generate() (string, error) {
 	if g.workspace == nil {
 		return "", fmt.Errorf("workspace must not be nil")
+	}
+
+	// CICD apps (YAML/Helm/Kustomize/Argo/Flux) get a small Alpine image with
+	// pinned kubectl/helm/kustomize (and optional argocd) instead of the
+	// language-oriented Ubuntu base. See ticket #404.
+	if g.appKind == "cicd" {
+		return g.generateCICDDockerfile()
 	}
 
 	var dockerfile strings.Builder
@@ -1238,6 +1257,12 @@ type builderStage struct {
 // for this workspace configuration. This is the single source of truth: both
 // generateBuilderStages() and copyFromBuilders() iterate this list.
 func (g *DefaultDockerfileGenerator) activeBuilderStages() []builderStage {
+	// CICD apps use a curated set of cluster tooling builders (kubectl, helm,
+	// kustomize, optional argocd) — see ticket #404.
+	if g.appKind == "cicd" {
+		return g.cicdBuilderStages()
+	}
+
 	isAlpine := g.isAlpineImage()
 	var stages []builderStage
 

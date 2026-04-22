@@ -32,6 +32,7 @@ spec:
     name: go
     version: "1.22"
   build:
+    kind: auto
     dockerfile: ./Dockerfile
     target: production
     context: .
@@ -96,6 +97,7 @@ spec:
 | `spec.language.name` | string | ❌ | Language name: `go`, `python`, `node`, `rust`, `java`, `dotnet` |
 | `spec.language.version` | string | ❌ | Language version (e.g., `"1.22"`, `"3.11"`, `"20"`) |
 | `spec.build` | object | ❌ | Build configuration |
+| `spec.build.kind` | string | ❌ | Build kind override: `cicd`, `language`, or `auto` (default: `auto`) — controls Dockerfile path selection |
 | `spec.build.dockerfile` | string | ❌ | Path to an existing Dockerfile |
 | `spec.build.buildpack` | string | ❌ | Buildpack to use (`auto`, `go`, `python`, `node`, etc.) |
 | `spec.build.target` | string | ❌ | Multi-stage Dockerfile build target |
@@ -205,6 +207,7 @@ Build configuration for containerization.
 ```yaml
 spec:
   build:
+    kind: auto                    # cicd | language | auto (default: auto)
     dockerfile: ./Dockerfile       # Path to Dockerfile
     buildpack: auto               # Or: go, python, node, etc.
     target: production            # Multi-stage build target
@@ -216,6 +219,36 @@ spec:
       - name: corp-root-ca
         vaultSecret: corp-root-ca-pem
 ```
+
+### spec.build.kind (optional)
+
+Controls which Dockerfile path `dvm build` selects for this app.
+
+| Value | Behavior |
+|-------|----------|
+| `auto` | Auto-detect: check for CICD signals first, fall back to language detection (default) |
+| `cicd` | Force the minimal CICD image path (alpine + kubectl/helm/kustomize) regardless of signals |
+| `language` | Force language detection even when CICD signals (Chart.yaml, .argocd/, etc.) are present |
+
+**When to override:**
+
+- Set `kind: cicd` for an ArgoCD or Flux app whose signals might not be in the repo root (e.g., manifests in a sub-directory).
+- Set `kind: language` for a monorepo that contains both source code and Helm charts in the same directory but needs a full language image.
+- Leave unset (`auto`) for the vast majority of apps — detection is accurate for standard layouts.
+
+```yaml
+# Force CICD image path
+spec:
+  build:
+    kind: cicd
+
+# Force language detection (even if Chart.yaml is present)
+spec:
+  build:
+    kind: language
+```
+
+See [Build Architecture — App Kinds](../build-architecture.md#app-kinds) for the full detection signal precedence.
 
 ### spec.build.caCerts (optional)
 
@@ -322,6 +355,25 @@ spec:
 ```
 
 ## Language-Specific Examples
+
+### ArgoCD / CICD App
+
+```yaml
+apiVersion: devopsmaestro.io/v1
+kind: App
+metadata:
+  name: beans-lab-north-argoco
+  domain: platform
+  ecosystem: my-platform
+spec:
+  path: /Users/dev/projects/beans-lab-north-argoco
+  build:
+    kind: cicd   # Force minimal alpine + kubectl/helm/kustomize image
+  workspaces:
+    - dev
+```
+
+> **Tip:** For most CICD repos the `kind: cicd` override is not required — AppKind auto-detection picks up `Chart.yaml`, `kustomization.yaml`, `.argocd/`, and similar signals automatically. Set it explicitly only when the layout is non-standard.
 
 ### Go/Golang App
 

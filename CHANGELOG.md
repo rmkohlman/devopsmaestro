@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.104.0] - 2026-04-22
+
+### Added
+- **AppKind auto-detection for YAML/CICD apps** (`utils/appkind/`) — a new `AppKind` axis (`CICD` / `Language` / `Unknown`) is evaluated *before* language detection. CICD apps are identified by the presence of `Chart.yaml`, `kustomization.yaml` / `kustomization.yml` / `Kustomization`, `.argocd/`, `Application` or `HelmRelease` resource kinds, an app-name heuristic, or a yaml-only repo (ArgoCD, Flux, plain Kubernetes). Detection signals follow a defined precedence order ([#404](https://github.com/rmkohlman/devopsmaestro/issues/404))
+- **Minimal CICD Dockerfile path** — CICD apps build from `alpine:3.20` (pinned digest) with kubectl, helm, and kustomize installed via SHA256-checksummed builder stages. The ArgoCD CLI is included only when `.argocd/` is present. The image runs as a non-root user and skips the Neovim, Tree-sitter, Go-tools, and opencode builder stages. Lazygit and Starship are retained ([#404](https://github.com/rmkohlman/devopsmaestro/issues/404))
+- **`spec.build.kind` App config field** — enum `cicd | language | auto` (default: `auto`) under `spec.build.kind`. Set to `cicd` to force the minimal CICD image path; set to `language` to force language detection even when CICD signals are present. Lives under `spec.build` (not top-level `spec`) ([#404](https://github.com/rmkohlman/devopsmaestro/issues/404))
+
+### Fixed
+- **Build no longer fails for YAML-only apps** — apps that previously fell into the generic `ubuntu+backports` path (causing `apt-get` exit code 100 failures) are now correctly routed to the minimal CICD image path when CICD signals are detected ([#404](https://github.com/rmkohlman/devopsmaestro/issues/404))
+
+---
+
 ## [v0.103.1] - 2026-04-22
 
 ### Bug Fixes

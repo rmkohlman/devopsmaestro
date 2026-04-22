@@ -52,3 +52,34 @@ const golangciLintChecksumArm64 = "ee3d95f301359e7d578e6d99c8ad5aeadbabc5a13009a
 const opencodeVersion = "1.2.27"
 const opencodeChecksumArm64 = "7da2618b210f9e29b746e6b863716d9d77d3484a343846b16828686babdf1dd1"
 const opencodeChecksumAmd64 = "660f7319f748a66bda1748c1e7ae74dade1ba3837e6c181263506d88e7b5a4b6"
+
+// --- kubectl (KindCICD app builder) ---
+// https://kubernetes.io/releases/
+// Pinned upstream release; checksum from https://dl.k8s.io/release/vX.Y.Z/bin/linux/<arch>/kubectl.sha256
+// To refresh: bump kubectlVersion, fetch the two .sha256 files for amd64/arm64.
+// Compatibility: CLI must be within ±1 minor of cluster control-plane version.
+const kubectlVersion = "1.31.4"
+const kubectlChecksumAmd64 = "298e19e9c6c17199011404278f0ff8168a7eca4217edad9097af577023a5620f"
+const kubectlChecksumArm64 = "b97e93c20e3be4b8c8fa1235a41b4d77d4f2022ed3d899230dbbbbd43d26f872"
+
+// --- helm (KindCICD app builder) ---
+// https://github.com/helm/helm/releases
+// Checksums from https://get.helm.sh/helm-vX.Y.Z-linux-<arch>.tar.gz.sha256sum
+const helmVersion = "3.16.3"
+const helmChecksumAmd64 = "f5355c79190951eed23c5432a3b920e071f4c00a64f75e077de0dd4cb7b294ea"
+const helmChecksumArm64 = "5bd34ed774df6914b323ff84a0a156ea6ff2ba1eaf0113962fa773f3f9def798"
+
+// --- kustomize (KindCICD app builder) ---
+// https://github.com/kubernetes-sigs/kustomize/releases
+// Checksums from the release's checksums.txt asset.
+const kustomizeVersion = "5.5.0"
+const kustomizeChecksumAmd64 = "6703a3a70a0c47cf0b37694030b54f1175a9dfeb17b3818b623ed58b9dbc2a77"
+const kustomizeChecksumArm64 = "b4170d1acb8cfacace9f72884bef957ff56efdcd4813b66e7604aabc8b57e93d"
+
+// --- argocd CLI (KindCICD app builder, conditional on .argocd/) ---
+// https://github.com/argoproj/argo-cd/releases
+// Checksums from the release's cli_checksums.txt asset.
+// Compatibility: CLI must be ≤ server +1 minor — bump cautiously.
+const argocdVersion = "2.13.1"
+const argocdChecksumAmd64 = "8e436f0429d2a88b3181d2cfc460c034070e0ee1c665467271e5d75eb4d55f7f"
+const argocdChecksumArm64 = "76cbc9044c6c8f989302e0354516a95b485e1c9c5eba431fef6a669b2fbd3be4"
