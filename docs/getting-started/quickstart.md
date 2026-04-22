@@ -73,8 +73,11 @@ dvt wezterm use minimal   # For distraction-free terminal
 ### Step 5: Generate Shell Profile
 
 ```bash
-# Generate shell prompt configuration
-dvt profile generate myprofile --output ~/.config
+# Import a profile preset first (choose: default, minimal, or power-user)
+dvt profile preset import default
+
+# Generate shell prompt configuration files
+dvt profile generate default --output-dir ~/.config
 
 # Add to your shell configuration
 echo 'source ~/.config/.zshrc.dvt' >> ~/.zshrc
@@ -103,7 +106,8 @@ dvm create workspace main
 nvp config generate          # Neovim config
 nvp theme generate           # Theme files  
 dvt wezterm use minimal    # Terminal config
-dvt profile generate myprofile --output ~/.config
+dvt profile preset import default
+dvt profile generate default --output-dir ~/.config
 
 # 6. Configure shell
 echo 'source ~/.config/.zshrc.dvt' >> ~/.zshrc
@@ -431,10 +435,10 @@ dvm set theme catppuccin-mocha --domain apis       # Override for this domain
 dvm set theme "" --app hello-api                   # Clear override (inherit)
 
 # See available themes
-nvp get themes
+dvm get themes
 
-# View theme resolution
-dvm get app hello-api --show-theme
+# View theme resolution for current context
+dvm get theme
 ```
 
 Themes cascade down the hierarchy: Ecosystem → Domain → App → Workspace.

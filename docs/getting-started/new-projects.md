@@ -234,7 +234,7 @@ dvm attach
 
 ## Project Templates (Future Feature)
 
-!!! note "Coming in v0.13.0"
+!!! note "Not Yet Implemented"
     
     Project templates will allow you to scaffold new projects with pre-configured setups:
     

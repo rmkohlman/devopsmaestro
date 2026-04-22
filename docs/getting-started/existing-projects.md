@@ -1,3 +1,53 @@
+# Working with Existing Projects
+
+Add your current codebases to DevOpsMaestro to get containerized development environments, Neovim LSP support, and hierarchical project organization — without changing your existing workflow.
+
+---
+
+## Quick Setup
+
+```bash
+# Navigate to your existing project
+cd ~/Developer/my-existing-app
+
+# One-time: initialize DevOpsMaestro (if not already done)
+dvm admin init
+
+# Register the project in the hierarchy
+dvm create ecosystem personal
+dvm create domain backend
+dvm create app my-existing-app --from-cwd
+dvm create workspace dev
+
+# Build and enter the development environment
+dvm build && dvm attach
+```
+
+DevOpsMaestro auto-detects your language from project files (`go.mod`, `package.json`, `requirements.txt`, `Cargo.toml`) and sets up the appropriate LSP servers and tooling.
+
+---
+
+## Adding Multiple Existing Projects
+
+If you have several related services, add them all under a shared domain:
+
+```bash
+# Set up the shared ecosystem and domain once
+dvm create ecosystem company
+dvm create domain backend
+
+# Register each service (navigate to each directory first)
+cd ~/Developer/service1
+dvm create app service1 --from-cwd && dvm create workspace dev
+
+cd ~/Developer/service2
+dvm create app service2 --from-cwd && dvm create workspace dev
+
+# Switch between services
+dvm use app service1 && dvm attach
+dvm use app service2 && dvm attach
+```
+
 ---
 
 ## Migration from Other Tools

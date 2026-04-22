@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.104.3] - 2026-04-22
+
+### Documentation
+- **Corrected Getting Started CLI examples** — fixed incorrect command flags and syntax in `quickstart.md`, `new-projects.md`, and `existing-projects.md`; added missing page title to `existing-projects.md` ([#407](https://github.com/rmkohlman/devopsmaestro/issues/407))
+
+---
+
 ## [v0.104.2] - 2026-04-22
 
 ### Documentation
