@@ -18,13 +18,14 @@ DevOpsMaestro provides three tools:
 ### Object Hierarchy (v0.8.0+)
 
 ```
-Ecosystem → Domain → App → Workspace
+Ecosystem → Domain → System → App → Workspace
 ```
 
 | Object | Purpose |
 |--------|---------|
 | **Ecosystem** | Top-level platform grouping |
 | **Domain** | Bounded context (team area) |
+| **System** | Organizational grouping within a domain (v0.102.0+) |
 | **App** | Your codebase (the thing you build) |
 | **Workspace** | Dev environment for an App |
 
@@ -44,7 +45,7 @@ brew install devopsmaestro
 brew install nvimops
 
 # Verify installation
-dvm version   # Should show v0.39.1
+dvm version   # Should show v0.104.1
 nvp version
 ```
 
@@ -266,7 +267,7 @@ dvm build && dvm attach                 # Build and enter container
 #### Verify Your Setup
 
 ```bash
-dvm get ctx          # Show current ecosystem/domain/app/workspace
+dvm get ctx          # Show current ecosystem/domain/system/app/workspace
 dvm get apps         # List all apps
 dvm get ws           # List workspaces in current app
 dvm get plat         # Check detected container platforms
@@ -280,7 +281,7 @@ dvm status           # Full status overview
 ### dvm - Workspace Management
 
 - **kubectl-style commands** - Familiar `get`, `create`, `delete`, `apply` patterns
-- **Object hierarchy** - Ecosystem → Domain → App → Workspace for organized development
+- **Object hierarchy** - Ecosystem → Domain → System → App → Workspace for organized development
 - **Workspace isolation** - Each workspace has dedicated directories (repo, volume, configs)
 - **Local OCI registry (Zot)** - Pull-through cache for faster builds and offline support
 - **Git repository mirrors** - Store bare git mirrors locally for faster workspace cloning
@@ -299,6 +300,9 @@ dvm status           # Full status overview
 - **Database-backed** - SQLite storage for apps, workspaces, plugins, git repositories
 - **YAML configuration** - Declarative workspace definitions
 - **Hierarchical theme system** - Themes cascade through the object hierarchy
+- **System maintenance** - `dvm system info/df/prune` for runtime inspection and cleanup
+- **Ephemeral sandboxes** - `dvm sandbox` for quick, hierarchy-free dev containers
+- **Move / reparent** - Atomic reparenting of Systems and Apps across the hierarchy
 
 ### nvp - Neovim Plugin Manager
 
@@ -326,6 +330,7 @@ kubectl-style short aliases for faster commands:
 |----------|-------|---------|
 | ecosystems | `eco` | `dvm get eco` |
 | domains | `dom` | `dvm get dom` |
+| systems | `sys` | `dvm get sys` |
 | apps | `app` | `dvm get app` |
 | workspaces | `ws` | `dvm get ws` |
 | gitrepo/gitrepos | `repo`, `gr` | `dvm get repo` |
@@ -353,6 +358,14 @@ dvm create domain <name>      # Create domain
 dvm get domains               # List domains
 dvm use domain <name>         # Set active domain
 
+# Systems (v0.102.0+)
+dvm create system <name>      # Create system within active domain
+dvm get systems               # List systems (or: dvm get sys)
+dvm get system <name>         # Show specific system
+dvm delete system <name>      # Delete system
+dvm use system <name>         # Set active system
+dvm use system none           # Clear system context
+
 # Apps (v0.8.0+)
 dvm create app <name>         # Create app
 dvm get apps                  # List apps
@@ -367,7 +380,13 @@ dvm delete workspace <name>   # Delete workspace
 dvm use workspace <name>      # Set active workspace
 
 # Context
-dvm get context               # Show active ecosystem/domain/app/workspace
+dvm get context               # Show active ecosystem/domain/system/app/workspace
+
+# Move / Reparent (v0.102.0+)
+dvm move system <name> --to-domain <domain>   # Move system to a new domain (cascades child apps)
+dvm move app <name> --to-system <system>      # Move app to a different system
+dvm move app <name> --to-domain <domain>      # Move app directly to a domain (no system)
+dvm app detach <name> --from-system           # Detach app from its system (leaves it at ecosystem level)
 
 # Package Management (v0.16.0+)
 dvm get nvim packages         # List all available packages
@@ -486,6 +505,21 @@ dvm generate template workspace                   # Annotated YAML template to s
 dvm generate template workspace > my-ws.yaml      # Save to file
 dvm generate template workspace --output json     # JSON format
 dvm generate template --all > all-resources.yaml  # All 15 kinds (multi-doc YAML)
+
+# System Maintenance
+dvm system info               # Show platform, runtime, disk usage summary
+dvm system df                 # Disk usage breakdown (Docker df-style)
+dvm system prune              # Clean up unused images and build caches
+dvm system prune --dry-run    # Preview what would be removed
+dvm system prune --force      # Skip confirmation
+
+# Sandboxes — ephemeral dev containers (no hierarchy required)
+dvm sandbox python            # Create and attach to a Python sandbox
+dvm sandbox golang --version 1.24  # Specific language version
+dvm sandbox create node --version 22  # Explicit create form
+dvm sandbox get               # List active sandboxes
+dvm sandbox attach <name>     # Attach to a running sandbox
+dvm sandbox delete --all      # Delete all sandboxes
 ```
 
 ### nvp Commands

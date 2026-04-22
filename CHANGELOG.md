@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.104.2] - 2026-04-22
+
+### Documentation
+- Audit README.md for accuracy and completeness: documented Systems commands (v0.102.0+), move/reparent operations, sandbox environments, and related features (#406)
+
+---
+
 ## [v0.104.1] - 2026-04-22
 
 ### Fixed

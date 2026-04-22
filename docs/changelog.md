@@ -2,6 +2,13 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.104.2 (2026-04-22)
+
+**Documentation**
+- Audit README.md for accuracy and completeness: documented Systems commands (v0.102.0+), move/reparent operations, sandbox environments, and related features ([#406](https://github.com/rmkohlman/devopsmaestro/issues/406))
+
+---
+
 ## v0.104.1 (2026-04-22)
 
 **Fixed**
