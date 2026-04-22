@@ -1,7 +1,7 @@
 ---
 description: Owns ALL git operations and orchestrates the complete release process. The ONLY agent authorized to run git commands. Handles versioning, CHANGELOG, tagging, CI/CD verification.
 mode: subagent
-model: github-copilot/claude-sonnet-4.6
+model: github-copilot/claude-sonnet-4.7
 temperature: 0.1
 tools:
   read: true

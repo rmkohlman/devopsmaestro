@@ -1,7 +1,7 @@
 ---
 description: Reviews code for architectural compliance. Ensures implementations follow design principles - modular, loosely coupled, cohesive, single responsibility. Advisory only.
 mode: subagent
-model: github-copilot/claude-opus-4.6
+model: github-copilot/claude-opus-4.7
 temperature: 0.2
 tools:
   read: true

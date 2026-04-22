@@ -1,7 +1,7 @@
 ---
 description: Diagnostic agent for investigating runtime failures, tracing code paths, adding debug logging, and analyzing error output. Owns no code permanently — makes targeted diagnostic changes, investigates root causes, and reports findings.
 mode: subagent
-model: github-copilot/claude-opus-4.6
+model: github-copilot/claude-opus-4.7
 temperature: 0.1
 tools:
   read: true

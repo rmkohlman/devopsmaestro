@@ -1,7 +1,7 @@
 ---
 description: Owns all database interactions - DataStore interface, SQLite implementation, migrations. Ensures data layer is decoupled so database can be swapped in the future.
 mode: subagent
-model: github-copilot/claude-opus-4.6
+model: github-copilot/claude-opus-4.7
 temperature: 0.1
 tools:
   read: true

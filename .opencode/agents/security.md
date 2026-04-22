@@ -1,7 +1,7 @@
 ---
 description: Reviews code for security vulnerabilities. Checks credential handling, container security, input validation, command injection, and file system security. Advisory only.
 mode: subagent
-model: github-copilot/claude-opus-4.6
+model: github-copilot/claude-opus-4.7
 temperature: 0.1
 tools:
   read: true

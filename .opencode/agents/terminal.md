@@ -1,7 +1,7 @@
 ---
 description: Owns MaestroTerminal module, terminalbridge package, and dvt CLI entry point. Handles terminal prompts, shell config, and WezTerm integration.
 mode: subagent
-model: github-copilot/claude-opus-4.6
+model: github-copilot/claude-opus-4.7
 temperature: 0.1
 tools:
   read: true

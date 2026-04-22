@@ -1,7 +1,7 @@
 ---
 description: Owns dvm CLI core — cmd/ (except nvp/dvt), models/, config/, operators/, builders/, render/, utils/, ui/, and all pkg/ except nvimbridge/themebridge/terminalbridge/colorbridge. The primary implementation agent for workspace management, container operations, and resource framework.
 mode: subagent
-model: github-copilot/claude-opus-4.6
+model: github-copilot/claude-opus-4.7
 temperature: 0.1
 tools:
   read: true

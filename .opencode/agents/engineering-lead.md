@@ -1,7 +1,7 @@
 ---
 description: Engineering Lead orchestrator — plans, delegates, and coordinates. Never writes code. The primary interface for managing the DevOpsMaestro agent team.
 mode: primary
-model: github-copilot/claude-opus-4.6
+model: github-copilot/claude-opus-4.7
 temperature: 0.1
 tools:
   write: false
