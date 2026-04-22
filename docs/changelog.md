@@ -2,6 +2,14 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.102.2 (2026-04-22)
+
+**Bug Fixes**
+- **Build sessions stuck in "running" after Ctrl-C now correctly marked "interrupted"** — SIGINT/SIGTERM handler added at root command level via `signal.NotifyContext`; build orchestration finalizes session/workspace rows synchronously as `"interrupted"` / `"cancelled"` on interrupt ([#399](https://github.com/rmkohlman/devopsmaestro/issues/399))
+- **`dvm build status` auto-heals sessions stuck in "running" >10 minutes** — staleness threshold detects orphaned sessions (post-SIGINT fingerprint) and heals them to `"interrupted"`, marking in-flight workspace rows `"cancelled"` ([#399](https://github.com/rmkohlman/devopsmaestro/issues/399))
+
+---
+
 ## v0.102.1 (2026-04-21)
 
 **Bug Fixes**

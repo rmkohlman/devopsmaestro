@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"runtime"
@@ -101,12 +103,13 @@ func buildWorkspacesInParallel(
 	semaphore := make(chan struct{}, concurrency)
 
 	type workspaceResult struct {
-		name      string
-		wsID      int
-		bswID     int
-		failed    bool
-		errMsg    string
-		startedAt time.Time
+		name        string
+		wsID        int
+		bswID       int
+		failed      bool
+		interrupted bool
+		errMsg      string
+		startedAt   time.Time
 	}
 
 	// Pre-map workspace IDs to build session workspace IDs
@@ -165,13 +168,18 @@ func buildWorkspacesInParallel(
 			if buildErr != nil {
 				res.failed = true
 				res.errMsg = buildErr.Error()
+				if errors.Is(buildErr, context.Canceled) || errors.Is(buildErr, context.DeadlineExceeded) {
+					res.interrupted = true
+				}
 			}
 
 			// Update workspace entry with final status
 			if store != nil {
 				if bswID, ok := bswIDMap[w.Workspace.ID]; ok {
 					status := "succeeded"
-					if buildErr != nil {
+					if res.interrupted {
+						status = "interrupted"
+					} else if buildErr != nil {
 						status = "failed"
 					}
 					bsw := &models.BuildSessionWorkspace{
@@ -226,11 +234,15 @@ func buildWorkspacesInParallel(
 	var failedNames []string
 	succeeded := 0
 	failed := 0
+	interrupted := 0
 	for _, r := range results {
-		if r.failed {
+		switch {
+		case r.interrupted:
+			interrupted++
+		case r.failed:
 			failedNames = append(failedNames, r.name)
 			failed++
-		} else {
+		default:
 			succeeded++
 		}
 	}
@@ -238,9 +250,12 @@ func buildWorkspacesInParallel(
 	if store != nil {
 		completedAt := time.Now().UTC()
 		status := "completed"
-		if failed > 0 && succeeded == 0 {
+		switch {
+		case interrupted > 0:
+			status = "interrupted"
+		case failed > 0 && succeeded == 0:
 			status = "failed"
-		} else if failed > 0 {
+		case failed > 0:
 			status = "partial"
 		}
 

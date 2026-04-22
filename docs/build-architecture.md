@@ -55,10 +55,12 @@ Every `dvm build` run creates a **build session** in the database. A session rec
 
 - **UUID** — unique session identifier
 - **Timestamps** — start and completion time
-- **Status** — `in_progress`, `succeeded`, or `failed`
+- **Status** — `in_progress`, `succeeded`, `failed`, `partial`, `interrupted`, or `cancelled` (workspace-level)
 - **Per-workspace results** — status, duration, built image tag, and any error message for each workspace in the build
 
 After a successful build, the workspace record's image field is updated with the actual built image tag (e.g., `dvm-dev-my-api:20260409-153012`). Build sessions older than 30 days are automatically cleaned up.
+
+If a build is interrupted (Ctrl-C / SIGTERM), the session is finalized synchronously as `interrupted` and in-flight workspace rows are set to `cancelled`. Sessions that were not cleanly finalized (e.g., process killed hard) are auto-healed to `interrupted` the next time `dvm build status` is run, using a 10-minute staleness threshold.
 
 Succeeded and failed workspace counts displayed at the end of a build are sourced from the persisted build session in the database — not from in-memory counters — to ensure accuracy across parallel builds.
 

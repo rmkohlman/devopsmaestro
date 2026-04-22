@@ -96,7 +96,19 @@ func runParallelBuild(cmd *cobra.Command) error {
 	// Each workspace gets its own output buffer; when the build completes the
 	// buffer is flushed atomically to stdout under a mutex so output from
 	// concurrent builds never interleaves.
+	//
+	// The cobra command context (cmd.Context()) is wired to SIGINT/SIGTERM by
+	// main.go via signal.NotifyContext (#399). Workers check ctx.Err() before
+	// starting work so that, after the first Ctrl-C, queued workspaces fast-fail
+	// with context.Canceled, which the orchestration engine maps to the
+	// "interrupted"/"cancelled" workspace statuses and an "interrupted" session.
+	ctx := cmd.Context()
 	buildFn := func(ws *models.WorkspaceWithHierarchy) error {
+		if ctx != nil {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+		}
 		var buf bytes.Buffer
 		buf.WriteString(fmt.Sprintf("\n─── Building: %s/%s ───\n", ws.App.Name, ws.Workspace.Name))
 		err := buildSingleWorkspaceForParallel(ds, ws, &buf)
@@ -106,6 +118,11 @@ func runParallelBuild(cmd *cobra.Command) error {
 		_, _ = io.Copy(os.Stdout, &buf)
 		outputMu.Unlock()
 
+		// If the build failed AND the context was cancelled, surface the
+		// cancellation so the engine marks this workspace "interrupted".
+		if err != nil && ctx != nil && ctx.Err() != nil {
+			return ctx.Err()
+		}
 		return err
 	}
 

@@ -14,7 +14,9 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/spf13/cobra"
 )
@@ -107,13 +109,27 @@ func Execute(dataStore *db.DataStore, executor *Executor, migrationsFS fs.FS) {
 		return nil
 	}
 
-	if err := rootCmd.Execute(); err != nil {
+	if err := rootCmd.ExecuteContext(buildSignalContext()); err != nil {
 		// errSilent means the command already displayed the error via render.Error()
 		if err != errSilent {
 			render.Errorf("%s", err)
 		}
 		os.Exit(1)
 	}
+}
+
+// buildSignalContext returns a context that is cancelled on SIGINT (Ctrl-C)
+// or SIGTERM. The cancellation propagates through cobra's cmd.Context() so
+// that the parallel build engine can mark in-flight workspaces and the build
+// session as "interrupted" rather than leaving them stuck in "running" /
+// "building" forever (#399).
+//
+// We deliberately use signal.NotifyContext rather than relying on Go's default
+// SIGINT handler — the default aborts the process immediately, bypassing all
+// defers and the engine's finalization writes.
+func buildSignalContext() context.Context {
+	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	return ctx
 }
 
 // shouldSkipAutoMigration determines if auto-migration should be skipped for this command.

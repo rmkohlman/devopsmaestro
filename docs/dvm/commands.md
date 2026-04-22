@@ -629,6 +629,8 @@ dvm build status [flags]
 
 Displays a table of all workspaces in a build session with their status, duration, and any errors. By default shows the most recent session. When no sessions exist, outputs a hint to run `dvm build --all` to start one.
 
+Session statuses: `running`, `completed`, `partial`, `failed`, `interrupted`. Workspace statuses: `queued`, `building`, `succeeded`, `failed`, `cancelled`. Sessions that have been stuck in `running` for more than 10 minutes with no active process are automatically healed to `interrupted` on the next `dvm build status` call.
+
 **Table columns:** `WORKSPACE`, `APP`, `STATUS`, `DURATION`, `ERROR`
 
 **Flags:**

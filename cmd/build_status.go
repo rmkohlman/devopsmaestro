@@ -169,6 +169,15 @@ func renderBuildSession(ds db.DataStore, session *models.BuildSession) error {
 		// Self-heal: persist the corrected session state so future queries
 		// don't need to recompute. Errors are non-fatal.
 		healSession(ds, session, status, succeeded, failed)
+	} else if status == "running" && isStaleSession(session) {
+		// Stale-session heal (#399): the session has been "running" longer
+		// than the staleness threshold but workspace rows are still in
+		// non-terminal states (building/queued). This is the post-SIGINT
+		// fingerprint — no live process owns this session anymore.
+		// Heal the session to "interrupted" and update workspace rows.
+		status = "interrupted"
+		healInterruptedWorkspaces(ds, entries)
+		healSession(ds, session, status, succeeded, failed)
 	}
 
 	duration := "in progress"
@@ -260,6 +269,63 @@ func healSession(ds db.DataStore, session *models.BuildSession, status string, s
 		slog.Info("self-healed stale build session",
 			"session_id", session.ID, "status", status,
 			"succeeded", succeeded, "failed", failed)
+	}
+}
+
+// staleBuildSessionThreshold defines how long a "running" build session can
+// remain in that state with non-terminal workspaces before being considered
+// abandoned (e.g., the dvm process was killed by SIGINT/SIGKILL before the
+// finalization write could occur — see #399).
+//
+// The threshold must be long enough that an actively-progressing build is
+// never falsely flagged, but short enough that a status query promptly
+// reflects reality. 10 minutes is comfortably longer than typical workspace
+// builds and shorter than the test boundaries (90m heals, 30s does not).
+const staleBuildSessionThreshold = 10 * time.Minute
+
+// isStaleSession returns true when a "running" session was started longer
+// than staleBuildSessionThreshold ago and therefore likely represents a
+// crashed/interrupted build whose finalization writes never landed.
+func isStaleSession(session *models.BuildSession) bool {
+	if session == nil || session.StartedAt.IsZero() {
+		return false
+	}
+	return time.Since(session.StartedAt) > staleBuildSessionThreshold
+}
+
+// healInterruptedWorkspaces updates non-terminal workspace rows to reflect
+// the interrupt: "building" → "interrupted", "queued" → "cancelled".
+// Terminal rows (succeeded/failed/skipped) are left untouched. Errors are
+// logged but never propagated — the heal is best-effort.
+func healInterruptedWorkspaces(ds db.DataStore, entries []*models.BuildSessionWorkspace) {
+	completedAt := time.Now().UTC()
+	for _, e := range entries {
+		var newStatus string
+		switch e.Status {
+		case "building":
+			newStatus = "interrupted"
+		case "queued":
+			newStatus = "cancelled"
+		default:
+			continue
+		}
+		updated := &models.BuildSessionWorkspace{
+			ID:          e.ID,
+			SessionID:   e.SessionID,
+			WorkspaceID: e.WorkspaceID,
+			Status:      newStatus,
+			StartedAt:   e.StartedAt,
+			CompletedAt: sql.NullTime{Time: completedAt, Valid: true},
+		}
+		if err := ds.UpdateBuildSessionWorkspace(updated); err != nil {
+			slog.Warn("failed to heal interrupted workspace row",
+				"session_id", e.SessionID, "workspace_id", e.WorkspaceID,
+				"new_status", newStatus, "error", err)
+		} else {
+			// Mutate the in-memory entry so the rendered output reflects the heal.
+			e.Status = newStatus
+			e.CompletedAt = updated.CompletedAt
+		}
 	}
 }
 

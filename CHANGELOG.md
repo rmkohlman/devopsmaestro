@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.102.2] - 2026-04-22
+
+### Bug Fixes
+- **Build sessions stuck in "running" after Ctrl-C are now correctly marked "interrupted"** — SIGINT/SIGTERM handler added at the root command level via `signal.NotifyContext` wired into `rootCmd.ExecuteContext`; on interrupt, `cmd/build_orchestration.go` and `cmd/build_orchestration_engine.go` finalize session and workspace rows synchronously as `"interrupted"` / `"cancelled"` respectively ([#399](https://github.com/rmkohlman/devopsmaestro/issues/399))
+- **`dvm build status` auto-heals sessions stuck in "running" >10 minutes** — a staleness threshold in `cmd/build_status.go` detects sessions that have been running longer than 10 minutes with no live process (post-SIGINT fingerprint) and heals them to `"interrupted"`, updating workspace rows to `"cancelled"` ([#399](https://github.com/rmkohlman/devopsmaestro/issues/399))
+
+---
+
 ## [v0.102.1] — 2026-04-21
 
 ### Bug Fixes
