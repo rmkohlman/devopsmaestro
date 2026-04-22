@@ -4,6 +4,8 @@
 package cmd
 
 import (
+	"bytes"
+	"context"
 	"database/sql"
 	"strings"
 	"testing"
@@ -11,6 +13,7 @@ import (
 	"devopsmaestro/db"
 	"devopsmaestro/models"
 
+	"github.com/rmkohlman/MaestroSDK/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -97,7 +100,85 @@ func TestGetContext_AllFourEnvVarsTogether(t *testing.T) {
 }
 
 // =============================================================================
-// TestGetContext_LongDescMentionsEcosystemDomainEnvVars
+// TestGetContext_LongDescMentionsSystemEnvVar (Issue #396)
+// Help text must document DVM_SYSTEM.
+// =============================================================================
+
+func TestGetContext_LongDescMentionsSystemEnvVar(t *testing.T) {
+	long := getContextCmd.Long
+
+	assert.Contains(t, long, "DVM_SYSTEM",
+		"getContextCmd help must document DVM_SYSTEM env var")
+	assert.Contains(t, long, "dvm use system",
+		"getContextCmd help must mention 'dvm use system'")
+}
+
+// =============================================================================
+// TestGetContext_JSONOutputContainsCurrentSystem (Issue #396)
+// JSON output must include a "currentSystem" field.
+// =============================================================================
+
+func TestGetContext_JSONOutputContainsCurrentSystem(t *testing.T) {
+	mock := db.NewMockDataStore()
+	sysID := 7
+	mock.Context.ActiveSystemID = &sysID
+	mock.Systems[7] = &models.System{ID: 7, Name: "json-system"}
+
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mock)
+	getContextCmd.SetContext(ctx)
+
+	var buf bytes.Buffer
+	originalWriter := render.GetWriter()
+	render.SetWriter(&buf)
+	defer render.SetWriter(originalWriter)
+
+	originalFormat := getOutputFormat
+	getOutputFormat = "json"
+	defer func() { getOutputFormat = originalFormat }()
+
+	err := getContextCmd.RunE(getContextCmd, []string{})
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "currentSystem",
+		"JSON output must include 'currentSystem' field")
+	assert.Contains(t, output, "json-system",
+		"JSON output must include the system name")
+}
+
+// =============================================================================
+// TestGetContext_YAMLOutputContainsCurrentSystem (Issue #396)
+// YAML output must include a "currentSystem" field.
+// =============================================================================
+
+func TestGetContext_YAMLOutputContainsCurrentSystem(t *testing.T) {
+	mock := db.NewMockDataStore()
+	sysID := 8
+	mock.Context.ActiveSystemID = &sysID
+	mock.Systems[8] = &models.System{ID: 8, Name: "yaml-system"}
+
+	ctx := context.WithValue(context.Background(), CtxKeyDataStore, mock)
+	getContextCmd.SetContext(ctx)
+
+	var buf bytes.Buffer
+	originalWriter := render.GetWriter()
+	render.SetWriter(&buf)
+	defer render.SetWriter(originalWriter)
+
+	originalFormat := getOutputFormat
+	getOutputFormat = "yaml"
+	defer func() { getOutputFormat = originalFormat }()
+
+	err := getContextCmd.RunE(getContextCmd, []string{})
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "currentSystem",
+		"YAML output must include 'currentSystem' field")
+	assert.Contains(t, output, "yaml-system",
+		"YAML output must include the system name")
+}
+
 // RED: getContextCmd.Long help text currently only mentions DVM_APP and DVM_WORKSPACE.
 // After the fix, it must also document DVM_ECOSYSTEM and DVM_DOMAIN.
 // =============================================================================

@@ -183,6 +183,65 @@ func TestGetContext_EnvVarSourceNotShownForUnsetVars(t *testing.T) {
 }
 
 // =============================================================================
+// TestGetContext_ShowsSystemEnvVarSource (Issue #396)
+// When DVM_SYSTEM is set, output must annotate the system value with its
+// env-var source marker ("env: DVM_SYSTEM").
+// =============================================================================
+
+func TestGetContext_ShowsSystemEnvVarSource(t *testing.T) {
+	mock := db.NewMockDataStore()
+	mock.Context.ActiveSystemID = nil
+	appID := 1
+	mock.Context.ActiveAppID = &appID
+	mock.Apps[1] = &models.App{ID: 1, Name: "my-api", DomainID: sql.NullInt64{Int64: 1, Valid: true}}
+
+	t.Setenv("DVM_SYSTEM", "env-provided-system")
+
+	output, err := captureGetContext(t, mock)
+	require.NoError(t, err)
+
+	assert.Contains(t, output, "env-provided-system",
+		"DVM_SYSTEM value must appear in context output")
+
+	hasEnvMarker := containsAnySubstr(output,
+		"env: DVM_SYSTEM",
+		"(env)",
+		"DVM_SYSTEM",
+	)
+	assert.True(t, hasEnvMarker,
+		"context output must show source annotation when value comes from DVM_SYSTEM env var; got: %q", output)
+}
+
+// =============================================================================
+// TestGetContext_ShowsAllFiveEnvVarsTogether (Issue #396)
+// All 5 env vars (including DVM_SYSTEM) set simultaneously must all appear.
+// =============================================================================
+
+func TestGetContext_ShowsAllFiveEnvVarsTogether(t *testing.T) {
+	mock := db.NewMockDataStore()
+	mock.Context.ActiveEcosystemID = nil
+	mock.Context.ActiveDomainID = nil
+	mock.Context.ActiveSystemID = nil
+	mock.Context.ActiveAppID = nil
+	mock.Context.ActiveWorkspaceID = nil
+
+	t.Setenv("DVM_ECOSYSTEM", "env-eco")
+	t.Setenv("DVM_DOMAIN", "env-dom")
+	t.Setenv("DVM_SYSTEM", "env-sys")
+	t.Setenv("DVM_APP", "env-app")
+	t.Setenv("DVM_WORKSPACE", "env-ws")
+
+	output, err := captureGetContext(t, mock)
+	require.NoError(t, err)
+
+	assert.Contains(t, output, "env-eco", "DVM_ECOSYSTEM must appear in context display")
+	assert.Contains(t, output, "env-dom", "DVM_DOMAIN must appear in context display")
+	assert.Contains(t, output, "env-sys", "DVM_SYSTEM must appear in context display")
+	assert.Contains(t, output, "env-app", "DVM_APP must appear in context display")
+	assert.Contains(t, output, "env-ws", "DVM_WORKSPACE must appear in context display")
+}
+
+// =============================================================================
 // Helpers
 // =============================================================================
 

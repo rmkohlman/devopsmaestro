@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.101.13] — 2026-04-21
+
+### Bug Fixes
+- **Missing System line in `dvm get context` output** — `cmd/get_resources.go` adds `CurrentSystem` to `ContextOutput`, resolves the active system via `ds.GetSystemByID(dbCtx.ActiveSystemID)`, supports `DVM_SYSTEM` env var override, and includes a `System` row between Domain and App in the human-readable table; `cmd/get.go` updates `getContextCmd` long-help to mention `dvm use system` and `DVM_SYSTEM` ([#396](https://github.com/rmkohlman/devopsmaestro/issues/396))
+
+### Tests
+- Added `cmd/get_context_display_test.go`, `cmd/get_context_display_part2_test.go`, and `cmd/get_context_source_test.go` with 10 new tests covering System line display, `DVM_SYSTEM` env var override, `currentSystem` in JSON/YAML output, and source annotations ([#396](https://github.com/rmkohlman/devopsmaestro/issues/396))
+
+---
+
 ## [v0.101.12] — 2026-04-17
 
 ### Bug Fixes

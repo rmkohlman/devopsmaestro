@@ -23,6 +23,9 @@ func TestGetContextCommandHelp(t *testing.T) {
 	assert.Contains(t, helpText, "dvm use workspace")
 	assert.Contains(t, helpText, "DVM_APP")
 	assert.Contains(t, helpText, "DVM_WORKSPACE")
+	// Issue #396: System level must be documented in help text
+	assert.Contains(t, helpText, "system", "help text must mention system level")
+	assert.Contains(t, helpText, "DVM_SYSTEM", "help text must document DVM_SYSTEM env var")
 }
 
 func TestGetContextCommandExamples(t *testing.T) {

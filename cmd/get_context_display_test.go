@@ -15,9 +15,9 @@
 package cmd
 
 import (
-	"database/sql"
 	"bytes"
 	"context"
+	"database/sql"
 	"strings"
 	"testing"
 
@@ -94,7 +94,86 @@ func TestGetContext_ShowsWorkspaceEnvVar(t *testing.T) {
 }
 
 // =============================================================================
-// TestGetContext_ShowsEcosystemEnvVar
+// TestGetContext_ShowsSystemEnvVar (Issue #396)
+// DVM_SYSTEM env var override must appear in human-readable output.
+// =============================================================================
+
+func TestGetContext_ShowsSystemEnvVar(t *testing.T) {
+	mock := db.NewMockDataStore()
+	mock.Context.ActiveSystemID = nil
+	appID := 1
+	mock.Context.ActiveAppID = &appID
+	mock.Apps[1] = &models.App{ID: 1, Name: "my-api", DomainID: sql.NullInt64{Int64: 1, Valid: true}}
+
+	t.Setenv("DVM_SYSTEM", "env-system")
+
+	output, err := captureGetContext(t, mock)
+	require.NoError(t, err)
+	assert.Contains(t, output, "env-system",
+		"DVM_SYSTEM env var should appear in context output")
+}
+
+// =============================================================================
+// TestGetContext_ShowsSystemFromDB (Issue #396)
+// System resolved from DB must appear with "(global)" annotation.
+// =============================================================================
+
+func TestGetContext_ShowsSystemFromDB(t *testing.T) {
+	mock := db.NewMockDataStore()
+	sysID := 5
+	mock.Context.ActiveSystemID = &sysID
+	mock.Systems[5] = &models.System{ID: 5, Name: "db-system"}
+
+	t.Setenv("DVM_SYSTEM", "") // ensure no env override
+
+	output, err := captureGetContext(t, mock)
+	require.NoError(t, err)
+	assert.Contains(t, output, "db-system",
+		"DB-sourced system name must appear in context output")
+	assert.Contains(t, output, "global",
+		"DB-sourced system must show (global) source annotation")
+}
+
+// =============================================================================
+// TestGetContext_SystemEnvVarOverridesDB (Issue #396)
+// DVM_SYSTEM must override any DB-resolved system name.
+// =============================================================================
+
+func TestGetContext_SystemEnvVarOverridesDB(t *testing.T) {
+	mock := db.NewMockDataStore()
+	sysID := 1
+	mock.Context.ActiveSystemID = &sysID
+	mock.Systems[1] = &models.System{ID: 1, Name: "db-system"}
+
+	t.Setenv("DVM_SYSTEM", "override-system")
+
+	output, err := captureGetContext(t, mock)
+	require.NoError(t, err)
+	assert.Contains(t, output, "override-system",
+		"DVM_SYSTEM must override DB system value")
+	assert.NotContains(t, output, "db-system",
+		"DB system name must not appear when DVM_SYSTEM overrides it")
+}
+
+// =============================================================================
+// TestGetContext_SystemLineAppearsInOutput (Issue #396)
+// Human-readable output must include a "System:" label line.
+// =============================================================================
+
+func TestGetContext_SystemLineAppearsInOutput(t *testing.T) {
+	mock := db.NewMockDataStore()
+	sysID := 2
+	mock.Context.ActiveSystemID = &sysID
+	mock.Systems[2] = &models.System{ID: 2, Name: "my-system"}
+
+	output, err := captureGetContext(t, mock)
+	require.NoError(t, err)
+	assert.Contains(t, output, "System",
+		"output must contain a System label row")
+	assert.Contains(t, output, "my-system",
+		"output must display the resolved system name")
+}
+
 // RED: DVM_ECOSYSTEM is NOT checked in getContext() (get_resources.go:63-69).
 // Expected: output shows "myeco" as ecosystem.
 // =============================================================================

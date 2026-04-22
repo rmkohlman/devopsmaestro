@@ -18,6 +18,7 @@ import (
 type ContextOutput struct {
 	CurrentEcosystem string `yaml:"currentEcosystem" json:"currentEcosystem"`
 	CurrentDomain    string `yaml:"currentDomain" json:"currentDomain"`
+	CurrentSystem    string `yaml:"currentSystem" json:"currentSystem"`
 	CurrentApp       string `yaml:"currentApp" json:"currentApp"`
 	CurrentWorkspace string `yaml:"currentWorkspace" json:"currentWorkspace"`
 }
@@ -35,8 +36,8 @@ func getContext(cmd *cobra.Command) error {
 	}
 
 	// Resolve IDs to names, tracking source
-	var ecosystemName, domainName, appName, workspaceName string
-	var ecosystemSource, domainSource, appSource, workspaceSource string
+	var ecosystemName, domainName, systemName, appName, workspaceName string
+	var ecosystemSource, domainSource, systemSource, appSource, workspaceSource string
 
 	if dbCtx != nil {
 		if dbCtx.ActiveEcosystemID != nil {
@@ -49,6 +50,12 @@ func getContext(cmd *cobra.Command) error {
 			if dom, err := ds.GetDomainByID(*dbCtx.ActiveDomainID); err == nil {
 				domainName = dom.Name
 				domainSource = "global"
+			}
+		}
+		if dbCtx.ActiveSystemID != nil {
+			if sys, err := ds.GetSystemByID(*dbCtx.ActiveSystemID); err == nil {
+				systemName = sys.Name
+				systemSource = "global"
 			}
 		}
 		if dbCtx.ActiveAppID != nil {
@@ -65,7 +72,7 @@ func getContext(cmd *cobra.Command) error {
 		}
 	}
 
-	// Check env var overrides (DVM_ECOSYSTEM, DVM_DOMAIN, DVM_APP, DVM_WORKSPACE)
+	// Check env var overrides (DVM_ECOSYSTEM, DVM_DOMAIN, DVM_SYSTEM, DVM_APP, DVM_WORKSPACE)
 	if envEco := os.Getenv("DVM_ECOSYSTEM"); envEco != "" {
 		ecosystemName = envEco
 		ecosystemSource = "env: DVM_ECOSYSTEM"
@@ -73,6 +80,10 @@ func getContext(cmd *cobra.Command) error {
 	if envDom := os.Getenv("DVM_DOMAIN"); envDom != "" {
 		domainName = envDom
 		domainSource = "env: DVM_DOMAIN"
+	}
+	if envSys := os.Getenv("DVM_SYSTEM"); envSys != "" {
+		systemName = envSys
+		systemSource = "env: DVM_SYSTEM"
 	}
 	if envApp := os.Getenv("DVM_APP"); envApp != "" {
 		appName = envApp
@@ -87,12 +98,13 @@ func getContext(cmd *cobra.Command) error {
 	data := ContextOutput{
 		CurrentEcosystem: ecosystemName,
 		CurrentDomain:    domainName,
+		CurrentSystem:    systemName,
 		CurrentApp:       appName,
 		CurrentWorkspace: workspaceName,
 	}
 
 	// Check if empty
-	isEmpty := ecosystemName == "" && domainName == "" && appName == "" && workspaceName == ""
+	isEmpty := ecosystemName == "" && domainName == "" && systemName == "" && appName == "" && workspaceName == ""
 
 	// For structured output (JSON/YAML), always output the data structure
 	// For human output, show nice key-value display
@@ -108,6 +120,7 @@ func getContext(cmd *cobra.Command) error {
 			EmptyHints: []string{
 				"dvm use ecosystem <name>",
 				"dvm use domain <name>",
+				"dvm use system <name>",
 				"dvm use app <name>",
 				"dvm use workspace <name>",
 			},
@@ -128,6 +141,7 @@ func getContext(cmd *cobra.Command) error {
 	kvData := render.NewOrderedKeyValueData(
 		render.KeyValue{Key: "Ecosystem", Value: displayWithSource(ecosystemName, ecosystemSource)},
 		render.KeyValue{Key: "Domain", Value: displayWithSource(domainName, domainSource)},
+		render.KeyValue{Key: "System", Value: displayWithSource(systemName, systemSource)},
 		render.KeyValue{Key: "App", Value: displayWithSource(appName, appSource)},
 		render.KeyValue{Key: "Workspace", Value: displayWithSource(workspaceName, workspaceSource)},
 	)
