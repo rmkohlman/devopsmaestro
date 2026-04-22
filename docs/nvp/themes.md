@@ -131,24 +131,24 @@ dvm set theme coolnight-solarized
 
 ---
 
-## Popular Themes (13+ others)
+## Popular Themes (13 others)
 
-In addition to CoolNight, the library includes 13+ popular community themes:
+In addition to CoolNight, the library includes 13 popular community themes:
 
 | Theme | Plugin | Style | Description |
 |-------|--------|-------|-------------|
 | `tokyonight-night` | folke/tokyonight.nvim | night | Dark blue, popular choice |
-| `tokyonight-storm` | folke/tokyonight.nvim | storm | Stormy dark blue |
-| `tokyonight-day` | folke/tokyonight.nvim | day | Light blue variant |
+| `tokyonight-ocean` | folke/tokyonight.nvim | moon | Tokyo Night ocean variant |
+| `tokyonight-custom` | folke/tokyonight.nvim | — | Custom Tokyo Night variant |
 | `catppuccin-mocha` | catppuccin/nvim | mocha | Dark pastel, very popular |
 | `catppuccin-latte` | catppuccin/nvim | latte | Light pastel |
-| `catppuccin-frappe` | catppuccin/nvim | frappe | Medium pastel |
-| `catppuccin-macchiato` | catppuccin/nvim | macchiato | Dark warm pastel |
 | `gruvbox-dark` | ellisonleao/gruvbox.nvim | dark | Classic warm retro dark |
-| `gruvbox-light` | ellisonleao/gruvbox.nvim | light | Classic warm retro light |
 | `nord` | shaunsingh/nord.nvim | — | Arctic blue-gray |
 | `dracula` | Mofiqul/dracula.nvim | — | Dark purple gothic |
-| `one-dark` | navarasu/onedark.nvim | — | Dark blue (Atom-inspired) |
+| `onedark` | navarasu/onedark.nvim | — | Dark blue (Atom-inspired) |
+| `rose-pine` | rose-pine/neovim | — | Natural, warm tones |
+| `kanagawa` | rebelot/kanagawa.nvim | — | Inspired by Kanagawa art |
+| `everforest` | sainnhe/everforest | — | Warm green, eye-friendly |
 | `solarized-dark` | ishan9299/nvim-solarized-lua | — | Scientific blue-green dark |
 
 ---

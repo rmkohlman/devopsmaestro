@@ -21,21 +21,21 @@ This means the plugin works standalone — you do not need the [opencode workspa
 
 ```bash
 # Install snacks.nvim (recommended dependency)
-nvp library install snacks
+nvp library import snacks
 
 # Install opencode.nvim
-nvp library install opencode
+nvp library import opencode
 
 # Regenerate Lua configuration
 nvp generate
 ```
 
-### From the rmkohlman package
+### From the maestro package
 
-The `rmkohlman` package includes both `snacks` and `opencode` pre-configured:
+The `maestro` package includes both `snacks` and `opencode` pre-configured:
 
 ```bash
-nvp library install-package rmkohlman
+nvp package install maestro
 nvp generate
 ```
 
@@ -63,7 +63,7 @@ metadata:
 spec:
   nvim:
     structure: lazyvim
-    pluginPackage: rmkohlman   # includes snacks + opencode already
+    pluginPackage: maestro   # includes snacks + opencode already
 ```
 
 Or add them to a custom plugin list:
@@ -224,7 +224,7 @@ spec:
   tools:
     opencode: true          # installs the CLI binary in the container
   nvim:
-    pluginPackage: rmkohlman  # includes snacks + opencode plugin
+    pluginPackage: maestro  # includes snacks + opencode plugin
 ```
 
 See [opencode CLI Tool](../dvm/opencode.md) for workspace tool setup details.
@@ -272,5 +272,5 @@ dvm attach
 
 - [opencode CLI Tool](../dvm/opencode.md) — Workspace tool setup
 - [Plugins Reference](plugins.md) — Managing nvp plugins
-- [Plugin Packages](packages.md) — rmkohlman package
+- [Plugin Packages](packages.md) — maestro package
 - [NvimPlugin YAML Reference](../reference/nvim-plugin.md) — Plugin YAML schema

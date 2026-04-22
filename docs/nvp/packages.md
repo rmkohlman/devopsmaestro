@@ -60,12 +60,51 @@ The foundation package. Every new workspace starts with this.
 dvm library describe nvim-package core
 ```
 
-### `lazyvim`
+### `maestro`
 
-LazyVim-based distribution. Provides a full IDE-like experience built on the LazyVim framework.
+Complete Neovim IDE setup with 30+ plugins. Includes AI (Copilot, Copilot Chat), Git (gitsigns, lazygit), navigation (harpoon, nvim-tree, bufferline), database tools (dadbod, dbee), notes (obsidian), markdown, formatting, linting, testing, and more.
 
 ```bash
-dvm library describe nvim-package lazyvim
+dvm library describe nvim-package maestro
+```
+
+### `go-dev`
+
+Go development essentials.
+
+**Extends:** `core`
+
+**Adds:**
+
+| Plugin | Role |
+|--------|------|
+| `gopher-nvim` | Go tools integration |
+| `nvim-dap` | Debug Adapter Protocol |
+| `nvim-dap-go` | Go debugging (Delve) |
+| `neotest` | Test runner framework |
+| `neotest-go` | Go test runner |
+
+```bash
+dvm library describe nvim-package go-dev
+```
+
+### `maestro-go`
+
+Full Go IDE experience.
+
+**Extends:** `core`
+
+**Adds:**
+
+| Plugin | Role |
+|--------|------|
+| `ray-x/go.nvim` | Go tools integration |
+| `leoluz/nvim-dap-go` | Go debugging (Delve) |
+| `nvim-neotest/neotest-go` | Go test runner |
+| `stevearc/conform.nvim` | Formatting (gofmt, goimports) |
+
+```bash
+dvm library describe nvim-package maestro-go
 ```
 
 ### `maestro-python`
@@ -87,28 +126,29 @@ Python development package. Automatically selected for Python workspaces during 
 dvm library describe nvim-package maestro-python
 ```
 
-### `maestro-go`
+### Other Language Packages
 
-Go development package. Automatically selected for Go workspaces during `dvm build`.
-
-**Extends:** `core`
-
-**Adds:**
-
-| Plugin | Role |
-|--------|------|
-| `ray-x/go.nvim` | Go tools integration |
-| `leoluz/nvim-dap-go` | Go debugging (Delve) |
-| `nvim-neotest/neotest-go` | Go test runner |
-| `stevearc/conform.nvim` | Formatting (gofmt, goimports) |
+| Package | Language | Description |
+|---------|----------|-------------|
+| `maestro-rust` | Rust | rustaceanvim, crates-nvim, neotest-rust |
+| `maestro-node` | Node.js | neotest-jest, TypeScript tools |
+| `maestro-java` | Java | nvim-jdtls (eclipse.jdt.ls) |
+| `maestro-gleam` | Gleam | Gleam language tools |
+| `maestro-dotnet` | .NET | .NET development tools |
+| `python-dev` | Python | Alternative Python setup |
+| `full` | All | Full plugin collection (extends core) |
 
 ```bash
-dvm library describe nvim-package maestro-go
+# List all available packages
+nvp package get
+
+# Show details for any package
+dvm library describe nvim-package maestro-rust
 ```
 
 ---
 
-## Library Plugins (38+ available)
+## Library Plugins (54 available)
 
 Individual plugins can be browsed and used to build custom packages:
 
@@ -124,26 +164,15 @@ dvm library describe plugin telescope
 dvm library describe plugin treesitter
 ```
 
-### Core Dependencies
-
-| Plugin | Description |
-|--------|-------------|
-| `plenary` | Lua utility functions (required by many plugins) |
-| `nvim-web-devicons` | File type icons |
-
-### Fuzzy Finding & Navigation
+### Core & Navigation
 
 | Plugin | Description |
 |--------|-------------|
 | `telescope` | Fuzzy finder for files, grep, LSP symbols |
-| `harpoon` | Quick file marks and navigation |
-
-### Syntax & Parsing
-
-| Plugin | Description |
-|--------|-------------|
 | `treesitter` | Advanced syntax highlighting |
 | `treesitter-textobjects` | Syntax-aware text objects |
+| `harpoon` | Quick file marks and navigation |
+| `nvim-tree` | File tree explorer (nvim-tree/nvim-tree.lua) |
 
 ### LSP & Completion
 
@@ -152,18 +181,15 @@ dvm library describe plugin treesitter
 | `lspconfig` | LSP client configuration |
 | `mason` | LSP/DAP/linter installer |
 | `nvim-cmp` | Autocompletion engine |
-| `cmp-nvim-lsp` | LSP completion source |
-| `cmp-buffer` | Buffer word completion |
-| `cmp-path` | Filesystem path completion |
-| `luasnip` | Snippet engine |
+| `formatting` | Code formatting (conform.nvim) |
+| `linting` | Code linting |
 
 ### Git Integration
 
 | Plugin | Description |
 |--------|-------------|
 | `gitsigns` | Git decorations and hunk navigation |
-| `fugitive` | Git commands in Neovim |
-| `diffview` | Side-by-side git diff viewer |
+| `lazygit` | LazyGit terminal integration |
 
 ### UI & Interface
 
@@ -172,38 +198,74 @@ dvm library describe plugin treesitter
 | `lualine` | Status line |
 | `bufferline` | Buffer/tab line |
 | `which-key` | Keybinding hints |
-| `alpha-nvim` | Dashboard / start screen |
-| `neo-tree` | File tree explorer |
+| `alpha` | Dashboard / start screen |
 | `dressing` | Improved input and select UI |
-| `notify` | Notification system |
+| `indent-blankline` | Indentation guides |
+| `trouble` | Diagnostics and quickfix list |
+| `todo-comments` | TODO comment highlighting |
 
-### Editing & Text Manipulation
+### Editing & Utilities
 
 | Plugin | Description |
 |--------|-------------|
 | `comment` | Quick comment/uncomment |
 | `surround` | Surround text with brackets, quotes |
 | `autopairs` | Auto-close brackets and quotes |
-| `conform` | Code formatting |
-| `nvim-lint` | Linting integration |
+| `substitute` | Substitute text motions |
+| `vim-maximizer` | Window maximizer |
+| `auto-session` | Session management |
+| `toggleterm` | Terminal panel management |
 
-### Terminal & AI
+### AI & Copilot
 
 | Plugin | Description |
 |--------|-------------|
-| `toggleterm` | Terminal panel management |
 | `copilot` | GitHub Copilot integration |
 | `copilot-cmp` | Copilot as a completion source |
+| `copilot-chat` | Copilot Chat with glob support |
 | `snacks` | QoL utilities (input, picker, opencode) |
 | `opencode` | opencode AI assistant integration |
+
+### Database
+
+| Plugin | Description |
+|--------|-------------|
+| `dadbod` | Database client |
+| `dadbod-ui` | Database UI |
+| `dadbod-completion` | Database completion source |
+| `dbee` | Advanced database explorer |
+
+### Markdown & Notes
+
+| Plugin | Description |
+|--------|-------------|
+| `render-markdown` | Enhanced markdown rendering |
+| `markdown-preview` | Markdown browser preview |
+| `obsidian` | Obsidian note-taking integration |
+
+### Debug & Test
+
+| Plugin | Description |
+|--------|-------------|
+| `nvim-dap` | Debug Adapter Protocol |
+| `neotest` | Test runner framework |
 
 ### Language-Specific
 
 | Plugin | Description |
 |--------|-------------|
-| `rust-tools` | Rust development tools |
-| `go` | Go tools integration |
-| `typescript-tools` | TypeScript/JavaScript support |
+| `gopher-nvim` | Go development tools |
+| `nvim-dap-go` | Go debugger (Delve) |
+| `neotest-go` | Go test runner |
+| `rustaceanvim` | Rust development tools |
+| `crates-nvim` | Rust crates.io integration |
+| `neotest-rust` | Rust test runner |
+| `nvim-dap-python` | Python debugger |
+| `neotest-python` | Python test runner |
+| `venv-selector` | Python virtualenv selector |
+| `neotest-jest` | JavaScript/TypeScript test runner |
+| `nvim-jdtls` | Java LSP (eclipse.jdt.ls) |
+| `euporie` | Jupyter notebook editing |
 
 ---
 
@@ -279,9 +341,14 @@ Packages can extend other packages, adding plugins without duplication:
 
 ```
 core
-├── maestro-go      (adds Go tools)
-├── maestro-python  (adds Python tools)
-└── lazyvim         (full LazyVim distribution)
+├── go-dev          (Go dev essentials)
+├── maestro-go      (full Go IDE)
+├── maestro-python  (full Python IDE)
+├── maestro-rust    (full Rust IDE)
+├── maestro-node    (Node.js IDE)
+├── maestro-java    (Java IDE)
+├── full            (full plugin collection)
+└── ...             (maestro-gleam, maestro-dotnet, python-dev)
 ```
 
 When a package specifies `extends: core`, it gets all of `core`'s plugins plus its own.

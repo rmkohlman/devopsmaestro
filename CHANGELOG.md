@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.104.5] - 2026-04-22
+
+### Documentation
+- **nvp section audit** — corrected plugin count to 54; fixed deprecated CLI commands (`library list`/`install` → `get`/`import`, `theme list` → `get`, `--output` → `--output-dir`); renamed package `rmkohlman` → `maestro`; removed non-existent themes/packages and added missing ones across `docs/nvp/*.md` ([#409](https://github.com/rmkohlman/devopsmaestro/issues/409))
+
+---
+
 ## [v0.104.4] - 2026-04-22
 
 ### Documentation

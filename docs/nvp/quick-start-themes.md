@@ -49,9 +49,6 @@ See the full list with descriptions in the [Themes Reference](../nvp/themes.md).
 ```bash
 # Show theme details
 dvm library describe theme coolnight-ocean
-
-# Short alias (deprecated: use 'describe')
-dvm library show theme coolnight-ocean
 ```
 
 Output:

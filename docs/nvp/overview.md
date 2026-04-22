@@ -9,7 +9,7 @@
 nvp lets you:
 
 - **Define plugins in YAML** instead of Lua
-- **Use a curated library** of 38+ pre-configured plugins
+- **Use a curated library** of 54 pre-configured plugins
 - **Manage themes** with 34+ embedded themes and parametric generator
 - **Generate Lua files** for lazy.nvim
 - **Get default configurations** - new workspaces automatically include the "core" package
@@ -28,7 +28,7 @@ This means you can start coding immediately without manual nvim configuration.
 ## Key Features
 
 - :material-file-code: **YAML-based** - Write plugins in familiar YAML format
-- :material-library: **Built-in library** - 38+ curated plugins and plugin packages
+- :material-library: **Built-in library** - 54 curated plugins and plugin packages
 - :material-palette: **Theme system** - 34+ themes with parametric generator
 - :material-link: **URL support** - Install from GitHub
 - :material-package-variant: **Standalone** - No containers required
@@ -42,9 +42,9 @@ This means you can start coding immediately without manual nvim configuration.
 nvp init
 
 # Browse and install plugins from library
-nvp library list
-nvp library install telescope
-nvp library install treesitter
+nvp library get
+nvp library import telescope
+nvp library import treesitter
 
 # Apply a plugin from a file or URL
 nvp apply -f my-plugin.yaml
@@ -80,13 +80,19 @@ Files are created in `~/.config/nvim/lua/plugins/nvp/`.
 
 ## Plugin Library
 
-nvp includes 38+ curated plugins with plugin package system:
+nvp includes 54 curated plugins with plugin package system:
 
 ### Plugin Packages
 
 | Package | Plugins | Description |
 |---------|---------|-------------|
-| `rmkohlman` | 39 plugins | Complete development environment |
+| `core` | 6 plugins | Essential base — telescope, treesitter, lspconfig, nvim-cmp, gitsigns, which-key |
+| `maestro` | 30+ plugins | Complete IDE with AI, Git, database, notes, and more |
+| `go-dev` | 11 plugins (incl. core) | Go development essentials |
+| `maestro-go` | Full Go IDE | Extends core with Go tools, DAP, neotest, formatting |
+| `maestro-python` | Full Python IDE | Extends core with Python tools, DAP, neotest, formatting |
+| `full` | 17 plugins (incl. core) | Full plugin collection |
+| and more... | | maestro-rust, maestro-node, maestro-java, maestro-gleam, maestro-dotnet, python-dev |
 
 ### Core Plugins (Default Package)
 
@@ -101,7 +107,7 @@ The `core` package (automatically installed for new dvm workspaces):
 | nvim-cmp | completion | Intelligent autocompletion |
 | gitsigns | git | Git integration with inline status |
 
-### Complete Plugin Library (rmkohlman)
+### Complete Plugin Library (54)
 
 | Plugin | Category | Description |
 |--------|----------|-------------|
@@ -111,16 +117,40 @@ The `core` package (automatically installed for new dvm workspaces):
 | nvim-cmp | completion | Autocompletion |
 | mason | lsp | LSP/DAP/Linter installer |
 | gitsigns | git | Git decorations |
+| lazygit | git | LazyGit terminal integration |
 | lualine | ui | Status line |
+| bufferline | ui | Buffer/tab line |
 | which-key | ui | Keybinding hints |
-| neo-tree | file-explorer | File tree |
+| nvim-tree | file-explorer | File tree (nvim-tree/nvim-tree.lua) |
 | toggleterm | terminal | Terminal management |
-| and 28+ more... | | |
+| copilot | ai | GitHub Copilot |
+| copilot-cmp | ai | Copilot completion source |
+| copilot-chat | ai | Copilot Chat integration |
+| snacks | utility | QoL utilities (input, picker, opencode integration) |
+| opencode | ai | opencode AI assistant integration |
+| formatting | lsp | Code formatting (conform.nvim) |
+| linting | lsp | Code linting |
+| trouble | ui | Diagnostics and quickfix list |
+| todo-comments | ui | TODO comment highlighting |
+| indent-blankline | ui | Indentation guides |
+| auto-session | utility | Session management |
+| vim-maximizer | utility | Window maximizer |
+| substitute | editing | Substitute text motions |
+| dadbod | database | Database client |
+| dadbod-ui | database | Database UI |
+| dadbod-completion | database | Database completion source |
+| dbee | database | Advanced database explorer |
+| render-markdown | markdown | Enhanced markdown rendering |
+| markdown-preview | markdown | Markdown browser preview |
+| obsidian | notes | Obsidian note-taking integration |
+| nvim-dap | debug | Debug Adapter Protocol |
+| neotest | test | Test runner framework |
+| and more... | | gopher-nvim, neotest-go, nvim-dap-go, rustaceanvim, crates-nvim, neotest-rust, neotest-python, nvim-dap-python, venv-selector, neotest-jest, nvim-jdtls, euporie |
 
 See full list:
 
 ```bash
-nvp library list
+nvp library get
 ```
 
 ---
@@ -142,19 +172,23 @@ nvp library list
 | coolnight-dracula | Dracula | Purple variant |
 | and 14 more... | | |
 
-### Popular Themes (13+ others)
+### Popular Themes (13 others)
 
 | Theme | Style | Description |
 |-------|-------|-------------|
 | tokyonight-night | dark | Standard Tokyo Night |
-| tokyonight-storm | dark | Stormy blue variant |
-| tokyonight-day | light | Light Tokyo Night |
+| tokyonight-ocean | dark | Tokyo Night ocean variant |
 | catppuccin-mocha | dark | Soothing pastel |
 | catppuccin-latte | light | Warm light pastel |
 | gruvbox-dark | dark | Retro warm |
 | nord | dark | Arctic bluish |
 | dracula | dark | Purple theme |
-| and more... | | |
+| onedark | dark | Atom-inspired dark |
+| rose-pine | dark | Rose Pinè natural tones |
+| kanagawa | dark | Inspired by Kanagawa art |
+| everforest | dark | Warm green |
+| solarized-dark | dark | Scientific blue-green |
+| tokyonight-custom | dark | Custom Tokyo Night |
 
 ### Parametric Generator
 

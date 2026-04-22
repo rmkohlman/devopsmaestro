@@ -338,7 +338,7 @@ All CoolNight themes meet:
 
 ```bash
 # Check if theme exists
-nvp theme list | grep coolnight-ocean
+nvp theme get | grep coolnight-ocean
 
 # Verify theme content
 nvp theme get coolnight-ocean -o yaml
