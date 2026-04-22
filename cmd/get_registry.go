@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"devopsmaestro/models"
@@ -13,6 +14,27 @@ import (
 
 	"github.com/spf13/cobra"
 )
+
+// registryStatusTimeout bounds the time spent fetching live status for a
+// single registry during listing. Status checks (PID file + signal probe)
+// are fast, but we still bound them to avoid pathological hangs (issue #398).
+const registryStatusTimeout = 2 * time.Second
+
+// listVersion returns a fast, non-blocking version string for use in the
+// `get registries` table. It avoids shelling out to npm/pipx/brew/athens
+// (which can take several seconds each — issue #398). Use DetectVersion
+// only on single-resource views or after explicit install/update.
+func listVersion(factory *registry.ServiceFactory, r *models.Registry) string {
+	if r.Version != "" {
+		return r.Version
+	}
+	if s, err := factory.GetStrategy(r.Type); err == nil {
+		if v := s.GetDefaultVersion(); v != "" {
+			return v
+		}
+	}
+	return ""
+}
 
 // =============================================================================
 // Registry Resource Commands (dvm get registries, dvm get registry <name>)
@@ -72,16 +94,30 @@ func getRegistries(cmd *cobra.Command) error {
 			return render.OutputWith(getOutputFormat, resource.NewResourceList(), render.Options{})
 		}
 		list := resource.NewResourceList()
-		for _, res := range resources {
-			rr := res.(*handlers.RegistryResource)
-			reg := rr.Registry()
-			ry := reg.ToYAML()
-			status := registryLiveStatus(context.Background(), reg)
-			ry.Status = &models.RegistryStatusYAML{
-				State:    status,
-				Endpoint: fmt.Sprintf("http://localhost:%d", reg.Port),
+		regs := make([]*models.Registry, len(resources))
+		yamls := make([]models.RegistryYAML, len(resources))
+		for i, res := range resources {
+			regs[i] = res.(*handlers.RegistryResource).Registry()
+			yamls[i] = regs[i].ToYAML()
+		}
+		statuses := make([]string, len(regs))
+		var wg sync.WaitGroup
+		for i, reg := range regs {
+			wg.Add(1)
+			go func(i int, reg *models.Registry) {
+				defer wg.Done()
+				ctx, cancel := context.WithTimeout(context.Background(), registryStatusTimeout)
+				defer cancel()
+				statuses[i] = registryLiveStatus(ctx, reg)
+			}(i, reg)
+		}
+		wg.Wait()
+		for i := range yamls {
+			yamls[i].Status = &models.RegistryStatusYAML{
+				State:    statuses[i],
+				Endpoint: fmt.Sprintf("http://localhost:%d", regs[i].Port),
 			}
-			list.Items = append(list.Items, ry)
+			list.Items = append(list.Items, yamls[i])
 		}
 		return render.OutputWith(getOutputFormat, list, render.Options{})
 	}
@@ -109,46 +145,55 @@ func getRegistries(cmd *cobra.Command) error {
 
 	tableData := render.TableData{
 		Headers: headers,
-		Rows:    make([][]string, len(registries)),
 	}
 
 	factory := registry.NewServiceFactory()
 
+	// Fan out per-registry status / version / uptime collection. Version
+	// detection for npm/pipx/brew/athens-managed registries shells out to
+	// package managers and can take seconds each — running serially across
+	// N registries was the cause of issue #398 (24s+ on first run). Each
+	// goroutine has a bounded context so a single slow registry cannot
+	// stall the whole listing.
+	tableData.Rows = make([][]string, len(registries))
+	var wg sync.WaitGroup
 	for i, r := range registries {
-		// Live status check via ServiceManager (reads PID file, not just DB)
-		status := registryLiveStatus(context.Background(), r)
+		wg.Add(1)
+		go func(i int, r *models.Registry) {
+			defer wg.Done()
+			ctx, cancel := context.WithTimeout(context.Background(), registryStatusTimeout)
+			defer cancel()
 
-		// Detect version from binary if not set on model
-		version := r.Version
-		if version == "" {
-			version = factory.DetectVersion(context.Background(), r)
-		}
+			status := registryLiveStatus(ctx, r)
 
-		// Calculate uptime from PID file modification time
-		uptime := "-"
-		if status == "running" {
-			if d := factory.GetUptime(r); d > 0 {
-				uptime = formatDuration(d)
+			version := listVersion(factory, r)
+
+			uptime := "-"
+			if status == "running" {
+				if d := factory.GetUptime(r); d > 0 {
+					uptime = formatDuration(d)
+				}
 			}
-		}
 
-		row := []string{
-			r.Name,
-			r.Type,
-			version,
-			fmt.Sprintf("%d", r.Port),
-			r.Lifecycle,
-			status,
-			uptime,
-		}
+			row := []string{
+				r.Name,
+				r.Type,
+				version,
+				fmt.Sprintf("%d", r.Port),
+				r.Lifecycle,
+				status,
+				uptime,
+			}
 
-		if isWide {
-			// Add CREATED timestamp
-			row = append(row, r.CreatedAt)
-		}
+			if isWide {
+				// Add CREATED timestamp
+				row = append(row, r.CreatedAt)
+			}
 
-		tableData.Rows[i] = row
+			tableData.Rows[i] = row
+		}(i, r)
 	}
+	wg.Wait()
 
 	// For rendering, treat "wide" as table format
 	renderFormat := getOutputFormat

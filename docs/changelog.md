@@ -2,6 +2,13 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.102.1 (2026-04-21)
+
+**Bug Fixes**
+- **`dvm get registries` ~20x faster on first run, ~250x on subsequent runs** — parallelized per-registry status checks with `sync.WaitGroup` + 2s context timeout in `cmd/get_registry.go`; removed binary version shell-out from the listing path (retained for single-registry view). Measured: 24s → 1.20s (cold), 6s → 0.024s (warm) ([#398](https://github.com/rmkohlman/devopsmaestro/issues/398))
+
+---
+
 ## v0.102.0 (2026-04-21)
 
 **Features**

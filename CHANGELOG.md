@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.102.1] — 2026-04-21
+
+### Bug Fixes
+- **`dvm get registries` ~20x faster on first run, ~250x on subsequent runs** — root cause was serial per-registry version detection shelling out to npm/pipx/brew/athens for each entry; fixed in `cmd/get_registry.go` by parallelizing per-registry status checks with `sync.WaitGroup` and a 2s `context.WithTimeout`, and removing binary version shell-out from the listing path (kept for single-registry view); measured 24s → 1.20s cold, 6s → 0.024s warm ([#398](https://github.com/rmkohlman/devopsmaestro/issues/398))
+
+---
+
 ## [v0.102.0] — 2026-04-21
 
 ### Features
