@@ -568,14 +568,15 @@ Scope flags allow building specific workspaces without first running `dvm use`. 
 | `--domain <name>` | `-d` | string | `""` | Filter by domain name |
 | `--app <name>` | `-a` | string | `""` | Filter by app name |
 | `--workspace <name>` | `-w` | string | `""` | Filter by workspace name |
-| `--concurrency <n>` | | int | `4` | Maximum number of parallel builds when building multiple workspaces |
+| `--concurrency <n>` | | int | `8` | Maximum number of parallel builds when building multiple workspaces (capped at 2× CPU cores) |
 | `--detach` | | bool | `false` | Run the build session in the background; return immediately and monitor with `dvm build status` |
 | `--force` | | bool | `false` | Force rebuild even if image exists |
 | `--no-cache` | | bool | `false` | Build without using cache (skip registry cache) |
 | `--target <stage>` | | string | `"dev"` | Build target stage |
 | `--push` | | bool | `false` | Push built image to local registry after build |
 | `--registry <endpoint>` | | string | `""` | Override registry endpoint (default: from config) |
-| `--timeout <duration>` | | duration | `30m` | Timeout for the build operation (e.g., `30m`, `1h`) |
+| `--timeout <duration>` | | duration | `10m` | Timeout for the build operation (e.g., `10m`, `30m`, `1h`) |
+| `--clean-cache` | | bool | `false` | Aggressively clean before/after build: prune BuildKit cache, remove old workspace images, minimize disk footprint |
 | `--dry-run` | | bool | `false` | Preview what would be built without executing |
 
 **Examples:**
@@ -720,6 +721,11 @@ dvm attach [flags]
 | `-a, --app <name>` | Filter by app name |
 | `-w, --workspace <name>` | Filter by workspace name |
 | `--no-sync` | Skip syncing git mirror before attach |
+| `--network <mode>` | Network mode: `bridge` (default), `none`, `host`, or custom network name |
+| `--cpus <n>` | CPU limit (e.g., `1.5` for 1.5 cores; `0` = no limit) |
+| `--memory <size>` | Memory limit (e.g., `512m`, `2g`; empty = no limit) |
+| `--timeout <duration>` | Timeout for the attach operation (default: `10m`) |
+| `--dry-run` | Preview what would happen without attaching |
 
 **Examples:**
 
@@ -738,6 +744,15 @@ dvm attach -a my-api -w staging
 
 # Specify ecosystem and app
 dvm attach -e my-platform -a my-api
+
+# Isolate container from network
+dvm attach --network=none
+
+# Limit to 2 CPUs and 4GB RAM
+dvm attach --cpus=2 --memory=4g
+
+# Preview what would happen without attaching
+dvm attach --dry-run
 ```
 
 ---
@@ -3591,9 +3606,17 @@ dvm set theme coolnight-synthwave --workspace my-platform/backend/my-api/dev
 # OR set at app level (affects all workspaces)
 dvm set theme tokyonight-night --app my-platform/backend/my-api
 
-# 4. Build and attach
-dvm build my-platform/backend/my-api/dev
-dvm attach my-platform/backend/my-api/dev
+# 4. Build and attach (use context or hierarchy flags)
+dvm use ecosystem my-platform
+dvm use domain backend
+dvm use app my-api
+dvm use workspace dev
+dvm build
+dvm attach
+
+# OR using hierarchy flags directly (no context needed)
+dvm build -e my-platform -d backend -a my-api -w dev
+dvm attach -e my-platform -a my-api -w dev
 
 # 5. Apply IaC themes and configs
 dvm apply -f https://themes.example.com/custom-theme.yaml

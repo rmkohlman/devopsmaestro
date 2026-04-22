@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.104.4] - 2026-04-22
+
+### Documentation
+- **dvm section audit fixes** — corrected and expanded the dvm documentation: `docs/dvm/commands.md`, `docs/dvm/build-attach.md`, and `docs/dvm/apps.md` updated for accuracy and completeness against the current CLI ([#408](https://github.com/rmkohlman/devopsmaestro/issues/408))
+
+---
+
 ## [v0.104.3] - 2026-04-22
 
 ### Documentation

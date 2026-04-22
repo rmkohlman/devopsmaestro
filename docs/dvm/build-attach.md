@@ -77,6 +77,41 @@ dvm attach dev
 dvm attach test
 ```
 
+### Network Isolation
+
+Run the container with no network access:
+
+```bash
+dvm attach --network=none
+```
+
+### Resource Limits
+
+Limit CPU and memory:
+
+```bash
+dvm attach --cpus=2 --memory=4g
+```
+
+### Dry Run
+
+Preview what would happen without actually attaching:
+
+```bash
+dvm attach --dry-run
+```
+
+### Attach Flags
+
+| Flag | Description |
+|------|-------------|
+| `--no-sync` | Skip syncing git mirror before attach |
+| `--network <mode>` | Network mode: `bridge` (default), `none`, `host`, or custom name |
+| `--cpus <n>` | CPU limit (e.g., `1.5` for 1.5 cores; `0` = no limit) |
+| `--memory <size>` | Memory limit (e.g., `512m`, `2g`; empty = no limit) |
+| `--timeout <duration>` | Timeout for the attach operation (default: `10m`) |
+| `--dry-run` | Preview what would happen without attaching |
+
 ---
 
 ## What Happens on Attach?
