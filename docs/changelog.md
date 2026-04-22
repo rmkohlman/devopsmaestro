@@ -2,6 +2,22 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.102.0 (2026-04-21)
+
+**Features**
+- **`dvm move system`** — Reparents a System to a new Domain (recomputes EcosystemID atomically). Syntax: `dvm move system <name> --to-domain <name> [-e <ecosystem>]`. Child Apps cascade-updated in same transaction. Supports `--dry-run` and `--force` ([#397](https://github.com/rmkohlman/devopsmaestro/issues/397))
+- **`dvm move app`** — Reparents an App to a new System and/or Domain. Syntax: `dvm move app <name> --to-system <name> [--to-domain <name>] [-e <ecosystem>]`. Atomic update of both `system_id` and `domain_id` ([#397](https://github.com/rmkohlman/devopsmaestro/issues/397))
+- **`dvm app detach`** — Detaches an App from its current System (and Domain). Syntax: `dvm app detach <name> --from-system <name> [-e <ecosystem>]` ([#397](https://github.com/rmkohlman/devopsmaestro/issues/397))
+
+**Bug Fixes**
+- **`dvm apply` reparent** — Apply for System/App resources now detects parent change and delegates to `MoveSystem`/`MoveApp` instead of creating a duplicate or hitting a uniqueness constraint ([#397](https://github.com/rmkohlman/devopsmaestro/issues/397))
+
+**Tests**
+- 50 new tests across handler, CLI, and real-SQLite layers for move/detach/apply-reparent coverage ([#397](https://github.com/rmkohlman/devopsmaestro/issues/397))
+- Fixed `progressive_stacking_test.go` schema missing `active_system_id` column ([#397](https://github.com/rmkohlman/devopsmaestro/issues/397))
+
+---
+
 ## v0.101.13 (2026-04-21)
 
 **Bug Fixes**

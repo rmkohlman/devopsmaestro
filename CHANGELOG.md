@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.102.0] — 2026-04-21
+
+### Features
+- **`dvm move system`** — Reparents a System to a new Domain (recomputes EcosystemID atomically). Syntax: `dvm move system <name> --to-domain <name> [-e <ecosystem>]`. Child Apps have their `domain_id` cascade-updated in the same transaction. Supports `--dry-run` and `--force` flags ([#397](https://github.com/rmkohlman/devopsmaestro/issues/397))
+- **`dvm move app`** — Reparents an App to a new System and/or Domain. Syntax: `dvm move app <name> --to-system <name> [--to-domain <name>] [-e <ecosystem>]`. Atomic single-transaction update of both `system_id` and `domain_id` ([#397](https://github.com/rmkohlman/devopsmaestro/issues/397))
+- **`dvm app detach`** — Detaches an App from its current System (and Domain), leaving it hierarchy-unlinked. Syntax: `dvm app detach <name> --from-system <name> [-e <ecosystem>]`. Both FKs set to NULL in a single atomic transaction ([#397](https://github.com/rmkohlman/devopsmaestro/issues/397))
+
+### Bug Fixes
+- **`dvm apply` reparent** — `Apply` for System and App resources now detects when `metadata.domain` or `metadata.system` has changed and delegates to `MoveSystem`/`MoveApp` instead of silently creating a duplicate or hitting a uniqueness constraint. Convergent single source of truth for all reparenting logic ([#397](https://github.com/rmkohlman/devopsmaestro/issues/397))
+
+### Tests
+- Added `pkg/resource/handlers/move_test.go` (29 tests), `cmd/move_test.go` (7 tests), `cmd/app_detach_test.go` (4 tests), `db/store_move_test.go` (10 real-SQLite tests) covering happy paths, idempotency, cross-ecosystem rejection, cascade correctness, detach semantics, Apply-as-move convergence (mock + real SQLite), and rollback on target-not-found ([#397](https://github.com/rmkohlman/devopsmaestro/issues/397))
+- Fixed `pkg/resource/handlers/progressive_stacking_test.go` hand-rolled test schema missing `active_system_id` column (introduced by #396), restoring `TestProgressiveStacking` and `TestFullSystemRoundTrip` ([#397](https://github.com/rmkohlman/devopsmaestro/issues/397))
+
+---
+
 ## [v0.101.13] — 2026-04-21
 
 ### Bug Fixes

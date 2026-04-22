@@ -92,11 +92,13 @@ type MockDataStore struct {
 	ListSystemsByDomainErr              error
 	FindSystemsByNameErr                error
 	CountSystemsErr                     error
+	MoveSystemErr                       error
 	CreateAppErr                        error
 	GetAppByNameErr                     error
 	GetAppByIDErr                       error
 	UpdateAppErr                        error
 	DeleteAppErr                        error
+	MoveAppErr                          error
 	ListAppsByDomainErr                 error
 	ListAllAppsErr                      error
 	FindAppsByNameErr                   error
@@ -3534,6 +3536,59 @@ func (m *MockDataStore) UpdateWorkspaceImage(workspaceID int, imageTag string) e
 	}
 
 	ws.ImageName = imageTag
+	return nil
+}
+
+// =============================================================================
+// MOVE STUBS — issue #397 (compilation only; @database owns real impl + tests)
+// =============================================================================
+
+// MoveSystem stub — see db/store_move_stub.go header for contract.
+// Records the call and applies the new DomainID to the in-memory map so
+// CLI/handler tests written against the mock can observe the effect.
+func (m *MockDataStore) MoveSystem(systemID int, newDomainID sql.NullInt64) error {
+	m.recordCall("MoveSystem", systemID, newDomainID)
+	if m.MoveSystemErr != nil {
+		return m.MoveSystemErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	sys, ok := m.Systems[systemID]
+	if !ok {
+		return NewErrNotFound("system", systemID)
+	}
+	sys.DomainID = newDomainID
+	// Recompute denormalized EcosystemID from the new domain, when possible.
+	if newDomainID.Valid {
+		if dom, ok := m.Domains[int(newDomainID.Int64)]; ok {
+			sys.EcosystemID = dom.EcosystemID
+		}
+	} else {
+		sys.EcosystemID = sql.NullInt64{}
+	}
+	// Cascade: rewrite child apps' DomainID to match.
+	for _, app := range m.Apps {
+		if app.SystemID.Valid && int(app.SystemID.Int64) == systemID {
+			app.DomainID = newDomainID
+		}
+	}
+	return nil
+}
+
+// MoveApp stub — see db/store_move_stub.go header for contract.
+func (m *MockDataStore) MoveApp(appID int, newDomainID, newSystemID sql.NullInt64) error {
+	m.recordCall("MoveApp", appID, newDomainID, newSystemID)
+	if m.MoveAppErr != nil {
+		return m.MoveAppErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	app, ok := m.Apps[appID]
+	if !ok {
+		return NewErrNotFound("app", appID)
+	}
+	app.DomainID = newDomainID
+	app.SystemID = newSystemID
 	return nil
 }
 

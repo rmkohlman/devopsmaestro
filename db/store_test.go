@@ -84,7 +84,7 @@ func createTestSchema(driver Driver) error {
 		)`,
 		`CREATE TABLE IF NOT EXISTS apps (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			domain_id INTEGER NOT NULL,
+			domain_id INTEGER,
 			system_id INTEGER,
 			name TEXT NOT NULL,
 			path TEXT NOT NULL,
@@ -2230,7 +2230,7 @@ func TestSQLDataStore_MigrationSchema_AppsTableHasLanguageAndBuildConfig(t *test
 		
 		CREATE TABLE IF NOT EXISTS apps (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			domain_id INTEGER NOT NULL,
+			domain_id INTEGER,
 			system_id INTEGER,
 			name TEXT NOT NULL,
 			path TEXT NOT NULL,

@@ -112,6 +112,22 @@ type SystemStore interface {
 
 	// CountSystems returns the total number of systems.
 	CountSystems() (int, error)
+
+	// MoveSystem reparents a system to a new domain in a single atomic transaction.
+	//
+	// This rewrites the system's denormalized parent FKs (DomainID and EcosystemID)
+	// and cascades to all child Apps — rewriting their denormalized DomainID so the
+	// hierarchy stays consistent (system.EcosystemID == newDomain.EcosystemID,
+	// app.DomainID == newDomainID for every child app).
+	//
+	// Pass newDomainID with Valid=false to detach the system from any domain
+	// (orphan to ecosystem level — caller is responsible for any ecosystem rewrite).
+	//
+	// All FK updates happen in one transaction. On any failure the transaction
+	// is rolled back and the hierarchy is left untouched.
+	//
+	// Returns an error if the system or target domain does not exist.
+	MoveSystem(systemID int, newDomainID sql.NullInt64) error
 }
 
 // AppStore defines operations for managing apps (codebase/application within a domain).
@@ -147,6 +163,25 @@ type AppStore interface {
 	// including their full hierarchy (domain and ecosystem).
 	// Returns an empty slice (not an error) if no apps match.
 	FindAppsByName(name string) ([]*models.AppWithHierarchy, error)
+
+	// MoveApp reparents an app to a new (domain, system) pair in a single atomic
+	// transaction.
+	//
+	// Both newDomainID and newSystemID are provided together because App carries
+	// both as denormalized FKs and they must remain consistent
+	// (app.DomainID == app.System.DomainID when SystemID is set).
+	//
+	// Special cases:
+	//   - newSystemID.Valid == false, newDomainID.Valid == true:
+	//     reparent app to a domain with no system (e.g. `dvm move app`).
+	//   - newSystemID.Valid == false AND newDomainID.Valid == false:
+	//     fully detach the app to ecosystem level (used by `dvm app detach`).
+	//     Caller is responsible for any ecosystem-level rewrites if the schema
+	//     evolves to denormalize EcosystemID on App.
+	//
+	// On any failure the transaction is rolled back.
+	// Returns an error if the app, target domain, or target system does not exist.
+	MoveApp(appID int, newDomainID, newSystemID sql.NullInt64) error
 }
 
 // WorkspaceStore defines operations for managing workspaces.

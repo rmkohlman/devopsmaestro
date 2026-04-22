@@ -122,6 +122,37 @@ func (h *AppHandler) Apply(ctx resource.Context, data []byte) (resource.Resource
 		}
 	}
 
+	// === Reparent detection (#397) ===
+	// Look up the app globally first; if it already exists in this ecosystem
+	// under a different (domain, system) pair than the YAML specifies,
+	// delegate to MoveApp so denormalized FKs stay consistent — instead of
+	// silently creating a duplicate row.
+	globalMatches, _ := ds.FindAppsByName(app.Name)
+	var existingGlobal *models.App
+	for _, m := range globalMatches {
+		if m.Ecosystem != nil && m.Ecosystem.ID == ecosystemID {
+			existingGlobal = m.App
+			break
+		}
+	}
+	if existingGlobal != nil {
+		parentChanged := existingGlobal.DomainID != domainNullID || existingGlobal.SystemID != app.SystemID
+		if parentChanged {
+			if err := ds.MoveApp(existingGlobal.ID, domainNullID, app.SystemID); err != nil {
+				return nil, fmt.Errorf("failed to reparent app '%s': %w", app.Name, err)
+			}
+			app.ID = existingGlobal.ID
+			if err := ds.UpdateApp(app); err != nil {
+				return nil, fmt.Errorf("failed to update app after move: %w", err)
+			}
+			moved, err := ds.GetAppByID(existingGlobal.ID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to retrieve moved app: %w", err)
+			}
+			return &AppResource{app: moved, domainName: domainName, ecosystemName: appYAML.Metadata.Ecosystem, systemName: appYAML.Metadata.System, gitRepoName: appYAML.Spec.GitRepo}, nil
+		}
+	}
+
 	// Check if app exists
 	existing, _ := ds.GetAppByName(domainNullID, app.Name)
 	if existing != nil {
@@ -367,4 +398,167 @@ func NewAppFromModel(name string, domainID int, path, description string) *model
 			Valid:  description != "",
 		},
 	}
+}
+
+// Move reparents an app to a new System (and that System's Domain), or to a
+// new Domain with no System (issue #397).
+//
+// target.SystemName: required for system-scoped moves; if empty and
+// target.DomainName is set, the app is moved to the Domain with no System.
+//
+// target.EcosystemName / target.DomainName act as disambiguators when the
+// system name is not unique.
+//
+// Idempotent: if the app is already at the target (System,Domain), returns
+// NoOp=true with no DB writes.
+func (h *AppHandler) Move(ctx resource.Context, name string, target MoveTarget) (*MoveResult, error) {
+	ds, err := dataStoreFromCtx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Resolve the app being moved (global lookup, ecosystem hint if given).
+	matches, err := ds.FindAppsByName(name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find app '%s': %w", name, err)
+	}
+	if len(matches) == 0 {
+		return nil, fmt.Errorf("app '%s' not found", name)
+	}
+	var src *models.AppWithHierarchy
+	if target.EcosystemName != "" {
+		for _, m := range matches {
+			if m.Ecosystem != nil && m.Ecosystem.Name == target.EcosystemName {
+				src = m
+				break
+			}
+		}
+		if src == nil {
+			return nil, fmt.Errorf("app '%s' not found in ecosystem '%s'", name, target.EcosystemName)
+		}
+	} else {
+		if len(matches) > 1 {
+			return nil, fmt.Errorf("app '%s' exists in multiple ecosystems; specify -e <ecosystem> to disambiguate", name)
+		}
+		src = matches[0]
+	}
+
+	// Build "fromParent" string for result.
+	fromParent := "(unparented)"
+	switch {
+	case src.App.SystemID.Valid:
+		if sys, e := ds.GetSystemByID(int(src.App.SystemID.Int64)); e == nil && sys != nil {
+			fromParent = "system/" + sys.Name
+		} else {
+			fromParent = "system/(unknown)"
+		}
+	case src.Domain != nil:
+		fromParent = "domain/" + src.Domain.Name
+	}
+
+	// Resolve target: prefer System; fall back to Domain-only move.
+	var newDomainID, newSystemID sql.NullInt64
+	var toParent string
+
+	if target.SystemName != "" {
+		targetSystem, targetDomain, err := resolveSystemTarget(ds, target.EcosystemName, target.DomainName, target.SystemName)
+		if err != nil {
+			return nil, err
+		}
+		// Cross-ecosystem guard.
+		if src.Ecosystem != nil && targetDomain.EcosystemID.Valid &&
+			int64(src.Ecosystem.ID) != targetDomain.EcosystemID.Int64 {
+			return nil, fmt.Errorf("cannot move app across ecosystems")
+		}
+		newDomainID = sql.NullInt64{Int64: int64(targetDomain.ID), Valid: true}
+		newSystemID = sql.NullInt64{Int64: int64(targetSystem.ID), Valid: true}
+		toParent = "system/" + targetSystem.Name
+	} else if target.DomainName != "" {
+		targetDomain, _, err := resolveDomainTarget(ds, target.EcosystemName, target.DomainName)
+		if err != nil {
+			return nil, err
+		}
+		if src.Ecosystem != nil && targetDomain.EcosystemID.Valid &&
+			int64(src.Ecosystem.ID) != targetDomain.EcosystemID.Int64 {
+			return nil, fmt.Errorf("cannot move app across ecosystems")
+		}
+		newDomainID = sql.NullInt64{Int64: int64(targetDomain.ID), Valid: true}
+		newSystemID = sql.NullInt64{} // no system
+		toParent = "domain/" + targetDomain.Name
+	} else {
+		return nil, fmt.Errorf("move target requires --to-system or --to-domain")
+	}
+
+	// Idempotency.
+	if src.App.DomainID == newDomainID && src.App.SystemID == newSystemID {
+		return &MoveResult{
+			Kind: "app", Name: name,
+			FromParent: fromParent, ToParent: toParent, NoOp: true,
+		}, nil
+	}
+
+	if err := ds.MoveApp(src.App.ID, newDomainID, newSystemID); err != nil {
+		return nil, fmt.Errorf("failed to move app '%s': %w", name, err)
+	}
+	return &MoveResult{
+		Kind: "app", Name: name,
+		FromParent: fromParent, ToParent: toParent,
+	}, nil
+}
+
+// Detach fully detaches an App from its System AND Domain — the App ends up
+// at ecosystem level with both DomainID and SystemID set to NULL (issue #397
+// use case 3: "Remove App from System but keep in Ecosystem").
+//
+// Returns an error if the App is not currently attached to a System.
+// (An app already at ecosystem level is not a "detach from system" target.)
+func (h *AppHandler) Detach(ctx resource.Context, name string, ecosystemHint string) (*MoveResult, error) {
+	ds, err := dataStoreFromCtx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	matches, err := ds.FindAppsByName(name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find app '%s': %w", name, err)
+	}
+	if len(matches) == 0 {
+		return nil, fmt.Errorf("app '%s' not found", name)
+	}
+	var src *models.AppWithHierarchy
+	if ecosystemHint != "" {
+		for _, m := range matches {
+			if m.Ecosystem != nil && m.Ecosystem.Name == ecosystemHint {
+				src = m
+				break
+			}
+		}
+		if src == nil {
+			return nil, fmt.Errorf("app '%s' not found in ecosystem '%s'", name, ecosystemHint)
+		}
+	} else {
+		if len(matches) > 1 {
+			return nil, fmt.Errorf("app '%s' exists in multiple ecosystems; specify -e <ecosystem> to disambiguate", name)
+		}
+		src = matches[0]
+	}
+
+	if !src.App.SystemID.Valid {
+		return nil, fmt.Errorf("app '%s' is not attached to a system; nothing to detach", name)
+	}
+
+	fromParent := "system/(unknown)"
+	if sys, e := ds.GetSystemByID(int(src.App.SystemID.Int64)); e == nil && sys != nil {
+		fromParent = "system/" + sys.Name
+	}
+
+	if err := ds.MoveApp(src.App.ID, sql.NullInt64{}, sql.NullInt64{}); err != nil {
+		return nil, fmt.Errorf("failed to detach app '%s': %w", name, err)
+	}
+
+	return &MoveResult{
+		Kind: "app", Name: name,
+		FromParent: fromParent,
+		ToParent:   "(ecosystem level — no system, no domain)",
+	}, nil
 }

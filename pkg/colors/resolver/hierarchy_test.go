@@ -557,6 +557,12 @@ func (m *MockDataStore) FindSystemsByName(name string) ([]*models.SystemWithHier
 func (m *MockDataStore) CountSystems() (int, error)          { return 0, nil }
 func (m *MockDataStore) SetActiveSystem(systemID *int) error { return nil }
 
+// MoveSystem and MoveApp — stubs to satisfy db.DataStore interface (issue #397).
+func (m *MockDataStore) MoveSystem(systemID int, newDomainID sql.NullInt64) error { return nil }
+func (m *MockDataStore) MoveApp(appID int, newDomainID, newSystemID sql.NullInt64) error {
+	return nil
+}
+
 // MockThemeStore implements theme.Store for testing
 type MockThemeStore struct {
 	themes   map[string]*theme.Theme
