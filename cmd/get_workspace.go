@@ -28,6 +28,10 @@ func getWorkspaces(cmd *cobra.Command) error {
 			return fmt.Errorf("failed to list all workspaces: %w", err)
 		}
 
+		// Reconcile cached DB status against live container runtime so this
+		// command agrees with `dvm status` (issue #405).
+		reconcileWorkspaceStatuses(workspaces)
+
 		// For JSON/YAML, wrap in kind: List envelope for round-trip compatibility (issue #154)
 		if getOutputFormat == "json" || getOutputFormat == "yaml" {
 			handlers.RegisterAll()
@@ -194,6 +198,9 @@ func getWorkspaces(cmd *cobra.Command) error {
 			})
 		}
 
+		// Reconcile cached DB status against live container runtime (#405).
+		reconcileWorkspaceHierarchyStatuses(results)
+
 		// For JSON/YAML, wrap in kind: List envelope for round-trip compatibility (issue #154)
 		if getOutputFormat == "json" || getOutputFormat == "yaml" {
 			handlers.RegisterAll()
@@ -320,6 +327,9 @@ func getWorkspaces(cmd *cobra.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to list workspaces: %w", err)
 	}
+
+	// Reconcile cached DB status against live container runtime (#405).
+	reconcileWorkspaceStatuses(workspaces)
 
 	if len(workspaces) == 0 {
 		return render.OutputWith(getOutputFormat, nil, render.Options{
@@ -490,6 +500,9 @@ func getWorkspace(cmd *cobra.Command, name string) error {
 		workspace = result.Workspace
 		app = result.App
 		appName = app.Name
+
+		// Reconcile cached DB status against live container runtime (#405).
+		reconcileWorkspaceStatuses([]*models.Workspace{workspace})
 
 	} else {
 		// Fall back to existing context-based behavior (DB-backed)

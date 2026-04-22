@@ -2,6 +2,13 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.104.1 (2026-04-22)
+
+**Fixed**
+- **Workspace status mismatch between `dvm status` and `dvm get workspaces`** — `dvm get workspaces` now reconciles workspace status from the live container runtime (authoritative) rather than the SQLite cache. Matching uses full container ID → 12-char short-ID prefix → workspace name; falls back to cached values gracefully when the runtime is unavailable ([#405](https://github.com/rmkohlman/devopsmaestro/issues/405))
+
+---
+
 ## v0.104.0 (2026-04-22)
 
 **Added**
