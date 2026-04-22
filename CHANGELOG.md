@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.103.1] - 2026-04-22
+
+### Bug Fixes
+- **`dvm system df` table renders cleanly through tabwriter** — headers were previously emitted via the info logger (prepending a `ℹ` prefix and misaligning columns); the entire table (headers + rows) now renders through `text/tabwriter` for consistent, aligned output ([#401](https://github.com/rmkohlman/devopsmaestro/issues/401))
+
+---
+
 ## [v0.103.0] - 2026-04-22
 
 ### Added

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"text/tabwriter"
 
 	"github.com/rmkohlman/MaestroSDK/paths"
 	"github.com/rmkohlman/MaestroSDK/render"
@@ -150,11 +151,16 @@ func getRuntimeDFCategories() []DFCategory {
 
 func renderDFTable(categories []DFCategory) {
 	render.Blank()
-	// Header
-	render.Info(fmt.Sprintf("%-20s %8s %8s %12s %12s", "TYPE", "COUNT", "ACTIVE", "SIZE", "RECLAIMABLE"))
-	render.Info(fmt.Sprintf("%-20s %8s %8s %12s %12s", "----", "-----", "------", "----", "-----------"))
+	// Render the entire table through a single tabwriter so headers and
+	// data rows share the same writer (no info-log "ℹ" prefix) and
+	// columns align across all rows.
+	w := tabwriter.NewWriter(render.GetWriter(), 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "TYPE\tCOUNT\tACTIVE\tSIZE\tRECLAIMABLE")
+	fmt.Fprintln(w, "----\t-----\t------\t----\t-----------")
 	for _, c := range categories {
-		render.Plain(fmt.Sprintf("%-20s %8d %8d %12s %12s", c.Type, c.Count, c.Active, c.Size, c.Reclaimable))
+		fmt.Fprintf(w, "%s\t%d\t%d\t%s\t%s\n",
+			c.Type, c.Count, c.Active, c.Size, c.Reclaimable)
 	}
+	_ = w.Flush()
 	render.Blank()
 }
