@@ -288,8 +288,6 @@ spec:
 - [App](app.md) - Applications within this system
 - [Workspace](workspace.md) - Development environments
 - [Ecosystem](ecosystem.md) - Top-level organizational grouping
-- [NvimPackage](https://rmkohlman.github.io/MaestroNvim/reference/nvim-package/) - Plugin package definitions
-- [NvimTheme](https://rmkohlman.github.io/MaestroNvim/reference/nvim-theme/) - Theme definitions
 
 ## Validation Rules
 

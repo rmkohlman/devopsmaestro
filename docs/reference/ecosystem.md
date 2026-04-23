@@ -202,8 +202,6 @@ dvm get ecosystem my-platform --include-children -o yaml
 - [App](app.md) - Applications within domains
 - [Workspace](workspace.md) - Development environments
 - [Credential](credential.md) - Secrets scoped to this ecosystem
-- [NvimPackage](https://rmkohlman.github.io/MaestroNvim/reference/nvim-package/) - Plugin package definitions
-- [NvimTheme](https://rmkohlman.github.io/MaestroNvim/reference/nvim-theme/) - Theme definitions
 
 ## Validation Rules
 
@@ -211,5 +209,5 @@ dvm get ecosystem my-platform --include-children -o yaml
 - `metadata.name` must be a valid DNS subdomain (lowercase, alphanumeric, hyphens)
 - `spec.domains` references must exist as Domain resources
 - `spec.theme` must reference an existing theme (built-in or custom)
-- `spec.nvimPackage` must reference an existing NvimPackage resource
-- `spec.terminalPackage` must reference an existing TerminalPackage resource
+- `spec.nvimPackage` must reference an existing NvimPackage resource (see [MaestroNvim](https://rmkohlman.github.io/MaestroNvim/))
+- `spec.terminalPackage` must reference an existing TerminalPackage resource (see [MaestroTerminal](https://rmkohlman.github.io/MaestroTerminal/))

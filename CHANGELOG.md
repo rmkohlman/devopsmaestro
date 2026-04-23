@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.104.8] - 2026-04-23
+
+### Fixed / Changed
+- **Documentation: Vision & Roadmap audit / dvm MkDocs scope cleanup** ([#413](https://github.com/rmkohlman/devopsmaestro/issues/413)) — scoped the dvm MkDocs site to dvm-only content per the rule that the dvm docs should describe only the `dvm` tool, not sibling Maestro modules.
+  - **`docs/reference/yaml-templates.md`**: removed `NvimPackage`/`NvimPlugin`/`NvimTheme` annotated templates and the entire `Terminal Resources` section (`TerminalPrompt`, `TerminalPackage`, `TerminalEmulator`); renumbered the Complete Setup Template; pruned the Resource Reference table to dvm-native resources (1,572 → ~914 lines).
+  - **`docs/advanced/architecture.md`**: cleaned the Resource Types table of cross-product kinds (count 13 → 8); kept the outbound "Related Modules" pointers.
+  - **`docs/advanced/theme-iac.md`**: replaced with a tombstone redirecting to the MaestroTheme docs site; removed from nav.
+  - **`docs/reference/ecosystem.md`** and **`docs/reference/system.md`**: trimmed Related Resources of cross-product entries.
+  - Outbound "see also" links to MaestroNvim, MaestroTerminal, and MaestroTheme sites are intentionally preserved so readers can find sibling docs.
+
+---
+
 ## [v0.104.7] - 2026-04-23
 
 ### Fixed / Changed

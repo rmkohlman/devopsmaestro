@@ -119,7 +119,6 @@ nav:
     - CustomResourceDefinition: reference/custom-resource-definition.md
   - Advanced:
     - Current Architecture: advanced/architecture.md
-    - Theme Infrastructure as Code: advanced/theme-iac.md
     - Source Types: advanced/source-types.md
     - Private Repos: advanced/private-repos.md
   - Development:

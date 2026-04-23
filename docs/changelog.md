@@ -2,6 +2,18 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.104.8 (2026-04-23)
+
+**Fixed / Changed**
+- **Documentation: Vision & Roadmap audit / dvm MkDocs scope cleanup** ([#413](https://github.com/rmkohlman/devopsmaestro/issues/413)) — scoped the dvm MkDocs site to dvm-only content; the dvm docs now describe only the `dvm` tool, not sibling Maestro modules.
+  - Removed `NvimPackage`/`NvimPlugin`/`NvimTheme` annotated templates and the entire `Terminal Resources` section from `docs/reference/yaml-templates.md` (1,572 → ~914 lines).
+  - Cleaned cross-product rows from the Resource Types table in `docs/advanced/architecture.md`.
+  - Replaced `docs/advanced/theme-iac.md` with a tombstone redirecting to the MaestroTheme site; removed from nav.
+  - Trimmed Related Resources sections in `docs/reference/ecosystem.md` and `docs/reference/system.md`.
+  - Outbound links to MaestroNvim, MaestroTerminal, and MaestroTheme docs are preserved as "see also" pointers.
+
+---
+
 ## v0.104.7 (2026-04-23)
 
 **Fixed / Changed**

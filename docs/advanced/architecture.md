@@ -49,7 +49,7 @@ dvm get ctx         # Short alias
 
 ## Resource Types
 
-DevOpsMaestro manages 13 built-in resource types:
+DevOpsMaestro manages 8 built-in resource types:
 
 | Resource | Kind | Purpose |
 |----------|------|---------|
@@ -61,11 +61,6 @@ DevOpsMaestro manages 13 built-in resource types:
 | Credential | `Credential` | Stored credentials for auth |
 | Registry | `Registry` | OCI/package registry config |
 | Git Repository | `GitRepo` | Bare git mirror |
-| Neovim Plugin | `NvimPlugin` | Neovim plugin definition |
-| Neovim Theme | `NvimTheme` | Neovim color theme |
-| Neovim Package | `NvimPackage` | Curated plugin bundle |
-| Terminal Prompt | `TerminalPrompt` | Prompt configuration |
-| Terminal Package | `TerminalPackage` | Terminal extension bundle |
 
 You can also define your own resource types using [Custom Resource Definitions](../reference/custom-resource-definition.md).
 
