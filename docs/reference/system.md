@@ -106,7 +106,7 @@ spec:
 ### spec.theme (optional)
 Default theme that applies to all apps and workspaces in this system, overriding the domain and ecosystem theme.
 
-Theme hierarchy: `Workspace → App → System → Domain → Ecosystem → System Default`
+Theme hierarchy: `Workspace → App → System → Domain → Ecosystem → Global Default`
 
 ```yaml
 spec:

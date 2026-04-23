@@ -803,20 +803,20 @@ spec:
 
 | Field | Type | Required | Description | Reference |
 |-------|------|----------|-------------|-----------|
-| `metadata.name` | string | Yes | Unique package name | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
-| `metadata.description` | string | No | Human-readable description | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
-| `metadata.category` | string | No | Category for organization | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
-| `metadata.tags` | []string | No | Tags for filtering | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
-| `metadata.labels` | map[string]string | No | Key-value labels | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
-| `metadata.annotations` | map[string]string | No | Non-identifying metadata | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
-| `spec.extends` | string | No | Parent package (single inheritance) | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
-| `spec.plugins` | []string | No | Shell plugin names | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
-| `spec.prompts` | []string | No | Prompt names to include | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
-| `spec.profiles` | []string | No | Profile preset names | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
-| `spec.wezterm` | object | No | WezTerm config: fontSize, colorScheme, fontFamily | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
-| `spec.promptStyle` | string | No | Modular prompt style name | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
-| `spec.promptExtensions` | []string | No | Prompt extension names | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
-| `spec.enabled` | bool | No | Whether enabled (default: true) | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
+| `metadata.name` | string | Yes | Unique package name | [TerminalPackage](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-package/) |
+| `metadata.description` | string | No | Human-readable description | [TerminalPackage](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-package/) |
+| `metadata.category` | string | No | Category for organization | [TerminalPackage](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-package/) |
+| `metadata.tags` | []string | No | Tags for filtering | [TerminalPackage](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-package/) |
+| `metadata.labels` | map[string]string | No | Key-value labels | [TerminalPackage](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-package/) |
+| `metadata.annotations` | map[string]string | No | Non-identifying metadata | [TerminalPackage](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-package/) |
+| `spec.extends` | string | No | Parent package (single inheritance) | [TerminalPackage](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-package/) |
+| `spec.plugins` | []string | No | Shell plugin names (TerminalPlugin resource names) | [TerminalPackage](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-package/) |
+| `spec.prompts` | []string | No | TerminalPrompt resource names to include | [TerminalPackage](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-package/) |
+| `spec.profiles` | []string | No | Profile preset names | [TerminalPackage](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-package/) |
+| `spec.wezterm` | object | No | Embedded WezTerm settings (fontSize, colorScheme, fontFamily) | [TerminalPackage](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-package/) |
+| `spec.promptStyle` | string | No | Modular prompt style name | [TerminalPackage](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-package/) |
+| `spec.promptExtensions` | []string | No | Prompt extension names | [TerminalPackage](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-package/) |
+| `spec.enabled` | bool | No | Whether enabled (default: true) | [TerminalPackage](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-package/) |
 
 ---
 
@@ -1218,186 +1218,191 @@ spec:
 
 A production-ready multi-document YAML file that bootstraps an entire DevOpsMaestro environment from scratch. Save this as `complete-setup.yaml` and customize for your team.
 
-This template sets up the **Acme Platform** — a realistic microservices development environment with Go/Python backends, Neovim IDE configuration, and WezTerm terminal setup.
+This template sets up the **Acme Platform** — a realistic microservices development environment with a Go backend, Neovim IDE configuration, and terminal setup.
 
 ```yaml
 # Complete DevOpsMaestro Setup — Acme Platform
 # Apply with: dvm apply -f complete-setup.yaml
 # Resources are processed in document order.
 
-# ─── 1. Workspace ─────────────────────────────────────────────
-apiVersion: devopsmaestro.io/v1
-kind: Workspace
-metadata:
-  name: acme-platform
-spec:
-  image: acme/dev-workspace:latest
-  build:
-    dockerfile: .devcontainer/Dockerfile
-    context: .
-  shell: zsh
-  terminal: wezterm
-  nvim: true
-  tools:
-    - go
-    - python3
-    - node
-    - docker
-    - kubectl
-  mounts:
-    - source: ~/.ssh
-      target: /home/dev/.ssh
-      readOnly: true
-    - source: ~/.aws
-      target: /home/dev/.aws
-      readOnly: true
-  env:
-    GOPATH: /home/dev/go
-    EDITOR: nvim
----
-# ─── 2. Global Defaults ───────────────────────────────────────
+# ─── 1. Global Defaults ───────────────────────────────────────
 apiVersion: devopsmaestro.io/v1
 kind: GlobalDefaults
 metadata:
-  name: acme-defaults
+  name: global-defaults
 spec:
   theme: catppuccin-mocha
   nvimPackage: acme-ide
   terminalPackage: acme-terminal
   buildArgs:
-    GO_VERSION: "1.22"
-    PYTHON_VERSION: "3.12"
+    PIP_INDEX_URL: "https://pypi.acme.io/root/prod"
   caCerts:
-    - /etc/ssl/certs/acme-root-ca.pem
-  registryOci: registry.acme.io
-  registryGo: https://goproxy.acme.io
-  registryNpm: https://npm.acme.io
-  registryPypi: https://pypi.acme.io
+    - name: acme-root-ca
+      vaultSecret: acme-root-ca-pem
+  registryOci: acme-zot
+  registryGo: acme-athens
   registryIdleTimeout: 30m
 ---
-# ─── 3. Ecosystem ─────────────────────────────────────────────
+# ─── 2. Ecosystem ─────────────────────────────────────────────
 apiVersion: devopsmaestro.io/v1
 kind: Ecosystem
 metadata:
-  name: backend
+  name: acme-platform
+  labels:
+    organization: acme-corp
+  annotations:
+    description: "Acme Corp development platform"
 spec:
-  description: "Backend services ecosystem — Go and Python microservices"
+  description: "Acme Corp development platform"
   theme: catppuccin-mocha
   nvimPackage: acme-ide
   terminalPackage: acme-terminal
   build:
-    parallel: true
-    timeout: 10m
-  caCerts:
-    - /etc/ssl/certs/acme-root-ca.pem
+    args:
+      GOPROXY: "https://goproxy.acme.io,direct"
   domains:
-    - payments
-    - identity
-    - notifications
+    - backend
 ---
-# ─── 4. Domain ─────────────────────────────────────────────────
+# ─── 3. Domain ─────────────────────────────────────────────────
 apiVersion: devopsmaestro.io/v1
 kind: Domain
 metadata:
-  name: payments
+  name: backend
+  ecosystem: acme-platform
+  labels:
+    team: backend-team
 spec:
   theme: catppuccin-mocha
-  nvimPackage: acme-ide
-  terminalPackage: acme-terminal
-  build:
-    parallel: true
-    timeout: 5m
   apps:
     - payment-service
-    - payment-gateway
-    - billing-worker
 ---
-# ─── 5. App ───────────────────────────────────────────────────
+# ─── 4. App ───────────────────────────────────────────────────
 apiVersion: devopsmaestro.io/v1
 kind: App
 metadata:
   name: payment-service
-  ecosystem: backend
+  domain: backend
+  ecosystem: acme-platform
+  labels:
+    language: go
 spec:
-  path: ./services/payment-service
-  theme: catppuccin-mocha
-  nvimPackage: acme-ide
-  terminalPackage: acme-terminal
-  gitRepo: payment-service-repo
-  language: go
+  path: /Users/dev/projects/payment-service
+  language:
+    name: go
+    version: "1.22"
   build:
-    command: make build
-    testCommand: make test
-    lintCommand: golangci-lint run
+    buildpack: go
   dependencies:
-    - billing-worker
+    file: go.mod
+    install: go mod download
   services:
     - name: postgres
-      image: postgres:16
-      ports: ["5432:5432"]
+      version: "16"
+      port: 5432
       env:
         POSTGRES_DB: payments
         POSTGRES_USER: dev
         POSTGRES_PASSWORD: dev
     - name: redis
-      image: redis:7-alpine
-      ports: ["6379:6379"]
+      version: "7"
+      port: 6379
   ports:
     - "8080:8080"
     - "9090:9090"
   env:
-    SERVICE_NAME: payment-service
     LOG_LEVEL: debug
-    DB_HOST: localhost
-    DB_PORT: "5432"
+  workspaces:
+    - dev
+---
+# ─── 5. Workspace ─────────────────────────────────────────────
+apiVersion: devopsmaestro.io/v1
+kind: Workspace
+metadata:
+  name: dev
+  app: payment-service
+  domain: backend
+  ecosystem: acme-platform
+spec:
+  build:
+    args:
+      GITHUB_PAT: ${GITHUB_PAT}
+    devStage:
+      packages:
+        - git
+        - curl
+        - ripgrep
+      devTools:
+        - gopls
+        - delve
+        - golangci-lint
+  shell:
+    type: zsh
+    framework: oh-my-zsh
+    plugins:
+      - git
+      - golang
+      - zsh-autosuggestions
+  nvim:
+    structure: lazyvim
+    pluginPackage: acme-ide
+    extraMasonTools:
+      - gopls
+  mounts:
+    - type: bind
+      source: ${APP_PATH}
+      destination: /workspace
+      readOnly: false
+    - type: bind
+      source: ${HOME}/.ssh
+      destination: /home/dev/.ssh
+      readOnly: true
+  env:
+    EDITOR: nvim
+    GOPATH: /home/dev/go
+  container:
+    user: dev
+    uid: 1000
+    gid: 1000
+    workingDir: /workspace
 ---
 # ─── 6. Credential ────────────────────────────────────────────
 apiVersion: devopsmaestro.io/v1
 kind: Credential
 metadata:
-  name: acme-dockerhub
+  name: github-token
+  ecosystem: acme-platform
 spec:
   source: vault
-  vaultSecret: secret/ci/dockerhub
+  vaultSecret: "github-pat-shared"
   vaultEnvironment: production
-  vaultFields:
-    username: docker_user
-    password: docker_token
-  description: "Acme DockerHub service account for pulling base images"
+  description: "GitHub PAT for pulling private Go modules"
 ---
 # ─── 7. Registry ──────────────────────────────────────────────
 apiVersion: devopsmaestro.io/v1
 kind: Registry
 metadata:
-  name: acme-registry
+  name: acme-zot
+  description: "OCI container image registry for local development"
 spec:
-  type: oci
-  version: "2"
-  enabled: true
-  port: 5000
-  lifecycle:
-    deleteUntagged: true
-    keepLastN: 10
-  storage:
-    driver: filesystem
-    rootDirectory: /var/lib/registry
-  idleTimeout: 30m
-  config:
-    proxy:
-      remoteurl: https://registry.acme.io
-    auth:
-      credential: acme-dockerhub
+  type: zot
+  version: "2.1.15"
+  port: 5001
+  lifecycle: on-demand
+  idleTimeout: 1800
 ---
 # ─── 8. Git Repo ──────────────────────────────────────────────
 apiVersion: devopsmaestro.io/v1
 kind: GitRepo
 metadata:
   name: payment-service-repo
+  labels:
+    team: backend
+    language: go
 spec:
-  url: https://github.com/acme-corp/payment-service.git
+  url: "https://github.com/acme-corp/payment-service.git"
   defaultRef: main
   authType: ssh
-  credential: acme-github-ssh
+  credential: github-token
   autoSync: true
   syncIntervalMinutes: 15
 ---
@@ -1407,177 +1412,135 @@ apiVersion: devopsmaestro.io/v1
 kind: NvimPlugin
 metadata:
   name: telescope
+  description: "Fuzzy finder for files, buffers, and grep"
+  category: navigation
 spec:
   repo: nvim-telescope/telescope.nvim
   branch: master
   priority: 100
   lazy: true
-  enabled: true
-  event:
-    - VimEnter
   cmd:
     - Telescope
   dependencies:
     - nvim-lua/plenary.nvim
     - nvim-tree/nvim-web-devicons
-  build: make
   keymaps:
     - key: "<leader>ff"
+      mode: "n"
       action: "<cmd>Telescope find_files<cr>"
       desc: "Find files"
     - key: "<leader>fg"
+      mode: "n"
       action: "<cmd>Telescope live_grep<cr>"
       desc: "Live grep"
-    - key: "<leader>fb"
-      action: "<cmd>Telescope buffers<cr>"
-      desc: "Find buffers"
   health_checks:
-    - command: "Telescope"
-      expected: "telescope"
+    - type: lua_module
+      value: "telescope"
+      description: "Telescope core module"
 ---
 # ─── 10. Nvim Theme ───────────────────────────────────────────
 apiVersion: devopsmaestro.io/v1
 kind: NvimTheme
 metadata:
   name: catppuccin-mocha
+  description: "Catppuccin Mocha dark theme"
+  category: dark
 spec:
   plugin:
     repo: catppuccin/nvim
     branch: main
-    priority: 1000
   style: mocha
   transparent: false
-  colors:
-    background: "#1e1e2e"
-    foreground: "#cdd6f4"
-    cursor: "#f5e0dc"
-    selection: "#585b70"
-  promptColors:
-    primary: "#89b4fa"
-    secondary: "#a6e3a1"
-    accent: "#f5c2e7"
   options:
     integrations:
       treesitter: true
       telescope: true
       cmp: true
       gitsigns: true
-      nvimtree: true
 ---
 # ─── 11. Nvim Package ─────────────────────────────────────────
-# Combines plugins + theme into a distributable IDE configuration
 apiVersion: devopsmaestro.io/v1
 kind: NvimPackage
 metadata:
   name: acme-ide
+  description: "Acme Corp IDE plugin collection"
+  category: language
 spec:
-  extends: base-ide
   plugins:
     - telescope
     - nvim-treesitter
     - nvim-lspconfig
     - nvim-cmp
     - gitsigns
-    - lualine
-    - neo-tree
-    - which-key
   enabled: true
 ---
-# ─── 12. Terminal Prompt ───────────────────────────────────────
+# ─── 12. Terminal Prompt ──────────────────────────────────────
 apiVersion: devopsmaestro.io/v1
 kind: TerminalPrompt
 metadata:
   name: acme-starship
+  description: "Acme Starship prompt"
+  category: minimal
 spec:
   type: starship
   addNewline: true
-  palette: acme-colors
-  format: "$directory$git_branch$git_status$golang$python$kubernetes$line_break$character"
+  format: "$directory$git_branch$git_status$golang$line_break$character"
   modules:
     directory:
-      truncation_length: 3
       style: "bold cyan"
     git_branch:
-      format: "[$symbol$branch]($style) "
       style: "bold purple"
-    git_status:
-      format: "[$all_status$ahead_behind]($style) "
     golang:
-      format: "[$symbol($version)]($style) "
       symbol: " "
-    python:
-      format: "[$symbol($version)]($style) "
-      symbol: " "
-    kubernetes:
-      disabled: false
-      format: "[$symbol$context(/$namespace)]($style) "
   character:
     success_symbol: "[❯](bold green)"
     error_symbol: "[❯](bold red)"
-  colors:
-    primary: "#89b4fa"
-    secondary: "#a6e3a1"
   enabled: true
 ---
 # ─── 13. Terminal Plugin ──────────────────────────────────────
-# Note: TerminalPlugin is a built-in kind but uses TerminalPackage
-# to bundle plugins. Individual plugins are referenced by name.
+apiVersion: devopsmaestro.io/v1
+kind: TerminalPlugin
+metadata:
+  name: zoxide
+  description: "Smarter cd command"
+  category: navigation
+spec:
+  repo: ajeetdsouza/zoxide
+  shell: zsh
+  manager: manual
 ---
-# ─── 14. Terminal Package ──────────────────────────────────────
+# ─── 14. Terminal Package ─────────────────────────────────────
 apiVersion: devopsmaestro.io/v1
 kind: TerminalPackage
 metadata:
   name: acme-terminal
+  description: "Acme Corp terminal configuration bundle"
 spec:
-  extends: base-terminal
   plugins:
     - zoxide
-    - fzf
-    - bat
-    - eza
-    - ripgrep
-    - fd
-    - lazygit
-    - delta
   prompts:
     - acme-starship
-  wezterm: acme-wezterm
-  promptStyle: starship
   enabled: true
 ---
-# ─── 15. Terminal Emulator (WezTerm Config) ────────────────────
+# ─── 15. Terminal Emulator ────────────────────────────────────
 apiVersion: devopsmaestro.io/v1
 kind: TerminalEmulator
 metadata:
   name: acme-wezterm
+  description: "WezTerm configuration for Acme development"
 spec:
   type: wezterm
   config:
     font_size: 13.0
-    font:
-      family: "JetBrains Mono"
-      harfbuzz_features:
-        - calt
-        - liga
-    window_padding:
-      left: 8
-      right: 8
-      top: 8
-      bottom: 8
-    enable_tab_bar: true
-    hide_tab_bar_if_only_one_tab: true
-    window_decorations: RESIZE
-    window_background_opacity: 0.95
     scrollback_lines: 10000
+    window_background_opacity: 0.95
   themeRef: catppuccin-mocha
-  workspace: acme-platform
 ---
-# ─── 16. Custom Resource Definition ───────────────────────────
-# Extend DevOpsMaestro with custom resource types
+# ─── 16. Custom Resource Definition ──────────────────────────
 apiVersion: devopsmaestro.io/v1alpha1
 kind: CustomResourceDefinition
 metadata:
-  name: monitors
+  name: monitors.observability.acme.io
 spec:
   group: observability.acme.io
   names:
@@ -1592,23 +1555,13 @@ spec:
       served: true
       storage: true
       schema:
-        properties:
-          type:
-            type: string
-            enum: [datadog, prometheus, grafana]
-          endpoint:
-            type: string
-          alerts:
-            type: array
-            items:
-              type: object
-              properties:
-                name:
-                  type: string
-                query:
-                  type: string
-                threshold:
-                  type: number
+        openAPIV3Schema:
+          type: object
+          properties:
+            type:
+              type: string
+            endpoint:
+              type: string
 ```
 
 ### Usage

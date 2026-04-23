@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.104.7] - 2026-04-23
+
+### Fixed / Changed
+- **Documentation: Reference section audit** ([#412](https://github.com/rmkohlman/devopsmaestro/issues/412)) — verified all 12 dvm reference pages against the current code; mkdocs build clean and all 19 YAML blocks parse.
+  - **`docs/reference/yaml-templates.md`**: fixed the TerminalPackage reference table (14 broken links corrected to valid anchors); replaced the ~390-line "Complete Setup Template" with a schema-validated YAML example covering all 16 supported resource types.
+  - **`docs/reference/system.md`**: corrected the theme hierarchy label from "System Default" to "Global Default" to match the implementation.
+
+---
+
 ## [v0.104.6] - 2026-04-23
 
 ### Fixed / Changed
