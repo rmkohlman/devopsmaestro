@@ -96,10 +96,9 @@ dvm create workspace dev
 After adding your existing projects:
 
 1. **[Workspace Configuration](../configuration/yaml-schema.md)** - Customize environments with YAML
-2. **[Theme System](https://rmkohlman.github.io/MaestroNvim/themes/overview/)** - Set up visual themes across your hierarchy  
-3. **[Plugin Management](https://rmkohlman.github.io/MaestroNvim/plugins/library/)** - Add language-specific Neovim plugins
-4. **[Build & Attach Guide](../dvm/build-attach.md)** - Master the container development lifecycle
-5. **[Advanced Patterns](../advanced/)** - Multi-container setups, CI/CD integration
+2. **[Build & Attach Guide](../dvm/build-attach.md)** - Master the container development lifecycle
+3. **[dvm Commands Reference](../dvm/commands.md)** - Complete command documentation
+4. **[Advanced Patterns](../advanced/)** - Multi-container setups, CI/CD integration
 
 ---
 

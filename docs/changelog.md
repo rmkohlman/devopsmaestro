@@ -2,6 +2,19 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.104.10 (2026-04-23)
+
+**Fixed / Changed**
+- **Documentation: dvm MkDocs site scope cleanup — remove sibling module content** ([#416](https://github.com/rmkohlman/devopsmaestro/issues/416)) — removed all remaining references to MaestroNvim (`nvp`), MaestroTerminal (`dvt`), MaestroTheme, MaestroSDK, MaestroPalette, and their bridge packages from the dvm MkDocs site.
+  - `docs/getting-started/quickstart.md`: removed Steps 3–5 (nvp config generate, dvt wezterm, dvt profile); cleaned Complete Example to dvm-only commands; removed nvp link from Next Steps.
+  - `docs/getting-started/installation.md`: removed "Related tools" tip mentioning nvp/dvt.
+  - `docs/reference/index.md`: removed NvimOps Resources table (NvimTheme, NvimPlugin, NvimPackage) and Terminal resources note.
+  - `docs/development/decisions.md`: removed ADR-006 (`nvp` as a Standalone Binary).
+  - `docs/development/README.md`: removed `nvp` bullet from ADR list.
+  - `mkdocs.yml`: removed "Ecosystem Tools" nav section (nvp, dvt, MaestroTheme external links); added `advanced/theme-iac.md` redirect to MaestroTheme; added `not_in_nav` declarations for orphaned files.
+
+---
+
 ## v0.104.9 (2026-04-23)
 
 **Fixed / Changed**

@@ -26,10 +26,6 @@ brew install devopsmaestro
 dvm version
 ```
 
-!!! tip "Related tools"
-    The same tap also provides `nvimops` (`nvp`) and `terminalops` (`dvt`) as separate tools.
-    See [MaestroNvim](https://rmkohlman.github.io/MaestroNvim/) and [MaestroTerminal](https://rmkohlman.github.io/MaestroTerminal/) for details.
-
 ---
 
 ## From Source

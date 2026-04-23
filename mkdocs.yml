@@ -62,6 +62,7 @@ plugins:
         'reference/terminal-prompt.md': 'https://rmkohlman.github.io/MaestroTerminal/reference/terminal-prompt/'
         'reference/wezterm-config.md': 'https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/'
         'advanced/theme-hierarchy.md': 'https://rmkohlman.github.io/MaestroTheme/configuration/theme-hierarchy/'
+        'advanced/theme-iac.md': 'https://rmkohlman.github.io/MaestroTheme/'
         'colorprovider-integration.md': 'configuration/cli-colors.md'
 
 markdown_extensions:
@@ -86,6 +87,12 @@ extra:
       link: https://github.com/rmkohlman/devopsmaestro
   version:
     provider: mike
+
+not_in_nav: |
+  advanced/theme-iac.md
+  development/v0.2.0-theme-system.md
+  development/README.md
+  reference/system.md
 
 nav:
   - Home: index.md
@@ -123,8 +130,4 @@ nav:
     - Private Repos: advanced/private-repos.md
   - Development:
     - Architecture Decisions: development/decisions.md
-  - Ecosystem Tools:
-    - 'nvp (NvimOps)': https://rmkohlman.github.io/MaestroNvim/
-    - 'dvt (Terminal)': https://rmkohlman.github.io/MaestroTerminal/
-    - 'MaestroTheme': https://rmkohlman.github.io/MaestroTheme/
   - Changelog: changelog.md

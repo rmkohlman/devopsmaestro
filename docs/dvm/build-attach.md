@@ -270,4 +270,3 @@ Your app is **mounted**, so changes should persist. If they don't:
 
 - [Commands Reference](commands.md) - Full command list
 - [YAML Configuration](../configuration/yaml-schema.md) - Customize workspaces
-- [nvp Plugins](https://rmkohlman.github.io/MaestroNvim/plugins/library/) - Configure Neovim

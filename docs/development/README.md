@@ -15,7 +15,6 @@ Documents why we chose specific approaches:
 - Licensing model
 - YAML syntax highlighting
 - Binary distribution
-- `nvp` as a standalone binary
 
 ### Release Process
 **Release Workflow** — Step-by-step guide for creating releases.

@@ -2336,13 +2336,13 @@ EDITOR=vim dvm edit nvim plugin mason
 
 ### `dvm edit nvim theme`
 
-Edit a nvim theme definition (redirects to `nvp` CLI).
+Edit a nvim theme definition.
 
 ```bash
 dvm edit nvim theme <name>
 ```
 
-> **Note:** Theme editing is currently available via the standalone `nvp` CLI. This command displays instructions for using `nvp theme get`, editing the YAML, and re-applying with `nvp theme apply -f`.
+> **Note:** Theme editing opens the theme YAML in your editor. Use `dvm get nvim theme <name> -o yaml` to export first, edit the file, then re-apply with `dvm apply -f <file>`.
 
 **Examples:**
 
@@ -2378,7 +2378,7 @@ Add nvim plugins to a workspace configuration or set global default plugins.
 dvm set nvim plugin [names...] [flags]
 ```
 
-Plugins must exist in the global library (`~/.nvp/plugins/`). Use `dvm get nvim plugins` to see available plugins.
+Plugins must exist in the global library (`~/.devopsmaestro/plugins/`). Use `dvm get nvim plugins` to see available plugins.
 
 **Flags:**
 

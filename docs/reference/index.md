@@ -23,23 +23,11 @@ DevOpsMaestro supports the following resource types with kubectl-style YAML conf
 |----------|------------|-------------|
 | [CustomResourceDefinition](custom-resource-definition.md) | `devopsmaestro.io/v1alpha1` | Register a custom resource type to extend DevOpsMaestro |
 
-### NvimOps Resources
-
-| Resource | APIVersion | Description |
-|----------|------------|-------------|
-| [NvimTheme](https://rmkohlman.github.io/MaestroNvim/reference/nvim-theme/) | `devopsmaestro.io/v1` | Neovim colorscheme theme definition |
-| [NvimPlugin](https://rmkohlman.github.io/MaestroNvim/reference/nvim-plugin/) | `devopsmaestro.io/v1` | Neovim plugin configuration |
-| [NvimPackage](https://rmkohlman.github.io/MaestroNvim/reference/nvim-package/) | `devopsmaestro.io/v1` | Collection of related Neovim plugins |
-
-> These resource types are managed by the `nvp` binary. See [MaestroNvim docs](https://rmkohlman.github.io/MaestroNvim/) for full reference.
-
 ### Infrastructure Resources
 
 | Resource | APIVersion | Description |
 |----------|------------|-------------|
 | [Registry](registry.md) | `devopsmaestro.io/v1` | Local package registry (OCI, Python, Go, npm, HTTP proxy) |
-
-> **Terminal resources** (TerminalPrompt, TerminalPackage, WeztermConfig) are managed by the `dvt` binary. See [MaestroTerminal docs](https://rmkohlman.github.io/MaestroTerminal/) for full reference.
 
 ## Object Hierarchy
 

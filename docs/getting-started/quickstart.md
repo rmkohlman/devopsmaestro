@@ -6,7 +6,7 @@ Get up and running with DevOpsMaestro in 5 minutes.
 
 ## Prerequisites
 
-1. **Install dvm & nvp** - See [Installation](installation.md)
+1. **Install dvm** - See [Installation](installation.md)
 2. **Container runtime running** - OrbStack, Docker Desktop, Podman, or Colima
 3. **Have an app to work with** - Either existing code or we'll create one
 
@@ -45,44 +45,6 @@ This automatically configures Neovim with:
 - **Plugin Package**: `core` (6 essential plugins)
 - **Theme**: Inherits from theme cascade system
 
-### Step 3: Generate Neovim Configuration
-
-```bash
-# Generate ~/.config/nvim/ with plugins and theme
-nvp config generate
-
-# Generate theme Lua files
-nvp theme generate
-```
-
-### Step 4: Generate Terminal Configuration
-
-```bash
-# Generate WezTerm config with matching theme colors
-dvt wezterm use default   # Creates ~/.wezterm.lua
-
-# Available presets: default, minimal, tmux-style
-dvt wezterm use minimal   # For distraction-free terminal
-```
-
-**Key Benefits:**
-- **Automatic theme colors**: Colors are automatically resolved from the theme library (e.g., catppuccin-mocha)
-- **Preset options**: Choose from `default`, `minimal`, or `tmux-style` configurations
-- **Theme consistency**: Same theme colors apply to both Neovim AND WezTerm
-
-### Step 5: Generate Shell Profile
-
-```bash
-# Import a profile preset first (choose: default, minimal, or power-user)
-dvt profile preset import default
-
-# Generate shell prompt configuration files
-dvt profile generate default --output-dir ~/.config
-
-# Add to your shell configuration
-echo 'source ~/.config/.zshrc.dvt' >> ~/.zshrc
-```
-
 ### Complete Example
 
 Here's a complete setup from start to finish:
@@ -102,21 +64,11 @@ cd ~/Developer/my-awesome-app
 dvm create app my-awesome-app --from-cwd
 dvm create workspace main
 
-# 5. Generate all configurations
-nvp config generate          # Neovim config
-nvp theme generate           # Theme files  
-dvt wezterm use minimal    # Terminal config
-dvt profile preset import default
-dvt profile generate default --output-dir ~/.config
-
-# 6. Configure shell
-echo 'source ~/.config/.zshrc.dvt' >> ~/.zshrc
-
-# 7. Restart terminal and start coding!
-nvim .
+# 5. Build and launch
+dvm build && dvm attach
 ```
 
-Now your terminal and editor are fully configured with consistent theming and optimized development workflows.
+Now your development environment is fully configured and ready to use.
 
 ---
 
@@ -536,7 +488,6 @@ Now that you have the basics:
 - **[Working with Existing Apps](existing-projects.md)** - Detailed guide for existing codebases
 - **[Creating New Apps](new-projects.md)** - More examples and language-specific setups
 - **[dvm Commands Reference](../dvm/commands.md)** - Complete command documentation
-- **[nvp Overview](https://rmkohlman.github.io/MaestroNvim/plugins/overview/)** - Standalone Neovim plugin management
 - **[Configuration Guide](../configuration/yaml-schema.md)** - Customize environments with YAML
 
 ---

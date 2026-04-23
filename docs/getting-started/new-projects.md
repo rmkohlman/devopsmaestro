@@ -517,10 +517,9 @@ docker stop <id>    # Stop conflicting container
 After creating your project:
 
 1. **[Build & Attach Guide](../dvm/build-attach.md)** - Learn container lifecycle management
-2. **[Workspace Configuration](../configuration/yaml-schema.md)** - Customize your development environment  
-3. **[Theme System](https://rmkohlman.github.io/MaestroNvim/themes/overview/)** - Set up visual themes that match your preferences
-4. **[Plugin Management](https://rmkohlman.github.io/MaestroNvim/plugins/library/)** - Add Neovim plugins for your language
-5. **CI/CD Integration** - Use DevOpsMaestro in your deployment pipeline
+2. **[Workspace Configuration](../configuration/yaml-schema.md)** - Customize your development environment
+3. **[dvm Commands Reference](../dvm/commands.md)** - Complete command documentation
+4. **CI/CD Integration** - Use DevOpsMaestro in your deployment pipeline
 
 ---
 

@@ -125,15 +125,9 @@ opencode respects `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` for outbound API c
 
 ---
 
-## Combined setup with the nvim plugin
+## Neovim integration
 
-When you also have the [opencode.nvim plugin](https://rmkohlman.github.io/MaestroNvim/plugins/opencode/) installed, the plugin communicates with the running opencode TUI over an HTTP server on port 4096. The plugin can connect to an already-running opencode instance or start an embedded one. For the full experience:
-
-1. Enable `tools.opencode: true` in your workspace (CLI binary)
-2. Add `opencode` and `snacks` to your nvim package (plugin)
-3. Build and attach — the plugin finds the running CLI automatically
-
-See [opencode.nvim plugin setup](https://rmkohlman.github.io/MaestroNvim/plugins/opencode/) for the complete guide.
+The opencode CLI tool integrates with the `opencode.nvim` Neovim plugin. See [MaestroNvim docs](https://rmkohlman.github.io/MaestroNvim/plugins/opencode/) for setup details.
 
 ---
 
@@ -171,7 +165,6 @@ spec:
 
 ## Related
 
-- [opencode.nvim Plugin](https://rmkohlman.github.io/MaestroNvim/plugins/opencode/) — Neovim integration
 - [Credential Reference](../reference/credential.md) — Managing secrets
 - [Workspace Reference](../reference/workspace.md) — Full workspace YAML schema
 - [Building & Attaching](build-attach.md) — Container lifecycle
