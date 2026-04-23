@@ -1,20 +1,6 @@
 # Architecture Overview
 
-How DevOpsMaestro is structured from a user's perspective.
-
----
-
-## Three Tools, One Database
-
-DevOpsMaestro provides three CLI tools that share a single SQLite database at `~/.devopsmaestro/devopsmaestro.db`:
-
-| Tool | Binary | What It Manages |
-|------|--------|-----------------|
-| **DevOpsMaestro** | `dvm` | Apps, workspaces, registries, git repos, credentials, CRDs |
-| **NvimOps** | `nvp` | Neovim plugins and themes |
-| **Terminal Operations** | `dvt` | Terminal prompts, plugins, and configurations |
-
-All three tools share the same object hierarchy and context.
+How `dvm` (DevOpsMaestro) is structured from a user's perspective.
 
 ---
 
@@ -111,23 +97,8 @@ dvm get platforms
 
 ---
 
-## External Modules
-
-DevOpsMaestro is built on a set of focused libraries that can also be used independently:
-
-| Module | Purpose |
-|--------|---------|
-| [MaestroNvim](https://github.com/rmkohlman/MaestroNvim) | Neovim plugin and theme management (`nvp`) |
-| [MaestroTheme](https://github.com/rmkohlman/MaestroTheme) | Theme and color palette system |
-| [MaestroTerminal](https://github.com/rmkohlman/MaestroTerminal) | Terminal prompt and plugin management (`dvt`) |
-| [MaestroSDK](https://github.com/rmkohlman/MaestroSDK) | Shared foundation (paths, rendering, resource handling) |
-| [MaestroPalette](https://github.com/rmkohlman/MaestroPalette) | Color palette primitives |
-
----
-
 ## See Also
 
 - [Source Types](source-types.md) — How the `-f` flag resolves sources
-- [Theme Hierarchy](https://rmkohlman.github.io/MaestroTheme/configuration/theme-hierarchy/) — How themes cascade through the object hierarchy
 - [Custom Resource Definitions](../reference/custom-resource-definition.md) — Extending DevOpsMaestro with custom types
 - [Contributing](https://github.com/rmkohlman/devopsmaestro/blob/main/CONTRIBUTING.md) — Contribute to development

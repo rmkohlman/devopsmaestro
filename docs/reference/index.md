@@ -31,19 +31,15 @@ DevOpsMaestro supports the following resource types with kubectl-style YAML conf
 | [NvimPlugin](https://rmkohlman.github.io/MaestroNvim/reference/nvim-plugin/) | `devopsmaestro.io/v1` | Neovim plugin configuration |
 | [NvimPackage](https://rmkohlman.github.io/MaestroNvim/reference/nvim-package/) | `devopsmaestro.io/v1` | Collection of related Neovim plugins |
 
+> These resource types are managed by the `nvp` binary. See [MaestroNvim docs](https://rmkohlman.github.io/MaestroNvim/) for full reference.
+
 ### Infrastructure Resources
 
 | Resource | APIVersion | Description |
 |----------|------------|-------------|
 | [Registry](registry.md) | `devopsmaestro.io/v1` | Local package registry (OCI, Python, Go, npm, HTTP proxy) |
 
-### Terminal Resources
-
-| Resource | APIVersion | Description |
-|----------|------------|-------------|
-| [TerminalPrompt](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-prompt/) | `devopsmaestro.io/v1` | Shell prompt configuration (Starship, Powerlevel10k, Oh-My-Posh) |
-| [TerminalPackage](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-package/) | `devopsmaestro.io/v1` | Terminal package: shell plugins, prompts, profiles, WezTerm settings |
-| [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) | `devopsmaestro.dev/v1alpha1` | Terminal emulator configuration (WezTerm, Alacritty, Kitty) |
+> **Terminal resources** (TerminalPrompt, TerminalPackage, WeztermConfig) are managed by the `dvt` binary. See [MaestroTerminal docs](https://rmkohlman.github.io/MaestroTerminal/) for full reference.
 
 ## Object Hierarchy
 

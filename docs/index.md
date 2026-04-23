@@ -1,6 +1,6 @@
 # DevOpsMaestro
 
-**kubectl-style CLI toolkit for containerized development environments with hierarchical theme management.**
+**kubectl-style CLI toolkit for containerized development environments.**
 
 [![Release](https://img.shields.io/github/v/release/rmkohlman/devopsmaestro)](https://github.com/rmkohlman/devopsmaestro/releases/latest)
 [![CI](https://github.com/rmkohlman/devopsmaestro/actions/workflows/ci.yml/badge.svg)](https://github.com/rmkohlman/devopsmaestro/actions/workflows/ci.yml)
@@ -10,47 +10,27 @@
 
 ## What is DevOpsMaestro?
 
-DevOpsMaestro provides three powerful CLI tools for modern development workflows:
-
-| Tool | Binary | Description |
-|------|--------|-------------|
-| **DevOpsMaestro** | `dvm` | Workspace and app management with container-native dev environments and hierarchical theme system |
-| **NvimOps** | `nvp` | Standalone Neovim plugin & theme manager with 38+ curated plugins and 34+ themes |
-| **Terminal Operations** | `dvt` | Terminal prompt and configuration management with theme integration |
+DevOpsMaestro (`dvm`) is a kubectl-style CLI for managing containerized development environments. It organizes your codebases and dev containers using a clear object hierarchy that matches real-world team structures.
 
 ## Object Hierarchy
 
 ```
-Ecosystem → Domain → App → Workspace
-   (org)    (context) (code)  (dev env)
+Ecosystem → Domain → System → App → Workspace
+   (org)    (context) (group) (code)  (dev env)
 ```
 
 DevOpsMaestro organizes your development environments using a clear hierarchy that matches real-world organizational structures.
 
 ## Key Features
 
-### dvm - Workspace Management
-
 - :material-kubernetes: **kubectl-style commands** - Familiar `get`, `create`, `delete`, `apply` patterns
-- :material-sitemap: **Object hierarchy** - Ecosystem → Domain → App → Workspace for organized development
+- :material-sitemap: **Object hierarchy** - Ecosystem → Domain → System → App → Workspace for organized development
 - :material-docker: **Multi-platform** - OrbStack, Docker Desktop, Podman, Colima
 - :material-cube-outline: **Container-native** - Isolated dev environments with Neovim pre-configured
 - :material-cog-outline: **Default Nvim setup** - New workspaces auto-configured with lazyvim + "core" plugin package
 - :material-database: **Database-backed** - SQLite storage for apps, workspaces, plugins
 - :material-file-document: **YAML configuration** - Declarative workspace definitions
 - :material-palette: **Hierarchical theme system** - Themes cascade through the object hierarchy
-
-### nvp - Neovim Plugin Manager
-
-- :material-file-code: **YAML-based plugins** - Define plugins in YAML, generate Lua
-- :material-library: **Built-in library** - 38+ curated plugins ready to install
-- :material-palette: **Theme system** - 34+ embedded themes with instant availability
-  - **21 CoolNight variants** - Blue, purple, green, warm, red/pink, monochrome, special themes
-  - **13+ additional themes** - Catppuccin, Dracula, Everforest, Gruvbox, Tokyo Night, and more
-- :material-layers: **Theme hierarchy** - Themes cascade Workspace → App → Domain → Ecosystem → Global
-- :material-kubernetes: **kubectl-style IaC** - `dvm apply -f theme.yaml`, URL support, GitHub shorthand
-- :material-link: **URL support** - Install from GitHub repositories
-- :material-package-variant: **Standalone** - Works without containers
 
 ---
 
@@ -60,15 +40,10 @@ DevOpsMaestro organizes your development environments using a clear hierarchy th
 
     ```bash
     brew tap rmkohlman/tap
-    
-    # Install DevOpsMaestro (includes dvm)
     brew install devopsmaestro
     
-    # Or install NvimOps only (no containers needed)
-    brew install nvimops
-    
     # Verify installation
-    dvm version && nvp version
+    dvm version
     ```
 
 === "From Source"
@@ -77,8 +52,7 @@ DevOpsMaestro organizes your development environments using a clear hierarchy th
     git clone https://github.com/rmkohlman/devopsmaestro.git
     cd devopsmaestro
     go build -o dvm .
-    go build -o nvp ./cmd/nvp/
-    sudo mv dvm nvp /usr/local/bin/
+    sudo mv dvm /usr/local/bin/
     ```
 
 ---
@@ -111,9 +85,6 @@ dvm attach                                  # Enter the container
 ### Hierarchical theme management
 
 ```bash
-# Browse 34+ available themes
-dvm get nvim themes
-
 # Set themes at different levels (themes cascade down)
 dvm set theme coolnight-ocean --workspace dev          # Workspace-specific
 dvm set theme coolnight-synthwave --app api-service    # App-wide default
@@ -123,16 +94,6 @@ dvm set theme coolnight-nord --domain backend          # Domain-wide default
 dvm get nvim theme coolnight-ocean -o yaml             # Export for sharing
 dvm apply -f https://example.com/theme.yaml           # Import from URL
 dvm apply -f github:user/repo/theme.yaml              # Import from GitHub
-```
-
-### Manage Neovim plugins with nvp
-
-```bash
-nvp init                              # Initialize
-nvp library list                      # Browse 38+ available plugins
-nvp library install telescope lspconfig treesitter
-nvp theme library install tokyonight-custom --use
-nvp generate                          # Generate Lua files
 ```
 
 ---
@@ -153,31 +114,15 @@ nvp generate                          # Generate Lua files
 
     ---
 
-    Complete reference for all dvm and nvp commands
+    Complete reference for all dvm commands
 
     [:octicons-arrow-right-24: dvm Commands](dvm/commands.md)
-
--   :material-palette:{ .lg .middle } **Theme System**
-
-    ---
-
-    Hierarchical themes, CoolNight collection, and Infrastructure as Code
-
-    [:octicons-arrow-right-24: Theme Hierarchy](advanced/theme-hierarchy.md)
-
--   :material-package-variant:{ .lg .middle } **Plugin Packages**
-
-    ---
-
-    Complete development environments with 39+ curated plugins
-
-    [:octicons-arrow-right-24: Plugin Packages](nvp/packages.md)
 
 -   :material-cog:{ .lg .middle } **Configuration**
 
     ---
 
-    YAML schemas, plugin system, and customization
+    YAML schemas, shell completion, and customization
 
     [:octicons-arrow-right-24: Configuration](configuration/yaml-schema.md)
 
@@ -188,13 +133,5 @@ nvp generate                          # Generate Lua files
     Complete YAML schemas for all resource types
 
     [:octicons-arrow-right-24: Reference](reference/index.md)
-
--   :material-github:{ .lg .middle } **Contributing**
-
-    ---
-
-    Help improve DevOpsMaestro
-
-    [:octicons-arrow-right-24: Contributing](development/contributing.md)
 
 </div>

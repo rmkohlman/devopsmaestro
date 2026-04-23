@@ -23,8 +23,8 @@ Read from local filesystem:
 
 ```bash
 dvm apply -f workspace.yaml
-nvp apply -f ~/configs/telescope.yaml
-nvp apply -f ./plugins/my-plugin.yaml
+dvm apply -f ~/configs/app.yaml
+dvm apply -f ./resources/my-app.yaml
 ```
 
 Both relative and absolute paths work.
@@ -36,8 +36,8 @@ Both relative and absolute paths work.
 Fetch from HTTP/HTTPS URLs:
 
 ```bash
-nvp apply -f https://raw.githubusercontent.com/user/repo/main/plugin.yaml
-nvp apply -f https://example.com/configs/workspace.yaml
+dvm apply -f https://raw.githubusercontent.com/user/repo/main/workspace.yaml
+dvm apply -f https://example.com/configs/workspace.yaml
 ```
 
 URLs are auto-detected by the `http://` or `https://` prefix.
@@ -49,13 +49,13 @@ URLs are auto-detected by the `http://` or `https://` prefix.
 Convenient shorthand for GitHub raw files:
 
 ```bash
-nvp apply -f github:rmkohlman/nvim-yaml-plugins/plugins/telescope.yaml
+dvm apply -f github:rmkohlman/devopsmaestro/examples/workspace.yaml
 ```
 
 This expands to:
 
 ```
-https://raw.githubusercontent.com/rmkohlman/nvim-yaml-plugins/main/plugins/telescope.yaml
+https://raw.githubusercontent.com/rmkohlman/devopsmaestro/main/examples/workspace.yaml
 ```
 
 ### Format
@@ -75,19 +75,19 @@ Read from standard input:
 
 ```bash
 # Pipe from file
-cat plugin.yaml | nvp apply -f -
+cat workspace.yaml | dvm apply -f -
 
 # Pipe from command
-curl -s https://example.com/plugin.yaml | nvp apply -f -
+curl -s https://example.com/workspace.yaml | dvm apply -f -
 
 # Here document
-nvp apply -f - << 'EOF'
+dvm apply -f - << 'EOF'
 apiVersion: devopsmaestro.io/v1
-kind: NvimPlugin
+kind: App
 metadata:
-  name: my-plugin
+  name: my-app
 spec:
-  repo: user/my-plugin
+  domain: myorg
 EOF
 ```
 
@@ -110,29 +110,28 @@ The source type is automatically detected from the path prefix:
 
 ## Examples
 
-### Install Plugin from GitHub
+### Apply Resource from GitHub
 
 ```bash
-nvp apply -f github:rmkohlman/nvim-yaml-plugins/plugins/telescope.yaml
+dvm apply -f github:rmkohlman/devopsmaestro/examples/workspace.yaml
 ```
 
 ### Apply Multiple from URLs
 
 ```bash
-nvp apply -f https://example.com/telescope.yaml
-nvp apply -f https://example.com/treesitter.yaml
-nvp apply -f https://example.com/lspconfig.yaml
+dvm apply -f https://example.com/ecosystem.yaml
+dvm apply -f https://example.com/domain.yaml
+dvm apply -f https://example.com/app.yaml
 ```
 
-### Scripted Installation
+### Scripted Application
 
 ```bash
 #!/bin/bash
-plugins=(telescope treesitter lspconfig nvim-cmp)
-for plugin in "${plugins[@]}"; do
-  nvp apply -f "github:rmkohlman/nvim-yaml-plugins/plugins/${plugin}.yaml"
+resources=(ecosystem domain app workspace)
+for resource in "${resources[@]}"; do
+  dvm apply -f "https://example.com/configs/${resource}.yaml"
 done
-nvp generate
 ```
 
 ### From Curl
@@ -158,4 +157,3 @@ curl -s https://example.com/my-config.yaml | dvm apply -f -
 
 - [Architecture](architecture.md) - Internal architecture
 - [dvm Commands](../dvm/commands.md) - Command reference
-- [nvp Commands](https://rmkohlman.github.io/MaestroNvim/commands/) - Command reference

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.104.9] - 2026-04-23
+
+### Fixed / Changed
+- **Docs: scope MkDocs site to dvm only** ([#415](https://github.com/rmkohlman/devopsmaestro/issues/415)) — removed nvp/MaestroNvim/MaestroTerminal documentation from the dvm MkDocs site; site builds clean under `--strict`. Resolves #415.
+  - `docs/index.md`: removed `nvp` feature table and command examples; updated hero/quick-install to dvm only; trimmed Next Steps to dvm-relevant pages.
+  - `docs/getting-started/installation.md`: removed `nvp` from install/verify steps; added "Related tools" pointer to MaestroNvim/MaestroTerminal docs.
+  - `docs/reference/index.md`: removed the "Terminal Resources" table (TerminalPrompt, TerminalPackage, WeztermConfig); added "see also" notes for NvimOps/Terminal resources.
+  - `docs/advanced/architecture.md`, `docs/advanced/private-repos.md`, `docs/advanced/source-types.md`: scoped to dvm-only content.
+  - `docs/changelog.md`: added v0.104.9 entry.
+  - `docs/development/README.md`, `docs/development/decisions.md`: updated stale version stamps.
+
+---
+
 ## [v0.104.8] - 2026-04-23
 
 ### Fixed / Changed

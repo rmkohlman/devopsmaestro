@@ -95,16 +95,6 @@ dvm build
 
 ---
 
-### 3. BuildKit Secrets (Coming Soon)
-**Most secure for tokens and credentials**
-
-```bash
-# Build with secrets
-echo "ghp_token" | dvm build --secret GITHUB_TOKEN=-
-```
-
----
-
 ## Language-Specific Support
 
 ### Python
@@ -480,15 +470,3 @@ FROM base AS dev
 - ✅ Private npm registries
 - ✅ Private Maven/Artifactory
 - ✅ Private Cargo registries
-
----
-
-## Coming Soon
-
-- [ ] BuildKit secrets API (more secure than build args)
-- [ ] `.netrc` file support
-- [ ] Credential helper integration
-- [ ] AWS CodeArtifact support
-- [ ] Google Artifact Registry
-- [ ] Certificate bundle mounting
-- [ ] Proxy configuration

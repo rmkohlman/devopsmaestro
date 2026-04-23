@@ -245,4 +245,4 @@ nvp config init/show/edit       # Manage nvp configuration
 
 ---
 
-**Last Updated:** 2026-04-09 (v0.57.1)
+**Last Updated:** 2026-04-23 (v0.103.1)

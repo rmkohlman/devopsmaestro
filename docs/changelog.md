@@ -2,6 +2,18 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.104.9 (2026-04-23)
+
+**Fixed / Changed**
+- **Documentation: Development section audit / dvm MkDocs scope cleanup** ([#415](https://github.com/rmkohlman/devopsmaestro/issues/415)) — scoped the dvm MkDocs site to dvm-only content across all sections.
+  - `docs/index.md`: removed `nvp` feature table and `nvp` command examples; updated hero description and quick-install to `dvm` only; trimmed Next Steps cards to dvm-relevant pages only.
+  - `docs/getting-started/installation.md`: removed `nvp` from all install/verify steps; added a brief "Related tools" tip pointing to MaestroNvim/MaestroTerminal docs.
+  - `docs/reference/index.md`: removed the "Terminal Resources" table (TerminalPrompt, TerminalPackage, WeztermConfig); added brief "see also" notes for NvimOps and Terminal resources pointing to their respective module docs.
+  - `docs/development/decisions.md`: updated stale version stamp (v0.57.1 → v0.103.1).
+  - `docs/development/README.md`: updated stale version stamp (v0.57.1 → v0.103.1).
+
+---
+
 ## v0.104.8 (2026-04-23)
 
 **Fixed / Changed**
