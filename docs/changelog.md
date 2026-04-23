@@ -2,6 +2,13 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.105.1 (2026-04-23)
+
+**Fixed**
+- **Docs: Home page audit corrections** ([#421](https://github.com/rmkohlman/devopsmaestro/issues/421)) — corrected inaccuracies on the landing page (`docs/index.md`): removed stale "Default Nvim setup" feature bullet; fixed Quick Example to include the missing `system` level in the object hierarchy (Ecosystem → Domain → System → App → Workspace) with updated `app` and `workspace` paths; replaced the non-existent `dvm get nvim theme ... -o yaml` example with a clearer "Import themes from URL or GitHub" comment over the existing `dvm apply -f` examples.
+
+---
+
 ## v0.105.0 (2026-04-23)
 
 **Added**

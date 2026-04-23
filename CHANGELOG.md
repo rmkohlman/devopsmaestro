@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.105.1] - 2026-04-23
+
+### Fixed
+- **Docs: Home page audit corrections** ([#421](https://github.com/rmkohlman/devopsmaestro/issues/421)) — corrected inaccuracies in the landing page (`docs/index.md`):
+  - Removed stale "Default Nvim setup" feature bullet (no longer reflects current behavior; lazyvim/core auto-config is owned by MaestroNvim).
+  - Fixed Quick Example object hierarchy to include the missing `system` level (`dvm create system mycompany/backend/services`) and updated downstream `app` and `workspace` paths to match the Ecosystem → Domain → System → App → Workspace hierarchy.
+  - Replaced the non-existent `dvm get nvim theme ... -o yaml` example with a clearer "Import themes from URL or GitHub" comment over the existing `dvm apply -f` examples.
+
+---
+
 ## [v0.105.0] - 2026-04-23
 
 ### Added

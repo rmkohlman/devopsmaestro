@@ -27,7 +27,6 @@ DevOpsMaestro organizes your development environments using a clear hierarchy th
 - :material-sitemap: **Object hierarchy** - Ecosystem → Domain → System → App → Workspace for organized development
 - :material-docker: **Multi-platform** - OrbStack, Docker Desktop, Podman, Colima
 - :material-cube-outline: **Container-native** - Isolated dev environments with Neovim pre-configured
-- :material-cog-outline: **Default Nvim setup** - New workspaces auto-configured with lazyvim + "core" plugin package
 - :material-database: **Database-backed** - SQLite storage for apps, workspaces, plugins
 - :material-file-document: **YAML configuration** - Declarative workspace definitions
 - :material-palette: **Hierarchical theme system** - Themes cascade through the object hierarchy
@@ -64,10 +63,11 @@ DevOpsMaestro organizes your development environments using a clear hierarchy th
 ```bash
 # Create organizational structure (one-time setup)
 dvm admin init                                    # Initialize dvm
-dvm create ecosystem mycompany              # Top-level platform
-dvm create domain mycompany/backend         # Bounded context  
-dvm create app mycompany/backend/api-service  # Your application
-dvm create workspace mycompany/backend/api-service/dev  # Dev environment
+dvm create ecosystem mycompany                        # Top-level platform
+dvm create domain mycompany/backend                   # Bounded context
+dvm create system mycompany/backend/services          # System grouping
+dvm create app mycompany/backend/services/api-service # Your application
+dvm create workspace mycompany/backend/services/api-service/dev  # Dev environment
 ```
 
 ### Add an existing app to dvm
@@ -90,8 +90,7 @@ dvm set theme coolnight-ocean --workspace dev          # Workspace-specific
 dvm set theme coolnight-synthwave --app api-service    # App-wide default
 dvm set theme coolnight-nord --domain backend          # Domain-wide default
 
-# kubectl-style theme management
-dvm get nvim theme coolnight-ocean -o yaml             # Export for sharing
+# Import themes from URL or GitHub
 dvm apply -f https://example.com/theme.yaml           # Import from URL
 dvm apply -f github:user/repo/theme.yaml              # Import from GitHub
 ```
