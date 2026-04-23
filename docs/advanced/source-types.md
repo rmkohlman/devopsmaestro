@@ -158,4 +158,4 @@ curl -s https://example.com/my-config.yaml | dvm apply -f -
 
 - [Architecture](architecture.md) - Internal architecture
 - [dvm Commands](../dvm/commands.md) - Command reference
-- [nvp Commands](../nvp/commands.md) - Command reference
+- [nvp Commands](https://rmkohlman.github.io/MaestroNvim/commands/) - Command reference

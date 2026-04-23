@@ -27,9 +27,9 @@ DevOpsMaestro supports the following resource types with kubectl-style YAML conf
 
 | Resource | APIVersion | Description |
 |----------|------------|-------------|
-| [NvimTheme](nvim-theme.md) | `devopsmaestro.io/v1` | Neovim colorscheme theme definition |
-| [NvimPlugin](nvim-plugin.md) | `devopsmaestro.io/v1` | Neovim plugin configuration |
-| [NvimPackage](nvim-package.md) | `devopsmaestro.io/v1` | Collection of related Neovim plugins |
+| [NvimTheme](https://rmkohlman.github.io/MaestroNvim/reference/nvim-theme/) | `devopsmaestro.io/v1` | Neovim colorscheme theme definition |
+| [NvimPlugin](https://rmkohlman.github.io/MaestroNvim/reference/nvim-plugin/) | `devopsmaestro.io/v1` | Neovim plugin configuration |
+| [NvimPackage](https://rmkohlman.github.io/MaestroNvim/reference/nvim-package/) | `devopsmaestro.io/v1` | Collection of related Neovim plugins |
 
 ### Infrastructure Resources
 
@@ -41,9 +41,9 @@ DevOpsMaestro supports the following resource types with kubectl-style YAML conf
 
 | Resource | APIVersion | Description |
 |----------|------------|-------------|
-| [TerminalPrompt](terminal-prompt.md) | `devopsmaestro.io/v1` | Shell prompt configuration (Starship, Powerlevel10k, Oh-My-Posh) |
-| [TerminalPackage](wezterm-config.md) | `devopsmaestro.io/v1` | Terminal package: shell plugins, prompts, profiles, WezTerm settings |
-| [WeztermConfig](wezterm-config.md) | `devopsmaestro.dev/v1alpha1` | Terminal emulator configuration (WezTerm, Alacritty, Kitty) |
+| [TerminalPrompt](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-prompt/) | `devopsmaestro.io/v1` | Shell prompt configuration (Starship, Powerlevel10k, Oh-My-Posh) |
+| [TerminalPackage](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-package/) | `devopsmaestro.io/v1` | Terminal package: shell plugins, prompts, profiles, WezTerm settings |
+| [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) | `devopsmaestro.dev/v1alpha1` | Terminal emulator configuration (WezTerm, Alacritty, Kitty) |
 
 ## Object Hierarchy
 

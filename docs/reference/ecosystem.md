@@ -91,7 +91,7 @@ Default theme name that cascades down to all domains, apps, and workspaces in th
 - `catppuccin-mocha`
 - `gruvbox-dark`
 
-See [Theme Hierarchy](../advanced/theme-hierarchy.md) for complete list.
+See [Theme Hierarchy](https://rmkohlman.github.io/MaestroTheme/configuration/theme-hierarchy/) for complete list.
 
 ### spec.nvimPackage (optional)
 Default Neovim plugin package that cascades to all workspaces in this ecosystem. References a `NvimPackage` resource by name. Overridden at Domain, App, or Workspace level.
@@ -202,8 +202,8 @@ dvm get ecosystem my-platform --include-children -o yaml
 - [App](app.md) - Applications within domains
 - [Workspace](workspace.md) - Development environments
 - [Credential](credential.md) - Secrets scoped to this ecosystem
-- [NvimPackage](nvim-package.md) - Plugin package definitions
-- [NvimTheme](nvim-theme.md) - Theme definitions
+- [NvimPackage](https://rmkohlman.github.io/MaestroNvim/reference/nvim-package/) - Plugin package definitions
+- [NvimTheme](https://rmkohlman.github.io/MaestroNvim/reference/nvim-theme/) - Theme definitions
 
 ## Validation Rules
 

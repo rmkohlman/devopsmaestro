@@ -133,6 +133,6 @@ DevOpsMaestro is built on a set of focused libraries that can also be used indep
 ## See Also
 
 - [Source Types](source-types.md) — How the `-f` flag resolves sources
-- [Theme Hierarchy](theme-hierarchy.md) — How themes cascade through the object hierarchy
+- [Theme Hierarchy](https://rmkohlman.github.io/MaestroTheme/configuration/theme-hierarchy/) — How themes cascade through the object hierarchy
 - [Custom Resource Definitions](../reference/custom-resource-definition.md) — Extending DevOpsMaestro with custom types
-- [Contributing](../development/contributing.md) — Contribute to development
+- [Contributing](https://github.com/rmkohlman/devopsmaestro/blob/main/CONTRIBUTING.md) — Contribute to development

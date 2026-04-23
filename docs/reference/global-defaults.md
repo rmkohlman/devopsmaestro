@@ -210,5 +210,5 @@ dvm delete globaldefaults global-defaults
 - [Ecosystem](ecosystem.md) — Ecosystem-level theme, build args, and CA certs (overrides GlobalDefaults)
 - [Domain](domain.md) — Domain-level theme, build args, and CA certs
 - [Registry](registry.md) — Registry resources referenced by `registryOci`, `registryPypi`, etc.
-- [NvimPackage](nvim-package.md) — Package definitions referenced by `nvimPackage`
-- [NvimTheme](nvim-theme.md) — Theme definitions referenced by `theme`
+- [NvimPackage](https://rmkohlman.github.io/MaestroNvim/reference/nvim-package/) — Package definitions referenced by `nvimPackage`
+- [NvimTheme](https://rmkohlman.github.io/MaestroNvim/reference/nvim-theme/) — Theme definitions referenced by `theme`

@@ -591,7 +591,7 @@ jobs:
 
 ## Next Steps
 
-- [Theme Hierarchy](theme-hierarchy.md) - Understanding theme inheritance
-- [Themes Documentation](../nvp/themes.md) - Available themes and variants
+- [Theme Hierarchy](https://rmkohlman.github.io/MaestroTheme/configuration/theme-hierarchy/) - Understanding theme inheritance
+- [Themes Documentation](https://rmkohlman.github.io/MaestroNvim/themes/overview/) - Available themes and variants
 - [YAML Schema](../configuration/yaml-schema.md) - Complete YAML format reference
 - [Source Types](../advanced/source-types.md) - All supported source formats

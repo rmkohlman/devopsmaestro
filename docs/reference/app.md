@@ -248,7 +248,7 @@ spec:
     kind: language
 ```
 
-See [Build Architecture — App Kinds](../build-architecture.md#app-kinds) for the full detection signal precedence.
+See Build Architecture — App Kinds for the full detection signal precedence.
 
 ### spec.build.caCerts (optional)
 
@@ -489,8 +489,8 @@ dvm get app my-api --include-workspaces -o yaml
 - [System](system.md) - Optional parent system grouping
 - [Workspace](workspace.md) - Development environments for this app
 - [Credential](credential.md) - Secrets scoped to this app
-- [NvimPackage](nvim-package.md) - Plugin package definitions
-- [NvimTheme](nvim-theme.md) - Theme definitions
+- [NvimPackage](https://rmkohlman.github.io/MaestroNvim/reference/nvim-package/) - Plugin package definitions
+- [NvimTheme](https://rmkohlman.github.io/MaestroNvim/reference/nvim-theme/) - Theme definitions
 
 ## Validation Rules
 

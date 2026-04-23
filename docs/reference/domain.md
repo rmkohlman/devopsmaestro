@@ -269,8 +269,8 @@ spec:
 - [App](app.md) - Applications within this domain
 - [Workspace](workspace.md) - Development environments
 - [Credential](credential.md) - Secrets scoped to this domain
-- [NvimPackage](nvim-package.md) - Plugin package definitions
-- [NvimTheme](nvim-theme.md) - Theme definitions
+- [NvimPackage](https://rmkohlman.github.io/MaestroNvim/reference/nvim-package/) - Plugin package definitions
+- [NvimTheme](https://rmkohlman.github.io/MaestroNvim/reference/nvim-theme/) - Theme definitions
 
 ## Validation Rules
 

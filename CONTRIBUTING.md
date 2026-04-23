@@ -104,7 +104,7 @@ mkdocs serve
 
 ## Release Process
 
-Releases are handled by maintainers. See [Release Process](./release-process.md) for details.
+Releases are handled by maintainers.
 
 ---
 

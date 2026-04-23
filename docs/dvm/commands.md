@@ -542,14 +542,14 @@ dvm build [flags]
 ```
 
 The build command:
-- **Determines AppKind first** — before language detection, classifies the app as `CICD`, `Language`, or `Unknown` by inspecting the source tree for signals: `Chart.yaml`, `kustomization.yaml/yml/Kustomization`, `.argocd/`, `Application`/`HelmRelease` resource kinds, app-name heuristics, and yaml-only repos. CICD apps use a minimal `alpine:3.20` image with kubectl, helm, kustomize, and (optionally) the ArgoCD CLI; language detection is skipped. Override with `spec.build.kind` in the App YAML (see [Build Architecture — App Kinds](../build-architecture.md#app-kinds))
+- **Determines AppKind first** — before language detection, classifies the app as `CICD`, `Language`, or `Unknown` by inspecting the source tree for signals: `Chart.yaml`, `kustomization.yaml/yml/Kustomization`, `.argocd/`, `Application`/`HelmRelease` resource kinds, app-name heuristics, and yaml-only repos. CICD apps use a minimal `alpine:3.20` image with kubectl, helm, kustomize, and (optionally) the ArgoCD CLI; language detection is skipped. Override with `spec.build.kind` in the App YAML (see Build Architecture — App Kinds)
 - Detects the app language (for non-CICD apps) and generates a Dockerfile with dev tools
 - Emits `ARG` declarations for all `spec.build.args` keys (not `ENV` — credentials are not persisted in image layers)
 - Injects CA certificates from MaestroVault when `spec.build.caCerts` is configured — certificates are written to `/usr/local/share/ca-certificates/custom/`, `update-ca-certificates` is run, and `SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE`, and `NODE_EXTRA_CA_CERTS` are set
 - Sets the `USER` directive to the value of `container.user` (defaults to `dev` if unset)
 - Builds the image using the detected container platform and tags it as `dvm-<workspace>-<app>:<timestamp>`
 - Optionally pushes to local registry cache after build
-- Writes a **per-session build log** to `~/.devopsmaestro/logs/builds/<session-uuid>.log`; `latest.log` in that directory always symlinks to the most recent session (see [Build Logs](../build-architecture.md#build-logs))
+- Writes a **per-session build log** to `~/.devopsmaestro/logs/builds/<session-uuid>.log`; `latest.log` in that directory always symlinks to the most recent session (see Build Logs)
 
 **Supported platforms:** OrbStack, Docker Desktop, Podman (Docker API); Colima with containerd (BuildKit API). Use the `DVM_PLATFORM` environment variable to select a specific platform.
 

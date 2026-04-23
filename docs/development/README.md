@@ -17,7 +17,7 @@ Documents why we chose specific approaches:
 - Binary distribution
 - `nvp` as a standalone binary
 
-### [release-process.md](./release-process.md)
+### Release Process
 **Release Workflow** — Step-by-step guide for creating releases.
 
 Covers:
@@ -26,7 +26,7 @@ Covers:
 - Updating Homebrew tap
 - Verification steps
 
-### [contributing.md](./contributing.md)
+### [CONTRIBUTING.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CONTRIBUTING.md)
 **Contributor Guide** — How to contribute code or documentation.
 
 ### [v0.2.0-theme-system.md](./v0.2.0-theme-system.md)
@@ -36,9 +36,9 @@ Covers:
 
 ## Related Documentation
 
-- **[README.md](../../README.md)** — Project overview and quick start
-- **[CHANGELOG.md](../../CHANGELOG.md)** — Version history
-- **[LICENSING.md](../../LICENSING.md)** — License information
+- **[README.md](https://github.com/rmkohlman/devopsmaestro/blob/main/README.md)** — Project overview and quick start
+- **[CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md)** — Version history
+- **[LICENSING.md](https://github.com/rmkohlman/devopsmaestro/blob/main/LICENSING.md)** — License information
 
 ---
 

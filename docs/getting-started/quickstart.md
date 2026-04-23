@@ -536,7 +536,7 @@ Now that you have the basics:
 - **[Working with Existing Apps](existing-projects.md)** - Detailed guide for existing codebases
 - **[Creating New Apps](new-projects.md)** - More examples and language-specific setups
 - **[dvm Commands Reference](../dvm/commands.md)** - Complete command documentation
-- **[nvp Overview](../nvp/overview.md)** - Standalone Neovim plugin management
+- **[nvp Overview](https://rmkohlman.github.io/MaestroNvim/plugins/overview/)** - Standalone Neovim plugin management
 - **[Configuration Guide](../configuration/yaml-schema.md)** - Customize environments with YAML
 
 ---

@@ -37,4 +37,4 @@ dvm get nvim themes
 dvm get nvim theme coolnight-ocean
 ```
 
-See the [Theme Hierarchy](advanced/theme-hierarchy.md) documentation for how themes cascade through the object hierarchy.
+See the [Theme Hierarchy](https://rmkohlman.github.io/MaestroTheme/configuration/theme-hierarchy/) documentation for how themes cascade through the object hierarchy.

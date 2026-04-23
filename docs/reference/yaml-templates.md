@@ -567,16 +567,16 @@ spec:
 
 | Field | Type | Required | Description | Reference |
 |-------|------|----------|-------------|-----------|
-| `metadata.name` | string | Yes | Unique theme name | [NvimTheme](nvim-theme.md) |
-| `metadata.description` | string | No | Human-readable description | [NvimTheme](nvim-theme.md) |
-| `metadata.author` | string | No | Theme author | [NvimTheme](nvim-theme.md) |
-| `metadata.category` | string | No | Category (dark, light, etc.) | [NvimTheme](nvim-theme.md) |
-| `spec.plugin` | object | No | Plugin repo, branch, and tag (omit for standalone) | [NvimTheme](nvim-theme.md) |
-| `spec.style` | string | No | Theme style variant | [NvimTheme](nvim-theme.md) |
-| `spec.transparent` | bool | No | Enable transparent background | [NvimTheme](nvim-theme.md) |
-| `spec.colors` | map[string]string | No | Color overrides (hex values); required for standalone | [NvimTheme](nvim-theme.md) |
-| `spec.promptColors` | map[string]string | No | Starship prompt segment color overrides | [NvimTheme](nvim-theme.md) |
-| `spec.options` | map[string]any | No | Theme-specific key-value options | [NvimTheme](nvim-theme.md) |
+| `metadata.name` | string | Yes | Unique theme name | [NvimTheme](https://rmkohlman.github.io/MaestroNvim/reference/nvim-theme/) |
+| `metadata.description` | string | No | Human-readable description | [NvimTheme](https://rmkohlman.github.io/MaestroNvim/reference/nvim-theme/) |
+| `metadata.author` | string | No | Theme author | [NvimTheme](https://rmkohlman.github.io/MaestroNvim/reference/nvim-theme/) |
+| `metadata.category` | string | No | Category (dark, light, etc.) | [NvimTheme](https://rmkohlman.github.io/MaestroNvim/reference/nvim-theme/) |
+| `spec.plugin` | object | No | Plugin repo, branch, and tag (omit for standalone) | [NvimTheme](https://rmkohlman.github.io/MaestroNvim/reference/nvim-theme/) |
+| `spec.style` | string | No | Theme style variant | [NvimTheme](https://rmkohlman.github.io/MaestroNvim/reference/nvim-theme/) |
+| `spec.transparent` | bool | No | Enable transparent background | [NvimTheme](https://rmkohlman.github.io/MaestroNvim/reference/nvim-theme/) |
+| `spec.colors` | map[string]string | No | Color overrides (hex values); required for standalone | [NvimTheme](https://rmkohlman.github.io/MaestroNvim/reference/nvim-theme/) |
+| `spec.promptColors` | map[string]string | No | Starship prompt segment color overrides | [NvimTheme](https://rmkohlman.github.io/MaestroNvim/reference/nvim-theme/) |
+| `spec.options` | map[string]any | No | Theme-specific key-value options | [NvimTheme](https://rmkohlman.github.io/MaestroNvim/reference/nvim-theme/) |
 
 ---
 
@@ -639,27 +639,27 @@ spec:
 
 | Field | Type | Required | Description | Reference |
 |-------|------|----------|-------------|-----------|
-| `metadata.name` | string | Yes | Unique plugin name | [NvimPlugin](nvim-plugin.md) |
-| `metadata.description` | string | No | Human-readable description | [NvimPlugin](nvim-plugin.md) |
-| `metadata.category` | string | No | Category for organization | [NvimPlugin](nvim-plugin.md) |
-| `metadata.tags` | []string | No | Tags for searching and filtering | [NvimPlugin](nvim-plugin.md) |
-| `spec.repo` | string | Yes | GitHub repository path | [NvimPlugin](nvim-plugin.md) |
-| `spec.branch` | string | No | Git branch | [NvimPlugin](nvim-plugin.md) |
-| `spec.version` | string | No | Version constraint (git tag) | [NvimPlugin](nvim-plugin.md) |
-| `spec.priority` | int | No | Load priority (higher = earlier) | [NvimPlugin](nvim-plugin.md) |
-| `spec.lazy` | bool | No | Lazy-load the plugin | [NvimPlugin](nvim-plugin.md) |
-| `spec.enabled` | bool | No | Disable with `false`; omit when enabled (default: `true`) | [NvimPlugin](nvim-plugin.md) |
-| `spec.event` | string or []string | No | Events that trigger loading | [NvimPlugin](nvim-plugin.md) |
-| `spec.ft` | string or []string | No | Filetypes that trigger loading | [NvimPlugin](nvim-plugin.md) |
-| `spec.keys` | []object | No | Key mappings that trigger loading | [NvimPlugin](nvim-plugin.md) |
-| `spec.cmd` | string or []string | No | Commands that trigger loading | [NvimPlugin](nvim-plugin.md) |
-| `spec.dependencies` | []string or []object | No | Plugin dependencies | [NvimPlugin](nvim-plugin.md) |
-| `spec.build` | string | No | Build command after install | [NvimPlugin](nvim-plugin.md) |
-| `spec.config` | string | No | Lua configuration code (post-load) | [NvimPlugin](nvim-plugin.md) |
-| `spec.init` | string | No | Lua init code (pre-load) | [NvimPlugin](nvim-plugin.md) |
-| `spec.opts` | any | No | Options passed to setup() | [NvimPlugin](nvim-plugin.md) |
-| `spec.keymaps` | []object | No | Additional key mappings (not lazy triggers) | [NvimPlugin](nvim-plugin.md) |
-| `spec.health_checks` | []object | No | Health checks: type, value, description | [NvimPlugin](nvim-plugin.md) |
+| `metadata.name` | string | Yes | Unique plugin name | [NvimPlugin](https://rmkohlman.github.io/MaestroNvim/reference/nvim-plugin/) |
+| `metadata.description` | string | No | Human-readable description | [NvimPlugin](https://rmkohlman.github.io/MaestroNvim/reference/nvim-plugin/) |
+| `metadata.category` | string | No | Category for organization | [NvimPlugin](https://rmkohlman.github.io/MaestroNvim/reference/nvim-plugin/) |
+| `metadata.tags` | []string | No | Tags for searching and filtering | [NvimPlugin](https://rmkohlman.github.io/MaestroNvim/reference/nvim-plugin/) |
+| `spec.repo` | string | Yes | GitHub repository path | [NvimPlugin](https://rmkohlman.github.io/MaestroNvim/reference/nvim-plugin/) |
+| `spec.branch` | string | No | Git branch | [NvimPlugin](https://rmkohlman.github.io/MaestroNvim/reference/nvim-plugin/) |
+| `spec.version` | string | No | Version constraint (git tag) | [NvimPlugin](https://rmkohlman.github.io/MaestroNvim/reference/nvim-plugin/) |
+| `spec.priority` | int | No | Load priority (higher = earlier) | [NvimPlugin](https://rmkohlman.github.io/MaestroNvim/reference/nvim-plugin/) |
+| `spec.lazy` | bool | No | Lazy-load the plugin | [NvimPlugin](https://rmkohlman.github.io/MaestroNvim/reference/nvim-plugin/) |
+| `spec.enabled` | bool | No | Disable with `false`; omit when enabled (default: `true`) | [NvimPlugin](https://rmkohlman.github.io/MaestroNvim/reference/nvim-plugin/) |
+| `spec.event` | string or []string | No | Events that trigger loading | [NvimPlugin](https://rmkohlman.github.io/MaestroNvim/reference/nvim-plugin/) |
+| `spec.ft` | string or []string | No | Filetypes that trigger loading | [NvimPlugin](https://rmkohlman.github.io/MaestroNvim/reference/nvim-plugin/) |
+| `spec.keys` | []object | No | Key mappings that trigger loading | [NvimPlugin](https://rmkohlman.github.io/MaestroNvim/reference/nvim-plugin/) |
+| `spec.cmd` | string or []string | No | Commands that trigger loading | [NvimPlugin](https://rmkohlman.github.io/MaestroNvim/reference/nvim-plugin/) |
+| `spec.dependencies` | []string or []object | No | Plugin dependencies | [NvimPlugin](https://rmkohlman.github.io/MaestroNvim/reference/nvim-plugin/) |
+| `spec.build` | string | No | Build command after install | [NvimPlugin](https://rmkohlman.github.io/MaestroNvim/reference/nvim-plugin/) |
+| `spec.config` | string | No | Lua configuration code (post-load) | [NvimPlugin](https://rmkohlman.github.io/MaestroNvim/reference/nvim-plugin/) |
+| `spec.init` | string | No | Lua init code (pre-load) | [NvimPlugin](https://rmkohlman.github.io/MaestroNvim/reference/nvim-plugin/) |
+| `spec.opts` | any | No | Options passed to setup() | [NvimPlugin](https://rmkohlman.github.io/MaestroNvim/reference/nvim-plugin/) |
+| `spec.keymaps` | []object | No | Additional key mappings (not lazy triggers) | [NvimPlugin](https://rmkohlman.github.io/MaestroNvim/reference/nvim-plugin/) |
+| `spec.health_checks` | []object | No | Health checks: type, value, description | [NvimPlugin](https://rmkohlman.github.io/MaestroNvim/reference/nvim-plugin/) |
 
 ---
 
@@ -689,15 +689,15 @@ spec:
 
 | Field | Type | Required | Description | Reference |
 |-------|------|----------|-------------|-----------|
-| `metadata.name` | string | Yes | Unique package name | [NvimPackage](nvim-package.md) |
-| `metadata.description` | string | No | Human-readable description | [NvimPackage](nvim-package.md) |
-| `metadata.category` | string | No | Category for organization | [NvimPackage](nvim-package.md) |
-| `metadata.tags` | []string | No | Tags for searching and filtering | [NvimPackage](nvim-package.md) |
-| `metadata.labels` | map[string]string | No | Key-value labels | [NvimPackage](nvim-package.md) |
-| `metadata.annotations` | map[string]string | No | Non-identifying metadata | [NvimPackage](nvim-package.md) |
-| `spec.extends` | string | No | Parent package (single inheritance) | [NvimPackage](nvim-package.md) |
-| `spec.plugins` | []string | No | Plugin names to include | [NvimPackage](nvim-package.md) |
-| `spec.enabled` | bool | No | Whether package is enabled (default: true) | [NvimPackage](nvim-package.md) |
+| `metadata.name` | string | Yes | Unique package name | [NvimPackage](https://rmkohlman.github.io/MaestroNvim/reference/nvim-package/) |
+| `metadata.description` | string | No | Human-readable description | [NvimPackage](https://rmkohlman.github.io/MaestroNvim/reference/nvim-package/) |
+| `metadata.category` | string | No | Category for organization | [NvimPackage](https://rmkohlman.github.io/MaestroNvim/reference/nvim-package/) |
+| `metadata.tags` | []string | No | Tags for searching and filtering | [NvimPackage](https://rmkohlman.github.io/MaestroNvim/reference/nvim-package/) |
+| `metadata.labels` | map[string]string | No | Key-value labels | [NvimPackage](https://rmkohlman.github.io/MaestroNvim/reference/nvim-package/) |
+| `metadata.annotations` | map[string]string | No | Non-identifying metadata | [NvimPackage](https://rmkohlman.github.io/MaestroNvim/reference/nvim-package/) |
+| `spec.extends` | string | No | Parent package (single inheritance) | [NvimPackage](https://rmkohlman.github.io/MaestroNvim/reference/nvim-package/) |
+| `spec.plugins` | []string | No | Plugin names to include | [NvimPackage](https://rmkohlman.github.io/MaestroNvim/reference/nvim-package/) |
+| `spec.enabled` | bool | No | Whether package is enabled (default: true) | [NvimPackage](https://rmkohlman.github.io/MaestroNvim/reference/nvim-package/) |
 
 ---
 
@@ -747,22 +747,22 @@ spec:
 
 | Field | Type | Required | Description | Reference |
 |-------|------|----------|-------------|-----------|
-| `metadata.name` | string | Yes | Unique prompt name | [TerminalPrompt](terminal-prompt.md) |
-| `metadata.description` | string | No | Human-readable description | [TerminalPrompt](terminal-prompt.md) |
-| `metadata.category` | string | No | Category for organization | [TerminalPrompt](terminal-prompt.md) |
-| `metadata.tags` | []string | No | Tags for filtering | [TerminalPrompt](terminal-prompt.md) |
-| `metadata.labels` | map[string]string | No | Key-value labels | [TerminalPrompt](terminal-prompt.md) |
-| `metadata.annotations` | map[string]string | No | Non-identifying metadata | [TerminalPrompt](terminal-prompt.md) |
-| `spec.type` | string | Yes | `starship`, `powerlevel10k`, or `oh-my-posh` | [TerminalPrompt](terminal-prompt.md) |
-| `spec.addNewline` | bool | No | Add newline before prompt | [TerminalPrompt](terminal-prompt.md) |
-| `spec.palette` | string | No | Starship palette name | [TerminalPrompt](terminal-prompt.md) |
-| `spec.format` | string | No | Prompt format string | [TerminalPrompt](terminal-prompt.md) |
-| `spec.modules` | map[string]ModuleConfig | No | Per-module configuration | [TerminalPrompt](terminal-prompt.md) |
-| `spec.character` | object | No | Prompt character symbols | [TerminalPrompt](terminal-prompt.md) |
-| `spec.paletteRef` | string | No | Color palette reference | [TerminalPrompt](terminal-prompt.md) |
-| `spec.colors` | map[string]string | No | Custom color overrides | [TerminalPrompt](terminal-prompt.md) |
-| `spec.rawConfig` | string | No | Raw config for advanced use | [TerminalPrompt](terminal-prompt.md) |
-| `spec.enabled` | bool | No | Whether enabled (default: true) | [TerminalPrompt](terminal-prompt.md) |
+| `metadata.name` | string | Yes | Unique prompt name | [TerminalPrompt](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-prompt/) |
+| `metadata.description` | string | No | Human-readable description | [TerminalPrompt](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-prompt/) |
+| `metadata.category` | string | No | Category for organization | [TerminalPrompt](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-prompt/) |
+| `metadata.tags` | []string | No | Tags for filtering | [TerminalPrompt](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-prompt/) |
+| `metadata.labels` | map[string]string | No | Key-value labels | [TerminalPrompt](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-prompt/) |
+| `metadata.annotations` | map[string]string | No | Non-identifying metadata | [TerminalPrompt](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-prompt/) |
+| `spec.type` | string | Yes | `starship`, `powerlevel10k`, or `oh-my-posh` | [TerminalPrompt](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-prompt/) |
+| `spec.addNewline` | bool | No | Add newline before prompt | [TerminalPrompt](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-prompt/) |
+| `spec.palette` | string | No | Starship palette name | [TerminalPrompt](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-prompt/) |
+| `spec.format` | string | No | Prompt format string | [TerminalPrompt](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-prompt/) |
+| `spec.modules` | map[string]ModuleConfig | No | Per-module configuration | [TerminalPrompt](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-prompt/) |
+| `spec.character` | object | No | Prompt character symbols | [TerminalPrompt](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-prompt/) |
+| `spec.paletteRef` | string | No | Color palette reference | [TerminalPrompt](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-prompt/) |
+| `spec.colors` | map[string]string | No | Custom color overrides | [TerminalPrompt](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-prompt/) |
+| `spec.rawConfig` | string | No | Raw config for advanced use | [TerminalPrompt](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-prompt/) |
+| `spec.enabled` | bool | No | Whether enabled (default: true) | [TerminalPrompt](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-prompt/) |
 
 ---
 
@@ -803,20 +803,20 @@ spec:
 
 | Field | Type | Required | Description | Reference |
 |-------|------|----------|-------------|-----------|
-| `metadata.name` | string | Yes | Unique package name | [WeztermConfig](wezterm-config.md) |
-| `metadata.description` | string | No | Human-readable description | [WeztermConfig](wezterm-config.md) |
-| `metadata.category` | string | No | Category for organization | [WeztermConfig](wezterm-config.md) |
-| `metadata.tags` | []string | No | Tags for filtering | [WeztermConfig](wezterm-config.md) |
-| `metadata.labels` | map[string]string | No | Key-value labels | [WeztermConfig](wezterm-config.md) |
-| `metadata.annotations` | map[string]string | No | Non-identifying metadata | [WeztermConfig](wezterm-config.md) |
-| `spec.extends` | string | No | Parent package (single inheritance) | [WeztermConfig](wezterm-config.md) |
-| `spec.plugins` | []string | No | Shell plugin names | [WeztermConfig](wezterm-config.md) |
-| `spec.prompts` | []string | No | Prompt names to include | [WeztermConfig](wezterm-config.md) |
-| `spec.profiles` | []string | No | Profile preset names | [WeztermConfig](wezterm-config.md) |
-| `spec.wezterm` | object | No | WezTerm config: fontSize, colorScheme, fontFamily | [WeztermConfig](wezterm-config.md) |
-| `spec.promptStyle` | string | No | Modular prompt style name | [WeztermConfig](wezterm-config.md) |
-| `spec.promptExtensions` | []string | No | Prompt extension names | [WeztermConfig](wezterm-config.md) |
-| `spec.enabled` | bool | No | Whether enabled (default: true) | [WeztermConfig](wezterm-config.md) |
+| `metadata.name` | string | Yes | Unique package name | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
+| `metadata.description` | string | No | Human-readable description | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
+| `metadata.category` | string | No | Category for organization | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
+| `metadata.tags` | []string | No | Tags for filtering | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
+| `metadata.labels` | map[string]string | No | Key-value labels | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
+| `metadata.annotations` | map[string]string | No | Non-identifying metadata | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
+| `spec.extends` | string | No | Parent package (single inheritance) | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
+| `spec.plugins` | []string | No | Shell plugin names | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
+| `spec.prompts` | []string | No | Prompt names to include | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
+| `spec.profiles` | []string | No | Profile preset names | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
+| `spec.wezterm` | object | No | WezTerm config: fontSize, colorScheme, fontFamily | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
+| `spec.promptStyle` | string | No | Modular prompt style name | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
+| `spec.promptExtensions` | []string | No | Prompt extension names | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
+| `spec.enabled` | bool | No | Whether enabled (default: true) | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
 
 ---
 
@@ -849,15 +849,15 @@ spec:
 
 | Field | Type | Required | Description | Reference |
 |-------|------|----------|-------------|-----------|
-| `metadata.name` | string | Yes | Unique emulator config name | [WeztermConfig](wezterm-config.md) |
-| `metadata.description` | string | No | Human-readable description | [WeztermConfig](wezterm-config.md) |
-| `metadata.category` | string | No | Category for organization | [WeztermConfig](wezterm-config.md) |
-| `metadata.labels` | map[string]string | No | Key-value labels | [WeztermConfig](wezterm-config.md) |
-| `metadata.annotations` | map[string]string | No | Non-identifying metadata | [WeztermConfig](wezterm-config.md) |
-| `spec.type` | string | Yes | `wezterm`, `alacritty`, or `kitty` | [WeztermConfig](wezterm-config.md) |
-| `spec.config` | map[string]any | No | Emulator-specific configuration | [WeztermConfig](wezterm-config.md) |
-| `spec.themeRef` | string | No | Reference to a theme | [WeztermConfig](wezterm-config.md) |
-| `spec.workspace` | string | No | Associated workspace name | [WeztermConfig](wezterm-config.md) |
+| `metadata.name` | string | Yes | Unique emulator config name | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
+| `metadata.description` | string | No | Human-readable description | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
+| `metadata.category` | string | No | Category for organization | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
+| `metadata.labels` | map[string]string | No | Key-value labels | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
+| `metadata.annotations` | map[string]string | No | Non-identifying metadata | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
+| `spec.type` | string | Yes | `wezterm`, `alacritty`, or `kitty` | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
+| `spec.config` | map[string]any | No | Emulator-specific configuration | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
+| `spec.themeRef` | string | No | Reference to a theme | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
+| `spec.workspace` | string | No | Associated workspace name | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
 
 ---
 
@@ -1654,10 +1654,10 @@ Each resource type in this template has a dedicated reference page with full fie
 | Credential | [credential.md](credential.md) |
 | Registry | [registry.md](registry.md) |
 | GitRepo | [gitrepo.md](gitrepo.md) |
-| NvimPlugin | [nvim-plugin.md](nvim-plugin.md) |
-| NvimTheme | [nvim-theme.md](nvim-theme.md) |
-| NvimPackage | [nvim-package.md](nvim-package.md) |
-| TerminalPrompt | [terminal-prompt.md](terminal-prompt.md) |
-| TerminalPackage | [terminal-package.md](terminal-package.md) |
-| TerminalEmulator | [wezterm-config.md](wezterm-config.md) |
+| NvimPlugin | [NvimPlugin](https://rmkohlman.github.io/MaestroNvim/reference/nvim-plugin/) |
+| NvimTheme | [NvimTheme](https://rmkohlman.github.io/MaestroNvim/reference/nvim-theme/) |
+| NvimPackage | [NvimPackage](https://rmkohlman.github.io/MaestroNvim/reference/nvim-package/) |
+| TerminalPrompt | [TerminalPrompt](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-prompt/) |
+| TerminalPackage | [TerminalPackage](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-package/) |
+| TerminalEmulator | [WeztermConfig](https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/) |
 | CustomResourceDefinition | [custom-resource-definition.md](custom-resource-definition.md) |

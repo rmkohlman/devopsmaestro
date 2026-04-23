@@ -608,11 +608,11 @@ dvm get workspace dev --include-config -o yaml
 
 - [App](app.md) - Parent application
 - [Credential](credential.md) - Secrets scoped to this workspace
-- [NvimTheme](nvim-theme.md) - Theme definitions
-- [NvimPlugin](nvim-plugin.md) - Plugin configurations
-- [NvimPackage](nvim-package.md) - Plugin packages
-- [TerminalPrompt](terminal-prompt.md) - Shell prompt configurations
-- [TerminalPackage](terminal-package.md) - Terminal configuration bundles
+- [NvimTheme](https://rmkohlman.github.io/MaestroNvim/reference/nvim-theme/) - Theme definitions
+- [NvimPlugin](https://rmkohlman.github.io/MaestroNvim/reference/nvim-plugin/) - Plugin configurations
+- [NvimPackage](https://rmkohlman.github.io/MaestroNvim/reference/nvim-package/) - Plugin packages
+- [TerminalPrompt](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-prompt/) - Shell prompt configurations
+- [TerminalPackage](https://rmkohlman.github.io/MaestroTerminal/reference/terminal-package/) - Terminal configuration bundles
 
 ## Validation Rules
 

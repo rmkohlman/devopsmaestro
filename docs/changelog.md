@@ -2140,7 +2140,7 @@ See the [full migration guide](https://github.com/rmkohlman/devopsmaestro/blob/m
 
 - [Full Changelog](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md)
 - [GitHub Releases](https://github.com/rmkohlman/devopsmaestro/releases)
-- [Release Process](./development/release-process.md)
+- Release Process
 
 ---
 
