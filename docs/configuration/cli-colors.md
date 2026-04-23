@@ -29,12 +29,4 @@ TERM=dumb dvm get workspaces
 
 ## Available Themes
 
-```bash
-# List all 34+ available themes
-dvm get nvim themes
-
-# Show theme details
-dvm get nvim theme coolnight-ocean
-```
-
-See the [Theme Hierarchy](https://rmkohlman.github.io/MaestroTheme/configuration/theme-hierarchy/) documentation for how themes cascade through the object hierarchy.
+Themes are managed by [MaestroTheme](https://rmkohlman.github.io/MaestroTheme/). See the [Theme Hierarchy](https://rmkohlman.github.io/MaestroTheme/configuration/theme-hierarchy/) documentation for how themes cascade through the object hierarchy.

@@ -40,6 +40,29 @@ theme:
 plugins:
   - search
   - tags
+  - redirects:
+      redirect_maps:
+        'nvp/overview.md': 'https://rmkohlman.github.io/MaestroNvim/plugins/overview/'
+        'nvp/plugins.md': 'https://rmkohlman.github.io/MaestroNvim/plugins/library/'
+        'nvp/packages.md': 'https://rmkohlman.github.io/MaestroNvim/plugins/packages/'
+        'nvp/themes.md': 'https://rmkohlman.github.io/MaestroNvim/themes/overview/'
+        'nvp/quick-start-themes.md': 'https://rmkohlman.github.io/MaestroNvim/themes/quickstart/'
+        'nvp/coolnight.md': 'https://rmkohlman.github.io/MaestroNvim/themes/coolnight/'
+        'nvp/opencode.md': 'https://rmkohlman.github.io/MaestroNvim/plugins/opencode/'
+        'nvp/commands.md': 'https://rmkohlman.github.io/MaestroNvim/commands/'
+        'dvt/commands.md': 'https://rmkohlman.github.io/MaestroTerminal/commands/'
+        'configuration/plugin-system.md': 'https://rmkohlman.github.io/MaestroNvim/configuration/plugin-system/'
+        'configuration/wezterm.md': 'https://rmkohlman.github.io/MaestroTerminal/terminal/wezterm/'
+        'configuration/terminal-prompt.md': 'https://rmkohlman.github.io/MaestroTerminal/prompts/overview/'
+        'reference/nvim-plugin.md': 'https://rmkohlman.github.io/MaestroNvim/reference/nvim-plugin/'
+        'reference/nvim-theme.md': 'https://rmkohlman.github.io/MaestroNvim/reference/nvim-theme/'
+        'reference/nvim-package.md': 'https://rmkohlman.github.io/MaestroNvim/reference/nvim-package/'
+        'reference/terminal-plugin.md': 'https://rmkohlman.github.io/MaestroTerminal/reference/terminal-plugin/'
+        'reference/terminal-package.md': 'https://rmkohlman.github.io/MaestroTerminal/reference/terminal-package/'
+        'reference/terminal-prompt.md': 'https://rmkohlman.github.io/MaestroTerminal/reference/terminal-prompt/'
+        'reference/wezterm-config.md': 'https://rmkohlman.github.io/MaestroTerminal/reference/wezterm-config/'
+        'advanced/theme-hierarchy.md': 'https://rmkohlman.github.io/MaestroTheme/configuration/theme-hierarchy/'
+        'colorprovider-integration.md': 'configuration/cli-colors.md'
 
 markdown_extensions:
   - pymdownx.highlight:
@@ -78,23 +101,10 @@ nav:
     - Building & Attaching: dvm/build-attach.md
     - opencode CLI Tool: dvm/opencode.md
     - Commands Reference: dvm/commands.md
-  - nvp (NvimOps):
-    - Overview: nvp/overview.md
-    - Plugins: nvp/plugins.md
-    - Plugin Packages: nvp/packages.md
-    - Themes: nvp/themes.md
-    - Quick Start - Themes: nvp/quick-start-themes.md
-    - CoolNight Collection: nvp/coolnight.md
-    - opencode.nvim Plugin: nvp/opencode.md
-    - Commands Reference: nvp/commands.md
-  - dvt (Terminal):
-    - Commands Reference: dvt/commands.md
   - Configuration:
     - YAML Schema: configuration/yaml-schema.md
-    - Plugin System: configuration/plugin-system.md
     - Shell Completion: configuration/shell-completion.md
-    - WezTerm Integration: configuration/wezterm.md
-    - Terminal Prompt: configuration/terminal-prompt.md
+    - CLI Colors: configuration/cli-colors.md
   - Reference:
     - YAML Templates: reference/yaml-templates.md
     - Overview: reference/index.md
@@ -105,27 +115,17 @@ nav:
     - Credential: reference/credential.md
     - Registry: reference/registry.md
     - GitRepo: reference/gitrepo.md
-    - NvimTheme: reference/nvim-theme.md
-    - NvimPlugin: reference/nvim-plugin.md
-    - NvimPackage: reference/nvim-package.md
-    - TerminalPlugin: reference/terminal-plugin.md
-    - TerminalPackage: reference/terminal-package.md
-    - TerminalPrompt: reference/terminal-prompt.md
-    - WeztermConfig: reference/wezterm-config.md
     - GlobalDefaults: reference/global-defaults.md
     - CustomResourceDefinition: reference/custom-resource-definition.md
-  - Vision & Roadmap:
-    - Architecture Vision: vision/architecture.md
   - Advanced:
     - Current Architecture: advanced/architecture.md
-    - Theme Hierarchy: advanced/theme-hierarchy.md
     - Theme Infrastructure as Code: advanced/theme-iac.md
     - Source Types: advanced/source-types.md
     - Private Repos: advanced/private-repos.md
-    - Build Architecture: build-architecture.md
-    - ColorProvider Integration: colorprovider-integration.md
   - Development:
-    - Contributing: development/contributing.md
-    - Release Process: development/release-process.md
     - Architecture Decisions: development/decisions.md
+  - Ecosystem Tools:
+    - 'nvp (NvimOps)': https://rmkohlman.github.io/MaestroNvim/
+    - 'dvt (Terminal)': https://rmkohlman.github.io/MaestroTerminal/
+    - 'MaestroTheme': https://rmkohlman.github.io/MaestroTheme/
   - Changelog: changelog.md

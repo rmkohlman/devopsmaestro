@@ -1,10 +1,8 @@
 # Shell Completion for DevOpsMaestro
 
-This guide covers shell completion for both tools:
-- **dvm** - DevOpsMaestro workspace/container management
-- **nvp** - NvimOps Neovim plugin & theme manager
+This guide covers shell completion for the `dvm` CLI.
 
-Both support shell autocompletion for **bash**, **zsh**, **fish**, and **PowerShell**.
+`dvm` supports shell autocompletion for **bash**, **zsh**, **fish**, and **PowerShell**.
 
 ## Features
 
@@ -12,67 +10,40 @@ Both support shell autocompletion for **bash**, **zsh**, **fish**, and **PowerSh
 - **Flag completion** - Tab-complete all flags with descriptions
 - **Dynamic completions** - Context-aware suggestions sourced from MaestroVault (your database)
 - **Descriptions** - Inline descriptions for commands, flags, and resource names
-- **Full resource coverage** - Completions for all resource types: ecosystems, domains, apps, workspaces, credentials, registries, git repos, nvim resources, and terminal resources
+- **Full resource coverage** - Completions for all resource types: ecosystems, domains, apps, workspaces, credentials, registries, and git repos
 
 ---
 
 ## Quick Install
 
-### dvm Completions
-
-#### macOS (Zsh)
+### macOS (Zsh)
 ```bash
 dvm completion zsh > $(brew --prefix)/share/zsh/site-functions/_dvm
 exec zsh
 ```
 
-#### macOS (Bash)
+### macOS (Bash)
 ```bash
 brew install bash-completion@2
 dvm completion bash > $(brew --prefix)/etc/bash_completion.d/dvm
 exec bash
 ```
 
-#### Linux
+### Linux (Zsh)
 ```bash
-# Zsh
 dvm completion zsh > "${fpath[1]}/_dvm"
 exec zsh
+```
 
-# Bash
+### Linux (Bash)
+```bash
 sudo dvm completion bash > /etc/bash_completion.d/dvm
 exec bash
 ```
 
-### nvp Completions
-
-#### macOS (Zsh)
-```bash
-nvp completion zsh > $(brew --prefix)/share/zsh/site-functions/_nvp
-exec zsh
-```
-
-#### macOS (Bash)
-```bash
-nvp completion bash > $(brew --prefix)/etc/bash_completion.d/nvp
-exec bash
-```
-
-#### Linux
-```bash
-# Zsh
-nvp completion zsh > "${fpath[1]}/_nvp"
-exec zsh
-
-# Bash
-sudo nvp completion bash > /etc/bash_completion.d/nvp
-exec bash
-```
-
-#### Fish
+### Fish
 ```bash
 dvm completion fish > ~/.config/fish/completions/dvm.fish
-nvp completion fish > ~/.config/fish/completions/nvp.fish
 fish_config reload
 ```
 
@@ -80,10 +51,9 @@ fish_config reload
 
 ## Testing Completion
 
-### dvm Completions
 ```bash
 dvm <TAB>
-# Shows: admin attach build create delete get nvim registry rollout start stop terminal version
+# Shows: admin attach build create delete get registry rollout start stop version
 
 dvm get <TAB>
 # Shows: app apps credential credentials domain domains ecosystem ecosystems gitrepo gitrepos registry registries workspace workspaces
@@ -97,21 +67,6 @@ dvm get workspace <TAB>
 # Shows: (workspace names from MaestroVault, with descriptions)
 # dev-workspace   -- Feature development workspace
 # prod-workspace  -- Production workspace
-```
-
-### nvp Completions
-```bash
-nvp <TAB>
-# Shows: apply completion config delete disable enable generate generate-lua get library list source theme version
-
-nvp library <TAB>
-# Shows: categories install list show tags
-
-nvp theme <TAB>
-# Shows: create delete generate get library list preview use
-
-nvp theme library <TAB>
-# Shows: categories install list show tags
 ```
 
 ---
@@ -149,28 +104,11 @@ The following commands complete positional arguments from your MaestroVault data
 | `dvm get gitrepo <TAB>` | Git repo names with URL |
 | `dvm delete gitrepo <TAB>` | Git repo names |
 | `dvm sync gitrepo <TAB>` | Git repo names |
-| `dvm nvim get plugin <TAB>` | NvimPlugin names |
-| `dvm nvim set plugin <TAB>` | NvimPlugin names |
-| `dvm edit nvim-plugin <TAB>` | NvimPlugin names |
-| `dvm delete nvim-plugin <TAB>` | NvimPlugin names |
-| `dvm nvim get theme <TAB>` | NvimTheme names |
-| `dvm edit nvim-theme <TAB>` | NvimTheme names |
-| `dvm delete nvim-theme <TAB>` | NvimTheme names |
-| `dvm nvim get package <TAB>` | NvimPackage names |
-| `dvm use nvim-package <TAB>` | NvimPackage names |
-| `dvm terminal get package <TAB>` | TerminalPackage names |
-| `dvm terminal set package <TAB>` | TerminalPackage names |
-| `dvm use terminal-package <TAB>` | TerminalPackage names |
-| `dvm terminal set prompt <TAB>` | TerminalPrompt names |
-| `dvm set theme <TAB>` | NvimTheme names |
-| `dvm nvim sync <TAB>` | Workspace names |
-| `dvm nvim push <TAB>` | Workspace names |
 
 ### Commands with Static Argument Completions
 
 | Command | Completes |
 |---------|-----------|
-| `dvm nvim init <TAB>` | Template names (kickstart, lazyvim, astronvim, etc.) |
 | `dvm registry enable <TAB>` | Registry types (oci, pypi, npm, go, http) |
 | `dvm registry disable <TAB>` | Registry types (oci, pypi, npm, go, http) |
 
@@ -184,10 +122,10 @@ The following commands complete positional arguments from your MaestroVault data
 
 | Flag | Completes | Used By |
 |------|-----------|---------|
-| `--ecosystem` | Ecosystem names | get domains, get domain, delete domain, create domain, create credential, get credentials, get credential, delete credential, set theme, attach, build, detach, get workspaces, get workspace |
-| `--domain` | Domain names | get apps, get app, delete app, create app, set theme, attach, build, detach, get workspaces, get workspace |
-| `--app` | App names | delete workspace, create workspace, nvim get plugins, nvim get plugin, set nvim-plugin, delete nvim-plugin, delete nvim-theme, terminal set prompt, terminal set plugin, terminal set package, create branch, set theme, attach, build, detach, get workspaces, get workspace |
-| `--workspace` | Workspace names | nvim get plugins, nvim get plugin, set nvim-plugin, delete nvim-plugin, delete nvim-theme, terminal set prompt, terminal set plugin, terminal set package, create branch, attach, build, detach, get workspaces, get workspace |
+| `--ecosystem` | Ecosystem names | get domains, get domain, delete domain, create domain, create credential, get credentials, get credential, delete credential, attach, build, detach, get workspaces, get workspace |
+| `--domain` | Domain names | get apps, get app, delete app, create app, attach, build, detach, get workspaces, get workspace |
+| `--app` | App names | delete workspace, create workspace, create branch, attach, build, detach, get workspaces, get workspace |
+| `--workspace` | Workspace names | create branch, attach, build, detach, get workspaces, get workspace |
 | `--repo` | Git repo names with URL | create app, create workspace |
 | `--credential` | Credential names | create gitrepo |
 
@@ -250,37 +188,6 @@ dvm sync gitrepo <TAB>
 # config-repo
 ```
 
-### Nvim Resources
-
-```bash
-dvm nvim get plugin <TAB>
-# telescope.nvim
-# nvim-treesitter
-# lualine.nvim
-
-dvm nvim get theme <TAB>
-# catppuccin-mocha
-# tokyo-night
-# nord
-
-dvm use nvim-package <TAB>
-# base
-# full
-# minimal
-```
-
-### Terminal Resources
-
-```bash
-dvm terminal get package <TAB>
-# core-utils
-# dev-tools
-
-dvm terminal set prompt <TAB>
-# starship
-# oh-my-posh
-```
-
 ### Registry Types (Static)
 
 Registry type completions are static — they do not query the database:
@@ -316,15 +223,6 @@ dvm registry set-default <TAB>
 dvm registry set-default oci <TAB>
 # local-oci
 # remote-oci
-```
-
-### Template Names (Static)
-
-```bash
-dvm nvim init <TAB>
-# kickstart  -- Minimal, well-documented starter config
-# lazyvim    -- Feature-rich, batteries-included config
-# astronvim  -- Aesthetically pleasing, fully featured config
 ```
 
 ### Flag Completions
@@ -470,23 +368,17 @@ exec zsh
 
 ## Summary
 
-Shell completion is **built-in and automatic** with both tools. Just run:
+Shell completion is **built-in and automatic** with `dvm`. Just run:
 
 ```bash
-# One-line install for both (macOS zsh)
-dvm completion zsh > $(brew --prefix)/share/zsh/site-functions/_dvm && \
-nvp completion zsh > $(brew --prefix)/share/zsh/site-functions/_nvp && \
-exec zsh
+# macOS (zsh)
+dvm completion zsh > $(brew --prefix)/share/zsh/site-functions/_dvm && exec zsh
 
-# One-line install for both (Linux zsh)
-dvm completion zsh > "${fpath[1]}/_dvm" && \
-nvp completion zsh > "${fpath[1]}/_nvp" && \
-exec zsh
+# Linux (zsh)
+dvm completion zsh > "${fpath[1]}/_dvm" && exec zsh
 
-# One-line install for both (bash)
-dvm completion bash > ~/.local/share/bash-completion/completions/dvm && \
-nvp completion bash > ~/.local/share/bash-completion/completions/nvp && \
-exec bash
+# bash
+dvm completion bash > ~/.local/share/bash-completion/completions/dvm && exec bash
 ```
 
 Then tab-complete all commands, flags, and resource names directly from MaestroVault.

@@ -2,6 +2,17 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.104.6 (2026-04-23)
+
+**Fixed / Changed**
+- **Documentation: Configuration section audit** ([#411](https://github.com/rmkohlman/devopsmaestro/issues/411))
+  - **YAML Schema**: synced 8 fields with current Go structs (`metadata.domain`/`ecosystem`; `spec.build.baseStage.packages`; `spec.terminal` `prompt`/`plugins`/`package`; `spec.nvim` `pluginPackage`/`mergeMode`/`extraMasonTools`/`extraTreesitterParsers`; `sshKey.mode` corrected to `per_project`; `spec.gitrepo`; `spec.container` `sshAgentForwarding`/`gitCredentialMounting`/`networkMode`)
+  - **Shell Completion**: scoped to dvm only (nvp content moved to MaestroNvim docs)
+  - **CLI Colors**: simplified, theme references now link to MaestroTheme docs
+  - **mkdocs.yml**: added redirects for migrated nvp/dvt/theme pages; cleaned nav of non-dvm sections
+
+---
+
 ## v0.104.5 (2026-04-22)
 
 **Documentation**
