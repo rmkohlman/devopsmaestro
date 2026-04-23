@@ -133,6 +133,29 @@ func TestApplyWorkspaceStatusReconcile_MultipleWorkspaces(t *testing.T) {
 	}
 }
 
+func TestApplyWorkspaceStatusReconcile_MatchByWorkspaceLabel_Containerd(t *testing.T) {
+	// Containerd's WorkspaceInfo.Name is the full container hash, NOT the
+	// workspace name. The workspace name is only available via the
+	// io.devopsmaestro.workspace label (info.Workspace). Without ContainerID
+	// stored in the DB, name fallback must consult info.Workspace too.
+	// Regression test for issue #418.
+	ws := makeWS("daa-data-collector", "", "stopped")
+	infos := []operators.WorkspaceInfo{
+		{
+			ID:        "4afae9349447",
+			Name:      "4afae9349447d7173bf07dd21c24fd50166cef732a294225672418fcdfefb438",
+			Status:    "running",
+			Workspace: "daa-data-collector",
+		},
+	}
+
+	applyWorkspaceStatusReconcile([]*models.Workspace{ws}, infos)
+
+	if ws.Status != "running" {
+		t.Errorf("expected running, got %q", ws.Status)
+	}
+}
+
 func TestReconcileWorkspaceHierarchyStatuses_NilEntries(t *testing.T) {
 	// Should not panic on nil or nil-workspace entries.
 	results := []*models.WorkspaceWithHierarchy{

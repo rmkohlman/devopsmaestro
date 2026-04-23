@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.104.12] - 2026-04-23
+
+### Fixed
+- **Workspace status reconcile fails on containerd** ([#418](https://github.com/rmkohlman/devopsmaestro/issues/418)) — `dvm get workspaces` was showing workspaces as Stopped on containerd hosts even when their containers were running, because the name-fallback path in `applyWorkspaceStatusReconcile` only indexed `WorkspaceInfo.Name`. On containerd, `Name` is the full container ID hash (not the workspace name), so the lookup never matched a workspace row. Docker hosts were unaffected because Docker uses the workspace name as the container name.
+  - **Fix:** `cmd/workspace_status_reconcile.go` now also indexes `info.Workspace` (sourced from the `io.devopsmaestro.workspace` label) into `runningByName`, giving reconcile a reliable workspace-name key on both runtimes. Container-ID matching paths (full ID and 12-char short prefix) are unchanged.
+  - **Tests:** added `cmd/workspace_status_reconcile_test.go` coverage for the containerd-style hash-as-Name + label-as-Workspace case; full `cmd` package test suite passes.
+
+---
+
 ## [v0.104.11] - 2026-04-23
 
 ### Fixed

@@ -27,7 +27,11 @@ import (
 // Matching strategy:
 //  1. By full container ID
 //  2. By 12-char short container ID prefix (Docker/containerd convention)
-//  3. By workspace name (the runtime sets Name to the workspace/container name)
+//  3. By workspace name — matched against both the runtime's container Name
+//     (Docker uses the workspace name as the container name) and the
+//     `io.devopsmaestro.workspace` label (containerd uses the container ID
+//     hash as the Name, so the label is the only reliable mapping back to
+//     the workspace name there). See issue #418.
 func reconcileWorkspaceStatuses(workspaces []*models.Workspace) {
 	if len(workspaces) == 0 {
 		return
@@ -66,6 +70,14 @@ func applyWorkspaceStatusReconcile(workspaces []*models.Workspace, infos []opera
 		}
 		if info.Name != "" {
 			runningByName[info.Name] = true
+		}
+		// Containerd's WorkspaceInfo.Name is the full container ID hash, not
+		// the workspace name. The workspace name lives in the
+		// io.devopsmaestro.workspace label (surfaced as info.Workspace).
+		// Index by it so reconcile works on containerd as well as Docker
+		// (issue #418).
+		if info.Workspace != "" {
+			runningByName[info.Workspace] = true
 		}
 	}
 

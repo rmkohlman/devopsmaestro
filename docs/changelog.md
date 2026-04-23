@@ -2,6 +2,13 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.104.12 (2026-04-23)
+
+**Fixed**
+- **Workspace status reconcile fails on containerd** ([#418](https://github.com/rmkohlman/devopsmaestro/issues/418)) — `dvm get workspaces` was showing workspaces as Stopped on containerd hosts even when their containers were running. The name-fallback path in `applyWorkspaceStatusReconcile` only indexed `WorkspaceInfo.Name`, but containerd sets `Name` to the container ID hash, not the workspace name. Reconcile now also indexes `info.Workspace` (from the `io.devopsmaestro.workspace` label), so the lookup works on both Docker and containerd. Container-ID matching paths are unchanged. Test coverage added in `cmd/workspace_status_reconcile_test.go`.
+
+---
+
 ## v0.104.11 (2026-04-23)
 
 **Fixed**
