@@ -466,6 +466,16 @@ dvm build --verbose
 ls -la .devopsmaestro/
 ```
 
+If the build is broken and you need to edit files immediately, use emergency mode:
+
+```bash
+# Drop into a lightweight Alpine container — no working image required
+dvm attach --emergency
+# Edit the broken file, then exit and rebuild
+```
+
+See [Emergency Mode](../dvm/build-attach.md#emergency-mode-fallback-container) for details.
+
 ### "App not found"
 
 ```bash

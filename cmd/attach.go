@@ -80,6 +80,16 @@ Examples:
   dvm attach --network=none            # Isolate container from network
   dvm attach --cpus=2 --memory=4g      # Limit to 2 CPUs and 4GB RAM`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Emergency mode short-circuits the normal attach flow entirely:
+		// it doesn't require a built workspace image and is meant to work
+		// even when the workspace database / build pipeline is broken.
+		if attachEmergency {
+			if err := runAttachEmergency(cmd); err != nil {
+				render.Error(err.Error())
+				return errSilent
+			}
+			return nil
+		}
 		if err := runAttach(cmd); err != nil {
 			render.Error(err.Error())
 			return errSilent
@@ -605,5 +615,9 @@ func init() {
 	attachCmd.Flags().StringVar(&attachNetworkMode, "network", "", "Network mode: bridge (default), none, host, or custom network name")
 	attachCmd.Flags().Float64Var(&attachCPUs, "cpus", 0, "CPU limit (e.g., 1.5 for 1.5 cores; 0 = no limit)")
 	attachCmd.Flags().StringVar(&attachMemory, "memory", "", "Memory limit (e.g., 512m, 2g; empty = no limit)")
+	attachCmd.Flags().BoolVar(&attachEmergency, "emergency", false,
+		"Attach to a lightweight Alpine fallback container (no short flag — '-e' is reserved for --ecosystem). "+
+			"Use this when the normal workspace build is broken and you need to make emergency edits. "+
+			"The fallback image is built lazily on first use and cached for subsequent invocations.")
 	AddDryRunFlag(attachCmd, &attachDryRun)
 }

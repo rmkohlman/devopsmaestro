@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.105.0] - 2026-04-23
+
+### Added
+- **Emergency fallback container: `dvm attach --emergency`** ([#419](https://github.com/rmkohlman/devopsmaestro/issues/419)) — drops the user into a lightweight Alpine-based fallback container with the current workspace bind-mounted, for emergency edits when the normal build is broken. The fallback image (`dvm-emergency:v1`) is built on demand the first time the flag is used and cached locally for subsequent invocations. The container is ephemeral by design — it is force-removed on shell exit, while file changes persist on the host via the workspace bind mount. A red `[EMERGENCY]` PS1 prompt and startup banner make degraded mode visually obvious.
+  - **Note:** long flag only — `-e` is already taken by `--ecosystem`.
+  - **New files:** `builders/emergency/` (Dockerfile + emergency.go), `cmd/attach_emergency.go`, plus `cmd/attach_emergency_test.go` and `cmd/attach_emergency_flag_test.go` for coverage.
+  - Closes [#419](https://github.com/rmkohlman/devopsmaestro/issues/419).
+
+---
+
 ## [v0.104.12] - 2026-04-23
 
 ### Fixed

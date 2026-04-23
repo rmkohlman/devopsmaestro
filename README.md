@@ -302,6 +302,7 @@ dvm status           # Full status overview
 - **Hierarchical theme system** - Themes cascade through the object hierarchy
 - **System maintenance** - `dvm system info/df/prune` for runtime inspection and cleanup
 - **Ephemeral sandboxes** - `dvm sandbox` for quick, hierarchy-free dev containers
+- **Emergency fallback container** - `dvm attach --emergency` drops into a lightweight Alpine container when `dvm build` is broken
 - **Move / reparent** - Atomic reparenting of Systems and Apps across the hierarchy
 
 ### nvp - Neovim Plugin Manager
@@ -439,6 +440,7 @@ dvm build --all --detach      # Build in background; monitor with dvm build stat
 dvm build --all --concurrency 8  # Build with up to 8 parallel workers (default: 4)
 dvm build status              # Show parallel build session progress
 dvm attach                    # Attach to workspace (auto-syncs GitRepo if configured)
+dvm attach --emergency        # Drop into Alpine fallback container (no build required; no -e short form)
 dvm attach --ssh-agent        # Attach with SSH agent forwarding
 dvm attach --no-sync          # Attach without syncing GitRepo mirror
 dvm detach                    # Stop workspace container

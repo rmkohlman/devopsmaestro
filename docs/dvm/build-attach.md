@@ -101,10 +101,62 @@ Preview what would happen without actually attaching:
 dvm attach --dry-run
 ```
 
+### Emergency Mode (Fallback Container)
+
+When `dvm build` is broken — bad Dockerfile, corrupt lockfile, or you just need a quick fix without waiting for a full rebuild — drop into a lightweight Alpine fallback container:
+
+```bash
+dvm attach --emergency
+```
+
+The emergency container:
+
+- Mounts your current workspace (or `$PWD` if no workspace is active) at `/workspace`
+- Runs as `dev` user (UID/GID 1000:1000) so file ownership matches your host
+- Displays a red `[EMERGENCY]` PS1 prompt and banner so you always know you're in degraded mode
+- Sets `DVM_EMERGENCY=1` in the shell environment
+- Is force-removed automatically when you exit — file changes persist via the bind mount, container state does not
+
+**Available tools inside:** `bash`, `git`, `vim`, `nano`, `less`, `curl`, `wget`, `ca-certificates`, `openssh-client`, `tini`
+
+**Container naming:** `dvm-emergency-<8 hex>` — unique per session, so concurrent emergency sessions are safe.
+
+**Image:** `dvm-emergency:v1` — built lazily on first use and cached for ~30 s startup on subsequent runs. To force a rebuild, remove the image:
+
+```bash
+docker rmi dvm-emergency:v1
+```
+
+!!! warning "No short flag"
+    `--emergency` has no `-e` short form. `-e` is reserved globally for `--ecosystem` and would produce a confusing ecosystem error. Always use the full `--emergency` flag.
+
+**Common use cases:**
+
+```bash
+# Fix a broken Dockerfile before rebuilding
+dvm attach --emergency
+vim /workspace/Dockerfile
+exit
+dvm build
+
+# Emergency hotfix without waiting for a full rebuild
+dvm attach --emergency
+git -C /workspace cherry-pick <sha>
+exit
+
+# Quick edit when you don't have time for the full pipeline
+dvm attach --emergency
+nano /workspace/config.yaml
+exit
+```
+
+---
+
 ### Attach Flags
 
 | Flag | Description |
 |------|-------------|
+| `--emergency` | Drop into a lightweight Alpine fallback container (no build required) |
 | `--no-sync` | Skip syncing git mirror before attach |
 | `--network <mode>` | Network mode: `bridge` (default), `none`, `host`, or custom name |
 | `--cpus <n>` | CPU limit (e.g., `1.5` for 1.5 cores; `0` = no limit) |
@@ -233,6 +285,25 @@ DVM_PLATFORM=docker dvm attach
 ---
 
 ## Troubleshooting
+
+### My `dvm build` Is Broken — How Do I Fix It?
+
+Use emergency mode to get a shell without needing a working image:
+
+```bash
+dvm attach --emergency
+```
+
+You'll land in an Alpine container with your workspace mounted at `/workspace`. Edit the broken file (`Dockerfile`, lockfile, config, etc.), then exit and rebuild:
+
+```bash
+# Inside the emergency container
+vim /workspace/Dockerfile
+exit
+
+# Back on the host
+dvm build
+```
 
 ### Image Not Building
 

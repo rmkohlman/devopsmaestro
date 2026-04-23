@@ -2,6 +2,13 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.105.0 (2026-04-23)
+
+**Added**
+- **Emergency fallback container: `dvm attach --emergency`** ([#419](https://github.com/rmkohlman/devopsmaestro/issues/419)) — drops into a lightweight Alpine 3.20 container with the current workspace mounted at `/workspace`. Useful when `dvm build` is broken or you need a quick edit without a full rebuild. Available tools: `bash`, `git`, `vim`, `nano`, `less`, `curl`, `wget`, `ca-certificates`, `openssh-client`, `tini`. Runs as `dev` user (UID/GID 1000:1000). Container is force-removed on exit; file changes persist via the bind mount. A red `[EMERGENCY]` PS1 prompt and banner make degraded mode visually obvious. Note: no `-e` short flag — `-e` is reserved for `--ecosystem`.
+
+---
+
 ## v0.104.12 (2026-04-23)
 
 **Fixed**

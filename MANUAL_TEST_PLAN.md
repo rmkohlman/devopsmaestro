@@ -5255,6 +5255,78 @@ colima nerdctl -- --namespace devopsmaestro images
 
 ---
 
+## Emergency Mode (`dvm attach --emergency`)
+
+### Prerequisites
+- Docker or Colima running
+- A directory with some files to edit
+
+### Test Cases
+
+**1. Basic emergency attach (no workspace context)**
+```bash
+cd /tmp && mkdir emergency-test && cd emergency-test && echo "hello" > test.txt
+dvm attach --emergency
+```
+- Expected: Image builds (~30s first time), drops into bash shell at `/workspace`
+- Verify: `ls /workspace` shows `test.txt`
+- Verify: Red `[EMERGENCY]` PS1 prompt is visible
+- Verify: Banner shows "You are in the dvm EMERGENCY fallback container"
+
+**2. Cached image on second invocation**
+```bash
+dvm attach --emergency
+```
+- Expected: "Using cached emergency image dvm-emergency:v1" message, no rebuild
+
+**3. Container cleanup on exit**
+```bash
+dvm attach --emergency
+# Inside container: exit
+docker ps -a | grep dvm-emergency-
+```
+- Expected: No containers listed (ephemeral, force-removed on exit)
+
+**4. File changes persist on host**
+```bash
+dvm attach --emergency
+# Inside container:
+echo "changed" > /workspace/test.txt
+exit
+cat /tmp/emergency-test/test.txt
+```
+- Expected: `changed` (bind-mount persists writes to host)
+
+**5. Concurrent sessions get unique names**
+```bash
+# Terminal 1:
+dvm attach --emergency &
+# Terminal 2:
+dvm attach --emergency &
+docker ps | grep dvm-emergency-
+```
+- Expected: Two containers with different names (e.g., `dvm-emergency-a1b2c3d4` and `dvm-emergency-e5f6a7b8`)
+
+**6. `-e` flag still binds to `--ecosystem` (regression guard)**
+```bash
+dvm attach -e my-ecosystem
+```
+- Expected: Filters by ecosystem `my-ecosystem`, does NOT enter emergency mode
+
+**7. Tools available inside container**
+```bash
+dvm attach --emergency
+# Inside container:
+bash --version
+git --version
+vim --version
+nano --version
+curl --version
+```
+- Expected: All commands found and return version info
+
+---
+
 **Tested by:** ________________  
 **Date:** ________________  
 **Version**: v0.56.0  
