@@ -41,12 +41,18 @@ Examples:
 var promptSetCmd = &cobra.Command{
 	Use:   "set <name>",
 	Short: "Set the active prompt (kubectl-style)",
-	Long: `Set the active terminal prompt and generate its config.
+	Long: `Set the active terminal prompt.
 
-Uses Resource/Handler pattern with database storage.
+The chosen prompt name is persisted to the local config (the active-prompt
+marker at ~/.config/dvm/.active-prompt), so subsequent commands such as
+'dvt prompt show' can read which prompt is currently active. The set command
+also validates that a config can be generated for the prompt.
+
+Note: this does not (yet) write the generated config to your shell — use
+'dvt prompt generate <name> > ~/.config/starship.toml' for that.
 
 Examples:
-  dvt prompt set coolnight           # Set coolnight as active prompt
+  dvt prompt set coolnight           # Set coolnight as the active prompt
   dvt prompt set coolnight --force   # Set without confirmation`,
 	Args: cobra.ExactArgs(1),
 	RunE: promptResourceSet,
@@ -424,11 +430,28 @@ func promptResourceSet(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to generate config for prompt '%s': %w", name, err)
 	}
 
-	// TODO: This should write to the appropriate config file (e.g., ~/.config/starship.toml)
-	// For now, output instructions
+	// Persist the active prompt selection. We use the file-backed prompt store's
+	// SetActive() (mirrors ProfileFileStore's pattern) so subsequent commands —
+	// e.g. `dvt prompt show` or any external consumer reading
+	// ~/.config/dvm/.active-prompt — can discover the user's choice.
+	//
+	// SetActive requires the prompt to exist in the local file store. If the
+	// prompt only lives in the database (e.g. it was applied via `dvt prompt
+	// apply` without going through `dvt prompt library import`), mirror it to
+	// the file store first so SetActive succeeds.
+	store := getPromptStore()
+	if !store.Exists(name) {
+		if err := store.Save(p); err != nil {
+			return fmt.Errorf("failed to mirror prompt '%s' to local store: %w", name, err)
+		}
+	}
+	if err := store.SetActive(name); err != nil {
+		return fmt.Errorf("failed to persist active prompt '%s': %w", name, err)
+	}
+
 	render.Success(fmt.Sprintf("Prompt '%s' set as active", name))
 	render.Blank()
-	render.Info("To use this prompt, save the config to ~/.config/starship.toml:")
+	render.Info("To apply this prompt to your shell, write the generated config:")
 	render.Plainf("dvt prompt generate %s > ~/.config/starship.toml", name)
 	render.Blank()
 	render.Info("Or view the generated config with:")

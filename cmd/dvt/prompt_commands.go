@@ -260,6 +260,36 @@ Examples:
 	RunE: promptResourceGenerate,
 }
 
+// promptShowCmd reports the currently active prompt (set via `dvt prompt set`).
+var promptShowCmd = &cobra.Command{
+	Use:     "show",
+	Aliases: []string{"current", "active"},
+	Short:   "Show the currently active prompt",
+	Long: `Show the name of the prompt most recently selected with 'dvt prompt set'.
+
+Reads from the local active-prompt marker at ~/.config/dvm/.active-prompt.
+Exits with status 1 if no active prompt has been set.
+
+Examples:
+  dvt prompt show       # Print the active prompt name
+  dvt prompt current    # Alias for 'show'`,
+	Args: cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		store := getPromptStore()
+		name, err := store.GetActive()
+		if err != nil {
+			return fmt.Errorf("failed to read active prompt: %w", err)
+		}
+		if name == "" {
+			render.Info("No active prompt set")
+			render.Info("Use 'dvt prompt set <name>' to set one")
+			return fmt.Errorf("no active prompt set")
+		}
+		render.Plain(name)
+		return nil
+	},
+}
+
 func init() {
 	// Prompt subcommands
 	promptCmd.AddCommand(promptLibraryCmd)
@@ -268,6 +298,7 @@ func init() {
 	promptCmd.AddCommand(promptDeleteCmd)
 	promptCmd.AddCommand(promptGenerateCmd)
 	promptCmd.AddCommand(promptSetCmd)
+	promptCmd.AddCommand(promptShowCmd)
 
 	// Prompt library subcommands
 	promptLibraryCmd.AddCommand(promptLibraryListCmd)

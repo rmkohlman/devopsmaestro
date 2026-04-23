@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.105.2] - 2026-04-23
+
+### Fixed
+- **dvt prompt set: persist active prompt state via marker file** ([#428](https://github.com/rmkohlman/devopsmaestro/issues/428)) — `~/.config/dvm/.active-prompt`; add `dvt prompt show` (aliases: `current`, `active`); cascade clear marker on prompt delete.
+
+---
+
 ## [v0.105.1] - 2026-04-23
 
 ### Fixed

@@ -21,15 +21,52 @@ import (
 // FILE STORES
 // =============================================================================
 
-// PromptFileStore implements prompt.PromptStore using file-based storage
+// PromptFileStore implements prompt.PromptStore using file-based storage.
+// In addition to CRUD on prompt YAML files in `dir`, it tracks the currently
+// active prompt name in a small marker file (`activePath`), mirroring the
+// pattern used by ProfileFileStore.
 type PromptFileStore struct {
-	dir string
+	dir        string
+	activePath string
 }
 
 func getPromptStore() *PromptFileStore {
 	dir := filepath.Join(getConfigDir(), "prompts")
 	os.MkdirAll(dir, 0755)
-	return &PromptFileStore{dir: dir}
+	return &PromptFileStore{
+		dir:        dir,
+		activePath: filepath.Join(getConfigDir(), ".active-prompt"),
+	}
+}
+
+// SetActive marks the named prompt as the currently active one.
+// The prompt must already exist in the local store.
+func (s *PromptFileStore) SetActive(name string) error {
+	if !s.Exists(name) {
+		return fmt.Errorf("prompt not found in local store: %s", name)
+	}
+	return os.WriteFile(s.activePath, []byte(name), 0644)
+}
+
+// GetActive returns the currently active prompt name, or "" if none is set.
+// Returns an empty string (and nil error) when no active-prompt marker exists.
+func (s *PromptFileStore) GetActive() (string, error) {
+	data, err := os.ReadFile(s.activePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	return strings.TrimSpace(string(data)), nil
+}
+
+// ClearActive removes the active-prompt marker.
+func (s *PromptFileStore) ClearActive() error {
+	if err := os.Remove(s.activePath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 func (s *PromptFileStore) Save(p *prompt.Prompt) error {
@@ -73,7 +110,15 @@ func (s *PromptFileStore) List() ([]*prompt.Prompt, error) {
 }
 
 func (s *PromptFileStore) Delete(name string) error {
-	return os.Remove(filepath.Join(s.dir, name+".yaml"))
+	if err := os.Remove(filepath.Join(s.dir, name+".yaml")); err != nil {
+		return err
+	}
+	// If the deleted prompt was the active one, clear the active marker so we
+	// don't leave a dangling reference.
+	if active, _ := s.GetActive(); active == name {
+		_ = s.ClearActive()
+	}
+	return nil
 }
 
 func (s *PromptFileStore) Exists(name string) bool {
