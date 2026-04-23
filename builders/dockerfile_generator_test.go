@@ -3990,9 +3990,11 @@ func TestGenerate_CACerts_Alpine_SamePathsAndCommands(t *testing.T) {
 		t.Fatalf("Generate() error = %v", err)
 	}
 
+	// Alpine doesn't ship update-ca-certificates by default — emitCACertSection
+	// installs the ca-certificates package before invoking it on Alpine paths (#417).
 	wantContain := []string{
 		"COPY certs/ /usr/local/share/ca-certificates/custom/",
-		"RUN update-ca-certificates",
+		"apk add --no-cache ca-certificates && update-ca-certificates",
 	}
 
 	for _, want := range wantContain {

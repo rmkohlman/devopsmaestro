@@ -2,6 +2,16 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.104.11 (2026-04-23)
+
+**Fixed**
+- **Build: CI/CD app builds fail on Alpine and Ubuntu jammy bases** ([#417](https://github.com/rmkohlman/devopsmaestro/issues/417), related: [#404](https://github.com/rmkohlman/devopsmaestro/issues/404)) — fixes two regressions surfaced when building CI/CD (ArgoCD/YAML) apps after the v0.104.0 minimal-alpine work.
+  - **Alpine `update-ca-certificates: not found`** — Alpine images do not ship the `update-ca-certificates` binary by default; it is provided by the `ca-certificates` package. `emitCACertSection` in `builders/dockerfile_generator.go` now installs the package before invoking the command on Alpine paths (`RUN apk add --no-cache ca-certificates && update-ca-certificates`).
+  - **Ubuntu `jammy-backports 404 Not Found`** — the Debian backports `sources.list.d/backports.list` emission in `generateDevStage` was unconditionally pointing Ubuntu codenames (jammy/focal/noble) at `deb.debian.org`, which has no such suites. Backports emission is now gated on `/etc/os-release` `ID=debian`; non-Debian APT bases skip the backports list.
+  - **Tests:** `TestGenerate_CACerts_Alpine_SamePathsAndCommands` updated; full `builders` package test suite passes.
+
+---
+
 ## v0.104.10 (2026-04-23)
 
 **Fixed / Changed**

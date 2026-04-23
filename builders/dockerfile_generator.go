@@ -1786,12 +1786,16 @@ func (g *DefaultDockerfileGenerator) generateDevStage(dockerfile *strings.Builde
 
 	// Add Debian backports repo for git >= 2.32.0 (required by lazygit v0.60+, #382).
 	// Skip backports for EOL Debian releases whose backports repos return 404 (#390).
+	// Gate on ID=debian so Ubuntu (jammy/focal/noble) doesn't 404 on deb.debian.org (#417).
 	if !isAlpine {
 		dockerfile.WriteString("# Enable backports for git >= 2.32.0 (required by lazygit v0.60+)\n")
+		dockerfile.WriteString("# Only for Debian (Ubuntu codenames like jammy don't exist on deb.debian.org) (#417)\n")
 		dockerfile.WriteString("# Skip EOL Debian releases (jessie/stretch/buster/bullseye) whose backports are gone (#390)\n")
-		dockerfile.WriteString("RUN codename=$(. /etc/os-release && echo \"$VERSION_CODENAME\") && \\\n")
-		dockerfile.WriteString("    case \"$codename\" in jessie|stretch|buster|bullseye) echo \"Skipping backports for EOL $codename\" ;; \\\n")
-		dockerfile.WriteString("    *) echo \"deb http://deb.debian.org/debian ${codename}-backports main\" > /etc/apt/sources.list.d/backports.list ;; esac\n\n")
+		dockerfile.WriteString("RUN . /etc/os-release && \\\n")
+		dockerfile.WriteString("    if [ \"$ID\" = \"debian\" ]; then \\\n")
+		dockerfile.WriteString("      case \"$VERSION_CODENAME\" in jessie|stretch|buster|bullseye) echo \"Skipping backports for EOL $VERSION_CODENAME\" ;; \\\n")
+		dockerfile.WriteString("      *) echo \"deb http://deb.debian.org/debian ${VERSION_CODENAME}-backports main\" > /etc/apt/sources.list.d/backports.list ;; esac; \\\n")
+		dockerfile.WriteString("    else echo \"Skipping backports — not a Debian base ($ID)\"; fi\n\n")
 	}
 
 	// Install all packages in one shot with cache mounts
@@ -2345,7 +2349,14 @@ func (g *DefaultDockerfileGenerator) emitCACertSection(dockerfile *strings.Build
 
 	dockerfile.WriteString("# Corporate CA certificates\n")
 	dockerfile.WriteString("COPY certs/ /usr/local/share/ca-certificates/custom/\n")
-	dockerfile.WriteString("RUN update-ca-certificates\n")
+	// Alpine doesn't ship update-ca-certificates by default — it's part of the
+	// ca-certificates package. Install it before invoking, so corporate certs
+	// are trusted on any Alpine-based path (CICD, language alpine bases). #417
+	if g.isAlpine {
+		dockerfile.WriteString("RUN apk add --no-cache ca-certificates && update-ca-certificates\n")
+	} else {
+		dockerfile.WriteString("RUN update-ca-certificates\n")
+	}
 	dockerfile.WriteString("ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt\n")
 	dockerfile.WriteString("ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt\n")
 	dockerfile.WriteString("ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt\n\n")
