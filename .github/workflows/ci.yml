@@ -130,7 +130,7 @@ jobs:
             ${{ runner.os }}-pip-
 
       - name: Install MkDocs Material
-        run: pip install mkdocs-material
+        run: pip install mkdocs-material mkdocs-redirects
 
       - name: Build docs
         run: mkdocs build
