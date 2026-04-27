@@ -12,6 +12,11 @@ var sandboxFlags struct {
 	name    string
 	repo    string
 	noCache bool
+	// noNvim disables the auto-installed Neovim layer (binary + default plugins
+	// + default theme). The default behavior is to install nvim so that every
+	// sandbox provides the same core dev experience as a regular workspace
+	// (issue #430). Use --no-nvim for a minimal, fast-building sandbox image.
+	noNvim bool
 }
 
 // sandboxDeleteAll controls the --all flag on sandbox delete.
@@ -151,6 +156,7 @@ func init() {
 		cmd.Flags().StringVarP(&sandboxFlags.name, "name", "n", "", "Custom sandbox name (default: auto-generated)")
 		cmd.Flags().StringVarP(&sandboxFlags.repo, "repo", "r", "", "Git repo URL to clone into sandbox")
 		cmd.Flags().BoolVar(&sandboxFlags.noCache, "no-cache", false, "Force rebuild the sandbox image")
+		cmd.Flags().BoolVar(&sandboxFlags.noNvim, "no-nvim", false, "Skip auto-installing Neovim and default plugins/theme (minimal sandbox)")
 	}
 
 	// Flags on delete

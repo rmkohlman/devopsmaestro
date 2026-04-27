@@ -2,6 +2,16 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.105.3 (2026-04-27)
+
+**Fixed**
+- `dvm sandbox create` now auto-installs Neovim, default plugin packages, and the default theme by default, matching regular workspace behavior ([#430](https://github.com/rmkohlman/devopsmaestro/issues/430))
+
+**Added**
+- `--no-nvim` flag for `dvm sandbox create` to opt out and create a minimal sandbox without Neovim ([#430](https://github.com/rmkohlman/devopsmaestro/issues/430))
+
+---
+
 ## v0.105.2 (2026-04-23)
 
 **Fixed**

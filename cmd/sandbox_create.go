@@ -74,8 +74,15 @@ func runSandboxCreate(cmd *cobra.Command, lang string) error {
 		preset.Language, version, runtime.GetPlatformName())
 
 	// 5. Build or reuse image
+	// Image tag includes a "-nvim" suffix when nvim is bundled so that toggling
+	// the --no-nvim flag forces a separate cached image rather than reusing a
+	// stale one (#430).
+	includeNvim := !sandboxFlags.noNvim
 	imageName := fmt.Sprintf("dvm-sandbox-%s:%s", preset.Language, version)
-	if err := ensureSandboxImage(ctx, preset, version, depsFile, imageName); err != nil {
+	if includeNvim {
+		imageName = fmt.Sprintf("dvm-sandbox-%s-nvim:%s", preset.Language, version)
+	}
+	if err := ensureSandboxImage(ctx, preset, version, depsFile, imageName, includeNvim); err != nil {
 		render.Errorf("Failed to build sandbox image: %v", err)
 		return errSilent
 	}
@@ -142,10 +149,15 @@ func runSandboxCreate(cmd *cobra.Command, lang string) error {
 // ensureSandboxImage builds the sandbox image if it doesn't exist or --no-cache is set.
 // Uses the builders.ImageBuilder abstraction (same as dvm build) so that sandbox
 // works on all runtimes including containerd/BuildKit.
+//
+// When includeNvim is true, the generated Dockerfile installs Neovim + default
+// plugins + a default theme (#430). The build context will additionally contain
+// a .config/nvim/ directory pre-populated by generateSandboxNvimStaging().
 func ensureSandboxImage(
 	ctx context.Context,
 	preset models.SandboxPreset,
 	version, depsFile, imageName string,
+	includeNvim bool,
 ) error {
 	// Detect platform (same pattern as dvm build)
 	platform, err := detectPlatform()
@@ -154,7 +166,8 @@ func ensureSandboxImage(
 	}
 
 	// Generate Dockerfile and prepare build context in a temp directory
-	dockerfile := builders.GenerateSandboxDockerfile(preset, version, depsFile)
+	dockerfile := builders.GenerateSandboxDockerfileWithNvim(preset, version, depsFile,
+		builders.SandboxNvimOptions{IncludeNvim: includeNvim})
 
 	tmpDir, err := os.MkdirTemp("", "dvm-sandbox-*")
 	if err != nil {
@@ -165,6 +178,16 @@ func ensureSandboxImage(
 	dfPath := filepath.Join(tmpDir, "Dockerfile")
 	if err := os.WriteFile(dfPath, []byte(dockerfile), 0644); err != nil {
 		return fmt.Errorf("failed to write Dockerfile: %w", err)
+	}
+
+	// When nvim is enabled, populate .config/nvim/ in the build context so the
+	// Dockerfile's COPY .config/nvim ... step finds the pre-staged config.
+	// Failure to stage is fatal here — the Dockerfile would fail at COPY anyway.
+	if includeNvim {
+		render.Progress("Staging Neovim configuration...")
+		if err := generateSandboxNvimStaging(tmpDir); err != nil {
+			return fmt.Errorf("failed to stage nvim config: %w", err)
+		}
 	}
 
 	// Copy deps file into build context if provided
