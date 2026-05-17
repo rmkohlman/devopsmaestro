@@ -6,6 +6,7 @@ All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https:
 
 **Fixed**
 - `dvt wezterm parse -o json`: use `json.Marshal` instead of `yaml.Marshal` in `yamlConfigToJSON` to produce valid JSON output ([#435](https://github.com/rmkohlman/devopsmaestro/issues/435))
+- `dvt wezterm merge`: correct `mergeWezTermConfigs` precedence to `existing < preset < mergeOverrides` instead of the inverted `preset < existing` ordering ([#436](https://github.com/rmkohlman/devopsmaestro/issues/436))
 
 ---
 
