@@ -564,8 +564,11 @@ func computeDiff(old, new string) string {
 // mergeWezTermConfigs merges three WezTerm configurations.
 // Priority: existing < preset < mergeOverrides
 func mergeWezTermConfigs(existing, preset, overrides *wezterm.WezTerm) *wezterm.WezTerm {
-	// Start with a copy of preset (base)
-	result := *preset
+	// Start with a copy of existing (lowest priority base)
+	var result wezterm.WezTerm
+	if existing != nil {
+		result = *existing
+	}
 
 	// Helper to copy non-zero values from source to target
 	copyIfSet := func(target, source *wezterm.WezTerm) {
@@ -737,9 +740,9 @@ func mergeWezTermConfigs(existing, preset, overrides *wezterm.WezTerm) *wezterm.
 		}
 	}
 
-	// Apply existing config first (lowest priority)
-	if existing != nil {
-		copyIfSet(&result, existing)
+	// Apply preset config (middle priority)
+	if preset != nil {
+		copyIfSet(&result, preset)
 	}
 
 	// Apply overrides last (highest priority)

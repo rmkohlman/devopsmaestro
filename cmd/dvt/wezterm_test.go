@@ -167,3 +167,107 @@ func TestYamlConfigToJSON_NotEqualToYAML(t *testing.T) {
 	t.Logf("JSON output: %s", string(jsonResult))
 	t.Logf("YAML output: %s", string(yamlResult))
 }
+
+// TestMergeWezTermConfigs_Precedence verifies that mergeWezTermConfigs applies
+// config precedence correctly: existing < preset < mergeOverrides
+// This is a regression test for issue #436
+func TestMergeWezTermConfigs_Precedence(t *testing.T) {
+	tests := []struct {
+		name           string
+		existing      *wezterm.WezTerm
+		preset        *wezterm.WezTerm
+		overrides     *wezterm.WezTerm
+		expectedFont  string
+		expectedSize  float64
+		expectedOpacity float64
+	}{
+		{
+			name: "font family precedence",
+			existing: &wezterm.WezTerm{
+				Font: wezterm.FontConfig{Family: "JetBrains Mono", Size: 12},
+			},
+			preset: &wezterm.WezTerm{
+				Font: wezterm.FontConfig{Family: "Fira Code", Size: 14},
+			},
+			overrides: &wezterm.WezTerm{
+				Font: wezterm.FontConfig{Family: "Cascadia Code", Size: 16},
+			},
+			expectedFont:  "Cascadia Code", // overrides should win
+			expectedSize:  16,               // overrides should win
+			expectedOpacity: 0,
+		},
+		{
+			name: "preset overrides existing",
+			existing: &wezterm.WezTerm{
+				Font: wezterm.FontConfig{Family: "JetBrains Mono", Size: 12},
+			},
+			preset: &wezterm.WezTerm{
+				Font: wezterm.FontConfig{Family: "Fira Code", Size: 14},
+			},
+			overrides: nil, // no overrides - preset should win
+			expectedFont:  "Fira Code", // preset should override existing
+			expectedSize:  14,
+			expectedOpacity: 0,
+		},
+		{
+			name: "existing is base when others are nil",
+			existing: &wezterm.WezTerm{
+				Font: wezterm.FontConfig{Family: "JetBrains Mono", Size: 12},
+			},
+			preset:  nil,
+			overrides: nil,
+			expectedFont:  "JetBrains Mono", // existing should be base
+			expectedSize:  12,
+			expectedOpacity: 0,
+		},
+		{
+			name: "window opacity precedence",
+			existing: &wezterm.WezTerm{
+				Window: wezterm.WindowConfig{Opacity: 0.8},
+			},
+			preset: &wezterm.WezTerm{
+				Window: wezterm.WindowConfig{Opacity: 0.9},
+			},
+			overrides: &wezterm.WezTerm{
+				Window: wezterm.WindowConfig{Opacity: 1.0},
+			},
+			expectedFont:    "",
+			expectedSize:   0,
+			expectedOpacity: 1.0, // overrides should win
+		},
+		{
+			name: "nil existing uses preset as base",
+			existing: nil,
+			preset: &wezterm.WezTerm{
+				Font: wezterm.FontConfig{Family: "Fira Code", Size: 14},
+			},
+			overrides: &wezterm.WezTerm{
+				Font: wezterm.FontConfig{Family: "Cascadia Code"},
+			},
+			expectedFont:  "Cascadia Code", // overrides wins
+			expectedSize:  14, // preset size (overrides doesn't set size)
+			expectedOpacity: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := mergeWezTermConfigs(tt.existing, tt.preset, tt.overrides)
+
+			// Verify font family precedence
+			if tt.expectedFont != "" && result.Font.Family != tt.expectedFont {
+				t.Errorf("Font.Family: expected %q, got %q", tt.expectedFont, result.Font.Family)
+			}
+
+			// Verify font size precedence
+			if tt.expectedSize > 0 && result.Font.Size != tt.expectedSize {
+				t.Errorf("Font.Size: expected %v, got %v", tt.expectedSize, result.Font.Size)
+			}
+
+			// Verify window opacity precedence
+			if tt.expectedOpacity > 0 && result.Window.Opacity != tt.expectedOpacity {
+				t.Errorf("Window.Opacity: expected %v, got %v", tt.expectedOpacity, result.Window.Opacity)
+			}
+		})
+	}
+}
