@@ -1,7 +1,7 @@
 ---
 description: Owns MaestroSDK and MaestroPalette modules. Provides shared interfaces, types, and palette data structures used across all Maestro modules.
 mode: subagent
-model: github-copilot/claude-opus-4.7
+model: opencode/deepseek-v4-flash-free
 temperature: 0.1
 tools:
   read: true

@@ -152,6 +152,8 @@ require (
 	modernc.org/sqlite v1.46.1 // indirect
 )
 
+replace github.com/rmkohlman/MaestroTerminal => ../MaestroTerminal
+
 require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/golang-migrate/migrate/v4 v4.18.1

@@ -5331,3 +5331,46 @@ curl --version
 **Date:** ________________  
 **Version**: v0.56.0  
 **Platform:** ________________
+
+---
+
+## Issue #432 — Colima Attach TTY Fix (nvim keyboard unresponsiveness)
+
+**Fix:** Added `-t` to `colima ssh` and `term.MakeRaw`/`term.Restore` gated on `term.IsTerminal` in `operators/containerd_runtime_v2_attach.go`.
+
+### Prerequisites
+- Colima running with a containerd profile
+- A sandbox workspace created and running
+
+### Test Steps
+
+**TC-432-1: nvim keystrokes work inside attached container**
+1. `dvm sandbox create <name>` — create a sandbox workspace
+2. `dvm attach <name>` — attach to the running container
+3. Inside the container: `nvim .`
+4. Press arrow keys, type characters, use Ctrl-sequences (e.g., `Ctrl-w`, `Ctrl-v`)
+- **Expected:** All keystrokes are received by nvim immediately (no buffering, no frozen input)
+- **Failure indicator:** nvim appears frozen or only responds after pressing Enter
+
+**TC-432-2: Ctrl-C exits cleanly**
+1. Attach to a running sandbox: `dvm attach <name>`
+2. Run a long-running command inside: `sleep 60`
+3. Press `Ctrl-C`
+- **Expected:** `sleep` is interrupted, shell prompt returns. No hang.
+
+**TC-432-3: Terminal is restored after exit**
+1. Attach to a running sandbox: `dvm attach <name>`
+2. Exit the container shell: `exit` or `Ctrl-D`
+3. Back in the host terminal, type normally and run a command (e.g., `ls`)
+- **Expected:** Host terminal behaves normally — characters echo, line editing works, no raw-mode artifacts
+- **Failure indicator:** Terminal is "stuck" in raw mode (no echo, Ctrl-C doesn't work, etc.)
+
+**TC-432-4: Non-TTY callers are unaffected (piped input)**
+1. Run: `echo exit | dvm attach <name>` (pipe stdin — non-TTY)
+- **Expected:** Command completes without error. No "failed to set raw terminal" panic or crash.
+- Note: `term.IsTerminal` gates the raw-mode path, so this should pass through cleanly.
+
+**Tested by:** ________________  
+**Date:** ________________  
+**Version:** ________________  
+**Platform:** Colima (containerd runtime)

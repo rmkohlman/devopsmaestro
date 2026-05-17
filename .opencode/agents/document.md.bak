@@ -1,7 +1,7 @@
 ---
 description: Owns all documentation - README, CHANGELOG, ARCHITECTURE, command references, docs/ site. Keeps docs up-to-date with code changes. MANDATORY sync in TDD Phase 4.
 mode: subagent
-model: opencode/deepseek-v4-flash-free
+model: opencode/nemotron-3-super-free
 temperature: 0.3
 tools:
   read: true

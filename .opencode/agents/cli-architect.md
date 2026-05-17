@@ -1,7 +1,7 @@
 ---
 description: Reviews CLI commands to ensure they follow kubectl patterns. Approves or advises on command structure, flags, help text, and output formats. Advisory only.
 mode: subagent
-model: github-copilot/claude-sonnet-4.6
+model: opencode/deepseek-v4-flash-free
 temperature: 0.1
 tools:
   read: true

@@ -2,6 +2,13 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.57.2 (2026-05-17)
+
+**Fixed**
+- `dvt wezterm parse -o json`: use `json.Marshal` instead of `yaml.Marshal` in `yamlConfigToJSON` to produce valid JSON output ([#435](https://github.com/rmkohlman/devopsmaestro/issues/435))
+
+---
+
 ## v0.105.3 (2026-04-27)
 
 **Fixed**

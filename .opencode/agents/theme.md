@@ -1,7 +1,7 @@
 ---
 description: Owns MaestroTheme module, themebridge and colorbridge packages. Handles theme management, ColorProvider interface, and palette system.
 mode: subagent
-model: github-copilot/claude-opus-4.6
+model: opencode/deepseek-v4-flash-free
 temperature: 0.1
 tools:
   read: true

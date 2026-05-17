@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/containerd/containerd/v2/pkg/namespaces"
+	"golang.org/x/term"
 )
 
 // AttachToWorkspace attaches to a running workspace container
@@ -86,9 +87,15 @@ func (r *ContainerdRuntimeV2) attachViaColima(ctx context.Context, opts AttachOp
 		cmdParts = append(cmdParts, "-l")
 	}
 
-	// Convert to command string for SSH execution
+	// Convert to command string for SSH execution.
+	//
+	// IMPORTANT: pass `-t` to `colima ssh` so that SSH allocates a PTY for the
+	// remote session. Without this, the inner `nerdctl exec -it` cannot
+	// successfully allocate a TTY (SSH stdin is a pipe, not a terminal), and
+	// interactive TUI applications inside the container — most visibly nvim —
+	// receive line-buffered input or no input at all. See issue #432.
 	cmd := strings.Join(cmdParts, " ")
-	execCmd := []string{"colima", "--profile", profile, "ssh", "--", "sh", "-c", cmd}
+	execCmd := []string{"colima", "--profile", profile, "ssh", "-t", "--", "sh", "-c", cmd}
 
 	// Find colima in PATH
 	colimaPath, err := exec.LookPath("colima")
@@ -103,6 +110,24 @@ func (r *ContainerdRuntimeV2) attachViaColima(ctx context.Context, opts AttachOp
 		Stdin:  os.Stdin,
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
+	}
+
+	// Put the host terminal into raw mode for the duration of the attach so
+	// that individual keystrokes (arrow keys, Ctrl-sequences, Esc, etc.) are
+	// forwarded to the container instead of being line-buffered or
+	// interpreted by the host TTY driver. Only do this when stdin is actually
+	// a terminal — non-interactive callers (tests, piped input) must be left
+	// alone. See issue #432.
+	stdinFd := int(os.Stdin.Fd())
+	if term.IsTerminal(stdinFd) {
+		oldState, rawErr := term.MakeRaw(stdinFd)
+		if rawErr != nil {
+			// Non-fatal: log via stderr but proceed. Better to attach with a
+			// cooked terminal than to fail outright.
+			fmt.Fprintf(os.Stderr, "warning: failed to set raw terminal: %v\n", rawErr)
+		} else {
+			defer func() { _ = term.Restore(stdinFd, oldState) }()
+		}
 	}
 
 	// Run the command

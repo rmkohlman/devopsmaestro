@@ -1,7 +1,7 @@
 ---
 description: Owns all testing - runs tests, writes new tests, reviews test quality. Ensures proper coverage with table-driven tests, edge cases, and mocks. PRIMARY EXECUTOR in TDD workflow.
 mode: subagent
-model: github-copilot/claude-sonnet-4.6
+model: opencode/minimax-m2.5-free
 temperature: 0.2
 tools:
   read: true

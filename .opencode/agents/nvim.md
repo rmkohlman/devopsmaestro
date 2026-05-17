@@ -1,7 +1,7 @@
 ---
 description: Owns MaestroNvim module, nvimbridge package, and nvp CLI entry point. Handles Neovim plugin management, Lua generation, and plugin library.
 mode: subagent
-model: github-copilot/claude-opus-4.7
+model: opencode/minimax-m2.5-free
 temperature: 0.1
 tools:
   read: true
