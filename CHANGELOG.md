@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v0.57.3] - 2026-05-17
+
+### Fixed
+- `dvt wezterm diff`: fix unified diff output format — uses standard `--- a/config` / `+++ b/config` headers, `@@ -X,Y +X,Y @@` hunk headers, and proper `-`/`+` line prefixes instead of numbered `-N:` / `+N:` format ([#437](https://github.com/rmkohlman/devopsmaestro/issues/437))
+
+---
+
 ## [v0.57.2] - 2026-05-17
 
 ### Fixed

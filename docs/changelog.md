@@ -2,6 +2,13 @@
 
 All notable changes to DevOpsMaestro are documented in the [CHANGELOG.md](https://github.com/rmkohlman/devopsmaestro/blob/main/CHANGELOG.md) file in the repository.
 
+## v0.57.3 (2026-05-17)
+
+**Fixed**
+- `dvt wezterm diff`: fix unified diff output format — uses standard `--- a/config` / `+++ b/config` headers, `@@ -X,Y +X,Y @@` hunk headers, and proper `-`/`+` line prefixes instead of numbered `-N:` / `+N:` format ([#437](https://github.com/rmkohlman/devopsmaestro/issues/437))
+
+---
+
 ## v0.57.2 (2026-05-17)
 
 **Fixed**

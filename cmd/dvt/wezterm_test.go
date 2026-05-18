@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -166,6 +167,117 @@ func TestYamlConfigToJSON_NotEqualToYAML(t *testing.T) {
 	// Note: They might be the same for very simple configs, but we verify JSON is valid
 	t.Logf("JSON output: %s", string(jsonResult))
 	t.Logf("YAML output: %s", string(yamlResult))
+}
+
+// TestComputeDiff_UnifiedFormat verifies that computeDiff produces proper
+// unified diff format - regression test for issue #437
+func TestComputeDiff_UnifiedFormat(t *testing.T) {
+	tests := []struct {
+		name         string
+		oldConfig    string
+		newConfig    string
+		checkHeaders bool   // check for --- a/ and +++ b/
+		checkHunks   bool   // check for @@ -X,Y +X,Y @@
+		checkPrefixes bool  // check for - and + prefixes
+	}{
+		{
+			name:         "simple line change",
+			oldConfig:    "font_size = 12\nfont_family = \"JetBrains Mono\"\n",
+			newConfig:    "font_size = 14\nfont_family = \"Fira Code\"\n",
+			checkHeaders: true,
+			checkHunks:   true,
+			checkPrefixes: true,
+		},
+		{
+			name:         "added lines",
+			oldConfig:    "font_size = 12\n",
+			newConfig:    "font_size = 12\nfont_family = \"Fira Code\"\ncolor_scheme = \"dark\"\n",
+			checkHeaders: true,
+			checkHunks:   true,
+			checkPrefixes: true,
+		},
+		{
+			name:         "deleted lines",
+			oldConfig:    "font_size = 12\nfont_family = \"JetBrains Mono\"\ncolor_scheme = \"dark\"\n",
+			newConfig:    "font_size = 12\n",
+			checkHeaders: true,
+			checkHunks:   true,
+			checkPrefixes: true,
+		},
+		{
+			name:         "identical configs produces minimal diff",
+			oldConfig:    "font_size = 12\n",
+			newConfig:    "font_size = 12\n",
+			checkHeaders: true,
+			checkHunks:   false, // no hunks when identical
+			checkPrefixes: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := computeDiff(tt.oldConfig, tt.newConfig)
+			lines := strings.Split(result, "\n")
+
+			// Check file path headers
+			if tt.checkHeaders {
+				if len(lines) < 2 {
+					t.Fatalf("Expected at least 2 lines for headers, got %d: %s", len(lines), result)
+				}
+
+				// First line should be "--- a/config"
+				if !strings.HasPrefix(lines[0], "--- a/") {
+					t.Errorf("Expected first line to start with '--- a/', got: %s", lines[0])
+				}
+
+				// Second line should be "+++ b/config"
+				if !strings.HasPrefix(lines[1], "+++ b/") {
+					t.Errorf("Expected second line to start with '+++ b/', got: %s", lines[1])
+				}
+			}
+
+			// Check hunk headers
+			if tt.checkHunks {
+				hasHunk := false
+				for _, line := range lines {
+					if strings.HasPrefix(line, "@@ ") && strings.HasSuffix(line, " @@") {
+						hasHunk = true
+						// Verify hunk header format: @@ -X,Y +X,Y @@
+						if !regexp.MustCompile(`^@@ -\d+,\d+ \+\d+,\d+ @@$`).MatchString(line) {
+							t.Errorf("Invalid hunk header format: %s", line)
+						}
+					}
+				}
+				if !hasHunk && tt.oldConfig != tt.newConfig {
+					t.Errorf("Expected hunk header (@@ ... @@) in diff output, got:\n%s", result)
+				}
+			}
+
+			// Check line prefixes (-, +, or space for context)
+			if tt.checkPrefixes {
+				foundChange := false
+				for _, line := range lines {
+					if len(line) > 0 {
+						firstChar := line[0]
+						if firstChar == '-' || firstChar == '+' {
+							foundChange = true
+							// Verify no line number prefix (should be just "-text", not "-1: text")
+							if len(line) > 1 && line[1] >= '0' && line[1] <= '9' {
+								t.Errorf("Line has line number prefix instead of just '-'/'+': %s", line)
+							}
+						} else if firstChar == ' ' || firstChar == '@' || firstChar == '-' || firstChar == '+' {
+							// Valid first characters in unified diff
+						}
+					}
+				}
+				if !foundChange && tt.oldConfig != tt.newConfig {
+					t.Errorf("Expected changed lines with -/+ prefixes, got:\n%s", result)
+				}
+			}
+
+			t.Logf("Diff output:\n%s", result)
+		})
+	}
 }
 
 // TestMergeWezTermConfigs_Precedence verifies that mergeWezTermConfigs applies

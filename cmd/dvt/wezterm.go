@@ -528,37 +528,166 @@ func computeDiff(old, new string) string {
 	oldLines := strings.Split(old, "\n")
 	newLines := strings.Split(new, "\n")
 
-	var diff []string
-	diff = append(diff, "--- current config")
-	diff = append(diff, "+++ preset config")
+	// Compute LCS-based diff to get proper unified format
+	diff := computeUnifiedDiff(oldLines, newLines)
+	return diff
+}
 
-	// Simple line-by-line comparison
-	maxLines := len(oldLines)
-	if len(newLines) > maxLines {
-		maxLines = len(newLines)
+// computeUnifiedDiff produces proper unified diff format with hunk headers.
+func computeUnifiedDiff(oldLines, newLines []string) string {
+	// Use LCS to compute edit script
+	editScript := computeEditScript(oldLines, newLines)
+
+	var result []string
+	result = append(result, "--- a/config")
+	result = append(result, "+++ b/config")
+
+	// Group changes into hunks
+	hunks := groupIntoHunks(editScript, oldLines, newLines)
+
+	for _, hunk := range hunks {
+		result = append(result, hunk)
 	}
 
-	for i := 0; i < maxLines; i++ {
-		oldLine := ""
-		if i < len(oldLines) {
-			oldLine = oldLines[i]
-		}
-		newLine := ""
-		if i < len(newLines) {
-			newLine = newLines[i]
-		}
+	return strings.Join(result, "\n")
+}
 
-		if oldLine != newLine {
-			if oldLine != "" {
-				diff = append(diff, fmt.Sprintf("-%d: %s", i+1, oldLine))
-			}
-			if newLine != "" {
-				diff = append(diff, fmt.Sprintf("+%d: %s", i+1, newLine))
+// editOp represents an operation in the edit script.
+type editOp struct {
+	op     byte // '=' for unchanged, '-' for deleted, '+' for added
+	oldIdx int  // index in old lines (-1 for new lines)
+	newIdx int  // index in new lines (-1 for deleted lines)
+	text   string
+}
+
+// computeEditScript computes the edit script using LCS.
+func computeEditScript(oldLines, newLines []string) []editOp {
+	// Compute LCS table
+	m, n := len(oldLines), len(newLines)
+	lcs := make([][]int, m+1)
+	for i := range lcs {
+		lcs[i] = make([]int, n+1)
+	}
+
+	for i := 1; i <= m; i++ {
+		for j := 1; j <= n; j++ {
+			if oldLines[i-1] == newLines[j-1] {
+				lcs[i][j] = lcs[i-1][j-1] + 1
+			} else if lcs[i-1][j] >= lcs[i][j-1] {
+				lcs[i][j] = lcs[i-1][j]
+			} else {
+				lcs[i][j] = lcs[i][j-1]
 			}
 		}
 	}
 
-	return strings.Join(diff, "\n")
+	// Backtrack to build edit script
+	var ops []editOp
+	i, j := m, n
+	for i > 0 || j > 0 {
+		if i > 0 && j > 0 && oldLines[i-1] == newLines[j-1] {
+			ops = append(ops, editOp{op: '=', oldIdx: i - 1, newIdx: j - 1, text: oldLines[i-1]})
+			i--
+			j--
+		} else if j > 0 && (i == 0 || lcs[i][j-1] >= lcs[i-1][j]) {
+			ops = append(ops, editOp{op: '+', oldIdx: -1, newIdx: j - 1, text: newLines[j-1]})
+			j--
+		} else if i > 0 {
+			ops = append(ops, editOp{op: '-', oldIdx: i - 1, newIdx: -1, text: oldLines[i-1]})
+			i--
+		}
+	}
+
+	// Reverse to get forward order
+	for i, j := 0, len(ops)-1; i < j; i++ {
+		ops[i], ops[j] = ops[j], ops[i]
+	}
+
+	return ops
+}
+
+// groupIntoHunks groups edit operations into unified diff hunks.
+func groupIntoHunks(ops []editOp, oldLines, newLines []string) []string {
+	const contextLines = 3
+	var hunks []string
+
+	var hunkOldStart, hunkNewStart int
+	var hunkLines []string
+
+	flushHunk := func() {
+		if len(hunkLines) == 0 {
+			return
+		}
+		// Count additions and deletions in hunk
+		addCount, delCount := 0, 0
+		for _, line := range hunkLines {
+			if len(line) > 0 && line[0] == '+' {
+				addCount++
+			} else if len(line) > 0 && line[0] == '-' {
+				delCount++
+			}
+		}
+		hdr := fmt.Sprintf("@@ -%d,%d +%d,%d @@", hunkOldStart+1, delCount+contextLines*2, hunkNewStart+1, addCount+contextLines*2)
+		hunks = append(hunks, hdr)
+		hunks = append(hunks, hunkLines...)
+		hunkLines = nil
+	}
+
+	for i := 0; i < len(ops); i++ {
+		op := ops[i]
+
+		if op.op == '=' {
+			// Unchanged line - add to context
+			if len(hunkLines) > 0 && len(hunkLines) < contextLines*2+1 {
+				hunkLines = append(hunkLines, " "+op.text)
+			} else if len(hunkLines) >= contextLines*2+1 {
+				// Start new hunk after context
+				flushHunk()
+				hunkOldStart = op.oldIdx
+				hunkNewStart = op.newIdx
+				hunkLines = []string{" " + op.text}
+			} else {
+				// Start new hunk
+				hunkOldStart = op.oldIdx
+				hunkNewStart = op.newIdx
+				hunkLines = []string{" " + op.text}
+			}
+		} else if op.op == '-' {
+			// Deleted line
+			if len(hunkLines) == 0 {
+				hunkOldStart = op.oldIdx
+				hunkNewStart = op.newIdx + 1
+			}
+			hunkLines = append(hunkLines, "-"+op.text)
+		} else if op.op == '+' {
+			// Added line
+			if len(hunkLines) == 0 {
+				hunkOldStart = op.oldIdx + 1
+				hunkNewStart = op.newIdx
+			}
+			hunkLines = append(hunkLines, "+"+op.text)
+		}
+
+		// Flush if we have too many changes in a row
+		if len(hunkLines) > 0 {
+			changes := 0
+			for _, l := range hunkLines {
+				if len(l) > 0 && (l[0] == '+' || l[0] == '-') {
+					changes++
+				}
+			}
+			if changes > 20 {
+				flushHunk()
+			}
+		}
+	}
+
+	flushHunk()
+
+	if len(hunks) == 0 {
+		return nil
+	}
+	return hunks
 }
 
 // mergeWezTermConfigs merges three WezTerm configurations.
